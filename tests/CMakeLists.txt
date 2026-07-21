@@ -63,6 +63,19 @@ set_target_properties(AeroDependencyPropertyTests PROPERTIES
 aero_apply_compiler_options(AeroDependencyPropertyTests)
 add_test(NAME AeroDependencyPropertyTests COMMAND AeroDependencyPropertyTests)
 
+add_executable(AeroEffectiveValueTests
+    unit/EffectiveValueEngineTests.cpp)
+
+target_link_libraries(AeroEffectiveValueTests PRIVATE Aero::Core)
+target_compile_features(AeroEffectiveValueTests PRIVATE cxx_std_17)
+set_target_properties(AeroEffectiveValueTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+
+aero_apply_compiler_options(AeroEffectiveValueTests)
+add_test(NAME AeroEffectiveValueTests COMMAND AeroEffectiveValueTests)
+
 add_executable(AeroCAbiSmoke
     abi/CAbiSmoke.c)
 
