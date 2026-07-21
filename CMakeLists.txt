@@ -49,6 +49,26 @@ target_compile_definitions(AeroBase
         $<$<BOOL:${AERO_ENABLE_RTTI}>:AERO_RTTI_ENABLED=1>
         $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
 
+add_library(AeroCore STATIC
+    src/core/TypeRegistry.cpp)
+
+add_library(Aero::Core ALIAS AeroCore)
+
+target_include_directories(AeroCore
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+
+target_link_libraries(AeroCore PUBLIC Aero::Base)
+target_compile_features(AeroCore PUBLIC cxx_std_17)
+set_target_properties(AeroCore PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON)
+
+aero_apply_compiler_options(AeroCore)
+
 if(AERO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

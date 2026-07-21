@@ -25,6 +25,16 @@ static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::Unsupported) ==
     AERO_STATUS_UNSUPPORTED, "C and C++ status codes must remain aligned");
 static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::InternalError) ==
     AERO_STATUS_INTERNAL_ERROR, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::AlreadyExists) ==
+    AERO_STATUS_ALREADY_EXISTS, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::InvalidState) ==
+    AERO_STATUS_INVALID_STATE, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::NotFound) ==
+    AERO_STATUS_NOT_FOUND, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::IdCollision) ==
+    AERO_STATUS_ID_COLLISION, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::CycleDetected) ==
+    AERO_STATUS_CYCLE_DETECTED, "C and C++ status codes must remain aligned");
 
 AeroStatusCode ValidateUtf8Bridge(AeroStringView text) noexcept {
     if (text.data == nullptr && text.size != 0U) {

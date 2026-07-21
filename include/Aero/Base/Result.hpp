@@ -17,7 +17,12 @@ enum class ErrorCode : std::uint32_t {
     InvalidUtf8,
     NotInitialized,
     Unsupported,
-    InternalError
+    InternalError,
+    AlreadyExists,
+    InvalidState,
+    NotFound,
+    IdCollision,
+    CycleDetected
 };
 
 struct Status final {
