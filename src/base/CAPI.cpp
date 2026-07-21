@@ -37,6 +37,10 @@ static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::CycleDetected) =
     AERO_STATUS_CYCLE_DETECTED, "C and C++ status codes must remain aligned");
 static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::WrongThread) ==
     AERO_STATUS_WRONG_THREAD, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::ReadOnly) ==
+    AERO_STATUS_READ_ONLY, "C and C++ status codes must remain aligned");
+static_assert(static_cast<std::uint32_t>(Aero::Base::ErrorCode::ValidationFailed) ==
+    AERO_STATUS_VALIDATION_FAILED, "C and C++ status codes must remain aligned");
 
 AeroStatusCode ValidateUtf8Bridge(AeroStringView text) noexcept {
     if (text.data == nullptr && text.size != 0U) {

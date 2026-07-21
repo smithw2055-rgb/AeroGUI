@@ -52,6 +52,7 @@ target_compile_definitions(AeroBase
         $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
 
 add_library(AeroCore STATIC
+    src/core/DependencyProperty.cpp
     src/core/Dispatcher.cpp
     src/core/TypeRegistry.cpp)
 
