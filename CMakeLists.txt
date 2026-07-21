@@ -38,8 +38,6 @@ set_target_properties(AeroBase PROPERTIES
 aero_apply_compiler_options(AeroBase)
 
 if(MSVC)
-    # Foundation containers intentionally use explicitly aligned inline storage.
-    # C4324 reports the required padding and is not a correctness diagnostic.
     target_compile_options(AeroBase PUBLIC /wd4324)
 endif()
 
@@ -55,6 +53,7 @@ add_library(AeroCore STATIC
     src/core/DependencyProperty.cpp
     src/core/Dispatcher.cpp
     src/core/EffectiveValueEngine.cpp
+    src/core/Layout.cpp
     src/core/ObjectTree.cpp
     src/core/TypeRegistry.cpp)
 
