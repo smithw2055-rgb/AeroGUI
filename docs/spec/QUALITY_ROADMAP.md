@@ -2,7 +2,7 @@
 
 - **状态**：Architecture Baseline
 - **语言**：C++17-only
-- **生产 renderer**：AeroRHI native GPU；不支持 Skia
+- **生产 renderer**：AeroRHI native GPU / WebGL 2；不支持 Skia
 
 ## 1. Diagnostics
 
@@ -28,10 +28,12 @@ struct Diagnostic {
 - `INPUTxxxx`
 - `RENDERxxxx`
 - `RHIxxxx`
+- `GLCTXxxxx`
+- `WEBGLxxxx`
 - `PLATFORMxxxx`
 - `DEPENDxxxx`
 
-错误必须包含可行动信息。XAML、Binding、runtime data、device loss 和 provider 缺失不得以未处理 exception 终止 frame loop。
+错误必须包含可行动信息。XAML、Binding、runtime data、device/context loss、shader compile/link 和 provider 缺失不得以未处理 exception 终止 frame loop。
 
 ## 2. Trace 与 Inspector
 
@@ -47,11 +49,13 @@ Trace channels：
 - scene transaction；
 - RenderPlan/batch/pass；
 - GPU upload/fence/device loss；
+- GL state/context/current-thread；
+- WebGL extension/context loss/restore；
 - glyph/image/geometry cache；
-- frame timing；
+- frame/browser scheduling；
 - provider/version/capability。
 
-Release 默认关闭详细 trace；启用不得改变语义。M4 Inspector 展示 logical/visual/render trees、effective-value providers、layout slots、event listeners、RenderPlan、GPU batches、cache budgets 和 frame timings。
+Release 默认关闭详细 trace；启用不得改变语义。M4 Inspector 展示 logical/visual/render trees、effective-value providers、layout slots、event listeners、RenderPlan、GPU batches、GL/WebGL caps、cache budgets 和 frame timings。
 
 ## 3. C++ API 与 ABI
 
@@ -65,11 +69,12 @@ Release 默认关闭详细 trace；启用不得改变语义。M4 Inspector 展�
 - v1 只保证 C++ source compatibility；
 - shared-library/plugin boundary 使用 versioned C function table、opaque handle、POD Span/StringView；
 - public header 不暴露 STL owning type、iterator、allocator、exception、`type_info` 或 C++20 type；
-- callback 记录 calling convention、thread、reentrancy 和 lifetime。
+- callback 记录 calling convention、thread、reentrancy 和 lifetime；
+- JS/WASM bridge 不成为 C++ public ABI 的替代品。
 
 ## 4. Build 基线
 
-所有 target MUST 使用：
+所有 C++ target MUST 使用：
 
 ```cmake
 set_target_properties(target PROPERTIES
@@ -84,7 +89,9 @@ set_target_properties(target PROPERTIES
 - C++20-only header/API；
 - configure 阶段下载未锁定依赖；
 - public headers 依赖 compiler extension；
-- 依赖是否启用却不进入 capability manifest。
+- 依赖/后端是否启用却不进入 capability manifest；
+- WebGL build 静默退回 WebGL 1；
+- GL build 静默使用 compatibility profile。
 
 构建系统：
 
@@ -94,7 +101,8 @@ set_target_properties(target PROPERTIES
 - generated code 写入 build tree；
 - warning-as-error 只针对项目代码；
 - shader/package generation 可重复；
-- console/private SDK targets 与公开仓库隔离。
+- console/private SDK targets 与公开仓库隔离；
+- WebAssembly/browser package 记录 Emscripten/toolchain revision 与 linker flags。
 
 ## 5. Compiler 与平台矩阵
 
@@ -102,17 +110,42 @@ set_target_properties(target PROPERTIES
 
 - Visual Studio 2026 / MSVC，以 `/std:c++17 /permissive- /Zc:__cplusplus /Zc:preprocessor /utf-8` 构建；
 - x64 与 ARM64；
-- D3D12 backend；
+- D3D12、D3D11、WGL/OpenGL 3.3；
 - shared/static ABI smoke tests；
 - Windows WPF conformance probes。
 
-### Clang/GCC
+### Linux
 
-- Clang C++17：Linux、Android、Apple toolchain 对应前端；
-- GCC C++17：Linux portability gate；
-- Apple Clang C++17：macOS/iOS；
+- Clang/GCC C++17；
+- Vulkan；
+- X11 + GLX 1.4 + OpenGL 3.3 Core；
+- EGL + GLES/OpenGL where available；
+- headless/fuzz/sanitizer runners。
+
+### Android
+
 - Android NDK C++17 + libc++；
-- build 不依赖 vendor-specific C++20 library。
+- Vulkan strategic path；
+- EGL + GLES 3.0 compatibility path；
+- pause/resume/surface loss tests；
+- allocator and single C++ runtime integration checks。
+
+### Apple
+
+- Apple Clang C++17；
+- Metal strategic path；
+- iOS/macOS legacy GL only when host supplies it，not default release target；
+- mobile lifecycle and accessibility tests。
+
+### Web
+
+- C++17 → WebAssembly；
+- WebGL 2；
+- at least two browser engines in automated CI where available；
+- main-thread baseline；
+- optional Worker/OffscreenCanvas job；
+- no WebGL 1 fallback；
+- context-loss recovery tests。
 
 ### Console
 
@@ -133,11 +166,22 @@ AERO_PROFILE_PORTABLE
 AERO_PROFILE_GENERIC
   C++17
   FreeType + HarfBuzz + Expat + Ryu
-  native desktop/mobile backend
+  strategic native backend
+
+AERO_PROFILE_COMPAT
+  C++17
+  D3D11 or GL3.3 or GLES3
+  no compute/bindless assumptions
+
+AERO_PROFILE_WEB
+  C++17 -> WebAssembly
+  WebGL2 only
+  main-thread requestAnimationFrame baseline
+  context-loss recovery
 
 AERO_PROFILE_ENGINE
   C++17
-  host allocator/filesystem/jobs/text/image/device
+  host allocator/filesystem/jobs/text/image/device/context
   no owned window or Present
 
 AERO_PROFILE_CONSOLE
@@ -154,11 +198,13 @@ AERO_PROFILE_CONSOLE
 ```text
 include/Aero/{Base,Core,Markup,Presentation,Controls,Render,Platform}
 src/{base,core,markup,presentation,controls,render,platform}
-backends/{rhi_d3d12,rhi_vulkan,rhi_metal,rhi_null,rhi_sokol}
-backends/{platform_win32,platform_android,platform_apple,platform_linux}
+backends/{rhi_d3d12,rhi_d3d11,rhi_vulkan,rhi_metal}
+backends/{rhi_opengl33,rhi_gles30,rhi_webgl2,rhi_null,rhi_sokol}
+backends/{platform_win32,platform_glx,platform_egl,platform_wgl}
+backends/{platform_android,platform_apple,platform_web}
 private_backends/{console_*}
 tools/{xamlc,shaderpack,inspector}
-tests/{unit,conformance,golden,layout,render,rhi,fuzz,perf,abi}
+tests/{unit,conformance,golden,layout,render,rhi,web,fuzz,perf,abi}
 third_party/{manifests,patches,licenses}
 samples
 docs/{adr,spec}
@@ -228,34 +274,121 @@ Windows 上维护独立 C# WPF probe：
 - allocation failure；
 - Expat 更新后的 regression corpus。
 
-## 11. Render 与 RHI tests
-
-测试分层：
+## 11. Render 与 RHI 测试分层
 
 1. Scene/RenderTransaction structural tests；
 2. RenderPlan snapshot；
 3. `AeroRHI_Null` validation；
-4. backend conformance；
+4. common RHI backend conformance；
 5. geometry/glyph placement snapshots；
-6. native GPU pixel tests；
-7. long-running resource/fence stress。
+6. native/WebGL pixel tests；
+7. context/device loss tests；
+8. long-running resource/stress tests。
 
-正式 backend：
+所有 backend 使用同一基础 fixture；capability-specific fixture 必须显式标注 required caps。
 
-- D3D12；
-- Vulkan；
-- Metal；
-- console-private。
+## 12. Strategic backend gates
 
-`sokol` adapter 只在 `AERO_WITH_SOKOL=ON` 的 optional job 测试，不作为 release gate 的唯一 backend。
+### D3D12
 
-## 12. Golden 策略（无 Skia）
+- hardware/debug layer clean；
+- owned/borrowed device；
+- resource state/fence；
+- device loss；
+- Windows + GDK adapter contract where available。
+
+### Vulkan
+
+- validation clean；
+- owned/borrowed device/queue；
+- Android/Linux；
+- descriptor/pipeline cache；
+- device/surface recreation。
+
+### Metal
+
+- macOS/iOS；
+- tile/offscreen budget；
+- drawable loss/backgrounding；
+- host command-buffer integration。
+
+## 13. D3D11 gates
+
+- FL10_0；
+- FL11_0/11_1；
+- VS/PS-only baseline；
+- optional feature query；
+- owned/borrowed device/context；
+- debug layer clean；
+- RT/SRV hazard cleanup；
+- state preserve vs host reset modes；
+- DXBC package/reflection consistency。
+
+Feature level 9_x 不是 release gate。
+
+## 14. OpenGL/GLES/GLX/EGL/WGL gates
+
+### OpenGL 3.3
+
+- Core Profile only；
+- Linux X11 + GLX 1.4；
+- Windows + WGL；
+- no-extension baseline；
+- function table validation；
+- context-current thread violations；
+- embedded state leak/restore；
+- context recreation；
+- GLSL 330 compile/link diagnostics。
+
+### GLX
+
+- owned and borrowed Display/Context/Drawable；
+- FBConfig requirements；
+- `GLX_ARB_create_context` query/path；
+- resize/expose/swap interval；
+- X error handling；
+- no GLX use on Wayland preset。
+
+### GLES 3.0/EGL
+
+- Android EGL + ES 3.0；
+- headless EGL where available；
+- no GLES 3.1 assumption；
+- tile/offscreen budget；
+- pause/resume/surface loss；
+- GLSL ES 300 diagnostics。
+
+## 15. WebGL 2 gates
+
+WebGL 2 自动化至少覆盖：
+
+- context creation success/failure；
+- WebGL 2 only，拒绝/报告 WebGL 1；
+- no-extension core baseline；
+- Canvas resize 和 devicePixelRatio；
+- requestAnimationFrame scheduling；
+- background throttling/time jump；
+- shader compile/link error diagnostics；
+- buffer/texture/FBO/VAO/sampler lifetime；
+- N-frame/sync polling retirement；
+- `webglcontextlost`/`webglcontextrestored`；
+- `WEBGL_lose_context` repeated loss/restore；
+- extension/caps re-query after restore；
+- full glyph/image/geometry atlas rebuild；
+- shutdown while context lost；
+- main-thread baseline；
+- optional Worker/OffscreenCanvas；
+- pixel tests with locked tolerance。
+
+WebGL test package 必须在至少两个可用浏览器引擎运行；单一浏览器通过不能代表跨浏览器通过。
+
+## 16. Golden 策略（无 Skia）
 
 AeroGUI 不使用 Skia 产生 reference image。Golden 可由以下组合产生：
 
 - 自有、受限、确定性的 CPU reference rasterizer；
 - RenderPlan、geometry mesh、glyph ID/position 的结构快照；
-- 锁定 native backend/driver/hardware 的 image；
+- 锁定 native/WebGL backend、driver/browser 的 image；
 - 多 backend consensus + 人工批准 baseline。
 
 Text tests 分离：
@@ -271,7 +404,22 @@ final pixels
 
 锁定测试字体、FreeType/HarfBuzz build、DPI、locale、hinting、color space 和 tolerance。
 
-## 13. Optional dependency matrix
+## 17. Shader validation matrix
+
+| Backend | Gate |
+| --- | --- |
+| D3D11 | HLSL → DXBC SM4/5 + reflection |
+| D3D12 | HLSL → DXIL |
+| Vulkan | canonical source → SPIR-V validation |
+| Metal | MSL/metallib package validation |
+| OpenGL 3.3 | generated GLSL 330 offline validation + runtime link |
+| GLES 3.0 | generated GLSL ES 300 offline validation + runtime link |
+| WebGL 2 | WebGL-profile GLSL ES 300 offline validation + browser compile/link |
+| Console | private offline compiler/package |
+
+所有 dialect 必须验证 vertex semantics/location、uniform layout、texture/sampler binding、precision define 和 feature guard 等价。
+
+## 18. Optional dependency matrix
 
 CI 至少包含：
 
@@ -283,12 +431,12 @@ CI 至少包含：
 | Expat OFF | compiled XAML/host parser boundary |
 | libtess2 ON | experimental geometry adapter fuzz |
 | Ryu OFF | alternate formatter conformance |
-| sokol ON | optional adapter sample |
-| sokol OFF | 正式 backend 与核心独立 |
+| sokol ON | optional D3D11/GL/WebGL adapter sample |
+| sokol OFF | 所有正式 backend 独立 |
 
 Dependency audit 生成版本、commit、license、NOTICE 和已知安全问题报告。
 
-## 14. Fuzzing
+## 19. Fuzzing
 
 Fuzz targets：
 
@@ -302,24 +450,29 @@ Fuzz targets：
 - font table/provider wrapper；
 - compiled XAML decoder；
 - RenderTransaction decoder；
-- RenderPlan validator。
+- RenderPlan validator；
+- shader metadata/package decoder；
+- Web/GL capability manifest parser。
 
 全部 fuzz target MUST headless，具有深度、对象数、字符串、geometry、glyph、resource 和 allocation limits。
 
-## 15. Sanitizer 与静态分析
+## 20. Sanitizer 与静态分析
 
 - ASan、UBSan：Linux/Clang 和可用平台；
 - TSan：threaded queue/ref/resource tests；
 - MSVC AddressSanitizer；
 - compiler warnings；
 - clang-tidy/static analyzer；
-- platform GPU validation layer/debug layer；
+- D3D debug layers；
+- Vulkan validation；
+- OpenGL debug callback where available；
+- browser console treated as test failure for unexpected WebGL errors；
 - API/header ABI scanner；
 - dependency license/security scanner。
 
-缺失依赖或 SDK 的 job 可跳过，但不能把 required gate 伪装为成功。
+缺失依赖、浏览器或 SDK 的 job 可明确跳过，但不能把 required gate 伪装为成功。
 
-## 16. 性能门禁
+## 21. 性能门禁
 
 至少测量：
 
@@ -332,11 +485,14 @@ Fuzz targets：
 - Grid/StackPanel layout；
 - 1k/10k Visual scene commit；
 - RenderPlan build/batching；
+- D3D11/GL state changes and draw calls；
 - path tessellation/cache；
 - glyph shaping/raster/atlas；
 - image upload/cache；
+- WebAssembly → WebGL bridge overhead；
+- WebGL shader startup time；
 - 10k items virtualized scroll；
-- mobile tile/offscreen budget。
+- mobile/browser offscreen budget。
 
 初始方向性预算：
 
@@ -348,12 +504,12 @@ Fuzz targets：
 | 1k property changes | < 1.0 ms | < 0.5 ms |
 | 10k item scroll | 不全量实例化 | < 2 ms UI work/frame |
 
-数值必须绑定 reference hardware/toolchain/backend。优化不得绕过语义测试。
+数值必须绑定 reference hardware/toolchain/backend/browser。优化不得绕过语义测试。
 
-## 17. 安全与稳健性
+## 22. 安全与稳健性
 
 - XAML loader 限制 depth、objects、strings、attributes 和 resources；
-- URI provider 默认禁止 network；
+- URI provider 默认禁止 network；Web fetch 由 host policy 显式允许；
 - compiled XAML 校验 offset/length/version；
 - RenderTransaction/RenderPlan decoder 不信任输入；
 - 处理 integer overflow、NaN、Infinity 和超大 geometry；
@@ -361,18 +517,20 @@ Fuzz targets：
 - markup extension 可被 policy 禁用；
 - diagnostics 不泄露敏感文件内容；
 - callback 失败在 frame boundary 转为 Result/diagnostic；
-- GPU resource release 等待 fence；
+- native GPU resource release 等待 fence；
+- GL/WebGL 不 busy-wait，使用安全延迟回收；
 - mobile suspend/surface loss 可恢复；
+- WebGL context loss 可恢复；
 - dependency security release 触发快速升级流程。
 
-## 18. 路线图
+## 23. 路线图
 
 ### M0 — Architecture baseline
 
 交付：
 
 - README、主规范与分章规范；
-- C++17/Foundation、native GPU、dependency ADR；
+- C++17/Foundation、native GPU、compatibility backend、dependency ADR；
 - dependency manifest/NOTICE policy；
 - CMake/CI skeleton；
 - capability manifest schema。
@@ -380,6 +538,7 @@ Fuzz targets：
 验收：
 
 - 无 C++20/Skia 冲突描述；
+- D3D11/GL/GLX/GLES/WebGL2 分层明确；
 - module DAG 无循环；
 - clean-room policy 明确；
 - M1 work items 映射到规范。
@@ -408,10 +567,10 @@ Fuzz targets：
 - Visual/UIElement/FrameworkElement；
 - Canvas/StackPanel/Grid/Border/TextBlock；
 - RenderTransaction、RenderPlan、AeroRHI_Null；
-- 第一个 native GPU backend；
-- XAML → layout → native GPU image sample。
+- 第一个 strategic 或 compatibility GPU backend；
+- XAML → layout → GPU image sample。
 
-### M3 — Application model 与多平台
+### M3 — Application model 与桌面/移动兼容
 
 交付：
 
@@ -419,25 +578,29 @@ Fuzz targets：
 - Routed Event/Input/Command；
 - Button/ItemsControl/ListBox/ScrollViewer；
 - FreeType/HarfBuzz text provider；
-- D3D12/Vulkan/Metal 中至少两个 backend；
-- Android/iOS sample。
+- strategic backend 至少两个；
+- D3D11/GL3.3/GLES3 至少两个；
+- GLX/EGL/WGL integration tests；
+- Android/Linux sample。
 
-### M4 — Production runtime
+### M4 — Production runtime 与 Web
 
 交付：
 
 - UI/render queue；
-- 三个公开 native GPU backend；
+- D3D12/Vulkan/Metal；
+- D3D11/GL3.3/GLES3/WebGL2；
 - offscreen/effects/atlas；
+- Web browser host、context-loss recovery 和 WASM sample；
 - animation/virtualization/accessibility/inspector；
 - console adapter contract；
 - locked performance/security/stress gates。
 
-## 19. 首批 Issues
+## 24. 首批 Issues
 
 建议顺序：
 
-1. Bootstrap C++17 CMake targets and CI；
+1. Bootstrap strict C++17 CMake targets and CI；
 2. Define allocator/memory tags/OOM injection；
 3. Implement String/StringView/UTF conversion；
 4. Implement Vector/SmallVector；
@@ -454,10 +617,16 @@ Fuzz targets：
 15. Implement Visual/UIElement layout skeleton；
 16. Implement RenderTransaction/RenderPlan；
 17. Implement AeroRHI_Null；
-18. Implement first native GPU backend；
-19. Integrate optional Ryu；
-20. Prototype FreeType/HarfBuzz provider；
-21. Evaluate/fuzz optional libtess2；
-22. Add optional sokol adapter only after AeroRHI contract stabilizes。
+18. Implement first strategic backend；
+19. Implement D3D11 FL10_0 compatibility backend；
+20. Implement GL3.3 core backend and state contract；
+21. Implement GLX/WGL adapters；
+22. Implement GLES3/EGL adapter；
+23. Implement Web platform host and WebGL2 backend；
+24. Add WebGL context-loss browser suite；
+25. Integrate optional Ryu；
+26. Prototype FreeType/HarfBuzz provider；
+27. Evaluate/fuzz optional libtess2；
+28. Add optional sokol adapter only after AeroRHI contract stabilizes。
 
 任何 control Issue 必须依赖相应 Foundation/Core/Presentation 任务；任何 backend Issue 必须依赖 RenderPlan 与 AeroRHI contract。
