@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(AeroGUI
     VERSION 0.1.0
     DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
-    LANGUAGES CXX)
+    LANGUAGES C CXX)
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
@@ -14,6 +14,7 @@ include(cmake/AeroCompilerOptions.cmake)
 
 add_library(AeroBase STATIC
     src/base/Allocator.cpp
+    src/base/CAPI.cpp
     src/base/Object.cpp
     src/base/String.cpp
     src/base/Utf8.cpp)
