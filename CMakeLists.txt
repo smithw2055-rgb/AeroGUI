@@ -54,6 +54,7 @@ target_compile_definitions(AeroBase
 add_library(AeroCore STATIC
     src/core/DependencyProperty.cpp
     src/core/Dispatcher.cpp
+    src/core/EffectiveValueEngine.cpp
     src/core/TypeRegistry.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
