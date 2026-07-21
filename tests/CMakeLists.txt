@@ -69,6 +69,13 @@ set_target_properties(AeroRenderingTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroRenderingTests)
 add_test(NAME AeroRenderingTests COMMAND AeroRenderingTests)
 
+add_executable(AeroMarkupTests unit/MarkupTests.cpp)
+target_link_libraries(AeroMarkupTests PRIVATE Aero::Markup)
+target_compile_features(AeroMarkupTests PRIVATE cxx_std_17)
+set_target_properties(AeroMarkupTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroMarkupTests)
+add_test(NAME AeroMarkupTests COMMAND AeroMarkupTests)
+
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)
