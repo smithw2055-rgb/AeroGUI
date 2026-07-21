@@ -99,6 +99,12 @@ set_target_properties(AeroRhi PROPERTIES
 
 aero_apply_compiler_options(AeroRhi)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC diagnoses a reference obtained through a temporary Span view even
+    # though the view points into the longer-lived immutable RenderPlan.
+    target_compile_options(AeroRhi PRIVATE -Wno-dangling-reference)
+endif()
+
 if(AERO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
