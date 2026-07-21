@@ -1,5 +1,9 @@
 # Quality、测试与路线图规范
 
+- **状态**：Architecture Baseline
+- **语言**：C++17-only
+- **生产 renderer**：AeroRHI native GPU；不支持 Skia
+
 ## 1. Diagnostics
 
 ```cpp
@@ -16,84 +20,180 @@ struct Diagnostic {
 
 稳定分类：
 
+- `BASExxxx`
 - `XAMLxxxx`
 - `DPxxxx`
 - `BINDxxxx`
 - `LAYOUTxxxx`
 - `INPUTxxxx`
 - `RENDERxxxx`
+- `RHIxxxx`
 - `PLATFORMxxxx`
+- `DEPENDxxxx`
 
-错误必须包含可行动信息。XAML/Binding/runtime 数据错误不得终止 frame loop。
+错误必须包含可行动信息。XAML、Binding、runtime data、device loss 和 provider 缺失不得以未处理 exception 终止 frame loop。
 
 ## 2. Trace 与 Inspector
 
 Trace channels：
 
+- allocator、memory tag、OOM；
+- object/ref/weak lifetime；
 - property evaluation；
 - resource lookup；
 - Binding attach/evaluate/update；
 - layout invalidation/pass；
 - event route；
 - scene transaction；
+- RenderPlan/batch/pass；
+- GPU upload/fence/device loss；
+- glyph/image/geometry cache；
 - frame timing；
-- cache hit/miss；
-- object lifetime。
+- provider/version/capability。
 
-Release 默认关闭；开启不得改变语义。
+Release 默认关闭详细 trace；启用不得改变语义。M4 Inspector 展示 logical/visual/render trees、effective-value providers、layout slots、event listeners、RenderPlan、GPU batches、cache budgets 和 frame timings。
 
-M4 Inspector 展示 logical/visual/render trees、effective value providers、active expressions、layout slots、event listeners、frame timings 和 render batches。
-
-## 3. C++ API 与错误
+## 3. C++ API 与 ABI
 
 - namespace `Aero`；
-- public type/method 使用 PascalCase；
-- enum class；
-- UTF-8 String；
+- public C++ type/method 使用 PascalCase；
+- `enum class`；
+- UTF-8 `String`/`StringView`；
 - 可恢复错误使用 `Result<T>`；
-- debug assertion 用于 programmer contract；
-- exception facade MAY 由 build option 提供；
-- v1 只保证 source compatibility；
-- backend/plugin 边界 SHOULD 使用 C function table 或 PImpl。
+- 项目 Runtime API 不 throw；
+- reflection/cast 不依赖 C++ RTTI；
+- v1 只保证 C++ source compatibility；
+- shared-library/plugin boundary 使用 versioned C function table、opaque handle、POD Span/StringView；
+- public header 不暴露 STL owning type、iterator、allocator、exception、`type_info` 或 C++20 type；
+- callback 记录 calling convention、thread、reentrancy 和 lifetime。
 
-## 4. Build
+## 4. Build 基线
 
-- C++20、CMake presets、CTest；
-- dependency lockfile；
-- third-party dependency 记录版本、许可证、用途和替代方案；
+所有 target MUST 使用：
+
+```cmake
+set_target_properties(target PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+```
+
+禁止：
+
+- target 设置 C++20 或更高标准；
+- C++20-only header/API；
+- configure 阶段下载未锁定依赖；
+- public headers 依赖 compiler extension；
+- 依赖是否启用却不进入 capability manifest。
+
+构建系统：
+
+- CMake presets + CTest；
+- dependency lockfile/manifest；
 - 默认 static，可选 shared；
+- generated code 写入 build tree；
 - warning-as-error 只针对项目代码；
-- generated code 写 build tree；
-- configure 阶段不下载未锁定依赖；
-- CI 覆盖 MSVC、Clang、GCC；
-- ASan、UBSan、TSan 和静态分析进入 CI；
-- Windows runner 执行真实 WPF conformance probes。
+- shader/package generation 可重复；
+- console/private SDK targets 与公开仓库隔离。
 
-建议目录：
+## 5. Compiler 与平台矩阵
+
+### Windows
+
+- Visual Studio 2026 / MSVC，以 `/std:c++17 /permissive- /Zc:__cplusplus /Zc:preprocessor /utf-8` 构建；
+- x64 与 ARM64；
+- D3D12 backend；
+- shared/static ABI smoke tests；
+- Windows WPF conformance probes。
+
+### Clang/GCC
+
+- Clang C++17：Linux、Android、Apple toolchain 对应前端；
+- GCC C++17：Linux portability gate；
+- Apple Clang C++17：macOS/iOS；
+- Android NDK C++17 + libc++；
+- build 不依赖 vendor-specific C++20 library。
+
+### Console
+
+- 由授权 SDK 固定 toolchain；
+- public core 必须能在 C++17、exceptions-off、RTTI-off 配置编译；
+- private backend CI 不暴露 NDA log/artifact。
+
+## 6. Build profiles
+
+```text
+AERO_PROFILE_PORTABLE
+  C++17
+  exceptions API off
+  RTTI dependency off
+  all optional dependencies off
+  AeroRHI_Null
+
+AERO_PROFILE_GENERIC
+  C++17
+  FreeType + HarfBuzz + Expat + Ryu
+  native desktop/mobile backend
+
+AERO_PROFILE_ENGINE
+  C++17
+  host allocator/filesystem/jobs/text/image/device
+  no owned window or Present
+
+AERO_PROFILE_CONSOLE
+  C++17
+  exceptions-off / RTTI-off
+  offline shader package
+  private platform/RHI adapter
+```
+
+同一 public behavior 不得因 profile 改变；差异必须体现在 capability manifest。
+
+## 7. 建议目录
 
 ```text
 include/Aero/{Base,Core,Markup,Presentation,Controls,Render,Platform}
 src/{base,core,markup,presentation,controls,render,platform}
-backends/{render_skia,render_d3d12,render_vulkan,render_metal}
-backends/{window_win32,window_sdl}
-tools/{xamlc,inspector}
-tests/{unit,conformance,golden,layout,render,fuzz,perf}
+backends/{rhi_d3d12,rhi_vulkan,rhi_metal,rhi_null,rhi_sokol}
+backends/{platform_win32,platform_android,platform_apple,platform_linux}
+private_backends/{console_*}
+tools/{xamlc,shaderpack,inspector}
+tests/{unit,conformance,golden,layout,render,rhi,fuzz,perf,abi}
+third_party/{manifests,patches,licenses}
 samples
-docs/adr
+docs/{adr,spec}
 ```
 
-## 5. Unit 与 conformance
+不存在 `render_skia` target 或目录。
+
+## 8. Foundation tests
+
+Unit/property/fuzz tests 覆盖：
+
+- allocator alignment、tag、lifetime、injected OOM；
+- UTF-8 validation、iteration、UTF-16 bridge；
+- String SSO/heap transition；
+- Vector/SmallVector 对 trivial/non-trivial type 的 construction/move/destruction；
+- HashMap/HashSet collision、rehash、erase、OOM 和 differential tests；
+- Ref/WeakRef copy/move/lock/concurrent-destroy；
+- Result/Optional/Value；
+- C API struct-size/version；
+- public header compile with C++17 only；
+- source scan 阻止 C++20 token/header accidental use。
+
+## 9. Core 与 Presentation tests
 
 Unit tests 覆盖：
 
-- Ref/WeakRef 和 TypeRegistry；
+- TypeRegistry；
 - DP registration/metadata/precedence/inheritance；
-- Dispatcher ordering；
+- Dispatcher ordering/reentrancy；
 - ResourceDictionary；
 - Binding path；
 - layout algorithms；
 - event route；
-- render transaction apply。
+- collection notification batch；
+- RenderTransaction apply/merge/replay。
 
 Windows 上维护独立 C# WPF probe：
 
@@ -101,50 +201,142 @@ Windows 上维护独立 C# WPF probe：
 - 输出规范化 JSON；
 - 记录公开可观察的 effective values、trees、DesiredSize、ArrangeRect 和 event order；
 - AeroGUI 执行等价 fixture；
-- known difference 写入 capability manifest。
+- known difference 写 capability manifest；
+- 禁止使用 WPF 私有反射。
 
-禁止使用 WPF 私有反射。
+## 10. XML/XAML tests
 
-## 6. Golden 与 render tests
-
-每个支持的语法/控件至少包含：
+每个支持语法至少包含：
 
 - valid fixture；
 - invalid fixture；
 - expected diagnostics；
 - expected object tree；
+- expected source span；
 - expected layout；
-- 可选 expected image。
+- 可选 expected RenderPlan/image。
 
-Reference backend 产生 golden。GPU backend 与 reference 做容差比较。Text tests 分离 glyph IDs/positions 和 raster pixels，并锁定字体、DPI、locale 和 color space。
+`IXmlTokenizer` conformance suite 对 Expat 和 host test tokenizer 运行同一输入。
 
-## 7. Fuzzing
+安全测试：
+
+- DTD/external entity 默认拒绝；
+- depth、attribute、name、text、object 和 byte limit；
+- cancellation；
+- malformed UTF-8；
+- parser callback reentrancy；
+- allocation failure；
+- Expat 更新后的 regression corpus。
+
+## 11. Render 与 RHI tests
+
+测试分层：
+
+1. Scene/RenderTransaction structural tests；
+2. RenderPlan snapshot；
+3. `AeroRHI_Null` validation；
+4. backend conformance；
+5. geometry/glyph placement snapshots；
+6. native GPU pixel tests；
+7. long-running resource/fence stress。
+
+正式 backend：
+
+- D3D12；
+- Vulkan；
+- Metal；
+- console-private。
+
+`sokol` adapter 只在 `AERO_WITH_SOKOL=ON` 的 optional job 测试，不作为 release gate 的唯一 backend。
+
+## 12. Golden 策略（无 Skia）
+
+AeroGUI 不使用 Skia 产生 reference image。Golden 可由以下组合产生：
+
+- 自有、受限、确定性的 CPU reference rasterizer；
+- RenderPlan、geometry mesh、glyph ID/position 的结构快照；
+- 锁定 native backend/driver/hardware 的 image；
+- 多 backend consensus + 人工批准 baseline。
+
+Text tests 分离：
+
+```text
+font selection
+shaping glyph IDs/clusters/advances
+glyph positions
+outline/bitmap hash
+atlas placement
+final pixels
+```
+
+锁定测试字体、FreeType/HarfBuzz build、DPI、locale、hinting、color space 和 tolerance。
+
+## 13. Optional dependency matrix
+
+CI 至少包含：
+
+| 配置 | 目的 |
+| --- | --- |
+| all OFF | 验证核心无隐藏依赖 |
+| FreeType ON / HarfBuzz OFF | limited text provider |
+| FreeType ON / HarfBuzz ON | generic full shaping |
+| Expat OFF | compiled XAML/host parser boundary |
+| libtess2 ON | experimental geometry adapter fuzz |
+| Ryu OFF | alternate formatter conformance |
+| sokol ON | optional adapter sample |
+| sokol OFF | 正式 backend 与核心独立 |
+
+Dependency audit 生成版本、commit、license、NOTICE 和已知安全问题报告。
+
+## 14. Fuzzing
 
 Fuzz targets：
 
-- XML/XAML tokenizer；
-- schema resolution；
-- object writer；
+- UTF-8/String conversion；
+- Vector/HashMap serialized helpers；
+- XML tokenizer；
+- XAML node/schema/object writer；
 - property conversion；
 - Binding path parser；
-- geometry parser；
+- geometry parser/tessellator；
+- font table/provider wrapper；
 - compiled XAML decoder；
-- render transaction decoder。
+- RenderTransaction decoder；
+- RenderPlan validator。
 
-全部 fuzz target MUST 可 headless 运行，并有深度、对象数、字符串长度和资源大小限制。
+全部 fuzz target MUST headless，具有深度、对象数、字符串、geometry、glyph、resource 和 allocation limits。
 
-## 8. 性能门禁
+## 15. Sanitizer 与静态分析
+
+- ASan、UBSan：Linux/Clang 和可用平台；
+- TSan：threaded queue/ref/resource tests；
+- MSVC AddressSanitizer；
+- compiler warnings；
+- clang-tidy/static analyzer；
+- platform GPU validation layer/debug layer；
+- API/header ABI scanner；
+- dependency license/security scanner。
+
+缺失依赖或 SDK 的 job 可跳过，但不能把 required gate 伪装为成功。
+
+## 16. 性能门禁
 
 至少测量：
 
-- 10k object create/destroy；
+- 10k/100k allocation by tag；
+- 10k Object create/destroy；
+- 100k Ref copy/move；
 - 100k property set/clear；
 - 10k Binding updates；
-- 深度 100 与宽度 10k 的 tree attach；
+- 深度 100 与宽度 10k tree attach；
 - Grid/StackPanel layout；
 - 1k/10k Visual scene commit；
-- glyph/image cache；
-- 10k items virtualized scroll。
+- RenderPlan build/batching；
+- path tessellation/cache；
+- glyph shaping/raster/atlas；
+- image upload/cache；
+- 10k items virtualized scroll；
+- mobile tile/offscreen budget。
 
 初始方向性预算：
 
@@ -156,97 +348,116 @@ Fuzz targets：
 | 1k property changes | < 1.0 ms | < 0.5 ms |
 | 10k item scroll | 不全量实例化 | < 2 ms UI work/frame |
 
-数值必须绑定 reference hardware。优化不得绕过语义测试。
+数值必须绑定 reference hardware/toolchain/backend。优化不得绕过语义测试。
 
-## 9. 安全与稳健性
+## 17. 安全与稳健性
 
-- XAML loader 限制深度、对象数、字符串和资源大小；
-- URI provider 默认禁止网络；
-- compiled XAML 校验所有 offset/length；
-- render transaction decoder 不信任输入；
-- 处理 integer overflow、NaN 和超大几何；
-- image/font decoder 位于隔离边界；
+- XAML loader 限制 depth、objects、strings、attributes 和 resources；
+- URI provider 默认禁止 network；
+- compiled XAML 校验 offset/length/version；
+- RenderTransaction/RenderPlan decoder 不信任输入；
+- 处理 integer overflow、NaN、Infinity 和超大 geometry；
+- image/font/XML/tessellation provider 位于隔离边界；
 - markup extension 可被 policy 禁用；
-- diagnostic 不泄露敏感文件内容；
-- user callback 错误在 frame boundary 捕获并报告。
+- diagnostics 不泄露敏感文件内容；
+- callback 失败在 frame boundary 转为 Result/diagnostic；
+- GPU resource release 等待 fence；
+- mobile suspend/surface loss 可恢复；
+- dependency security release 触发快速升级流程。
 
-## 10. 路线图
+## 18. 路线图
 
 ### M0 — Architecture baseline
 
-交付 README、主规范、分章规范、ADR 模板和 manifest schema。
+交付：
+
+- README、主规范与分章规范；
+- C++17/Foundation、native GPU、dependency ADR；
+- dependency manifest/NOTICE policy；
+- CMake/CI skeleton；
+- capability manifest schema。
 
 验收：
 
+- 无 C++20/Skia 冲突描述；
 - module DAG 无循环；
 - clean-room policy 明确；
-- README 与规范互链；
-- M1 work items 能映射到规范。
+- M1 work items 映射到规范。
 
-### M1 — Core runtime
+### M1 — Foundation 与 Core
 
-交付 Object/Ref/WeakRef、TypeRegistry、Dispatcher、DependencyProperty、property transactions 和 diagnostics。
+交付：
+
+- allocator/String/Vector/HashMap/HashSet；
+- Object/Ref/WeakRef；
+- TypeRegistry、Dispatcher、DependencyProperty；
+- diagnostics/C API baseline。
 
 验收：
 
-- precedence tests；
-- thread violation tests；
-- 10k lifetime 无泄漏；
-- sanitizer 通过；
-- Core 无 platform/render 依赖。
+- exceptions-off/RTTI-off；
+- C++17 MSVC/Clang/GCC；
+- lifetime/OOM/container/property tests；
+- Core 无 platform/render/third-party dependency。
 
 ### M2 — Vertical slice
 
-交付 runtime XAML、StaticResource、NameScope、Visual/UIElement/FrameworkElement、Canvas/StackPanel/Grid/Border/TextBlock、single-thread reference renderer 和 sample。
+交付：
 
-验收：
+- runtime XAML、StaticResource、NameScope；
+- Visual/UIElement/FrameworkElement；
+- Canvas/StackPanel/Grid/Border/TextBlock；
+- RenderTransaction、RenderPlan、AeroRHI_Null；
+- 第一个 native GPU backend；
+- XAML → layout → native GPU image sample。
 
-- XAML → layout → image；
-- 50+ golden XAML；
-- 20+ WPF layout probes；
-- headless tests。
+### M3 — Application model 与多平台
 
-### M3 — Application model
+交付：
 
-交付 Binding/DataContext、DynamicResource、Style/Template、Routed Event/Input/Command、Button/ItemsControl/ListBox/ScrollViewer 和 compiled XAML prototype。
-
-验收：
-
-- Binding modes/triggers；
-- template swap 无泄漏；
-- event order 对齐；
-- 1k item interactive sample。
+- Binding/DataContext、DynamicResource、Style/Template；
+- Routed Event/Input/Command；
+- Button/ItemsControl/ListBox/ScrollViewer；
+- FreeType/HarfBuzz text provider；
+- D3D12/Vulkan/Metal 中至少两个 backend；
+- Android/iOS sample。
 
 ### M4 — Production runtime
 
-交付 UI/render queue、GPU backend、offscreen/effects、text/image caches、animation、virtualization、accessibility 和 inspector。
+交付：
 
-验收：
+- UI/render queue；
+- 三个公开 native GPU backend；
+- offscreen/effects/atlas；
+- animation/virtualization/accessibility/inspector；
+- console adapter contract；
+- locked performance/security/stress gates。
 
-- no shared UI pointers；
-- device loss；
-- transaction merge；
-- locked performance budget；
-- 24h stress；
-- Windows/Linux 一致性。
+## 19. 首批 Issues
 
-## 11. 首批 Issues
+建议顺序：
 
-建议依次创建：
+1. Bootstrap C++17 CMake targets and CI；
+2. Define allocator/memory tags/OOM injection；
+3. Implement String/StringView/UTF conversion；
+4. Implement Vector/SmallVector；
+5. Implement HashMap/HashSet；
+6. Implement Object/Ref/WeakRef；
+7. Implement versioned C ABI skeleton；
+8. Implement deterministic TypeRegistry；
+9. Implement Dispatcher/thread affinity；
+10. Implement DependencyProperty registration/metadata；
+11. Implement sparse effective-value table；
+12. Define diagnostics/trace schema；
+13. Implement IXmlTokenizer + Expat adapter；
+14. Implement XAML node interfaces；
+15. Implement Visual/UIElement layout skeleton；
+16. Implement RenderTransaction/RenderPlan；
+17. Implement AeroRHI_Null；
+18. Implement first native GPU backend；
+19. Integrate optional Ryu；
+20. Prototype FreeType/HarfBuzz provider；
+21. Evaluate/fuzz optional libtess2；
+22. Add optional sokol adapter only after AeroRHI contract stabilizes。
 
-1. Bootstrap CMake targets and CI；
-2. Implement Object/Ref/WeakRef；
-3. Implement deterministic TypeRegistry；
-4. Implement Dispatcher and thread affinity；
-5. Implement DependencyProperty registration/metadata；
-6. Implement sparse effective value table；
-7. Implement precedence and invalidation transactions；
-8. Define diagnostics and trace schema；
-9. Build headless unit test harness；
-10. Add Windows WPF probe skeleton；
-11. Implement XAML node interfaces；
-12. Implement Visual/UIElement layout skeleton；
-13. Implement render transaction contracts；
-14. Add first vertical-slice sample。
-
-任何控件 Issue 必须依赖相应基础任务。
+任何 control Issue 必须依赖相应 Foundation/Core/Presentation 任务；任何 backend Issue 必须依赖 RenderPlan 与 AeroRHI contract。
