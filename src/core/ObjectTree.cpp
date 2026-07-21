@@ -7,8 +7,6 @@
 namespace Aero::Core {
 namespace {
 
-constexpr std::uint32_t InvalidIndex = UINT32_MAX;
-
 Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
@@ -225,10 +223,17 @@ Base::Result<void> ObjectTree::SetLoadedSubtree(
     if (node.loaded_ == loaded) {
         return {};
     }
-    Base::Result<void> queued = QueueLifecycleSubtree(node, loaded);
-    if (!queued) {
-        return queued;
+
+    LifecycleRecord record;
+    record.node = &node;
+    record.loaded = loaded;
+    record.sequence = nextLifecycleSequence_++;
+    record.treeVersion = version_;
+    Base::Result<void> appended = lifecycleQueue_.TryPushBack(record);
+    if (!appended) {
+        return appended;
     }
+
     node.loaded_ = loaded;
     for (TreeNode* child : node.logicalChildren_) {
         Base::Result<void> childResult = SetLoadedSubtree(*child, loaded);
@@ -240,13 +245,17 @@ Base::Result<void> ObjectTree::SetLoadedSubtree(
 }
 
 Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
+    if (root == root_) {
+        return {};
+    }
+    if (root == nullptr && root_ == nullptr) {
+        return {};
+    }
+
     TreeNode& verificationNode = root != nullptr ? *root : *root_;
     Base::Result<void> verified = VerifyMutation(verificationNode, root_);
     if (!verified) {
         return verified;
-    }
-    if (root == root_) {
-        return {};
     }
     if (root != nullptr && (root->logicalParent_ != nullptr ||
         (root->tree_ != nullptr && root->tree_ != this))) {
@@ -461,7 +470,8 @@ Base::Result<std::uint32_t> ObjectTree::FlushLifecycle() noexcept {
     }
     Base::Vector<LifecycleRecord> snapshot(allocator_);
     Base::Result<void> assigned = snapshot.TryAssign(
-        lifecycleQueue_.Data(), lifecycleQueue_.Size());
+        Base::Span<const LifecycleRecord>(
+            lifecycleQueue_.Data(), lifecycleQueue_.Size()));
     if (!assigned) {
         return assigned.GetStatus();
     }
