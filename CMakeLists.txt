@@ -55,6 +55,7 @@ add_library(AeroCore STATIC
     src/core/EffectiveValueEngine.cpp
     src/core/Layout.cpp
     src/core/ObjectTree.cpp
+    src/core/Rendering.cpp
     src/core/TypeRegistry.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
