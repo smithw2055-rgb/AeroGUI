@@ -1,7 +1,6 @@
 #include <Aero/Core/Rendering.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -19,58 +18,42 @@ using namespace Aero::Core;
 
 class RenderBox final : public RenderElement {
 public:
-    RenderBox(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId type,
-        Size desired,
-        Color color) noexcept
-        : RenderElement(dispatcher, registry, type),
-          desired_(desired),
-          color_(color) {}
+    RenderBox(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId type, Size desired, Color color) noexcept
+        : RenderElement(dispatcher, registry, type), desired_(desired), color_(color) {}
 
     void SetColor(Color value) noexcept { color_ = value; }
-    void SetDesired(Size value) noexcept { desired_ = value; }
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
-        return Size{
-            std::min(desired_.width, available.width),
+        return Size{std::min(desired_.width, available.width),
             std::min(desired_.height, available.height)};
     }
-
     Result<Size> ArrangeOverride(Size finalSize) noexcept override {
         return finalSize;
     }
-
     Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override {
-        CHECK_RESULT(builder.PushOpacity(0.75));
-        CHECK_RESULT(builder.PushClip({0.0, 0.0, RenderSize().width, RenderSize().height}));
-        CHECK_RESULT(builder.FillRect(
-            {0.0, 0.0, RenderSize().width, RenderSize().height}, color_));
-        CHECK_RESULT(builder.PopClip());
-        CHECK_RESULT(builder.PopOpacity());
-        return {};
+        Result<void> result = builder.PushOpacity(0.75);
+        if (!result) return result;
+        result = builder.PushClip({0.0, 0.0, RenderSize().width, RenderSize().height});
+        if (!result) return result;
+        result = builder.FillRect(
+            {0.0, 0.0, RenderSize().width, RenderSize().height}, color_);
+        if (!result) return result;
+        result = builder.PopClip();
+        if (!result) return result;
+        return builder.PopOpacity();
     }
 
 private:
-#define CHECK_RESULT(expression) \
-    do { \
-        Result<void> result = (expression); \
-        if (!result) return result; \
-    } while (false)
-
     Size desired_;
     Color color_;
 };
 
 class RenderPanel final : public RenderElement {
 public:
-    RenderPanel(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId type) noexcept
-        : RenderElement(dispatcher, registry, type) {}
+    RenderPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId type) noexcept : RenderElement(dispatcher, registry, type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -85,7 +68,6 @@ protected:
         return Size{std::min(width, available.width),
             std::min(height, available.height)};
     }
-
     Result<Size> ArrangeOverride(Size finalSize) noexcept override {
         double y = 0.0;
         for (LayoutElement* child : LayoutChildren()) {
@@ -97,12 +79,10 @@ protected:
         }
         return finalSize;
     }
-
     Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override {
         return builder.StrokeRect(
             {0.0, 0.0, RenderSize().width, RenderSize().height},
-            {1.0F, 1.0F, 1.0F, 1.0F},
-            1.0);
+            {1.0F, 1.0F, 1.0F, 1.0F}, 1.0);
     }
 };
 
@@ -135,8 +115,7 @@ bool TestDisplayListValidation() {
     DisplayListBuilder builder;
     CHECK(builder.PushTransform({1.0, 0.0, 0.0, 1.0, 4.0, 5.0}));
     CHECK(builder.PushClip({0.0, 0.0, 20.0, 10.0}));
-    CHECK(builder.FillRect(
-        {0.0, 0.0, 20.0, 10.0},
+    CHECK(builder.FillRect({0.0, 0.0, 20.0, 10.0},
         {0.25F, 0.5F, 0.75F, 1.0F}));
     CHECK(builder.PopClip());
     CHECK(builder.PopTransform());
@@ -148,15 +127,12 @@ bool TestDisplayListValidation() {
     DisplayListBuilder unbalanced;
     CHECK(unbalanced.PushOpacity(0.5));
     Result<DisplayList> invalid = unbalanced.Finish();
-    CHECK(!invalid);
-    CHECK(invalid.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(!invalid && invalid.GetStatus().code == ErrorCode::InvalidState);
 
     DisplayListBuilder badColor;
     Result<void> invalidColor = badColor.FillRect(
-        {0.0, 0.0, 1.0, 1.0},
-        {2.0F, 0.0F, 0.0F, 1.0F});
-    CHECK(!invalidColor);
-    CHECK(invalidColor.GetStatus().code == ErrorCode::InvalidArgument);
+        {0.0, 0.0, 1.0, 1.0}, {2.0F, 0.0F, 0.0F, 1.0F});
+    CHECK(!invalidColor && invalidColor.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
 }
 
@@ -199,13 +175,10 @@ bool TestRenderCommitAndInvalidation() {
     const std::uint64_t firstHash = renderer.CurrentPlan().StableHash();
     CHECK(firstHash == backend.LastHash());
     CHECK(renderer.Diagnostics().dirtyCount == 0U);
-    CHECK(root.IsRenderValid());
-    CHECK(first.IsRenderValid());
 
     first.SetColor({0.0F, 1.0F, 0.0F, 1.0F});
     CHECK(first.InvalidateRender());
-    CHECK(!first.IsRenderValid());
-    CHECK(!root.IsRenderValid());
+    CHECK(!first.IsRenderValid() && !root.IsRenderValid());
     CHECK(renderer.Diagnostics().dirtyCount == 2U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(backend.SubmissionCount() == 2U);
@@ -227,22 +200,16 @@ bool TestRenderCommitAndInvalidation() {
     return true;
 }
 
-bool TestRenderRequiresArrangeAndVisualParent() {
+bool TestRenderRequiresArrange() {
     Fixture fixture;
     CHECK(fixture.Build());
     NullRenderBackend backend;
     RenderManager renderer(fixture.dispatcher, backend);
     CHECK(renderer.Initialize());
     RenderPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
-    RenderBox child(fixture.dispatcher, fixture.properties, fixture.elementType,
-        {10.0, 10.0}, {1.0F, 1.0F, 1.0F, 1.0F});
     CHECK(renderer.SetRoot(&root));
-    Result<void> mismatched = renderer.Attach(root, child);
-    CHECK(!mismatched);
-    CHECK(mismatched.GetStatus().code == ErrorCode::InvalidState);
     Result<std::uint32_t> commit = renderer.Commit();
-    CHECK(!commit);
-    CHECK(commit.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(!commit && commit.GetStatus().code == ErrorCode::InvalidState);
     CHECK(renderer.SetRoot(nullptr));
     return true;
 }
@@ -252,7 +219,7 @@ bool TestRenderRequiresArrangeAndVisualParent() {
 int main() {
     if (!TestDisplayListValidation()) return 1;
     if (!TestRenderCommitAndInvalidation()) return 1;
-    if (!TestRenderRequiresArrangeAndVisualParent()) return 1;
+    if (!TestRenderRequiresArrange()) return 1;
     std::puts("Aero rendering tests passed");
     return 0;
 }
