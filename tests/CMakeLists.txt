@@ -62,6 +62,13 @@ set_target_properties(AeroRenderingTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroRenderingTests)
 add_test(NAME AeroRenderingTests COMMAND AeroRenderingTests)
 
+add_executable(AeroRhiTests unit/RhiTests.cpp)
+target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
+target_compile_features(AeroRhiTests PRIVATE cxx_std_17)
+set_target_properties(AeroRhiTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroRhiTests)
+add_test(NAME AeroRhiTests COMMAND AeroRhiTests)
+
 add_executable(AeroCAbiSmoke abi/CAbiSmoke.c)
 target_link_libraries(AeroCAbiSmoke PRIVATE Aero::Base)
 set_target_properties(AeroCAbiSmoke PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO LINKER_LANGUAGE CXX)
