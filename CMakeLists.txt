@@ -80,6 +80,27 @@ set_target_properties(AeroCore PROPERTIES
 
 aero_apply_compiler_options(AeroCore)
 
+add_library(AeroMarkup STATIC
+    src/markup/XmlTokenizer.cpp
+    src/markup/XamlNodeReader.cpp)
+
+add_library(Aero::Markup ALIAS AeroMarkup)
+
+target_include_directories(AeroMarkup
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+
+target_link_libraries(AeroMarkup PUBLIC Aero::Core)
+target_compile_features(AeroMarkup PUBLIC cxx_std_17)
+set_target_properties(AeroMarkup PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON)
+
+aero_apply_compiler_options(AeroMarkup)
+
 add_library(AeroRhi STATIC
     src/rhi/Rhi.cpp)
 
