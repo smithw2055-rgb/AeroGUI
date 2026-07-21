@@ -5,6 +5,8 @@ project(AeroGUI
     DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
     LANGUAGES C CXX)
 
+find_package(Threads REQUIRED)
+
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
@@ -50,6 +52,7 @@ target_compile_definitions(AeroBase
         $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
 
 add_library(AeroCore STATIC
+    src/core/Dispatcher.cpp
     src/core/TypeRegistry.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
@@ -59,7 +62,11 @@ target_include_directories(AeroCore
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(AeroCore PUBLIC Aero::Base)
+target_link_libraries(AeroCore
+    PUBLIC
+        Aero::Base
+        Threads::Threads)
+
 target_compile_features(AeroCore PUBLIC cxx_std_17)
 set_target_properties(AeroCore PROPERTIES
     CXX_STANDARD 17

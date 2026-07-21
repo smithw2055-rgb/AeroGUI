@@ -22,7 +22,8 @@ enum class ErrorCode : std::uint32_t {
     InvalidState,
     NotFound,
     IdCollision,
-    CycleDetected
+    CycleDetected,
+    WrongThread
 };
 
 struct Status final {

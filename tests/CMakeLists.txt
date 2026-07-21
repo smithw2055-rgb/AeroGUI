@@ -37,6 +37,19 @@ set_target_properties(AeroCoreTests PROPERTIES
 aero_apply_compiler_options(AeroCoreTests)
 add_test(NAME AeroCoreTests COMMAND AeroCoreTests)
 
+add_executable(AeroDispatcherTests
+    unit/DispatcherTests.cpp)
+
+target_link_libraries(AeroDispatcherTests PRIVATE Aero::Core)
+target_compile_features(AeroDispatcherTests PRIVATE cxx_std_17)
+set_target_properties(AeroDispatcherTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+
+aero_apply_compiler_options(AeroDispatcherTests)
+add_test(NAME AeroDispatcherTests COMMAND AeroDispatcherTests)
+
 add_executable(AeroCAbiSmoke
     abi/CAbiSmoke.c)
 
