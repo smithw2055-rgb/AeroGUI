@@ -31,7 +31,18 @@ jobs:
       - name: Configure
         run: cmake -S . -B out/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
       - name: Build
-        run: cmake --build out/build --parallel
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build out/build --parallel 2>&1 | tee "out/${{ matrix.compiler }}-build.log"
+      - name: Upload Linux build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.compiler }}-build-log
+          path: out/${{ matrix.compiler }}-build.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Test
         run: ctest --test-dir out/build --output-on-failure
 
