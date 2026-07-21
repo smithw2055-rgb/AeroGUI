@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <utility>
 
 namespace {
@@ -205,6 +206,25 @@ bool TestString() {
     return true;
 }
 
+bool TestStringAllocatorSemantics() {
+    TrackingAllocator destinationAllocator;
+    TrackingAllocator sourceAllocator;
+    String destination(&destinationAllocator);
+    String source(&sourceAllocator);
+
+    const StringView longText(
+        "Copy assignment preserves the allocator owned by the destination string.");
+    CHECK(source.TryAssign(longText));
+    destination = source;
+
+    CHECK(destination.View() == source.View());
+    CHECK(&destination.Allocator() == &destinationAllocator);
+    CHECK(&source.Allocator() == &sourceAllocator);
+    CHECK(destinationAllocator.ActiveCount() == 1U);
+    CHECK(sourceAllocator.ActiveCount() == 1U);
+    return true;
+}
+
 bool TestStringAllocationFailure() {
     TrackingAllocator allocator;
     String text(&allocator);
@@ -290,6 +310,7 @@ int main() {
         {"UTF-8", &TestUtf8},
         {"Allocator", &TestAllocator},
         {"String", &TestString},
+        {"String allocator semantics", &TestStringAllocatorSemantics},
         {"String allocation failure", &TestStringAllocationFailure},
         {"Ref/WeakRef", &TestRefAndWeakRef},
         {"Ref allocation failure", &TestRefAllocationFailure},

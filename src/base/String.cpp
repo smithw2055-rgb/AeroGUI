@@ -54,8 +54,13 @@ String::~String() {
 
 String& String::operator=(const String& other) {
     if (this != &other) {
-        String copy(other);
-        *this = std::move(copy);
+        const Result<void> result = TryAssignUnchecked(other.View());
+        if (!result) {
+            ReportOutOfMemory(
+                static_cast<std::size_t>(other.SizeBytes()) + 1U,
+                alignof(char),
+                MemoryTag::String);
+        }
     }
     return *this;
 }
