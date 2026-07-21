@@ -43,6 +43,19 @@ jobs:
       - name: Configure
         run: cmake -S . -B out/build -A x64 -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
       - name: Build
-        run: cmake --build out/build --config Debug --parallel
+        shell: pwsh
+        run: |
+          cmd /c "cmake --build out/build --config Debug --parallel > out\msvc-build.log 2>&1"
+          $buildExitCode = $LASTEXITCODE
+          Get-Content out/msvc-build.log
+          exit $buildExitCode
+      - name: Upload MSVC build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msvc-build-log
+          path: out/msvc-build.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Test
         run: ctest --test-dir out/build -C Debug --output-on-failure
