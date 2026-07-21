@@ -25,8 +25,11 @@ int main(void) {
     }
 
     {
-        const char invalid_bytes[] = {(char)0xC0, (char)0xAF};
-        const AeroStringView invalid = {invalid_bytes, 2u};
+        const unsigned char invalid_bytes[] = {0xC0u, 0xAFu};
+        const AeroStringView invalid = {
+            (const char*)invalid_bytes,
+            (uint32_t)sizeof(invalid_bytes)
+        };
         if (api.validate_utf8(invalid) != AERO_STATUS_INVALID_UTF8) {
             return 4;
         }
