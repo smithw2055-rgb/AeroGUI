@@ -161,7 +161,7 @@ Base::Result<Diagnostic> Diagnostic::TryCreate(
     diagnostic.source_ = source;
     diagnostic.object_ = object;
     diagnostic.member_ = member;
-    return std::move(diagnostic);
+    return diagnostic;
 }
 
 Base::Result<void> Diagnostic::TryAddNote(
