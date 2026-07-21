@@ -1,0 +1,48 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(AeroGUI
+    VERSION 0.1.0
+    DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
+    LANGUAGES CXX)
+
+option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
+option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
+option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
+option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
+
+include(cmake/AeroCompilerOptions.cmake)
+
+add_library(AeroBase STATIC
+    src/base/Allocator.cpp
+    src/base/Object.cpp
+    src/base/String.cpp
+    src/base/Utf8.cpp)
+
+add_library(Aero::Base ALIAS AeroBase)
+
+target_include_directories(AeroBase
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+
+target_compile_features(AeroBase PUBLIC cxx_std_17)
+set_target_properties(AeroBase PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON)
+
+aero_apply_compiler_options(AeroBase)
+
+target_compile_definitions(AeroBase
+    PUBLIC
+        AERO_CXX_STANDARD=17
+        $<$<BOOL:${AERO_ENABLE_EXCEPTIONS}>:AERO_EXCEPTIONS_ENABLED=1>
+        $<$<NOT:$<BOOL:${AERO_ENABLE_EXCEPTIONS}>>:AERO_EXCEPTIONS_ENABLED=0>
+        $<$<BOOL:${AERO_ENABLE_RTTI}>:AERO_RTTI_ENABLED=1>
+        $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
+
+if(AERO_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
