@@ -753,18 +753,6 @@ Base::Result<void> XamlSchemaContext::SetMember(
             MessageMemberTypeMismatch);
     }
 
-    bool compatible = value.Type() == member.valueType;
-    if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
-        compatible = types_->IsDerivedFrom(
-            value.Type(),
-            member.valueType);
-    }
-    if (!compatible) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageMemberTypeMismatch);
-    }
-
     const XamlMemberAdapterRegistration* adapter =
         FindMemberAdapter(member.id);
     if (adapter == nullptr ||
@@ -772,6 +760,19 @@ Base::Result<void> XamlSchemaContext::SetMember(
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMemberAdapter);
+    }
+    if (!adapter->acceptsAnyValue) {
+        bool compatible = value.Type() == member.valueType;
+        if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
+            compatible = types_->IsDerivedFrom(
+                value.Type(),
+                member.valueType);
+        }
+        if (!compatible) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                MessageMemberTypeMismatch);
+        }
     }
     if (adapter->setWithServices != nullptr) {
         if (services == nullptr) {

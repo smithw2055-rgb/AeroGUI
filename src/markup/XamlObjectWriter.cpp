@@ -644,6 +644,10 @@ Base::Result<void> XamlObjectWriter::WriteText(
     }
 
     if (frame.kind == FrameKind::Member) {
+        const XamlMemberAdapterRegistration* adapter =
+            schema_->FindMemberAdapter(frame.member.id);
+        const bool acceptsAnyValue = adapter != nullptr &&
+            adapter->acceptsAnyValue;
         Base::StringView extensionName;
         Base::StringView argument;
         const MarkupValueKind markup = ParseMarkupValue(
@@ -660,7 +664,8 @@ Base::Result<void> XamlObjectWriter::WriteText(
                 node.Source());
         }
         if (markup == MarkupValueKind::Null) {
-            if (IsValueType(schema_->Types(), frame.member.valueType)) {
+            if (IsValueType(schema_->Types(), frame.member.valueType) &&
+                !acceptsAnyValue) {
                 return Failure(
                     Base::Status::Failure(
                         Base::ErrorCode::ValidationFailed,
@@ -1136,7 +1141,12 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
 
     Frame& parent = frames_.Back();
     if (parent.kind == FrameKind::Member) {
-        if (IsValueType(schema_->Types(), parent.member.valueType)) {
+        const XamlMemberAdapterRegistration* adapter =
+            schema_->FindMemberAdapter(parent.member.id);
+        const bool acceptsAnyValue = adapter != nullptr &&
+            adapter->acceptsAnyValue;
+        if (IsValueType(schema_->Types(), parent.member.valueType) &&
+            !acceptsAnyValue) {
             return Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,

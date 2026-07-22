@@ -181,6 +181,11 @@ struct XamlMemberAdapterRegistration final {
     XamlSetMemberCallback set = nullptr;
     void* context = nullptr;
     XamlSetMemberWithServicesCallback setWithServices = nullptr;
+    // The adapter takes responsibility for validating the concrete XamlValue.
+    // This is intentionally opt-in for members such as Setter.Value, whose
+    // declared text type is needed for literals but which can also receive a
+    // StaticResource object or x:Null.
+    bool acceptsAnyValue = false;
 };
 
 struct XamlTypeAdapterRegistration final {

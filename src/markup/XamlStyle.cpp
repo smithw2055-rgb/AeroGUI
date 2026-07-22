@@ -272,7 +272,7 @@ Base::Result<void> XamlStyleExtension::Register(
         {basedOnMember_, XamlMemberWriteMode::SetOnce, &SetBasedOn, this, nullptr},
         {settersMember_, XamlMemberWriteMode::Collection, &AddSetter, this, nullptr},
         {setterPropertyMember_, XamlMemberWriteMode::SetOnce, &SetSetterProperty, this, nullptr},
-        {setterValueMember_, XamlMemberWriteMode::SetOnce, &SetSetterValue, this, nullptr},
+        {setterValueMember_, XamlMemberWriteMode::SetOnce, &SetSetterValue, this, nullptr, true},
         {styleProperty.value, XamlMemberWriteMode::SetOnce, nullptr, this, &SetStyleMember}
     };
     for (const XamlMemberAdapterRegistration& member : members) {

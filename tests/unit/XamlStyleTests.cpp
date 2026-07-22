@@ -60,8 +60,11 @@ public:
         : DependencyObject(dispatcher, properties, type) {}
 };
 
+class BrushNode final : public Object {};
+
 Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept;
 Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept;
+Result<Ref<Object>> MakeBrush(IAllocator& allocator) noexcept;
 Result<void> AddChild(Object& object, const XamlValue& value, void*) noexcept;
 DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
 
@@ -82,11 +85,14 @@ struct Fixture final {
     TypeId doubleType = InvalidTypeId;
     TypeId rootType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
+    TypeId brushType = InvalidTypeId;
     TypeId styleType = InvalidTypeId;
     TypeId setterType = InvalidTypeId;
     DependencyPropertyHandle width;
+    DependencyPropertyHandle fill;
     DependencyPropertyHandle style;
     MemberId children = InvalidMemberId;
+    Ref<Object> defaultBrush;
 
     bool Build() {
         gFixture = this;
@@ -96,6 +102,7 @@ struct Fixture final {
         doubleType = MakeTypeId(ns, StringView("Double"));
         rootType = MakeTypeId(ns, StringView("Root"));
         elementType = MakeTypeId(ns, StringView("Element"));
+        brushType = MakeTypeId(ns, StringView("Brush"));
         styleType = MakeTypeId(ns, StringView("Style"));
         setterType = MakeTypeId(ns, StringView("Setter"));
 
@@ -109,6 +116,8 @@ struct Fixture final {
             TypeFlags::None, &MakeRoot}));
         CHECK(types.TryRegisterType({ns, StringView("Element"), objectType,
             TypeFlags::None, &MakeElement}));
+        CHECK(types.TryRegisterType({ns, StringView("Brush"), objectType,
+            TypeFlags::None, &MakeBrush}));
         CHECK(types.TryRegisterType({ns, StringView("Style"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("Setter"), objectType,
@@ -137,6 +146,20 @@ struct Fixture final {
             properties.TryRegister(widthRegistration);
         CHECK(widthResult);
         width = widthResult.Value().property;
+
+        DependencyPropertyRegistration fillRegistration;
+        fillRegistration.name = StringView("Fill");
+        fillRegistration.ownerType = elementType;
+        fillRegistration.valueType = brushType;
+        Result<Ref<Object>> createdDefaultBrush = MakeBrush(GetDefaultAllocator());
+        CHECK(createdDefaultBrush);
+        defaultBrush = std::move(createdDefaultBrush).Value();
+        fillRegistration.metadata.defaultValue = PropertyValue::FromObject(
+            brushType, defaultBrush);
+        Result<DependencyPropertyRegistrationResult> fillResult =
+            properties.TryRegister(fillRegistration);
+        CHECK(fillResult);
+        fill = fillResult.Value().property;
 
         DependencyPropertyRegistration styleRegistration;
         styleRegistration.name = StringView("Style");
@@ -188,6 +211,14 @@ Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept {
     return Ref<Object>(std::move(created).Value());
 }
 
+Result<Ref<Object>> MakeBrush(IAllocator& allocator) noexcept {
+    Result<Ref<BrushNode>> created = MakeRefWithAllocator<BrushNode>(allocator);
+    if (!created) {
+        return created.GetStatus();
+    }
+    return Ref<Object>(std::move(created).Value());
+}
+
 Result<void> AddChild(Object& object, const XamlValue& value, void*) noexcept {
     if (value.Kind() != XamlValueKind::Object || !value.AsObject()) {
         return Status::Failure(ErrorCode::InvalidArgument, "Root child is invalid");
@@ -218,12 +249,14 @@ bool TestXamlStyleResourceBasedOnAndDetach() {
     const char* xaml =
         "<Root xmlns=\"urn:xaml-style-tests\" "
         "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Brush x:Key=\"accent\"/>"
         "<Style x:Key=\"base\" TargetType=\"Element\">"
         "<Setter Property=\"Width\" Value=\"12.5\"/>"
         "</Style>"
         "<Style x:Key=\"derived\" TargetType=\"Element\" "
         "BasedOn=\"{StaticResource base}\">"
         "<Setter Property=\"Width\" Value=\"42.5\"/>"
+        "<Setter Property=\"Fill\" Value=\"{StaticResource accent}\"/>"
         "</Style>"
         "<Element Style=\"{StaticResource derived}\"/>"
         "</Root>";
@@ -237,11 +270,17 @@ bool TestXamlStyleResourceBasedOnAndDetach() {
     CHECK(element.GetValue(fixture.width).Value().AsDouble() == 1.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(element.GetValue(fixture.width).Value().AsDouble() == 42.5);
+    Result<PropertyValue> fill = element.GetValue(fixture.fill);
+    CHECK(fill && !fill.Value().IsNullObject());
+    CHECK(fill.Value().Type() == fixture.brushType);
+    CHECK(fill.Value().AsObject().Get() != fixture.defaultBrush.Get());
     CHECK(fixture.styleExtension.DetachObject(element).Value());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     Result<PropertyValue> clearedStyle = element.GetValue(fixture.style);
     CHECK(clearedStyle && clearedStyle.Value().IsNullObject());
     CHECK(element.GetValue(fixture.width).Value().AsDouble() == 1.0);
+    CHECK(element.GetValue(fixture.fill).Value().AsObject().Get() ==
+        fixture.defaultBrush.Get());
     return true;
 }
 
@@ -270,12 +309,32 @@ bool TestXamlStyleRejectsMissingTargetType() {
     return true;
 }
 
+bool TestXamlStyleAcceptsNullSetterValue() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Result<Ref<Object>> loaded = Load(fixture,
+        "<Root xmlns=\"urn:xaml-style-tests\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Style x:Key=\"empty\" TargetType=\"Element\">"
+        "<Setter Property=\"Fill\" Value=\"{x:Null}\"/>"
+        "</Style><Element Style=\"{StaticResource empty}\"/>"
+        "</Root>");
+    CHECK(loaded);
+    RootNode& root = static_cast<RootNode&>(*loaded.Value());
+    CHECK(root.Children().Size() == 1U);
+    ElementNode& element = static_cast<ElementNode&>(*root.Children()[0]);
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
+    CHECK(element.GetValue(fixture.fill).Value().IsNullObject());
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestXamlStyleResourceBasedOnAndDetach()) return 1;
     if (!TestXamlStyleRejectsUnknownSetterProperty()) return 1;
     if (!TestXamlStyleRejectsMissingTargetType()) return 1;
+    if (!TestXamlStyleAcceptsNullSetterValue()) return 1;
     std::puts("Aero XAML style tests passed");
     return 0;
 }
