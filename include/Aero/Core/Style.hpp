@@ -56,8 +56,10 @@ class AERO_API StyleManager final {
 public:
     explicit StyleManager(
         EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties) noexcept
-        : values_(&values), properties_(&properties) {}
+        DependencyPropertyRegistry& properties,
+        Base::IAllocator* allocator = nullptr) noexcept
+        : values_(&values), properties_(&properties),
+          applications_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
     AERO_NODISCARD Base::Result<void> Apply(
         DependencyObject& object,
@@ -65,14 +67,27 @@ public:
     AERO_NODISCARD Base::Result<void> Clear(
         DependencyObject& object,
         const Style& style) noexcept;
+    // Tree/object ownership code calls this before destroying an object.
+    AERO_NODISCARD Base::Result<bool> DetachObject(
+        DependencyObject& object) noexcept;
 
 private:
     EffectiveValueEngine* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
+    struct Application final {
+        DependencyObject* object = nullptr;
+        const Style* style = nullptr;
+    };
+    Base::Vector<Application> applications_;
 
     AERO_NODISCARD Base::Result<void> VerifyTarget(
         const DependencyObject& object,
         const Style& style) const noexcept;
+    AERO_NODISCARD std::uint32_t FindApplication(
+        const DependencyObject& object) const noexcept;
+    AERO_NODISCARD Base::Result<void> ClearSetters(
+        DependencyObject& object,
+        const Style& style) noexcept;
 };
 
 } // namespace Aero::Core

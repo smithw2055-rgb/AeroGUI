@@ -95,6 +95,17 @@ bool TestBasedOnFlatteningAndPrecedence() {
     CHECK(RunPropertyChanges(dispatcher));
     CHECK(button.GetValue(fixture.width).Value().AsDouble() == 50.0);
     CHECK(button.GetValue(fixture.height).Value().AsDouble() == 1.0);
+    Style replacement(fixture.buttonType);
+    CHECK(replacement.TryAddSetter(
+        fixture.height, PropertyValue::FromDouble(fixture.doubleType, 60.0)));
+    CHECK(replacement.Seal(fixture.properties));
+    CHECK(manager.Apply(button, replacement));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.width).Value().AsDouble() == 50.0);
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 60.0);
+    CHECK(manager.DetachObject(button).Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 1.0);
     return true;
 }
 

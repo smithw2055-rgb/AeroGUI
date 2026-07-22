@@ -137,12 +137,28 @@ Base::Result<void> StyleManager::Apply(
     if (!verified) {
         return verified.GetStatus();
     }
+    const std::uint32_t existing = FindApplication(object);
+    if (existing != UINT32_MAX && applications_[existing].style != &style) {
+        Base::Result<void> cleared = ClearSetters(
+            object, *applications_[existing].style);
+        if (!cleared) {
+            return cleared.GetStatus();
+        }
+    }
     for (const StyleSetter& setter : style.Setters()) {
         Base::Result<void> applied = values_->SetStyleValue(
             object, setter.property, setter.value);
         if (!applied) {
             return applied.GetStatus();
         }
+    }
+    if (existing == UINT32_MAX) {
+        Base::Result<void> tracked = applications_.TryPushBack({&object, &style});
+        if (!tracked) {
+            return tracked.GetStatus();
+        }
+    } else {
+        applications_[existing].style = &style;
     }
     return {};
 }
@@ -154,6 +170,51 @@ Base::Result<void> StyleManager::Clear(
     if (!verified) {
         return verified.GetStatus();
     }
+    const std::uint32_t existing = FindApplication(object);
+    const Style* actual = existing != UINT32_MAX ? applications_[existing].style : &style;
+    Base::Result<void> cleared = ClearSetters(object, *actual);
+    if (!cleared) {
+        return cleared.GetStatus();
+    }
+    if (existing != UINT32_MAX) {
+        if (existing + 1U != applications_.Size()) {
+            applications_[existing] = applications_[applications_.Size() - 1U];
+        }
+        applications_.PopBack();
+    }
+    return {};
+}
+
+Base::Result<bool> StyleManager::DetachObject(
+    DependencyObject& object) noexcept {
+    const std::uint32_t existing = FindApplication(object);
+    if (existing == UINT32_MAX) {
+        return false;
+    }
+    Base::Result<void> cleared = ClearSetters(object, *applications_[existing].style);
+    if (!cleared) {
+        return cleared.GetStatus();
+    }
+    if (existing + 1U != applications_.Size()) {
+        applications_[existing] = applications_[applications_.Size() - 1U];
+    }
+    applications_.PopBack();
+    return true;
+}
+
+std::uint32_t StyleManager::FindApplication(
+    const DependencyObject& object) const noexcept {
+    for (std::uint32_t index = 0U; index < applications_.Size(); ++index) {
+        if (applications_[index].object == &object) {
+            return index;
+        }
+    }
+    return UINT32_MAX;
+}
+
+Base::Result<void> StyleManager::ClearSetters(
+    DependencyObject& object,
+    const Style& style) noexcept {
     for (const StyleSetter& setter : style.Setters()) {
         Base::Result<void> cleared = values_->ClearStyleValue(object, setter.property);
         if (!cleared) {
