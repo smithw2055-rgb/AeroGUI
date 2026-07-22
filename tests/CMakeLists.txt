@@ -127,6 +127,13 @@ set_target_properties(AeroXamlStyleTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroXamlStyleTests)
 add_test(NAME AeroXamlStyleTests COMMAND AeroXamlStyleTests)
 
+add_executable(AeroXamlLayoutTests unit/XamlLayoutTests.cpp)
+target_link_libraries(AeroXamlLayoutTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlLayoutTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlLayoutTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlLayoutTests)
+add_test(NAME AeroXamlLayoutTests COMMAND AeroXamlLayoutTests)
+
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)
