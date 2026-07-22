@@ -128,8 +128,12 @@ bool TestLogicalVisualTreeAndLifecycle() {
     tree.SetLifecycleHandler(&RecordLifecycle, &lifecycle);
 
     CHECK(tree.SetRoot(&root));
+    Result<TreeNodeHandle> rootHandle = tree.GetHandle(root);
+    CHECK(rootHandle && tree.ResolveHandle(rootHandle.Value()) == &root);
     CHECK(root.IsLoaded());
     CHECK(tree.AttachLogical(root, child));
+    Result<TreeNodeHandle> childHandle = tree.GetHandle(child);
+    CHECK(childHandle && tree.ResolveHandle(childHandle.Value()) == &child);
     CHECK(tree.AttachLogical(child, leaf));
     CHECK(child.LogicalParent() == &root);
     CHECK(leaf.LogicalParent() == &child);
@@ -155,7 +159,9 @@ bool TestLogicalVisualTreeAndLifecycle() {
     CHECK(tree.DetachVisual(root, child));
     CHECK(tree.DetachLogical(child, leaf));
     CHECK(tree.DetachLogical(root, child));
+    CHECK(tree.ResolveHandle(childHandle.Value()) == nullptr);
     CHECK(tree.SetRoot(nullptr));
+    CHECK(tree.ResolveHandle(rootHandle.Value()) == nullptr);
     CHECK(!root.IsLoaded());
     CHECK(!child.IsLoaded());
     CHECK(!leaf.IsLoaded());

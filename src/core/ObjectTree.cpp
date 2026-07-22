@@ -118,7 +118,8 @@ ObjectTree::ObjectTree(
     : dispatcher_(&dispatcher),
       values_(&values),
       allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      lifecycleQueue_(allocator_) {}
+      lifecycleQueue_(allocator_),
+      handles_(allocator_) {}
 
 ObjectTree::~ObjectTree() noexcept {
     if (lifecycleHook_.IsValid() && dispatcher_->CheckAccess()) {
@@ -146,6 +147,59 @@ Base::Result<void> ObjectTree::Initialize() noexcept {
     }
     lifecycleHook_ = hook.Value();
     return {};
+}
+
+Base::Result<TreeNodeHandle> ObjectTree::GetHandle(
+    const TreeNode& node) const noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (node.tree_ != this || !node.handle_.IsValid() ||
+        node.handle_.index >= handles_.Size()) {
+        return NotFound("Tree node does not have an active ObjectTree handle");
+    }
+    const HandleEntry& entry = handles_[node.handle_.index];
+    if (entry.node != &node || entry.generation != node.handle_.generation) {
+        return NotFound("Tree node handle is stale");
+    }
+    return node.handle_;
+}
+
+TreeNode* ObjectTree::ResolveHandle(TreeNodeHandle handle) const noexcept {
+    if (!handle.IsValid() || handle.index >= handles_.Size()) return nullptr;
+    const HandleEntry& entry = handles_[handle.index];
+    return entry.generation == handle.generation ? entry.node : nullptr;
+}
+
+Base::Result<void> ObjectTree::RegisterHandleSubtree(TreeNode& node) noexcept {
+    if (!node.handle_.IsValid()) {
+        HandleEntry entry;
+        entry.node = &node;
+        Base::Result<void> appended = handles_.TryPushBack(entry);
+        if (!appended) return appended.GetStatus();
+        node.handle_ = {handles_.Size() - 1U, entry.generation};
+    }
+    for (TreeNode* child : node.logicalChildren_) {
+        if (child != nullptr) {
+            Base::Result<void> registered = RegisterHandleSubtree(*child);
+            if (!registered) return registered;
+        }
+    }
+    return {};
+}
+
+void ObjectTree::InvalidateHandleSubtree(TreeNode& node) noexcept {
+    for (TreeNode* child : node.logicalChildren_) {
+        if (child != nullptr) InvalidateHandleSubtree(*child);
+    }
+    if (node.handle_.IsValid() && node.handle_.index < handles_.Size()) {
+        HandleEntry& entry = handles_[node.handle_.index];
+        if (entry.node == &node) {
+            entry.node = nullptr;
+            ++entry.generation;
+            if (entry.generation == 0U) ++entry.generation;
+        }
+    }
+    node.handle_ = {};
 }
 
 Base::Result<void> ObjectTree::VerifyMutation(
@@ -270,12 +324,20 @@ Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
             mutating_ = false;
             return unloaded;
         }
+        InvalidateHandleSubtree(*oldRoot);
         oldRoot->tree_ = nullptr;
         (void)values_->SetInheritanceParent(*oldRoot, nullptr);
     }
     root_ = root;
     ++version_;
     if (root_ != nullptr) {
+        Base::Result<void> registered = RegisterHandleSubtree(*root_);
+        if (!registered) {
+            root_ = oldRoot;
+            if (oldRoot != nullptr) oldRoot->tree_ = this;
+            mutating_ = false;
+            return registered;
+        }
         root_->tree_ = this;
         Base::Result<void> loaded = SetLoadedSubtree(*root_, true);
         if (!loaded) {
@@ -319,6 +381,8 @@ Base::Result<void> ObjectTree::AttachLogical(
     if (!reserve) {
         return reserve;
     }
+    Base::Result<void> registered = RegisterHandleSubtree(child);
+    if (!registered) return registered;
     mutating_ = true;
     Base::Result<void> inherited = values_->SetInheritanceParent(child, &parent);
     if (!inherited) {
@@ -335,6 +399,7 @@ Base::Result<void> ObjectTree::AttachLogical(
         if (!loaded) {
             child.logicalParent_ = nullptr;
             child.tree_ = nullptr;
+            InvalidateHandleSubtree(child);
             parent.logicalChildren_.PopBack();
             (void)values_->SetInheritanceParent(child, nullptr);
             mutating_ = false;
@@ -382,6 +447,7 @@ Base::Result<void> ObjectTree::DetachLogical(
     RemoveChild(parent.logicalChildren_, child);
     child.logicalParent_ = nullptr;
     child.tree_ = nullptr;
+    InvalidateHandleSubtree(child);
     (void)values_->SetInheritanceParent(child, nullptr);
     ++version_;
     mutating_ = false;

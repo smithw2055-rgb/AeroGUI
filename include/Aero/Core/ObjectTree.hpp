@@ -76,6 +76,14 @@ struct RoutedEventHandlerToken final {
     }
 };
 
+struct TreeNodeHandle final {
+    std::uint32_t index = UINT32_MAX;
+    std::uint32_t generation = 0U;
+    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+        return index != UINT32_MAX && generation != 0U;
+    }
+};
+
 struct TreeLifecycleEvent final {
     TreeNode* node = nullptr;
     bool loaded = false;
@@ -105,6 +113,7 @@ public:
         return {visualChildren_.Data(), visualChildren_.Size()};
     }
     AERO_NODISCARD bool IsLoaded() const noexcept { return loaded_; }
+    AERO_NODISCARD TreeNodeHandle Handle() const noexcept { return handle_; }
 
     AERO_NODISCARD Base::Result<RoutedEventHandlerToken> AddHandler(
         RoutedEventHandle event,
@@ -138,6 +147,7 @@ private:
     std::uint64_t nextHandlerToken_ = 1U;
     std::uint64_t nextHandlerSequence_ = 1U;
     bool loaded_ = false;
+    TreeNodeHandle handle_;
 
     void CleanupHandlers() noexcept;
 };
@@ -156,6 +166,9 @@ public:
     AERO_NODISCARD Base::Result<void> Initialize() noexcept;
     AERO_NODISCARD Base::Result<void> SetRoot(TreeNode* root) noexcept;
     AERO_NODISCARD TreeNode* Root() const noexcept { return root_; }
+    AERO_NODISCARD Base::Result<TreeNodeHandle> GetHandle(
+        const TreeNode& node) const noexcept;
+    AERO_NODISCARD TreeNode* ResolveHandle(TreeNodeHandle handle) const noexcept;
 
     AERO_NODISCARD Base::Result<void> AttachLogical(
         TreeNode& parent, TreeNode& child) noexcept;
@@ -187,12 +200,17 @@ private:
         std::uint64_t sequence = 0U;
         std::uint64_t treeVersion = 0U;
     };
+    struct HandleEntry final {
+        TreeNode* node = nullptr;
+        std::uint32_t generation = 1U;
+    };
 
     Dispatcher* dispatcher_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     TreeNode* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
+    Base::Vector<HandleEntry> handles_;
     DispatcherFrameHookHandle lifecycleHook_;
     TreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
@@ -216,6 +234,8 @@ private:
         TreeNode& node,
         bool loaded) noexcept;
     AERO_NODISCARD Base::Result<std::uint32_t> FlushLifecycle() noexcept;
+    AERO_NODISCARD Base::Result<void> RegisterHandleSubtree(TreeNode& node) noexcept;
+    void InvalidateHandleSubtree(TreeNode& node) noexcept;
     void RemoveChild(Base::Vector<TreeNode*>& children, TreeNode& child) noexcept;
     static void LifecycleHook(void* context) noexcept;
 };
