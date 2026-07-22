@@ -88,6 +88,7 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup STATIC
     src/markup/XmlTokenizer.cpp
+    src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlObjectWriter.cpp
     src/markup/XamlSchemaContext.cpp)
