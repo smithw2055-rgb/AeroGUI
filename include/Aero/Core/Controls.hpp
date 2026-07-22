@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Core/Layout.hpp>
+#include <Aero/Core/Rendering.hpp>
 
 namespace Aero::Core {
 
@@ -42,6 +42,24 @@ protected:
 private:
     struct Position final { LayoutElement* child = nullptr; Point point; };
     Base::Vector<Position> positions_;
+};
+
+class AERO_API Border final : public RenderElement {
+public:
+    Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    AERO_NODISCARD Base::Result<void> SetBackground(Color value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetStroke(Color value, double thickness) noexcept;
+
+protected:
+    AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
+    AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
+    AERO_NODISCARD Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
+
+private:
+    Color background_;
+    Color stroke_{0.0F, 0.0F, 0.0F, 0.0F};
+    double strokeThickness_ = 0.0;
 };
 
 } // namespace Aero::Core

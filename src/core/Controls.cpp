@@ -1,6 +1,7 @@
 #include <Aero/Core/Controls.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 namespace Aero::Core {
 
@@ -112,6 +113,56 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
         if (!arranged) return arranged.GetStatus();
     }
     return finalSize;
+}
+
+Border::Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+    TypeId runtimeType, Base::IAllocator* allocator) noexcept
+    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
+
+Base::Result<void> Border::SetBackground(Color value) noexcept {
+    if (!IsFinite(value)) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border color must be finite");
+    background_ = value;
+    return InvalidateRender();
+}
+
+Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
+    if (!IsFinite(value) || !std::isfinite(thickness) || thickness < 0.0) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border stroke is invalid");
+    }
+    stroke_ = value;
+    strokeThickness_ = thickness;
+    return InvalidateRender();
+}
+
+Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
+    Size desired;
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(*child, availableSize);
+        if (!measured) return measured.GetStatus();
+        desired.width = std::max(desired.width, child->DesiredSize().width);
+        desired.height = std::max(desired.height, child->DesiredSize().height);
+    }
+    return desired;
+}
+
+Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> arranged = ArrangeChild(*child, {0.0, 0.0, finalSize.width, finalSize.height});
+        if (!arranged) return arranged.GetStatus();
+    }
+    return finalSize;
+}
+
+Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcept {
+    const Rect bounds{0.0, 0.0, RenderSize().width, RenderSize().height};
+    Base::Result<void> fill = builder.FillRect(bounds, background_);
+    if (!fill) return fill.GetStatus();
+    if (strokeThickness_ > 0.0 && stroke_.alpha > 0.0F) {
+        return builder.StrokeRect(bounds, stroke_, strokeThickness_);
+    }
+    return {};
 }
 
 } // namespace Aero::Core
