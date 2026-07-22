@@ -1,4 +1,5 @@
 #include <Aero/Core/Layout.hpp>
+#include <Aero/Core/Controls.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -134,7 +135,7 @@ bool TestNestedLayoutAndInvalidation() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    VerticalPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    StackPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
     FixedElement first(fixture.dispatcher, fixture.properties,
         fixture.elementType, {30.0, 10.0});
     FixedElement second(fixture.dispatcher, fixture.properties,

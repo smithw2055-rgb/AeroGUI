@@ -59,6 +59,7 @@ target_compile_definitions(AeroBase
 
 add_library(AeroCore STATIC
     src/core/Binding.cpp
+    src/core/Controls.cpp
     src/core/DependencyProperty.cpp
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
