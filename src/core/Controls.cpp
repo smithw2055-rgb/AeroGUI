@@ -5,6 +5,15 @@
 
 namespace Aero::Core {
 
+namespace {
+bool IsValidColor(Color value) noexcept {
+    return IsFinite(value) && value.red >= 0.0F && value.red <= 1.0F &&
+        value.green >= 0.0F && value.green <= 1.0F &&
+        value.blue >= 0.0F && value.blue <= 1.0F &&
+        value.alpha >= 0.0F && value.alpha <= 1.0F;
+}
+} // namespace
+
 StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Orientation orientation, Base::IAllocator* allocator) noexcept
     : LayoutElement(dispatcher, registry, runtimeType, allocator), orientation_(orientation) {}
@@ -120,13 +129,13 @@ Border::Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     : RenderElement(dispatcher, registry, runtimeType, allocator) {}
 
 Base::Result<void> Border::SetBackground(Color value) noexcept {
-    if (!IsFinite(value)) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border color must be finite");
+    if (!IsValidColor(value)) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border color is invalid");
     background_ = value;
     return InvalidateRender();
 }
 
 Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
-    if (!IsFinite(value) || !std::isfinite(thickness) || thickness < 0.0) {
+    if (!IsValidColor(value) || !std::isfinite(thickness) || thickness < 0.0) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border stroke is invalid");
     }
     stroke_ = value;

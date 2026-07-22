@@ -1,4 +1,5 @@
 #include <Aero/Core/Rendering.hpp>
+#include <Aero/Core/Controls.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -86,6 +87,13 @@ protected:
     }
 };
 
+class TestBorder final : public Border {
+public:
+    TestBorder(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId type) noexcept : Border(dispatcher, registry, type) {}
+    using Border::BuildDisplayList;
+};
+
 struct Fixture final {
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
@@ -133,6 +141,28 @@ bool TestDisplayListValidation() {
     Result<void> invalidColor = badColor.FillRect(
         {0.0, 0.0, 1.0, 1.0}, {2.0F, 0.0F, 0.0F, 1.0F});
     CHECK(!invalidColor && invalidColor.GetStatus().code == ErrorCode::InvalidArgument);
+    return true;
+}
+
+bool TestBorderDisplayList() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    TestBorder border(fixture.dispatcher, fixture.properties, fixture.panelType);
+    CHECK(border.SetBackground({0.1F, 0.2F, 0.3F, 1.0F}));
+    CHECK(border.SetStroke({1.0F, 1.0F, 1.0F, 1.0F}, 2.0));
+    CHECK(!border.SetBackground({2.0F, 0.0F, 0.0F, 1.0F}));
+    CHECK(layout.SetRoot(&border, {40.0, 30.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    DisplayListBuilder builder;
+    CHECK(border.BuildDisplayList(builder));
+    Result<DisplayList> list = builder.Finish();
+    CHECK(list);
+    CHECK(list.Value().CommandCount() == 2U);
+    CHECK(list.Value().Commands()[0].kind == RenderCommandKind::FillRect);
+    CHECK(list.Value().Commands()[1].kind == RenderCommandKind::StrokeRect);
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
     return true;
 }
 
@@ -218,6 +248,7 @@ bool TestRenderRequiresArrange() {
 
 int main() {
     if (!TestDisplayListValidation()) return 1;
+    if (!TestBorderDisplayList()) return 1;
     if (!TestRenderCommitAndInvalidation()) return 1;
     if (!TestRenderRequiresArrange()) return 1;
     std::puts("Aero rendering tests passed");

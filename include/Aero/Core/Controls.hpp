@@ -44,7 +44,7 @@ private:
     Base::Vector<Position> positions_;
 };
 
-class AERO_API Border final : public RenderElement {
+class AERO_API Border : public RenderElement {
 public:
     Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
