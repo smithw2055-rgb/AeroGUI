@@ -83,7 +83,8 @@ set_target_properties(AeroXamlObjectWriterTests PROPERTIES CXX_STANDARD 17 CXX_S
 aero_apply_compiler_options(AeroXamlObjectWriterTests)
 add_test(NAME AeroXamlObjectWriterTests COMMAND AeroXamlObjectWriterTests)
 
-add_executable(AeroXamlDirectivesResourcesTests unit/XamlDirectivesResourcesTests.cpp)
+add_executable(AeroXamlDirectivesResourcesTests
+    unit/XamlDirectivesResourcesTestDriver.cpp)
 target_link_libraries(AeroXamlDirectivesResourcesTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlDirectivesResourcesTests PRIVATE cxx_std_17)
 set_target_properties(AeroXamlDirectivesResourcesTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
