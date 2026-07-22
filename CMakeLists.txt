@@ -11,6 +11,12 @@ option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
+option(AERO_ENABLE_SOKOL_BACKEND
+    "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
+set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
+    "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
+set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
+    "Optional private include directory containing sokol_gfx.h")
 
 include(cmake/AeroCompilerOptions.cmake)
 
@@ -105,7 +111,8 @@ aero_apply_compiler_options(AeroMarkup)
 
 add_library(AeroRhi STATIC
     src/rhi/Graphics.cpp
-    src/rhi/Rhi.cpp)
+    src/rhi/Rhi.cpp
+    src/rhi/Surface.cpp)
 
 add_library(Aero::Rhi ALIAS AeroRhi)
 
@@ -123,6 +130,26 @@ set_target_properties(AeroRhi PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 
 aero_apply_compiler_options(AeroRhi)
+
+if(AERO_ENABLE_SOKOL_BACKEND)
+    if(AERO_SOKOL_BRIDGE_SOURCE STREQUAL "")
+        message(FATAL_ERROR
+            "AERO_ENABLE_SOKOL_BACKEND requires AERO_SOKOL_BRIDGE_SOURCE")
+    endif()
+    if(NOT EXISTS "${AERO_SOKOL_BRIDGE_SOURCE}")
+        message(FATAL_ERROR
+            "AERO_SOKOL_BRIDGE_SOURCE does not exist: ${AERO_SOKOL_BRIDGE_SOURCE}")
+    endif()
+
+    target_sources(AeroRhi PRIVATE "${AERO_SOKOL_BRIDGE_SOURCE}")
+    if(NOT AERO_SOKOL_INCLUDE_DIR STREQUAL "")
+        target_include_directories(
+            AeroRhi PRIVATE "${AERO_SOKOL_INCLUDE_DIR}")
+    endif()
+    target_compile_definitions(AeroRhi PUBLIC AERO_HAS_SOKOL_BACKEND=1)
+else()
+    target_compile_definitions(AeroRhi PUBLIC AERO_HAS_SOKOL_BACKEND=0)
+endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC diagnoses a reference obtained through a temporary Span view even
