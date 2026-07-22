@@ -101,6 +101,21 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
                     data.Data(),
                     data.Size());
                 impl_->context->Unmap(record->buffer, 0U);
+            } else if (record->baseDescriptor.buffer.usage ==
+                       BufferUsage::Uniform) {
+                if (command.resourceOffset != 0U ||
+                    command.uploadSize !=
+                        record->baseDescriptor.buffer.sizeBytes) {
+                    return failSubmission(Unsupported(
+                        "D3D11 constant-buffer uploads must replace the whole buffer"));
+                }
+                impl_->context->UpdateSubresource(
+                    record->buffer,
+                    0U,
+                    nullptr,
+                    data.Data(),
+                    0U,
+                    0U);
             } else {
                 UINT left = 0U;
                 UINT size = 0U;
