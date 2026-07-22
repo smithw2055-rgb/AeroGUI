@@ -112,6 +112,20 @@ set_target_properties(AeroSurfaceBackendTests PROPERTIES CXX_STANDARD 17 CXX_STA
 aero_apply_compiler_options(AeroSurfaceBackendTests)
 add_test(NAME AeroSurfaceBackendTests COMMAND AeroSurfaceBackendTests)
 
+if(WIN32 AND TARGET AeroRhiD3D11)
+    add_executable(AeroD3D11BackendTests unit/D3D11BackendTests.cpp)
+    target_link_libraries(
+        AeroD3D11BackendTests PRIVATE Aero::RhiD3D11 d3dcompiler)
+    target_compile_features(AeroD3D11BackendTests PRIVATE cxx_std_17)
+    set_target_properties(AeroD3D11BackendTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroD3D11BackendTests)
+    add_test(NAME AeroD3D11BackendTests COMMAND AeroD3D11BackendTests)
+    set_tests_properties(AeroD3D11BackendTests PROPERTIES TIMEOUT 60)
+endif()
+
 add_executable(AeroCAbiSmoke abi/CAbiSmoke.c)
 target_link_libraries(AeroCAbiSmoke PRIVATE Aero::Base)
 set_target_properties(AeroCAbiSmoke PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES C_EXTENSIONS NO LINKER_LANGUAGE CXX)
