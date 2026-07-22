@@ -63,6 +63,9 @@ bool TestVisualHitTesting() {
     HitTestManager hit(f.types); CHECK(hit.TryRegisterType({f.rootType,&CastStack,nullptr})); CHECK(hit.TryRegisterType({f.boxType,&CastBox,nullptr}));
     Result<HitTestResult> firstHit=hit.HitTest(root,{10,10}); CHECK(firstHit && firstHit.Value().target==&first);
     Result<HitTestResult> secondHit=hit.HitTest(root,{10,35}); CHECK(secondHit && secondHit.Value().target==&second);
+    CHECK(second.SetHitTestVisible(false));
+    Result<HitTestResult> hiddenHit=hit.HitTest(root,{10,35}); CHECK(hiddenHit && hiddenHit.Value().target==&root);
+    CHECK(second.SetHitTestVisible(true));
     Result<HitTestResult> miss=hit.HitTest(root,{110,10}); CHECK(miss && !miss.Value().HasTarget());
     Result<HitTestResult> invalid=hit.HitTest(root,{INFINITY,0}); CHECK(!invalid && invalid.GetStatus().code==ErrorCode::InvalidArgument);
     PointerLog log; CHECK(root.AddHandler(f.pressed,&OnPointer,&log));

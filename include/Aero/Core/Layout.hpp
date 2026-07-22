@@ -47,6 +47,7 @@ public:
     AERO_NODISCARD bool IsMeasureValid() const noexcept { return measureValid_; }
     AERO_NODISCARD bool IsArrangeValid() const noexcept { return arrangeValid_; }
     AERO_NODISCARD bool ClipToBounds() const noexcept { return clipToBounds_; }
+    AERO_NODISCARD bool IsHitTestVisible() const noexcept { return hitTestVisible_; }
     AERO_NODISCARD bool UseLayoutRounding() const noexcept { return useLayoutRounding_; }
     AERO_NODISCARD double DpiScale() const noexcept { return dpiScale_; }
     AERO_NODISCARD std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
@@ -65,6 +66,7 @@ public:
     }
 
     AERO_NODISCARD Base::Result<void> SetClipToBounds(bool value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetHitTestVisible(bool value) noexcept;
     AERO_NODISCARD Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
     AERO_NODISCARD Base::Result<void> SetWidth(double value) noexcept;
@@ -113,6 +115,7 @@ private:
     bool measuring_ = false;
     bool arranging_ = false;
     bool clipToBounds_ = false;
+    bool hitTestVisible_ = true;
     bool useLayoutRounding_ = false;
     bool hasWidth_ = false;
     bool hasHeight_ = false;

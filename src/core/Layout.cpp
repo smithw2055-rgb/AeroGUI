@@ -156,6 +156,13 @@ Base::Result<void> LayoutElement::SetClipToBounds(bool value) noexcept {
     return InvalidateArrange();
 }
 
+Base::Result<void> LayoutElement::SetHitTestVisible(bool value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    hitTestVisible_ = value;
+    return {};
+}
+
 Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access;

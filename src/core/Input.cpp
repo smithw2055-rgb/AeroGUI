@@ -73,7 +73,8 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Hit-test requires an arranged visual tree");
     }
-    if (!Contains(element.RenderSize(), position)) return HitTestResult{};
+    if (!element.IsHitTestVisible() ||
+        !Contains(element.RenderSize(), position)) return HitTestResult{};
 
     const Base::Span<TreeNode* const> children = element.VisualChildren();
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
