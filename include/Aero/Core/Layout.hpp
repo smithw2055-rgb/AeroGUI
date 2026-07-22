@@ -64,7 +64,7 @@ public:
         return verticalAlignment_;
     }
 
-    void SetClipToBounds(bool value) noexcept { clipToBounds_ = value; }
+    AERO_NODISCARD Base::Result<void> SetClipToBounds(bool value) noexcept;
     AERO_NODISCARD Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
     AERO_NODISCARD Base::Result<void> SetWidth(double value) noexcept;

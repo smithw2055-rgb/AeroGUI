@@ -148,6 +148,14 @@ Base::Result<void> LayoutElement::SetLayoutRounding(
     return InvalidateMeasure();
 }
 
+Base::Result<void> LayoutElement::SetClipToBounds(bool value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (clipToBounds_ == value) return {};
+    clipToBounds_ = value;
+    return InvalidateArrange();
+}
+
 Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access;

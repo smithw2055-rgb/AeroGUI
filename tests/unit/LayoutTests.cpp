@@ -203,7 +203,7 @@ bool TestRoundingClippingAndValidation() {
     CHECK(layout.Initialize());
     FixedElement element(fixture.dispatcher, fixture.properties,
         fixture.elementType, {10.26, 9.74});
-    element.SetClipToBounds(true);
+    CHECK(element.SetClipToBounds(true));
     CHECK(element.SetLayoutRounding(true, 2.0));
     CHECK(layout.SetRoot(&element, {10.26, 9.74}));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
@@ -211,6 +211,10 @@ bool TestRoundingClippingAndValidation() {
     CHECK(element.DesiredSize().height == 9.5);
     CHECK(element.LayoutSlot().width == 10.5);
     CHECK(element.LayoutClip().width == 10.5);
+    CHECK(element.SetClipToBounds(false));
+    CHECK(!element.IsArrangeValid());
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(element.LayoutClip().width == element.RenderSize().width);
 
     Result<void> invalidRoot = layout.SetRoot(&element, {-1.0, 2.0});
     CHECK(!invalidRoot);
