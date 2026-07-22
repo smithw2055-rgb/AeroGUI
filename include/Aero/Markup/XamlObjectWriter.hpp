@@ -5,8 +5,10 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
@@ -45,6 +47,26 @@ inline constexpr Core::DiagnosticCode MissingMemberValue =
     Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 214U);
 inline constexpr Core::DiagnosticCode MultipleRootObjects =
     Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 215U);
+inline constexpr Core::DiagnosticCode InvalidDirective =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 216U);
+inline constexpr Core::DiagnosticCode DuplicateName =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 217U);
+inline constexpr Core::DiagnosticCode DuplicateResourceKey =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 218U);
+inline constexpr Core::DiagnosticCode StaticResourceNotFound =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 219U);
+inline constexpr Core::DiagnosticCode MissingResourceScope =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 220U);
+inline constexpr Core::DiagnosticCode NullNotAllowed =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 221U);
+inline constexpr Core::DiagnosticCode InvalidMarkupExtension =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 222U);
+inline constexpr Core::DiagnosticCode NamespaceState =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 223U);
+inline constexpr Core::DiagnosticCode NameRegistrationFailed =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 224U);
+inline constexpr Core::DiagnosticCode ResourceRegistrationFailed =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 225U);
 } // namespace XamlObjectWriterDiagnosticCodes
 
 class AERO_API XamlObjectWriter final {
@@ -62,18 +84,44 @@ public:
         XamlNodeReader& reader) noexcept;
     void Reset() noexcept;
 
+    AERO_NODISCARD const NameScope& DocumentNameScope() const noexcept {
+        return committedNames_;
+    }
+    AERO_NODISCARD const ResourceDictionary& DocumentResources() const noexcept {
+        return committedResources_;
+    }
+
 private:
     static constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 
     enum class FrameKind : std::uint8_t {
         Object = 0U,
-        Member
+        Member,
+        Directive,
+        NullObject
+    };
+
+    enum class DirectiveKind : std::uint8_t {
+        None = 0U,
+        Name,
+        Key
+    };
+
+    enum class MarkupValueKind : std::uint8_t {
+        Literal = 0U,
+        Null,
+        StaticResource,
+        Invalid
     };
 
     struct Frame final {
         FrameKind kind = FrameKind::Object;
+        DirectiveKind directive = DirectiveKind::None;
         std::uint32_t objectIndex = InvalidIndex;
         std::uint32_t targetObjectIndex = InvalidIndex;
+        std::uint32_t namespaceBindingStart = InvalidIndex;
+        std::uint32_t nameScopeIndex = InvalidIndex;
+        std::uint32_t resourceScopeIndex = InvalidIndex;
         XamlResolvedMember member;
         Core::SourceSpan source;
         std::uint32_t valuesWritten = 0U;
@@ -81,10 +129,24 @@ private:
     };
 
     struct CreatedObjectRecord final {
+        explicit CreatedObjectRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : name(allocator), key(allocator) {}
+
+        CreatedObjectRecord(CreatedObjectRecord&&) noexcept = default;
+        CreatedObjectRecord& operator=(CreatedObjectRecord&&) noexcept = default;
+
+        CreatedObjectRecord(const CreatedObjectRecord&) = delete;
+        CreatedObjectRecord& operator=(const CreatedObjectRecord&) = delete;
+
         Base::Ref<Base::Object> object;
         Core::TypeId type = Core::InvalidTypeId;
+        Base::String name;
+        Base::String key;
         bool beginCalled = false;
         bool endCalled = false;
+        bool nameRegistered = false;
+        bool resourceRegistered = false;
     };
 
     struct AssignmentRecord final {
@@ -93,33 +155,118 @@ private:
         std::uint32_t count = 0U;
     };
 
+    struct NameScopeRecord final {
+        explicit NameScopeRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : names(allocator) {}
+
+        NameScopeRecord(NameScopeRecord&&) noexcept = default;
+        NameScopeRecord& operator=(NameScopeRecord&&) noexcept = default;
+
+        NameScopeRecord(const NameScopeRecord&) = delete;
+        NameScopeRecord& operator=(const NameScopeRecord&) = delete;
+
+        std::uint32_t ownerObjectIndex = InvalidIndex;
+        NameScope names;
+    };
+
+    struct ResourceScopeRecord final {
+        explicit ResourceScopeRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : resources(allocator) {}
+
+        ResourceScopeRecord(ResourceScopeRecord&&) noexcept = default;
+        ResourceScopeRecord& operator=(ResourceScopeRecord&&) noexcept = default;
+
+        ResourceScopeRecord(const ResourceScopeRecord&) = delete;
+        ResourceScopeRecord& operator=(const ResourceScopeRecord&) = delete;
+
+        std::uint32_t ownerObjectIndex = InvalidIndex;
+        ResourceDictionary resources;
+    };
+
+    struct NamespaceBindingRecord final {
+        explicit NamespaceBindingRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : prefix(allocator), uri(allocator) {}
+
+        NamespaceBindingRecord(NamespaceBindingRecord&&) noexcept = default;
+        NamespaceBindingRecord& operator=(NamespaceBindingRecord&&) noexcept = default;
+
+        NamespaceBindingRecord(const NamespaceBindingRecord&) = delete;
+        NamespaceBindingRecord& operator=(const NamespaceBindingRecord&) = delete;
+
+        Base::String prefix;
+        Base::String uri;
+    };
+
+    struct PendingNamespaceRecord final {
+        explicit PendingNamespaceRecord(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : prefix(allocator), uri(allocator) {}
+
+        PendingNamespaceRecord(PendingNamespaceRecord&&) noexcept = default;
+        PendingNamespaceRecord& operator=(PendingNamespaceRecord&&) noexcept = default;
+
+        PendingNamespaceRecord(const PendingNamespaceRecord&) = delete;
+        PendingNamespaceRecord& operator=(const PendingNamespaceRecord&) = delete;
+
+        Base::String prefix;
+        Base::String uri;
+        Core::SourceSpan source;
+    };
+
     XamlSchemaContext* schema_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Frame> frames_;
     Base::Vector<CreatedObjectRecord> created_;
     Base::Vector<AssignmentRecord> assignments_;
+    Base::Vector<NameScopeRecord> nameScopes_;
+    Base::Vector<ResourceScopeRecord> resourceScopes_;
+    Base::Vector<NamespaceBindingRecord> namespaceBindings_;
+    Base::Vector<PendingNamespaceRecord> pendingNamespaces_;
+    NameScope committedNames_;
+    ResourceDictionary committedResources_;
     Base::Ref<Base::Object> root_;
+    std::uint32_t rootObjectIndex_ = InvalidIndex;
+    std::uint32_t documentNameScopeIndex_ = InvalidIndex;
+    std::uint32_t documentResourceScopeIndex_ = InvalidIndex;
     bool loading_ = false;
     bool ended_ = false;
 
     AERO_NODISCARD Base::Result<void> ProcessNode(
         const XamlNode& node) noexcept;
+    AERO_NODISCARD Base::Result<void> QueueNamespaceDeclaration(
+        const XamlNode& node) noexcept;
     AERO_NODISCARD Base::Result<void> StartObject(
         const XamlNode& node) noexcept;
+    AERO_NODISCARD Base::Result<void> StartNullObject(
+        const XamlNode& node,
+        std::uint32_t bindingStart) noexcept;
     AERO_NODISCARD Base::Result<void> EndObject(
         const XamlNode& node) noexcept;
     AERO_NODISCARD Base::Result<void> StartMember(
         const XamlNode& node) noexcept;
+    AERO_NODISCARD Base::Result<void> StartDirective(
+        const XamlNode& node,
+        DirectiveKind directive,
+        std::uint32_t targetObjectIndex) noexcept;
     AERO_NODISCARD Base::Result<void> EndMember(
         const XamlNode& node) noexcept;
     AERO_NODISCARD Base::Result<void> WriteText(
         const XamlNode& node) noexcept;
+    AERO_NODISCARD Base::Result<void> WriteDirectiveText(
+        Frame& frame,
+        const XamlNode& node) noexcept;
 
     AERO_NODISCARD Base::Result<void> StartPropertyElement(
         const XamlNode& node,
-        std::uint32_t targetFrameIndex) noexcept;
+        std::uint32_t targetFrameIndex,
+        std::uint32_t bindingStart) noexcept;
     AERO_NODISCARD Base::Result<void> CompleteObject(
+        const XamlNode& node) noexcept;
+    AERO_NODISCARD Base::Result<void> CompleteNullObject(
         const XamlNode& node) noexcept;
     AERO_NODISCARD Base::Result<void> WriteObjectToParent(
         std::uint32_t objectIndex,
@@ -127,6 +274,8 @@ private:
     AERO_NODISCARD Base::Result<void> WriteObjectToContent(
         std::uint32_t parentObjectIndex,
         std::uint32_t childObjectIndex,
+        Core::SourceSpan source) noexcept;
+    AERO_NODISCARD Base::Result<void> WriteNullToParent(
         Core::SourceSpan source) noexcept;
     AERO_NODISCARD Base::Result<void> WriteValueToMember(
         Frame& memberFrame,
@@ -138,14 +287,52 @@ private:
         XamlValue&& value,
         Core::SourceSpan source) noexcept;
 
-    AERO_NODISCARD std::uint32_t CurrentObjectFrameIndex() const noexcept;
-    AERO_NODISCARD AssignmentRecord* FindAssignment(
+    AERO_NODISCARD Base::Result<void> RegisterObjectName(
         std::uint32_t objectIndex,
-        Core::MemberId member) noexcept;
+        Core::SourceSpan source) noexcept;
+    AERO_NODISCARD Base::Result<bool> RegisterObjectResource(
+        std::uint32_t objectIndex,
+        Core::SourceSpan source) noexcept;
+    AERO_NODISCARD Base::Result<XamlResourceValue> LookupResource(
+        Base::StringView key) const noexcept;
+    AERO_NODISCARD Base::Result<void> CreateScopesForObject(
+        std::uint32_t objectIndex,
+        Frame& frame,
+        Core::SourceSpan source) noexcept;
+
+    AERO_NODISCARD Base::Result<void> ActivatePendingNamespaces(
+        std::uint32_t& bindingStart) noexcept;
+    void PopNamespaceBindings(std::uint32_t bindingStart) noexcept;
+    AERO_NODISCARD Base::Result<Base::StringView> LookupNamespace(
+        Base::StringView prefix) const noexcept;
+
+    AERO_NODISCARD XamlServiceProvider BuildServices(
+        std::uint32_t targetObjectIndex,
+        const XamlResolvedMember& member,
+        Core::SourceSpan source) noexcept;
+    AERO_NODISCARD const NameScope* FindActiveNameScope() const noexcept;
+    AERO_NODISCARD std::uint32_t FindNameScopeIndexForObject(
+        std::uint32_t objectIndex) const noexcept;
+    AERO_NODISCARD std::uint32_t FindResourceScopeIndexForParent() const noexcept;
+    AERO_NODISCARD std::uint32_t FindObjectFrameIndex(
+        std::uint32_t objectIndex) const noexcept;
+
+    AERO_NODISCARD MarkupValueKind ParseMarkupValue(
+        Base::StringView text,
+        Base::StringView& argument) const noexcept;
+    AERO_NODISCARD bool IsXamlDirective(
+        const XamlQualifiedName& name,
+        Base::StringView localName) const noexcept;
+    AERO_NODISCARD bool IsXamlNullObject(
+        const XamlQualifiedName& name) const noexcept;
     AERO_NODISCARD bool HasPropertyElementSyntax(
         const XamlQualifiedName& name) const noexcept;
     AERO_NODISCARD bool IsWhitespaceOnly(Base::StringView value) const noexcept;
+    AERO_NODISCARD AssignmentRecord* FindAssignment(
+        std::uint32_t objectIndex,
+        Core::MemberId member) noexcept;
 
+    void CommitDocumentScopes() noexcept;
     void AbortTransaction() noexcept;
     void ClearTransaction() noexcept;
     AERO_NODISCARD Base::Status Failure(
@@ -153,6 +340,15 @@ private:
         Core::DiagnosticCode diagnostic,
         Base::StringView message,
         Core::SourceSpan source) noexcept;
+
+    AERO_NODISCARD static Base::Result<Base::StringView>
+    NamespaceLookupCallback(
+        void* context,
+        Base::StringView prefix) noexcept;
+    AERO_NODISCARD static Base::Result<XamlResourceValue>
+    ResourceLookupCallback(
+        void* context,
+        Base::StringView key) noexcept;
 };
 
 } // namespace Aero::Markup
