@@ -1,6 +1,5 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
 
-#include <cstring>
 #include <utility>
 
 namespace Aero::Markup {
@@ -58,6 +57,10 @@ constexpr Base::StringView MessageNameRegistrationFailed(
     "XAML name registration callback failed");
 constexpr Base::StringView MessageResourceRegistrationFailed(
     "XAML resource registration callback failed");
+constexpr Base::StringView MessageUnknownMarkupExtension(
+    "XAML markup-extension type or provider is not registered");
+constexpr Base::StringView MessageMarkupExtensionFailed(
+    "XAML markup-extension value provider failed");
 
 constexpr Base::StringView XmlPrefix("xml");
 constexpr Base::StringView XmlNamespaceUri(
@@ -88,16 +91,6 @@ Base::StringView TrimAscii(Base::StringView value) noexcept {
         --end;
     }
     return value.Substr(begin, end - begin);
-}
-
-bool StartsWith(
-    Base::StringView value,
-    Base::StringView prefix) noexcept {
-    return value.SizeBytes() >= prefix.SizeBytes() &&
-        (prefix.Empty() || std::memcmp(
-            value.Data(),
-            prefix.Data(),
-            prefix.SizeBytes()) == 0);
 }
 
 bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
@@ -651,9 +644,11 @@ Base::Result<void> XamlObjectWriter::WriteText(
     }
 
     if (frame.kind == FrameKind::Member) {
+        Base::StringView extensionName;
         Base::StringView argument;
         const MarkupValueKind markup = ParseMarkupValue(
             node.Value(),
+            extensionName,
             argument);
         if (markup == MarkupValueKind::Invalid) {
             return Failure(
@@ -695,9 +690,27 @@ Base::Result<void> XamlObjectWriter::WriteText(
             return WriteValueToMember(frame, std::move(value), node.Source());
         }
 
+        if (markup == MarkupValueKind::Extension) {
+            Base::Result<XamlValue> value = EvaluateMarkupExtension(
+                frame.targetObjectIndex,
+                frame.member,
+                extensionName,
+                argument,
+                node.Source());
+            if (!value) {
+                return value.GetStatus();
+            }
+            return WriteValueToMember(
+                frame,
+                std::move(value).Value(),
+                node.Source());
+        }
+
         Base::Result<XamlValue> convertResult = schema_->ConvertText(
             frame.member.valueType,
-            node.Value());
+            markup == MarkupValueKind::EscapedLiteral
+                ? argument
+                : node.Value());
         if (!convertResult) {
             return Failure(
                 convertResult.GetStatus(),
@@ -732,8 +745,12 @@ Base::Result<void> XamlObjectWriter::WriteText(
             node.Source());
     }
 
+    Base::StringView extensionName;
     Base::StringView argument;
-    const MarkupValueKind markup = ParseMarkupValue(node.Value(), argument);
+    const MarkupValueKind markup = ParseMarkupValue(
+        node.Value(),
+        extensionName,
+        argument);
     if (markup == MarkupValueKind::Invalid) {
         return Failure(
             Base::Status::Failure(
@@ -784,9 +801,28 @@ Base::Result<void> XamlObjectWriter::WriteText(
             node.Source());
     }
 
+    if (markup == MarkupValueKind::Extension) {
+        Base::Result<XamlValue> value = EvaluateMarkupExtension(
+            frame.objectIndex,
+            contentResult.Value(),
+            extensionName,
+            argument,
+            node.Source());
+        if (!value) {
+            return value.GetStatus();
+        }
+        return WriteValue(
+            frame.objectIndex,
+            contentResult.Value(),
+            std::move(value).Value(),
+            node.Source());
+    }
+
     Base::Result<XamlValue> convertResult = schema_->ConvertText(
         contentResult.Value().valueType,
-        node.Value());
+        markup == MarkupValueKind::EscapedLiteral
+            ? argument
+            : node.Value());
     if (!convertResult) {
         return Failure(
             convertResult.GetStatus(),
@@ -1542,6 +1578,7 @@ XamlServiceProvider XamlObjectWriter::BuildServices(
     const XamlResolvedMember& member,
     Core::SourceSpan source) noexcept {
     XamlServiceProvider services;
+    services.schema = schema_;
     if (targetObjectIndex < created_.Size()) {
         services.targetObject = created_[targetObjectIndex].object.Get();
         services.targetObjectType = created_[targetObjectIndex].type;
@@ -1615,11 +1652,17 @@ std::uint32_t XamlObjectWriter::FindObjectFrameIndex(
 
 XamlObjectWriter::MarkupValueKind XamlObjectWriter::ParseMarkupValue(
     Base::StringView text,
+    Base::StringView& extensionName,
     Base::StringView& argument) const noexcept {
+    extensionName = {};
     argument = {};
     const Base::StringView value = TrimAscii(text);
     if (value.Empty() || value[0] != '{') {
         return MarkupValueKind::Literal;
+    }
+    if (value.SizeBytes() >= 2U && value[1] == '}') {
+        argument = value.Substr(2U, value.SizeBytes() - 2U);
+        return MarkupValueKind::EscapedLiteral;
     }
     if (value.SizeBytes() < 2U ||
         value[value.SizeBytes() - 1U] != '}') {
@@ -1632,26 +1675,122 @@ XamlObjectWriter::MarkupValueKind XamlObjectWriter::ParseMarkupValue(
     if (inner == NullMarkup) {
         return MarkupValueKind::Null;
     }
-    if (!StartsWith(inner, StaticResourceMarkup)) {
-        return MarkupValueKind::Invalid;
-    }
-    if (inner.SizeBytes() == StaticResourceMarkup.SizeBytes() ||
-        !IsAsciiWhitespace(inner[StaticResourceMarkup.SizeBytes()])) {
-        return MarkupValueKind::Invalid;
-    }
 
-    argument = TrimAscii(inner.Substr(
-        StaticResourceMarkup.SizeBytes(),
-        inner.SizeBytes() - StaticResourceMarkup.SizeBytes()));
-    if (argument.Empty()) {
-        return MarkupValueKind::Invalid;
-    }
-    for (char character : argument) {
+    for (char character : inner) {
         if (character == '{' || character == '}') {
             return MarkupValueKind::Invalid;
         }
     }
-    return MarkupValueKind::StaticResource;
+
+    std::uint32_t nameEnd = 0U;
+    while (nameEnd < inner.SizeBytes() &&
+           !IsAsciiWhitespace(inner[nameEnd]) && inner[nameEnd] != ',') {
+        ++nameEnd;
+    }
+    if (nameEnd == 0U) {
+        return MarkupValueKind::Invalid;
+    }
+    extensionName = inner.Substr(0U, nameEnd);
+
+    argument = TrimAscii(inner.Substr(nameEnd, inner.SizeBytes() - nameEnd));
+    if (!argument.Empty() && argument[0] == ',') {
+        argument = TrimAscii(argument.Substr(1U, argument.SizeBytes() - 1U));
+    }
+    if (extensionName == StaticResourceMarkup) {
+        if (argument.Empty()) {
+            return MarkupValueKind::Invalid;
+        }
+        return MarkupValueKind::StaticResource;
+    }
+    return MarkupValueKind::Extension;
+}
+
+Base::Result<XamlValue> XamlObjectWriter::EvaluateMarkupExtension(
+    std::uint32_t targetObjectIndex,
+    const XamlResolvedMember& member,
+    Base::StringView extensionName,
+    Base::StringView arguments,
+    Core::SourceSpan source) noexcept {
+    std::uint32_t colon = extensionName.SizeBytes();
+    for (std::uint32_t index = 0U;
+         index < extensionName.SizeBytes();
+         ++index) {
+        if (extensionName[index] != ':') {
+            continue;
+        }
+        if (colon != extensionName.SizeBytes()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageInvalidMarkupExtension.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
+                MessageInvalidMarkupExtension,
+                source);
+        }
+        colon = index;
+    }
+
+    Base::StringView prefix;
+    Base::StringView localName = extensionName;
+    if (colon != extensionName.SizeBytes()) {
+        if (colon == 0U || colon + 1U >= extensionName.SizeBytes()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageInvalidMarkupExtension.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
+                MessageInvalidMarkupExtension,
+                source);
+        }
+        prefix = extensionName.Substr(0U, colon);
+        localName = extensionName.Substr(
+            colon + 1U,
+            extensionName.SizeBytes() - colon - 1U);
+    }
+
+    Base::Result<Base::StringView> namespaceResult = LookupNamespace(prefix);
+    if (!namespaceResult) {
+        return Failure(
+            namespaceResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension,
+            MessageUnknownMarkupExtension,
+            source);
+    }
+    Base::Result<const Core::TypeInfo*> typeResult = schema_->ResolveType(
+        namespaceResult.Value(),
+        localName);
+    if (!typeResult) {
+        return Failure(
+            typeResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension,
+            MessageUnknownMarkupExtension,
+            source);
+    }
+
+    const XamlServiceProvider services = BuildServices(
+        targetObjectIndex,
+        member,
+        source);
+    Base::Result<XamlValue> provided =
+        schema_->ProvideMarkupExtensionValue(
+            typeResult.Value()->Id(),
+            arguments,
+            services);
+    if (!provided) {
+        const bool missing =
+            provided.GetStatus().code == Base::ErrorCode::Unsupported ||
+            provided.GetStatus().code == Base::ErrorCode::NotFound;
+        return Failure(
+            provided.GetStatus(),
+            missing
+                ? XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension
+                : XamlObjectWriterDiagnosticCodes::MarkupExtensionFailed,
+            missing
+                ? MessageUnknownMarkupExtension
+                : MessageMarkupExtensionFailed,
+            source);
+    }
+    return provided;
 }
 
 bool XamlObjectWriter::IsXamlDirective(

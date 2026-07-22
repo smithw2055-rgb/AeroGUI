@@ -49,6 +49,7 @@ void AddStrong(ObjectControlBlock* control) noexcept {
         control->strong.fetch_add(1U, std::memory_order_relaxed);
     AERO_ASSERT(previous > 0U);
     AERO_ASSERT(previous < std::numeric_limits<std::uint32_t>::max());
+    (void)previous;
 }
 
 bool TryAddStrong(ObjectControlBlock* control) noexcept {
@@ -96,6 +97,7 @@ void AddWeak(ObjectControlBlock* control) noexcept {
         control->weak.fetch_add(1U, std::memory_order_relaxed);
     AERO_ASSERT(previous > 0U);
     AERO_ASSERT(previous < std::numeric_limits<std::uint32_t>::max());
+    (void)previous;
 }
 
 void ReleaseWeak(ObjectControlBlock* control) noexcept {

@@ -16,6 +16,13 @@
 #include <d3d11.h>
 #include <dxgi.h>
 
+// winspool.h exposes DeviceCapabilities as an ANSI/Unicode selection macro.
+// AeroRHI uses DeviceCapabilities as a C++ type, so keep the Windows macro
+// from rewriting backend method definitions that appear after windows.h.
+#ifdef DeviceCapabilities
+#undef DeviceCapabilities
+#endif
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>

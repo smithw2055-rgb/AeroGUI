@@ -40,6 +40,10 @@ constexpr const char* MessageContentMemberNotFound =
     "XAML type has no content member";
 constexpr const char* MessageServicesRequired =
     "XAML member adapter requires a service-provider context";
+constexpr const char* MessageInvalidMarkupExtension =
+    "XAML markup-extension registration requires a flagged type and provider";
+constexpr const char* MessageMissingMarkupExtension =
+    "XAML markup-extension type has no registered value provider";
 
 bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
@@ -379,7 +383,8 @@ XamlSchemaContext::XamlSchemaContext(
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
       scalarTypes_(allocator_),
       memberAdapters_(allocator_),
-      typeAdapters_(allocator_) {}
+      typeAdapters_(allocator_),
+      markupExtensions_(allocator_) {}
 
 Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
     Core::TypeId type,
@@ -461,6 +466,28 @@ Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
         }
     }
     return typeAdapters_.TryPushBack(registration);
+}
+
+Base::Result<void> XamlSchemaContext::TryRegisterMarkupExtension(
+    const XamlMarkupExtensionRegistration& registration) noexcept {
+    if (frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaAlreadyFrozen);
+    }
+    const Core::TypeInfo* type = types_->FindType(registration.type);
+    if (type == nullptr || registration.provideValue == nullptr ||
+        !HasTypeFlag(type->Flags(), Core::TypeFlags::MarkupExtension)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            MessageInvalidMarkupExtension);
+    }
+    if (FindMarkupExtension(registration.type) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "XAML markup-extension provider is already registered");
+    }
+    return markupExtensions_.TryPushBack(registration);
 }
 
 Base::Result<void> XamlSchemaContext::Freeze() noexcept {
@@ -761,6 +788,31 @@ Base::Result<void> XamlSchemaContext::SetMember(
     return adapter->set(object, value, adapter->context);
 }
 
+Base::Result<XamlValue> XamlSchemaContext::ProvideMarkupExtensionValue(
+    Core::TypeId type,
+    Base::StringView arguments,
+    const XamlServiceProvider& services) const noexcept {
+    if (!frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaNotFrozen);
+    }
+    const Core::TypeInfo* info = types_->FindType(type);
+    const XamlMarkupExtensionRegistration* registration =
+        FindMarkupExtension(type);
+    if (info == nullptr ||
+        !HasTypeFlag(info->Flags(), Core::TypeFlags::MarkupExtension) ||
+        registration == nullptr || registration->provideValue == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            MessageMissingMarkupExtension);
+    }
+    return registration->provideValue(
+        arguments,
+        services,
+        registration->context);
+}
+
 Base::Result<void> XamlSchemaContext::BeginInit(
     Core::TypeId type,
     Base::Object& object) const noexcept {
@@ -863,6 +915,17 @@ const XamlTypeAdapterRegistration* XamlSchemaContext::FindTypeAdapter(
             break;
         }
         current = info->BaseType();
+    }
+    return nullptr;
+}
+
+const XamlMarkupExtensionRegistration*
+XamlSchemaContext::FindMarkupExtension(Core::TypeId type) const noexcept {
+    for (const XamlMarkupExtensionRegistration& registration :
+         markupExtensions_) {
+        if (registration.type == type) {
+            return &registration;
+        }
     }
     return nullptr;
 }

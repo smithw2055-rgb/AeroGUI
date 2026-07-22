@@ -17,6 +17,8 @@
 
 namespace Aero::Markup {
 
+class XamlSchemaContext;
+
 enum class XamlValueKind : std::uint8_t {
     None = 0U,
     Boolean,
@@ -130,6 +132,7 @@ struct XamlResolvedMember final {
 };
 
 struct XamlServiceProvider final {
+    const XamlSchemaContext* schema = nullptr;
     Base::Object* targetObject = nullptr;
     Core::TypeId targetObjectType = Core::InvalidTypeId;
     Core::MemberId targetMember = Core::InvalidMemberId;
@@ -167,6 +170,10 @@ using XamlAddResourceCallback = Base::Result<void> (*)(
     Core::TypeId valueType,
     const Base::Ref<Base::Object>& value,
     void* context) noexcept;
+using XamlProvideValueCallback = Base::Result<XamlValue> (*)(
+    Base::StringView arguments,
+    const XamlServiceProvider& services,
+    void* context) noexcept;
 
 struct XamlMemberAdapterRegistration final {
     Core::MemberId member = Core::InvalidMemberId;
@@ -189,6 +196,12 @@ struct XamlTypeAdapterRegistration final {
     XamlAddResourceCallback addResource = nullptr;
 };
 
+struct XamlMarkupExtensionRegistration final {
+    Core::TypeId type = Core::InvalidTypeId;
+    XamlProvideValueCallback provideValue = nullptr;
+    void* context = nullptr;
+};
+
 class AERO_API XamlSchemaContext final {
 public:
     explicit XamlSchemaContext(
@@ -205,6 +218,8 @@ public:
         const XamlMemberAdapterRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> TryRegisterTypeAdapter(
         const XamlTypeAdapterRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterMarkupExtension(
+        const XamlMarkupExtensionRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> Freeze() noexcept;
 
     AERO_NODISCARD bool IsFrozen() const noexcept { return frozen_; }
@@ -238,6 +253,10 @@ public:
         const XamlResolvedMember& member,
         const XamlValue& value,
         const XamlServiceProvider* services = nullptr) const noexcept;
+    AERO_NODISCARD Base::Result<XamlValue> ProvideMarkupExtensionValue(
+        Core::TypeId type,
+        Base::StringView arguments,
+        const XamlServiceProvider& services) const noexcept;
 
     AERO_NODISCARD Base::Result<void> BeginInit(
         Core::TypeId type,
@@ -265,6 +284,8 @@ public:
         Core::MemberId member) const noexcept;
     AERO_NODISCARD const XamlTypeAdapterRegistration* FindTypeAdapter(
         Core::TypeId type) const noexcept;
+    AERO_NODISCARD const XamlMarkupExtensionRegistration*
+    FindMarkupExtension(Core::TypeId type) const noexcept;
 
 private:
     struct ScalarRegistration final {
@@ -277,6 +298,7 @@ private:
     Base::Vector<ScalarRegistration> scalarTypes_;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
     Base::Vector<XamlTypeAdapterRegistration> typeAdapters_;
+    Base::Vector<XamlMarkupExtensionRegistration> markupExtensions_;
     bool frozen_ = false;
 
     AERO_NODISCARD const ScalarRegistration* FindScalarType(

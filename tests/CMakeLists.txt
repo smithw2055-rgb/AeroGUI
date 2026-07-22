@@ -41,6 +41,13 @@ set_target_properties(AeroDependencyPropertyTests PROPERTIES CXX_STANDARD 17 CXX
 aero_apply_compiler_options(AeroDependencyPropertyTests)
 add_test(NAME AeroDependencyPropertyTests COMMAND AeroDependencyPropertyTests)
 
+add_executable(AeroBindingTests unit/BindingTests.cpp)
+target_link_libraries(AeroBindingTests PRIVATE Aero::Core)
+target_compile_features(AeroBindingTests PRIVATE cxx_std_17)
+set_target_properties(AeroBindingTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroBindingTests)
+add_test(NAME AeroBindingTests COMMAND AeroBindingTests)
+
 add_executable(AeroEffectiveValueTests unit/EffectiveValueEngineTests.cpp)
 target_link_libraries(AeroEffectiveValueTests PRIVATE Aero::Core)
 target_compile_features(AeroEffectiveValueTests PRIVATE cxx_std_17)
@@ -98,6 +105,13 @@ target_compile_features(AeroXamlDependencyPropertyTests PRIVATE cxx_std_17)
 set_target_properties(AeroXamlDependencyPropertyTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroXamlDependencyPropertyTests)
 add_test(NAME AeroXamlDependencyPropertyTests COMMAND AeroXamlDependencyPropertyTests)
+
+add_executable(AeroXamlBindingTests unit/XamlBindingTests.cpp)
+target_link_libraries(AeroXamlBindingTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlBindingTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlBindingTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlBindingTests)
+add_test(NAME AeroXamlBindingTests COMMAND AeroXamlBindingTests)
 
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)

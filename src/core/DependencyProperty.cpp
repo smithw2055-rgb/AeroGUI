@@ -682,7 +682,8 @@ DependencyObject::DependencyObject(
       registry_(&registry),
       runtimeType_(runtimeType),
       values_(allocator != nullptr ? allocator : &registry.Allocator()),
-      updateStack_(allocator != nullptr ? allocator : &registry.Allocator()) {}
+      updateStack_(allocator != nullptr ? allocator : &registry.Allocator()),
+      changeHandlers_(allocator != nullptr ? allocator : &registry.Allocator()) {}
 
 Base::Result<void> DependencyObject::VerifyReady() const noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -817,6 +818,64 @@ Base::Result<void> DependencyObject::ClearValue(
 Base::Result<void> DependencyObject::CoerceValue(
     DependencyPropertyHandle property) noexcept {
     return ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
+}
+
+Base::Result<DependencyPropertyChangeSubscription>
+DependencyObject::AddValueChangedHandler(
+    DependencyPropertyHandle property,
+    DependencyPropertyChangeHandler handler,
+    void* context) noexcept {
+    Base::Result<void> ready = VerifyReady();
+    if (!ready) {
+        return ready.GetStatus();
+    }
+    if (!property.IsValid() || handler == nullptr ||
+        registry_->Find(property) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Dependency property change handler registration is invalid");
+    }
+    if (nextChangeHandler_ == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Dependency property change handler sequence is exhausted");
+    }
+    ChangeHandlerRecord record;
+    record.subscription.value = nextChangeHandler_++;
+    record.property = property;
+    record.handler = handler;
+    record.context = context;
+    record.active = true;
+    Base::Result<void> appended = changeHandlers_.TryPushBack(std::move(record));
+    if (!appended) {
+        --nextChangeHandler_;
+        return appended.GetStatus();
+    }
+    return changeHandlers_.Back().subscription;
+}
+
+Base::Result<bool> DependencyObject::RemoveValueChangedHandler(
+    DependencyPropertyChangeSubscription subscription) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) {
+        return access.GetStatus();
+    }
+    if (!subscription.IsValid()) {
+        return false;
+    }
+    for (std::uint32_t index = 0U; index < changeHandlers_.Size(); ++index) {
+        ChangeHandlerRecord& record = changeHandlers_[index];
+        if (record.subscription.value != subscription.value || !record.active) {
+            continue;
+        }
+        if (notifyingChangeHandlers_) {
+            record.active = false;
+        } else {
+            RemoveChangeHandler(index);
+        }
+        return true;
+    }
+    return false;
 }
 
 Base::Result<PropertyInvalidationFlags>
@@ -1013,6 +1072,16 @@ Base::Result<void> DependencyObject::ApplyChange(
                 newSource
             };
             metadata->changed(*this, args);
+            NotifyValueChanged(args);
+        } else {
+            const DependencyPropertyChangedEventArgs args{
+                propertyHandle,
+                oldEffective,
+                newEffective,
+                oldSource,
+                newSource
+            };
+            NotifyValueChanged(args);
         }
     }
     return {};
@@ -1026,6 +1095,40 @@ void DependencyObject::RemoveEntry(std::uint32_t index) noexcept {
         values_[current - 1U] = std::move(values_[current]);
     }
     values_.PopBack();
+}
+
+void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
+    AERO_ASSERT(index < changeHandlers_.Size());
+    for (std::uint32_t current = index + 1U;
+         current < changeHandlers_.Size();
+         ++current) {
+        changeHandlers_[current - 1U] = std::move(changeHandlers_[current]);
+    }
+    changeHandlers_.PopBack();
+}
+
+void DependencyObject::NotifyValueChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    AERO_ASSERT(!notifyingChangeHandlers_);
+    notifyingChangeHandlers_ = true;
+    const std::uint32_t snapshotCount = changeHandlers_.Size();
+    for (std::uint32_t index = 0U; index < snapshotCount; ++index) {
+        if (index >= changeHandlers_.Size()) {
+            break;
+        }
+        ChangeHandlerRecord& record = changeHandlers_[index];
+        if (record.active && record.property == args.property) {
+            record.handler(*this, args, record.context);
+        }
+    }
+    notifyingChangeHandlers_ = false;
+    for (std::uint32_t index = 0U; index < changeHandlers_.Size();) {
+        if (!changeHandlers_[index].active) {
+            RemoveChangeHandler(index);
+        } else {
+            ++index;
+        }
+    }
 }
 
 void DependencyObject::AccumulateInvalidations(

@@ -225,6 +225,18 @@ using CoerceValueCallback = Base::Result<PropertyValue> (*)(
 using PropertyChangedCallback = void (*)(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept;
+using DependencyPropertyChangeHandler = void (*)(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args,
+    void* context) noexcept;
+
+struct DependencyPropertyChangeSubscription final {
+    std::uint64_t value = 0U;
+
+    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+        return value != 0U;
+    }
+};
 
 struct PropertyMetadata final {
     PropertyValue defaultValue;
@@ -446,6 +458,17 @@ public:
     AERO_NODISCARD Base::Result<void> CoerceValue(
         DependencyPropertyHandle property) noexcept;
 
+    // Listeners execute after the effective value has committed and after the
+    // property's metadata callback. They are intended to queue later work,
+    // not to synchronously mutate the same property.
+    AERO_NODISCARD Base::Result<DependencyPropertyChangeSubscription>
+    AddValueChangedHandler(
+        DependencyPropertyHandle property,
+        DependencyPropertyChangeHandler handler,
+        void* context = nullptr) noexcept;
+    AERO_NODISCARD Base::Result<bool> RemoveValueChangedHandler(
+        DependencyPropertyChangeSubscription subscription) noexcept;
+
     AERO_NODISCARD PropertyInvalidationFlags PendingInvalidations() const noexcept {
         return invalidations_;
     }
@@ -481,6 +504,14 @@ private:
         bool hasCurrent = false;
     };
 
+    struct ChangeHandlerRecord final {
+        DependencyPropertyChangeSubscription subscription;
+        DependencyPropertyHandle property;
+        DependencyPropertyChangeHandler handler = nullptr;
+        void* context = nullptr;
+        bool active = false;
+    };
+
     class MutationScope final {
     public:
         MutationScope() noexcept = default;
@@ -508,7 +539,10 @@ private:
     TypeId runtimeType_ = InvalidTypeId;
     Base::Vector<EffectiveValueEntry> values_;
     Base::Vector<MemberId> updateStack_;
+    Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
+    std::uint64_t nextChangeHandler_ = 1U;
+    bool notifyingChangeHandlers_ = false;
 
     AERO_NODISCARD Base::Result<void> VerifyReady() const noexcept;
     AERO_NODISCARD std::uint32_t FindEntryIndex(
@@ -524,6 +558,9 @@ private:
         const PropertyValue* value) noexcept;
 
     void RemoveEntry(std::uint32_t index) noexcept;
+    void RemoveChangeHandler(std::uint32_t index) noexcept;
+    void NotifyValueChanged(
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     void AccumulateInvalidations(
         PropertyMetadataFlags metadataFlags) noexcept;
 };

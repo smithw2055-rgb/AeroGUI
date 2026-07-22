@@ -133,6 +133,10 @@ Result<void> SetProbe(
     const XamlValue& value,
     const XamlServiceProvider& services,
     void* context) noexcept;
+Result<XamlValue> ProvideEcho(
+    StringView arguments,
+    const XamlServiceProvider& services,
+    void* context) noexcept;
 
 Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
     Result<Ref<DirectiveNode>> created =
@@ -269,6 +273,8 @@ struct Fixture final {
     TypeId nodeType = InvalidTypeId;
     TypeId rootType = InvalidTypeId;
     TypeId leafType = InvalidTypeId;
+    TypeId echoExtensionType = InvalidTypeId;
+    TypeId noProviderExtensionType = InvalidTypeId;
 
     MemberId title = InvalidMemberId;
     MemberId reference = InvalidMemberId;
@@ -283,6 +289,10 @@ struct Fixture final {
         nodeType = MakeTypeId(ns, StringView("Node"));
         rootType = MakeTypeId(ns, StringView("Root"));
         leafType = MakeTypeId(ns, StringView("Leaf"));
+        echoExtensionType = MakeTypeId(ns, StringView("Echo"));
+        noProviderExtensionType = MakeTypeId(
+            ns,
+            StringView("NoProvider"));
 
         CHECK(types.TryRegisterType({
             ns, StringView("Object"), InvalidTypeId,
@@ -299,6 +309,12 @@ struct Fixture final {
         CHECK(types.TryRegisterType({
             ns, StringView("Leaf"), nodeType,
             TypeFlags::Sealed, &MakeLeaf}));
+        CHECK(types.TryRegisterType({
+            ns, StringView("Echo"), objectType,
+            TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}));
+        CHECK(types.TryRegisterType({
+            ns, StringView("NoProvider"), objectType,
+            TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}));
 
         Result<MemberId> titleResult = types.TryRegisterProperty(
             nodeType,
@@ -357,11 +373,27 @@ struct Fixture final {
             &AddResource}));
         CHECK(schema.TryRegisterTypeAdapter({
             leafType,
-            InvalidMemberId,
+            title,
             &BeginNode,
             &EndNode,
             &AbortNode,
             nullptr}));
+        CHECK(schema.TryRegisterMarkupExtension({
+            echoExtensionType,
+            &ProvideEcho,
+            this}));
+        Result<void> duplicateExtension = schema.TryRegisterMarkupExtension({
+            echoExtensionType,
+            &ProvideEcho,
+            this});
+        CHECK(!duplicateExtension);
+        CHECK(duplicateExtension.GetStatus().code == ErrorCode::AlreadyExists);
+        Result<void> invalidExtension = schema.TryRegisterMarkupExtension({
+            leafType,
+            &ProvideEcho,
+            this});
+        CHECK(!invalidExtension);
+        CHECK(invalidExtension.GetStatus().code == ErrorCode::InvalidArgument);
         CHECK(schema.Freeze());
         return true;
     }
@@ -374,6 +406,7 @@ Result<void> SetProbe(
     void* context) noexcept {
     Fixture* fixture = static_cast<Fixture*>(context);
     if (fixture == nullptr || value.Kind() != XamlValueKind::String ||
+        services.schema != &fixture->schema ||
         services.targetObject != &object ||
         services.targetObjectType != fixture->leafType ||
         services.targetMember != fixture->probe ||
@@ -414,6 +447,40 @@ Result<void> SetProbe(
 
     static_cast<DirectiveNode&>(object).serviceChecked_ = true;
     return {};
+}
+
+Result<XamlValue> ProvideEcho(
+    StringView arguments,
+    const XamlServiceProvider& services,
+    void* context) noexcept {
+    Fixture* fixture = static_cast<Fixture*>(context);
+    if (fixture == nullptr || services.schema != &fixture->schema ||
+        services.targetObject == nullptr ||
+        services.targetObjectType != fixture->leafType ||
+        services.targetMember != fixture->title ||
+        services.targetValueType != fixture->stringType ||
+        services.rootObject == nullptr || services.source.begin.line == 0U) {
+        return Status::Failure(
+            ErrorCode::ValidationFailed,
+            "Markup-extension service context is invalid");
+    }
+    Result<StringView> currentNamespace = services.namespaces.Lookup(
+        StringView("local"));
+    if (!currentNamespace ||
+        currentNamespace.Value() != StringView("urn:directives")) {
+        return Status::Failure(
+            ErrorCode::ValidationFailed,
+            "Markup-extension namespace context is invalid");
+    }
+    if (arguments == StringView("fail")) {
+        return Status::Failure(
+            ErrorCode::ValidationFailed,
+            "Echo extension failure requested by test");
+    }
+    return XamlValue::TryFromString(
+        fixture->stringType,
+        arguments,
+        &fixture->schema.Allocator());
 }
 
 Result<Ref<Object>> LoadDocument(
@@ -619,6 +686,105 @@ bool TestInvalidDirectiveAndRootKey() {
     return true;
 }
 
+bool TestTypedMarkupExtensionAndLiteralEscape() {
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        Result<Ref<Object>> loaded = LoadDocument(
+            fixture,
+            StringView(
+                "<Root xmlns=\"urn:directives\" "
+                "xmlns:local=\"urn:directives\">"
+                "<Leaf Title=\"{local:Echo hello world}\"/>"
+                "<Leaf Title=\"{Echo, default namespace}\"/>"
+                "<Leaf Title=\"{}{Echo literal}\"/>"
+                "<Leaf>{local:Echo content value}</Leaf>"
+                "</Root>"),
+            diagnostics);
+        CHECK(loaded);
+        CHECK(diagnostics.Size() == 0U);
+
+        Ref<Object> rootObject = std::move(loaded).Value();
+        DirectiveNode* root = static_cast<DirectiveNode*>(rootObject.Get());
+        CHECK(root->Children().Size() == 4U);
+        CHECK(static_cast<DirectiveNode*>(root->Children()[0].Get())->Title() ==
+            StringView("hello world"));
+        CHECK(static_cast<DirectiveNode*>(root->Children()[1].Get())->Title() ==
+            StringView("default namespace"));
+        CHECK(static_cast<DirectiveNode*>(root->Children()[2].Get())->Title() ==
+            StringView("{Echo literal}"));
+        CHECK(static_cast<DirectiveNode*>(root->Children()[3].Get())->Title() ==
+            StringView("content value"));
+        CHECK(DirectiveNode::LiveCount() == 5U);
+    }
+    CHECK(DirectiveNode::LiveCount() == 0U);
+    return true;
+}
+
+bool TestMarkupExtensionDiagnosticsAndRollback() {
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        Result<Ref<Object>> loaded = LoadDocument(
+            fixture,
+            StringView(
+                "<Root xmlns=\"urn:directives\" "
+                "xmlns:local=\"urn:directives\">"
+                "<Leaf Title=\"{local:Missing value}\"/>"
+                "</Root>"),
+            diagnostics);
+        CHECK(!loaded);
+        CHECK(diagnostics.Size() == 1U);
+        CHECK(diagnostics.Items()[0].Code() ==
+            XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension);
+        CHECK(DirectiveNode::LiveCount() == 0U);
+    }
+
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        Result<Ref<Object>> loaded = LoadDocument(
+            fixture,
+            StringView(
+                "<Root xmlns=\"urn:directives\">"
+                "<Leaf Title=\"{NoProvider value}\"/>"
+                "</Root>"),
+            diagnostics);
+        CHECK(!loaded);
+        CHECK(diagnostics.Size() == 1U);
+        CHECK(diagnostics.Items()[0].Code() ==
+            XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension);
+        CHECK(DirectiveNode::LiveCount() == 0U);
+    }
+
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        Result<Ref<Object>> loaded = LoadDocument(
+            fixture,
+            StringView(
+                "<Root xmlns=\"urn:directives\">"
+                "<Leaf Title=\"{Echo fail}\"/>"
+                "</Root>"),
+            diagnostics);
+        CHECK(!loaded);
+        CHECK(diagnostics.Size() == 1U);
+        CHECK(diagnostics.Items()[0].Code() ==
+            XamlObjectWriterDiagnosticCodes::MarkupExtensionFailed);
+        CHECK(DirectiveNode::AbortCount() >= 2U);
+        CHECK(DirectiveNode::LiveCount() == 0U);
+    }
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -628,6 +794,8 @@ int main() {
     if (!TestDuplicateKeyRollback()) return 1;
     if (!TestStaticResourceForwardReferenceRejected()) return 1;
     if (!TestInvalidDirectiveAndRootKey()) return 1;
+    if (!TestTypedMarkupExtensionAndLiteralEscape()) return 1;
+    if (!TestMarkupExtensionDiagnosticsAndRollback()) return 1;
     std::puts("Aero XAML directives and resources tests passed");
     return 0;
 }

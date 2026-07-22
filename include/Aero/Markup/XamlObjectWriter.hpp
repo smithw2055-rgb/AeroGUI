@@ -67,6 +67,10 @@ inline constexpr Core::DiagnosticCode NameRegistrationFailed =
     Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 224U);
 inline constexpr Core::DiagnosticCode ResourceRegistrationFailed =
     Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 225U);
+inline constexpr Core::DiagnosticCode UnknownMarkupExtension =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 226U);
+inline constexpr Core::DiagnosticCode MarkupExtensionFailed =
+    Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 227U);
 } // namespace XamlObjectWriterDiagnosticCodes
 
 class AERO_API XamlObjectWriter final {
@@ -109,8 +113,10 @@ private:
 
     enum class MarkupValueKind : std::uint8_t {
         Literal = 0U,
+        EscapedLiteral,
         Null,
         StaticResource,
+        Extension,
         Invalid
     };
 
@@ -319,7 +325,14 @@ private:
 
     AERO_NODISCARD MarkupValueKind ParseMarkupValue(
         Base::StringView text,
+        Base::StringView& extensionName,
         Base::StringView& argument) const noexcept;
+    AERO_NODISCARD Base::Result<XamlValue> EvaluateMarkupExtension(
+        std::uint32_t targetObjectIndex,
+        const XamlResolvedMember& member,
+        Base::StringView extensionName,
+        Base::StringView arguments,
+        Core::SourceSpan source) noexcept;
     AERO_NODISCARD bool IsXamlDirective(
         const XamlQualifiedName& name,
         Base::StringView localName) const noexcept;

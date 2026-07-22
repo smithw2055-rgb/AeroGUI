@@ -58,6 +58,7 @@ target_compile_definitions(AeroBase
         $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
 
 add_library(AeroCore STATIC
+    src/core/Binding.cpp
     src/core/DependencyProperty.cpp
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
@@ -89,6 +90,7 @@ set_target_properties(AeroCore PROPERTIES
 aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup STATIC
+    src/markup/XamlBinding.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
     src/markup/XamlDependencyProperty.cpp
