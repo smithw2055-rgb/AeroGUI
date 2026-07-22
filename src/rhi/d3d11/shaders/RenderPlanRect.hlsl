@@ -3,9 +3,14 @@ struct VSInput {
     uint instanceId : SV_InstanceID;
 };
 
+#ifndef AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES
+#define AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES 64
+#endif
+
 cbuffer RectConstants : register(b0) {
-    float4 rect;
-    float4 color;
+    float4 rects[AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES];
+    float4 colors[AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES];
+    float4 cornerRadii[AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES];
     float4 transform0;
     float4 transform1;
     float4 clipRect[32];
@@ -20,10 +25,14 @@ cbuffer RectConstants : register(b0) {
 struct VSOutput {
     float4 position : SV_Position;
     float4 color : COLOR0;
+    float2 localPosition : TEXCOORD0;
+    float2 rectangleSize : TEXCOORD1;
+    float cornerRadius : TEXCOORD2;
 };
 
 VSOutput vs_main(VSInput input) {
-    float4 activeRect = rect;
+    const uint rectIndex = instanceMode == 2U ? input.instanceId : 0U;
+    float4 activeRect = rects[rectIndex];
     if (instanceMode == 1U) {
         if (input.instanceId == 0U) {
             activeRect.w = strokeThickness;
@@ -51,7 +60,10 @@ VSOutput vs_main(VSInput input) {
 
     VSOutput output;
     output.position = float4(ndc, 0.0, 1.0);
-    output.color = color;
+    output.color = colors[rectIndex];
+    output.localPosition = input.position * activeRect.zw;
+    output.rectangleSize = activeRect.zw;
+    output.cornerRadius = cornerRadii[rectIndex].x;
     return output;
 }
 
@@ -71,5 +83,23 @@ float4 ps_main(VSOutput input) : SV_Target {
             discard;
         }
     }
-    return input.color;
+    float coverage = 1.0;
+    if (input.cornerRadius > 0.0) {
+        const float2 halfSize = input.rectangleSize * 0.5;
+        const float2 cornerDelta = abs(input.localPosition - halfSize) -
+            (halfSize - input.cornerRadius);
+        const float signedDistance = length(max(cornerDelta, 0.0)) +
+            min(max(cornerDelta.x, cornerDelta.y), 0.0) - input.cornerRadius;
+        // The RenderPlan pipeline uses non-premultiplied source-alpha
+        // blending, so analytic coverage belongs in alpha. fwidth keeps the
+        // rounded edge stable under the active affine transform.
+        coverage = saturate(0.5 - signedDistance /
+            max(fwidth(signedDistance), 0.0001));
+        if (coverage <= 0.0) {
+            discard;
+        }
+    }
+    float4 color = input.color;
+    color.a *= coverage;
+    return color;
 }

@@ -109,6 +109,7 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
+    src/markup/XamlBorder.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlLayout.cpp
     src/markup/XamlStyle.cpp
@@ -119,7 +120,9 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlObjectWriterCompiled.cpp
+    src/markup/XamlPanelLayout.cpp
     src/markup/XamlSchemaContext.cpp
+    src/markup/XamlTextBlock.cpp
     src/markup/XamlVisualTree.cpp)
 
 add_library(Aero::Markup ALIAS AeroMarkup)
@@ -214,12 +217,31 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     set(_aero_d3d11_render_plan_shader_source
         "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/shaders/RenderPlanRect.hlsl")
+    set(_aero_d3d11_render_plan_image_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/shaders/RenderPlanImage.hlsl")
+    set(_aero_d3d11_render_plan_mesh_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/shaders/RenderPlanMesh.hlsl")
+    set(_aero_d3d11_render_plan_glyph_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/shaders/RenderPlanGlyph.hlsl")
+    set(_aero_d3d11_render_plan_max_rectangle_instances 64)
     set(_aero_d3d11_shader_directory
         "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
     set(_aero_d3d11_render_plan_vs_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanVertexShader.hpp")
     set(_aero_d3d11_render_plan_ps_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanPixelShader.hpp")
+    set(_aero_d3d11_render_plan_image_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanImageVertexShader.hpp")
+    set(_aero_d3d11_render_plan_image_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanImagePixelShader.hpp")
+    set(_aero_d3d11_render_plan_mesh_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanMeshVertexShader.hpp")
+    set(_aero_d3d11_render_plan_mesh_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanMeshPixelShader.hpp")
+    set(_aero_d3d11_render_plan_glyph_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanGlyphVertexShader.hpp")
+    set(_aero_d3d11_render_plan_glyph_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanGlyphPixelShader.hpp")
     set(_aero_d3d11_fxc_hints
         "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
     file(GLOB _aero_d3d11_fxc_sdk_directories
@@ -240,6 +262,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
             "${_aero_d3d11_shader_directory}"
         COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
             /T vs_4_0 /E vs_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
             /Vn AeroD3D11RenderPlanVertexShader
             /Fh "${_aero_d3d11_render_plan_vs_header}"
             "${_aero_d3d11_render_plan_shader_source}"
@@ -251,15 +274,94 @@ if(AERO_ENABLE_D3D11_BACKEND)
             "${_aero_d3d11_shader_directory}"
         COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
             /T ps_4_0 /E ps_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
             /Vn AeroD3D11RenderPlanPixelShader
             /Fh "${_aero_d3d11_render_plan_ps_header}"
             "${_aero_d3d11_render_plan_shader_source}"
         DEPENDS "${_aero_d3d11_render_plan_shader_source}"
         VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_image_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanImageVertexShader
+            /Fh "${_aero_d3d11_render_plan_image_vs_header}"
+            "${_aero_d3d11_render_plan_image_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_image_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_image_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanImagePixelShader
+            /Fh "${_aero_d3d11_render_plan_image_ps_header}"
+            "${_aero_d3d11_render_plan_image_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_image_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_mesh_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanMeshVertexShader
+            /Fh "${_aero_d3d11_render_plan_mesh_vs_header}"
+            "${_aero_d3d11_render_plan_mesh_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_mesh_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_mesh_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanMeshPixelShader
+            /Fh "${_aero_d3d11_render_plan_mesh_ps_header}"
+            "${_aero_d3d11_render_plan_mesh_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_mesh_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_glyph_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanGlyphVertexShader
+            /Fh "${_aero_d3d11_render_plan_glyph_vs_header}"
+            "${_aero_d3d11_render_plan_glyph_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_glyph_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_glyph_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /D AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+            /Vn AeroD3D11RenderPlanGlyphPixelShader
+            /Fh "${_aero_d3d11_render_plan_glyph_ps_header}"
+            "${_aero_d3d11_render_plan_glyph_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_glyph_shader_source}"
+        VERBATIM)
     add_custom_target(AeroD3D11RenderPlanShaders
         DEPENDS
             "${_aero_d3d11_render_plan_vs_header}"
-            "${_aero_d3d11_render_plan_ps_header}")
+            "${_aero_d3d11_render_plan_ps_header}"
+            "${_aero_d3d11_render_plan_image_vs_header}"
+            "${_aero_d3d11_render_plan_image_ps_header}"
+            "${_aero_d3d11_render_plan_mesh_vs_header}"
+            "${_aero_d3d11_render_plan_mesh_ps_header}"
+            "${_aero_d3d11_render_plan_glyph_vs_header}"
+            "${_aero_d3d11_render_plan_glyph_ps_header}")
 
     set(_aero_d3d11_backend_fragments
         "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendPrivate.hpp"
@@ -297,7 +399,9 @@ if(AERO_ENABLE_D3D11_BACKEND)
         CXX_EXTENSIONS NO
         POSITION_INDEPENDENT_CODE ON
         WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-    target_compile_definitions(AeroRhiD3D11 PUBLIC AERO_HAS_D3D11_BACKEND=1)
+    target_compile_definitions(AeroRhiD3D11
+        PRIVATE AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
+        PUBLIC AERO_HAS_D3D11_BACKEND=1)
     aero_apply_compiler_options(AeroRhiD3D11)
 else()
     target_compile_definitions(AeroRhi PUBLIC AERO_HAS_D3D11_BACKEND=0)

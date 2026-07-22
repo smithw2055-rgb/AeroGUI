@@ -101,17 +101,21 @@ struct Fixture final {
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
     TypeId panelType = InvalidTypeId;
+    TypeId textBlockType = InvalidTypeId;
 
     bool Build() {
         const StringView ns("urn:aero");
         objectType = MakeTypeId(ns, StringView("Object"));
         elementType = MakeTypeId(ns, StringView("RenderElement"));
         panelType = MakeTypeId(ns, StringView("RenderPanel"));
+        textBlockType = MakeTypeId(ns, StringView("TextBlock"));
         CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("RenderElement"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("RenderPanel"), elementType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("TextBlock"), elementType,
             TypeFlags::None, nullptr}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
@@ -125,11 +129,17 @@ bool TestDisplayListValidation() {
     CHECK(builder.PushClip({0.0, 0.0, 20.0, 10.0}));
     CHECK(builder.FillRect({0.0, 0.0, 20.0, 10.0},
         {0.25F, 0.5F, 0.75F, 1.0F}));
+    CHECK(builder.FillRoundedRect({2.0, 2.0, 8.0, 6.0},
+        {0.75F, 0.5F, 0.25F, 1.0F}, 3.0));
+    CHECK(builder.DrawImage(1U, {2.0, 2.0, 8.0, 6.0},
+        {0.0, 0.0, 1.0, 1.0}));
+    CHECK(builder.DrawMesh(1U));
+    CHECK(builder.DrawGlyphRun(1U));
     CHECK(builder.PopClip());
     CHECK(builder.PopTransform());
     Result<DisplayList> list = builder.Finish();
     CHECK(list);
-    CHECK(list.Value().CommandCount() == 5U);
+    CHECK(list.Value().CommandCount() == 9U);
     CHECK(list.Value().StableHash() != 0U);
 
     DisplayListBuilder unbalanced;
@@ -141,6 +151,25 @@ bool TestDisplayListValidation() {
     Result<void> invalidColor = badColor.FillRect(
         {0.0, 0.0, 1.0, 1.0}, {2.0F, 0.0F, 0.0F, 1.0F});
     CHECK(!invalidColor && invalidColor.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidCornerRadius = badColor.FillRoundedRect(
+        {0.0, 0.0, 4.0, 2.0}, {0.0F, 0.0F, 0.0F, 1.0F}, 1.5);
+    CHECK(!invalidCornerRadius &&
+        invalidCornerRadius.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidImage = badColor.DrawImage(
+        InvalidRenderImageId, {0.0, 0.0, 1.0, 1.0}, {0.0, 0.0, 1.0, 1.0});
+    CHECK(!invalidImage && invalidImage.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidImageUv = badColor.DrawImage(
+        1U, {0.0, 0.0, 1.0, 1.0}, {0.5, 0.0, 0.75, 1.0});
+    CHECK(!invalidImageUv && invalidImageUv.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> negativeImageUv = badColor.DrawImage(
+        1U, {0.0, 0.0, 1.0, 1.0}, {-0.25, 0.0, 0.5, 1.0});
+    CHECK(!negativeImageUv &&
+        negativeImageUv.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidMesh = badColor.DrawMesh(InvalidRenderMeshId);
+    CHECK(!invalidMesh && invalidMesh.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidGlyphRun = badColor.DrawGlyphRun(InvalidRenderGlyphRunId);
+    CHECK(!invalidGlyphRun &&
+        invalidGlyphRun.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
 }
 
@@ -244,6 +273,43 @@ bool TestRenderRequiresArrange() {
     return true;
 }
 
+bool TestTextBlockGlyphRunRendering() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    NullRenderBackend backend;
+    RenderManager renderer(fixture.dispatcher, backend);
+    CHECK(renderer.Initialize());
+    TextBlock text(fixture.dispatcher, fixture.properties, fixture.textBlockType);
+    CHECK(text.SetText(StringView("Hello")));
+    CHECK(text.Text() == StringView("Hello"));
+    CHECK(!text.SetGlyphRun(InvalidRenderGlyphRunId, {12.0, 8.0}));
+    CHECK(text.SetGlyphRun(7U, {12.0, 8.0}));
+    CHECK(text.SetForeground({0.25F, 0.5F, 0.75F, 1.0F}));
+    CHECK(tree.SetRoot(&text));
+    CHECK(layout.SetRoot(&text, {40.0, 20.0}));
+    CHECK(renderer.SetRoot(&text));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(text.DesiredSize().width == 12.0 && text.DesiredSize().height == 8.0);
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
+    const RenderPlan& plan = renderer.CurrentPlan();
+    CHECK(plan.Nodes().Size() == 1U);
+    CHECK(plan.Commands().Size() == 1U);
+    CHECK(plan.Commands()[0].kind == RenderCommandKind::DrawGlyphRun);
+    CHECK(plan.Commands()[0].glyphRun == 7U);
+    CHECK(plan.Commands()[0].color.red == 0.25F);
+    CHECK(renderer.SetRoot(nullptr));
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(text));
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -251,6 +317,7 @@ int main() {
     if (!TestBorderDisplayList()) return 1;
     if (!TestRenderCommitAndInvalidation()) return 1;
     if (!TestRenderRequiresArrange()) return 1;
+    if (!TestTextBlockGlyphRunRendering()) return 1;
     std::puts("Aero rendering tests passed");
     return 0;
 }

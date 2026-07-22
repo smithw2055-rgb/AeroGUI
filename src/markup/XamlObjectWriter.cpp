@@ -511,7 +511,7 @@ Base::Result<void> XamlObjectWriter::StartMember(
 
     const XamlResolvedMember member = memberResult.Value();
     if (member.kind != Core::MemberKind::Property ||
-        schema_->FindMemberAdapter(member.id) == nullptr) {
+        !schema_->ResolveMemberWritePolicy(member).writable) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -644,10 +644,9 @@ Base::Result<void> XamlObjectWriter::WriteText(
     }
 
     if (frame.kind == FrameKind::Member) {
-        const XamlMemberAdapterRegistration* adapter =
-            schema_->FindMemberAdapter(frame.member.id);
-        const bool acceptsAnyValue = adapter != nullptr &&
-            adapter->acceptsAnyValue;
+        const XamlMemberWritePolicy policy =
+            schema_->ResolveMemberWritePolicy(frame.member);
+        const bool acceptsAnyValue = policy.acceptsAnyValue;
         Base::StringView extensionName;
         Base::StringView argument;
         const MarkupValueKind markup = ParseMarkupValue(
@@ -937,7 +936,7 @@ Base::Result<void> XamlObjectWriter::StartPropertyElement(
 
     const XamlResolvedMember member = memberResult.Value();
     if (member.kind != Core::MemberKind::Property ||
-        schema_->FindMemberAdapter(member.id) == nullptr) {
+        !schema_->ResolveMemberWritePolicy(member).writable) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -1141,10 +1140,9 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
 
     Frame& parent = frames_.Back();
     if (parent.kind == FrameKind::Member) {
-        const XamlMemberAdapterRegistration* adapter =
-            schema_->FindMemberAdapter(parent.member.id);
-        const bool acceptsAnyValue = adapter != nullptr &&
-            adapter->acceptsAnyValue;
+        const XamlMemberWritePolicy policy =
+            schema_->ResolveMemberWritePolicy(parent.member);
+        const bool acceptsAnyValue = policy.acceptsAnyValue;
         if (IsValueType(schema_->Types(), parent.member.valueType) &&
             !acceptsAnyValue) {
             return Failure(
@@ -1230,10 +1228,9 @@ Base::Result<void> XamlObjectWriter::WriteValue(
             source);
     }
 
-    const XamlMemberAdapterRegistration* adapter =
-        schema_->FindMemberAdapter(member.id);
-    if (adapter == nullptr ||
-        (adapter->set == nullptr && adapter->setWithServices == nullptr)) {
+    const XamlMemberWritePolicy policy =
+        schema_->ResolveMemberWritePolicy(member);
+    if (!policy.writable) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -1247,7 +1244,7 @@ Base::Result<void> XamlObjectWriter::WriteValue(
         targetObjectIndex,
         member.id);
     if (assignment != nullptr && assignment->count != 0U &&
-        adapter->mode == XamlMemberWriteMode::SetOnce) {
+        policy.mode == XamlMemberWriteMode::SetOnce) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,

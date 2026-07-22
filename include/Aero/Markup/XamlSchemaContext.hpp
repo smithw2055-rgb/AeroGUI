@@ -96,6 +96,20 @@ private:
     Base::Ref<Base::Object> object_;
 };
 
+using XamlConvertTextCallback = Base::Result<XamlValue> (*)(
+    Core::TypeId targetType,
+    Base::StringView text,
+    Base::IAllocator& allocator,
+    void* context) noexcept;
+
+// Registers attribute-text conversion once for a value type. Controls and
+// properties using that type then share the converter automatically.
+struct XamlTextConverterRegistration final {
+    Core::TypeId type = Core::InvalidTypeId;
+    XamlConvertTextCallback convert = nullptr;
+    void* context = nullptr;
+};
+
 enum class XamlScalarKind : std::uint8_t {
     String = 0U,
     Boolean,
@@ -153,6 +167,9 @@ using XamlSetMemberWithServicesCallback = Base::Result<void> (*)(
     const XamlValue& value,
     const XamlServiceProvider& services,
     void* context) noexcept;
+using XamlHandlesMemberCallback = bool (*)(
+    const XamlResolvedMember& member,
+    void* context) noexcept;
 using XamlInitializationCallback = Base::Result<void> (*)(
     Base::Object& object,
     void* context) noexcept;
@@ -188,6 +205,25 @@ struct XamlMemberAdapterRegistration final {
     bool acceptsAnyValue = false;
 };
 
+// A member provider handles a family of properties from shared metadata. It is
+// consulted only when a property has no exact member adapter, so control- or
+// property-specific behavior can still override the generic path. This is the
+// extensibility seam used by dependency properties and other custom property
+// systems; they register one provider instead of one adapter per property.
+struct XamlMemberProviderRegistration final {
+    XamlHandlesMemberCallback handles = nullptr;
+    XamlSetMemberWithServicesCallback set = nullptr;
+    void* context = nullptr;
+    XamlMemberWriteMode mode = XamlMemberWriteMode::SetOnce;
+    bool acceptsAnyValue = false;
+};
+
+struct XamlMemberWritePolicy final {
+    XamlMemberWriteMode mode = XamlMemberWriteMode::SetOnce;
+    bool acceptsAnyValue = false;
+    bool writable = false;
+};
+
 struct XamlTypeAdapterRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
     Core::MemberId contentMember = Core::InvalidMemberId;
@@ -219,8 +255,12 @@ public:
     AERO_NODISCARD Base::Result<void> TryRegisterScalarType(
         Core::TypeId type,
         XamlScalarKind kind) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterTextConverter(
+        const XamlTextConverterRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> TryRegisterMemberAdapter(
         const XamlMemberAdapterRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterMemberProvider(
+        const XamlMemberProviderRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> TryRegisterTypeAdapter(
         const XamlTypeAdapterRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> TryRegisterMarkupExtension(
@@ -287,6 +327,8 @@ public:
 
     AERO_NODISCARD const XamlMemberAdapterRegistration* FindMemberAdapter(
         Core::MemberId member) const noexcept;
+    AERO_NODISCARD XamlMemberWritePolicy ResolveMemberWritePolicy(
+        const XamlResolvedMember& member) const noexcept;
     AERO_NODISCARD const XamlTypeAdapterRegistration* FindTypeAdapter(
         Core::TypeId type) const noexcept;
     AERO_NODISCARD const XamlMarkupExtensionRegistration*
@@ -301,13 +343,19 @@ private:
     Core::TypeRegistry* types_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<ScalarRegistration> scalarTypes_;
+    Base::Vector<XamlTextConverterRegistration> textConverters_;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
+    Base::Vector<XamlMemberProviderRegistration> memberProviders_;
     Base::Vector<XamlTypeAdapterRegistration> typeAdapters_;
     Base::Vector<XamlMarkupExtensionRegistration> markupExtensions_;
     bool frozen_ = false;
 
     AERO_NODISCARD const ScalarRegistration* FindScalarType(
         Core::TypeId type) const noexcept;
+    AERO_NODISCARD const XamlTextConverterRegistration* FindTextConverter(
+        Core::TypeId type) const noexcept;
+    AERO_NODISCARD const XamlMemberProviderRegistration* FindMemberProvider(
+        const XamlResolvedMember& member) const noexcept;
     AERO_NODISCARD const XamlTypeAdapterRegistration* FindTypeAdapterExact(
         Core::TypeId type) const noexcept;
     AERO_NODISCARD Base::Result<XamlResolvedMember> ResolvePropertyOrEvent(

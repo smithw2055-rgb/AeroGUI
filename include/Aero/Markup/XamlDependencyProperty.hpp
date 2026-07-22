@@ -42,28 +42,26 @@ public:
         return types_.Size();
     }
     AERO_NODISCARD std::uint32_t RegisteredPropertyCount() const noexcept {
-        return propertiesByMember_.Size();
+        return registeredPropertyCount_;
     }
 
 private:
-    struct PropertyBinding final {
-        Core::MemberId member = Core::InvalidMemberId;
-        Core::DependencyPropertyHandle property;
-    };
-
     XamlSchemaContext* schema_ = nullptr;
     Core::DependencyPropertyRegistry* properties_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlDependencyObjectTypeRegistration> types_;
-    Base::Vector<PropertyBinding> propertiesByMember_;
+    std::uint32_t registeredPropertyCount_ = 0U;
+    bool providerRegistered_ = false;
 
     AERO_NODISCARD const XamlDependencyObjectTypeRegistration*
     FindTypeRegistration(Core::TypeId type) const noexcept;
-    AERO_NODISCARD const PropertyBinding* FindPropertyBinding(
-        Core::MemberId member) const noexcept;
     AERO_NODISCARD Base::Result<Core::PropertyValue> ConvertValue(
         const XamlValue& value,
         const Core::DependencyProperty& property) const noexcept;
+
+    AERO_NODISCARD static bool HandlesDependencyProperty(
+        const XamlResolvedMember& member,
+        void* context) noexcept;
 
     AERO_NODISCARD static Base::Result<void> SetDependencyProperty(
         Base::Object& object,

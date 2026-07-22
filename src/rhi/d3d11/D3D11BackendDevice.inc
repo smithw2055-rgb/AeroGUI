@@ -248,6 +248,7 @@ Base::Result<void> D3D11GraphicsBackend::CreateResource(
 
     Impl::ResourceRecord record;
     record.handle = handle;
+    record.allocator = impl_->allocator;
     record.baseDescriptor = descriptor;
 
     if (descriptor.type == ResourceType::Buffer) {
@@ -268,14 +269,23 @@ Base::Result<void> D3D11GraphicsBackend::CreateResource(
             bufferDescriptor.Usage = D3D11_USAGE_DEFAULT;
             bufferDescriptor.BindFlags = D3D11_BIND_INDEX_BUFFER;
             break;
-        case BufferUsage::Uniform:
+        case BufferUsage::Uniform: {
             if ((byteWidth & 15U) != 0U) {
                 return InvalidArgument(
                     "D3D11 uniform-buffer size must be a multiple of 16 bytes");
             }
             bufferDescriptor.Usage = D3D11_USAGE_DEFAULT;
             bufferDescriptor.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+            void* uniformShadow = impl_->allocator->Allocate({
+                byteWidth, alignof(std::uint8_t), Base::MemoryTag::Render});
+            if (uniformShadow == nullptr) {
+                return OutOfMemory("Failed to allocate D3D11 uniform-buffer shadow");
+            }
+            record.uniformShadow = static_cast<std::uint8_t*>(uniformShadow);
+            record.uniformShadowSize = byteWidth;
+            std::memset(record.uniformShadow, 0, byteWidth);
             break;
+        }
         case BufferUsage::Upload:
             bufferDescriptor.Usage = D3D11_USAGE_STAGING;
             bufferDescriptor.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;

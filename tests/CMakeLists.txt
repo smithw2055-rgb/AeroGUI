@@ -141,6 +141,20 @@ set_target_properties(AeroXamlLayoutTests PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 aero_apply_compiler_options(AeroXamlLayoutTests)
 add_test(NAME AeroXamlLayoutTests COMMAND AeroXamlLayoutTests)
 
+add_executable(AeroXamlTextBlockTests unit/XamlTextBlockTests.cpp)
+target_link_libraries(AeroXamlTextBlockTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlTextBlockTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlTextBlockTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlTextBlockTests)
+add_test(NAME AeroXamlTextBlockTests COMMAND AeroXamlTextBlockTests)
+
+add_executable(AeroXamlBorderTests unit/XamlBorderTests.cpp)
+target_link_libraries(AeroXamlBorderTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlBorderTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlBorderTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlBorderTests)
+add_test(NAME AeroXamlBorderTests COMMAND AeroXamlBorderTests)
+
 add_executable(AeroXamlVisualTreeTests unit/XamlVisualTreeTests.cpp)
 target_link_libraries(AeroXamlVisualTreeTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlVisualTreeTests PRIVATE cxx_std_17)
@@ -187,12 +201,18 @@ if(WIN32 AND TARGET AeroRhiD3D11)
 
     set(_aero_d3d11_shader_source
         "${CMAKE_CURRENT_SOURCE_DIR}/unit/shaders/D3D11Rectangle.hlsl")
+    set(_aero_d3d11_texture_array_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/unit/shaders/D3D11TextureArray.hlsl")
     set(_aero_d3d11_shader_directory
         "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
     set(_aero_d3d11_vertex_shader_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RectangleVertexShader.hpp")
     set(_aero_d3d11_pixel_shader_header
         "${_aero_d3d11_shader_directory}/AeroD3D11RectanglePixelShader.hpp")
+    set(_aero_d3d11_texture_array_vertex_shader_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11TextureArrayVertexShader.hpp")
+    set(_aero_d3d11_texture_array_pixel_shader_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11TextureArrayPixelShader.hpp")
 
     add_custom_command(
         OUTPUT "${_aero_d3d11_vertex_shader_header}"
@@ -216,10 +236,34 @@ if(WIN32 AND TARGET AeroRhiD3D11)
             "${_aero_d3d11_shader_source}"
         DEPENDS "${_aero_d3d11_shader_source}"
         VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_texture_array_vertex_shader_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /Vn AeroD3D11TextureArrayVertexShader
+            /Fh "${_aero_d3d11_texture_array_vertex_shader_header}"
+            "${_aero_d3d11_texture_array_shader_source}"
+        DEPENDS "${_aero_d3d11_texture_array_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_texture_array_pixel_shader_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /Vn AeroD3D11TextureArrayPixelShader
+            /Fh "${_aero_d3d11_texture_array_pixel_shader_header}"
+            "${_aero_d3d11_texture_array_shader_source}"
+        DEPENDS "${_aero_d3d11_texture_array_shader_source}"
+        VERBATIM)
     add_custom_target(AeroD3D11TestShaders
         DEPENDS
             "${_aero_d3d11_vertex_shader_header}"
-            "${_aero_d3d11_pixel_shader_header}")
+            "${_aero_d3d11_pixel_shader_header}"
+            "${_aero_d3d11_texture_array_vertex_shader_header}"
+            "${_aero_d3d11_texture_array_pixel_shader_header}")
 
     add_executable(AeroD3D11BackendTests unit/D3D11BackendTests.cpp)
     add_dependencies(AeroD3D11BackendTests AeroD3D11TestShaders)
@@ -238,7 +282,7 @@ if(WIN32 AND TARGET AeroRhiD3D11)
 
     add_executable(AeroD3D11SurfaceTests unit/D3D11SurfaceTests.cpp)
     target_link_libraries(
-        AeroD3D11SurfaceTests PRIVATE Aero::RhiD3D11 user32)
+        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 user32)
     target_compile_features(AeroD3D11SurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11SurfaceTests PROPERTIES
         CXX_STANDARD 17

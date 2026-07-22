@@ -382,7 +382,9 @@ XamlSchemaContext::XamlSchemaContext(
     : types_(&types),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
       scalarTypes_(allocator_),
+      textConverters_(allocator_),
       memberAdapters_(allocator_),
+      memberProviders_(allocator_),
       typeAdapters_(allocator_),
       markupExtensions_(allocator_) {}
 
@@ -403,12 +405,34 @@ Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidScalarType);
     }
-    if (FindScalarType(type) != nullptr) {
+    if (FindScalarType(type) != nullptr || FindTextConverter(type) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "XAML scalar converter is already registered");
     }
     return scalarTypes_.TryPushBack({type, kind});
+}
+
+Base::Result<void> XamlSchemaContext::TryRegisterTextConverter(
+    const XamlTextConverterRegistration& registration) noexcept {
+    if (frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaAlreadyFrozen);
+    }
+    const Core::TypeInfo* info = types_->FindType(registration.type);
+    if (info == nullptr || registration.convert == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML text converter registration is invalid");
+    }
+    if (FindScalarType(registration.type) != nullptr ||
+        FindTextConverter(registration.type) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "XAML text converter is already registered");
+    }
+    return textConverters_.TryPushBack(registration);
 }
 
 Base::Result<void> XamlSchemaContext::TryRegisterMemberAdapter(
@@ -431,6 +455,30 @@ Base::Result<void> XamlSchemaContext::TryRegisterMemberAdapter(
             "XAML member adapter is already registered");
     }
     return memberAdapters_.TryPushBack(registration);
+}
+
+Base::Result<void> XamlSchemaContext::TryRegisterMemberProvider(
+    const XamlMemberProviderRegistration& registration) noexcept {
+    if (frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaAlreadyFrozen);
+    }
+    if (registration.handles == nullptr || registration.set == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML member provider registration is invalid");
+    }
+    for (const XamlMemberProviderRegistration& current : memberProviders_) {
+        if (current.handles == registration.handles &&
+            current.set == registration.set &&
+            current.context == registration.context) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "XAML member provider is already registered");
+        }
+    }
+    return memberProviders_.TryPushBack(registration);
 }
 
 Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
@@ -674,6 +722,21 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
+    const XamlTextConverterRegistration* converter = FindTextConverter(type);
+    if (converter != nullptr) {
+        Base::Result<XamlValue> converted = converter->convert(
+            type, text, *allocator_, converter->context);
+        if (!converted) {
+            return converted.GetStatus();
+        }
+        if (converted.Value().Type() != type ||
+            converted.Value().Kind() == XamlValueKind::None) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "XAML text converter returned an incompatible value");
+        }
+        return converted;
+    }
     const ScalarRegistration* scalar = FindScalarType(type);
     if (scalar == nullptr) {
         return Base::Status::Failure(
@@ -753,15 +816,21 @@ Base::Result<void> XamlSchemaContext::SetMember(
             MessageMemberTypeMismatch);
     }
 
-    const XamlMemberAdapterRegistration* adapter =
-        FindMemberAdapter(member.id);
-    if (adapter == nullptr ||
-        (adapter->set == nullptr && adapter->setWithServices == nullptr)) {
+    const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
+    const XamlMemberProviderRegistration* provider = adapter == nullptr
+        ? FindMemberProvider(member)
+        : nullptr;
+    if ((adapter == nullptr ||
+         (adapter->set == nullptr && adapter->setWithServices == nullptr)) &&
+        provider == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMemberAdapter);
     }
-    if (!adapter->acceptsAnyValue) {
+    const bool acceptsAnyValue = adapter != nullptr
+        ? adapter->acceptsAnyValue
+        : provider->acceptsAnyValue;
+    if (!acceptsAnyValue) {
         bool compatible = value.Type() == member.valueType;
         if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
             compatible = types_->IsDerivedFrom(
@@ -774,7 +843,7 @@ Base::Result<void> XamlSchemaContext::SetMember(
                 MessageMemberTypeMismatch);
         }
     }
-    if (adapter->setWithServices != nullptr) {
+    if (adapter != nullptr && adapter->setWithServices != nullptr) {
         if (services == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -786,7 +855,15 @@ Base::Result<void> XamlSchemaContext::SetMember(
             *services,
             adapter->context);
     }
-    return adapter->set(object, value, adapter->context);
+    if (adapter != nullptr) {
+        return adapter->set(object, value, adapter->context);
+    }
+    if (services == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageServicesRequired);
+    }
+    return provider->set(object, value, *services, provider->context);
 }
 
 Base::Result<XamlValue> XamlSchemaContext::ProvideMarkupExtensionValue(
@@ -902,6 +979,20 @@ const XamlMemberAdapterRegistration* XamlSchemaContext::FindMemberAdapter(
     return nullptr;
 }
 
+XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicy(
+    const XamlResolvedMember& member) const noexcept {
+    const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
+    if (adapter != nullptr &&
+        (adapter->set != nullptr || adapter->setWithServices != nullptr)) {
+        return {adapter->mode, adapter->acceptsAnyValue, true};
+    }
+    const XamlMemberProviderRegistration* provider = FindMemberProvider(member);
+    if (provider != nullptr) {
+        return {provider->mode, provider->acceptsAnyValue, true};
+    }
+    return {};
+}
+
 const XamlTypeAdapterRegistration* XamlSchemaContext::FindTypeAdapter(
     Core::TypeId type) const noexcept {
     Core::TypeId current = type;
@@ -936,6 +1027,30 @@ XamlSchemaContext::FindScalarType(Core::TypeId type) const noexcept {
     for (const ScalarRegistration& registration : scalarTypes_) {
         if (registration.type == type) {
             return &registration;
+        }
+    }
+    return nullptr;
+}
+
+const XamlTextConverterRegistration* XamlSchemaContext::FindTextConverter(
+    Core::TypeId type) const noexcept {
+    for (const XamlTextConverterRegistration& registration : textConverters_) {
+        if (registration.type == type) {
+            return &registration;
+        }
+    }
+    return nullptr;
+}
+
+const XamlMemberProviderRegistration* XamlSchemaContext::FindMemberProvider(
+    const XamlResolvedMember& member) const noexcept {
+    if (!member.IsValid()) {
+        return nullptr;
+    }
+    for (const XamlMemberProviderRegistration& provider : memberProviders_) {
+        if (provider.handles != nullptr &&
+            provider.handles(member, provider.context)) {
+            return &provider;
         }
     }
     return nullptr;

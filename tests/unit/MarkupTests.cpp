@@ -1,4 +1,5 @@
 #include <Aero/Markup/XamlNodeReader.hpp>
+#include <Aero/Markup/XamlSchemaContext.hpp>
 
 #include <cstdio>
 
@@ -333,6 +334,54 @@ bool TestInvalidUtf8AndOutOfMemory() {
     return true;
 }
 
+Result<XamlValue> ConvertCustomLength(
+    TypeId targetType,
+    StringView text,
+    IAllocator& allocator,
+    void*) noexcept {
+    if (text != StringView("Auto")) {
+        return Status::Failure(
+            ErrorCode::ValidationFailed,
+            "CustomLength expects Auto");
+    }
+    return XamlValue::FromDouble(targetType, -1.0, &allocator);
+}
+
+bool TestCustomTextConverter() {
+    const StringView ns("urn:custom-values");
+    TypeRegistry types;
+    const TypeId customLength = MakeTypeId(ns, StringView("CustomLength"));
+    CHECK(types.TryRegisterType({
+        ns,
+        StringView("CustomLength"),
+        InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed,
+        nullptr}));
+    CHECK(types.Freeze());
+
+    XamlSchemaContext schema(types);
+    CHECK(schema.TryRegisterTextConverter({
+        customLength,
+        &ConvertCustomLength,
+        nullptr}));
+    CHECK(schema.Freeze());
+
+    Result<XamlValue> converted = schema.ConvertText(
+        customLength,
+        StringView("Auto"));
+    CHECK(converted);
+    CHECK(converted.Value().Type() == customLength);
+    CHECK(converted.Value().Kind() == XamlValueKind::Double);
+    CHECK(converted.Value().AsDouble() == -1.0);
+
+    Result<XamlValue> invalid = schema.ConvertText(
+        customLength,
+        StringView("12"));
+    CHECK(!invalid);
+    CHECK(invalid.GetStatus().code == ErrorCode::ValidationFailed);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -344,6 +393,7 @@ int main() {
     if (!TestTokenizerFailuresAndLimits()) return 1;
     if (!TestNamespaceFailures()) return 1;
     if (!TestInvalidUtf8AndOutOfMemory()) return 1;
+    if (!TestCustomTextConverter()) return 1;
     std::puts("Aero markup tests passed");
     return 0;
 }

@@ -60,6 +60,13 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
             impl_->context->OMSetRenderTargets(0U, nullptr, nullptr);
             impl_->inRenderPass = false;
         }
+        // A failed draw can occur after an SRV has been bound but before its
+        // matching EndRenderPass command. Always release those bindings before
+        // returning so HostResetsState cannot carry a failed pass's SRV into
+        // the next render-target bind. PreserveRequiredState restores the
+        // host's captured bindings immediately below.
+        impl_->ClearShaderResourceBindings();
+        impl_->submissionState.ResetPixelShaderResources();
         impl_->ClearActiveAttachments();
         preservedState.Restore(impl_->context);
         ReleaseCom(query);
@@ -114,17 +121,21 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
                 impl_->context->Unmap(record->buffer, 0U);
             } else if (record->baseDescriptor.buffer.usage ==
                        BufferUsage::Uniform) {
-                if (command.resourceOffset != 0U ||
-                    command.uploadSize !=
+                if (record->uniformShadow == nullptr ||
+                    record->uniformShadowSize !=
                         record->baseDescriptor.buffer.sizeBytes) {
-                    return failSubmission(Unsupported(
-                        "D3D11 constant-buffer uploads must replace the whole buffer"));
+                    return failSubmission(InvalidState(
+                        "D3D11 uniform-buffer shadow is unavailable"));
                 }
+                std::memcpy(
+                    record->uniformShadow + command.resourceOffset,
+                    data.Data(),
+                    data.Size());
                 impl_->context->UpdateSubresource(
                     record->buffer,
                     0U,
                     nullptr,
-                    data.Data(),
+                    record->uniformShadow,
                     0U,
                     0U);
             } else {

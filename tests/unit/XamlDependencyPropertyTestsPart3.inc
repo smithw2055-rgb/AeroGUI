@@ -36,6 +36,18 @@
         CHECK(bridged);
         CHECK(bridged.Value() >= 8U);
         CHECK(bridge.IsTypeRegistered(buttonType));
+        // Dependency properties are supplied by one metadata provider. A
+        // custom control/property must not require an exact XAML adapter.
+        CHECK(schema.FindMemberAdapter(width.value) == nullptr);
+        CHECK(schema.FindMemberAdapter(row.value) == nullptr);
+        const PropertyInfo* widthInfo = types.FindProperty(width.value);
+        CHECK(widthInfo != nullptr);
+        XamlResolvedMember widthMember;
+        widthMember.id = widthInfo->Id();
+        widthMember.ownerType = widthInfo->OwnerType();
+        widthMember.valueType = widthInfo->ValueType();
+        widthMember.propertyFlags = widthInfo->Flags();
+        CHECK(schema.ResolveMemberWritePolicy(widthMember).writable);
 
         XamlTypeAdapterRegistration adapter;
         adapter.type = elementType;

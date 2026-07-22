@@ -1,5 +1,16 @@
 #include <Aero/Rhi/D3D11Backend.hpp>
 
+#include <Aero/Base/Ref.hpp>
+#include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlBorder.hpp>
+#include <Aero/Markup/XamlLayout.hpp>
+#include <Aero/Markup/XamlNodeReader.hpp>
+#include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Markup/XamlTextBlock.hpp>
+#include <Aero/Markup/XamlVisualTree.hpp>
+#include <Aero/Markup/XmlTokenizer.hpp>
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,6 +19,7 @@
 #endif
 
 #include <windows.h>
+#include <d3d11.h>
 #include <dxgi.h>
 
 #include <cmath>
@@ -19,6 +31,7 @@ namespace {
 
 using namespace Aero::Base;
 using namespace Aero::Core;
+using namespace Aero::Markup;
 using namespace Aero::Rhi;
 
 #define CHECK(expression) \
@@ -176,9 +189,23 @@ public:
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& registry,
         TypeId type,
-        bool requestNonAxisAlignedClip = false) noexcept
+        bool requestNonAxisAlignedClip = false,
+        bool requestFillBatch = false,
+        bool requestSplitFillBatch = false,
+        bool requestRoundedFill = false,
+        RenderImageId image = InvalidRenderImageId,
+        std::uint32_t imageCount = 1U,
+        RenderMeshId mesh = InvalidRenderMeshId,
+        std::uint32_t meshCount = 1U,
+        RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId,
+        std::uint32_t glyphRunCount = 1U) noexcept
         : RenderElement(dispatcher, registry, type),
-          requestNonAxisAlignedClip_(requestNonAxisAlignedClip) {}
+          requestNonAxisAlignedClip_(requestNonAxisAlignedClip),
+          requestFillBatch_(requestFillBatch),
+          requestSplitFillBatch_(requestSplitFillBatch),
+          requestRoundedFill_(requestRoundedFill),
+          image_(image), imageCount_(imageCount), mesh_(mesh), meshCount_(meshCount),
+          glyphRun_(glyphRun), glyphRunCount_(glyphRunCount) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -206,6 +233,61 @@ protected:
         result = builder.FillRect(
             {0.0, 0.0, 12.0, 8.0}, {0.0F, 1.0F, 0.0F, 1.0F});
         if (!result) return result;
+        if (requestRoundedFill_) {
+            result = builder.FillRoundedRect(
+                {0.0, 0.0, 12.0, 8.0}, {1.0F, 0.0F, 0.0F, 1.0F}, 4.0);
+            if (!result) return result;
+        }
+        if (image_ != InvalidRenderImageId) {
+            for (std::uint32_t imageIndex = 0U;
+                 imageIndex < imageCount_;
+                 ++imageIndex) {
+                const bool secondImage = imageIndex == 1U;
+                const bool thirdImage = imageIndex == 2U;
+                result = builder.DrawImage(image_,
+                    thirdImage ? Rect{5.0, 1.0, 4.0, 4.0} :
+                        Rect{1.0, 1.0, 4.0, 4.0},
+                    secondImage ? Rect{0.5, 0.0, 0.5, 0.5} :
+                        (thirdImage ? Rect{0.0, 0.5, 0.5, 0.5} :
+                            Rect{0.0, 0.0, 0.5, 0.5}));
+                if (!result) return result;
+            }
+        }
+        if (mesh_ != InvalidRenderMeshId) {
+            for (std::uint32_t meshIndex = 0U;
+                 meshIndex < meshCount_;
+                 ++meshIndex) {
+                result = builder.DrawMesh(mesh_);
+                if (!result) return result;
+            }
+        }
+        if (glyphRun_ != InvalidRenderGlyphRunId) {
+            for (std::uint32_t glyphIndex = 0U;
+                 glyphIndex < glyphRunCount_;
+                 ++glyphIndex) {
+                result = builder.DrawGlyphRun(
+                    glyphRun_, {1.0F, 0.0F, 0.0F, 1.0F});
+                if (!result) return result;
+            }
+        }
+        const std::uint32_t fillBatchRectCount = requestSplitFillBatch_
+            ? 65U
+            : (requestFillBatch_ ? 3U : 1U);
+        for (std::uint32_t fillIndex = 1U;
+             fillIndex < fillBatchRectCount;
+             ++fillIndex) {
+            const bool secondRect = fillIndex == 1U;
+            const bool overlappingBlend = !requestSplitFillBatch_ &&
+                !secondRect;
+            result = builder.FillRect(
+                secondRect ? Rect{12.0, 0.0, 6.0, 8.0} :
+                    (overlappingBlend ? Rect{0.0, 0.0, 12.0, 8.0} :
+                        Rect{0.0, 8.0, 6.0, 4.0}),
+                secondRect ? Color{1.0F, 0.0F, 0.0F, 1.0F} :
+                    (overlappingBlend ? Color{1.0F, 0.0F, 0.0F, 0.5F} :
+                        Color{0.0F, 0.0F, 1.0F, 1.0F}));
+            if (!result) return result;
+        }
         if (requestNonAxisAlignedClip_) {
             result = builder.PopClip();
             if (!result) return result;
@@ -217,6 +299,215 @@ protected:
 
 private:
     bool requestNonAxisAlignedClip_ = false;
+    bool requestFillBatch_ = false;
+    bool requestSplitFillBatch_ = false;
+    bool requestRoundedFill_ = false;
+    RenderImageId image_ = InvalidRenderImageId;
+    std::uint32_t imageCount_ = 1U;
+    RenderMeshId mesh_ = InvalidRenderMeshId;
+    std::uint32_t meshCount_ = 1U;
+    RenderGlyphRunId glyphRun_ = InvalidRenderGlyphRunId;
+    std::uint32_t glyphRunCount_ = 1U;
+};
+
+// This fixture deliberately uses the production controls, rather than the
+// PlanPanel/PlanElement test renderables below. Its renderer is the live
+// D3D11 RenderPlan backend, making the test a single XAML -> layout -> GPU
+// frame path instead of joining independent unit-test results.
+struct XamlControlFixture final {
+    explicit XamlControlFixture(D3D11RenderPlanBackend& renderBackend) noexcept
+        : properties(types),
+          values(dispatcher, properties),
+          tree(dispatcher, values),
+          layout(dispatcher),
+          renderer(dispatcher, renderBackend),
+          schema(types),
+          activation(schema),
+          layoutProperties(InvalidTypeId),
+          border(),
+          textBlock(),
+          visual(tree, layout, values, &renderer) {}
+
+    Dispatcher dispatcher;
+    TypeRegistry types;
+    DependencyPropertyRegistry properties;
+    EffectiveValueEngine values;
+    ObjectTree tree;
+    LayoutManager layout;
+    RenderManager renderer;
+    XamlSchemaContext schema;
+    XamlActivationProviderRegistry activation;
+    XamlLayoutExtension layoutProperties;
+    XamlBorderExtension border;
+    XamlTextBlockExtension textBlock;
+    XamlVisualTreeHost visual;
+    TypeId objectType = InvalidTypeId;
+    TypeId doubleType = InvalidTypeId;
+    TypeId stringType = InvalidTypeId;
+    TypeId layoutType = InvalidTypeId;
+    TypeId renderType = InvalidTypeId;
+    TypeId stackPanelType = InvalidTypeId;
+    TypeId borderType = InvalidTypeId;
+    TypeId textBlockType = InvalidTypeId;
+    MemberId stackPanelChildren = InvalidMemberId;
+
+    static Result<Ref<Object>> Activate(
+        TypeId type,
+        const XamlActivationContext& context,
+        IAllocator& allocator,
+        void*) noexcept {
+        if (context.dispatcher == nullptr ||
+            context.dependencyProperties == nullptr) {
+            return Status::Failure(ErrorCode::InvalidArgument,
+                "XAML control activation services are missing");
+        }
+        if (type == MakeTypeId(
+                StringView("urn:aero-m2-controls"), StringView("StackPanel"))) {
+            Result<Ref<StackPanel>> made = MakeRefWithAllocator<StackPanel>(
+                allocator,
+                *context.dispatcher,
+                *context.dependencyProperties,
+                type,
+                Orientation::Vertical,
+                &allocator);
+            if (!made) return made.GetStatus();
+            Ref<StackPanel> panel = std::move(made).Value();
+            return Ref<Object>(std::move(panel));
+        }
+        if (type == MakeTypeId(
+                StringView("urn:aero-m2-controls"), StringView("TextBlock"))) {
+            Result<Ref<TextBlock>> made = MakeRefWithAllocator<TextBlock>(
+                allocator,
+                *context.dispatcher,
+                *context.dependencyProperties,
+                type,
+                &allocator);
+            if (!made) return made.GetStatus();
+            Ref<TextBlock> text = std::move(made).Value();
+            return Ref<Object>(std::move(text));
+        }
+        Result<Ref<Border>> made = MakeRefWithAllocator<Border>(
+            allocator,
+            *context.dispatcher,
+            *context.dependencyProperties,
+            type,
+            &allocator);
+        if (!made) return made.GetStatus();
+        Ref<Border> border = std::move(made).Value();
+        return Ref<Object>(std::move(border));
+    }
+
+    static TreeNode* AsTreeNode(Object& object, void*) noexcept {
+        return &static_cast<LayoutElement&>(object);
+    }
+
+    static LayoutElement* AsLayoutElement(Object& object, void*) noexcept {
+        return &static_cast<LayoutElement&>(object);
+    }
+
+    static RenderElement* AsRenderElement(Object& object, void*) noexcept {
+        return &static_cast<RenderElement&>(object);
+    }
+
+    static StackPanel* AsStackPanel(Object& object, void*) noexcept {
+        return &static_cast<StackPanel&>(object);
+    }
+
+    static TextBlock* AsTextBlock(Object& object, void*) noexcept {
+        return &static_cast<TextBlock&>(object);
+    }
+
+    static Border* AsBorder(Object& object, void*) noexcept {
+        return &static_cast<Border&>(object);
+    }
+
+    bool Initialize() {
+        const StringView ns("urn:aero-m2-controls");
+        objectType = MakeTypeId(ns, StringView("Object"));
+        doubleType = MakeTypeId(ns, StringView("Double"));
+        stringType = MakeTypeId(ns, StringView("String"));
+        layoutType = MakeTypeId(ns, StringView("LayoutElement"));
+        renderType = MakeTypeId(ns, StringView("RenderElement"));
+        stackPanelType = MakeTypeId(ns, StringView("StackPanel"));
+        borderType = MakeTypeId(ns, StringView("Border"));
+        textBlockType = MakeTypeId(ns, StringView("TextBlock"));
+        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("LayoutElement"), objectType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("RenderElement"), layoutType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("StackPanel"), renderType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("Border"), renderType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("TextBlock"), renderType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterProperty(textBlockType, {
+            StringView("Text"), stringType, PropertyFlags::None}));
+        const StringView dimensions[] = {StringView("Width"), StringView("Height"),
+            StringView("MinWidth"), StringView("MaxWidth"), StringView("MinHeight"),
+            StringView("MaxHeight")};
+        for (StringView name : dimensions) {
+            CHECK(types.TryRegisterProperty(layoutType, {
+                name, doubleType, PropertyFlags::None}));
+        }
+        CHECK(types.TryRegisterProperty(layoutType, {
+            StringView("Margin"), stringType, PropertyFlags::None}));
+        CHECK(types.TryRegisterProperty(layoutType, {
+            StringView("HorizontalAlignment"), stringType, PropertyFlags::None}));
+        CHECK(types.TryRegisterProperty(layoutType, {
+            StringView("VerticalAlignment"), stringType, PropertyFlags::None}));
+        CHECK(types.TryRegisterProperty(borderType, {
+            StringView("Background"), stringType, PropertyFlags::None}));
+        Result<MemberId> children = types.TryRegisterProperty(stackPanelType, {
+            StringView("Children"), layoutType, PropertyFlags::None});
+        CHECK(children);
+        stackPanelChildren = children.Value();
+        CHECK(types.Freeze());
+        CHECK(properties.Freeze());
+        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
+        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
+        CHECK(values.Initialize());
+        CHECK(tree.Initialize());
+        CHECK(layout.Initialize());
+        CHECK(renderer.Initialize());
+        CHECK(visual.TryRegisterType({stackPanelType, &AsTreeNode,
+            &AsLayoutElement, &AsRenderElement, nullptr}));
+        CHECK(visual.TryRegisterType({borderType, &AsTreeNode,
+            &AsLayoutElement, &AsRenderElement, nullptr}));
+        CHECK(visual.TryRegisterType({textBlockType, &AsTreeNode,
+            &AsLayoutElement, &AsRenderElement, nullptr}));
+        CHECK(visual.TryRegisterCollectionContent({stackPanelType,
+            stackPanelChildren, &AsStackPanel, nullptr}));
+        CHECK(visual.Register(schema));
+        layoutProperties.SetLayoutElementType(layoutType);
+        CHECK(layoutProperties.TryRegisterType({stackPanelType, &AsLayoutElement, nullptr}));
+        CHECK(layoutProperties.TryRegisterType({borderType, &AsLayoutElement, nullptr}));
+        CHECK(layoutProperties.TryRegisterType({textBlockType, &AsLayoutElement, nullptr}));
+        CHECK(layoutProperties.Register(schema));
+        CHECK(border.TryRegisterType({borderType, &AsBorder, nullptr}));
+        CHECK(border.Register(schema));
+        CHECK(textBlock.TryRegisterType({textBlockType, &AsTextBlock, nullptr}));
+        CHECK(textBlock.Register(schema));
+        CHECK(activation.TryRegister({stackPanelType, &Activate, nullptr}));
+        CHECK(activation.TryRegister({borderType, &Activate, nullptr}));
+        CHECK(activation.TryRegister({textBlockType, &Activate, nullptr}));
+        CHECK(schema.Freeze());
+        CHECK(activation.Freeze());
+        return true;
+    }
+
+    XamlActivationContext Activation() noexcept {
+        XamlActivationContext context = XamlActivationContext::Create();
+        context.dispatcher = &dispatcher;
+        context.dependencyProperties = &properties;
+        return context;
+    }
 };
 
 bool BuildPlan(
@@ -224,7 +515,16 @@ bool BuildPlan(
     std::uint32_t width,
     std::uint32_t height,
     bool requestNonAxisAlignedClip = false,
-    bool requestInstancedStroke = false) noexcept {
+    bool requestInstancedStroke = false,
+    bool requestFillBatch = false,
+    bool requestSplitFillBatch = false,
+    bool requestRoundedFill = false,
+    RenderImageId image = InvalidRenderImageId,
+    std::uint32_t imageCount = 1U,
+    RenderMeshId mesh = InvalidRenderMeshId,
+    std::uint32_t meshCount = 1U,
+    RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId,
+    std::uint32_t glyphRunCount = 1U) noexcept {
     TypeRegistry types;
     DependencyPropertyRegistry properties(types);
     Dispatcher dispatcher;
@@ -253,7 +553,9 @@ bool BuildPlan(
     PlanPanel root(
         dispatcher, properties, panelType, requestInstancedStroke);
     PlanElement child(
-        dispatcher, properties, elementType, requestNonAxisAlignedClip);
+        dispatcher, properties, elementType, requestNonAxisAlignedClip,
+        requestFillBatch, requestSplitFillBatch, requestRoundedFill, image,
+        imageCount, mesh, meshCount, glyphRun, glyphRunCount);
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
     CHECK(tree.AttachVisual(root, child));
@@ -266,9 +568,22 @@ bool BuildPlan(
     CHECK(dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     output = renderer.CurrentPlan();
     CHECK(output.Nodes().Size() == 2U);
-    CHECK(output.Commands().Size() ==
+    std::uint32_t expectedCommandCount =
         (requestInstancedStroke ? 6U :
-            (requestNonAxisAlignedClip ? 13U : 9U)));
+            (requestNonAxisAlignedClip ? 13U :
+                (requestSplitFillBatch ? 73U :
+                    (requestFillBatch ? 11U :
+                        (requestRoundedFill ? 10U : 9U)))));
+    if (image != InvalidRenderImageId) {
+        expectedCommandCount += imageCount;
+    }
+    if (mesh != InvalidRenderMeshId) {
+        expectedCommandCount += meshCount;
+    }
+    if (glyphRun != InvalidRenderGlyphRunId) {
+        expectedCommandCount += glyphRunCount;
+    }
+    CHECK(output.Commands().Size() == expectedCommandCount);
     CHECK(renderer.SetRoot(nullptr));
     CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
     CHECK(layout.Detach(root, child));
@@ -504,6 +819,109 @@ Result<GraphicsCommandBuffer> MakeClearCommands(
     return encoder.Finish();
 }
 
+Result<FenceValue> UploadTestImage(
+    D3D11GraphicsBackend& backend,
+    ResourceHandle texture) noexcept {
+    static constexpr std::uint8_t Pixels[] = {
+        255U, 0U, 0U, 255U,
+        0U, 255U, 0U, 255U,
+        0U, 0U, 255U, 255U,
+        255U, 255U, 255U, 255U};
+    GraphicsCommandEncoder encoder;
+    Result<void> uploaded = encoder.UploadTexture(
+        texture, {0U, 0U, 2U, 2U, 0U, 0U, 8U},
+        Span<const std::uint8_t>(Pixels, static_cast<std::uint32_t>(sizeof(Pixels))));
+    if (!uploaded) {
+        return uploaded.GetStatus();
+    }
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    if (!commands) {
+        return commands.GetStatus();
+    }
+    GraphicsQueue queue(backend);
+    Result<void> initialized = queue.Initialize();
+    if (!initialized) {
+        return initialized.GetStatus();
+    }
+    return queue.Submit(commands.Value());
+}
+
+struct TestMeshVertex final {
+    float x;
+    float y;
+    float red;
+    float green;
+    float blue;
+    float alpha;
+};
+
+struct TestGlyphVertex final {
+    float x;
+    float y;
+    float u;
+    float v;
+};
+
+Result<FenceValue> UploadTestMesh(
+    D3D11GraphicsBackend& backend,
+    ResourceHandle vertexBuffer,
+    ResourceHandle indexBuffer) noexcept {
+    static constexpr TestMeshVertex Vertices[] = {
+        {1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F},
+        {6.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F},
+        {1.0F, 6.0F, 1.0F, 0.0F, 0.0F, 1.0F}};
+    static constexpr std::uint32_t Indices[] = {0U, 1U, 2U};
+    GraphicsCommandEncoder encoder;
+    const auto* vertexBytes = reinterpret_cast<const std::uint8_t*>(Vertices);
+    Result<void> uploaded = encoder.UploadBuffer(vertexBuffer, 0U,
+        {vertexBytes, static_cast<std::uint32_t>(sizeof(Vertices))});
+    if (uploaded) {
+        const auto* indexBytes = reinterpret_cast<const std::uint8_t*>(Indices);
+        uploaded = encoder.UploadBuffer(indexBuffer, 0U,
+            {indexBytes, static_cast<std::uint32_t>(sizeof(Indices))});
+    }
+    if (!uploaded) return uploaded.GetStatus();
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    if (!commands) return commands.GetStatus();
+    GraphicsQueue queue(backend);
+    Result<void> initialized = queue.Initialize();
+    if (!initialized) return initialized.GetStatus();
+    return queue.Submit(commands.Value());
+}
+
+Result<FenceValue> UploadTestGlyph(
+    D3D11GraphicsBackend& backend,
+    ResourceHandle vertexBuffer,
+    ResourceHandle indexBuffer,
+    ResourceHandle atlasTexture) noexcept {
+    static constexpr TestGlyphVertex Vertices[] = {
+        {1.0F, 1.0F, 0.5F, 0.5F},
+        {6.0F, 1.0F, 0.5F, 0.5F},
+        {1.0F, 6.0F, 0.5F, 0.5F}};
+    static constexpr std::uint16_t Indices[] = {0U, 1U, 2U};
+    static constexpr std::uint8_t Atlas[] = {128U};
+    GraphicsCommandEncoder encoder;
+    const auto* vertexBytes = reinterpret_cast<const std::uint8_t*>(Vertices);
+    Result<void> uploaded = encoder.UploadBuffer(vertexBuffer, 0U,
+        {vertexBytes, static_cast<std::uint32_t>(sizeof(Vertices))});
+    if (uploaded) {
+        const auto* indexBytes = reinterpret_cast<const std::uint8_t*>(Indices);
+        uploaded = encoder.UploadBuffer(indexBuffer, 0U,
+            {indexBytes, static_cast<std::uint32_t>(sizeof(Indices))});
+    }
+    if (uploaded) {
+        uploaded = encoder.UploadTexture(atlasTexture, {0U, 0U, 1U, 1U, 0U, 0U, 1U},
+            Span<const std::uint8_t>(Atlas, static_cast<std::uint32_t>(sizeof(Atlas))));
+    }
+    if (!uploaded) return uploaded.GetStatus();
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    if (!commands) return commands.GetStatus();
+    GraphicsQueue queue(backend);
+    Result<void> initialized = queue.Initialize();
+    if (!initialized) return initialized.GetStatus();
+    return queue.Submit(commands.Value());
+}
+
 bool VerifySolidGreen(
     D3D11GraphicsBackend& backend,
     ResourceHandle target,
@@ -539,6 +957,75 @@ bool VerifySolidGreen(
             return false;
         }
     }
+    return true;
+}
+
+bool TestXamlStackPanelBorderD3D11Presentation(
+    RhiDevice& device,
+    D3D11GraphicsBackend& backend,
+    SurfaceSession& surface,
+    D3D11RenderPlanBackend& renderBackend,
+    RenderGlyphRunId glyphRun) {
+    XamlControlFixture fixture(renderBackend);
+    CHECK(fixture.Initialize());
+
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<StackPanel xmlns=\"urn:aero-m2-controls\"><Border Width=\"24\" Height=\"16\" "
+        "Background=\"#FF0000\"/><TextBlock Text=\"A\"/>"
+        "</StackPanel>"),
+        &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
+        fixture.visual,
+        writer,
+        reader,
+        fixture.activation,
+        fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
+    CHECK(root != nullptr);
+    CHECK(fixture.visual.Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
+    const Span<TreeNode* const> children = root->VisualChildren();
+    CHECK(children.Size() == 2U);
+    Border* border = static_cast<Border*>(children[0]);
+    TextBlock* text = static_cast<TextBlock*>(children[1]);
+    CHECK(border != nullptr && text != nullptr);
+    CHECK(border->HasWidth() && border->Width() == 24.0);
+    CHECK(border->HasHeight() && border->Height() == 16.0);
+    CHECK(border->Background().red == 1.0F && border->Background().green == 0.0F &&
+        border->Background().blue == 0.0F && border->Background().alpha == 1.0F);
+    CHECK(text->Text() == StringView("A"));
+    CHECK(text->SetGlyphRun(glyphRun, {6.0, 6.0}));
+    CHECK(text->SetForeground({0.0F, 0.0F, 1.0F, 1.0F}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
+    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 3U);
+    const D3D11RenderPlanSubmitStatistics statistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(statistics.renderPassCount == 1U);
+    CHECK(statistics.drawCallCount == 2U);
+    CHECK(statistics.rectangleInstanceCount == 1U);
+    CHECK(statistics.glyphDrawCallCount == 1U);
+    CHECK(statistics.glyphInstanceCount == 1U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+
+    Result<SurfaceFrame> frameResult = surface.AcquireFrame();
+    CHECK(frameResult);
+    SurfaceFrame frame = frameResult.Value();
+    Result<ResourceHandle> target = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(frame));
+    CHECK(target);
+    std::uint8_t pixel[4]{};
+    CHECK(ReadBackPixel(backend, target.Value(), 80U, 48U, 4U, 4U, pixel));
+    CHECK(pixel[0] == 0U && pixel[1] == 0U &&
+        pixel[2] == 255U && pixel[3] == 255U);
+    CHECK(surface.DiscardFrame(frame));
+    CHECK(device.DestroyResource(
+        target.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(fixture.visual.Unmount());
     return true;
 }
 
@@ -745,6 +1232,331 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(device.DestroyResource(
         strokeTarget.Value(), renderBackend.LastSubmittedFence()));
 
+    RenderPlan fillBatchPlan;
+    CHECK(BuildPlan(fillBatchPlan, 80U, 48U, false, false, true));
+    CHECK(renderBackend.Submit(fillBatchPlan));
+    const D3D11RenderPlanSubmitStatistics fillBatchStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(fillBatchStatistics.renderPassCount == 1U);
+    CHECK(fillBatchStatistics.drawCallCount == 3U);
+    CHECK(fillBatchStatistics.rectangleInstanceCount == 5U);
+    CHECK(fillBatchStatistics.uniformBufferUploadCount == 3U);
+    CHECK(fillBatchStatistics.pipelineBindingCount == 1U);
+    CHECK(fillBatchStatistics.vertexBufferBindingCount == 1U);
+    CHECK(fillBatchStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 5U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> fillBatchFrameResult = surface.AcquireFrame();
+    CHECK(fillBatchFrameResult);
+    SurfaceFrame fillBatchFrame = fillBatchFrameResult.Value();
+    Result<ResourceHandle> fillBatchTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(fillBatchFrame));
+    CHECK(fillBatchTarget);
+    std::uint8_t fillBatchPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, fillBatchTarget.Value(), 80U, 48U, 14U, 9U,
+        fillBatchPixel));
+    CHECK(fillBatchPixel[0] == 0U &&
+        fillBatchPixel[1] >= 126U && fillBatchPixel[1] <= 129U &&
+        fillBatchPixel[2] >= 126U && fillBatchPixel[2] <= 129U &&
+        fillBatchPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(fillBatchFrame));
+    CHECK(device.DestroyResource(
+        fillBatchTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    RenderPlan splitFillBatchPlan;
+    CHECK(BuildPlan(splitFillBatchPlan, 80U, 48U, false, false, false, true));
+    CHECK(renderBackend.Submit(splitFillBatchPlan));
+    const D3D11RenderPlanSubmitStatistics splitFillBatchStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(splitFillBatchStatistics.renderPassCount == 1U);
+    CHECK(splitFillBatchStatistics.drawCallCount == 4U);
+    CHECK(splitFillBatchStatistics.rectangleInstanceCount == 67U);
+    CHECK(splitFillBatchStatistics.uniformBufferUploadCount == 4U);
+    CHECK(splitFillBatchStatistics.pipelineBindingCount == 1U);
+    CHECK(splitFillBatchStatistics.vertexBufferBindingCount == 1U);
+    CHECK(splitFillBatchStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 6U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> splitFillBatchFrameResult = surface.AcquireFrame();
+    CHECK(splitFillBatchFrameResult);
+    SurfaceFrame splitFillBatchFrame = splitFillBatchFrameResult.Value();
+    Result<ResourceHandle> splitFillBatchTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(splitFillBatchFrame));
+    CHECK(splitFillBatchTarget);
+    std::uint8_t splitFillBatchPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, splitFillBatchTarget.Value(), 80U, 48U, 14U, 9U,
+        splitFillBatchPixel));
+    CHECK(splitFillBatchPixel[0] == 0U && splitFillBatchPixel[1] == 255U &&
+        splitFillBatchPixel[2] == 0U && splitFillBatchPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(splitFillBatchFrame));
+    CHECK(device.DestroyResource(
+        splitFillBatchTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    RenderPlan roundedFillPlan;
+    CHECK(BuildPlan(
+        roundedFillPlan, 80U, 48U, false, false, false, false, true));
+    CHECK(renderBackend.Submit(roundedFillPlan));
+    const D3D11RenderPlanSubmitStatistics roundedFillStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(roundedFillStatistics.renderPassCount == 1U);
+    CHECK(roundedFillStatistics.drawCallCount == 3U);
+    CHECK(roundedFillStatistics.rectangleInstanceCount == 4U);
+    CHECK(roundedFillStatistics.uniformBufferUploadCount == 3U);
+    CHECK(roundedFillStatistics.pipelineBindingCount == 1U);
+    CHECK(roundedFillStatistics.vertexBufferBindingCount == 1U);
+    CHECK(roundedFillStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 7U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> roundedFillFrameResult = surface.AcquireFrame();
+    CHECK(roundedFillFrameResult);
+    SurfaceFrame roundedFillFrame = roundedFillFrameResult.Value();
+    Result<ResourceHandle> roundedFillTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(roundedFillFrame));
+    CHECK(roundedFillTarget);
+    std::uint8_t roundedCornerPixel[4]{};
+    std::uint8_t roundedInteriorPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, roundedFillTarget.Value(), 80U, 48U, 12U, 8U,
+        roundedCornerPixel));
+    CHECK(ReadBackPixel(
+        backend, roundedFillTarget.Value(), 80U, 48U, 22U, 12U,
+        roundedInteriorPixel));
+    CHECK(roundedCornerPixel[0] == 0U && roundedCornerPixel[1] == 255U &&
+        roundedCornerPixel[2] == 0U && roundedCornerPixel[3] == 255U);
+    CHECK(roundedInteriorPixel[0] == 0U && roundedInteriorPixel[1] == 0U &&
+        roundedInteriorPixel[2] == 255U && roundedInteriorPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(roundedFillFrame));
+    CHECK(device.DestroyResource(
+        roundedFillTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    GraphicsResourceFactory resources(device, backend);
+    TextureResourceDescriptor imageDescriptor;
+    imageDescriptor.width = 2U;
+    imageDescriptor.height = 2U;
+    imageDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
+    imageDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
+        TextureUsageBit(TextureUsage::CopyDestination);
+    Result<ResourceHandle> imageTexture = resources.CreateTexture(imageDescriptor);
+    CHECK(imageTexture);
+    SamplerDescriptor imageSamplerDescriptor;
+    imageSamplerDescriptor.minFilter = FilterMode::Nearest;
+    imageSamplerDescriptor.magFilter = FilterMode::Nearest;
+    imageSamplerDescriptor.mipFilter = FilterMode::Nearest;
+    Result<ResourceHandle> imageSampler =
+        resources.CreateSampler(imageSamplerDescriptor);
+    CHECK(imageSampler);
+    Result<FenceValue> imageUpload = UploadTestImage(
+        backend, imageTexture.Value());
+    CHECK(imageUpload);
+    CHECK(imageUpload.Value() == 8U);
+    CHECK(backend.WaitForFence(imageUpload.Value()));
+    CHECK(renderBackend.RegisterImage(
+        1U, imageTexture.Value(), imageSampler.Value()));
+    CHECK(!renderBackend.RegisterImage(
+        1U, imageTexture.Value(), imageSampler.Value()));
+
+    RenderPlan imagePlan;
+    CHECK(BuildPlan(
+        imagePlan, 80U, 48U, false, false, false, false, false, 1U, 3U));
+    CHECK(renderBackend.Submit(imagePlan));
+    const D3D11RenderPlanSubmitStatistics imageStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(imageStatistics.renderPassCount == 1U);
+    CHECK(imageStatistics.drawCallCount == 4U);
+    CHECK(imageStatistics.rectangleInstanceCount == 3U);
+    CHECK(imageStatistics.imageInstanceCount == 3U);
+    CHECK(imageStatistics.uniformBufferUploadCount == 4U);
+    CHECK(imageStatistics.pipelineBindingCount == 2U);
+    CHECK(imageStatistics.vertexBufferBindingCount == 2U);
+    CHECK(imageStatistics.uniformBufferBindingCount == 2U);
+    CHECK(imageStatistics.textureSamplerBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 9U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> imageFrameResult = surface.AcquireFrame();
+    CHECK(imageFrameResult);
+    SurfaceFrame imageFrame = imageFrameResult.Value();
+    Result<ResourceHandle> imageTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(imageFrame));
+    CHECK(imageTarget);
+    std::uint8_t imagePixel[4]{};
+    std::uint8_t secondImagePixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, imageTarget.Value(), 80U, 48U, 16U, 11U, imagePixel));
+    CHECK(ReadBackPixel(
+        backend, imageTarget.Value(), 80U, 48U, 22U, 11U, secondImagePixel));
+    CHECK(imagePixel[0] == 0U && imagePixel[1] == 255U &&
+        imagePixel[2] == 0U && imagePixel[3] == 255U);
+    CHECK(secondImagePixel[0] == 255U && secondImagePixel[1] == 0U &&
+        secondImagePixel[2] == 0U && secondImagePixel[3] == 255U);
+    CHECK(surface.DiscardFrame(imageFrame));
+    CHECK(device.DestroyResource(
+        imageTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    RenderPlan splitImageBatchPlan;
+    CHECK(BuildPlan(splitImageBatchPlan, 80U, 48U, false, false, false,
+        false, false, 1U, 65U));
+    CHECK(renderBackend.Submit(splitImageBatchPlan));
+    const D3D11RenderPlanSubmitStatistics splitImageStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(splitImageStatistics.renderPassCount == 1U);
+    CHECK(splitImageStatistics.drawCallCount == 5U);
+    CHECK(splitImageStatistics.rectangleInstanceCount == 3U);
+    CHECK(splitImageStatistics.imageInstanceCount == 65U);
+    CHECK(splitImageStatistics.uniformBufferUploadCount == 5U);
+    CHECK(splitImageStatistics.pipelineBindingCount == 2U);
+    CHECK(splitImageStatistics.vertexBufferBindingCount == 2U);
+    CHECK(splitImageStatistics.uniformBufferBindingCount == 2U);
+    CHECK(splitImageStatistics.textureSamplerBindingCount == 2U);
+    CHECK(renderBackend.LastSubmittedFence() == 10U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+
+    BufferDescriptor meshVertexDescriptor;
+    meshVertexDescriptor.sizeBytes = sizeof(TestMeshVertex) * 3U;
+    meshVertexDescriptor.usage = BufferUsage::Vertex;
+    Result<ResourceHandle> meshVertex = resources.CreateBuffer(meshVertexDescriptor);
+    CHECK(meshVertex);
+    BufferDescriptor meshIndexDescriptor;
+    meshIndexDescriptor.sizeBytes = sizeof(std::uint32_t) * 3U;
+    meshIndexDescriptor.usage = BufferUsage::Index;
+    Result<ResourceHandle> meshIndex = resources.CreateBuffer(meshIndexDescriptor);
+    CHECK(meshIndex);
+    Result<FenceValue> meshUpload = UploadTestMesh(
+        backend, meshVertex.Value(), meshIndex.Value());
+    CHECK(meshUpload && meshUpload.Value() == 11U);
+    CHECK(backend.WaitForFence(meshUpload.Value()));
+    CHECK(renderBackend.RegisterMesh(
+        1U, meshVertex.Value(), meshIndex.Value(), 3U, IndexType::UInt32));
+    RenderPlan meshPlan;
+    CHECK(BuildPlan(meshPlan, 80U, 48U, false, false, false, false,
+        false, InvalidRenderImageId, 1U, 1U, 3U));
+    CHECK(renderBackend.Submit(meshPlan));
+    const D3D11RenderPlanSubmitStatistics meshStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(meshStatistics.drawCallCount == 4U);
+    CHECK(meshStatistics.rectangleInstanceCount == 3U);
+    CHECK(meshStatistics.meshDrawCallCount == 1U);
+    CHECK(meshStatistics.meshInstanceCount == 3U);
+    CHECK(meshStatistics.uniformBufferUploadCount == 4U);
+    CHECK(meshStatistics.pipelineBindingCount == 2U);
+    CHECK(meshStatistics.vertexBufferBindingCount == 2U);
+    CHECK(meshStatistics.indexBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 12U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> meshFrameResult = surface.AcquireFrame();
+    CHECK(meshFrameResult);
+    SurfaceFrame meshFrame = meshFrameResult.Value();
+    Result<ResourceHandle> meshTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(meshFrame));
+    CHECK(meshTarget);
+    std::uint8_t meshPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, meshTarget.Value(), 80U, 48U, 16U, 11U, meshPixel));
+    CHECK(meshPixel[0] == 0U && meshPixel[1] == 0U &&
+        meshPixel[2] == 255U && meshPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(meshFrame));
+    CHECK(device.DestroyResource(
+        meshTarget.Value(), renderBackend.LastSubmittedFence()));
+    RenderPlan splitMeshBatchPlan;
+    CHECK(BuildPlan(splitMeshBatchPlan, 80U, 48U, false, false, false, false,
+        false, InvalidRenderImageId, 1U, 1U, 65U));
+    CHECK(renderBackend.Submit(splitMeshBatchPlan));
+    const D3D11RenderPlanSubmitStatistics splitMeshStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(splitMeshStatistics.drawCallCount == 5U);
+    CHECK(splitMeshStatistics.rectangleInstanceCount == 3U);
+    CHECK(splitMeshStatistics.meshDrawCallCount == 2U);
+    CHECK(splitMeshStatistics.meshInstanceCount == 65U);
+    CHECK(splitMeshStatistics.uniformBufferUploadCount == 5U);
+    CHECK(splitMeshStatistics.pipelineBindingCount == 2U);
+    CHECK(splitMeshStatistics.vertexBufferBindingCount == 3U);
+    CHECK(splitMeshStatistics.indexBufferBindingCount == 2U);
+    CHECK(renderBackend.LastSubmittedFence() == 13U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    BufferDescriptor glyphVertexDescriptor;
+    glyphVertexDescriptor.sizeBytes = sizeof(TestGlyphVertex) * 3U;
+    glyphVertexDescriptor.usage = BufferUsage::Vertex;
+    Result<ResourceHandle> glyphVertex = resources.CreateBuffer(glyphVertexDescriptor);
+    CHECK(glyphVertex);
+    BufferDescriptor glyphIndexDescriptor;
+    glyphIndexDescriptor.sizeBytes = sizeof(std::uint16_t) * 3U;
+    glyphIndexDescriptor.usage = BufferUsage::Index;
+    Result<ResourceHandle> glyphIndex = resources.CreateBuffer(glyphIndexDescriptor);
+    CHECK(glyphIndex);
+    TextureResourceDescriptor glyphAtlasDescriptor;
+    glyphAtlasDescriptor.width = 1U;
+    glyphAtlasDescriptor.height = 1U;
+    glyphAtlasDescriptor.format = GraphicsTextureFormat::R8Unorm;
+    glyphAtlasDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
+        TextureUsageBit(TextureUsage::CopyDestination);
+    Result<ResourceHandle> glyphAtlas = resources.CreateTexture(glyphAtlasDescriptor);
+    CHECK(glyphAtlas);
+    Result<FenceValue> glyphUpload = UploadTestGlyph(
+        backend, glyphVertex.Value(), glyphIndex.Value(), glyphAtlas.Value());
+    CHECK(glyphUpload && glyphUpload.Value() == 14U);
+    CHECK(backend.WaitForFence(glyphUpload.Value()));
+    CHECK(renderBackend.RegisterGlyphRun(1U, glyphVertex.Value(), glyphIndex.Value(),
+        3U, glyphAtlas.Value(), imageSampler.Value()));
+    CHECK(!renderBackend.RegisterGlyphRun(1U, glyphVertex.Value(), glyphIndex.Value(),
+        3U, glyphAtlas.Value(), imageSampler.Value()));
+    RenderPlan glyphPlan;
+    CHECK(BuildPlan(glyphPlan, 80U, 48U, false, false, false, false, false,
+        InvalidRenderImageId, 1U, InvalidRenderMeshId, 1U, 1U, 3U));
+    CHECK(renderBackend.Submit(glyphPlan));
+    const D3D11RenderPlanSubmitStatistics glyphStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(glyphStatistics.drawCallCount == 4U);
+    CHECK(glyphStatistics.rectangleInstanceCount == 3U);
+    CHECK(glyphStatistics.glyphDrawCallCount == 1U);
+    CHECK(glyphStatistics.glyphInstanceCount == 3U);
+    CHECK(glyphStatistics.uniformBufferUploadCount == 4U);
+    CHECK(glyphStatistics.pipelineBindingCount == 2U);
+    CHECK(glyphStatistics.vertexBufferBindingCount == 2U);
+    CHECK(glyphStatistics.indexBufferBindingCount == 1U);
+    CHECK(glyphStatistics.textureSamplerBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 15U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> glyphFrameResult = surface.AcquireFrame();
+    CHECK(glyphFrameResult);
+    SurfaceFrame glyphFrame = glyphFrameResult.Value();
+    Result<ResourceHandle> glyphTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(glyphFrame));
+    CHECK(glyphTarget);
+    std::uint8_t glyphPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, glyphTarget.Value(), 80U, 48U, 16U, 11U, glyphPixel));
+    // Three same-run instances are batched into one indexed draw. Each uses
+    // 128/255 atlas coverage, so red is 1 - (1 - 128/255)^3 and green is
+    // the complementary contribution from the opaque green rectangle below.
+    CHECK(glyphPixel[0] == 0U && glyphPixel[1] >= 26U &&
+        glyphPixel[1] <= 37U && glyphPixel[2] >= 220U &&
+        glyphPixel[2] <= 230U && glyphPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(glyphFrame));
+    CHECK(device.DestroyResource(
+        glyphTarget.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(TestXamlStackPanelBorderD3D11Presentation(
+        device, backend, surface, renderBackend, 1U));
+    CHECK(renderBackend.UnregisterGlyphRun(1U));
+    CHECK(device.DestroyResource(
+        glyphVertex.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(device.DestroyResource(
+        glyphIndex.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(device.DestroyResource(
+        glyphAtlas.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(renderBackend.UnregisterMesh(1U));
+    CHECK(device.DestroyResource(
+        meshVertex.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(device.DestroyResource(
+        meshIndex.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(renderBackend.UnregisterImage(1U));
+    CHECK(device.DestroyResource(
+        imageTexture.Value(), renderBackend.LastSubmittedFence()));
+    CHECK(device.DestroyResource(
+        imageSampler.Value(), renderBackend.LastSubmittedFence()));
+
+    const FenceValue expectedPresentedFence =
+        renderBackend.LastSubmittedFence() + 1U;
     renderBackend.Shutdown();
     CHECK(device.CollectGarbage());
 
@@ -763,7 +1575,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
         presentedFrame,
         blueCommands.Value());
     CHECK(presented);
-    CHECK(presented.Value() == 5U);
+    CHECK(presented.Value() == expectedPresentedFence);
     CHECK(!presentedFrame.IsValid());
     CHECK(!presenter.HasFrameInFlight());
     CHECK(backend.WaitForFence(presented.Value()));
@@ -825,10 +1637,79 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     return true;
 }
 
+bool TestFl10RenderPlanSurfaceSubmission() {
+    HiddenWindow window;
+    CHECK(window.Initialize());
+
+    const D3D_FEATURE_LEVEL requestedLevel = D3D_FEATURE_LEVEL_10_0;
+    ID3D11Device* nativeDevice = nullptr;
+    ID3D11DeviceContext* nativeContext = nullptr;
+    D3D_FEATURE_LEVEL createdLevel = D3D_FEATURE_LEVEL_9_1;
+    const HRESULT created = D3D11CreateDevice(
+        nullptr,
+        D3D_DRIVER_TYPE_WARP,
+        nullptr,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+        &requestedLevel,
+        1U,
+        D3D11_SDK_VERSION,
+        &nativeDevice,
+        &createdLevel,
+        &nativeContext);
+    CHECK(SUCCEEDED(created));
+    CHECK(nativeDevice != nullptr && nativeContext != nullptr);
+    CHECK(createdLevel == D3D_FEATURE_LEVEL_10_0);
+
+    D3D11BackendOptions backendOptions;
+    backendOptions.deviceMode = D3D11DeviceMode::Borrowed;
+    backendOptions.borrowedDevice = reinterpret_cast<std::uintptr_t>(nativeDevice);
+    backendOptions.borrowedImmediateContext =
+        reinterpret_cast<std::uintptr_t>(nativeContext);
+    D3D11GraphicsBackend backend(backendOptions);
+    CHECK(backend.Initialize());
+    CHECK(backend.NativeFeatureLevel() ==
+        static_cast<std::uint32_t>(D3D_FEATURE_LEVEL_10_0));
+
+    RhiDevice device(backend);
+    CHECK(device.Initialize());
+    D3D11SwapChainSurface surfaceBackend(backend);
+    SurfaceSession surface(surfaceBackend);
+    CHECK(surface.Initialize(MakeSurfaceDescriptor(
+        backend, window.Handle(), 64U, 48U)));
+    D3D11SurfacePresenter presenter(device, backend, surface);
+    CHECK(presenter.Initialize());
+    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    CHECK(renderBackend.Initialize());
+
+    // Initialization creates every packaged SM4 RenderPlan pipeline, and the
+    // submission exercises the rectangle path through a FL10_0 swap chain.
+    RenderPlan renderPlan;
+    CHECK(BuildPlan(renderPlan, 64U, 48U));
+    CHECK(renderBackend.Submit(renderPlan));
+    const D3D11RenderPlanSubmitStatistics statistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(statistics.renderPassCount == 1U);
+    CHECK(statistics.drawCallCount == 3U);
+    CHECK(statistics.rectangleInstanceCount == 3U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+
+    renderBackend.Shutdown();
+    CHECK(device.CollectGarbage());
+    presenter.Shutdown();
+    surface.Shutdown();
+    CHECK(device.LiveResourceCount() == 0U);
+    CHECK(backend.LiveResourceCount() == 0U);
+    backend.Shutdown();
+    nativeContext->Release();
+    nativeDevice->Release();
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestOwnedBorrowedResizeAndPresentation()) return 1;
+    if (!TestFl10RenderPlanSurfaceSubmission()) return 1;
     std::puts("Aero D3D11 swap-chain surface tests passed");
     return 0;
 }

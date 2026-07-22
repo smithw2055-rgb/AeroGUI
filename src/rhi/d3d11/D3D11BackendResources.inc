@@ -204,6 +204,45 @@ Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
         return fragmentReflection;
     }
 
+    std::uint32_t uniformBufferMinimumSizes[
+        D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+    Base::Result<void> vertexUniformRequirements =
+        CollectDxbcConstantBufferRequirements(
+            descriptor.vertexShader, uniformBufferMinimumSizes);
+    if (!vertexUniformRequirements) {
+        return vertexUniformRequirements;
+    }
+    Base::Result<void> fragmentUniformRequirements =
+        CollectDxbcConstantBufferRequirements(
+            descriptor.fragmentShader, uniformBufferMinimumSizes);
+    if (!fragmentUniformRequirements) {
+        return fragmentUniformRequirements;
+    }
+    bool pixelTextureSlots[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+    D3D_SRV_DIMENSION pixelTextureDimensions[
+        D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+    bool pixelSamplerSlots[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]{};
+    Base::Result<void> vertexResourceRequirements =
+        CollectDxbcTextureSamplerRequirements(
+            descriptor.vertexShader,
+            false,
+            pixelTextureSlots,
+            pixelTextureDimensions,
+            pixelSamplerSlots);
+    if (!vertexResourceRequirements) {
+        return vertexResourceRequirements;
+    }
+    Base::Result<void> fragmentResourceRequirements =
+        CollectDxbcTextureSamplerRequirements(
+            descriptor.fragmentShader,
+            true,
+            pixelTextureSlots,
+            pixelTextureDimensions,
+            pixelSamplerSlots);
+    if (!fragmentResourceRequirements) {
+        return fragmentResourceRequirements;
+    }
+
     Impl::ResourceRecord* record = impl_->Find(handle);
     if (record == nullptr || handle.type != ResourceType::Pipeline) {
         return NotFound("D3D11 pipeline resource was not found");
@@ -338,6 +377,22 @@ Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
     record->depthStencilState = depthStencilState;
     record->vertexLayout = descriptor.vertexLayout;
     record->topology = ToD3DTopology(descriptor.topology);
+    std::memcpy(
+        record->uniformBufferMinimumSizes,
+        uniformBufferMinimumSizes,
+        sizeof(record->uniformBufferMinimumSizes));
+    std::memcpy(
+        record->pixelTextureSlots,
+        pixelTextureSlots,
+        sizeof(record->pixelTextureSlots));
+    std::memcpy(
+        record->pixelTextureDimensions,
+        pixelTextureDimensions,
+        sizeof(record->pixelTextureDimensions));
+    std::memcpy(
+        record->pixelSamplerSlots,
+        pixelSamplerSlots,
+        sizeof(record->pixelSamplerSlots));
     record->configured = true;
     return {};
 }

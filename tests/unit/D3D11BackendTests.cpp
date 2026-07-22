@@ -17,6 +17,8 @@
 
 #include "AeroD3D11RectanglePixelShader.hpp"
 #include "AeroD3D11RectangleVertexShader.hpp"
+#include "AeroD3D11TextureArrayPixelShader.hpp"
+#include "AeroD3D11TextureArrayVertexShader.hpp"
 
 namespace {
 
@@ -111,6 +113,19 @@ PipelineDescriptor MakePipeline() noexcept {
     return descriptor;
 }
 
+PipelineDescriptor MakeTextureArrayPipeline() noexcept {
+    PipelineDescriptor descriptor = MakePipeline();
+    descriptor.vertexShader.bytecode = AeroD3D11TextureArrayVertexShader;
+    descriptor.vertexShader.bytecodeSize =
+        sizeof(AeroD3D11TextureArrayVertexShader);
+    descriptor.vertexShader.stableId = UINT64_C(0xD3110003);
+    descriptor.fragmentShader.bytecode = AeroD3D11TextureArrayPixelShader;
+    descriptor.fragmentShader.bytecodeSize =
+        sizeof(AeroD3D11TextureArrayPixelShader);
+    descriptor.fragmentShader.stableId = UINT64_C(0xD3110004);
+    return descriptor;
+}
+
 bool TestOffscreenRectangleAndReadback(
     const D3D11BackendOptions& backendOptions);
 
@@ -190,10 +205,16 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(index);
 
     BufferDescriptor uniformDescriptor;
-    uniformDescriptor.sizeBytes = 16U;
+    uniformDescriptor.sizeBytes = 32U;
     uniformDescriptor.usage = BufferUsage::Uniform;
     Result<ResourceHandle> uniform = resources.CreateBuffer(uniformDescriptor);
     CHECK(uniform);
+    BufferDescriptor offsetUniformDescriptor;
+    offsetUniformDescriptor.sizeBytes = 96U;
+    offsetUniformDescriptor.usage = BufferUsage::Uniform;
+    Result<ResourceHandle> offsetUniform =
+        resources.CreateBuffer(offsetUniformDescriptor);
+    CHECK(offsetUniform);
 
     TextureResourceDescriptor sampledDescriptor;
     sampledDescriptor.width = 1U;
@@ -203,6 +224,10 @@ bool TestOffscreenRectangleAndReadback(
         TextureUsageBit(TextureUsage::CopyDestination);
     Result<ResourceHandle> sampled = resources.CreateTexture(sampledDescriptor);
     CHECK(sampled);
+    TextureResourceDescriptor arrayDescriptor = sampledDescriptor;
+    arrayDescriptor.arrayLayers = 2U;
+    Result<ResourceHandle> arrayTexture = resources.CreateTexture(arrayDescriptor);
+    CHECK(arrayTexture);
 
     TextureResourceDescriptor targetDescriptor;
     targetDescriptor.width = 64U;
@@ -278,6 +303,11 @@ bool TestOffscreenRectangleAndReadback(
     pipelineDescriptor.depthStencil.depthCompare = CompareOperation::LessEqual;
     Result<ResourceHandle> pipeline = resources.CreatePipeline(pipelineDescriptor);
     CHECK(pipeline);
+    Result<ResourceHandle> arrayPipeline =
+        resources.CreatePipeline(MakeTextureArrayPipeline());
+    CHECK(arrayPipeline);
+    Result<ResourceHandle> arrayUniform = resources.CreateBuffer(uniformDescriptor);
+    CHECK(arrayUniform);
     PipelineDescriptor mismatchedLayout = pipelineDescriptor;
     mismatchedLayout.vertexLayout.attributeCount = 1U;
     CHECK(!resources.CreatePipeline(mismatchedLayout));
@@ -299,7 +329,19 @@ bool TestOffscreenRectangleAndReadback(
         { 1.0F,  1.0F, 1.0F, 0.0F},
         { 1.0F, -1.0F, 1.0F, 1.0F}};
     const std::uint16_t indices[6] = {0U, 1U, 2U, 0U, 2U, 3U};
-    const float tint[4] = {1.0F, 0.0F, 0.0F, 1.0F};
+    const float tint[8] = {
+        1.0F, 0.0F, 0.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F};
+    const float offsetTints[24] = {
+        1.0F, 0.0F, 0.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F,
+        0.0F, 1.0F, 0.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F,
+        1.0F, 0.0F, 0.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F};
+    const float blueTint[8] = {
+        0.0F, 0.0F, 1.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F};
     const std::uint8_t whitePixel[4] = {255U, 255U, 255U, 255U};
 
     GraphicsCommandEncoder encoder;
@@ -343,7 +385,7 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(encoder.BindPipeline(pipeline.Value()));
     CHECK(encoder.BindVertexBuffer(0U, vertex.Value()));
     CHECK(encoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
-    CHECK(encoder.BindUniformBuffer(0U, uniform.Value(), 0U, 16U));
+    CHECK(encoder.BindUniformBuffer(0U, uniform.Value(), 0U, 32U));
     CHECK(encoder.BindTextureSampler(0U, sampled.Value(), sampler.Value()));
     CHECK(encoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
     // Rebind the same complete draw state to exercise the D3D11 submission
@@ -351,7 +393,7 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(encoder.BindPipeline(pipeline.Value()));
     CHECK(encoder.BindVertexBuffer(0U, vertex.Value()));
     CHECK(encoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
-    CHECK(encoder.BindUniformBuffer(0U, uniform.Value(), 0U, 16U));
+    CHECK(encoder.BindUniformBuffer(0U, uniform.Value(), 0U, 32U));
     CHECK(encoder.BindTextureSampler(0U, sampled.Value(), sampler.Value()));
     CHECK(encoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
     CHECK(encoder.DrawIndexed(6U));
@@ -386,6 +428,178 @@ bool TestOffscreenRectangleAndReadback(
     std::printf(
         "Aero D3D11 WARP checksum: 0x%016llX\n",
         static_cast<unsigned long long>(checksum.Value()));
+
+    // FL10_0 cannot bind constant-buffer ranges directly. The two aligned
+    // ranges below must be copied through and then reuse the slot scratch
+    // buffer. The final range is updated independently after initialization.
+    GraphicsCommandEncoder offsetUniformEncoder;
+    CHECK(offsetUniformEncoder.UploadBuffer(
+        offsetUniform.Value(),
+        0U,
+        Span<const std::uint8_t>(
+            reinterpret_cast<const std::uint8_t*>(offsetTints),
+            static_cast<std::uint32_t>(sizeof(offsetTints)))));
+    CHECK(offsetUniformEncoder.UploadBuffer(
+        offsetUniform.Value(),
+        64U,
+        Span<const std::uint8_t>(
+            reinterpret_cast<const std::uint8_t*>(blueTint),
+            static_cast<std::uint32_t>(sizeof(blueTint)))));
+    CHECK(offsetUniformEncoder.BeginRenderPass(pass));
+    CHECK(offsetUniformEncoder.BindPipeline(pipeline.Value()));
+    CHECK(offsetUniformEncoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(offsetUniformEncoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
+    CHECK(offsetUniformEncoder.BindUniformBuffer(
+        0U, offsetUniform.Value(), 32U, 32U));
+    CHECK(offsetUniformEncoder.BindTextureSampler(
+        0U, sampled.Value(), sampler.Value()));
+    CHECK(offsetUniformEncoder.SetScissor({0.0, 0.0, 32.0, 64.0}));
+    CHECK(offsetUniformEncoder.DrawIndexed(6U));
+    CHECK(offsetUniformEncoder.BindUniformBuffer(
+        0U, offsetUniform.Value(), 64U, 32U));
+    CHECK(offsetUniformEncoder.SetScissor({32.0, 0.0, 32.0, 64.0}));
+    CHECK(offsetUniformEncoder.DrawIndexed(6U));
+    CHECK(offsetUniformEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> offsetUniformCommands =
+        offsetUniformEncoder.Finish();
+    CHECK(offsetUniformCommands);
+    Result<FenceValue> offsetUniformFence = queue.Submit(
+        offsetUniformCommands.Value());
+    CHECK(offsetUniformFence && offsetUniformFence.Value() == 2U);
+    CHECK(backend.WaitForFence(offsetUniformFence.Value()));
+    CHECK(backend.ReadbackTexture(target.Value(), pixels, 64U * 4U));
+    for (std::uint32_t pixel = 0U; pixel < 64U * 64U; ++pixel) {
+        const std::uint32_t offset = pixel * 4U;
+        const bool leftHalf = (pixel % 64U) < 32U;
+        CHECK(pixels[offset + 0U] == (leftHalf ? 0U : 255U));
+        CHECK(pixels[offset + 1U] == (leftHalf ? 255U : 0U));
+        CHECK(pixels[offset + 2U] == 0U);
+        CHECK(pixels[offset + 3U] == 255U);
+    }
+
+    // Texture2DArray reflection must accept a two-layer resource and sample
+    // the requested layer, while rejecting the same SRV for Texture2D code.
+    const std::uint8_t redPixel[4] = {255U, 0U, 0U, 255U};
+    const std::uint8_t bluePixel[4] = {0U, 0U, 255U, 255U};
+    const float whiteTint[8] = {
+        1.0F, 1.0F, 1.0F, 1.0F,
+        0.0F, 0.0F, 0.0F, 0.0F};
+    GraphicsCommandEncoder textureArrayEncoder;
+    CHECK(textureArrayEncoder.UploadTexture(
+        arrayTexture.Value(), {0U, 0U, 1U, 1U, 0U, 0U, 4U}, redPixel));
+    CHECK(textureArrayEncoder.UploadTexture(
+        arrayTexture.Value(), {0U, 0U, 1U, 1U, 0U, 1U, 4U}, bluePixel));
+    CHECK(textureArrayEncoder.UploadBuffer(
+        arrayUniform.Value(), 0U,
+        Span<const std::uint8_t>(
+            reinterpret_cast<const std::uint8_t*>(whiteTint),
+            static_cast<std::uint32_t>(sizeof(whiteTint)))));
+    CHECK(textureArrayEncoder.BeginRenderPass(pass));
+    CHECK(textureArrayEncoder.BindPipeline(arrayPipeline.Value()));
+    CHECK(textureArrayEncoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(textureArrayEncoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
+    CHECK(textureArrayEncoder.BindUniformBuffer(
+        0U, arrayUniform.Value(), 0U, 32U));
+    CHECK(textureArrayEncoder.BindTextureSampler(
+        0U, arrayTexture.Value(), sampler.Value()));
+    CHECK(textureArrayEncoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
+    CHECK(textureArrayEncoder.DrawIndexed(6U));
+    CHECK(textureArrayEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> textureArrayCommands =
+        textureArrayEncoder.Finish();
+    CHECK(textureArrayCommands);
+    Result<FenceValue> textureArrayFence = queue.Submit(
+        textureArrayCommands.Value());
+    CHECK(textureArrayFence && textureArrayFence.Value() == 3U);
+    CHECK(backend.WaitForFence(textureArrayFence.Value()));
+    CHECK(backend.ReadbackTexture(target.Value(), pixels, 64U * 4U));
+    for (std::uint32_t pixel = 0U; pixel < 64U * 64U; ++pixel) {
+        const std::uint32_t offset = pixel * 4U;
+        CHECK(pixels[offset + 0U] == 255U);
+        CHECK(pixels[offset + 1U] == 0U);
+        CHECK(pixels[offset + 2U] == 0U);
+        CHECK(pixels[offset + 3U] == 255U);
+    }
+    GraphicsCommandEncoder mismatchedTextureDimensionEncoder;
+    CHECK(mismatchedTextureDimensionEncoder.BeginRenderPass(pass));
+    CHECK(mismatchedTextureDimensionEncoder.BindPipeline(pipeline.Value()));
+    CHECK(mismatchedTextureDimensionEncoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(mismatchedTextureDimensionEncoder.BindIndexBuffer(
+        index.Value(), IndexType::UInt16));
+    CHECK(mismatchedTextureDimensionEncoder.BindUniformBuffer(
+        0U, uniform.Value(), 0U, 32U));
+    CHECK(mismatchedTextureDimensionEncoder.BindTextureSampler(
+        0U, arrayTexture.Value(), sampler.Value()));
+    CHECK(mismatchedTextureDimensionEncoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
+    CHECK(mismatchedTextureDimensionEncoder.DrawIndexed(6U));
+    CHECK(mismatchedTextureDimensionEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> mismatchedTextureDimensionCommands =
+        mismatchedTextureDimensionEncoder.Finish();
+    CHECK(mismatchedTextureDimensionCommands);
+    CHECK(!backend.SubmitGraphics(
+        mismatchedTextureDimensionCommands.Value(), textureArrayFence.Value() + 1U));
+    // The rejected draw bound the array SRV before reflection detected the
+    // Texture2D mismatch. A failed pass must leave no backend SRV behind for
+    // the next render-target bind (or restore the host's prior binding in
+    // PreserveRequiredState mode).
+    ID3D11ShaderResourceView* remainingPixelView = nullptr;
+    nativeContext->PSGetShaderResources(0U, 1U, &remainingPixelView);
+    CHECK(remainingPixelView == nullptr);
+    ReleaseCom(remainingPixelView);
+
+    // The shader's reflected b0 layout contains two float4 values. A logical
+    // 16-byte binding must therefore be rejected before D3D11 draws with a
+    // partially specified constant buffer.
+    GraphicsCommandEncoder undersizedUniformEncoder;
+    CHECK(undersizedUniformEncoder.BeginRenderPass(pass));
+    CHECK(undersizedUniformEncoder.BindPipeline(pipeline.Value()));
+    CHECK(undersizedUniformEncoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(undersizedUniformEncoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
+    CHECK(undersizedUniformEncoder.BindUniformBuffer(
+        0U, uniform.Value(), 0U, 16U));
+    CHECK(undersizedUniformEncoder.BindTextureSampler(
+        0U, sampled.Value(), sampler.Value()));
+    CHECK(undersizedUniformEncoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
+    CHECK(undersizedUniformEncoder.DrawIndexed(6U));
+    CHECK(undersizedUniformEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> undersizedUniformCommands =
+        undersizedUniformEncoder.Finish();
+    CHECK(undersizedUniformCommands);
+    CHECK(!backend.SubmitGraphics(
+        undersizedUniformCommands.Value(), textureArrayFence.Value() + 1U));
+
+    // The packaged pixel shader also reflects Texture2D/Sampler bindings at
+    // slot zero. The backend must reject a draw when that pair was omitted.
+    GraphicsCommandEncoder missingTextureEncoder;
+    CHECK(missingTextureEncoder.BeginRenderPass(pass));
+    CHECK(missingTextureEncoder.BindPipeline(pipeline.Value()));
+    CHECK(missingTextureEncoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(missingTextureEncoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
+    CHECK(missingTextureEncoder.BindUniformBuffer(
+        0U, uniform.Value(), 0U, 32U));
+    CHECK(missingTextureEncoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
+    CHECK(missingTextureEncoder.DrawIndexed(6U));
+    CHECK(missingTextureEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> missingTextureCommands =
+        missingTextureEncoder.Finish();
+    CHECK(missingTextureCommands);
+    CHECK(!backend.SubmitGraphics(
+        missingTextureCommands.Value(), textureArrayFence.Value() + 1U));
+
+    // D3D11 exposes more SRV than sampler slots. AeroRHI binds them as one
+    // pair, so an SRV-only-valid slot must be rejected before cache access.
+    GraphicsCommandEncoder invalidTextureSlotEncoder;
+    CHECK(invalidTextureSlotEncoder.BeginRenderPass(pass));
+    CHECK(invalidTextureSlotEncoder.BindTextureSampler(
+        D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT,
+        sampled.Value(),
+        sampler.Value()));
+    CHECK(invalidTextureSlotEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> invalidTextureSlotCommands =
+        invalidTextureSlotEncoder.Finish();
+    CHECK(invalidTextureSlotCommands);
+    CHECK(!backend.SubmitGraphics(
+        invalidTextureSlotCommands.Value(), textureArrayFence.Value() + 1U));
 
     D3D11_PRIMITIVE_TOPOLOGY remainingTopology =
         D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
@@ -424,18 +638,22 @@ bool TestOffscreenRectangleAndReadback(
         vertex.Value(),
         index.Value(),
         uniform.Value(),
+        offsetUniform.Value(),
         sampled.Value(),
+        arrayTexture.Value(),
         target.Value(),
         depthStencil.Value(),
         sampler.Value(),
         pipeline.Value(),
+        arrayPipeline.Value(),
+        arrayUniform.Value(),
         imported.Value()};
     for (ResourceHandle handle : handles) {
-        CHECK(device.DestroyResource(handle, fence.Value()));
+        CHECK(device.DestroyResource(handle, textureArrayFence.Value()));
     }
     Result<std::uint32_t> collected = device.CollectGarbage();
     CHECK(collected);
-    CHECK(collected.Value() == 9U);
+    CHECK(collected.Value() == 13U);
     CHECK(device.LiveResourceCount() == 0U);
     CHECK(backend.LiveResourceCount() == 0U);
     if (debugInfoQueue != nullptr) {

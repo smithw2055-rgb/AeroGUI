@@ -72,6 +72,10 @@ std::uint64_t HashCommand(
     hash = HashRect(hash, command.rect);
     hash = HashTransform(hash, command.transform);
     hash = HashColor(hash, command.color);
+    hash = HashRect(hash, command.sourceUv);
+    hash = HashScalar(hash, command.image);
+    hash = HashScalar(hash, command.mesh);
+    hash = HashScalar(hash, command.glyphRun);
     return HashScalar(hash, command.scalar);
 }
 
@@ -210,6 +214,24 @@ Base::Result<void> DisplayListBuilder::FillRect(
     return Append(command);
 }
 
+Base::Result<void> DisplayListBuilder::FillRoundedRect(
+    Rect rect,
+    Color color,
+    double cornerRadius) noexcept {
+    if (!IsValidLayoutRect(rect) || !IsFinite(color) ||
+        !std::isfinite(cornerRadius) || cornerRadius < 0.0 ||
+        cornerRadius * 2.0 > std::fmin(rect.width, rect.height)) {
+        return InvalidArgument(
+            "FillRoundedRect requires valid geometry, color, and corner radius");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::FillRoundedRect;
+    command.rect = rect;
+    command.color = color;
+    command.scalar = cornerRadius;
+    return Append(command);
+}
+
 Base::Result<void> DisplayListBuilder::StrokeRect(
     Rect rect,
     Color color,
@@ -223,6 +245,53 @@ Base::Result<void> DisplayListBuilder::StrokeRect(
     command.rect = rect;
     command.color = color;
     command.scalar = thickness;
+    return Append(command);
+}
+
+Base::Result<void> DisplayListBuilder::DrawImage(
+    RenderImageId image,
+    Rect destination,
+    Rect sourceUv,
+    Color tint) noexcept {
+    if (image == InvalidRenderImageId || !IsValidLayoutRect(destination) ||
+        !IsValidLayoutRect(sourceUv) || sourceUv.x < 0.0 || sourceUv.y < 0.0 ||
+        sourceUv.x + sourceUv.width > 1.0 ||
+        sourceUv.y + sourceUv.height > 1.0 || !IsFinite(tint)) {
+        return InvalidArgument(
+            "DrawImage requires a valid image, destination, UV rectangle, and tint");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::DrawImage;
+    command.rect = destination;
+    command.sourceUv = sourceUv;
+    command.color = tint;
+    command.image = image;
+    return Append(command);
+}
+
+Base::Result<void> DisplayListBuilder::DrawMesh(
+    RenderMeshId mesh,
+    Color tint) noexcept {
+    if (mesh == InvalidRenderMeshId || !IsFinite(tint)) {
+        return InvalidArgument("DrawMesh requires a valid mesh and tint");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::DrawMesh;
+    command.mesh = mesh;
+    command.color = tint;
+    return Append(command);
+}
+
+Base::Result<void> DisplayListBuilder::DrawGlyphRun(
+    RenderGlyphRunId glyphRun,
+    Color tint) noexcept {
+    if (glyphRun == InvalidRenderGlyphRunId || !IsFinite(tint)) {
+        return InvalidArgument("DrawGlyphRun requires a valid glyph run and tint");
+    }
+    RenderCommand command;
+    command.kind = RenderCommandKind::DrawGlyphRun;
+    command.glyphRun = glyphRun;
+    command.color = tint;
     return Append(command);
 }
 
@@ -354,10 +423,40 @@ Base::Result<void> NullRenderBackend::Submit(
                 return InvalidArgument("RenderPlan contains invalid FillRect");
             }
             break;
+        case RenderCommandKind::FillRoundedRect:
+            if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color) ||
+                !std::isfinite(command.scalar) || command.scalar < 0.0 ||
+                command.scalar * 2.0 >
+                    std::fmin(command.rect.width, command.rect.height)) {
+                return InvalidArgument("RenderPlan contains invalid FillRoundedRect");
+            }
+            break;
         case RenderCommandKind::StrokeRect:
             if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color) ||
                 !std::isfinite(command.scalar) || command.scalar < 0.0) {
                 return InvalidArgument("RenderPlan contains invalid StrokeRect");
+            }
+            break;
+        case RenderCommandKind::DrawImage:
+            if (command.image == InvalidRenderImageId ||
+                !IsValidLayoutRect(command.rect) ||
+                !IsValidLayoutRect(command.sourceUv) ||
+                command.sourceUv.x < 0.0 || command.sourceUv.y < 0.0 ||
+                command.sourceUv.x + command.sourceUv.width > 1.0 ||
+                command.sourceUv.y + command.sourceUv.height > 1.0 ||
+                !IsFinite(command.color)) {
+                return InvalidArgument("RenderPlan contains invalid DrawImage");
+            }
+            break;
+        case RenderCommandKind::DrawMesh:
+            if (command.mesh == InvalidRenderMeshId || !IsFinite(command.color)) {
+                return InvalidArgument("RenderPlan contains invalid DrawMesh");
+            }
+            break;
+        case RenderCommandKind::DrawGlyphRun:
+            if (command.glyphRun == InvalidRenderGlyphRunId ||
+                !IsFinite(command.color)) {
+                return InvalidArgument("RenderPlan contains invalid DrawGlyphRun");
             }
             break;
         }

@@ -32,8 +32,7 @@ XamlDependencyPropertyBridge::XamlDependencyPropertyBridge(
     : schema_(&schema),
       properties_(&properties),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
-      propertiesByMember_(allocator_) {}
+      types_(allocator_) {}
 
 Base::Result<void> XamlDependencyPropertyBridge::TryRegisterType(
     const XamlDependencyObjectTypeRegistration& registration) noexcept {
@@ -72,6 +71,11 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
             Base::ErrorCode::InvalidState,
             MessageRegistryNotReady);
     }
+    if (providerRegistered_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "XAML dependency-property provider is already registered");
+    }
 
     std::uint32_t registered = 0U;
     for (const Core::TypeInfo& type : schema_->Types().Types()) {
@@ -80,29 +84,8 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
                 type.Id(),
                 member.Name());
             if (property == nullptr ||
-                schema_->FindMemberAdapter(member.Id()) != nullptr ||
-                FindPropertyBinding(member.Id()) != nullptr) {
+                schema_->FindMemberAdapter(member.Id()) != nullptr) {
                 continue;
-            }
-
-            Base::Result<void> bindingResult = propertiesByMember_.TryPushBack({
-                member.Id(),
-                property->Handle()});
-            if (!bindingResult) {
-                return bindingResult.GetStatus();
-            }
-
-            XamlMemberAdapterRegistration adapter;
-            adapter.member = member.Id();
-            adapter.mode = XamlMemberWriteMode::SetOnce;
-            adapter.context = this;
-            adapter.setWithServices =
-                &XamlDependencyPropertyBridge::SetDependencyProperty;
-            Base::Result<void> adapterResult =
-                schema_->TryRegisterMemberAdapter(adapter);
-            if (!adapterResult) {
-                propertiesByMember_.PopBack();
-                return adapterResult.GetStatus();
             }
             if (registered == UINT32_MAX) {
                 return Base::Status::Failure(
@@ -112,6 +95,18 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
             ++registered;
         }
     }
+
+    XamlMemberProviderRegistration provider;
+    provider.handles = &XamlDependencyPropertyBridge::HandlesDependencyProperty;
+    provider.set = &XamlDependencyPropertyBridge::SetDependencyProperty;
+    provider.context = this;
+    Base::Result<void> providerResult =
+        schema_->TryRegisterMemberProvider(provider);
+    if (!providerResult) {
+        return providerResult.GetStatus();
+    }
+    registeredPropertyCount_ = registered;
+    providerRegistered_ = true;
     return registered;
 }
 
@@ -135,17 +130,6 @@ XamlDependencyPropertyBridge::FindTypeRegistration(
             break;
         }
         current = info->BaseType();
-    }
-    return nullptr;
-}
-
-const XamlDependencyPropertyBridge::PropertyBinding*
-XamlDependencyPropertyBridge::FindPropertyBinding(
-    Core::MemberId member) const noexcept {
-    for (const PropertyBinding& binding : propertiesByMember_) {
-        if (binding.member == member) {
-            return &binding;
-        }
     }
     return nullptr;
 }
@@ -189,6 +173,14 @@ XamlDependencyPropertyBridge::ConvertValue(
         MessageUnsupportedValue);
 }
 
+bool XamlDependencyPropertyBridge::HandlesDependencyProperty(
+    const XamlResolvedMember& member,
+    void* context) noexcept {
+    auto* bridge = static_cast<XamlDependencyPropertyBridge*>(context);
+    return bridge != nullptr && member.kind == Core::MemberKind::Property &&
+        bridge->properties_->Find({member.id}) != nullptr;
+}
+
 Base::Result<void> XamlDependencyPropertyBridge::SetDependencyProperty(
     Base::Object& object,
     const XamlValue& value,
@@ -201,15 +193,9 @@ Base::Result<void> XamlDependencyPropertyBridge::SetDependencyProperty(
             MessageTargetNotDependencyObject);
     }
 
-    const PropertyBinding* binding = bridge->FindPropertyBinding(
-        services.targetMember);
-    if (binding == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessagePropertyNotBridged);
-    }
+    const Core::DependencyPropertyHandle propertyHandle{services.targetMember};
     const Core::DependencyProperty* property =
-        bridge->properties_->Find(binding->property);
+        bridge->properties_->Find(propertyHandle);
     if (property == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -240,7 +226,7 @@ Base::Result<void> XamlDependencyPropertyBridge::SetDependencyProperty(
         return converted.GetStatus();
     }
     return dependencyObject->SetValue(
-        binding->property,
+        propertyHandle,
         converted.Value());
 }
 

@@ -226,10 +226,17 @@ struct D3D11RenderPlanSubmitStatistics final {
     std::uint32_t renderPassCount = 0U;
     std::uint32_t drawCallCount = 0U;
     std::uint32_t rectangleInstanceCount = 0U;
+    std::uint32_t imageInstanceCount = 0U;
+    std::uint32_t meshDrawCallCount = 0U;
+    std::uint32_t meshInstanceCount = 0U;
+    std::uint32_t glyphDrawCallCount = 0U;
+    std::uint32_t glyphInstanceCount = 0U;
     std::uint32_t uniformBufferUploadCount = 0U;
     std::uint32_t pipelineBindingCount = 0U;
     std::uint32_t vertexBufferBindingCount = 0U;
+    std::uint32_t indexBufferBindingCount = 0U;
     std::uint32_t uniformBufferBindingCount = 0U;
+    std::uint32_t textureSamplerBindingCount = 0U;
 };
 
 // Consumes immutable Core::RenderPlan snapshots and presents them through the
@@ -249,6 +256,39 @@ public:
 
     AERO_NODISCARD Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
+
+    // Image resources stay owned by the caller. They must remain alive until
+    // no submitted frame can reference them, then be unregistered before destruction.
+    AERO_NODISCARD Base::Result<void> RegisterImage(
+        Core::RenderImageId image,
+        ResourceHandle texture,
+        ResourceHandle sampler) noexcept;
+    AERO_NODISCARD Base::Result<void> UnregisterImage(
+        Core::RenderImageId image) noexcept;
+
+    // Mesh vertex buffers use Float2 position at byte offset zero followed by
+    // Float4 vertex color at byte offset eight; meshes use indexed triangles.
+    AERO_NODISCARD Base::Result<void> RegisterMesh(
+        Core::RenderMeshId mesh,
+        ResourceHandle vertexBuffer,
+        ResourceHandle indexBuffer,
+        std::uint32_t indexCount,
+        IndexType indexType = IndexType::UInt16) noexcept;
+    AERO_NODISCARD Base::Result<void> UnregisterMesh(
+        Core::RenderMeshId mesh) noexcept;
+
+    // Glyph vertices use Float2 position followed by Float2 atlas UV. The
+    // sampled atlas is R8Unorm; its alpha coverage is multiplied by tint.
+    AERO_NODISCARD Base::Result<void> RegisterGlyphRun(
+        Core::RenderGlyphRunId glyphRun,
+        ResourceHandle vertexBuffer,
+        ResourceHandle indexBuffer,
+        std::uint32_t indexCount,
+        ResourceHandle atlasTexture,
+        ResourceHandle sampler,
+        IndexType indexType = IndexType::UInt16) noexcept;
+    AERO_NODISCARD Base::Result<void> UnregisterGlyphRun(
+        Core::RenderGlyphRunId glyphRun) noexcept;
 
     AERO_NODISCARD Base::Result<void> Submit(
         const Core::RenderPlan& plan) noexcept override;

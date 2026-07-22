@@ -19,6 +19,12 @@
 
 #include "AeroD3D11RenderPlanPixelShader.hpp"
 #include "AeroD3D11RenderPlanVertexShader.hpp"
+#include "AeroD3D11RenderPlanImagePixelShader.hpp"
+#include "AeroD3D11RenderPlanImageVertexShader.hpp"
+#include "AeroD3D11RenderPlanMeshPixelShader.hpp"
+#include "AeroD3D11RenderPlanMeshVertexShader.hpp"
+#include "AeroD3D11RenderPlanGlyphPixelShader.hpp"
+#include "AeroD3D11RenderPlanGlyphVertexShader.hpp"
 
 namespace Aero::Rhi {
 namespace {
@@ -119,6 +125,8 @@ bool FitsFloat(double value) noexcept {
 }
 
 constexpr std::uint32_t MaxShaderClips = 32U;
+constexpr std::uint32_t MaxRectangleBatchInstances =
+    AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES;
 
 struct ClipState final {
     Core::Rect rect;
@@ -127,8 +135,9 @@ struct ClipState final {
 };
 
 struct ShaderRectConstants final {
-    float rect[4]{};
-    float color[4]{};
+    float rects[MaxRectangleBatchInstances][4]{};
+    float colors[MaxRectangleBatchInstances][4]{};
+    float cornerRadii[MaxRectangleBatchInstances][4]{};
     float transform0[4]{};
     float transform1[4]{};
     float clipRect[MaxShaderClips][4]{};
@@ -140,8 +149,55 @@ struct ShaderRectConstants final {
     float padding = 0.0F;
 };
 
+struct ShaderImageConstants final {
+    float rects[MaxRectangleBatchInstances][4]{};
+    float sourceUvs[MaxRectangleBatchInstances][4]{};
+    float tints[MaxRectangleBatchInstances][4]{};
+    float transform0[4]{};
+    float transform1[4]{};
+    float clipRect[MaxShaderClips][4]{};
+    float clipInverse[MaxShaderClips][4]{};
+    float clipTranslation[MaxShaderClips][4]{};
+    std::uint32_t clipCount = 0U;
+    float padding[3]{};
+};
+
+struct ShaderMeshConstants final {
+    float tints[MaxRectangleBatchInstances][4]{};
+    float transform0[4]{};
+    float transform1[4]{};
+    float clipRect[MaxShaderClips][4]{};
+    float clipInverse[MaxShaderClips][4]{};
+    float clipTranslation[MaxShaderClips][4]{};
+    std::uint32_t clipCount = 0U;
+    float padding[3]{};
+};
+
+struct ShaderGlyphConstants final {
+    float tints[MaxRectangleBatchInstances][4]{};
+    float transform0[4]{};
+    float transform1[4]{};
+    float clipRect[MaxShaderClips][4]{};
+    float clipInverse[MaxShaderClips][4]{};
+    float clipTranslation[MaxShaderClips][4]{};
+    std::uint32_t clipCount = 0U;
+    float padding[3]{};
+};
+
 static_assert(sizeof(ShaderRectConstants) % 16U == 0U,
     "D3D11 constant buffers must be float4 aligned");
+static_assert(sizeof(ShaderRectConstants) <= 64U * 1024U,
+    "D3D11 constant buffers must not exceed 64 KiB");
+static_assert(sizeof(ShaderImageConstants) % 16U == 0U,
+    "D3D11 constant buffers must be float4 aligned");
+static_assert(sizeof(ShaderImageConstants) <= 64U * 1024U,
+    "D3D11 constant buffers must not exceed 64 KiB");
+static_assert(sizeof(ShaderMeshConstants) % 16U == 0U,
+    "D3D11 constant buffers must be float4 aligned");
+static_assert(sizeof(ShaderGlyphConstants) % 16U == 0U,
+    "D3D11 constant buffers must be float4 aligned");
+static_assert(sizeof(ShaderGlyphConstants) <= 64U * 1024U,
+    "D3D11 constant buffers must not exceed 64 KiB");
 
 Base::Result<void> PushClipState(
     Base::Vector<ClipState>& clips,
@@ -172,10 +228,11 @@ struct NodeState final {
     std::uint32_t parentIndex = UINT32_MAX;
 };
 
+template <typename Constants>
 Base::Result<void> AppendDraw(
     GraphicsCommandEncoder& encoder,
     ResourceHandle uniformBuffer,
-    const ShaderRectConstants& constants,
+    const Constants& constants,
     Core::Rect scissor,
     std::uint32_t instanceCount = 1U) noexcept {
     const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
@@ -190,6 +247,30 @@ Base::Result<void> AppendDraw(
     return encoded;
 }
 
+struct ImageBinding final {
+    Core::RenderImageId id = Core::InvalidRenderImageId;
+    ResourceHandle texture;
+    ResourceHandle sampler;
+};
+
+struct MeshBinding final {
+    Core::RenderMeshId id = Core::InvalidRenderMeshId;
+    ResourceHandle vertexBuffer;
+    ResourceHandle indexBuffer;
+    std::uint32_t indexCount = 0U;
+    IndexType indexType = IndexType::UInt16;
+};
+
+struct GlyphBinding final {
+    Core::RenderGlyphRunId id = Core::InvalidRenderGlyphRunId;
+    ResourceHandle vertexBuffer;
+    ResourceHandle indexBuffer;
+    std::uint32_t indexCount = 0U;
+    ResourceHandle atlasTexture;
+    ResourceHandle sampler;
+    IndexType indexType = IndexType::UInt16;
+};
+
 } // namespace
 
 struct D3D11RenderPlanBackend::Impl final {
@@ -198,7 +279,8 @@ struct D3D11RenderPlanBackend::Impl final {
         D3D11GraphicsBackend& graphics,
         Base::IAllocator* allocator) noexcept
         : device(&device), graphics(&graphics), resources(device, graphics), nodes(allocator), transforms(allocator),
-          clips(allocator), opacities(allocator), nodePath(allocator) {}
+          clips(allocator), opacities(allocator), nodePath(allocator), images(allocator),
+          meshes(allocator), glyphRuns(allocator) {}
 
     RhiDevice* device = nullptr;
     D3D11GraphicsBackend* graphics = nullptr;
@@ -206,11 +288,20 @@ struct D3D11RenderPlanBackend::Impl final {
     ResourceHandle vertexBuffer;
     ResourceHandle uniformBuffer;
     ResourceHandle pipeline;
+    ResourceHandle imageUniformBuffer;
+    ResourceHandle imagePipeline;
+    ResourceHandle meshUniformBuffer;
+    ResourceHandle meshPipeline;
+    ResourceHandle glyphUniformBuffer;
+    ResourceHandle glyphPipeline;
     Base::Vector<NodeState> nodes;
     Base::Vector<Core::Transform2D> transforms;
     Base::Vector<ClipState> clips;
     Base::Vector<double> opacities;
     Base::Vector<std::uint32_t> nodePath;
+    Base::Vector<ImageBinding> images;
+    Base::Vector<MeshBinding> meshes;
+    Base::Vector<GlyphBinding> glyphRuns;
     FenceValue lastSubmittedFence = 0U;
     D3D11RenderPlanSubmitStatistics lastSubmitStatistics;
     bool initialized = false;
@@ -266,6 +357,39 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     }
     impl_->uniformBuffer = uniform.Value();
 
+    BufferDescriptor imageUniformDescriptor;
+    imageUniformDescriptor.sizeBytes = sizeof(ShaderImageConstants);
+    imageUniformDescriptor.usage = BufferUsage::Uniform;
+    Base::Result<ResourceHandle> imageUniform =
+        impl_->resources.CreateBuffer(imageUniformDescriptor);
+    if (!imageUniform) {
+        Shutdown();
+        return imageUniform.GetStatus();
+    }
+    impl_->imageUniformBuffer = imageUniform.Value();
+
+    BufferDescriptor meshUniformDescriptor;
+    meshUniformDescriptor.sizeBytes = sizeof(ShaderMeshConstants);
+    meshUniformDescriptor.usage = BufferUsage::Uniform;
+    Base::Result<ResourceHandle> meshUniform =
+        impl_->resources.CreateBuffer(meshUniformDescriptor);
+    if (!meshUniform) {
+        Shutdown();
+        return meshUniform.GetStatus();
+    }
+    impl_->meshUniformBuffer = meshUniform.Value();
+
+    BufferDescriptor glyphUniformDescriptor;
+    glyphUniformDescriptor.sizeBytes = sizeof(ShaderGlyphConstants);
+    glyphUniformDescriptor.usage = BufferUsage::Uniform;
+    Base::Result<ResourceHandle> glyphUniform =
+        impl_->resources.CreateBuffer(glyphUniformDescriptor);
+    if (!glyphUniform) {
+        Shutdown();
+        return glyphUniform.GetStatus();
+    }
+    impl_->glyphUniformBuffer = glyphUniform.Value();
+
     PipelineDescriptor pipelineDescriptor;
     pipelineDescriptor.vertexShader.stage = ShaderStage::Vertex;
     pipelineDescriptor.vertexShader.language = ShaderLanguage::Dxbc;
@@ -300,6 +424,75 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
         return pipeline.GetStatus();
     }
     impl_->pipeline = pipeline.Value();
+
+    PipelineDescriptor imagePipelineDescriptor = pipelineDescriptor;
+    imagePipelineDescriptor.vertexShader.bytecode =
+        AeroD3D11RenderPlanImageVertexShader;
+    imagePipelineDescriptor.vertexShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanImageVertexShader);
+    imagePipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111011);
+    imagePipelineDescriptor.fragmentShader.bytecode =
+        AeroD3D11RenderPlanImagePixelShader;
+    imagePipelineDescriptor.fragmentShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanImagePixelShader);
+    imagePipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111012);
+    Base::Result<ResourceHandle> imagePipeline =
+        impl_->resources.CreatePipeline(imagePipelineDescriptor);
+    if (!imagePipeline) {
+        Shutdown();
+        return imagePipeline.GetStatus();
+    }
+    impl_->imagePipeline = imagePipeline.Value();
+
+    PipelineDescriptor meshPipelineDescriptor = pipelineDescriptor;
+    meshPipelineDescriptor.vertexShader.bytecode = AeroD3D11RenderPlanMeshVertexShader;
+    meshPipelineDescriptor.vertexShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanMeshVertexShader);
+    meshPipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111021);
+    meshPipelineDescriptor.fragmentShader.bytecode = AeroD3D11RenderPlanMeshPixelShader;
+    meshPipelineDescriptor.fragmentShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanMeshPixelShader);
+    meshPipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111022);
+    meshPipelineDescriptor.vertexLayout.buffers[0].stride = 24U;
+    meshPipelineDescriptor.vertexLayout.attributeCount = 2U;
+    meshPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
+    meshPipelineDescriptor.vertexLayout.attributes[1].bufferSlot = 0U;
+    meshPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float4;
+    meshPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
+    meshPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
+    Base::Result<ResourceHandle> meshPipeline =
+        impl_->resources.CreatePipeline(meshPipelineDescriptor);
+    if (!meshPipeline) {
+        Shutdown();
+        return meshPipeline.GetStatus();
+    }
+    impl_->meshPipeline = meshPipeline.Value();
+
+    PipelineDescriptor glyphPipelineDescriptor = pipelineDescriptor;
+    glyphPipelineDescriptor.vertexShader.bytecode =
+        AeroD3D11RenderPlanGlyphVertexShader;
+    glyphPipelineDescriptor.vertexShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanGlyphVertexShader);
+    glyphPipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111031);
+    glyphPipelineDescriptor.fragmentShader.bytecode =
+        AeroD3D11RenderPlanGlyphPixelShader;
+    glyphPipelineDescriptor.fragmentShader.bytecodeSize =
+        sizeof(AeroD3D11RenderPlanGlyphPixelShader);
+    glyphPipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111032);
+    glyphPipelineDescriptor.vertexLayout.buffers[0].stride = 16U;
+    glyphPipelineDescriptor.vertexLayout.attributeCount = 2U;
+    glyphPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
+    glyphPipelineDescriptor.vertexLayout.attributes[1].bufferSlot = 0U;
+    glyphPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float2;
+    glyphPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
+    glyphPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
+    Base::Result<ResourceHandle> glyphPipeline =
+        impl_->resources.CreatePipeline(glyphPipelineDescriptor);
+    if (!glyphPipeline) {
+        Shutdown();
+        return glyphPipeline.GetStatus();
+    }
+    impl_->glyphPipeline = glyphPipeline.Value();
     impl_->initialized = true;
     return {};
 }
@@ -312,6 +505,28 @@ void D3D11RenderPlanBackend::Shutdown() noexcept {
         ? graphics_->LastSubmittedFence()
         : 0U;
     if (device_ != nullptr) {
+        if (impl_->glyphPipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(impl_->glyphPipeline, retireFence));
+        }
+        if (impl_->glyphUniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->glyphUniformBuffer, retireFence));
+        }
+        if (impl_->meshPipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(impl_->meshPipeline, retireFence));
+        }
+        if (impl_->meshUniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->meshUniformBuffer, retireFence));
+        }
+        if (impl_->imagePipeline.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->imagePipeline, retireFence));
+        }
+        if (impl_->imageUniformBuffer.IsValid()) {
+            static_cast<void>(device_->DestroyResource(
+                impl_->imageUniformBuffer, retireFence));
+        }
         if (impl_->pipeline.IsValid()) {
             static_cast<void>(device_->DestroyResource(impl_->pipeline, retireFence));
         }
@@ -325,6 +540,141 @@ void D3D11RenderPlanBackend::Shutdown() noexcept {
     impl_->~Impl();
     allocator_->Deallocate(impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
     impl_ = nullptr;
+}
+
+Base::Result<void> D3D11RenderPlanBackend::RegisterImage(
+    Core::RenderImageId image,
+    ResourceHandle texture,
+    ResourceHandle sampler) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    if (image == Core::InvalidRenderImageId ||
+        texture.type != ResourceType::Texture ||
+        sampler.type != ResourceType::Sampler || !device_->IsAlive(texture) ||
+        !device_->IsAlive(sampler)) {
+        return InvalidArgument(
+            "D3D11 RenderPlan image registration requires live texture and sampler resources");
+    }
+    for (const ImageBinding& binding : impl_->images) {
+        if (binding.id == image) {
+            return InvalidState("D3D11 RenderPlan image ID is already registered");
+        }
+    }
+    return impl_->images.TryPushBack({image, texture, sampler});
+}
+
+Base::Result<void> D3D11RenderPlanBackend::UnregisterImage(
+    Core::RenderImageId image) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    for (std::uint32_t index = 0U; index < impl_->images.Size(); ++index) {
+        if (impl_->images[index].id == image) {
+            for (std::uint32_t next = index + 1U;
+                 next < impl_->images.Size(); ++next) {
+                impl_->images[next - 1U] = impl_->images[next];
+            }
+            impl_->images.PopBack();
+            return {};
+        }
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "D3D11 RenderPlan image ID is not registered");
+}
+
+Base::Result<void> D3D11RenderPlanBackend::RegisterMesh(
+    Core::RenderMeshId mesh,
+    ResourceHandle vertexBuffer,
+    ResourceHandle indexBuffer,
+    std::uint32_t indexCount,
+    IndexType indexType) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    if (mesh == Core::InvalidRenderMeshId || indexCount == 0U ||
+        vertexBuffer.type != ResourceType::Buffer ||
+        indexBuffer.type != ResourceType::Buffer || !device_->IsAlive(vertexBuffer) ||
+        !device_->IsAlive(indexBuffer)) {
+        return InvalidArgument(
+            "D3D11 RenderPlan mesh registration requires live vertex and index buffers");
+    }
+    for (const MeshBinding& binding : impl_->meshes) {
+        if (binding.id == mesh) {
+            return InvalidState("D3D11 RenderPlan mesh ID is already registered");
+        }
+    }
+    return impl_->meshes.TryPushBack(
+        {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
+}
+
+Base::Result<void> D3D11RenderPlanBackend::UnregisterMesh(
+    Core::RenderMeshId mesh) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    for (std::uint32_t index = 0U; index < impl_->meshes.Size(); ++index) {
+        if (impl_->meshes[index].id == mesh) {
+            for (std::uint32_t next = index + 1U;
+                 next < impl_->meshes.Size(); ++next) {
+                impl_->meshes[next - 1U] = impl_->meshes[next];
+            }
+            impl_->meshes.PopBack();
+            return {};
+        }
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "D3D11 RenderPlan mesh ID is not registered");
+}
+
+Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
+    Core::RenderGlyphRunId glyphRun,
+    ResourceHandle vertexBuffer,
+    ResourceHandle indexBuffer,
+    std::uint32_t indexCount,
+    ResourceHandle atlasTexture,
+    ResourceHandle sampler,
+    IndexType indexType) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    if (glyphRun == Core::InvalidRenderGlyphRunId || indexCount == 0U ||
+        vertexBuffer.type != ResourceType::Buffer ||
+        indexBuffer.type != ResourceType::Buffer ||
+        atlasTexture.type != ResourceType::Texture ||
+        sampler.type != ResourceType::Sampler || !device_->IsAlive(vertexBuffer) ||
+        !device_->IsAlive(indexBuffer) || !device_->IsAlive(atlasTexture) ||
+        !device_->IsAlive(sampler)) {
+        return InvalidArgument(
+            "D3D11 RenderPlan glyph registration requires live buffers, atlas, and sampler");
+    }
+    for (const GlyphBinding& binding : impl_->glyphRuns) {
+        if (binding.id == glyphRun) {
+            return InvalidState("D3D11 RenderPlan glyph ID is already registered");
+        }
+    }
+    return impl_->glyphRuns.TryPushBack(
+        {glyphRun, vertexBuffer, indexBuffer, indexCount, atlasTexture, sampler,
+            indexType});
+}
+
+Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
+    Core::RenderGlyphRunId glyphRun) noexcept {
+    if (!IsInitialized()) {
+        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+    }
+    for (std::uint32_t index = 0U; index < impl_->glyphRuns.Size(); ++index) {
+        if (impl_->glyphRuns[index].id == glyphRun) {
+            for (std::uint32_t next = index + 1U;
+                 next < impl_->glyphRuns.Size(); ++next) {
+                impl_->glyphRuns[next - 1U] = impl_->glyphRuns[next];
+            }
+            impl_->glyphRuns.PopBack();
+            return {};
+        }
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "D3D11 RenderPlan glyph ID is not registered");
 }
 
 bool D3D11RenderPlanBackend::IsInitialized() const noexcept {
@@ -389,23 +739,90 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
     }
     D3D11RenderPlanSubmitStatistics submissionStatistics;
     submissionStatistics.renderPassCount = 1U;
-    encoded = encoder.BindPipeline(impl_->pipeline);
-    if (encoded) {
-        submissionStatistics.pipelineBindingCount = 1U;
-        encoded = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
-    }
-    if (encoded) {
-        submissionStatistics.vertexBufferBindingCount = 1U;
-        encoded = encoder.BindUniformBuffer(
-            0U, impl_->uniformBuffer, 0U,
-            static_cast<std::uint32_t>(sizeof(ShaderRectConstants)));
-    }
-    if (encoded) {
-        submissionStatistics.uniformBufferBindingCount = 1U;
-    } else {
-        static_cast<void>(presenter_->DiscardFrame(frame));
-        return encoded;
-    }
+    enum class ActivePipeline : std::uint8_t {
+        None = 0U,
+        Rectangle,
+        Image,
+        Mesh,
+        Glyph
+    };
+    ActivePipeline activePipeline = ActivePipeline::None;
+    auto bindRectanglePipeline = [&]() noexcept -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Rectangle) {
+            return {};
+        }
+        Base::Result<void> result = encoder.BindPipeline(impl_->pipeline);
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+        }
+        if (result) {
+            ++submissionStatistics.vertexBufferBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->uniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(ShaderRectConstants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            activePipeline = ActivePipeline::Rectangle;
+        }
+        return result;
+    };
+    auto bindImagePipeline = [&]() noexcept -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Image) {
+            return {};
+        }
+        Base::Result<void> result = encoder.BindPipeline(impl_->imagePipeline);
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
+        }
+        if (result) {
+            ++submissionStatistics.vertexBufferBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->imageUniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(ShaderImageConstants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            activePipeline = ActivePipeline::Image;
+        }
+        return result;
+    };
+    auto bindMeshPipeline = [&]() noexcept -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Mesh) {
+            return {};
+        }
+        Base::Result<void> result = encoder.BindPipeline(impl_->meshPipeline);
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->meshUniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(ShaderMeshConstants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            activePipeline = ActivePipeline::Mesh;
+        }
+        return result;
+    };
+    auto bindGlyphPipeline = [&]() noexcept -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Glyph) {
+            return {};
+        }
+        Base::Result<void> result = encoder.BindPipeline(impl_->glyphPipeline);
+        if (result) {
+            ++submissionStatistics.pipelineBindingCount;
+            result = encoder.BindUniformBuffer(
+                0U, impl_->glyphUniformBuffer, 0U,
+                static_cast<std::uint32_t>(sizeof(ShaderGlyphConstants)));
+        }
+        if (result) {
+            ++submissionStatistics.uniformBufferBindingCount;
+            activePipeline = ActivePipeline::Glyph;
+        }
+        return result;
+    };
 
     impl_->nodes.Clear();
     Core::RenderNodeId previousId = Core::InvalidRenderNodeId;
@@ -565,12 +982,24 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 }
                 break;
             case Core::RenderCommandKind::FillRect:
+            case Core::RenderCommandKind::FillRoundedRect:
             case Core::RenderCommandKind::StrokeRect: {
+                encoded = bindRectanglePipeline();
+                if (!encoded) {
+                    break;
+                }
                 if (!Core::IsValidLayoutRect(command.rect) ||
                     !Core::IsFinite(command.color) ||
-                    (command.kind == Core::RenderCommandKind::StrokeRect &&
+                    ((command.kind == Core::RenderCommandKind::FillRoundedRect ||
+                      command.kind == Core::RenderCommandKind::StrokeRect) &&
                      (!std::isfinite(command.scalar) || command.scalar < 0.0))) {
                     encoded = InvalidArgument("D3D11 RenderPlan contains invalid rectangle geometry");
+                    break;
+                }
+                if (command.kind == Core::RenderCommandKind::FillRoundedRect &&
+                    command.scalar * 2.0 >
+                        std::fmin(command.rect.width, command.rect.height)) {
+                    encoded = InvalidArgument("D3D11 RenderPlan corner radius exceeds rectangle bounds");
                     break;
                 }
                 const Core::Rect clip =
@@ -583,6 +1012,8 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 const double opacity = impl_->opacities[impl_->opacities.Size() - 1U];
                 if (!FitsFloat(command.rect.x) || !FitsFloat(command.rect.y) ||
                     !FitsFloat(command.rect.width) || !FitsFloat(command.rect.height) ||
+                    (command.kind == Core::RenderCommandKind::FillRoundedRect &&
+                     !FitsFloat(command.scalar)) ||
                     !FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
@@ -590,19 +1021,8 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     encoded = InvalidArgument("D3D11 RenderPlan values exceed shader precision");
                     break;
                 }
-                auto appendRectangle = [&](
-                    Core::Rect rect,
-                    std::uint32_t instanceCount = 1U,
-                    float strokeThickness = 0.0F) noexcept -> Base::Result<void> {
-                    ShaderRectConstants constants;
-                    constants.rect[0] = static_cast<float>(rect.x);
-                    constants.rect[1] = static_cast<float>(rect.y);
-                    constants.rect[2] = static_cast<float>(rect.width);
-                    constants.rect[3] = static_cast<float>(rect.height);
-                    constants.color[0] = command.color.red;
-                    constants.color[1] = command.color.green;
-                    constants.color[2] = command.color.blue;
-                    constants.color[3] = static_cast<float>(command.color.alpha * opacity);
+                auto configureConstants = [&](ShaderRectConstants& constants)
+                    noexcept -> Base::Result<void> {
                     constants.transform0[0] = static_cast<float>(transform.m11);
                     constants.transform0[1] = static_cast<float>(transform.m12);
                     constants.transform0[2] = static_cast<float>(transform.m21);
@@ -612,8 +1032,6 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     constants.transform1[2] = static_cast<float>(width);
                     constants.transform1[3] = static_cast<float>(height);
                     constants.clipCount = impl_->clips.Size();
-                    constants.instanceMode = instanceCount == 4U ? 1U : 0U;
-                    constants.strokeThickness = strokeThickness;
                     for (std::uint32_t clipIndex = 0U;
                          clipIndex < impl_->clips.Size();
                          ++clipIndex) {
@@ -659,6 +1077,10 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         constants.clipTranslation[clipIndex][1] =
                             static_cast<float>(clipTransform.dy);
                     }
+                    return {};
+                };
+                auto appendConstants = [&](const ShaderRectConstants& constants,
+                    std::uint32_t instanceCount) noexcept -> Base::Result<void> {
                     Base::Result<void> result = AppendDraw(
                         encoder, impl_->uniformBuffer, constants, clip,
                         instanceCount);
@@ -669,16 +1091,595 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     }
                     return result;
                 };
+                auto appendRectangle = [&](Core::Rect rect, Core::Color color,
+                    std::uint32_t instanceCount = 1U,
+                    float strokeThickness = 0.0F,
+                    float cornerRadius = 0.0F) noexcept -> Base::Result<void> {
+                    ShaderRectConstants constants;
+                    Base::Result<void> result = configureConstants(constants);
+                    if (!result) {
+                        return result;
+                    }
+                    constants.rects[0][0] = static_cast<float>(rect.x);
+                    constants.rects[0][1] = static_cast<float>(rect.y);
+                    constants.rects[0][2] = static_cast<float>(rect.width);
+                    constants.rects[0][3] = static_cast<float>(rect.height);
+                    constants.colors[0][0] = color.red;
+                    constants.colors[0][1] = color.green;
+                    constants.colors[0][2] = color.blue;
+                    constants.colors[0][3] = static_cast<float>(color.alpha * opacity);
+                    constants.cornerRadii[0][0] = cornerRadius;
+                    constants.instanceMode = instanceCount == 4U ? 1U : 0U;
+                    constants.strokeThickness = strokeThickness;
+                    return appendConstants(constants, instanceCount);
+                };
 
                 if (command.kind == Core::RenderCommandKind::FillRect ||
-                    command.scalar == 0.0 ||
+                    command.kind == Core::RenderCommandKind::FillRoundedRect) {
+                    ShaderRectConstants constants;
+                    encoded = configureConstants(constants);
+                    if (!encoded) {
+                        break;
+                    }
+                    std::uint32_t batchCommandCount = 0U;
+                    std::uint32_t instanceCount = 0U;
+                    for (std::uint32_t batchIndex = commandIndex;
+                         batchIndex < node.commandCount &&
+                             instanceCount < MaxRectangleBatchInstances;
+                         ++batchIndex) {
+                        const Core::RenderCommand& candidate =
+                            commands[node.commandOffset + batchIndex];
+                        if (candidate.kind != Core::RenderCommandKind::FillRect &&
+                            candidate.kind != Core::RenderCommandKind::FillRoundedRect) {
+                            break;
+                        }
+                        ++batchCommandCount;
+                        if (!Core::IsValidLayoutRect(candidate.rect) ||
+                            !Core::IsFinite(candidate.color) ||
+                            (candidate.kind == Core::RenderCommandKind::FillRoundedRect &&
+                             (!std::isfinite(candidate.scalar) ||
+                              candidate.scalar < 0.0 ||
+                              candidate.scalar * 2.0 > std::fmin(
+                                  candidate.rect.width, candidate.rect.height)))) {
+                            encoded = InvalidArgument(
+                                "D3D11 RenderPlan contains invalid rectangle geometry");
+                            break;
+                        }
+                        if (IsEmpty(candidate.rect)) {
+                            continue;
+                        }
+                        if (!FitsFloat(candidate.rect.x) ||
+                            !FitsFloat(candidate.rect.y) ||
+                            !FitsFloat(candidate.rect.width) ||
+                            !FitsFloat(candidate.rect.height) ||
+                            (candidate.kind ==
+                                Core::RenderCommandKind::FillRoundedRect &&
+                             !FitsFloat(candidate.scalar))) {
+                            encoded = InvalidArgument(
+                                "D3D11 RenderPlan values exceed shader precision");
+                            break;
+                        }
+                        constants.rects[instanceCount][0] =
+                            static_cast<float>(candidate.rect.x);
+                        constants.rects[instanceCount][1] =
+                            static_cast<float>(candidate.rect.y);
+                        constants.rects[instanceCount][2] =
+                            static_cast<float>(candidate.rect.width);
+                        constants.rects[instanceCount][3] =
+                            static_cast<float>(candidate.rect.height);
+                        constants.colors[instanceCount][0] = candidate.color.red;
+                        constants.colors[instanceCount][1] = candidate.color.green;
+                        constants.colors[instanceCount][2] = candidate.color.blue;
+                        constants.colors[instanceCount][3] =
+                            static_cast<float>(candidate.color.alpha * opacity);
+                        constants.cornerRadii[instanceCount][0] =
+                            candidate.kind == Core::RenderCommandKind::FillRoundedRect
+                            ? static_cast<float>(candidate.scalar)
+                            : 0.0F;
+                        ++instanceCount;
+                    }
+                    if (!encoded) {
+                        break;
+                    }
+                    commandIndex += batchCommandCount - 1U;
+                    if (instanceCount != 0U) {
+                        constants.instanceMode = instanceCount > 1U ? 2U : 0U;
+                        encoded = appendConstants(constants, instanceCount);
+                    }
+                } else if (command.scalar == 0.0 ||
                     command.scalar * 2.0 >= std::fmin(command.rect.width, command.rect.height)) {
-                    encoded = appendRectangle(command.rect);
+                    encoded = appendRectangle(command.rect, command.color);
                 } else {
                     // Border segments share transform, opacity, and clip state,
                     // so D3D11 emits them as one four-instance draw.
                     encoded = appendRectangle(
-                        command.rect, 4U, static_cast<float>(command.scalar));
+                        command.rect, command.color, 4U,
+                        static_cast<float>(command.scalar));
+                }
+                break;
+            }
+            case Core::RenderCommandKind::DrawImage: {
+                if (command.image == Core::InvalidRenderImageId ||
+                    !Core::IsValidLayoutRect(command.rect) ||
+                    !Core::IsValidLayoutRect(command.sourceUv) ||
+                    command.sourceUv.x < 0.0 || command.sourceUv.y < 0.0 ||
+                    command.sourceUv.x + command.sourceUv.width > 1.0 ||
+                    command.sourceUv.y + command.sourceUv.height > 1.0 ||
+                    !Core::IsFinite(command.color)) {
+                    encoded = InvalidArgument(
+                        "D3D11 RenderPlan contains invalid image geometry");
+                    break;
+                }
+                const ImageBinding* imageBinding = nullptr;
+                for (const ImageBinding& candidate : impl_->images) {
+                    if (candidate.id == command.image) {
+                        imageBinding = &candidate;
+                        break;
+                    }
+                }
+                if (imageBinding == nullptr) {
+                    encoded = InvalidState(
+                        "D3D11 RenderPlan image is not registered");
+                    break;
+                }
+                if (!device_->IsAlive(imageBinding->texture) ||
+                    !device_->IsAlive(imageBinding->sampler)) {
+                    encoded = InvalidState(
+                        "D3D11 RenderPlan image resources are no longer alive");
+                    break;
+                }
+                const Core::Rect clip =
+                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                if (IsEmpty(clip) || IsEmpty(command.rect) ||
+                    IsEmpty(command.sourceUv)) {
+                    break;
+                }
+                const Core::Transform2D& transform =
+                    impl_->transforms[impl_->transforms.Size() - 1U];
+                const double opacity =
+                    impl_->opacities[impl_->opacities.Size() - 1U];
+                if (!FitsFloat(command.rect.x) || !FitsFloat(command.rect.y) ||
+                    !FitsFloat(command.rect.width) || !FitsFloat(command.rect.height) ||
+                    !FitsFloat(command.sourceUv.x) || !FitsFloat(command.sourceUv.y) ||
+                    !FitsFloat(command.sourceUv.width) ||
+                    !FitsFloat(command.sourceUv.height) ||
+                    !FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
+                    !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
+                    !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
+                    !FitsFloat(opacity)) {
+                    encoded = InvalidArgument(
+                        "D3D11 RenderPlan image values exceed shader precision");
+                    break;
+                }
+                ShaderImageConstants constants;
+                constants.transform0[0] = static_cast<float>(transform.m11);
+                constants.transform0[1] = static_cast<float>(transform.m12);
+                constants.transform0[2] = static_cast<float>(transform.m21);
+                constants.transform0[3] = static_cast<float>(transform.m22);
+                constants.transform1[0] = static_cast<float>(transform.dx);
+                constants.transform1[1] = static_cast<float>(transform.dy);
+                constants.transform1[2] = static_cast<float>(width);
+                constants.transform1[3] = static_cast<float>(height);
+                constants.clipCount = impl_->clips.Size();
+                for (std::uint32_t clipIndex = 0U;
+                     clipIndex < impl_->clips.Size();
+                     ++clipIndex) {
+                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const Core::Transform2D& clipTransform = clipState.transform;
+                    const double determinant =
+                        clipTransform.m11 * clipTransform.m22 -
+                        clipTransform.m12 * clipTransform.m21;
+                    const double inverseM11 = clipTransform.m22 / determinant;
+                    const double inverseM12 = -clipTransform.m12 / determinant;
+                    const double inverseM21 = -clipTransform.m21 / determinant;
+                    const double inverseM22 = clipTransform.m11 / determinant;
+                    if (!FitsFloat(clipState.rect.x) ||
+                        !FitsFloat(clipState.rect.y) ||
+                        !FitsFloat(clipState.rect.width) ||
+                        !FitsFloat(clipState.rect.height) ||
+                        !FitsFloat(inverseM11) || !FitsFloat(inverseM12) ||
+                        !FitsFloat(inverseM21) || !FitsFloat(inverseM22) ||
+                        !FitsFloat(clipTransform.dx) ||
+                        !FitsFloat(clipTransform.dy)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan image clip values exceed shader precision");
+                        break;
+                    }
+                    constants.clipRect[clipIndex][0] =
+                        static_cast<float>(clipState.rect.x);
+                    constants.clipRect[clipIndex][1] =
+                        static_cast<float>(clipState.rect.y);
+                    constants.clipRect[clipIndex][2] =
+                        static_cast<float>(clipState.rect.width);
+                    constants.clipRect[clipIndex][3] =
+                        static_cast<float>(clipState.rect.height);
+                    constants.clipInverse[clipIndex][0] =
+                        static_cast<float>(inverseM11);
+                    constants.clipInverse[clipIndex][1] =
+                        static_cast<float>(inverseM12);
+                    constants.clipInverse[clipIndex][2] =
+                        static_cast<float>(inverseM21);
+                    constants.clipInverse[clipIndex][3] =
+                        static_cast<float>(inverseM22);
+                    constants.clipTranslation[clipIndex][0] =
+                        static_cast<float>(clipTransform.dx);
+                    constants.clipTranslation[clipIndex][1] =
+                        static_cast<float>(clipTransform.dy);
+                }
+                if (!encoded) {
+                    break;
+                }
+                std::uint32_t batchCommandCount = 0U;
+                std::uint32_t instanceCount = 0U;
+                for (std::uint32_t batchIndex = commandIndex;
+                     batchIndex < node.commandCount &&
+                         instanceCount < MaxRectangleBatchInstances;
+                     ++batchIndex) {
+                    const Core::RenderCommand& candidate =
+                        commands[node.commandOffset + batchIndex];
+                    if (candidate.kind != Core::RenderCommandKind::DrawImage ||
+                        candidate.image != command.image) {
+                        break;
+                    }
+                    ++batchCommandCount;
+                    if (!Core::IsValidLayoutRect(candidate.rect) ||
+                        !Core::IsValidLayoutRect(candidate.sourceUv) ||
+                        candidate.sourceUv.x < 0.0 || candidate.sourceUv.y < 0.0 ||
+                        candidate.sourceUv.x + candidate.sourceUv.width > 1.0 ||
+                        candidate.sourceUv.y + candidate.sourceUv.height > 1.0 ||
+                        !Core::IsFinite(candidate.color)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan contains invalid image geometry");
+                        break;
+                    }
+                    if (IsEmpty(candidate.rect) || IsEmpty(candidate.sourceUv)) {
+                        continue;
+                    }
+                    if (!FitsFloat(candidate.rect.x) ||
+                        !FitsFloat(candidate.rect.y) ||
+                        !FitsFloat(candidate.rect.width) ||
+                        !FitsFloat(candidate.rect.height) ||
+                        !FitsFloat(candidate.sourceUv.x) ||
+                        !FitsFloat(candidate.sourceUv.y) ||
+                        !FitsFloat(candidate.sourceUv.width) ||
+                        !FitsFloat(candidate.sourceUv.height)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan image values exceed shader precision");
+                        break;
+                    }
+                    constants.rects[instanceCount][0] =
+                        static_cast<float>(candidate.rect.x);
+                    constants.rects[instanceCount][1] =
+                        static_cast<float>(candidate.rect.y);
+                    constants.rects[instanceCount][2] =
+                        static_cast<float>(candidate.rect.width);
+                    constants.rects[instanceCount][3] =
+                        static_cast<float>(candidate.rect.height);
+                    constants.sourceUvs[instanceCount][0] =
+                        static_cast<float>(candidate.sourceUv.x);
+                    constants.sourceUvs[instanceCount][1] =
+                        static_cast<float>(candidate.sourceUv.y);
+                    constants.sourceUvs[instanceCount][2] =
+                        static_cast<float>(candidate.sourceUv.width);
+                    constants.sourceUvs[instanceCount][3] =
+                        static_cast<float>(candidate.sourceUv.height);
+                    constants.tints[instanceCount][0] = candidate.color.red;
+                    constants.tints[instanceCount][1] = candidate.color.green;
+                    constants.tints[instanceCount][2] = candidate.color.blue;
+                    constants.tints[instanceCount][3] =
+                        static_cast<float>(candidate.color.alpha * opacity);
+                    ++instanceCount;
+                }
+                if (!encoded) {
+                    break;
+                }
+                commandIndex += batchCommandCount - 1U;
+                if (instanceCount != 0U) {
+                    encoded = bindImagePipeline();
+                    if (encoded) {
+                        encoded = encoder.BindTextureSampler(
+                            0U, imageBinding->texture, imageBinding->sampler);
+                    }
+                    if (encoded) {
+                        ++submissionStatistics.textureSamplerBindingCount;
+                        encoded = AppendDraw(encoder, impl_->imageUniformBuffer,
+                            constants, clip, instanceCount);
+                    }
+                    if (encoded) {
+                        ++submissionStatistics.drawCallCount;
+                        submissionStatistics.imageInstanceCount += instanceCount;
+                        ++submissionStatistics.uniformBufferUploadCount;
+                    }
+                }
+                break;
+            }
+            case Core::RenderCommandKind::DrawMesh: {
+                if (command.mesh == Core::InvalidRenderMeshId ||
+                    !Core::IsFinite(command.color)) {
+                    encoded = InvalidArgument("D3D11 RenderPlan contains invalid mesh draw");
+                    break;
+                }
+                const MeshBinding* meshBinding = nullptr;
+                for (const MeshBinding& candidate : impl_->meshes) {
+                    if (candidate.id == command.mesh) {
+                        meshBinding = &candidate;
+                        break;
+                    }
+                }
+                if (meshBinding == nullptr ||
+                    !device_->IsAlive(meshBinding->vertexBuffer) ||
+                    !device_->IsAlive(meshBinding->indexBuffer)) {
+                    encoded = InvalidState("D3D11 RenderPlan mesh is not registered or alive");
+                    break;
+                }
+                const Core::Rect clip =
+                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                if (IsEmpty(clip)) {
+                    break;
+                }
+                const Core::Transform2D& transform =
+                    impl_->transforms[impl_->transforms.Size() - 1U];
+                const double opacity =
+                    impl_->opacities[impl_->opacities.Size() - 1U];
+                if (!FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
+                    !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
+                    !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
+                    !FitsFloat(opacity)) {
+                    encoded = InvalidArgument("D3D11 RenderPlan mesh values exceed shader precision");
+                    break;
+                }
+                ShaderMeshConstants constants;
+                constants.transform0[0] = static_cast<float>(transform.m11);
+                constants.transform0[1] = static_cast<float>(transform.m12);
+                constants.transform0[2] = static_cast<float>(transform.m21);
+                constants.transform0[3] = static_cast<float>(transform.m22);
+                constants.transform1[0] = static_cast<float>(transform.dx);
+                constants.transform1[1] = static_cast<float>(transform.dy);
+                constants.transform1[2] = static_cast<float>(width);
+                constants.transform1[3] = static_cast<float>(height);
+                constants.clipCount = impl_->clips.Size();
+                for (std::uint32_t clipIndex = 0U;
+                     clipIndex < impl_->clips.Size();
+                     ++clipIndex) {
+                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const Core::Transform2D& clipTransform = clipState.transform;
+                    const double determinant = clipTransform.m11 * clipTransform.m22 -
+                        clipTransform.m12 * clipTransform.m21;
+                    const double inverseM11 = clipTransform.m22 / determinant;
+                    const double inverseM12 = -clipTransform.m12 / determinant;
+                    const double inverseM21 = -clipTransform.m21 / determinant;
+                    const double inverseM22 = clipTransform.m11 / determinant;
+                    if (!FitsFloat(clipState.rect.x) || !FitsFloat(clipState.rect.y) ||
+                        !FitsFloat(clipState.rect.width) || !FitsFloat(clipState.rect.height) ||
+                        !FitsFloat(inverseM11) || !FitsFloat(inverseM12) ||
+                        !FitsFloat(inverseM21) || !FitsFloat(inverseM22) ||
+                        !FitsFloat(clipTransform.dx) || !FitsFloat(clipTransform.dy)) {
+                        encoded = InvalidArgument("D3D11 RenderPlan mesh clip values exceed shader precision");
+                        break;
+                    }
+                    constants.clipRect[clipIndex][0] = static_cast<float>(clipState.rect.x);
+                    constants.clipRect[clipIndex][1] = static_cast<float>(clipState.rect.y);
+                    constants.clipRect[clipIndex][2] = static_cast<float>(clipState.rect.width);
+                    constants.clipRect[clipIndex][3] = static_cast<float>(clipState.rect.height);
+                    constants.clipInverse[clipIndex][0] = static_cast<float>(inverseM11);
+                    constants.clipInverse[clipIndex][1] = static_cast<float>(inverseM12);
+                    constants.clipInverse[clipIndex][2] = static_cast<float>(inverseM21);
+                    constants.clipInverse[clipIndex][3] = static_cast<float>(inverseM22);
+                    constants.clipTranslation[clipIndex][0] = static_cast<float>(clipTransform.dx);
+                    constants.clipTranslation[clipIndex][1] = static_cast<float>(clipTransform.dy);
+                }
+                if (!encoded) {
+                    break;
+                }
+                std::uint32_t batchCommandCount = 0U;
+                std::uint32_t instanceCount = 0U;
+                for (std::uint32_t batchIndex = commandIndex;
+                     batchIndex < node.commandCount &&
+                         instanceCount < MaxRectangleBatchInstances;
+                     ++batchIndex) {
+                    const Core::RenderCommand& candidate =
+                        commands[node.commandOffset + batchIndex];
+                    if (candidate.kind != Core::RenderCommandKind::DrawMesh ||
+                        candidate.mesh != command.mesh) {
+                        break;
+                    }
+                    ++batchCommandCount;
+                    if (!Core::IsFinite(candidate.color)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan contains invalid mesh tint");
+                        break;
+                    }
+                    constants.tints[instanceCount][0] = candidate.color.red;
+                    constants.tints[instanceCount][1] = candidate.color.green;
+                    constants.tints[instanceCount][2] = candidate.color.blue;
+                    constants.tints[instanceCount][3] =
+                        static_cast<float>(candidate.color.alpha * opacity);
+                    ++instanceCount;
+                }
+                if (!encoded) {
+                    break;
+                }
+                commandIndex += batchCommandCount - 1U;
+                encoded = bindMeshPipeline();
+                if (encoded) {
+                    encoded = encoder.BindVertexBuffer(0U, meshBinding->vertexBuffer);
+                }
+                if (encoded) {
+                    ++submissionStatistics.vertexBufferBindingCount;
+                    encoded = encoder.BindIndexBuffer(
+                        meshBinding->indexBuffer, meshBinding->indexType);
+                }
+                if (encoded) {
+                    ++submissionStatistics.indexBufferBindingCount;
+                    const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
+                    encoded = encoder.UploadBuffer(impl_->meshUniformBuffer, 0U,
+                        {bytes, static_cast<std::uint32_t>(sizeof(constants))});
+                }
+                if (encoded) encoded = encoder.SetScissor(clip);
+                if (encoded) {
+                    encoded = encoder.DrawIndexed(
+                        meshBinding->indexCount, instanceCount);
+                }
+                if (encoded) {
+                    ++submissionStatistics.drawCallCount;
+                    ++submissionStatistics.meshDrawCallCount;
+                    submissionStatistics.meshInstanceCount += instanceCount;
+                    ++submissionStatistics.uniformBufferUploadCount;
+                }
+                break;
+            }
+            case Core::RenderCommandKind::DrawGlyphRun: {
+                if (command.glyphRun == Core::InvalidRenderGlyphRunId ||
+                    !Core::IsFinite(command.color)) {
+                    encoded = InvalidArgument(
+                        "D3D11 RenderPlan contains invalid glyph draw");
+                    break;
+                }
+                const GlyphBinding* glyphBinding = nullptr;
+                for (const GlyphBinding& candidate : impl_->glyphRuns) {
+                    if (candidate.id == command.glyphRun) {
+                        glyphBinding = &candidate;
+                        break;
+                    }
+                }
+                if (glyphBinding == nullptr ||
+                    !device_->IsAlive(glyphBinding->vertexBuffer) ||
+                    !device_->IsAlive(glyphBinding->indexBuffer) ||
+                    !device_->IsAlive(glyphBinding->atlasTexture) ||
+                    !device_->IsAlive(glyphBinding->sampler)) {
+                    encoded = InvalidState(
+                        "D3D11 RenderPlan glyph is not registered or alive");
+                    break;
+                }
+                const Core::Rect clip =
+                    impl_->clips[impl_->clips.Size() - 1U].bounds;
+                if (IsEmpty(clip)) {
+                    break;
+                }
+                const Core::Transform2D& transform =
+                    impl_->transforms[impl_->transforms.Size() - 1U];
+                const double opacity =
+                    impl_->opacities[impl_->opacities.Size() - 1U];
+                if (!FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
+                    !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
+                    !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
+                    !FitsFloat(opacity)) {
+                    encoded = InvalidArgument(
+                        "D3D11 RenderPlan glyph values exceed shader precision");
+                    break;
+                }
+                ShaderGlyphConstants constants;
+                constants.transform0[0] = static_cast<float>(transform.m11);
+                constants.transform0[1] = static_cast<float>(transform.m12);
+                constants.transform0[2] = static_cast<float>(transform.m21);
+                constants.transform0[3] = static_cast<float>(transform.m22);
+                constants.transform1[0] = static_cast<float>(transform.dx);
+                constants.transform1[1] = static_cast<float>(transform.dy);
+                constants.transform1[2] = static_cast<float>(width);
+                constants.transform1[3] = static_cast<float>(height);
+                constants.clipCount = impl_->clips.Size();
+                for (std::uint32_t clipIndex = 0U;
+                     clipIndex < impl_->clips.Size();
+                     ++clipIndex) {
+                    const ClipState& clipState = impl_->clips[clipIndex];
+                    const Core::Transform2D& clipTransform = clipState.transform;
+                    const double determinant = clipTransform.m11 * clipTransform.m22 -
+                        clipTransform.m12 * clipTransform.m21;
+                    const double inverseM11 = clipTransform.m22 / determinant;
+                    const double inverseM12 = -clipTransform.m12 / determinant;
+                    const double inverseM21 = -clipTransform.m21 / determinant;
+                    const double inverseM22 = clipTransform.m11 / determinant;
+                    if (!FitsFloat(clipState.rect.x) || !FitsFloat(clipState.rect.y) ||
+                        !FitsFloat(clipState.rect.width) || !FitsFloat(clipState.rect.height) ||
+                        !FitsFloat(inverseM11) || !FitsFloat(inverseM12) ||
+                        !FitsFloat(inverseM21) || !FitsFloat(inverseM22) ||
+                        !FitsFloat(clipTransform.dx) || !FitsFloat(clipTransform.dy)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan glyph clip values exceed shader precision");
+                        break;
+                    }
+                    constants.clipRect[clipIndex][0] =
+                        static_cast<float>(clipState.rect.x);
+                    constants.clipRect[clipIndex][1] =
+                        static_cast<float>(clipState.rect.y);
+                    constants.clipRect[clipIndex][2] =
+                        static_cast<float>(clipState.rect.width);
+                    constants.clipRect[clipIndex][3] =
+                        static_cast<float>(clipState.rect.height);
+                    constants.clipInverse[clipIndex][0] = static_cast<float>(inverseM11);
+                    constants.clipInverse[clipIndex][1] = static_cast<float>(inverseM12);
+                    constants.clipInverse[clipIndex][2] = static_cast<float>(inverseM21);
+                    constants.clipInverse[clipIndex][3] = static_cast<float>(inverseM22);
+                    constants.clipTranslation[clipIndex][0] =
+                        static_cast<float>(clipTransform.dx);
+                    constants.clipTranslation[clipIndex][1] =
+                        static_cast<float>(clipTransform.dy);
+                }
+                if (!encoded) {
+                    break;
+                }
+                std::uint32_t batchCommandCount = 0U;
+                std::uint32_t instanceCount = 0U;
+                for (std::uint32_t batchIndex = commandIndex;
+                     batchIndex < node.commandCount &&
+                         instanceCount < MaxRectangleBatchInstances;
+                     ++batchIndex) {
+                    const Core::RenderCommand& candidate =
+                        commands[node.commandOffset + batchIndex];
+                    if (candidate.kind != Core::RenderCommandKind::DrawGlyphRun ||
+                        candidate.glyphRun != command.glyphRun) {
+                        break;
+                    }
+                    ++batchCommandCount;
+                    if (!Core::IsFinite(candidate.color)) {
+                        encoded = InvalidArgument(
+                            "D3D11 RenderPlan contains invalid glyph tint");
+                        break;
+                    }
+                    constants.tints[instanceCount][0] = candidate.color.red;
+                    constants.tints[instanceCount][1] = candidate.color.green;
+                    constants.tints[instanceCount][2] = candidate.color.blue;
+                    constants.tints[instanceCount][3] =
+                        static_cast<float>(candidate.color.alpha * opacity);
+                    ++instanceCount;
+                }
+                if (!encoded) {
+                    break;
+                }
+                commandIndex += batchCommandCount - 1U;
+                encoded = bindGlyphPipeline();
+                if (encoded) {
+                    encoded = encoder.BindVertexBuffer(
+                        0U, glyphBinding->vertexBuffer);
+                }
+                if (encoded) {
+                    ++submissionStatistics.vertexBufferBindingCount;
+                    encoded = encoder.BindIndexBuffer(
+                        glyphBinding->indexBuffer, glyphBinding->indexType);
+                }
+                if (encoded) {
+                    ++submissionStatistics.indexBufferBindingCount;
+                    encoded = encoder.BindTextureSampler(
+                        0U, glyphBinding->atlasTexture, glyphBinding->sampler);
+                }
+                if (encoded) {
+                    ++submissionStatistics.textureSamplerBindingCount;
+                    const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
+                    encoded = encoder.UploadBuffer(impl_->glyphUniformBuffer, 0U,
+                        {bytes, static_cast<std::uint32_t>(sizeof(constants))});
+                }
+                if (encoded) {
+                    encoded = encoder.SetScissor(clip);
+                }
+                if (encoded) {
+                    encoded = encoder.DrawIndexed(
+                        glyphBinding->indexCount, instanceCount);
+                }
+                if (encoded) {
+                    ++submissionStatistics.drawCallCount;
+                    ++submissionStatistics.glyphDrawCallCount;
+                    submissionStatistics.glyphInstanceCount += instanceCount;
+                    ++submissionStatistics.uniformBufferUploadCount;
                 }
                 break;
             }

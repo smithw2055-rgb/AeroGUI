@@ -231,6 +231,161 @@ Base::Result<void> ValidateDxbcReflection(
     return {};
 }
 
+Base::Result<void> CollectDxbcConstantBufferRequirements(
+    const ShaderDescriptor& shader,
+    std::uint32_t (&minimumSizes)[
+        D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]) noexcept {
+    ID3D11ShaderReflection* reflection = nullptr;
+    const HRESULT reflectionResult = D3DReflect(
+        shader.bytecode,
+        shader.bytecodeSize,
+        __uuidof(ID3D11ShaderReflection),
+        reinterpret_cast<void**>(&reflection));
+    if (FAILED(reflectionResult)) {
+        return InvalidArgument("D3D11 shader package is not valid DXBC");
+    }
+
+    D3D11_SHADER_DESC shaderDescriptor{};
+    const HRESULT descriptionResult = reflection->GetDesc(&shaderDescriptor);
+    if (FAILED(descriptionResult)) {
+        ReleaseCom(reflection);
+        return InvalidArgument("DXBC constant-buffer reflection failed");
+    }
+
+    for (UINT resourceIndex = 0U;
+         resourceIndex < shaderDescriptor.BoundResources;
+         ++resourceIndex) {
+        D3D11_SHADER_INPUT_BIND_DESC binding{};
+        if (FAILED(reflection->GetResourceBindingDesc(
+                resourceIndex, &binding))) {
+            ReleaseCom(reflection);
+            return InvalidArgument("DXBC resource binding reflection failed");
+        }
+        if (binding.Type != D3D_SIT_CBUFFER) {
+            continue;
+        }
+        if (binding.Name == nullptr || binding.BindCount == 0U ||
+            binding.BindPoint >= D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT ||
+            binding.BindCount >
+                D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT -
+                    binding.BindPoint) {
+            ReleaseCom(reflection);
+            return InvalidArgument("DXBC constant-buffer binding is invalid");
+        }
+
+        ID3D11ShaderReflectionConstantBuffer* constantBuffer =
+            reflection->GetConstantBufferByName(binding.Name);
+        D3D11_SHADER_BUFFER_DESC constantBufferDescriptor{};
+        if (constantBuffer == nullptr ||
+            FAILED(constantBuffer->GetDesc(&constantBufferDescriptor)) ||
+            constantBufferDescriptor.Size == 0U ||
+            constantBufferDescriptor.Size % 16U != 0U ||
+            constantBufferDescriptor.Size >
+                D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16U) {
+            ReleaseCom(reflection);
+            return InvalidArgument("DXBC constant-buffer layout is invalid");
+        }
+
+        for (UINT bindingIndex = 0U;
+             bindingIndex < binding.BindCount;
+             ++bindingIndex) {
+            const UINT slot = binding.BindPoint + bindingIndex;
+            if (minimumSizes[slot] < constantBufferDescriptor.Size) {
+                minimumSizes[slot] = constantBufferDescriptor.Size;
+            }
+        }
+    }
+
+    ReleaseCom(reflection);
+    return {};
+}
+
+Base::Result<void> CollectDxbcTextureSamplerRequirements(
+    const ShaderDescriptor& shader,
+    bool allowTextureSamplers,
+    bool (&textureSlots)[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT],
+    D3D_SRV_DIMENSION (&textureDimensions)[
+        D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT],
+    bool (&samplerSlots)[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]) noexcept {
+    ID3D11ShaderReflection* reflection = nullptr;
+    const HRESULT reflectionResult = D3DReflect(
+        shader.bytecode,
+        shader.bytecodeSize,
+        __uuidof(ID3D11ShaderReflection),
+        reinterpret_cast<void**>(&reflection));
+    if (FAILED(reflectionResult)) {
+        return InvalidArgument("D3D11 shader package is not valid DXBC");
+    }
+
+    D3D11_SHADER_DESC shaderDescriptor{};
+    const HRESULT descriptionResult = reflection->GetDesc(&shaderDescriptor);
+    if (FAILED(descriptionResult)) {
+        ReleaseCom(reflection);
+        return InvalidArgument("DXBC resource binding reflection failed");
+    }
+
+    for (UINT resourceIndex = 0U;
+         resourceIndex < shaderDescriptor.BoundResources;
+         ++resourceIndex) {
+        D3D11_SHADER_INPUT_BIND_DESC binding{};
+        if (FAILED(reflection->GetResourceBindingDesc(
+                resourceIndex, &binding))) {
+            ReleaseCom(reflection);
+            return InvalidArgument("DXBC resource binding reflection failed");
+        }
+        if (binding.Type == D3D_SIT_CBUFFER) {
+            continue;
+        }
+        if (!allowTextureSamplers) {
+            ReleaseCom(reflection);
+            return Unsupported(
+                "D3D11 vertex shaders cannot bind texture or sampler resources");
+        }
+
+        bool* slots = nullptr;
+        UINT slotCount = 0U;
+        if (binding.Type == D3D_SIT_TEXTURE &&
+            (binding.Dimension == D3D_SRV_DIMENSION_TEXTURE2D ||
+             binding.Dimension == D3D_SRV_DIMENSION_TEXTURE2DARRAY)) {
+            slots = textureSlots;
+            // BindTextureSampler() binds the SRV and sampler at one shared
+            // AeroRHI slot, so texture bindings must also fit the sampler
+            // stage's smaller slot range.
+            slotCount = D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT;
+        } else if (binding.Type == D3D_SIT_SAMPLER) {
+            slots = samplerSlots;
+            slotCount = D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT;
+        } else {
+            ReleaseCom(reflection);
+            return Unsupported(
+                "D3D11 pipeline contains an unsupported shader resource binding");
+        }
+        if (binding.BindCount == 0U || binding.BindPoint >= slotCount ||
+            binding.BindCount > slotCount - binding.BindPoint) {
+            ReleaseCom(reflection);
+            return InvalidArgument("DXBC texture or sampler binding is invalid");
+        }
+        for (UINT bindingIndex = 0U;
+             bindingIndex < binding.BindCount;
+             ++bindingIndex) {
+            const UINT slot = binding.BindPoint + bindingIndex;
+            if (binding.Type == D3D_SIT_TEXTURE) {
+                if (textureDimensions[slot] != D3D_SRV_DIMENSION_UNKNOWN &&
+                    textureDimensions[slot] != binding.Dimension) {
+                    ReleaseCom(reflection);
+                    return InvalidArgument(
+                        "DXBC texture binding has conflicting SRV dimensions");
+                }
+                textureDimensions[slot] = binding.Dimension;
+            }
+            slots[slot] = true;
+        }
+    }
+
+    ReleaseCom(reflection);
+    return {};
+}
+
 D3D11_PRIMITIVE_TOPOLOGY ToD3DTopology(PrimitiveTopology topology) noexcept {
     switch (topology) {
     case PrimitiveTopology::TriangleList:
@@ -433,11 +588,20 @@ void HashBytes(
 struct D3D11GraphicsBackend::Impl final {
     struct ResourceRecord final {
         ResourceHandle handle;
+        Base::IAllocator* allocator = nullptr;
         ResourceDescriptor baseDescriptor;
         TextureResourceDescriptor textureDescriptor;
         VertexLayoutDescriptor vertexLayout;
         D3D11_PRIMITIVE_TOPOLOGY topology =
             D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+        std::uint32_t uniformBufferMinimumSizes[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        bool pixelTextureSlots[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        D3D_SRV_DIMENSION pixelTextureDimensions[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        bool pixelSamplerSlots[
+            D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]{};
 
         ID3D11Buffer* buffer = nullptr;
         ID3D11Texture2D* texture = nullptr;
@@ -451,6 +615,8 @@ struct D3D11GraphicsBackend::Impl final {
         ID3D11BlendState* blendState = nullptr;
         ID3D11RasterizerState* rasterizerState = nullptr;
         ID3D11DepthStencilState* depthStencilState = nullptr;
+        std::uint8_t* uniformShadow = nullptr;
+        std::uint32_t uniformShadowSize = 0U;
 
         bool configured = false;
         bool external = false;
@@ -489,9 +655,16 @@ struct D3D11GraphicsBackend::Impl final {
             ReleaseCom(inputLayout);
             ReleaseCom(pixelShader);
             ReleaseCom(vertexShader);
+            std::memset(
+                uniformBufferMinimumSizes, 0, sizeof(uniformBufferMinimumSizes));
+            std::memset(pixelTextureSlots, 0, sizeof(pixelTextureSlots));
+            std::memset(
+                pixelTextureDimensions, 0, sizeof(pixelTextureDimensions));
+            std::memset(pixelSamplerSlots, 0, sizeof(pixelSamplerSlots));
         }
 
         void ReleaseAll() noexcept {
+            ReleaseUniformShadow();
             ReleasePipelineObjects();
             ReleaseCom(sampler);
             ReleaseTextureObjects();
@@ -500,13 +673,38 @@ struct D3D11GraphicsBackend::Impl final {
             external = false;
         }
 
+        void ReleaseUniformShadow() noexcept {
+            if (uniformShadow != nullptr && allocator != nullptr) {
+                allocator->Deallocate(
+                    uniformShadow,
+                    uniformShadowSize,
+                    alignof(std::uint8_t),
+                    Base::MemoryTag::Render);
+            }
+            uniformShadow = nullptr;
+            uniformShadowSize = 0U;
+        }
+
     private:
         void MoveFrom(ResourceRecord& other) noexcept {
             handle = other.handle;
+            allocator = other.allocator;
             baseDescriptor = other.baseDescriptor;
             textureDescriptor = other.textureDescriptor;
             vertexLayout = other.vertexLayout;
             topology = other.topology;
+            std::memcpy(
+                uniformBufferMinimumSizes,
+                other.uniformBufferMinimumSizes,
+                sizeof(uniformBufferMinimumSizes));
+            std::memcpy(pixelTextureSlots, other.pixelTextureSlots,
+                sizeof(pixelTextureSlots));
+            std::memcpy(
+                pixelTextureDimensions,
+                other.pixelTextureDimensions,
+                sizeof(pixelTextureDimensions));
+            std::memcpy(pixelSamplerSlots, other.pixelSamplerSlots,
+                sizeof(pixelSamplerSlots));
             buffer = other.buffer;
             texture = other.texture;
             shaderResourceView = other.shaderResourceView;
@@ -519,6 +717,8 @@ struct D3D11GraphicsBackend::Impl final {
             blendState = other.blendState;
             rasterizerState = other.rasterizerState;
             depthStencilState = other.depthStencilState;
+            uniformShadow = other.uniformShadow;
+            uniformShadowSize = other.uniformShadowSize;
             configured = other.configured;
             external = other.external;
 
@@ -534,6 +734,19 @@ struct D3D11GraphicsBackend::Impl final {
             other.blendState = nullptr;
             other.rasterizerState = nullptr;
             other.depthStencilState = nullptr;
+            other.uniformShadow = nullptr;
+            other.uniformShadowSize = 0U;
+            other.allocator = nullptr;
+            std::memset(
+                other.uniformBufferMinimumSizes,
+                0,
+                sizeof(other.uniformBufferMinimumSizes));
+            std::memset(other.pixelTextureSlots, 0, sizeof(other.pixelTextureSlots));
+            std::memset(
+                other.pixelTextureDimensions,
+                0,
+                sizeof(other.pixelTextureDimensions));
+            std::memset(other.pixelSamplerSlots, 0, sizeof(other.pixelSamplerSlots));
             other.configured = false;
             other.external = false;
         }
@@ -582,7 +795,11 @@ struct D3D11GraphicsBackend::Impl final {
             D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
         ID3D11Buffer* pixelConstantBuffers[
             D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        std::uint32_t uniformBufferSizes[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
         ID3D11ShaderResourceView* pixelShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        D3D_SRV_DIMENSION pixelShaderResourceDimensions[
             D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
         ID3D11SamplerState* pixelSamplers[
             D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]{};
@@ -603,8 +820,13 @@ struct D3D11GraphicsBackend::Impl final {
                 vertexConstantBuffers, 0, sizeof(vertexConstantBuffers));
             std::memset(
                 pixelConstantBuffers, 0, sizeof(pixelConstantBuffers));
+            std::memset(uniformBufferSizes, 0, sizeof(uniformBufferSizes));
             std::memset(
                 pixelShaderResources, 0, sizeof(pixelShaderResources));
+            std::memset(
+                pixelShaderResourceDimensions,
+                0,
+                sizeof(pixelShaderResourceDimensions));
             std::memset(pixelSamplers, 0, sizeof(pixelSamplers));
             viewport = {};
             hasViewport = false;
@@ -615,6 +837,10 @@ struct D3D11GraphicsBackend::Impl final {
         void ResetPixelShaderResources() noexcept {
             std::memset(
                 pixelShaderResources, 0, sizeof(pixelShaderResources));
+            std::memset(
+                pixelShaderResourceDimensions,
+                0,
+                sizeof(pixelShaderResourceDimensions));
         }
     };
 
@@ -853,13 +1079,18 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
-    explicit Impl(Base::IAllocator* allocator) noexcept
-        : resources(allocator), pendingFences(allocator) {}
+    explicit Impl(Base::IAllocator* allocatorValue) noexcept
+        : allocator(allocatorValue != nullptr
+              ? allocatorValue
+              : &Base::GetDefaultAllocator()),
+          resources(allocator),
+          pendingFences(allocator) {}
 
     ~Impl() noexcept {
         Reset();
     }
 
+    Base::IAllocator* allocator = nullptr;
     Base::Vector<ResourceRecord> resources;
     mutable Base::Vector<PendingFence> pendingFences;
     ID3D11Device* device = nullptr;
@@ -873,6 +1104,13 @@ struct D3D11GraphicsBackend::Impl final {
     bool supportsTimestampQueries = false;
     bool inRenderPass = false;
     SubmissionStateCache submissionState;
+    // D3D11.0 has no *SetConstantBuffers1 range binding. Reusable per-slot
+    // scratch buffers preserve AeroRHI's offset contract on FL10_0 by copying
+    // the requested aligned byte range before each bind.
+    ID3D11Buffer* uniformOffsetBuffers[
+        D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+    std::uint32_t uniformOffsetBufferSizes[
+        D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
     ID3D11Texture2D* activeColorTextures[MaxColorAttachments]{};
     ID3D11Texture2D* activeDepthStencilTexture = nullptr;
 
@@ -912,6 +1150,14 @@ struct D3D11GraphicsBackend::Impl final {
             0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
     }
 
+    void ReleaseUniformOffsetBuffers() noexcept {
+        for (ID3D11Buffer*& buffer : uniformOffsetBuffers) {
+            ReleaseCom(buffer);
+        }
+        std::memset(
+            uniformOffsetBufferSizes, 0, sizeof(uniformOffsetBufferSizes));
+    }
+
     void Reset() noexcept {
         if (context != nullptr) {
             ClearShaderResourceBindings();
@@ -921,6 +1167,7 @@ struct D3D11GraphicsBackend::Impl final {
         }
         pendingFences.Clear();
         resources.Clear();
+        ReleaseUniformOffsetBuffers();
         ReleaseCom(context);
         ReleaseCom(device);
         currentPipeline = {};

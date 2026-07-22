@@ -61,9 +61,25 @@ Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
             case Core::RenderCommandKind::FillRect:
                 translated.kind = Rhi::RhiCommandKind::DrawFilledRect;
                 break;
+            case Core::RenderCommandKind::FillRoundedRect:
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Legacy RHI does not support rounded rectangle commands");
             case Core::RenderCommandKind::StrokeRect:
                 translated.kind = Rhi::RhiCommandKind::DrawStrokedRect;
                 break;
+            case Core::RenderCommandKind::DrawImage:
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Legacy RHI does not support image commands");
+            case Core::RenderCommandKind::DrawMesh:
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Legacy RHI does not support mesh commands");
+            case Core::RenderCommandKind::DrawGlyphRun:
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Legacy RHI does not support glyph-run commands");
             }
 
             appended = output.commands_.TryPushBack(translated);

@@ -13,7 +13,7 @@ cbuffer TintBuffer : register(b0) {
     float4 tintPadding;
 };
 
-Texture2D sourceTexture : register(t0);
+Texture2DArray sourceTexture : register(t0);
 SamplerState sourceSampler : register(s0);
 
 VSOutput vs_main(VSInput input) {
@@ -24,5 +24,6 @@ VSOutput vs_main(VSInput input) {
 }
 
 float4 ps_main(VSOutput input) : SV_Target {
-    return sourceTexture.Sample(sourceSampler, input.uv) * (tint + tintPadding);
+    return sourceTexture.Sample(sourceSampler, float3(input.uv, 1.0)) *
+        (tint + tintPadding);
 }

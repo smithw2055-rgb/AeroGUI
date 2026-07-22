@@ -21,8 +21,17 @@ using XamlAsRenderElementCallback = Core::RenderElement* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlAsContentPresenterCallback = Core::ContentPresenter* (*)(
     Base::Object& object, void* context) noexcept;
+using XamlAsContentOwnerCallback = Core::LayoutElement* (*)(
+    Base::Object& object, void* context) noexcept;
 using XamlAsStackPanelCallback = Core::StackPanel* (*)(
     Base::Object& object, void* context) noexcept;
+using XamlAsCollectionOwnerCallback = Core::LayoutElement* (*)(
+    Base::Object& object, void* context) noexcept;
+using XamlConfigureCollectionChildCallback = Base::Result<void> (*)(
+    Base::Object& parentObject,
+    Core::LayoutElement& parent,
+    Core::LayoutElement& child,
+    void* context) noexcept;
 
 struct XamlVisualTreeTypeRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
@@ -36,6 +45,10 @@ struct XamlContentPresenterRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlAsContentPresenterCallback asPresenter = nullptr;
     void* context = nullptr;
+    // Generic single-content controls (for example Border) keep their child
+    // alive through XamlVisualTreeHost until Unmount(). ContentPresenter uses
+    // its stronger control-owned reference through asPresenter instead.
+    XamlAsContentOwnerCallback asContentOwner = nullptr;
 };
 
 struct XamlCollectionContentRegistration final {
@@ -43,6 +56,10 @@ struct XamlCollectionContentRegistration final {
     Core::MemberId member = Core::InvalidMemberId;
     XamlAsStackPanelCallback asStackPanel = nullptr;
     void* context = nullptr;
+    // Non-StackPanel collection containers need no additional child owner:
+    // XamlVisualTreeHost keeps staged child references until Unmount().
+    XamlAsCollectionOwnerCallback asCollectionOwner = nullptr;
+    XamlConfigureCollectionChildCallback configureChild = nullptr;
 };
 
 // Commits XAML ContentPresenter relationships as one UI-tree transaction.
@@ -90,6 +107,8 @@ private:
         Core::LayoutElement* child = nullptr;
         Core::ContentPresenter* presenter = nullptr;
         Core::StackPanel* stackPanel = nullptr;
+        XamlConfigureCollectionChildCallback configureCollectionChild = nullptr;
+        void* collectionContext = nullptr;
         bool logicalAttached = false;
         bool visualAttached = false;
         bool layoutAttached = false;

@@ -24,6 +24,10 @@ bool SameThickness(Thickness left, Thickness right) noexcept {
     return left.left == right.left && left.top == right.top &&
         left.right == right.right && left.bottom == right.bottom;
 }
+
+bool IsValidTextSize(Size value) noexcept {
+    return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
+}
 } // namespace
 
 StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
@@ -114,7 +118,7 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
 
 Canvas::Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Base::IAllocator* allocator) noexcept
-    : LayoutElement(dispatcher, registry, runtimeType, allocator),
+    : RenderElement(dispatcher, registry, runtimeType, allocator),
       positions_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
 Base::Result<void> Canvas::SetChildPosition(
@@ -176,7 +180,7 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
 
 Grid::Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Base::IAllocator* allocator) noexcept
-    : LayoutElement(dispatcher, registry, runtimeType, allocator),
+    : RenderElement(dispatcher, registry, runtimeType, allocator),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
       columns_(allocator_),
       rows_(allocator_),
@@ -471,6 +475,70 @@ Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcep
         return builder.StrokeRect(bounds, stroke_, strokeThickness_);
     }
     return {};
+}
+
+TextBlock::TextBlock(Dispatcher& dispatcher,
+    DependencyPropertyRegistry& registry,
+    TypeId runtimeType,
+    Base::IAllocator* allocator) noexcept
+    : RenderElement(dispatcher, registry, runtimeType, allocator),
+      text_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
+
+Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (text_ == value) return {};
+    Base::Result<void> assigned = text_.TryAssign(value);
+    if (!assigned) return assigned.GetStatus();
+    return InvalidateMeasure();
+}
+
+Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!IsValidColor(value)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "TextBlock foreground color is invalid");
+    }
+    if (foreground_.red == value.red && foreground_.green == value.green &&
+        foreground_.blue == value.blue && foreground_.alpha == value.alpha) {
+        return {};
+    }
+    foreground_ = value;
+    return InvalidateRender();
+}
+
+Base::Result<void> TextBlock::SetGlyphRun(
+    RenderGlyphRunId glyphRun, Size size) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!IsValidTextSize(size) ||
+        (glyphRun == InvalidRenderGlyphRunId &&
+            (size.width != 0.0 || size.height != 0.0))) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "TextBlock glyph run and size are invalid");
+    }
+    if (glyphRun_ == glyphRun && glyphRunSize_.width == size.width &&
+        glyphRunSize_.height == size.height) {
+        return {};
+    }
+    glyphRun_ = glyphRun;
+    glyphRunSize_ = size;
+    Base::Result<void> measure = InvalidateMeasure();
+    if (!measure) return measure.GetStatus();
+    return InvalidateRender();
+}
+
+Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
+    return Size{std::min(glyphRunSize_.width, availableSize.width),
+        std::min(glyphRunSize_.height, availableSize.height)};
+}
+
+Base::Result<void> TextBlock::BuildDisplayList(
+    DisplayListBuilder& builder) noexcept {
+    return glyphRun_ == InvalidRenderGlyphRunId
+        ? Base::Result<void>()
+        : builder.DrawGlyphRun(glyphRun_, foreground_);
 }
 
 ContentPresenter::ContentPresenter(Dispatcher& dispatcher,

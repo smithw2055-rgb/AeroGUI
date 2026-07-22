@@ -13,6 +13,12 @@ namespace Aero::Core {
 
 using RenderNodeId = Base::RenderNodeId;
 constexpr RenderNodeId InvalidRenderNodeId = Base::InvalidRenderNodeId;
+using RenderImageId = std::uint64_t;
+constexpr RenderImageId InvalidRenderImageId = 0U;
+using RenderMeshId = std::uint64_t;
+constexpr RenderMeshId InvalidRenderMeshId = 0U;
+using RenderGlyphRunId = std::uint64_t;
+constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 
@@ -30,7 +36,11 @@ enum class RenderCommandKind : std::uint8_t {
     PushTransform,
     PopTransform,
     FillRect,
-    StrokeRect
+    FillRoundedRect,
+    StrokeRect,
+    DrawImage,
+    DrawMesh,
+    DrawGlyphRun
 };
 
 struct RenderCommand final {
@@ -38,6 +48,10 @@ struct RenderCommand final {
     Rect rect;
     Transform2D transform;
     Color color;
+    Rect sourceUv;
+    RenderImageId image = InvalidRenderImageId;
+    RenderMeshId mesh = InvalidRenderMeshId;
+    RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
     double scalar = 0.0;
 };
 
@@ -72,8 +86,21 @@ public:
     AERO_NODISCARD Base::Result<void> PushTransform(Transform2D value) noexcept;
     AERO_NODISCARD Base::Result<void> PopTransform() noexcept;
     AERO_NODISCARD Base::Result<void> FillRect(Rect rect, Color color) noexcept;
+    AERO_NODISCARD Base::Result<void> FillRoundedRect(
+        Rect rect, Color color, double cornerRadius) noexcept;
     AERO_NODISCARD Base::Result<void> StrokeRect(
         Rect rect, Color color, double thickness) noexcept;
+    AERO_NODISCARD Base::Result<void> DrawImage(
+        RenderImageId image,
+        Rect destination,
+        Rect sourceUv,
+        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
+    AERO_NODISCARD Base::Result<void> DrawMesh(
+        RenderMeshId mesh,
+        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
+    AERO_NODISCARD Base::Result<void> DrawGlyphRun(
+        RenderGlyphRunId glyphRun,
+        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
     AERO_NODISCARD Base::Result<DisplayList> Finish() noexcept;
 
 private:

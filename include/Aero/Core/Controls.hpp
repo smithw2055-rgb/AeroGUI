@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Base/String.hpp>
 #include <Aero/Core/Rendering.hpp>
 
 namespace Aero::Core {
@@ -37,7 +38,9 @@ private:
     AERO_NODISCARD bool IsOwnedChild(const LayoutElement& child) const noexcept;
 };
 
-class AERO_API Canvas final : public LayoutElement {
+// Canvas has no visual of its own, but remains a RenderElement so a child
+// loaded through XAML stays connected to the render tree.
+class AERO_API Canvas final : public RenderElement {
 public:
     Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
@@ -77,7 +80,8 @@ struct GridLength final {
 // are fixed; remaining arrange space is apportioned between star tracks by
 // weight. Row/column spans are deliberately deferred until the base track
 // contract has conformance coverage.
-class AERO_API Grid final : public LayoutElement {
+// Grid likewise acts as a transparent render-tree container for its children.
+class AERO_API Grid final : public RenderElement {
 public:
     Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
@@ -135,6 +139,7 @@ public:
     AERO_NODISCARD Base::Result<void> SetBackground(Color value) noexcept;
     AERO_NODISCARD Base::Result<void> SetStroke(Color value, double thickness) noexcept;
     AERO_NODISCARD Base::Result<void> SetPadding(Thickness value) noexcept;
+    AERO_NODISCARD Color Background() const noexcept { return background_; }
     AERO_NODISCARD Thickness Padding() const noexcept { return padding_; }
 
 protected:
@@ -147,6 +152,39 @@ private:
     Color stroke_{0.0F, 0.0F, 0.0F, 0.0F};
     double strokeThickness_ = 0.0;
     Thickness padding_;
+};
+
+// M2 text control seam. Text shaping and atlas allocation remain provider
+// responsibilities; once a provider has registered an immutable glyph run
+// with the active render backend, TextBlock keeps the logical UTF-8 content,
+// participates in layout, and emits that run with its foreground tint.
+class AERO_API TextBlock final : public RenderElement {
+public:
+    TextBlock(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+
+    AERO_NODISCARD Base::StringView Text() const noexcept { return text_.View(); }
+    AERO_NODISCARD Color Foreground() const noexcept { return foreground_; }
+    AERO_NODISCARD RenderGlyphRunId GlyphRun() const noexcept { return glyphRun_; }
+    AERO_NODISCARD Size GlyphRunSize() const noexcept { return glyphRunSize_; }
+    AERO_NODISCARD Base::Result<void> SetText(Base::StringView value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetForeground(Color value) noexcept;
+    // A run id of InvalidRenderGlyphRunId clears the shaped presentation and
+    // requires a zero size. The id must be registered with the render backend
+    // before a frame containing this TextBlock is submitted.
+    AERO_NODISCARD Base::Result<void> SetGlyphRun(
+        RenderGlyphRunId glyphRun, Size size) noexcept;
+
+protected:
+    AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
+    AERO_NODISCARD Base::Result<void> BuildDisplayList(
+        DisplayListBuilder& builder) noexcept override;
+
+private:
+    Base::String text_;
+    Color foreground_{0.0F, 0.0F, 0.0F, 1.0F};
+    RenderGlyphRunId glyphRun_ = InvalidRenderGlyphRunId;
+    Size glyphRunSize_;
 };
 
 // Single-child visual presenter. It does not attach or detach content itself:
