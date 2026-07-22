@@ -119,6 +119,22 @@ Base::Result<void> D3D11GraphicsBackend::Initialize() noexcept {
         return Unsupported("D3D11 feature level 10_0 or newer is required");
     }
 
+    D3D11_QUERY_DESC timestampQueryDescriptor{};
+    timestampQueryDescriptor.Query = D3D11_QUERY_TIMESTAMP;
+    ID3D11Query* timestampQuery = nullptr;
+    const HRESULT timestampQueryResult = impl_->device->CreateQuery(
+        &timestampQueryDescriptor, &timestampQuery);
+    if (IsDeviceRemoval(timestampQueryResult)) {
+        impl_->deviceLost = true;
+        impl_->Reset();
+        return StatusFromHResult(
+            timestampQueryResult,
+            "D3D11 timestamp-query capability check failed",
+            "D3D11 device was lost while querying timestamp support");
+    }
+    impl_->supportsTimestampQueries = SUCCEEDED(timestampQueryResult);
+    ReleaseCom(timestampQuery);
+
     impl_->initialized = true;
     return {};
 }
@@ -131,6 +147,12 @@ void D3D11GraphicsBackend::Shutdown() noexcept {
     allocator_->Deallocate(
         impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Render);
     impl_ = nullptr;
+}
+
+void D3D11GraphicsBackend::MarkDeviceLost() noexcept {
+    if (impl_ != nullptr) {
+        impl_->deviceLost = true;
+    }
 }
 
 bool D3D11GraphicsBackend::IsInitialized() const noexcept {
@@ -171,7 +193,7 @@ DeviceCapabilities D3D11GraphicsBackend::Capabilities() const noexcept {
     capabilities.maxFramesInFlight = 2U;
     capabilities.maxTextureDimension =
         impl_->featureLevel >= D3D_FEATURE_LEVEL_11_0 ? 16384U : 8192U;
-    capabilities.supportsTimestampQueries = false;
+    capabilities.supportsTimestampQueries = impl_->supportsTimestampQueries;
     return capabilities;
 }
 
@@ -194,6 +216,9 @@ D3D11GraphicsBackend::QueryGraphicsCapabilities() const noexcept {
         FeatureBit(GraphicsFeature::Instancing) |
         FeatureBit(GraphicsFeature::Scissor) |
         FeatureBit(GraphicsFeature::AnisotropicFiltering);
+    if (impl_->supportsTimestampQueries) {
+        capabilities.features |= FeatureBit(GraphicsFeature::TimestampQueries);
+    }
     capabilities.shaderLanguages = ShaderLanguageBit(ShaderLanguage::Dxbc);
     capabilities.maxColorAttachments = MaxColorAttachments;
     capabilities.maxVertexAttributes = MaxVertexAttributes;

@@ -9,11 +9,14 @@
 
 #include <windows.h>
 #include <d3d11.h>
-#include <d3dcompiler.h>
+#include <d3d11sdklayers.h>
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+
+#include "AeroD3D11RectanglePixelShader.hpp"
+#include "AeroD3D11RectangleVertexShader.hpp"
 
 namespace {
 
@@ -38,65 +41,57 @@ void ReleaseCom(T*& value) noexcept {
     }
 }
 
-bool CompileShader(
-    const char* source,
-    const char* entryPoint,
-    const char* target,
-    ID3DBlob** output) noexcept {
-    if (source == nullptr || entryPoint == nullptr || target == nullptr ||
-        output == nullptr) {
-        return false;
-    }
+bool HasCleanDebugInfoQueue(ID3D11InfoQueue& infoQueue) noexcept {
+    const UINT64 messageCount =
+        infoQueue.GetNumStoredMessagesAllowedByRetrievalFilter();
+    bool clean = true;
+    for (UINT64 index = 0U; index < messageCount; ++index) {
+        SIZE_T messageSize = 0U;
+        if (FAILED(infoQueue.GetMessage(index, nullptr, &messageSize)) ||
+            messageSize == 0U) {
+            std::fprintf(stderr, "Could not inspect D3D11 debug-layer message\n");
+            return false;
+        }
 
-    *output = nullptr;
-    ID3DBlob* errors = nullptr;
-    const HRESULT result = D3DCompile(
-        source,
-        std::strlen(source),
-        "AeroD3D11Smoke.hlsl",
-        nullptr,
-        nullptr,
-        entryPoint,
-        target,
-        D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS,
-        0U,
-        output,
-        &errors);
-    if (FAILED(result)) {
-        if (errors != nullptr) {
+        auto* message = static_cast<D3D11_MESSAGE*>(HeapAlloc(
+            GetProcessHeap(), HEAP_ZERO_MEMORY, messageSize));
+        if (message == nullptr) {
+            std::fprintf(stderr, "Could not allocate D3D11 debug-layer message\n");
+            return false;
+        }
+
+        const HRESULT result = infoQueue.GetMessage(index, message, &messageSize);
+        if (SUCCEEDED(result) &&
+            message->Severity <= D3D11_MESSAGE_SEVERITY_WARNING) {
             std::fprintf(
                 stderr,
-                "D3DCompile failed: %.*s\n",
-                static_cast<int>(errors->GetBufferSize()),
-                static_cast<const char*>(errors->GetBufferPointer()));
+                "D3D11 debug-layer diagnostic (%u): %s\n",
+                static_cast<unsigned int>(message->Severity),
+                message->pDescription != nullptr ? message->pDescription : "");
+            clean = false;
         }
-        ReleaseCom(errors);
-        ReleaseCom(*output);
-        return false;
+        if (FAILED(result)) {
+            std::fprintf(stderr, "Could not read D3D11 debug-layer message\n");
+            clean = false;
+        }
+        HeapFree(GetProcessHeap(), 0U, message);
     }
-    ReleaseCom(errors);
-    return true;
+    return clean;
 }
 
-PipelineDescriptor MakePipeline(
-    ID3DBlob& vertexShader,
-    ID3DBlob& pixelShader) noexcept {
+PipelineDescriptor MakePipeline() noexcept {
     PipelineDescriptor descriptor;
     descriptor.vertexShader.stage = ShaderStage::Vertex;
     descriptor.vertexShader.language = ShaderLanguage::Dxbc;
-    descriptor.vertexShader.bytecode = static_cast<const std::uint8_t*>(
-        vertexShader.GetBufferPointer());
-    descriptor.vertexShader.bytecodeSize = static_cast<std::uint32_t>(
-        vertexShader.GetBufferSize());
+    descriptor.vertexShader.bytecode = AeroD3D11RectangleVertexShader;
+    descriptor.vertexShader.bytecodeSize = sizeof(AeroD3D11RectangleVertexShader);
     descriptor.vertexShader.entryPoint = StringView("vs_main");
     descriptor.vertexShader.stableId = UINT64_C(0xD3110001);
 
     descriptor.fragmentShader.stage = ShaderStage::Fragment;
     descriptor.fragmentShader.language = ShaderLanguage::Dxbc;
-    descriptor.fragmentShader.bytecode = static_cast<const std::uint8_t*>(
-        pixelShader.GetBufferPointer());
-    descriptor.fragmentShader.bytecodeSize = static_cast<std::uint32_t>(
-        pixelShader.GetBufferSize());
+    descriptor.fragmentShader.bytecode = AeroD3D11RectanglePixelShader;
+    descriptor.fragmentShader.bytecodeSize = sizeof(AeroD3D11RectanglePixelShader);
     descriptor.fragmentShader.entryPoint = StringView("ps_main");
     descriptor.fragmentShader.stableId = UINT64_C(0xD3110002);
 
@@ -116,6 +111,9 @@ PipelineDescriptor MakePipeline(
     return descriptor;
 }
 
+bool TestOffscreenRectangleAndReadback(
+    const D3D11BackendOptions& backendOptions);
+
 bool TestWarpDeviceAndBorrowedMode() {
     D3D11BackendOptions options;
     options.deviceMode = D3D11DeviceMode::Warp;
@@ -130,6 +128,19 @@ bool TestWarpDeviceAndBorrowedMode() {
         static_cast<std::uint32_t>(D3D_FEATURE_LEVEL_10_0));
     CHECK(owned.QueryGraphicsCapabilities().shaderLanguages ==
         ShaderLanguageBit(ShaderLanguage::Dxbc));
+    auto* nativeDevice = reinterpret_cast<ID3D11Device*>(owned.NativeDevice());
+    D3D11_QUERY_DESC timestampQueryDescriptor{};
+    timestampQueryDescriptor.Query = D3D11_QUERY_TIMESTAMP;
+    ID3D11Query* timestampQuery = nullptr;
+    const bool nativeTimestampQueries = SUCCEEDED(nativeDevice->CreateQuery(
+        &timestampQueryDescriptor, &timestampQuery));
+    ReleaseCom(timestampQuery);
+    CHECK(owned.Capabilities().supportsTimestampQueries == nativeTimestampQueries);
+    const GraphicsFeatureFlags features =
+        owned.QueryGraphicsCapabilities().features;
+    CHECK((features & FeatureBit(GraphicsFeature::TimestampQueries)) != 0U
+        ? nativeTimestampQueries
+        : !nativeTimestampQueries);
 
     D3D11BackendOptions borrowedOptions;
     borrowedOptions.deviceMode = D3D11DeviceMode::Borrowed;
@@ -144,49 +155,23 @@ bool TestWarpDeviceAndBorrowedMode() {
     return true;
 }
 
-bool TestOffscreenRectangleAndReadback() {
-    static constexpr const char* ShaderSource = R"HLSL(
-struct VSInput {
-    float2 position : ATTR0;
-    float2 uv : ATTR1;
-};
+bool TestOffscreenRectangleAndReadback(
+    const D3D11BackendOptions& backendOptions) {
+    CHECK(sizeof(AeroD3D11RectangleVertexShader) <= UINT32_MAX);
+    CHECK(sizeof(AeroD3D11RectanglePixelShader) <= UINT32_MAX);
 
-struct VSOutput {
-    float4 position : SV_Position;
-    float2 uv : TEXCOORD0;
-};
-
-cbuffer TintBuffer : register(b0) {
-    float4 tint;
-};
-
-Texture2D sourceTexture : register(t0);
-SamplerState sourceSampler : register(s0);
-
-VSOutput vs_main(VSInput input) {
-    VSOutput output;
-    output.position = float4(input.position, 0.0, 1.0);
-    output.uv = input.uv;
-    return output;
-}
-
-float4 ps_main(VSOutput input) : SV_Target {
-    return sourceTexture.Sample(sourceSampler, input.uv) * tint;
-}
-)HLSL";
-
-    ID3DBlob* vertexShader = nullptr;
-    ID3DBlob* pixelShader = nullptr;
-    CHECK(CompileShader(ShaderSource, "vs_main", "vs_4_0", &vertexShader));
-    CHECK(CompileShader(ShaderSource, "ps_main", "ps_4_0", &pixelShader));
-    CHECK(vertexShader->GetBufferSize() <= UINT32_MAX);
-    CHECK(pixelShader->GetBufferSize() <= UINT32_MAX);
-
-    D3D11BackendOptions options;
-    options.deviceMode = D3D11DeviceMode::Warp;
-    options.allowWarpFallback = false;
-    D3D11GraphicsBackend backend(options);
+    const D3D11StatePolicy statePolicy = backendOptions.statePolicy;
+    D3D11GraphicsBackend backend(backendOptions);
     CHECK(backend.Initialize());
+
+    ID3D11InfoQueue* debugInfoQueue = nullptr;
+    if (backendOptions.enableDebugLayer) {
+        auto* debugDevice = reinterpret_cast<ID3D11Device*>(backend.NativeDevice());
+        CHECK(SUCCEEDED(debugDevice->QueryInterface(
+            __uuidof(ID3D11InfoQueue),
+            reinterpret_cast<void**>(&debugInfoQueue))));
+        debugInfoQueue->ClearStoredMessages();
+    }
 
     RhiDevice device(backend);
     CHECK(device.Initialize());
@@ -223,10 +208,19 @@ float4 ps_main(VSOutput input) : SV_Target {
     targetDescriptor.width = 64U;
     targetDescriptor.height = 64U;
     targetDescriptor.format = GraphicsTextureFormat::Bgra8Unorm;
-    targetDescriptor.usage = TextureUsageBit(TextureUsage::RenderTarget) |
+    targetDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
+        TextureUsageBit(TextureUsage::RenderTarget) |
         TextureUsageBit(TextureUsage::CopySource);
-    Result<ResourceHandle> target = resources.CreateRenderTarget(targetDescriptor);
+    Result<ResourceHandle> target = resources.CreateTexture(targetDescriptor);
     CHECK(target);
+
+    TextureResourceDescriptor depthDescriptor;
+    depthDescriptor.width = 64U;
+    depthDescriptor.height = 64U;
+    depthDescriptor.format = GraphicsTextureFormat::Depth24Stencil8;
+    depthDescriptor.usage = TextureUsageBit(TextureUsage::RenderTarget);
+    Result<ResourceHandle> depthStencil = resources.CreateTexture(depthDescriptor);
+    CHECK(depthStencil);
 
     SamplerDescriptor samplerDescriptor;
     samplerDescriptor.minFilter = FilterMode::Nearest;
@@ -235,12 +229,63 @@ float4 ps_main(VSOutput input) : SV_Target {
     Result<ResourceHandle> sampler = resources.CreateSampler(samplerDescriptor);
     CHECK(sampler);
 
-    PipelineDescriptor pipelineDescriptor = MakePipeline(
-        *vertexShader, *pixelShader);
+    auto* nativeDevice = reinterpret_cast<ID3D11Device*>(backend.NativeDevice());
+    auto* nativeContext = reinterpret_cast<ID3D11DeviceContext*>(
+        backend.NativeImmediateContext());
+    D3D11_TEXTURE2D_DESC hostSampledDescriptor{};
+    hostSampledDescriptor.Width = 1U;
+    hostSampledDescriptor.Height = 1U;
+    hostSampledDescriptor.MipLevels = 1U;
+    hostSampledDescriptor.ArraySize = 1U;
+    hostSampledDescriptor.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    hostSampledDescriptor.SampleDesc.Count = 1U;
+    hostSampledDescriptor.Usage = D3D11_USAGE_DEFAULT;
+    hostSampledDescriptor.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ID3D11Texture2D* hostSampledTexture = nullptr;
+    ID3D11ShaderResourceView* hostSampledView = nullptr;
+    CHECK(SUCCEEDED(nativeDevice->CreateTexture2D(
+        &hostSampledDescriptor, nullptr, &hostSampledTexture)));
+    CHECK(SUCCEEDED(nativeDevice->CreateShaderResourceView(
+        hostSampledTexture, nullptr, &hostSampledView)));
+    nativeContext->VSSetShaderResources(0U, 1U, &hostSampledView);
+    nativeContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+    // A resource cannot be an output attachment and a PS SRV in one pass.
+    // The backend must reject this before D3D11 needs to resolve the hazard.
+    GraphicsCommandEncoder hazardEncoder;
+    RenderPassDescriptor hazardPass;
+    hazardPass.renderArea = {0.0, 0.0, 64.0, 64.0};
+    hazardPass.colorAttachmentCount = 1U;
+    hazardPass.colorAttachments[0].target = target.Value();
+    CHECK(hazardEncoder.BeginRenderPass(hazardPass));
+    CHECK(hazardEncoder.BindTextureSampler(0U, target.Value(), sampler.Value()));
+    CHECK(hazardEncoder.EndRenderPass());
+    Result<GraphicsCommandBuffer> hazardCommands = hazardEncoder.Finish();
+    CHECK(hazardCommands);
+    CHECK(!backend.SubmitGraphics(hazardCommands.Value(), 1U));
+    ID3D11ShaderResourceView* remainingView = nullptr;
+    nativeContext->VSGetShaderResources(0U, 1U, &remainingView);
+    CHECK(statePolicy == D3D11StatePolicy::PreserveRequiredState
+        ? remainingView == hostSampledView
+        : remainingView == nullptr);
+    ReleaseCom(remainingView);
+    ReleaseCom(hostSampledView);
+    ReleaseCom(hostSampledTexture);
+
+    PipelineDescriptor pipelineDescriptor = MakePipeline();
+    pipelineDescriptor.depthStencil.depthTestEnabled = true;
+    pipelineDescriptor.depthStencil.depthWriteEnabled = true;
+    pipelineDescriptor.depthStencil.depthCompare = CompareOperation::LessEqual;
     Result<ResourceHandle> pipeline = resources.CreatePipeline(pipelineDescriptor);
     CHECK(pipeline);
-    ReleaseCom(pixelShader);
-    ReleaseCom(vertexShader);
+    PipelineDescriptor mismatchedLayout = pipelineDescriptor;
+    mismatchedLayout.vertexLayout.attributeCount = 1U;
+    CHECK(!resources.CreatePipeline(mismatchedLayout));
+    PipelineDescriptor mismatchedStage = pipelineDescriptor;
+    mismatchedStage.fragmentShader.bytecode = AeroD3D11RectangleVertexShader;
+    mismatchedStage.fragmentShader.bytecodeSize =
+        sizeof(AeroD3D11RectangleVertexShader);
+    CHECK(!resources.CreatePipeline(mismatchedStage));
 
     struct Vertex final {
         float x;
@@ -288,7 +333,21 @@ float4 ps_main(VSOutput input) : SV_Target {
     pass.colorAttachments[0].load = LoadOperation::Clear;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 1.0F};
+    pass.hasDepthStencil = true;
+    pass.depthStencil.target = depthStencil.Value();
+    pass.depthStencil.depthLoad = LoadOperation::Clear;
+    pass.depthStencil.stencilLoad = LoadOperation::Clear;
+    pass.depthStencil.clearDepth = 1.0F;
+    pass.depthStencil.clearStencil = 0U;
     CHECK(encoder.BeginRenderPass(pass));
+    CHECK(encoder.BindPipeline(pipeline.Value()));
+    CHECK(encoder.BindVertexBuffer(0U, vertex.Value()));
+    CHECK(encoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
+    CHECK(encoder.BindUniformBuffer(0U, uniform.Value(), 0U, 16U));
+    CHECK(encoder.BindTextureSampler(0U, sampled.Value(), sampler.Value()));
+    CHECK(encoder.SetScissor({0.0, 0.0, 64.0, 64.0}));
+    // Rebind the same complete draw state to exercise the D3D11 submission
+    // cache. It must not alter output or bypass the normal validation path.
     CHECK(encoder.BindPipeline(pipeline.Value()));
     CHECK(encoder.BindVertexBuffer(0U, vertex.Value()));
     CHECK(encoder.BindIndexBuffer(index.Value(), IndexType::UInt16));
@@ -300,7 +359,7 @@ float4 ps_main(VSOutput input) : SV_Target {
 
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
     CHECK(commands);
-    CHECK(commands.Value().CommandCount() == 13U);
+    CHECK(commands.Value().CommandCount() == 19U);
 
     GraphicsQueue queue(backend);
     CHECK(queue.Initialize());
@@ -328,7 +387,13 @@ float4 ps_main(VSOutput input) : SV_Target {
         "Aero D3D11 WARP checksum: 0x%016llX\n",
         static_cast<unsigned long long>(checksum.Value()));
 
-    auto* nativeDevice = reinterpret_cast<ID3D11Device*>(backend.NativeDevice());
+    D3D11_PRIMITIVE_TOPOLOGY remainingTopology =
+        D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+    nativeContext->IAGetPrimitiveTopology(&remainingTopology);
+    CHECK(statePolicy == D3D11StatePolicy::PreserveRequiredState
+        ? remainingTopology == D3D11_PRIMITIVE_TOPOLOGY_LINELIST
+        : remainingTopology == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
     D3D11_TEXTURE2D_DESC externalNative{};
     externalNative.Width = 8U;
     externalNative.Height = 8U;
@@ -361,6 +426,7 @@ float4 ps_main(VSOutput input) : SV_Target {
         uniform.Value(),
         sampled.Value(),
         target.Value(),
+        depthStencil.Value(),
         sampler.Value(),
         pipeline.Value(),
         imported.Value()};
@@ -369,17 +435,191 @@ float4 ps_main(VSOutput input) : SV_Target {
     }
     Result<std::uint32_t> collected = device.CollectGarbage();
     CHECK(collected);
-    CHECK(collected.Value() == 8U);
+    CHECK(collected.Value() == 9U);
+    CHECK(device.LiveResourceCount() == 0U);
+    CHECK(backend.LiveResourceCount() == 0U);
+    if (debugInfoQueue != nullptr) {
+        CHECK(HasCleanDebugInfoQueue(*debugInfoQueue));
+        ReleaseCom(debugInfoQueue);
+    }
+    return true;
+}
+
+bool TestDeferredResourceStress() {
+    static constexpr std::uint32_t IterationCount = 64U;
+    static constexpr std::uint32_t ResourcesPerIteration = 3U;
+
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Warp;
+    options.allowWarpFallback = false;
+
+    D3D11GraphicsBackend backend(options);
+    CHECK(backend.Initialize());
+    RhiDevice device(backend);
+    CHECK(device.Initialize());
+    GraphicsResourceFactory resources(device, backend);
+    GraphicsQueue queue(backend);
+    CHECK(queue.Initialize());
+
+    GraphicsCommandEncoder encoder;
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    CHECK(commands);
+    CHECK(commands.Value().CommandCount() == 0U);
+
+    FenceValue lastFence = 0U;
+    for (std::uint32_t iteration = 0U;
+         iteration < IterationCount;
+         ++iteration) {
+        BufferDescriptor bufferDescriptor;
+        bufferDescriptor.sizeBytes = 256U;
+        bufferDescriptor.usage = BufferUsage::Vertex;
+        Result<ResourceHandle> buffer = resources.CreateBuffer(bufferDescriptor);
+        CHECK(buffer);
+
+        TextureResourceDescriptor textureDescriptor;
+        textureDescriptor.width = 4U;
+        textureDescriptor.height = 4U;
+        textureDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
+        textureDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
+            TextureUsageBit(TextureUsage::CopyDestination);
+        Result<ResourceHandle> texture = resources.CreateTexture(textureDescriptor);
+        CHECK(texture);
+
+        SamplerDescriptor samplerDescriptor;
+        Result<ResourceHandle> sampler = resources.CreateSampler(samplerDescriptor);
+        CHECK(sampler);
+
+        Result<FenceValue> submitted = queue.Submit(commands.Value());
+        CHECK(submitted);
+        lastFence = submitted.Value();
+        CHECK(device.DestroyResource(buffer.Value(), lastFence));
+        CHECK(device.DestroyResource(texture.Value(), lastFence));
+        CHECK(device.DestroyResource(sampler.Value(), lastFence));
+        CHECK(device.LiveResourceCount() == 0U);
+        CHECK(device.PendingDestroyCount() ==
+            (iteration + 1U) * ResourcesPerIteration);
+    }
+
+    CHECK(backend.LiveResourceCount() ==
+        IterationCount * ResourcesPerIteration);
+    CHECK(backend.WaitForFence(lastFence));
+    Result<std::uint32_t> collected = device.CollectGarbage();
+    CHECK(collected);
+    CHECK(collected.Value() == IterationCount * ResourcesPerIteration);
+    CHECK(device.PendingDestroyCount() == 0U);
     CHECK(device.LiveResourceCount() == 0U);
     CHECK(backend.LiveResourceCount() == 0U);
     return true;
+}
+
+bool TestHardwareDeviceWhenAvailable() {
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Hardware;
+    options.allowWarpFallback = false;
+
+    D3D11GraphicsBackend backend(options);
+    Result<void> initialized = backend.Initialize();
+    if (!initialized) {
+        std::printf(
+            "D3D11 hardware-adapter regression skipped: %s\n",
+            initialized.GetStatus().message);
+        return true;
+    }
+    CHECK(backend.NativeFeatureLevel() >=
+        static_cast<std::uint32_t>(D3D_FEATURE_LEVEL_10_0));
+    CHECK(!backend.IsDeviceLost());
+    std::printf(
+        "D3D11 hardware adapter probe passed (feature level 0x%04X)\n",
+        backend.NativeFeatureLevel());
+    backend.Shutdown();
+    return TestOffscreenRectangleAndReadback(options);
+}
+
+bool TestBorrowedStatePreservation() {
+    D3D11BackendOptions hostOptions;
+    hostOptions.deviceMode = D3D11DeviceMode::Warp;
+    hostOptions.allowWarpFallback = false;
+    D3D11GraphicsBackend host(hostOptions);
+    CHECK(host.Initialize());
+
+    D3D11BackendOptions borrowedOptions;
+    borrowedOptions.deviceMode = D3D11DeviceMode::Borrowed;
+    borrowedOptions.statePolicy = D3D11StatePolicy::PreserveRequiredState;
+    borrowedOptions.borrowedDevice = host.NativeDevice();
+    borrowedOptions.borrowedImmediateContext = host.NativeImmediateContext();
+    const bool passed = TestOffscreenRectangleAndReadback(borrowedOptions);
+    host.Shutdown();
+    return passed;
+}
+
+bool TestFl10BorrowedDevice() {
+    const D3D_FEATURE_LEVEL requestedLevel = D3D_FEATURE_LEVEL_10_0;
+    ID3D11Device* device = nullptr;
+    ID3D11DeviceContext* context = nullptr;
+    D3D_FEATURE_LEVEL createdLevel = D3D_FEATURE_LEVEL_9_1;
+    const HRESULT created = D3D11CreateDevice(
+        nullptr,
+        D3D_DRIVER_TYPE_WARP,
+        nullptr,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+        &requestedLevel,
+        1U,
+        D3D11_SDK_VERSION,
+        &device,
+        &createdLevel,
+        &context);
+    CHECK(SUCCEEDED(created));
+    CHECK(device != nullptr && context != nullptr);
+    CHECK(createdLevel == D3D_FEATURE_LEVEL_10_0);
+
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Borrowed;
+    options.borrowedDevice = reinterpret_cast<std::uintptr_t>(device);
+    options.borrowedImmediateContext = reinterpret_cast<std::uintptr_t>(context);
+    D3D11GraphicsBackend probe(options);
+    CHECK(probe.Initialize());
+    CHECK(probe.NativeFeatureLevel() ==
+        static_cast<std::uint32_t>(D3D_FEATURE_LEVEL_10_0));
+    CHECK(probe.Capabilities().maxTextureDimension == 8192U);
+    probe.Shutdown();
+
+    const bool passed = TestOffscreenRectangleAndReadback(options);
+    ReleaseCom(context);
+    ReleaseCom(device);
+    return passed;
+}
+
+bool TestDebugLayerCleanWhenAvailable() {
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Warp;
+    options.allowWarpFallback = false;
+    options.enableDebugLayer = true;
+
+    D3D11GraphicsBackend probe(options);
+    Result<void> initialized = probe.Initialize();
+    if (!initialized) {
+        std::printf(
+            "D3D11 debug-layer regression skipped: %s\n",
+            initialized.GetStatus().message);
+        return true;
+    }
+    probe.Shutdown();
+    return TestOffscreenRectangleAndReadback(options);
 }
 
 } // namespace
 
 int main() {
     if (!TestWarpDeviceAndBorrowedMode()) return 1;
-    if (!TestOffscreenRectangleAndReadback()) return 1;
+    if (!TestHardwareDeviceWhenAvailable()) return 1;
+    D3D11BackendOptions ownedOptions;
+    ownedOptions.deviceMode = D3D11DeviceMode::Warp;
+    ownedOptions.allowWarpFallback = false;
+    if (!TestOffscreenRectangleAndReadback(ownedOptions)) return 1;
+    if (!TestDeferredResourceStress()) return 1;
+    if (!TestBorrowedStatePreservation()) return 1;
+    if (!TestFl10BorrowedDevice()) return 1;
+    if (!TestDebugLayerCleanWhenAvailable()) return 1;
     std::puts("Aero D3D11 backend tests passed");
     return 0;
 }

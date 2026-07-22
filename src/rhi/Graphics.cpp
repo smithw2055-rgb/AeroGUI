@@ -528,9 +528,8 @@ Base::Result<void> GraphicsCommandEncoder::UploadBuffer(
     if (!recording) {
         return recording;
     }
-    if (inRenderPass_ || !buffer.IsValid() ||
-        buffer.type != ResourceType::Buffer) {
-        return InvalidState("Buffer uploads require a valid buffer outside a render pass");
+    if (!buffer.IsValid() || buffer.type != ResourceType::Buffer) {
+        return InvalidState("Buffer uploads require a valid buffer");
     }
     GraphicsCommand command;
     command.kind = GraphicsCommandKind::UploadBuffer;
@@ -1115,9 +1114,6 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
     for (const GraphicsCommand& command : commands.Commands()) {
         switch (command.kind) {
         case GraphicsCommandKind::UploadBuffer: {
-            if (inPass) {
-                return InvalidState("Buffer upload is not allowed inside a render pass");
-            }
             Base::Result<void> uploadRange = ValidateUploadRange(
                 command.uploadOffset, command.uploadSize, uploadBytes.Size());
             if (!uploadRange) {
@@ -1126,6 +1122,8 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             const ResourceRecord* record = Find(command.resource0);
             if (record == nullptr ||
                 record->descriptor.type != ResourceType::Buffer ||
+                (inPass && record->descriptor.buffer.usage !=
+                    BufferUsage::Uniform) ||
                 command.resourceSize != command.uploadSize ||
                 command.resourceOffset > record->descriptor.buffer.sizeBytes ||
                 command.resourceSize >

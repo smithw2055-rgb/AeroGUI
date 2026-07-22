@@ -178,17 +178,84 @@ if(AERO_ENABLE_D3D11_BACKEND)
             "AERO_ENABLE_D3D11_BACKEND is only supported on Windows")
     endif()
 
+    set(_aero_d3d11_render_plan_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/shaders/RenderPlanRect.hlsl")
+    set(_aero_d3d11_shader_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
+    set(_aero_d3d11_render_plan_vs_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanVertexShader.hpp")
+    set(_aero_d3d11_render_plan_ps_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RenderPlanPixelShader.hpp")
+    set(_aero_d3d11_fxc_hints
+        "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+    file(GLOB _aero_d3d11_fxc_sdk_directories
+        LIST_DIRECTORIES true
+        "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+    list(APPEND _aero_d3d11_fxc_hints ${_aero_d3d11_fxc_sdk_directories})
+    find_program(AERO_D3D11_FXC_EXECUTABLE
+        NAMES fxc.exe
+        HINTS ${_aero_d3d11_fxc_hints}
+        DOC "Windows SDK fxc executable used to compile Aero D3D11 shaders")
+    if(NOT AERO_D3D11_FXC_EXECUTABLE)
+        message(FATAL_ERROR
+            "AERO_ENABLE_D3D11_BACKEND requires the Windows SDK x64 fxc.exe")
+    endif()
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_vs_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /Vn AeroD3D11RenderPlanVertexShader
+            /Fh "${_aero_d3d11_render_plan_vs_header}"
+            "${_aero_d3d11_render_plan_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_render_plan_ps_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /Vn AeroD3D11RenderPlanPixelShader
+            /Fh "${_aero_d3d11_render_plan_ps_header}"
+            "${_aero_d3d11_render_plan_shader_source}"
+        DEPENDS "${_aero_d3d11_render_plan_shader_source}"
+        VERBATIM)
+    add_custom_target(AeroD3D11RenderPlanShaders
+        DEPENDS
+            "${_aero_d3d11_render_plan_vs_header}"
+            "${_aero_d3d11_render_plan_ps_header}")
+
+    set(_aero_d3d11_backend_fragments
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendPrivate.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendDevice.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendResources.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendCommands1.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendCommands2.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendCommands3.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendReadback.inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rhi/d3d11/D3D11BackendSurface.inc")
+    set_source_files_properties(${_aero_d3d11_backend_fragments}
+        PROPERTIES HEADER_FILE_ONLY TRUE)
+    set_property(SOURCE src/rhi/d3d11/D3D11Backend.cpp APPEND
+        PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
+
     add_library(AeroRhiD3D11 STATIC
-        src/rhi/d3d11/D3D11Backend.cpp)
+        src/rhi/d3d11/D3D11Backend.cpp
+        src/rhi/d3d11/D3D11RenderPlanBackend.cpp
+        ${_aero_d3d11_backend_fragments})
     add_library(Aero::RhiD3D11 ALIAS AeroRhiD3D11)
+    add_dependencies(AeroRhiD3D11 AeroD3D11RenderPlanShaders)
 
     target_include_directories(AeroRhiD3D11
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${_aero_d3d11_shader_directory}")
     target_link_libraries(AeroRhiD3D11
         PUBLIC Aero::Rhi
-        PRIVATE d3d11 dxgi)
+        PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRhiD3D11 PROPERTIES
         CXX_STANDARD 17

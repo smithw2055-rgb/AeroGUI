@@ -189,6 +189,20 @@ Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
     if (descriptor.sampleCount != 1U) {
         return Unsupported("Initial D3D11 backend supports single-sample pipelines only");
     }
+    Base::Result<void> vertexReflection = ValidateDxbcReflection(
+        descriptor.vertexShader,
+        D3D11_SHVER_VERTEX_SHADER,
+        &descriptor.vertexLayout);
+    if (!vertexReflection) {
+        return vertexReflection;
+    }
+    Base::Result<void> fragmentReflection = ValidateDxbcReflection(
+        descriptor.fragmentShader,
+        D3D11_SHVER_PIXEL_SHADER,
+        nullptr);
+    if (!fragmentReflection) {
+        return fragmentReflection;
+    }
 
     Impl::ResourceRecord* record = impl_->Find(handle);
     if (record == nullptr || handle.type != ResourceType::Pipeline) {

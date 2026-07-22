@@ -78,6 +78,14 @@ public:
     }
     AERO_NODISCARD explicit operator bool() const noexcept { return value_ != nullptr; }
 
+    // Acquires a strong reference to an already-owned object. This is useful
+    // for transactional bookkeeping that must outlive a caller's temporary
+    // ownership until the transaction is committed or discarded.
+    AERO_NODISCARD static Ref FromBorrowed(T& value) noexcept {
+        value.AddRef();
+        return Ref(&value, Detail::AdoptRef);
+    }
+
     void Reset() noexcept {
         T* value = value_;
         value_ = nullptr;

@@ -14,6 +14,7 @@
 
 #include <windows.h>
 #include <d3d11.h>
+#include <d3dcompiler.h>
 #include <dxgi.h>
 
 // winspool.h exposes DeviceCapabilities as an ANSI/Unicode selection macro.
@@ -150,6 +151,84 @@ DXGI_FORMAT ToDxgiVertexFormat(VertexFormat format) noexcept {
         return DXGI_FORMAT_R16G16B16A16_UINT;
     }
     return DXGI_FORMAT_UNKNOWN;
+}
+
+Base::Result<void> ValidateDxbcReflection(
+    const ShaderDescriptor& shader,
+    D3D11_SHADER_VERSION_TYPE expectedType,
+    const VertexLayoutDescriptor* vertexLayout) noexcept {
+    ID3D11ShaderReflection* reflection = nullptr;
+    const HRESULT reflectionResult = D3DReflect(
+        shader.bytecode,
+        shader.bytecodeSize,
+        __uuidof(ID3D11ShaderReflection),
+        reinterpret_cast<void**>(&reflection));
+    if (FAILED(reflectionResult)) {
+        return InvalidArgument("D3D11 shader package is not valid DXBC");
+    }
+
+    D3D11_SHADER_DESC shaderDescriptor{};
+    const HRESULT descriptionResult = reflection->GetDesc(&shaderDescriptor);
+    if (FAILED(descriptionResult) ||
+        static_cast<D3D11_SHADER_VERSION_TYPE>(
+            D3D11_SHVER_GET_TYPE(shaderDescriptor.Version)) != expectedType) {
+        ReleaseCom(reflection);
+        return InvalidArgument("DXBC package has the wrong shader stage");
+    }
+
+    if (vertexLayout != nullptr) {
+        std::uint32_t vertexAttributeParameterCount = 0U;
+        for (UINT parameterIndex = 0U;
+             parameterIndex < shaderDescriptor.InputParameters;
+             ++parameterIndex) {
+            D3D11_SIGNATURE_PARAMETER_DESC parameter{};
+            if (FAILED(reflection->GetInputParameterDesc(
+                    parameterIndex, &parameter))) {
+                ReleaseCom(reflection);
+                return InvalidArgument("DXBC vertex input reflection failed");
+            }
+            if (parameter.SystemValueType == D3D_NAME_UNDEFINED) {
+                ++vertexAttributeParameterCount;
+            }
+        }
+        if (vertexAttributeParameterCount != vertexLayout->attributeCount) {
+            ReleaseCom(reflection);
+            return InvalidArgument(
+                "DXBC vertex input signature does not match the vertex layout");
+        }
+
+        for (std::uint32_t attributeIndex = 0U;
+             attributeIndex < vertexLayout->attributeCount;
+             ++attributeIndex) {
+            const VertexAttribute& attribute =
+                vertexLayout->attributes[attributeIndex];
+            bool found = false;
+            for (UINT parameterIndex = 0U;
+                 parameterIndex < shaderDescriptor.InputParameters;
+                 ++parameterIndex) {
+                D3D11_SIGNATURE_PARAMETER_DESC parameter{};
+                if (FAILED(reflection->GetInputParameterDesc(
+                        parameterIndex, &parameter))) {
+                    ReleaseCom(reflection);
+                    return InvalidArgument("DXBC vertex input reflection failed");
+                }
+                if (parameter.SemanticName != nullptr &&
+                    std::strcmp(parameter.SemanticName, "ATTR") == 0 &&
+                    parameter.SemanticIndex == attribute.location) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                ReleaseCom(reflection);
+                return InvalidArgument(
+                    "DXBC vertex input semantic does not match the vertex layout");
+            }
+        }
+    }
+
+    ReleaseCom(reflection);
+    return {};
 }
 
 D3D11_PRIMITIVE_TOPOLOGY ToD3DTopology(PrimitiveTopology topology) noexcept {
@@ -490,6 +569,290 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
+    struct SubmissionStateCache final {
+        ResourceHandle pipeline;
+        ID3D11Buffer* vertexBuffers[
+            D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        UINT vertexStrides[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        UINT vertexOffsets[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11Buffer* indexBuffer = nullptr;
+        DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
+        UINT indexOffset = 0U;
+        ID3D11Buffer* vertexConstantBuffers[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        ID3D11Buffer* pixelConstantBuffers[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* pixelShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11SamplerState* pixelSamplers[
+            D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]{};
+        D3D11_VIEWPORT viewport{};
+        bool hasViewport = false;
+        D3D11_RECT scissor{};
+        bool hasScissor = false;
+
+        void Reset() noexcept {
+            pipeline = {};
+            std::memset(vertexBuffers, 0, sizeof(vertexBuffers));
+            std::memset(vertexStrides, 0, sizeof(vertexStrides));
+            std::memset(vertexOffsets, 0, sizeof(vertexOffsets));
+            indexBuffer = nullptr;
+            indexFormat = DXGI_FORMAT_UNKNOWN;
+            indexOffset = 0U;
+            std::memset(
+                vertexConstantBuffers, 0, sizeof(vertexConstantBuffers));
+            std::memset(
+                pixelConstantBuffers, 0, sizeof(pixelConstantBuffers));
+            std::memset(
+                pixelShaderResources, 0, sizeof(pixelShaderResources));
+            std::memset(pixelSamplers, 0, sizeof(pixelSamplers));
+            viewport = {};
+            hasViewport = false;
+            scissor = {};
+            hasScissor = false;
+        }
+
+        void ResetPixelShaderResources() noexcept {
+            std::memset(
+                pixelShaderResources, 0, sizeof(pixelShaderResources));
+        }
+    };
+
+    // The intentionally bounded state set changed by SubmitGraphics(). It is
+    // used only by the explicit PreserveRequiredState integration contract;
+    // HostResetsState avoids the Get* calls entirely.
+    struct RequiredStateSnapshot final {
+        ID3D11InputLayout* inputLayout = nullptr;
+        ID3D11Buffer* vertexBuffers[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        UINT vertexStrides[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        UINT vertexOffsets[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11Buffer* indexBuffer = nullptr;
+        DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
+        UINT indexOffset = 0U;
+        D3D11_PRIMITIVE_TOPOLOGY topology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+
+        ID3D11VertexShader* vertexShader = nullptr;
+        ID3D11ClassInstance* vertexClassInstances[D3D11_SHADER_MAX_INTERFACES]{};
+        UINT vertexClassInstanceCount = 0U;
+        ID3D11PixelShader* pixelShader = nullptr;
+        ID3D11ClassInstance* pixelClassInstances[D3D11_SHADER_MAX_INTERFACES]{};
+        UINT pixelClassInstanceCount = 0U;
+        ID3D11Buffer* vertexConstantBuffers[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        ID3D11Buffer* pixelConstantBuffers[
+            D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* vertexShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* pixelShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* geometryShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* hullShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* domainShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11ShaderResourceView* computeShaderResources[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        ID3D11SamplerState* pixelSamplers[
+            D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT]{};
+
+        ID3D11RasterizerState* rasterizerState = nullptr;
+        D3D11_VIEWPORT viewports[
+            D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE]{};
+        UINT viewportCount = 0U;
+        D3D11_RECT scissors[
+            D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE]{};
+        UINT scissorCount = 0U;
+        ID3D11BlendState* blendState = nullptr;
+        FLOAT blendFactor[4]{};
+        UINT sampleMask = UINT_MAX;
+        ID3D11DepthStencilState* depthStencilState = nullptr;
+        UINT stencilReference = 0U;
+        ID3D11RenderTargetView* renderTargets[
+            D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT]{};
+        ID3D11DepthStencilView* depthStencilView = nullptr;
+        bool captured = false;
+
+        RequiredStateSnapshot() noexcept = default;
+        RequiredStateSnapshot(const RequiredStateSnapshot&) = delete;
+        RequiredStateSnapshot& operator=(const RequiredStateSnapshot&) = delete;
+
+        ~RequiredStateSnapshot() noexcept {
+            Release();
+        }
+
+        void Capture(ID3D11DeviceContext* context) noexcept {
+            if (context == nullptr || captured) {
+                return;
+            }
+
+            context->IAGetInputLayout(&inputLayout);
+            context->IAGetVertexBuffers(
+                0U,
+                D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT,
+                vertexBuffers,
+                vertexStrides,
+                vertexOffsets);
+            context->IAGetIndexBuffer(&indexBuffer, &indexFormat, &indexOffset);
+            context->IAGetPrimitiveTopology(&topology);
+
+            vertexClassInstanceCount = D3D11_SHADER_MAX_INTERFACES;
+            context->VSGetShader(
+                &vertexShader, vertexClassInstances, &vertexClassInstanceCount);
+            pixelClassInstanceCount = D3D11_SHADER_MAX_INTERFACES;
+            context->PSGetShader(
+                &pixelShader, pixelClassInstances, &pixelClassInstanceCount);
+            context->VSGetConstantBuffers(
+                0U,
+                D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT,
+                vertexConstantBuffers);
+            context->PSGetConstantBuffers(
+                0U,
+                D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT,
+                pixelConstantBuffers);
+            context->VSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                vertexShaderResources);
+            context->PSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                pixelShaderResources);
+            context->GSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                geometryShaderResources);
+            context->HSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                hullShaderResources);
+            context->DSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                domainShaderResources);
+            context->CSGetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                computeShaderResources);
+            context->PSGetSamplers(
+                0U,
+                D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT,
+                pixelSamplers);
+
+            context->RSGetState(&rasterizerState);
+            viewportCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+            context->RSGetViewports(&viewportCount, viewports);
+            scissorCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+            context->RSGetScissorRects(&scissorCount, scissors);
+            context->OMGetBlendState(&blendState, blendFactor, &sampleMask);
+            context->OMGetDepthStencilState(&depthStencilState, &stencilReference);
+            context->OMGetRenderTargets(
+                D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT,
+                renderTargets,
+                &depthStencilView);
+            captured = true;
+        }
+
+        void Restore(ID3D11DeviceContext* context) noexcept {
+            if (!captured || context == nullptr) {
+                return;
+            }
+
+            context->IASetInputLayout(inputLayout);
+            context->IASetVertexBuffers(
+                0U,
+                D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT,
+                vertexBuffers,
+                vertexStrides,
+                vertexOffsets);
+            context->IASetIndexBuffer(indexBuffer, indexFormat, indexOffset);
+            context->IASetPrimitiveTopology(topology);
+            context->VSSetShader(
+                vertexShader, vertexClassInstances, vertexClassInstanceCount);
+            context->PSSetShader(
+                pixelShader, pixelClassInstances, pixelClassInstanceCount);
+            context->VSSetConstantBuffers(
+                0U,
+                D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT,
+                vertexConstantBuffers);
+            context->PSSetConstantBuffers(
+                0U,
+                D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT,
+                pixelConstantBuffers);
+            context->VSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                vertexShaderResources);
+            context->PSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                pixelShaderResources);
+            context->GSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                geometryShaderResources);
+            context->HSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                hullShaderResources);
+            context->DSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                domainShaderResources);
+            context->CSSetShaderResources(
+                0U,
+                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
+                computeShaderResources);
+            context->PSSetSamplers(
+                0U,
+                D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT,
+                pixelSamplers);
+            context->RSSetState(rasterizerState);
+            context->RSSetViewports(viewportCount, viewports);
+            context->RSSetScissorRects(scissorCount, scissors);
+            context->OMSetBlendState(blendState, blendFactor, sampleMask);
+            context->OMSetDepthStencilState(depthStencilState, stencilReference);
+            context->OMSetRenderTargets(
+                D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT,
+                renderTargets,
+                depthStencilView);
+            Release();
+        }
+
+    private:
+        template<class T, std::size_t Count>
+        static void ReleaseArray(T* (&values)[Count]) noexcept {
+            for (T*& value : values) {
+                ReleaseCom(value);
+            }
+        }
+
+        void Release() noexcept {
+            ReleaseCom(inputLayout);
+            ReleaseArray(vertexBuffers);
+            ReleaseCom(indexBuffer);
+            ReleaseCom(vertexShader);
+            ReleaseArray(vertexClassInstances);
+            ReleaseCom(pixelShader);
+            ReleaseArray(pixelClassInstances);
+            ReleaseArray(vertexConstantBuffers);
+            ReleaseArray(pixelConstantBuffers);
+            ReleaseArray(vertexShaderResources);
+            ReleaseArray(pixelShaderResources);
+            ReleaseArray(geometryShaderResources);
+            ReleaseArray(hullShaderResources);
+            ReleaseArray(domainShaderResources);
+            ReleaseArray(computeShaderResources);
+            ReleaseArray(pixelSamplers);
+            ReleaseCom(rasterizerState);
+            ReleaseCom(blendState);
+            ReleaseCom(depthStencilState);
+            ReleaseArray(renderTargets);
+            ReleaseCom(depthStencilView);
+            captured = false;
+        }
+    };
+
     explicit Impl(Base::IAllocator* allocator) noexcept
         : resources(allocator), pendingFences(allocator) {}
 
@@ -507,15 +870,51 @@ struct D3D11GraphicsBackend::Impl final {
     mutable FenceValue completedFence = 0U;
     mutable bool deviceLost = false;
     bool initialized = false;
+    bool supportsTimestampQueries = false;
     bool inRenderPass = false;
+    SubmissionStateCache submissionState;
+    ID3D11Texture2D* activeColorTextures[MaxColorAttachments]{};
+    ID3D11Texture2D* activeDepthStencilTexture = nullptr;
+
+    void ClearActiveAttachments() noexcept {
+        for (ID3D11Texture2D*& texture : activeColorTextures) {
+            texture = nullptr;
+        }
+        activeDepthStencilTexture = nullptr;
+    }
+
+    bool IsActiveAttachment(const ID3D11Texture2D* texture) const noexcept {
+        if (texture == nullptr) {
+            return false;
+        }
+        for (const ID3D11Texture2D* active : activeColorTextures) {
+            if (active == texture) {
+                return true;
+            }
+        }
+        return activeDepthStencilTexture == texture;
+    }
+
+    void ClearShaderResourceBindings() noexcept {
+        ID3D11ShaderResourceView* nullViews[
+            D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
+        context->VSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+        context->PSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+        context->GSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+        context->HSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+        context->DSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+        context->CSSetShaderResources(
+            0U, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, nullViews);
+    }
 
     void Reset() noexcept {
         if (context != nullptr) {
-            ID3D11ShaderResourceView* nullViews[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT]{};
-            context->PSSetShaderResources(
-                0U,
-                D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT,
-                nullViews);
+            ClearShaderResourceBindings();
             context->OMSetRenderTargets(0U, nullptr, nullptr);
             context->ClearState();
             context->Flush();
@@ -529,7 +928,10 @@ struct D3D11GraphicsBackend::Impl final {
         completedFence = 0U;
         deviceLost = false;
         initialized = false;
+        supportsTimestampQueries = false;
         inRenderPass = false;
+        submissionState.Reset();
+        ClearActiveAttachments();
     }
 
     ResourceRecord* Find(ResourceHandle handle) noexcept {

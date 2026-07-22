@@ -37,6 +37,7 @@
             }
 
             ID3D11RenderTargetView* renderTargets[MaxColorAttachments]{};
+            ID3D11Texture2D* colorTextures[MaxColorAttachments]{};
             for (std::uint32_t index = 0U;
                  index < command.renderPass.colorAttachmentCount;
                  ++index) {
@@ -48,18 +49,11 @@
                         InvalidArgument("D3D11 color attachment is not configured"));
                 }
                 renderTargets[index] = record->renderTargetView;
-                if (attachment.load == LoadOperation::Clear) {
-                    const FLOAT color[4] = {
-                        attachment.clearColor.red,
-                        attachment.clearColor.green,
-                        attachment.clearColor.blue,
-                        attachment.clearColor.alpha};
-                    impl_->context->ClearRenderTargetView(
-                        record->renderTargetView, color);
-                }
+                colorTextures[index] = record->texture;
             }
 
             ID3D11DepthStencilView* depthStencil = nullptr;
+            ID3D11Texture2D* depthStencilTexture = nullptr;
             if (command.renderPass.hasDepthStencil) {
                 Impl::ResourceRecord* record = impl_->Find(
                     command.renderPass.depthStencil.target);
@@ -68,6 +62,36 @@
                         InvalidArgument("D3D11 depth-stencil attachment is not configured"));
                 }
                 depthStencil = record->depthStencilView;
+                depthStencilTexture = record->texture;
+            }
+
+            // Explicitly clear every shader-stage SRV before writing an attachment. This
+            // keeps the D3D11 runtime from implicitly resolving RT/SRV hazards
+            // (and keeps the debug layer clean when the host previously used
+            // this immediate context).
+            impl_->ClearShaderResourceBindings();
+            impl_->submissionState.ResetPixelShaderResources();
+            impl_->context->OMSetRenderTargets(
+                command.renderPass.colorAttachmentCount,
+                renderTargets,
+                depthStencil);
+
+            for (std::uint32_t index = 0U;
+                 index < command.renderPass.colorAttachmentCount;
+                 ++index) {
+                const ColorAttachmentDescriptor& attachment =
+                    command.renderPass.colorAttachments[index];
+                if (attachment.load == LoadOperation::Clear) {
+                    const FLOAT color[4] = {
+                        attachment.clearColor.red,
+                        attachment.clearColor.green,
+                        attachment.clearColor.blue,
+                        attachment.clearColor.alpha};
+                    impl_->context->ClearRenderTargetView(
+                        renderTargets[index], color);
+                }
+            }
+            if (command.renderPass.hasDepthStencil) {
                 UINT clearFlags = 0U;
                 if (command.renderPass.depthStencil.depthLoad ==
                     LoadOperation::Clear) {
@@ -87,10 +111,10 @@
                 }
             }
 
-            impl_->context->OMSetRenderTargets(
-                command.renderPass.colorAttachmentCount,
-                renderTargets,
-                depthStencil);
+            for (std::uint32_t index = 0U; index < MaxColorAttachments; ++index) {
+                impl_->activeColorTextures[index] = colorTextures[index];
+            }
+            impl_->activeDepthStencilTexture = depthStencilTexture;
             D3D11_VIEWPORT viewport{};
             viewport.TopLeftX = static_cast<FLOAT>(command.renderPass.renderArea.x);
             viewport.TopLeftY = static_cast<FLOAT>(command.renderPass.renderArea.y);
@@ -98,7 +122,18 @@
             viewport.Height = static_cast<FLOAT>(command.renderPass.renderArea.height);
             viewport.MinDepth = 0.0F;
             viewport.MaxDepth = 1.0F;
-            impl_->context->RSSetViewports(1U, &viewport);
+            const D3D11_VIEWPORT& cachedViewport = impl_->submissionState.viewport;
+            if (!impl_->submissionState.hasViewport ||
+                cachedViewport.TopLeftX != viewport.TopLeftX ||
+                cachedViewport.TopLeftY != viewport.TopLeftY ||
+                cachedViewport.Width != viewport.Width ||
+                cachedViewport.Height != viewport.Height ||
+                cachedViewport.MinDepth != viewport.MinDepth ||
+                cachedViewport.MaxDepth != viewport.MaxDepth) {
+                impl_->context->RSSetViewports(1U, &viewport);
+                impl_->submissionState.viewport = viewport;
+                impl_->submissionState.hasViewport = true;
+            }
             impl_->inRenderPass = true;
             break;
         }
@@ -108,8 +143,9 @@
                     InvalidState("D3D11 render-pass stack underflow"));
             }
             impl_->context->OMSetRenderTargets(0U, nullptr, nullptr);
-            ID3D11ShaderResourceView* nullViews[16]{};
-            impl_->context->PSSetShaderResources(0U, 16U, nullViews);
+            impl_->ClearShaderResourceBindings();
+            impl_->submissionState.ResetPixelShaderResources();
+            impl_->ClearActiveAttachments();
             impl_->inRenderPass = false;
             break;
         }
@@ -124,16 +160,19 @@
                 return failSubmission(
                     InvalidArgument("D3D11 pipeline is not configured"));
             }
-            impl_->context->VSSetShader(record->vertexShader, nullptr, 0U);
-            impl_->context->PSSetShader(record->pixelShader, nullptr, 0U);
-            impl_->context->IASetInputLayout(record->inputLayout);
-            impl_->context->IASetPrimitiveTopology(record->topology);
-            impl_->context->RSSetState(record->rasterizerState);
-            const FLOAT blendFactor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
-            impl_->context->OMSetBlendState(
-                record->blendState, blendFactor, UINT_MAX);
-            impl_->context->OMSetDepthStencilState(
-                record->depthStencilState, 0U);
+            if (impl_->submissionState.pipeline != record->handle) {
+                impl_->context->VSSetShader(record->vertexShader, nullptr, 0U);
+                impl_->context->PSSetShader(record->pixelShader, nullptr, 0U);
+                impl_->context->IASetInputLayout(record->inputLayout);
+                impl_->context->IASetPrimitiveTopology(record->topology);
+                impl_->context->RSSetState(record->rasterizerState);
+                const FLOAT blendFactor[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+                impl_->context->OMSetBlendState(
+                    record->blendState, blendFactor, UINT_MAX);
+                impl_->context->OMSetDepthStencilState(
+                    record->depthStencilState, 0U);
+                impl_->submissionState.pipeline = record->handle;
+            }
             impl_->currentPipeline = record->handle;
             break;
         }
@@ -157,8 +196,15 @@
             }
             const UINT stride = pipeline->vertexLayout.buffers[command.slot].stride;
             ID3D11Buffer* nativeBuffer = buffer->buffer;
-            impl_->context->IASetVertexBuffers(
-                command.slot, 1U, &nativeBuffer, &stride, &offset);
+            if (impl_->submissionState.vertexBuffers[command.slot] != nativeBuffer ||
+                impl_->submissionState.vertexStrides[command.slot] != stride ||
+                impl_->submissionState.vertexOffsets[command.slot] != offset) {
+                impl_->context->IASetVertexBuffers(
+                    command.slot, 1U, &nativeBuffer, &stride, &offset);
+                impl_->submissionState.vertexBuffers[command.slot] = nativeBuffer;
+                impl_->submissionState.vertexStrides[command.slot] = stride;
+                impl_->submissionState.vertexOffsets[command.slot] = offset;
+            }
             break;
         }
         case GraphicsCommandKind::BindIndexBuffer: {

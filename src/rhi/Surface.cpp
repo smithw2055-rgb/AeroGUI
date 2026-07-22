@@ -682,9 +682,6 @@ Base::Result<void> HostedGraphicsBackend::SubmitGraphics(
         Base::Result<void> dispatched;
         switch (command.kind) {
         case GraphicsCommandKind::UploadBuffer: {
-            if (inRenderPass) {
-                return InvalidState("Buffer upload is not allowed inside a render pass");
-            }
             if (!command.resource0.IsValid() ||
                 command.resource0.type != ResourceType::Buffer ||
                 command.uploadOffset > uploadSpan.Size() ||

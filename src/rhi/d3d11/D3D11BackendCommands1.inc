@@ -47,14 +47,21 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
 
     impl_->currentPipeline = {};
     impl_->inRenderPass = false;
+    impl_->submissionState.Reset();
     const Base::Span<const GraphicsCommand> commandSpan = commands.Commands();
     const Base::Span<const std::uint8_t> uploadSpan = commands.UploadBytes();
+    Impl::RequiredStateSnapshot preservedState;
+    if (options_.statePolicy == D3D11StatePolicy::PreserveRequiredState) {
+        preservedState.Capture(impl_->context);
+    }
 
     auto failSubmission = [&](Base::Status status) noexcept -> Base::Result<void> {
         if (impl_->inRenderPass) {
             impl_->context->OMSetRenderTargets(0U, nullptr, nullptr);
             impl_->inRenderPass = false;
         }
+        impl_->ClearActiveAttachments();
+        preservedState.Restore(impl_->context);
         ReleaseCom(query);
         return status;
     };
@@ -62,14 +69,18 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
     for (const GraphicsCommand& command : commandSpan) {
         switch (command.kind) {
         case GraphicsCommandKind::UploadBuffer: {
-            if (impl_->inRenderPass ||
-                command.uploadOffset > uploadSpan.Size() ||
-                command.uploadSize > uploadSpan.Size() - command.uploadOffset) {
+            if (command.uploadOffset > uploadSpan.Size()) {
                 return failSubmission(
-                    InvalidState("D3D11 buffer upload command is invalid"));
+                    InvalidState("D3D11 buffer upload offset is invalid"));
+            }
+            if (command.uploadSize > uploadSpan.Size() - command.uploadOffset) {
+                return failSubmission(
+                    InvalidState("D3D11 buffer upload size is invalid"));
             }
             Impl::ResourceRecord* record = impl_->Find(command.resource0);
             if (record == nullptr || record->buffer == nullptr ||
+                (impl_->inRenderPass && record->baseDescriptor.buffer.usage !=
+                    BufferUsage::Uniform) ||
                 command.resourceOffset > record->baseDescriptor.buffer.sizeBytes ||
                 command.uploadSize >
                     record->baseDescriptor.buffer.sizeBytes - command.resourceOffset) {

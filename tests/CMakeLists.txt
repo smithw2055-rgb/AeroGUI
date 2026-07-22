@@ -170,9 +170,62 @@ aero_apply_compiler_options(AeroSurfaceBackendTests)
 add_test(NAME AeroSurfaceBackendTests COMMAND AeroSurfaceBackendTests)
 
 if(WIN32 AND TARGET AeroRhiD3D11)
+    set(_aero_d3d11_fxc_hints
+        "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+    file(GLOB _aero_d3d11_fxc_sdk_directories
+        LIST_DIRECTORIES true
+        "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
+    list(APPEND _aero_d3d11_fxc_hints ${_aero_d3d11_fxc_sdk_directories})
+    find_program(AERO_D3D11_FXC_EXECUTABLE
+        NAMES fxc.exe
+        HINTS ${_aero_d3d11_fxc_hints}
+        DOC "Windows SDK fxc executable used to compile Aero D3D11 test shaders")
+    if(NOT AERO_D3D11_FXC_EXECUTABLE)
+        message(FATAL_ERROR
+            "AeroD3D11BackendTests requires the Windows SDK x64 fxc.exe")
+    endif()
+
+    set(_aero_d3d11_shader_source
+        "${CMAKE_CURRENT_SOURCE_DIR}/unit/shaders/D3D11Rectangle.hlsl")
+    set(_aero_d3d11_shader_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/d3d11-shaders")
+    set(_aero_d3d11_vertex_shader_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RectangleVertexShader.hpp")
+    set(_aero_d3d11_pixel_shader_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11RectanglePixelShader.hpp")
+
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_vertex_shader_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T vs_4_0 /E vs_main
+            /Vn AeroD3D11RectangleVertexShader
+            /Fh "${_aero_d3d11_vertex_shader_header}"
+            "${_aero_d3d11_shader_source}"
+        DEPENDS "${_aero_d3d11_shader_source}"
+        VERBATIM)
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_pixel_shader_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_d3d11_shader_directory}"
+        COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+            /T ps_4_0 /E ps_main
+            /Vn AeroD3D11RectanglePixelShader
+            /Fh "${_aero_d3d11_pixel_shader_header}"
+            "${_aero_d3d11_shader_source}"
+        DEPENDS "${_aero_d3d11_shader_source}"
+        VERBATIM)
+    add_custom_target(AeroD3D11TestShaders
+        DEPENDS
+            "${_aero_d3d11_vertex_shader_header}"
+            "${_aero_d3d11_pixel_shader_header}")
+
     add_executable(AeroD3D11BackendTests unit/D3D11BackendTests.cpp)
-    target_link_libraries(
-        AeroD3D11BackendTests PRIVATE Aero::RhiD3D11 d3dcompiler)
+    add_dependencies(AeroD3D11BackendTests AeroD3D11TestShaders)
+    target_include_directories(AeroD3D11BackendTests PRIVATE
+        "${_aero_d3d11_shader_directory}")
+    target_link_libraries(AeroD3D11BackendTests PRIVATE Aero::RhiD3D11)
     target_compile_features(AeroD3D11BackendTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11BackendTests PROPERTIES
         CXX_STANDARD 17

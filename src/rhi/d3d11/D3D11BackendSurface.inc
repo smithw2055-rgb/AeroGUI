@@ -5,6 +5,7 @@ struct D3D11SwapChainSurface::Impl final {
     std::uint64_t activeFrameSerial = 0U;
     bool ownsSwapChain = false;
     bool lost = false;
+    bool deviceLost = false;
     bool initialized = false;
 
     ~Impl() noexcept {
@@ -27,6 +28,12 @@ struct D3D11SwapChainSurface::Impl final {
     void Reset() noexcept {
         ResetSwapChain();
         lost = false;
+        deviceLost = false;
+    }
+
+    void MarkDeviceLost() noexcept {
+        lost = true;
+        deviceLost = true;
     }
 
     Base::Result<void> VerifyBackBuffer(
@@ -41,6 +48,9 @@ struct D3D11SwapChainSurface::Impl final {
             __uuidof(ID3D11Device),
             reinterpret_cast<void**>(&swapChainDevice));
         if (FAILED(result)) {
+            if (IsDeviceRemoval(result)) {
+                MarkDeviceLost();
+            }
             return StatusFromHResult(
                 result,
                 "Failed to query the D3D11 swap-chain device",
@@ -56,6 +66,9 @@ struct D3D11SwapChainSurface::Impl final {
         DXGI_SWAP_CHAIN_DESC swapChainDescriptor{};
         result = swapChain->GetDesc(&swapChainDescriptor);
         if (FAILED(result)) {
+            if (IsDeviceRemoval(result)) {
+                MarkDeviceLost();
+            }
             return StatusFromHResult(
                 result,
                 "Failed to query the D3D11 swap-chain descriptor",
@@ -75,6 +88,9 @@ struct D3D11SwapChainSurface::Impl final {
             __uuidof(ID3D11Texture2D),
             reinterpret_cast<void**>(&backBuffer));
         if (FAILED(result)) {
+            if (IsDeviceRemoval(result)) {
+                MarkDeviceLost();
+            }
             return StatusFromHResult(
                 result,
                 "Failed to acquire the D3D11 swap-chain backbuffer",
@@ -195,6 +211,9 @@ struct D3D11SwapChainSurface::Impl final {
 
         if (FAILED(result) || createdSwapChain == nullptr) {
             ReleaseCom(createdSwapChain);
+            if (IsDeviceRemoval(result)) {
+                MarkDeviceLost();
+            }
             return StatusFromHResult(
                 result,
                 "Failed to create or borrow a D3D11 swap chain",
@@ -272,7 +291,11 @@ Base::Result<void> D3D11SwapChainSurface::CreateSurface(
         }
         impl_ = new (memory) Impl();
     }
-    return impl_->Create(*graphics_, descriptor);
+    Base::Result<void> created = impl_->Create(*graphics_, descriptor);
+    if (!created && impl_->deviceLost) {
+        graphics_->MarkDeviceLost();
+    }
+    return created;
 }
 
 void D3D11SwapChainSurface::DestroySurface() noexcept {
@@ -312,7 +335,8 @@ Base::Result<void> D3D11SwapChainSurface::ResizeSurface(
         0U);
     if (FAILED(result)) {
         if (IsDeviceRemoval(result)) {
-            impl_->lost = true;
+            impl_->MarkDeviceLost();
+            graphics_->MarkDeviceLost();
         }
         return StatusFromHResult(
             result,
@@ -327,6 +351,9 @@ Base::Result<void> D3D11SwapChainSurface::ResizeSurface(
     Base::Result<void> verified = impl_->VerifyBackBuffer(*device, candidate);
     if (!verified) {
         impl_->lost = true;
+        if (impl_->deviceLost) {
+            graphics_->MarkDeviceLost();
+        }
         return verified;
     }
     impl_->descriptor = candidate;
@@ -353,7 +380,8 @@ D3D11SwapChainSurface::AcquireSurfaceTarget(
         reinterpret_cast<void**>(&backBuffer));
     if (FAILED(result)) {
         if (IsDeviceRemoval(result)) {
-            impl_->lost = true;
+            impl_->MarkDeviceLost();
+            graphics_->MarkDeviceLost();
         }
         return StatusFromHResult(
             result,
@@ -407,7 +435,8 @@ Base::Result<void> D3D11SwapChainSurface::PresentSurface(
     impl_->ReleaseActiveFrame();
     if (FAILED(result)) {
         if (IsDeviceRemoval(result)) {
-            impl_->lost = true;
+            impl_->MarkDeviceLost();
+            graphics_->MarkDeviceLost();
         }
         return StatusFromHResult(
             result,

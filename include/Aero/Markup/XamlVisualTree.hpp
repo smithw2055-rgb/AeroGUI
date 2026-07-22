@@ -84,6 +84,8 @@ public:
 
 private:
     struct Edge final {
+        Base::Ref<Base::Object> parentOwner;
+        Base::Ref<Base::Object> childOwner;
         Core::LayoutElement* parent = nullptr;
         Core::LayoutElement* child = nullptr;
         Core::ContentPresenter* presenter = nullptr;

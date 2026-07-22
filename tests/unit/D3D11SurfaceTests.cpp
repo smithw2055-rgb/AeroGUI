@@ -8,9 +8,12 @@
 #endif
 
 #include <windows.h>
+#include <dxgi.h>
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 namespace {
 
@@ -110,6 +113,330 @@ private:
     HINSTANCE instance_ = nullptr;
     ATOM atom_ = 0U;
     HWND window_ = nullptr;
+};
+
+class PlanPanel final : public RenderElement {
+public:
+    PlanPanel(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& registry,
+        TypeId type,
+        bool requestInstancedStroke = false) noexcept
+        : RenderElement(dispatcher, registry, type),
+          requestInstancedStroke_(requestInstancedStroke) {}
+
+protected:
+    Result<Size> MeasureOverride(Size available) noexcept override {
+        for (LayoutElement* child : LayoutChildren()) {
+            Result<void> measured = MeasureChild(*child, available);
+            if (!measured) return measured.GetStatus();
+        }
+        return available;
+    }
+
+    Result<Size> ArrangeOverride(Size finalSize) noexcept override {
+        for (LayoutElement* child : LayoutChildren()) {
+            Result<void> arranged = ArrangeChild(*child, {8.0, 6.0, 24.0, 16.0});
+            if (!arranged) return arranged.GetStatus();
+        }
+        return finalSize;
+    }
+
+    Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override {
+        Result<void> result = builder.PushClip(
+            {0.0, 0.0, RenderSize().width, RenderSize().height});
+        if (!result) return result;
+        if (requestInstancedStroke_) {
+            result = builder.StrokeRect(
+                {4.0, 3.0, 12.0, 10.0}, {1.0F, 0.0F, 0.0F, 1.0F}, 2.0);
+            if (!result) return result;
+            return builder.PopClip();
+        }
+        result = builder.FillRect(
+            {0.0, 0.0, RenderSize().width, RenderSize().height},
+            {0.0F, 0.0F, 1.0F, 1.0F});
+        if (!result) return result;
+        result = builder.PushOpacity(0.5);
+        if (!result) return result;
+        result = builder.FillRect(
+            {16.0, 12.0, 24.0, 20.0}, {1.0F, 0.0F, 0.0F, 1.0F});
+        if (!result) return result;
+        result = builder.PopOpacity();
+        if (!result) return result;
+        return builder.PopClip();
+    }
+
+private:
+    bool requestInstancedStroke_ = false;
+};
+
+class PlanElement final : public RenderElement {
+public:
+    PlanElement(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& registry,
+        TypeId type,
+        bool requestNonAxisAlignedClip = false) noexcept
+        : RenderElement(dispatcher, registry, type),
+          requestNonAxisAlignedClip_(requestNonAxisAlignedClip) {}
+
+protected:
+    Result<Size> MeasureOverride(Size available) noexcept override {
+        return Size{
+            std::fmin(24.0, available.width),
+            std::fmin(16.0, available.height)};
+    }
+
+    Result<Size> ArrangeOverride(Size finalSize) noexcept override {
+        return finalSize;
+    }
+
+    Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override {
+        Result<void> result = builder.PushTransform(
+            {1.5, 0.0, 0.0, 1.0, 4.0, 2.0});
+        if (!result) return result;
+        if (requestNonAxisAlignedClip_) {
+            result = builder.PushTransform(
+                {0.7071067811865476, 0.7071067811865476,
+                 -0.7071067811865476, 0.7071067811865476, 0.0, 0.0});
+            if (!result) return result;
+            result = builder.PushClip({0.0, 0.0, 6.0, 8.0});
+            if (!result) return result;
+        }
+        result = builder.FillRect(
+            {0.0, 0.0, 12.0, 8.0}, {0.0F, 1.0F, 0.0F, 1.0F});
+        if (!result) return result;
+        if (requestNonAxisAlignedClip_) {
+            result = builder.PopClip();
+            if (!result) return result;
+            result = builder.PopTransform();
+            if (!result) return result;
+        }
+        return builder.PopTransform();
+    }
+
+private:
+    bool requestNonAxisAlignedClip_ = false;
+};
+
+bool BuildPlan(
+    RenderPlan& output,
+    std::uint32_t width,
+    std::uint32_t height,
+    bool requestNonAxisAlignedClip = false,
+    bool requestInstancedStroke = false) noexcept {
+    TypeRegistry types;
+    DependencyPropertyRegistry properties(types);
+    Dispatcher dispatcher;
+    const StringView ns("urn:aero-d3d11-test");
+    const TypeId objectType = MakeTypeId(ns, StringView("Object"));
+    const TypeId panelType = MakeTypeId(ns, StringView("PlanPanel"));
+    const TypeId elementType = MakeTypeId(ns, StringView("PlanElement"));
+    CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+        TypeFlags::None, nullptr}));
+    CHECK(types.TryRegisterType({ns, StringView("PlanPanel"), objectType,
+        TypeFlags::None, nullptr}));
+    CHECK(types.TryRegisterType({ns, StringView("PlanElement"), objectType,
+        TypeFlags::None, nullptr}));
+    CHECK(types.Freeze());
+    CHECK(properties.Freeze());
+
+    EffectiveValueEngine values(dispatcher, properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(dispatcher);
+    CHECK(layout.Initialize());
+    NullRenderBackend verifier;
+    RenderManager renderer(dispatcher, verifier);
+    CHECK(renderer.Initialize());
+    PlanPanel root(
+        dispatcher, properties, panelType, requestInstancedStroke);
+    PlanElement child(
+        dispatcher, properties, elementType, requestNonAxisAlignedClip);
+    CHECK(tree.SetRoot(&root));
+    CHECK(tree.AttachLogical(root, child));
+    CHECK(tree.AttachVisual(root, child));
+    CHECK(layout.Attach(root, child));
+    CHECK(renderer.SetRoot(&root));
+    CHECK(renderer.Attach(root, child));
+    CHECK(layout.SetRoot(&root, {
+        static_cast<double>(width), static_cast<double>(height)}));
+    CHECK(dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
+    output = renderer.CurrentPlan();
+    CHECK(output.Nodes().Size() == 2U);
+    CHECK(output.Commands().Size() ==
+        (requestInstancedStroke ? 6U :
+            (requestNonAxisAlignedClip ? 13U : 9U)));
+    CHECK(renderer.SetRoot(nullptr));
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    CHECK(layout.Detach(root, child));
+    CHECK(tree.DetachVisual(root, child));
+    CHECK(tree.DetachLogical(root, child));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(child));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
+bool ReadBackPixel(
+    D3D11GraphicsBackend& backend,
+    ResourceHandle target,
+    std::uint32_t width,
+    std::uint32_t height,
+    std::uint32_t x,
+    std::uint32_t y,
+    std::uint8_t (&pixel)[4]) noexcept {
+    if (x >= width || y >= height || width == 0U || height == 0U ||
+        width > 128U || height > 128U) {
+        return false;
+    }
+    std::uint8_t pixels[128U * 128U * 4U]{};
+    const std::uint32_t rowPitch = width * 4U;
+    Result<void> readback = backend.ReadbackTexture(
+        target, Span<std::uint8_t>(pixels, rowPitch * height), rowPitch);
+    if (!readback) {
+        return false;
+    }
+    std::memcpy(pixel, pixels + (y * rowPitch) + (x * 4U), sizeof(pixel));
+    return true;
+}
+
+// Delegates surface setup to a real swap chain, then makes Present report a
+// deterministic device-removal result. This exercises the terminal-loss path
+// without destabilizing the WARP device used by the rest of the test.
+class DeviceRemovedSwapChain final : public IDXGISwapChain {
+public:
+    explicit DeviceRemovedSwapChain(IDXGISwapChain& target) noexcept
+        : target_(&target) {
+        target_->AddRef();
+    }
+
+    ~DeviceRemovedSwapChain() noexcept {
+        if (target_ != nullptr) {
+            target_->Release();
+        }
+    }
+
+    HRESULT STDMETHODCALLTYPE QueryInterface(
+        REFIID interfaceId,
+        void** object) noexcept override {
+        if (object == nullptr) {
+            return E_POINTER;
+        }
+        *object = nullptr;
+        if (interfaceId == __uuidof(IUnknown) ||
+            interfaceId == __uuidof(IDXGIObject) ||
+            interfaceId == __uuidof(IDXGIDeviceSubObject) ||
+            interfaceId == __uuidof(IDXGISwapChain)) {
+            *object = static_cast<IDXGISwapChain*>(this);
+            AddRef();
+            return S_OK;
+        }
+        return target_->QueryInterface(interfaceId, object);
+    }
+
+    ULONG STDMETHODCALLTYPE AddRef() noexcept override {
+        return static_cast<ULONG>(InterlockedIncrement(&references_));
+    }
+
+    ULONG STDMETHODCALLTYPE Release() noexcept override {
+        return static_cast<ULONG>(InterlockedDecrement(&references_));
+    }
+
+    HRESULT STDMETHODCALLTYPE SetPrivateData(
+        REFGUID name,
+        UINT dataSize,
+        const void* data) noexcept override {
+        return target_->SetPrivateData(name, dataSize, data);
+    }
+
+    HRESULT STDMETHODCALLTYPE SetPrivateDataInterface(
+        REFGUID name,
+        const IUnknown* object) noexcept override {
+        return target_->SetPrivateDataInterface(name, object);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetPrivateData(
+        REFGUID name,
+        UINT* dataSize,
+        void* data) noexcept override {
+        return target_->GetPrivateData(name, dataSize, data);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetParent(
+        REFIID interfaceId,
+        void** parent) noexcept override {
+        return target_->GetParent(interfaceId, parent);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetDevice(
+        REFIID interfaceId,
+        void** device) noexcept override {
+        return target_->GetDevice(interfaceId, device);
+    }
+
+    HRESULT STDMETHODCALLTYPE Present(UINT, UINT) noexcept override {
+        return DXGI_ERROR_DEVICE_REMOVED;
+    }
+
+    HRESULT STDMETHODCALLTYPE GetBuffer(
+        UINT index,
+        REFIID interfaceId,
+        void** surface) noexcept override {
+        return target_->GetBuffer(index, interfaceId, surface);
+    }
+
+    HRESULT STDMETHODCALLTYPE SetFullscreenState(
+        BOOL fullscreen,
+        IDXGIOutput* target) noexcept override {
+        return target_->SetFullscreenState(fullscreen, target);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetFullscreenState(
+        BOOL* fullscreen,
+        IDXGIOutput** target) noexcept override {
+        return target_->GetFullscreenState(fullscreen, target);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetDesc(
+        DXGI_SWAP_CHAIN_DESC* descriptor) noexcept override {
+        return target_->GetDesc(descriptor);
+    }
+
+    HRESULT STDMETHODCALLTYPE ResizeBuffers(
+        UINT count,
+        UINT width,
+        UINT height,
+        DXGI_FORMAT format,
+        UINT flags) noexcept override {
+        return target_->ResizeBuffers(count, width, height, format, flags);
+    }
+
+    HRESULT STDMETHODCALLTYPE ResizeTarget(
+        const DXGI_MODE_DESC* descriptor) noexcept override {
+        return target_->ResizeTarget(descriptor);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetContainingOutput(
+        IDXGIOutput** output) noexcept override {
+        return target_->GetContainingOutput(output);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetFrameStatistics(
+        DXGI_FRAME_STATISTICS* statistics) noexcept override {
+        return target_->GetFrameStatistics(statistics);
+    }
+
+    HRESULT STDMETHODCALLTYPE GetLastPresentCount(
+        UINT* count) noexcept override {
+        return target_->GetLastPresentCount(count);
+    }
+
+private:
+    IDXGISwapChain* target_ = nullptr;
+    LONG references_ = 1L;
 };
 
 NativeSurfaceDescriptor MakeSurfaceDescriptor(
@@ -305,6 +632,122 @@ bool TestOwnedBorrowedResizeAndPresentation() {
 
     D3D11SurfacePresenter presenter(device, backend, surface);
     CHECK(presenter.Initialize());
+
+    RenderPlan renderPlan;
+    CHECK(BuildPlan(renderPlan, 80U, 48U));
+    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    CHECK(renderBackend.Initialize());
+    CHECK(renderBackend.Submit(renderPlan));
+    const D3D11RenderPlanSubmitStatistics firstPlanStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(firstPlanStatistics.renderPassCount == 1U);
+    CHECK(firstPlanStatistics.drawCallCount == 3U);
+    CHECK(firstPlanStatistics.rectangleInstanceCount == 3U);
+    CHECK(firstPlanStatistics.uniformBufferUploadCount == 3U);
+    CHECK(firstPlanStatistics.pipelineBindingCount == 1U);
+    CHECK(firstPlanStatistics.vertexBufferBindingCount == 1U);
+    CHECK(firstPlanStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 2U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> verificationFrameResult = surface.AcquireFrame();
+    CHECK(verificationFrameResult);
+    SurfaceFrame verificationFrame = verificationFrameResult.Value();
+    Result<ResourceHandle> verificationTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(verificationFrame));
+    CHECK(verificationTarget);
+    std::uint8_t outerPixel[4]{};
+    std::uint8_t innerPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, verificationTarget.Value(), 80U, 48U, 4U, 4U, outerPixel));
+    CHECK(ReadBackPixel(
+        backend, verificationTarget.Value(), 80U, 48U, 36U, 16U, innerPixel));
+    CHECK(outerPixel[0] == 255U && outerPixel[1] == 0U &&
+        outerPixel[2] == 0U && outerPixel[3] == 255U);
+    CHECK(innerPixel[0] >= 126U && innerPixel[0] <= 129U &&
+        innerPixel[1] == 0U && innerPixel[2] >= 126U &&
+        innerPixel[2] <= 129U && innerPixel[3] == 255U);
+    std::uint8_t childPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, verificationTarget.Value(), 80U, 48U, 14U, 9U, childPixel));
+    CHECK(childPixel[0] == 0U && childPixel[1] == 255U &&
+        childPixel[2] == 0U && childPixel[3] == 255U);
+    CHECK(surface.DiscardFrame(verificationFrame));
+    CHECK(device.DestroyResource(
+        verificationTarget.Value(), renderBackend.LastSubmittedFence()));
+    RenderPlan rotatedClipPlan;
+    CHECK(BuildPlan(rotatedClipPlan, 80U, 48U, true));
+    CHECK(renderBackend.Submit(rotatedClipPlan));
+    const D3D11RenderPlanSubmitStatistics rotatedPlanStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(rotatedPlanStatistics.renderPassCount == 1U);
+    CHECK(rotatedPlanStatistics.drawCallCount == 3U);
+    CHECK(rotatedPlanStatistics.rectangleInstanceCount == 3U);
+    CHECK(rotatedPlanStatistics.uniformBufferUploadCount == 3U);
+    CHECK(rotatedPlanStatistics.pipelineBindingCount == 1U);
+    CHECK(rotatedPlanStatistics.vertexBufferBindingCount == 1U);
+    CHECK(rotatedPlanStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 3U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> rotatedFrameResult = surface.AcquireFrame();
+    CHECK(rotatedFrameResult);
+    SurfaceFrame rotatedFrame = rotatedFrameResult.Value();
+    Result<ResourceHandle> rotatedTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(rotatedFrame));
+    CHECK(rotatedTarget);
+    std::uint8_t insideRotatedClip[4]{};
+    std::uint8_t outsideRotatedClip[4]{};
+    CHECK(ReadBackPixel(
+        backend, rotatedTarget.Value(), 80U, 48U, 11U, 13U, insideRotatedClip));
+    CHECK(ReadBackPixel(
+        backend, rotatedTarget.Value(), 80U, 48U, 17U, 17U, outsideRotatedClip));
+    CHECK(insideRotatedClip[0] == 0U && insideRotatedClip[1] == 255U &&
+        insideRotatedClip[2] == 0U && insideRotatedClip[3] == 255U);
+    CHECK(outsideRotatedClip[0] >= 126U && outsideRotatedClip[0] <= 129U &&
+        outsideRotatedClip[1] == 0U &&
+        outsideRotatedClip[2] >= 126U && outsideRotatedClip[2] <= 129U &&
+        outsideRotatedClip[3] == 255U);
+    CHECK(surface.DiscardFrame(rotatedFrame));
+    CHECK(device.DestroyResource(
+        rotatedTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    RenderPlan instancedStrokePlan;
+    CHECK(BuildPlan(instancedStrokePlan, 80U, 48U, false, true));
+    CHECK(renderBackend.Submit(instancedStrokePlan));
+    const D3D11RenderPlanSubmitStatistics strokePlanStatistics =
+        renderBackend.LastSubmitStatistics();
+    CHECK(strokePlanStatistics.renderPassCount == 1U);
+    CHECK(strokePlanStatistics.drawCallCount == 2U);
+    CHECK(strokePlanStatistics.rectangleInstanceCount == 5U);
+    CHECK(strokePlanStatistics.uniformBufferUploadCount == 2U);
+    CHECK(strokePlanStatistics.pipelineBindingCount == 1U);
+    CHECK(strokePlanStatistics.vertexBufferBindingCount == 1U);
+    CHECK(strokePlanStatistics.uniformBufferBindingCount == 1U);
+    CHECK(renderBackend.LastSubmittedFence() == 4U);
+    CHECK(backend.WaitForFence(renderBackend.LastSubmittedFence()));
+    Result<SurfaceFrame> strokeFrameResult = surface.AcquireFrame();
+    CHECK(strokeFrameResult);
+    SurfaceFrame strokeFrame = strokeFrameResult.Value();
+    Result<ResourceHandle> strokeTarget = ImportD3D11ExternalRenderTarget(
+        device, backend, MakeImportDescriptor(strokeFrame));
+    CHECK(strokeTarget);
+    std::uint8_t strokePixel[4]{};
+    std::uint8_t strokeInteriorPixel[4]{};
+    CHECK(ReadBackPixel(
+        backend, strokeTarget.Value(), 80U, 48U, 4U, 3U, strokePixel));
+    CHECK(ReadBackPixel(
+        backend, strokeTarget.Value(), 80U, 48U, 8U, 7U,
+        strokeInteriorPixel));
+    CHECK(strokePixel[0] == 0U && strokePixel[1] == 0U &&
+        strokePixel[2] == 255U && strokePixel[3] == 255U);
+    CHECK(strokeInteriorPixel[0] == 0U && strokeInteriorPixel[1] == 0U &&
+        strokeInteriorPixel[2] == 0U && strokeInteriorPixel[3] == 0U);
+    CHECK(surface.DiscardFrame(strokeFrame));
+    CHECK(device.DestroyResource(
+        strokeTarget.Value(), renderBackend.LastSubmittedFence()));
+
+    renderBackend.Shutdown();
+    CHECK(device.CollectGarbage());
+
     Result<D3D11SurfaceFrame> presentedFrameResult = presenter.AcquireFrame();
     CHECK(presentedFrameResult);
     D3D11SurfaceFrame presentedFrame = presentedFrameResult.Value();
@@ -320,7 +763,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
         presentedFrame,
         blueCommands.Value());
     CHECK(presented);
-    CHECK(presented.Value() == 2U);
+    CHECK(presented.Value() == 5U);
     CHECK(!presentedFrame.IsValid());
     CHECK(!presenter.HasFrameInFlight());
     CHECK(backend.WaitForFence(presented.Value()));
@@ -350,6 +793,31 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(restoredFrame.target.width == 96U);
     CHECK(restoredFrame.target.height == 64U);
     CHECK(surface.DiscardFrame(restoredFrame));
+
+    DeviceRemovedSwapChain removedSwapChain(*reinterpret_cast<IDXGISwapChain*>(
+        surfaceBackend.NativeSwapChain()));
+    NativeSurfaceDescriptor terminalDescriptor = restoreDescriptor;
+    terminalDescriptor.ownership = SurfaceOwnership::Borrowed;
+    terminalDescriptor.d3d11.swapChain = reinterpret_cast<std::uintptr_t>(
+        static_cast<IDXGISwapChain*>(&removedSwapChain));
+    D3D11SwapChainSurface terminalBackend(backend);
+    SurfaceSession terminalSurface(terminalBackend);
+    CHECK(terminalSurface.Initialize(terminalDescriptor));
+    Result<SurfaceFrame> terminalFrameResult = terminalSurface.AcquireFrame();
+    CHECK(terminalFrameResult);
+    SurfaceFrame terminalFrame = terminalFrameResult.Value();
+    Result<void> terminalPresent = terminalSurface.Present(
+        terminalFrame, backend.LastSubmittedFence());
+    CHECK(!terminalPresent);
+    CHECK(terminalPresent.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(backend.IsDeviceLost());
+
+    ResourceDescriptor postLossDescriptor;
+    postLossDescriptor.type = ResourceType::Buffer;
+    postLossDescriptor.buffer.sizeBytes = 16U;
+    postLossDescriptor.buffer.usage = BufferUsage::Upload;
+    CHECK(!device.CreateResource(postLossDescriptor));
+    terminalSurface.Shutdown();
 
     surface.Shutdown();
     CHECK(device.LiveResourceCount() == 0U);

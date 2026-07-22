@@ -7,12 +7,17 @@
                 return failSubmission(
                     OutOfRange("D3D11 index-buffer offset exceeds UINT range"));
             }
-            impl_->context->IASetIndexBuffer(
-                buffer->buffer,
-                command.indexType == IndexType::UInt16
-                    ? DXGI_FORMAT_R16_UINT
-                    : DXGI_FORMAT_R32_UINT,
-                offset);
+            const DXGI_FORMAT format = command.indexType == IndexType::UInt16
+                ? DXGI_FORMAT_R16_UINT
+                : DXGI_FORMAT_R32_UINT;
+            if (impl_->submissionState.indexBuffer != buffer->buffer ||
+                impl_->submissionState.indexFormat != format ||
+                impl_->submissionState.indexOffset != offset) {
+                impl_->context->IASetIndexBuffer(buffer->buffer, format, offset);
+                impl_->submissionState.indexBuffer = buffer->buffer;
+                impl_->submissionState.indexFormat = format;
+                impl_->submissionState.indexOffset = offset;
+            }
             break;
         }
         case GraphicsCommandKind::BindUniformBuffer: {
@@ -30,10 +35,19 @@
                     InvalidArgument("D3D11 uniform-buffer binding is invalid"));
             }
             ID3D11Buffer* nativeBuffer = buffer->buffer;
-            impl_->context->VSSetConstantBuffers(
-                command.slot, 1U, &nativeBuffer);
-            impl_->context->PSSetConstantBuffers(
-                command.slot, 1U, &nativeBuffer);
+            if (impl_->submissionState.vertexConstantBuffers[command.slot] !=
+                    nativeBuffer ||
+                impl_->submissionState.pixelConstantBuffers[command.slot] !=
+                    nativeBuffer) {
+                impl_->context->VSSetConstantBuffers(
+                    command.slot, 1U, &nativeBuffer);
+                impl_->context->PSSetConstantBuffers(
+                    command.slot, 1U, &nativeBuffer);
+                impl_->submissionState.vertexConstantBuffers[command.slot] =
+                    nativeBuffer;
+                impl_->submissionState.pixelConstantBuffers[command.slot] =
+                    nativeBuffer;
+            }
             break;
         }
         case GraphicsCommandKind::BindTextureSampler: {
@@ -49,12 +63,24 @@
                 return failSubmission(
                     InvalidArgument("D3D11 texture or sampler is not configured"));
             }
+            if (impl_->IsActiveAttachment(texture->texture)) {
+                return failSubmission(InvalidState(
+                    "D3D11 texture cannot be sampled while bound as a render attachment"));
+            }
             ID3D11ShaderResourceView* nativeView = texture->shaderResourceView;
             ID3D11SamplerState* nativeSampler = sampler->sampler;
-            impl_->context->PSSetShaderResources(
-                command.slot, 1U, &nativeView);
-            impl_->context->PSSetSamplers(
-                command.slot, 1U, &nativeSampler);
+            if (impl_->submissionState.pixelShaderResources[command.slot] !=
+                nativeView) {
+                impl_->context->PSSetShaderResources(
+                    command.slot, 1U, &nativeView);
+                impl_->submissionState.pixelShaderResources[command.slot] =
+                    nativeView;
+            }
+            if (impl_->submissionState.pixelSamplers[command.slot] != nativeSampler) {
+                impl_->context->PSSetSamplers(
+                    command.slot, 1U, &nativeSampler);
+                impl_->submissionState.pixelSamplers[command.slot] = nativeSampler;
+            }
             break;
         }
         case GraphicsCommandKind::SetScissor: {
@@ -67,7 +93,16 @@
                 return failSubmission(nativeRect.GetStatus());
             }
             const D3D11_RECT rect = nativeRect.Value();
-            impl_->context->RSSetScissorRects(1U, &rect);
+            const D3D11_RECT& cachedScissor = impl_->submissionState.scissor;
+            if (!impl_->submissionState.hasScissor ||
+                cachedScissor.left != rect.left ||
+                cachedScissor.top != rect.top ||
+                cachedScissor.right != rect.right ||
+                cachedScissor.bottom != rect.bottom) {
+                impl_->context->RSSetScissorRects(1U, &rect);
+                impl_->submissionState.scissor = rect;
+                impl_->submissionState.hasScissor = true;
+            }
             break;
         }
         case GraphicsCommandKind::Draw: {
@@ -120,6 +155,7 @@
     }
 
     impl_->context->End(query);
+    preservedState.Restore(impl_->context);
     Impl::PendingFence pending;
     pending.value = signalFence;
     pending.query = query;

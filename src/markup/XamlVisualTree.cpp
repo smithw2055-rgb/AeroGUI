@@ -238,6 +238,8 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
 
     Base::Result<void> reserveEdges = edges_.TryReserve(edges_.Size() + 1U);
     if (!reserveEdges) return reserveEdges;
+    Base::Ref<Base::Object> parentOwner = Base::Ref<Base::Object>::FromBorrowed(object);
+    Base::Ref<Base::Object> childOwner = value.AsObject();
     Base::Result<Core::TreeNode*> parentNode = ResolveTreeNode(
         object, services.targetObjectType);
     if (!parentNode) return parentNode.GetStatus();
@@ -251,7 +253,8 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
         ? presenter->SetOwnedContent(value.AsObject(), *childResult.Value())
         : stackPanel->AddOwnedChild(value.AsObject(), *childResult.Value());
     if (!contentSet) return contentSet;
-    return edges_.TryPushBack({parentResult.Value(), childResult.Value(), presenter, stackPanel});
+    return edges_.TryPushBack({std::move(parentOwner), std::move(childOwner),
+        parentResult.Value(), childResult.Value(), presenter, stackPanel});
 }
 
 Base::Result<void> XamlVisualTreeHost::AttachEdge(Edge& edge) noexcept {
