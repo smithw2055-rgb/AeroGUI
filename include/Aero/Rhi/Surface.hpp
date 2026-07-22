@@ -1,0 +1,414 @@
+#pragma once
+
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Config.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Rhi/Graphics.hpp>
+
+#include <cstddef>
+#include <cstdint>
+
+namespace Aero::Rhi {
+
+constexpr std::uint32_t SurfaceAbiVersion = 1U;
+constexpr std::uint32_t HostedGraphicsAbiVersion = 1U;
+
+enum class SurfaceKind : std::uint8_t {
+    Invalid = 0U,
+    Headless,
+    D3D11Window,
+    WglWindow,
+    GlxWindow,
+    EglWindow,
+    WebGL2Canvas,
+    ExternalRenderTarget
+};
+
+using SurfaceKindFlags = std::uint32_t;
+
+AERO_NODISCARD constexpr SurfaceKindFlags SurfaceKindBit(
+    SurfaceKind kind) noexcept {
+    return kind == SurfaceKind::Invalid
+        ? 0U
+        : (UINT32_C(1) << static_cast<std::uint32_t>(kind));
+}
+
+AERO_NODISCARD constexpr bool SupportsSurfaceKind(
+    SurfaceKindFlags available,
+    SurfaceKind kind) noexcept {
+    return (available & SurfaceKindBit(kind)) != 0U;
+}
+
+enum class SurfaceOwnership : std::uint8_t {
+    Borrowed = 0U,
+    Owned
+};
+
+enum class SurfaceState : std::uint8_t {
+    Uninitialized = 0U,
+    Ready,
+    Lost,
+    Destroyed
+};
+
+enum class PresentMode : std::uint8_t {
+    Immediate = 0U,
+    Fifo,
+    Mailbox
+};
+
+struct D3D11SurfaceNative final {
+    std::uintptr_t window = 0U;
+    std::uintptr_t device = 0U;
+    std::uintptr_t immediateContext = 0U;
+    std::uintptr_t swapChain = 0U;
+};
+
+struct WglSurfaceNative final {
+    std::uintptr_t window = 0U;
+    std::uintptr_t deviceContext = 0U;
+    std::uintptr_t renderContext = 0U;
+};
+
+struct GlxSurfaceNative final {
+    std::uintptr_t display = 0U;
+    std::uintptr_t drawable = 0U;
+    std::uintptr_t context = 0U;
+    std::int32_t screen = 0;
+};
+
+struct EglSurfaceNative final {
+    std::uintptr_t display = 0U;
+    std::uintptr_t surface = 0U;
+    std::uintptr_t context = 0U;
+};
+
+struct WebGL2SurfaceNative final {
+    std::uint32_t contextHandle = 0U;
+    std::uint64_t canvasId = 0U;
+    bool offscreenCanvas = false;
+};
+
+struct ExternalSurfaceNative final {
+    std::uintptr_t colorTarget = 0U;
+    std::uintptr_t depthStencilTarget = 0U;
+    bool defaultFramebuffer = false;
+};
+
+struct NativeSurfaceDescriptor final {
+    std::uint32_t abiVersion = SurfaceAbiVersion;
+    SurfaceKind kind = SurfaceKind::Invalid;
+    SurfaceOwnership ownership = SurfaceOwnership::Borrowed;
+    PresentMode presentMode = PresentMode::Fifo;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    GraphicsTextureFormat colorFormat = GraphicsTextureFormat::Bgra8Unorm;
+    GraphicsTextureFormat depthStencilFormat =
+        GraphicsTextureFormat::Depth24Stencil8;
+    std::uint8_t sampleCount = 1U;
+    std::uint64_t stableId = 0U;
+    D3D11SurfaceNative d3d11;
+    WglSurfaceNative wgl;
+    GlxSurfaceNative glx;
+    EglSurfaceNative egl;
+    WebGL2SurfaceNative webgl2;
+    ExternalSurfaceNative external;
+};
+
+struct SurfaceCapabilities final {
+    std::uint32_t abiVersion = SurfaceAbiVersion;
+    SurfaceKindFlags supportedKinds = 0U;
+    std::uint32_t maxWidth = 16384U;
+    std::uint32_t maxHeight = 16384U;
+    bool supportsResize = false;
+    bool supportsPresent = false;
+    bool supportsContextLossRecovery = false;
+    bool supportsExternalRenderTargets = false;
+};
+
+struct ExternalRenderTargetDescriptor final {
+    std::uintptr_t colorTarget = 0U;
+    std::uintptr_t depthStencilTarget = 0U;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    GraphicsTextureFormat colorFormat = GraphicsTextureFormat::Bgra8Unorm;
+    GraphicsTextureFormat depthStencilFormat =
+        GraphicsTextureFormat::Depth24Stencil8;
+    std::uint8_t sampleCount = 1U;
+    bool defaultFramebuffer = false;
+    std::uint64_t stableId = 0U;
+};
+
+struct SurfaceFrame final {
+    std::uint64_t surfaceGeneration = 0U;
+    std::uint64_t frameSerial = 0U;
+    ExternalRenderTargetDescriptor target;
+};
+
+AERO_NODISCARD AERO_API Base::Result<void> ValidateNativeSurfaceDescriptor(
+    const NativeSurfaceDescriptor& descriptor,
+    const SurfaceCapabilities& capabilities) noexcept;
+
+AERO_NODISCARD AERO_API Base::Result<void>
+ValidateExternalRenderTargetDescriptor(
+    const ExternalRenderTargetDescriptor& descriptor) noexcept;
+
+class AERO_API ISurfaceBackend {
+public:
+    virtual ~ISurfaceBackend() = default;
+
+    AERO_NODISCARD virtual SurfaceCapabilities
+    QuerySurfaceCapabilities() const noexcept = 0;
+    AERO_NODISCARD virtual Base::Result<void> CreateSurface(
+        const NativeSurfaceDescriptor& descriptor) noexcept = 0;
+    virtual void DestroySurface() noexcept = 0;
+    AERO_NODISCARD virtual Base::Result<void> ResizeSurface(
+        std::uint32_t width,
+        std::uint32_t height) noexcept = 0;
+    AERO_NODISCARD virtual Base::Result<ExternalRenderTargetDescriptor>
+    AcquireSurfaceTarget(std::uint64_t frameSerial) noexcept = 0;
+    AERO_NODISCARD virtual Base::Result<void> PresentSurface(
+        std::uint64_t frameSerial,
+        FenceValue signalFence) noexcept = 0;
+    virtual void DiscardSurfaceFrame(std::uint64_t frameSerial) noexcept = 0;
+    virtual void NotifySurfaceLost() noexcept = 0;
+    AERO_NODISCARD virtual Base::Result<void> RestoreSurface(
+        const NativeSurfaceDescriptor& descriptor) noexcept = 0;
+    AERO_NODISCARD virtual bool IsSurfaceLost() const noexcept = 0;
+};
+
+class AERO_API SurfaceSession final {
+public:
+    explicit SurfaceSession(ISurfaceBackend& backend) noexcept
+        : backend_(&backend) {}
+    ~SurfaceSession() noexcept;
+
+    SurfaceSession(const SurfaceSession&) = delete;
+    SurfaceSession& operator=(const SurfaceSession&) = delete;
+
+    AERO_NODISCARD Base::Result<void> Initialize(
+        const NativeSurfaceDescriptor& descriptor) noexcept;
+    AERO_NODISCARD Base::Result<void> Resize(
+        std::uint32_t width,
+        std::uint32_t height) noexcept;
+    AERO_NODISCARD Base::Result<SurfaceFrame> AcquireFrame() noexcept;
+    AERO_NODISCARD Base::Result<void> Present(
+        SurfaceFrame& frame,
+        FenceValue signalFence) noexcept;
+    AERO_NODISCARD Base::Result<void> DiscardFrame(
+        SurfaceFrame& frame) noexcept;
+    AERO_NODISCARD Base::Result<void> NotifyContextLost() noexcept;
+    AERO_NODISCARD Base::Result<void> Restore(
+        const NativeSurfaceDescriptor& descriptor) noexcept;
+    void Shutdown() noexcept;
+
+    AERO_NODISCARD SurfaceState State() const noexcept { return state_; }
+    AERO_NODISCARD std::uint64_t Generation() const noexcept {
+        return generation_;
+    }
+    AERO_NODISCARD bool HasFrameInFlight() const noexcept {
+        return activeFrameSerial_ != 0U;
+    }
+    AERO_NODISCARD const NativeSurfaceDescriptor& Descriptor() const noexcept {
+        return descriptor_;
+    }
+    AERO_NODISCARD const SurfaceCapabilities& Capabilities() const noexcept {
+        return capabilities_;
+    }
+    AERO_NODISCARD bool IsCurrentFrame(
+        const SurfaceFrame& frame) const noexcept;
+
+private:
+    ISurfaceBackend* backend_ = nullptr;
+    SurfaceCapabilities capabilities_;
+    NativeSurfaceDescriptor descriptor_;
+    SurfaceState state_ = SurfaceState::Uninitialized;
+    std::uint64_t generation_ = 0U;
+    std::uint64_t nextFrameSerial_ = 1U;
+    std::uint64_t activeFrameSerial_ = 0U;
+
+    AERO_NODISCARD Base::Result<void> VerifyReady() noexcept;
+    AERO_NODISCARD Base::Result<void> AdvanceGeneration() noexcept;
+};
+
+struct SurfaceFrameCapture final {
+    GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
+    FenceValue signalFence = 0U;
+    std::uint64_t surfaceGeneration = 0U;
+    std::uint64_t frameSerial = 0U;
+    std::uint64_t targetStableId = 0U;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    std::uint32_t commandCount = 0U;
+    std::uint32_t uploadByteCount = 0U;
+    std::uint64_t commandHash = 0U;
+    bool presented = false;
+};
+
+class AERO_API SurfaceGraphicsQueue final {
+public:
+    SurfaceGraphicsQueue(
+        IGraphicsBackend& backend,
+        SurfaceSession& surface) noexcept
+        : backend_(&backend), surface_(&surface) {}
+
+    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    AERO_NODISCARD Base::Result<FenceValue> SubmitAndPresent(
+        SurfaceFrame& frame,
+        const GraphicsCommandBuffer& commands) noexcept;
+
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept {
+        return lastSubmittedFence_;
+    }
+    AERO_NODISCARD const SurfaceFrameCapture& LastCapture() const noexcept {
+        return lastCapture_;
+    }
+
+private:
+    IGraphicsBackend* backend_ = nullptr;
+    SurfaceSession* surface_ = nullptr;
+    GraphicsCapabilities capabilities_;
+    FenceValue lastSubmittedFence_ = 0U;
+    SurfaceFrameCapture lastCapture_;
+    bool initialized_ = false;
+};
+
+struct HostedGraphicsApi final {
+    std::uint32_t structSize = 0U;
+    std::uint32_t abiVersion = HostedGraphicsAbiVersion;
+    void* context = nullptr;
+    GraphicsBackendKind kind = GraphicsBackendKind::Invalid;
+
+    DeviceCapabilities (*deviceCapabilities)(void*) noexcept = nullptr;
+    GraphicsCapabilities (*graphicsCapabilities)(void*) noexcept = nullptr;
+    SurfaceCapabilities (*surfaceCapabilities)(void*) noexcept = nullptr;
+
+    Base::Result<void> (*createResource)(
+        void*, ResourceHandle, const ResourceDescriptor&) noexcept = nullptr;
+    void (*destroyResource)(void*, ResourceHandle) noexcept = nullptr;
+    Base::Result<void> (*configureTexture)(
+        void*, ResourceHandle, const TextureResourceDescriptor&) noexcept = nullptr;
+    Base::Result<void> (*configureSampler)(
+        void*, ResourceHandle, const SamplerDescriptor&) noexcept = nullptr;
+    Base::Result<void> (*configurePipeline)(
+        void*, ResourceHandle, const PipelineDescriptor&) noexcept = nullptr;
+    Base::Result<void> (*submitLegacy)(
+        void*, const CommandBuffer&, FenceValue) noexcept = nullptr;
+
+    Base::Result<void> (*uploadBuffer)(
+        void*, ResourceHandle, std::uint64_t,
+        Base::Span<const std::uint8_t>) noexcept = nullptr;
+    Base::Result<void> (*uploadTexture)(
+        void*, ResourceHandle, const TextureRegion&,
+        Base::Span<const std::uint8_t>) noexcept = nullptr;
+    Base::Result<void> (*beginRenderPass)(
+        void*, const RenderPassDescriptor&) noexcept = nullptr;
+    Base::Result<void> (*endRenderPass)(void*) noexcept = nullptr;
+    Base::Result<void> (*bindPipeline)(
+        void*, ResourceHandle) noexcept = nullptr;
+    Base::Result<void> (*bindVertexBuffer)(
+        void*, std::uint32_t, ResourceHandle, std::uint64_t) noexcept = nullptr;
+    Base::Result<void> (*bindIndexBuffer)(
+        void*, ResourceHandle, IndexType, std::uint64_t) noexcept = nullptr;
+    Base::Result<void> (*bindUniformBuffer)(
+        void*, std::uint32_t, ResourceHandle,
+        std::uint64_t, std::uint32_t) noexcept = nullptr;
+    Base::Result<void> (*bindTextureSampler)(
+        void*, std::uint32_t, ResourceHandle, ResourceHandle) noexcept = nullptr;
+    Base::Result<void> (*setScissor)(
+        void*, Core::Rect) noexcept = nullptr;
+    Base::Result<void> (*draw)(
+        void*, std::uint32_t, std::uint32_t,
+        std::uint32_t, std::uint32_t) noexcept = nullptr;
+    Base::Result<void> (*drawIndexed)(
+        void*, std::uint32_t, std::uint32_t,
+        std::uint32_t, std::int32_t, std::uint32_t) noexcept = nullptr;
+    Base::Result<void> (*signalFence)(
+        void*, FenceValue) noexcept = nullptr;
+    FenceValue (*completedFence)(void*) noexcept = nullptr;
+    bool (*isDeviceLost)(void*) noexcept = nullptr;
+
+    Base::Result<void> (*createSurface)(
+        void*, const NativeSurfaceDescriptor&) noexcept = nullptr;
+    void (*destroySurface)(void*) noexcept = nullptr;
+    Base::Result<void> (*resizeSurface)(
+        void*, std::uint32_t, std::uint32_t) noexcept = nullptr;
+    Base::Result<ExternalRenderTargetDescriptor> (*acquireSurfaceTarget)(
+        void*, std::uint64_t) noexcept = nullptr;
+    Base::Result<void> (*presentSurface)(
+        void*, std::uint64_t, FenceValue) noexcept = nullptr;
+    void (*discardSurfaceFrame)(void*, std::uint64_t) noexcept = nullptr;
+    void (*notifySurfaceLost)(void*) noexcept = nullptr;
+    Base::Result<void> (*restoreSurface)(
+        void*, const NativeSurfaceDescriptor&) noexcept = nullptr;
+    bool (*isSurfaceLost)(void*) noexcept = nullptr;
+};
+
+class AERO_API HostedGraphicsBackend final
+    : public IGraphicsBackend,
+      public ISurfaceBackend {
+public:
+    explicit HostedGraphicsBackend(const HostedGraphicsApi& api) noexcept
+        : api_(api) {}
+
+    AERO_NODISCARD bool IsValid() const noexcept;
+
+    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
+    AERO_NODISCARD GraphicsBackendKind Kind() const noexcept override {
+        return api_.kind;
+    }
+    AERO_NODISCARD GraphicsCapabilities
+    QueryGraphicsCapabilities() const noexcept override;
+    AERO_NODISCARD SurfaceCapabilities
+    QuerySurfaceCapabilities() const noexcept override;
+
+    AERO_NODISCARD Base::Result<void> CreateResource(
+        ResourceHandle handle,
+        const ResourceDescriptor& descriptor) noexcept override;
+    void DestroyResource(ResourceHandle handle) noexcept override;
+    AERO_NODISCARD Base::Result<void> ConfigureTexture(
+        ResourceHandle handle,
+        const TextureResourceDescriptor& descriptor) noexcept override;
+    AERO_NODISCARD Base::Result<void> ConfigureSampler(
+        ResourceHandle handle,
+        const SamplerDescriptor& descriptor) noexcept override;
+    AERO_NODISCARD Base::Result<void> ConfigurePipeline(
+        ResourceHandle handle,
+        const PipelineDescriptor& descriptor) noexcept override;
+    AERO_NODISCARD Base::Result<void> Submit(
+        const CommandBuffer& commands,
+        FenceValue signalFence) noexcept override;
+    AERO_NODISCARD Base::Result<void> SubmitGraphics(
+        const GraphicsCommandBuffer& commands,
+        FenceValue signalFence) noexcept override;
+    AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
+    AERO_NODISCARD bool IsDeviceLost() const noexcept override;
+
+    AERO_NODISCARD Base::Result<void> CreateSurface(
+        const NativeSurfaceDescriptor& descriptor) noexcept override;
+    void DestroySurface() noexcept override;
+    AERO_NODISCARD Base::Result<void> ResizeSurface(
+        std::uint32_t width,
+        std::uint32_t height) noexcept override;
+    AERO_NODISCARD Base::Result<ExternalRenderTargetDescriptor>
+    AcquireSurfaceTarget(std::uint64_t frameSerial) noexcept override;
+    AERO_NODISCARD Base::Result<void> PresentSurface(
+        std::uint64_t frameSerial,
+        FenceValue signalFence) noexcept override;
+    void DiscardSurfaceFrame(std::uint64_t frameSerial) noexcept override;
+    void NotifySurfaceLost() noexcept override;
+    AERO_NODISCARD Base::Result<void> RestoreSurface(
+        const NativeSurfaceDescriptor& descriptor) noexcept override;
+    AERO_NODISCARD bool IsSurfaceLost() const noexcept override;
+
+private:
+    HostedGraphicsApi api_;
+    FenceValue lastSubmittedFence_ = 0U;
+
+    AERO_NODISCARD Base::Result<void> VerifyApi() const noexcept;
+    AERO_NODISCARD Base::Result<void> VerifySubmission(
+        FenceValue signalFence) const noexcept;
+};
+
+} // namespace Aero::Rhi
