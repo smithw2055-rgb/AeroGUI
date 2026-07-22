@@ -138,18 +138,25 @@ private:
     Thickness padding_;
 };
 
-// Single-child layout presenter. It deliberately does not own, attach, or
-// detach its content: those mutations must remain transactional through
-// ObjectTree and LayoutManager. SetContent() records which already-attached
-// layout child is the semantic content and enforces that it is the sole child.
-class AERO_API ContentPresenter final : public LayoutElement {
+// Single-child visual presenter. It does not attach or detach content itself:
+// those mutations remain transactional through ObjectTree, LayoutManager, and
+// RenderManager. XAML loaders may retain the content object with
+// SetOwnedContent(), but the host must still Unmount() before releasing the
+// root object.
+class AERO_API ContentPresenter final : public RenderElement {
 public:
     ContentPresenter(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
 
     AERO_NODISCARD LayoutElement* Content() const noexcept { return content_; }
+    AERO_NODISCARD const Base::Ref<Base::Object>& OwnedContent() const noexcept {
+        return ownedContent_;
+    }
     AERO_NODISCARD Base::Result<void> SetContent(
         LayoutElement* content) noexcept;
+    AERO_NODISCARD Base::Result<void> SetOwnedContent(
+        const Base::Ref<Base::Object>& contentObject,
+        LayoutElement& content) noexcept;
 
 protected:
     AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -157,9 +164,12 @@ protected:
 
 private:
     LayoutElement* content_ = nullptr;
+    Base::Ref<Base::Object> ownedContent_;
 
     AERO_NODISCARD bool IsOnlyAttachedContent(
         const LayoutElement& content) const noexcept;
+    AERO_NODISCARD Base::Result<void> ValidateContent(
+        LayoutElement* content) const noexcept;
 };
 
 } // namespace Aero::Core

@@ -292,6 +292,7 @@ bool TestBorderPaddingDecoratorLayout() {
 }
 
 bool TestContentPresenterLayout() {
+    // ContentPresenter is a RenderElement too; pure-layout use stays valid.
     Fixture fixture;
     CHECK(fixture.Build());
     EffectiveValueEngine values(fixture.dispatcher, fixture.properties);

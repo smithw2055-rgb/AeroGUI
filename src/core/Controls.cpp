@@ -438,7 +438,7 @@ Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcep
 ContentPresenter::ContentPresenter(Dispatcher& dispatcher,
     DependencyPropertyRegistry& registry, TypeId runtimeType,
     Base::IAllocator* allocator) noexcept
-    : LayoutElement(dispatcher, registry, runtimeType, allocator) {}
+    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
 
 bool ContentPresenter::IsOnlyAttachedContent(
     const LayoutElement& content) const noexcept {
@@ -450,18 +450,42 @@ Base::Result<void> ContentPresenter::SetContent(
     LayoutElement* content) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
+    Base::Result<void> validated = ValidateContent(content);
+    if (!validated) return validated;
     if (content == content_) return {};
+    content_ = content;
+    if (content == nullptr) ownedContent_.Reset();
+    return InvalidateMeasure();
+}
+
+Base::Result<void> ContentPresenter::SetOwnedContent(
+    const Base::Ref<Base::Object>& contentObject,
+    LayoutElement& content) noexcept {
+    if (!contentObject || contentObject.Get() != &content) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "ContentPresenter owned content does not match its layout object");
+    }
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    Base::Result<void> validated = ValidateContent(&content);
+    if (!validated) return validated;
+    content_ = &content;
+    ownedContent_ = contentObject;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> ContentPresenter::ValidateContent(
+    LayoutElement* content) const noexcept {
     if (content == nullptr) {
         if (!LayoutChildren().Empty()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "ContentPresenter content must be detached before clearing it");
         }
-    } else if (!IsOnlyAttachedContent(*content)) {
+    } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "ContentPresenter content must be its only attached layout child");
     }
-    content_ = content;
-    return InvalidateMeasure();
+    return {};
 }
 
 Base::Result<Size> ContentPresenter::MeasureOverride(

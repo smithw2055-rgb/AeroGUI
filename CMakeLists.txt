@@ -104,7 +104,8 @@ add_library(AeroMarkup STATIC
     src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlObjectWriterCompiled.cpp
-    src/markup/XamlSchemaContext.cpp)
+    src/markup/XamlSchemaContext.cpp
+    src/markup/XamlVisualTree.cpp)
 
 add_library(Aero::Markup ALIAS AeroMarkup)
 
