@@ -291,6 +291,52 @@ bool TestBorderPaddingDecoratorLayout() {
     return true;
 }
 
+bool TestContentPresenterLayout() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    ContentPresenter root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    FixedElement child(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {30.0, 12.0});
+    FixedElement extra(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {8.0, 8.0});
+    CHECK(tree.SetRoot(&root));
+    CHECK(tree.AttachLogical(root, child));
+    CHECK(tree.AttachVisual(root, child));
+    CHECK(layout.Attach(root, child));
+    CHECK(root.SetContent(&child));
+    CHECK(layout.SetRoot(&root, {80.0, 40.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(root.DesiredSize().width == 30.0 && root.DesiredSize().height == 12.0);
+    CHECK(child.LayoutSlot().x == 0.0 && child.LayoutSlot().y == 0.0);
+    CHECK(child.RenderSize().width == 80.0 && child.RenderSize().height == 40.0);
+
+    CHECK(tree.AttachLogical(root, extra));
+    CHECK(tree.AttachVisual(root, extra));
+    CHECK(layout.Attach(root, extra));
+    CHECK(root.InvalidateMeasure());
+    Result<std::uint32_t> invalidLayout = layout.Flush();
+    CHECK(!invalidLayout && invalidLayout.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(layout.Detach(root, extra));
+    CHECK(tree.DetachVisual(root, extra));
+    CHECK(tree.DetachLogical(root, extra));
+    CHECK(values.DetachObject(extra));
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    CHECK(layout.Detach(root, child));
+    CHECK(tree.DetachVisual(root, child));
+    CHECK(tree.DetachLogical(root, child));
+    CHECK(root.SetContent(nullptr));
+    CHECK(values.DetachObject(child));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
 bool TestFrameworkLayoutConstraints() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -426,6 +472,7 @@ int main() {
     if (!TestFrameworkLayoutConstraints()) return 1;
     if (!TestCanvasChildPosition()) return 1;
     if (!TestBorderPaddingDecoratorLayout()) return 1;
+    if (!TestContentPresenterLayout()) return 1;
     if (!TestGridFixedAutoAndStarTracks()) return 1;
     std::puts("Aero layout tests passed");
     return 0;

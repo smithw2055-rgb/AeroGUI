@@ -43,6 +43,7 @@ enum class RoutingStrategy : std::uint8_t {
 };
 
 enum class PointerAction : std::uint8_t { Move = 0U, Down, Up };
+enum class KeyboardAction : std::uint8_t { Down = 0U, Up };
 
 struct RoutedEventRegistration final {
     Base::StringView name;
@@ -61,6 +62,13 @@ struct RoutedEventArgs final {
     std::uint32_t pointerId = 0U;
     double pointerX = 0.0;
     double pointerY = 0.0;
+    bool hasKeyboard = false;
+    KeyboardAction keyboardAction = KeyboardAction::Down;
+    std::uint32_t key = 0U;
+    std::uint32_t modifiers = 0U;
+    bool isRepeat = false;
+    bool hasTextInput = false;
+    Base::StringView text;
 };
 
 using RoutedEventHandler = void (*)(

@@ -138,4 +138,28 @@ private:
     Thickness padding_;
 };
 
+// Single-child layout presenter. It deliberately does not own, attach, or
+// detach its content: those mutations must remain transactional through
+// ObjectTree and LayoutManager. SetContent() records which already-attached
+// layout child is the semantic content and enforces that it is the sole child.
+class AERO_API ContentPresenter final : public LayoutElement {
+public:
+    ContentPresenter(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+
+    AERO_NODISCARD LayoutElement* Content() const noexcept { return content_; }
+    AERO_NODISCARD Base::Result<void> SetContent(
+        LayoutElement* content) noexcept;
+
+protected:
+    AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
+    AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
+
+private:
+    LayoutElement* content_ = nullptr;
+
+    AERO_NODISCARD bool IsOnlyAttachedContent(
+        const LayoutElement& content) const noexcept;
+};
+
 } // namespace Aero::Core

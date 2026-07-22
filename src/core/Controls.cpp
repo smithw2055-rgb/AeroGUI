@@ -435,4 +435,64 @@ Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcep
     return {};
 }
 
+ContentPresenter::ContentPresenter(Dispatcher& dispatcher,
+    DependencyPropertyRegistry& registry, TypeId runtimeType,
+    Base::IAllocator* allocator) noexcept
+    : LayoutElement(dispatcher, registry, runtimeType, allocator) {}
+
+bool ContentPresenter::IsOnlyAttachedContent(
+    const LayoutElement& content) const noexcept {
+    const Base::Span<LayoutElement* const> children = LayoutChildren();
+    return children.Size() == 1U && children[0] == &content;
+}
+
+Base::Result<void> ContentPresenter::SetContent(
+    LayoutElement* content) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (content == content_) return {};
+    if (content == nullptr) {
+        if (!LayoutChildren().Empty()) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "ContentPresenter content must be detached before clearing it");
+        }
+    } else if (!IsOnlyAttachedContent(*content)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "ContentPresenter content must be its only attached layout child");
+    }
+    content_ = content;
+    return InvalidateMeasure();
+}
+
+Base::Result<Size> ContentPresenter::MeasureOverride(
+    Size availableSize) noexcept {
+    if (content_ == nullptr) {
+        if (!LayoutChildren().Empty()) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "ContentPresenter has attached children without content");
+        }
+        return Size{};
+    }
+    if (!IsOnlyAttachedContent(*content_)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "ContentPresenter content attachment is invalid");
+    }
+    Base::Result<void> measured = MeasureChild(*content_, availableSize);
+    if (!measured) return measured.GetStatus();
+    return content_->DesiredSize();
+}
+
+Base::Result<Size> ContentPresenter::ArrangeOverride(
+    Size finalSize) noexcept {
+    if (content_ == nullptr) return finalSize;
+    if (!IsOnlyAttachedContent(*content_)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "ContentPresenter content attachment is invalid");
+    }
+    Base::Result<void> arranged = ArrangeChild(*content_,
+        {0.0, 0.0, finalSize.width, finalSize.height});
+    if (!arranged) return arranged.GetStatus();
+    return finalSize;
+}
+
 } // namespace Aero::Core
