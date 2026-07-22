@@ -253,6 +253,40 @@ bool TestCanvasChildPosition() {
     return true;
 }
 
+bool TestBorderPaddingDecoratorLayout() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    Border root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    FixedElement child(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {30.0, 12.0});
+    CHECK(root.SetPadding({4.0, 3.0, 6.0, 5.0}));
+    CHECK(tree.SetRoot(&root));
+    CHECK(tree.AttachLogical(root, child));
+    CHECK(tree.AttachVisual(root, child));
+    CHECK(layout.Attach(root, child));
+    CHECK(layout.SetRoot(&root, {100.0, 80.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(root.DesiredSize().width == 40.0 && root.DesiredSize().height == 20.0);
+    CHECK(child.LayoutSlot().x == 4.0 && child.LayoutSlot().y == 3.0);
+    CHECK(child.LayoutSlot().width == 90.0 && child.LayoutSlot().height == 72.0);
+    Result<void> invalid = root.SetPadding({0.0, -1.0, 0.0, 0.0});
+    CHECK(!invalid && invalid.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    CHECK(layout.Detach(root, child));
+    CHECK(tree.DetachVisual(root, child));
+    CHECK(tree.DetachLogical(root, child));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(child));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
 bool TestFrameworkLayoutConstraints() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -387,6 +421,7 @@ int main() {
     if (!TestRoundingClippingAndValidation()) return 1;
     if (!TestFrameworkLayoutConstraints()) return 1;
     if (!TestCanvasChildPosition()) return 1;
+    if (!TestBorderPaddingDecoratorLayout()) return 1;
     if (!TestGridFixedAutoAndStarTracks()) return 1;
     std::puts("Aero layout tests passed");
     return 0;

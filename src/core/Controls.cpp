@@ -12,6 +12,18 @@ bool IsValidColor(Color value) noexcept {
         value.blue >= 0.0F && value.blue <= 1.0F &&
         value.alpha >= 0.0F && value.alpha <= 1.0F;
 }
+
+bool IsValidPadding(Thickness value) noexcept {
+    return IsFinite(value) && value.left >= 0.0 && value.top >= 0.0 &&
+        value.right >= 0.0 && value.bottom >= 0.0 &&
+        std::isfinite(value.left + value.right) &&
+        std::isfinite(value.top + value.bottom);
+}
+
+bool SameThickness(Thickness left, Thickness right) noexcept {
+    return left.left == right.left && left.top == right.top &&
+        left.right == right.right && left.bottom == right.bottom;
+}
 } // namespace
 
 StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
@@ -377,22 +389,37 @@ Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
     return InvalidateRender();
 }
 
+Base::Result<void> Border::SetPadding(Thickness value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!IsValidPadding(value)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Border padding must be finite, nonnegative, and non-overflowing");
+    }
+    if (SameThickness(padding_, value)) return {};
+    padding_ = value;
+    return InvalidateMeasure();
+}
+
 Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
+    const Size childAvailable = Deflate(availableSize, padding_);
     Size desired;
     for (LayoutElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
+        Base::Result<void> measured = MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
         desired.width = std::max(desired.width, child->DesiredSize().width);
         desired.height = std::max(desired.height, child->DesiredSize().height);
     }
-    return desired;
+    return Inflate(desired, padding_);
 }
 
 Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
+    const Size childSize = Deflate(finalSize, padding_);
     for (LayoutElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        Base::Result<void> arranged = ArrangeChild(*child, {0.0, 0.0, finalSize.width, finalSize.height});
+        Base::Result<void> arranged = ArrangeChild(*child,
+            {padding_.left, padding_.top, childSize.width, childSize.height});
         if (!arranged) return arranged.GetStatus();
     }
     return finalSize;

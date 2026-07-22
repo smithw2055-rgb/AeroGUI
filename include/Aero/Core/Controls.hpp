@@ -123,6 +123,8 @@ public:
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
     AERO_NODISCARD Base::Result<void> SetBackground(Color value) noexcept;
     AERO_NODISCARD Base::Result<void> SetStroke(Color value, double thickness) noexcept;
+    AERO_NODISCARD Base::Result<void> SetPadding(Thickness value) noexcept;
+    AERO_NODISCARD Thickness Padding() const noexcept { return padding_; }
 
 protected:
     AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -133,6 +135,7 @@ private:
     Color background_;
     Color stroke_{0.0F, 0.0F, 0.0F, 0.0F};
     double strokeThickness_ = 0.0;
+    Thickness padding_;
 };
 
 } // namespace Aero::Core
