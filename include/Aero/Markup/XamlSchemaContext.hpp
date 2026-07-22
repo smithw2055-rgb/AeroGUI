@@ -10,6 +10,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 
 #include <cstdint>
@@ -61,9 +62,15 @@ public:
         Core::TypeId type,
         Base::Ref<Base::Object> value,
         Base::IAllocator* allocator = nullptr) noexcept;
+    AERO_NODISCARD static XamlValue NullObject(
+        Core::TypeId type,
+        Base::IAllocator* allocator = nullptr) noexcept;
 
     AERO_NODISCARD XamlValueKind Kind() const noexcept { return kind_; }
     AERO_NODISCARD Core::TypeId Type() const noexcept { return type_; }
+    AERO_NODISCARD bool IsNullObject() const noexcept {
+        return kind_ == XamlValueKind::Object && !object_;
+    }
     AERO_NODISCARD bool AsBoolean() const noexcept;
     AERO_NODISCARD std::int64_t AsSignedInteger() const noexcept;
     AERO_NODISCARD std::uint64_t AsUnsignedInteger() const noexcept;
@@ -122,9 +129,26 @@ struct XamlResolvedMember final {
     }
 };
 
+struct XamlServiceProvider final {
+    Base::Object* targetObject = nullptr;
+    Core::TypeId targetObjectType = Core::InvalidTypeId;
+    Core::MemberId targetMember = Core::InvalidMemberId;
+    Core::TypeId targetValueType = Core::InvalidTypeId;
+    Base::Object* rootObject = nullptr;
+    Core::SourceSpan source;
+    const NameScope* nameScope = nullptr;
+    XamlNamespaceScope namespaces;
+    XamlResourceResolver resources;
+};
+
 using XamlSetMemberCallback = Base::Result<void> (*)(
     Base::Object& object,
     const XamlValue& value,
+    void* context) noexcept;
+using XamlSetMemberWithServicesCallback = Base::Result<void> (*)(
+    Base::Object& object,
+    const XamlValue& value,
+    const XamlServiceProvider& services,
     void* context) noexcept;
 using XamlInitializationCallback = Base::Result<void> (*)(
     Base::Object& object,
@@ -132,12 +156,24 @@ using XamlInitializationCallback = Base::Result<void> (*)(
 using XamlAbortInitializationCallback = void (*)(
     Base::Object& object,
     void* context) noexcept;
+using XamlRegisterNameCallback = Base::Result<void> (*)(
+    Base::Object& scopeOwner,
+    Base::StringView name,
+    Base::Object& object,
+    void* context) noexcept;
+using XamlAddResourceCallback = Base::Result<void> (*)(
+    Base::Object& scopeOwner,
+    Base::StringView key,
+    Core::TypeId valueType,
+    const Base::Ref<Base::Object>& value,
+    void* context) noexcept;
 
 struct XamlMemberAdapterRegistration final {
     Core::MemberId member = Core::InvalidMemberId;
     XamlMemberWriteMode mode = XamlMemberWriteMode::SetOnce;
     XamlSetMemberCallback set = nullptr;
     void* context = nullptr;
+    XamlSetMemberWithServicesCallback setWithServices = nullptr;
 };
 
 struct XamlTypeAdapterRegistration final {
@@ -147,6 +183,10 @@ struct XamlTypeAdapterRegistration final {
     XamlInitializationCallback endInit = nullptr;
     XamlAbortInitializationCallback abortInit = nullptr;
     void* context = nullptr;
+    bool createsNameScope = false;
+    bool createsResourceScope = false;
+    XamlRegisterNameCallback registerName = nullptr;
+    XamlAddResourceCallback addResource = nullptr;
 };
 
 class AERO_API XamlSchemaContext final {
@@ -192,7 +232,8 @@ public:
         Base::Object& object,
         Core::TypeId objectType,
         const XamlResolvedMember& member,
-        const XamlValue& value) const noexcept;
+        const XamlValue& value,
+        const XamlServiceProvider* services = nullptr) const noexcept;
 
     AERO_NODISCARD Base::Result<void> BeginInit(
         Core::TypeId type,
@@ -201,6 +242,20 @@ public:
         Core::TypeId type,
         Base::Object& object) const noexcept;
     void AbortInit(Core::TypeId type, Base::Object& object) const noexcept;
+
+    AERO_NODISCARD bool CreatesNameScope(Core::TypeId type) const noexcept;
+    AERO_NODISCARD bool CreatesResourceScope(Core::TypeId type) const noexcept;
+    AERO_NODISCARD Base::Result<void> RegisterName(
+        Core::TypeId scopeType,
+        Base::Object& scopeOwner,
+        Base::StringView name,
+        Base::Object& object) const noexcept;
+    AERO_NODISCARD Base::Result<void> AddResource(
+        Core::TypeId scopeType,
+        Base::Object& scopeOwner,
+        Base::StringView key,
+        Core::TypeId valueType,
+        const Base::Ref<Base::Object>& value) const noexcept;
 
     AERO_NODISCARD const XamlMemberAdapterRegistration* FindMemberAdapter(
         Core::MemberId member) const noexcept;
