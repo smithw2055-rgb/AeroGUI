@@ -13,6 +13,8 @@ option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
 option(AERO_ENABLE_SOKOL_BACKEND
     "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
+option(AERO_ENABLE_D3D11_BACKEND
+    "Build the native Windows D3D11 graphics backend" ${WIN32})
 set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
     "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
 set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
@@ -156,6 +158,35 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC diagnoses a reference obtained through a temporary Span view even
     # though the view points into the longer-lived immutable RenderPlan.
     target_compile_options(AeroRhi PRIVATE -Wno-dangling-reference)
+endif()
+
+if(AERO_ENABLE_D3D11_BACKEND)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "AERO_ENABLE_D3D11_BACKEND is only supported on Windows")
+    endif()
+
+    add_library(AeroRhiD3D11 STATIC
+        src/rhi/d3d11/D3D11Backend.cpp)
+    add_library(Aero::RhiD3D11 ALIAS AeroRhiD3D11)
+
+    target_include_directories(AeroRhiD3D11
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroRhiD3D11
+        PUBLIC Aero::Rhi
+        PRIVATE d3d11 dxgi)
+    target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
+    set_target_properties(AeroRhiD3D11 PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(AeroRhiD3D11 PUBLIC AERO_HAS_D3D11_BACKEND=1)
+    aero_apply_compiler_options(AeroRhiD3D11)
+else()
+    target_compile_definitions(AeroRhi PUBLIC AERO_HAS_D3D11_BACKEND=0)
 endif()
 
 if(AERO_BUILD_TESTS)
