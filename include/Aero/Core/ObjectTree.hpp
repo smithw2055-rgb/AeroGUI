@@ -42,6 +42,8 @@ enum class RoutingStrategy : std::uint8_t {
     Bubble
 };
 
+enum class PointerAction : std::uint8_t { Move = 0U, Down, Up };
+
 struct RoutedEventRegistration final {
     Base::StringView name;
     TypeId ownerType = InvalidTypeId;
@@ -54,6 +56,11 @@ struct RoutedEventArgs final {
     TreeNode* source = nullptr;
     TreeNode* originalSource = nullptr;
     bool handled = false;
+    bool hasPointer = false;
+    PointerAction pointerAction = PointerAction::Move;
+    std::uint32_t pointerId = 0U;
+    double pointerX = 0.0;
+    double pointerY = 0.0;
 };
 
 using RoutedEventHandler = void (*)(

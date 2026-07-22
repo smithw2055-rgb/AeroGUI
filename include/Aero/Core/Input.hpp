@@ -49,4 +49,36 @@ private:
         LayoutElement& element, Point position) const noexcept;
 };
 
+struct PointerInput final {
+    std::uint32_t pointerId = 0U;
+    PointerAction action = PointerAction::Move;
+    Point position;
+};
+
+struct PointerRouteEvents final {
+    RoutedEventHandle moved;
+    RoutedEventHandle pressed;
+    RoutedEventHandle released;
+};
+
+struct PointerDispatchResult final {
+    HitTestResult hit;
+    bool routed = false;
+};
+
+class AERO_API PointerInputManager final {
+public:
+    PointerInputManager(HitTestManager& hitTests, RoutedEventRegistry& events,
+        TreeNode& root, PointerRouteEvents routedEvents) noexcept;
+
+    AERO_NODISCARD Base::Result<PointerDispatchResult> Dispatch(
+        const PointerInput& input) noexcept;
+
+private:
+    HitTestManager* hitTests_ = nullptr;
+    RoutedEventRegistry* events_ = nullptr;
+    TreeNode* root_ = nullptr;
+    PointerRouteEvents routedEvents_;
+};
+
 } // namespace Aero::Core

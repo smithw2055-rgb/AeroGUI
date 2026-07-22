@@ -90,4 +90,43 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
     return HitTestResult{&element, position};
 }
 
+PointerInputManager::PointerInputManager(HitTestManager& hitTests,
+    RoutedEventRegistry& events, TreeNode& root,
+    PointerRouteEvents routedEvents) noexcept
+    : hitTests_(&hitTests), events_(&events), root_(&root),
+      routedEvents_(routedEvents) {}
+
+Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
+    const PointerInput& input) noexcept {
+    if (!IsFinite(input.position)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Pointer position must be finite");
+    }
+    RoutedEventHandle event;
+    switch (input.action) {
+    case PointerAction::Move: event = routedEvents_.moved; break;
+    case PointerAction::Down: event = routedEvents_.pressed; break;
+    case PointerAction::Up: event = routedEvents_.released; break;
+    }
+    if (!event.IsValid()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Pointer action does not have a routed event");
+    }
+    Base::Result<HitTestResult> hit = hitTests_->HitTest(*root_, input.position);
+    if (!hit) return hit.GetStatus();
+    PointerDispatchResult result;
+    result.hit = hit.Value();
+    if (!result.hit.HasTarget()) return result;
+    RoutedEventArgs args;
+    args.hasPointer = true;
+    args.pointerAction = input.action;
+    args.pointerId = input.pointerId;
+    args.pointerX = result.hit.position.x;
+    args.pointerY = result.hit.position.y;
+    Base::Result<void> raised = events_->RaiseEvent(*result.hit.target, event, &args);
+    if (!raised) return raised.GetStatus();
+    result.routed = true;
+    return result;
+}
+
 } // namespace Aero::Core
