@@ -128,6 +128,12 @@ private:
 std::uint32_t DirectiveNode::liveCount_ = 0U;
 std::uint32_t DirectiveNode::abortCount_ = 0U;
 
+Result<void> SetProbe(
+    Object& object,
+    const XamlValue& value,
+    const XamlServiceProvider& services,
+    void* context) noexcept;
+
 Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
     Result<Ref<DirectiveNode>> created =
         MakeRefWithAllocator<DirectiveNode>(allocator, &allocator, true);
@@ -381,7 +387,8 @@ Result<void> SetProbe(
             "Service provider target context is invalid");
     }
 
-    Result<StringView> defaultNamespace = services.namespaces.Lookup({});
+    Result<StringView> defaultNamespace = services.namespaces.Lookup(
+        StringView());
     if (!defaultNamespace ||
         defaultNamespace.Value() != StringView("urn:directives")) {
         return Status::Failure(
