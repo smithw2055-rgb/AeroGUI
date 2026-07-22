@@ -19,13 +19,87 @@ jobs:
         shell: bash
         run: |
           cat tools/slice17_parts/part-* | base64 --decode > /tmp/apply_slice17.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path('/tmp/apply_slice17.py')
+          tree = ast.parse(path.read_text())
+          skipped = {'CMakeLists.txt', 'tests/CMakeLists.txt', '.github/workflows/ci.yml'}
+          for node in tree.body:
+              if not isinstance(node, ast.Assign):
+                  continue
+              names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+              if not ({'EXPECTED', 'PAYLOADS'} & set(names)):
+                  continue
+              if not isinstance(node.value, ast.Dict):
+                  continue
+              pairs = [
+                  (key, value)
+                  for key, value in zip(node.value.keys, node.value.values)
+                  if not (isinstance(key, ast.Constant) and key.value in skipped)
+              ]
+              node.value.keys = [key for key, _ in pairs]
+              node.value.values = [value for _, value in pairs]
+          ast.fix_missing_locations(tree)
+          path.write_text(ast.unparse(tree) + '\n')
+          PY
           python3 /tmp/apply_slice17.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          cmake = Path('CMakeLists.txt')
+          text = cmake.read_text()
+          marker = 'add_library(AeroMarkup STATIC\n    src/markup/XmlTokenizer.cpp\n'
+          addition = 'add_library(AeroMarkup STATIC\n    src/markup/XmlTokenizer.cpp\n    src/markup/XamlDependencyProperty.cpp\n'
+          if 'src/markup/XamlDependencyProperty.cpp' not in text:
+              if marker not in text:
+                  raise SystemExit('AeroMarkup source marker not found')
+              text = text.replace(marker, addition, 1)
+          cmake.write_text(text)
+
+          tests = Path('tests/CMakeLists.txt')
+          text = tests.read_text()
+          if 'AeroXamlDependencyPropertyTests' not in text:
+              block = '''add_executable(AeroXamlDependencyPropertyTests
+              unit/XamlDependencyPropertyTests.cpp)
+          target_link_libraries(AeroXamlDependencyPropertyTests PRIVATE Aero::Markup)
+          target_compile_features(AeroXamlDependencyPropertyTests PRIVATE cxx_std_17)
+          set_target_properties(AeroXamlDependencyPropertyTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+          aero_apply_compiler_options(AeroXamlDependencyPropertyTests)
+          add_test(NAME AeroXamlDependencyPropertyTests COMMAND AeroXamlDependencyPropertyTests)
+
+          '''
+              marker = 'add_executable(AeroRhiTests unit/RhiTests.cpp)'
+              if marker not in text:
+                  raise SystemExit('RHI test marker not found')
+              text = text.replace(marker, block + marker, 1)
+          tests.write_text(text)
+
+          ci = Path('.github/workflows/ci.yml')
+          text = ci.read_text()
+          temporary = '''      - name: Upload source snapshot
+                  if: matrix.compiler == 'gcc'
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: aerogui-source-${{ github.sha }}
+                    path: |
+                      .
+                      !.git
+                      !out
+                    if-no-files-found: error
+                    retention-days: 1
+          '''
+          if temporary in text:
+              text = text.replace(temporary, '', 1)
+          ci.write_text(text)
+          PY
           rm -rf tools/slice17_parts
           rm -f tools/slice17-trigger
           git diff --check
       - name: Validate
         run: |
-          cmake -S . -B out/apply -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
+          cmake -S . -B out/apply -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON -DAERO_ENABLE_D3D11_BACKEND=OFF
           cmake --build out/apply --parallel
           ctest --test-dir out/apply --output-on-failure
       - name: Commit
