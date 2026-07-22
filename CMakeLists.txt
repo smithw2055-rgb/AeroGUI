@@ -64,6 +64,7 @@ add_library(AeroCore STATIC
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
     src/core/EffectiveValueEngine.cpp
+    src/core/Input.cpp
     src/core/Layout.cpp
     src/core/ObjectTree.cpp
     src/core/Rendering.cpp

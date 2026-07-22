@@ -76,6 +76,13 @@ set_target_properties(AeroLayoutTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_RE
 aero_apply_compiler_options(AeroLayoutTests)
 add_test(NAME AeroLayoutTests COMMAND AeroLayoutTests)
 
+add_executable(AeroInputTests unit/InputTests.cpp)
+target_link_libraries(AeroInputTests PRIVATE Aero::Core)
+target_compile_features(AeroInputTests PRIVATE cxx_std_17)
+set_target_properties(AeroInputTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroInputTests)
+add_test(NAME AeroInputTests COMMAND AeroInputTests)
+
 add_executable(AeroRenderingTests unit/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Core)
 target_compile_features(AeroRenderingTests PRIVATE cxx_std_17)
