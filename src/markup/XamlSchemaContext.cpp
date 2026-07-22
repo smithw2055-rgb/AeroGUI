@@ -38,6 +38,8 @@ constexpr const char* MessageInvalidContentMember =
     "XAML type adapter content member is invalid";
 constexpr const char* MessageContentMemberNotFound =
     "XAML type has no content member";
+constexpr const char* MessageServicesRequired =
+    "XAML member adapter requires a service-provider context";
 
 bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
@@ -110,7 +112,8 @@ Base::Result<std::uint64_t> ParseUnsignedMagnitude(
                 Base::ErrorCode::ValidationFailed,
                 MessageInvalidScalarValue);
         }
-        const std::uint64_t digit = static_cast<std::uint64_t>(character - '0');
+        const std::uint64_t digit =
+            static_cast<std::uint64_t>(character - '0');
         if (result > (limit - digit) / 10U) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
@@ -121,7 +124,8 @@ Base::Result<std::uint64_t> ParseUnsignedMagnitude(
     return result;
 }
 
-Base::Result<std::int64_t> ParseSignedInteger(Base::StringView text) noexcept {
+Base::Result<std::int64_t> ParseSignedInteger(
+    Base::StringView text) noexcept {
     Base::StringView value = TrimAscii(text);
     bool negative = false;
     if (!value.Empty() && (value[0] == '+' || value[0] == '-')) {
@@ -130,11 +134,14 @@ Base::Result<std::int64_t> ParseSignedInteger(Base::StringView text) noexcept {
     }
 
     const std::uint64_t negativeLimit =
-        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1U;
+        static_cast<std::uint64_t>(
+            std::numeric_limits<std::int64_t>::max()) + 1U;
     const std::uint64_t limit = negative
         ? negativeLimit
-        : static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
-    Base::Result<std::uint64_t> magnitude = ParseUnsignedMagnitude(value, limit);
+        : static_cast<std::uint64_t>(
+            std::numeric_limits<std::int64_t>::max());
+    Base::Result<std::uint64_t> magnitude =
+        ParseUnsignedMagnitude(value, limit);
     if (!magnitude) {
         return magnitude.GetStatus();
     }
@@ -148,7 +155,8 @@ Base::Result<std::int64_t> ParseSignedInteger(Base::StringView text) noexcept {
     return -static_cast<std::int64_t>(magnitude.Value());
 }
 
-Base::Result<std::uint64_t> ParseUnsignedInteger(Base::StringView text) noexcept {
+Base::Result<std::uint64_t> ParseUnsignedInteger(
+    Base::StringView text) noexcept {
     Base::StringView value = TrimAscii(text);
     if (!value.Empty() && value[0] == '+') {
         value = value.Substr(1U, value.SizeBytes() - 1U);
@@ -183,7 +191,8 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
     while (index < value.SizeBytes() &&
         value[index] >= '0' && value[index] <= '9') {
         sawDigit = true;
-        result = result * 10.0 + static_cast<double>(value[index] - '0');
+        result = result * 10.0 +
+            static_cast<double>(value[index] - '0');
         if (!std::isfinite(result)) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
@@ -327,6 +336,12 @@ XamlValue XamlValue::FromObject(
     return result;
 }
 
+XamlValue XamlValue::NullObject(
+    Core::TypeId type,
+    Base::IAllocator* allocator) noexcept {
+    return FromObject(type, Base::Ref<Base::Object>{}, allocator);
+}
+
 bool XamlValue::AsBoolean() const noexcept {
     AERO_ASSERT(kind_ == XamlValueKind::Boolean);
     return scalar_.boolean;
@@ -376,7 +391,9 @@ Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
     }
     const Core::TypeInfo* info = types_->FindType(type);
     if (info == nullptr ||
-        !HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType)) {
+        !HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType) ||
+        static_cast<std::uint8_t>(kind) >
+            static_cast<std::uint8_t>(XamlScalarKind::Double)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidScalarType);
@@ -397,7 +414,7 @@ Base::Result<void> XamlSchemaContext::TryRegisterMemberAdapter(
             MessageSchemaAlreadyFrozen);
     }
     if (registration.member == Core::InvalidMemberId ||
-        registration.set == nullptr ||
+        (registration.set == nullptr && registration.setWithServices == nullptr) ||
         types_->FindProperty(registration.member) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -419,7 +436,8 @@ Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
             MessageSchemaAlreadyFrozen);
     }
     const Core::TypeInfo* type = types_->FindType(registration.type);
-    if (type == nullptr || HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType)) {
+    if (type == nullptr ||
+        HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML type adapter registration is invalid");
@@ -434,7 +452,9 @@ Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
             types_->FindProperty(registration.contentMember);
         if (content == nullptr ||
             (!HasPropertyFlag(content->Flags(), Core::PropertyFlags::Attached) &&
-             !types_->IsDerivedFrom(registration.type, content->OwnerType()))) {
+             !types_->IsDerivedFrom(
+                 registration.type,
+                 content->OwnerType()))) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 MessageInvalidContentMember);
@@ -464,7 +484,8 @@ Base::Result<const Core::TypeInfo*> XamlSchemaContext::ResolveType(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    const Core::TypeInfo* type = types_->FindType(xamlNamespace, localName);
+    const Core::TypeInfo* type =
+        types_->FindType(xamlNamespace, localName);
     if (type == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -491,7 +512,9 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMember(
 
     const Base::StringView localName = name.LocalName();
     std::uint32_t dot = localName.SizeBytes();
-    for (std::uint32_t index = 0U; index < localName.SizeBytes(); ++index) {
+    for (std::uint32_t index = 0U;
+         index < localName.SizeBytes();
+         ++index) {
         if (localName[index] != '.') {
             continue;
         }
@@ -531,7 +554,8 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMember(
     const Base::StringView ownerNamespace = name.NamespaceUri().Empty()
         ? target->XamlNamespace()
         : name.NamespaceUri();
-    const Core::TypeInfo* owner = types_->FindType(ownerNamespace, ownerName);
+    const Core::TypeInfo* owner =
+        types_->FindType(ownerNamespace, ownerName);
     if (owner == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -552,7 +576,8 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMember(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(targetType);
+    const XamlTypeAdapterRegistration* adapter =
+        FindTypeAdapter(targetType);
     if (adapter == nullptr ||
         adapter->contentMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
@@ -649,14 +674,20 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
         if (!parsed) {
             return parsed.GetStatus();
         }
-        return XamlValue::FromSignedInteger(type, parsed.Value(), allocator_);
+        return XamlValue::FromSignedInteger(
+            type,
+            parsed.Value(),
+            allocator_);
     }
     case XamlScalarKind::UnsignedInteger: {
         Base::Result<std::uint64_t> parsed = ParseUnsignedInteger(text);
         if (!parsed) {
             return parsed.GetStatus();
         }
-        return XamlValue::FromUnsignedInteger(type, parsed.Value(), allocator_);
+        return XamlValue::FromUnsignedInteger(
+            type,
+            parsed.Value(),
+            allocator_);
     }
     case XamlScalarKind::Double: {
         Base::Result<double> parsed = ParseDouble(text);
@@ -676,7 +707,8 @@ Base::Result<void> XamlSchemaContext::SetMember(
     Base::Object& object,
     Core::TypeId objectType,
     const XamlResolvedMember& member,
-    const XamlValue& value) const noexcept {
+    const XamlValue& value,
+    const XamlServiceProvider* services) const noexcept {
     if (!frozen_ || !member.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -695,9 +727,10 @@ Base::Result<void> XamlSchemaContext::SetMember(
     }
 
     bool compatible = value.Type() == member.valueType;
-    if (value.Kind() == XamlValueKind::Object) {
-        compatible = value.AsObject() &&
-            types_->IsDerivedFrom(value.Type(), member.valueType);
+    if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
+        compatible = types_->IsDerivedFrom(
+            value.Type(),
+            member.valueType);
     }
     if (!compatible) {
         return Base::Status::Failure(
@@ -707,10 +740,23 @@ Base::Result<void> XamlSchemaContext::SetMember(
 
     const XamlMemberAdapterRegistration* adapter =
         FindMemberAdapter(member.id);
-    if (adapter == nullptr || adapter->set == nullptr) {
+    if (adapter == nullptr ||
+        (adapter->set == nullptr && adapter->setWithServices == nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMemberAdapter);
+    }
+    if (adapter->setWithServices != nullptr) {
+        if (services == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                MessageServicesRequired);
+        }
+        return adapter->setWithServices(
+            object,
+            value,
+            *services,
+            adapter->context);
     }
     return adapter->set(object, value, adapter->context);
 }
@@ -742,6 +788,55 @@ void XamlSchemaContext::AbortInit(
     if (adapter != nullptr && adapter->abortInit != nullptr) {
         adapter->abortInit(object, adapter->context);
     }
+}
+
+bool XamlSchemaContext::CreatesNameScope(Core::TypeId type) const noexcept {
+    const XamlTypeAdapterRegistration* adapter =
+        FindTypeAdapterExact(type);
+    return adapter != nullptr && adapter->createsNameScope;
+}
+
+bool XamlSchemaContext::CreatesResourceScope(
+    Core::TypeId type) const noexcept {
+    const XamlTypeAdapterRegistration* adapter =
+        FindTypeAdapterExact(type);
+    return adapter != nullptr && adapter->createsResourceScope;
+}
+
+Base::Result<void> XamlSchemaContext::RegisterName(
+    Core::TypeId scopeType,
+    Base::Object& scopeOwner,
+    Base::StringView name,
+    Base::Object& object) const noexcept {
+    const XamlTypeAdapterRegistration* adapter =
+        FindTypeAdapter(scopeType);
+    if (adapter == nullptr || adapter->registerName == nullptr) {
+        return {};
+    }
+    return adapter->registerName(
+        scopeOwner,
+        name,
+        object,
+        adapter->context);
+}
+
+Base::Result<void> XamlSchemaContext::AddResource(
+    Core::TypeId scopeType,
+    Base::Object& scopeOwner,
+    Base::StringView key,
+    Core::TypeId valueType,
+    const Base::Ref<Base::Object>& value) const noexcept {
+    const XamlTypeAdapterRegistration* adapter =
+        FindTypeAdapter(scopeType);
+    if (adapter == nullptr || adapter->addResource == nullptr) {
+        return {};
+    }
+    return adapter->addResource(
+        scopeOwner,
+        key,
+        valueType,
+        value,
+        adapter->context);
 }
 
 const XamlMemberAdapterRegistration* XamlSchemaContext::FindMemberAdapter(
@@ -813,8 +908,10 @@ XamlSchemaContext::ResolvePropertyOrEvent(
                 Base::ErrorCode::InvalidArgument,
                 MessageInvalidAttachedMember);
         }
-        if (ownerWasExplicit && syntax == XamlMemberSyntax::PropertyElement &&
-            !attached && !types_->IsDerivedFrom(targetType, property->OwnerType())) {
+        if (ownerWasExplicit &&
+            syntax == XamlMemberSyntax::PropertyElement &&
+            !attached &&
+            !types_->IsDerivedFrom(targetType, property->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 MessageInvalidPropertyElement);
@@ -844,8 +941,10 @@ XamlSchemaContext::ResolvePropertyOrEvent(
                 Base::ErrorCode::InvalidArgument,
                 MessageInvalidAttachedMember);
         }
-        if (ownerWasExplicit && syntax == XamlMemberSyntax::PropertyElement &&
-            !attached && !types_->IsDerivedFrom(targetType, event->OwnerType())) {
+        if (ownerWasExplicit &&
+            syntax == XamlMemberSyntax::PropertyElement &&
+            !attached &&
+            !types_->IsDerivedFrom(targetType, event->OwnerType())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 MessageInvalidPropertyElement);
