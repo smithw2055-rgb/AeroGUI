@@ -16,6 +16,9 @@ struct Size final { double width = 0.0; double height = 0.0; };
 struct Rect final { double x = 0.0; double y = 0.0; double width = 0.0; double height = 0.0; };
 struct Thickness final { double left = 0.0; double top = 0.0; double right = 0.0; double bottom = 0.0; };
 
+enum class HorizontalAlignment : std::uint8_t { Stretch = 0U, Left, Center, Right };
+enum class VerticalAlignment : std::uint8_t { Stretch = 0U, Top, Center, Bottom };
+
 AERO_NODISCARD AERO_API bool IsFinite(Point value) noexcept;
 AERO_NODISCARD AERO_API bool IsFinite(Size value) noexcept;
 AERO_NODISCARD AERO_API bool IsFinite(Rect value) noexcept;
@@ -47,10 +50,34 @@ public:
     AERO_NODISCARD bool UseLayoutRounding() const noexcept { return useLayoutRounding_; }
     AERO_NODISCARD double DpiScale() const noexcept { return dpiScale_; }
     AERO_NODISCARD std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
+    AERO_NODISCARD bool HasWidth() const noexcept { return hasWidth_; }
+    AERO_NODISCARD bool HasHeight() const noexcept { return hasHeight_; }
+    AERO_NODISCARD double Width() const noexcept { return width_; }
+    AERO_NODISCARD double Height() const noexcept { return height_; }
+    AERO_NODISCARD Size MinSize() const noexcept { return minSize_; }
+    AERO_NODISCARD Size MaxSize() const noexcept { return maxSize_; }
+    AERO_NODISCARD Thickness Margin() const noexcept { return margin_; }
+    AERO_NODISCARD HorizontalAlignment GetHorizontalAlignment() const noexcept {
+        return horizontalAlignment_;
+    }
+    AERO_NODISCARD VerticalAlignment GetVerticalAlignment() const noexcept {
+        return verticalAlignment_;
+    }
 
     void SetClipToBounds(bool value) noexcept { clipToBounds_ = value; }
     AERO_NODISCARD Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
+    AERO_NODISCARD Base::Result<void> SetWidth(double value) noexcept;
+    AERO_NODISCARD Base::Result<void> ClearWidth() noexcept;
+    AERO_NODISCARD Base::Result<void> SetHeight(double value) noexcept;
+    AERO_NODISCARD Base::Result<void> ClearHeight() noexcept;
+    AERO_NODISCARD Base::Result<void> SetMinSize(Size value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetMaxSize(Size value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetMargin(Thickness value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetHorizontalAlignment(
+        HorizontalAlignment value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetVerticalAlignment(
+        VerticalAlignment value) noexcept;
 
 protected:
     AERO_NODISCARD virtual Base::Result<Size> MeasureOverride(Size availableSize) noexcept;
@@ -70,9 +97,14 @@ private:
     Base::Vector<LayoutElement*> layoutChildren_;
     Size desiredSize_;
     Size renderSize_;
+    Size minSize_;
+    Size maxSize_{1.0e12, 1.0e12};
     Size previousMeasureConstraint_;
     Rect layoutSlot_;
     Rect layoutClip_;
+    Thickness margin_;
+    double width_ = 0.0;
+    double height_ = 0.0;
     std::uint64_t layoutRevision_ = 0U;
     bool measureValid_ = false;
     bool arrangeValid_ = false;
@@ -82,7 +114,11 @@ private:
     bool arranging_ = false;
     bool clipToBounds_ = false;
     bool useLayoutRounding_ = false;
+    bool hasWidth_ = false;
+    bool hasHeight_ = false;
     double dpiScale_ = 1.0;
+    HorizontalAlignment horizontalAlignment_ = HorizontalAlignment::Stretch;
+    VerticalAlignment verticalAlignment_ = VerticalAlignment::Stretch;
 };
 
 struct LayoutDiagnostics final {

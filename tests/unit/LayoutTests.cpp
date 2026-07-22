@@ -253,6 +253,63 @@ bool TestCanvasChildPosition() {
     return true;
 }
 
+bool TestFrameworkLayoutConstraints() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+
+    FixedElement element(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {12.0, 8.0});
+    CHECK(element.SetMinSize({30.0, 20.0}));
+    CHECK(element.SetMaxSize({60.0, 30.0}));
+    CHECK(element.SetWidth(40.0));
+    CHECK(element.SetHeight(25.0));
+    CHECK(element.SetMargin({10.0, 5.0, 20.0, 15.0}));
+    CHECK(element.SetHorizontalAlignment(HorizontalAlignment::Center));
+    CHECK(element.SetVerticalAlignment(VerticalAlignment::Bottom));
+    CHECK(layout.SetRoot(&element, {120.0, 80.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+
+    CHECK(element.DesiredSize().width == 70.0);
+    CHECK(element.DesiredSize().height == 45.0);
+    CHECK(element.LayoutSlot().x == 35.0);
+    CHECK(element.LayoutSlot().y == 40.0);
+    CHECK(element.LayoutSlot().width == 40.0);
+    CHECK(element.LayoutSlot().height == 25.0);
+    CHECK(element.RenderSize().width == 40.0);
+    CHECK(element.RenderSize().height == 25.0);
+
+    CHECK(element.SetHorizontalAlignment(HorizontalAlignment::Right));
+    CHECK(!element.IsArrangeValid());
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(element.LayoutSlot().x == 60.0);
+
+    CHECK(element.ClearWidth());
+    CHECK(element.ClearHeight());
+    CHECK(element.SetHorizontalAlignment(HorizontalAlignment::Stretch));
+    CHECK(element.SetVerticalAlignment(VerticalAlignment::Stretch));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(element.LayoutSlot().x == 10.0);
+    CHECK(element.LayoutSlot().y == 5.0);
+    CHECK(element.LayoutSlot().width == 60.0);
+    CHECK(element.LayoutSlot().height == 30.0);
+
+    Result<void> invalidMargin = element.SetMargin({-1.0, 0.0, 0.0, 0.0});
+    CHECK(!invalidMargin);
+    CHECK(invalidMargin.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidMax = element.SetMaxSize({20.0, 30.0});
+    CHECK(!invalidMax);
+    CHECK(invalidMax.GetStatus().code == ErrorCode::InvalidArgument);
+    Result<void> invalidAlignment = element.SetVerticalAlignment(
+        static_cast<VerticalAlignment>(255U));
+    CHECK(!invalidAlignment);
+    CHECK(invalidAlignment.GetStatus().code == ErrorCode::InvalidArgument);
+
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    return true;
+}
+
 bool TestGridFixedAutoAndStarTracks() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -328,6 +385,7 @@ int main() {
     if (!TestGeometry()) return 1;
     if (!TestNestedLayoutAndInvalidation()) return 1;
     if (!TestRoundingClippingAndValidation()) return 1;
+    if (!TestFrameworkLayoutConstraints()) return 1;
     if (!TestCanvasChildPosition()) return 1;
     if (!TestGridFixedAutoAndStarTracks()) return 1;
     std::puts("Aero layout tests passed");

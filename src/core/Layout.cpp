@@ -20,6 +20,32 @@ bool SameSize(Size left, Size right) noexcept {
     return left.width == right.width && left.height == right.height;
 }
 
+bool SameThickness(Thickness left, Thickness right) noexcept {
+    return left.left == right.left && left.top == right.top &&
+        left.right == right.right && left.bottom == right.bottom;
+}
+
+bool IsValidMargin(Thickness value) noexcept {
+    return IsFinite(value) && value.left >= 0.0 && value.top >= 0.0 &&
+        value.right >= 0.0 && value.bottom >= 0.0 &&
+        std::isfinite(value.left + value.right) &&
+        std::isfinite(value.top + value.bottom);
+}
+
+double ClampDimension(double value, double minimum, double maximum) noexcept {
+    return std::max(minimum, std::min(value, maximum));
+}
+
+Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
+    return {ClampDimension(value.width, minimum.width, maximum.width),
+        ClampDimension(value.height, minimum.height, maximum.height)};
+}
+
+double AlignmentOffset(double available, double actual, bool center, bool end) noexcept {
+    const double remaining = std::max(0.0, available - actual);
+    return center ? remaining * 0.5 : (end ? remaining : 0.0);
+}
+
 } // namespace
 
 bool IsFinite(Point value) noexcept {
@@ -120,6 +146,107 @@ Base::Result<void> LayoutElement::SetLayoutRounding(
     useLayoutRounding_ = enabled;
     dpiScale_ = dpiScale;
     return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!std::isfinite(value) || value < 0.0) {
+        return InvalidArgument("Width must be finite and nonnegative");
+    }
+    if (hasWidth_ && width_ == value) return {};
+    width_ = value;
+    hasWidth_ = true;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::ClearWidth() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!hasWidth_) return {};
+    hasWidth_ = false;
+    width_ = 0.0;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetHeight(double value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!std::isfinite(value) || value < 0.0) {
+        return InvalidArgument("Height must be finite and nonnegative");
+    }
+    if (hasHeight_ && height_ == value) return {};
+    height_ = value;
+    hasHeight_ = true;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::ClearHeight() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!hasHeight_) return {};
+    hasHeight_ = false;
+    height_ = 0.0;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetMinSize(Size value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!IsValidLayoutSize(value) || value.width > maxSize_.width ||
+        value.height > maxSize_.height) {
+        return InvalidArgument("Minimum layout size is invalid");
+    }
+    if (SameSize(minSize_, value)) return {};
+    minSize_ = value;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetMaxSize(Size value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!IsValidLayoutSize(value) || value.width < minSize_.width ||
+        value.height < minSize_.height) {
+        return InvalidArgument("Maximum layout size is invalid");
+    }
+    if (SameSize(maxSize_, value)) return {};
+    maxSize_ = value;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetMargin(Thickness value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!IsValidMargin(value)) {
+        return InvalidArgument("Margin must be finite, nonnegative, and non-overflowing");
+    }
+    if (SameThickness(margin_, value)) return {};
+    margin_ = value;
+    return InvalidateMeasure();
+}
+
+Base::Result<void> LayoutElement::SetHorizontalAlignment(
+    HorizontalAlignment value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (value > HorizontalAlignment::Right) {
+        return InvalidArgument("Horizontal alignment is invalid");
+    }
+    if (horizontalAlignment_ == value) return {};
+    horizontalAlignment_ = value;
+    return InvalidateArrange();
+}
+
+Base::Result<void> LayoutElement::SetVerticalAlignment(
+    VerticalAlignment value) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (value > VerticalAlignment::Bottom) {
+        return InvalidArgument("Vertical alignment is invalid");
+    }
+    if (verticalAlignment_ == value) return {};
+    verticalAlignment_ = value;
+    return InvalidateArrange();
 }
 
 Base::Result<Size> LayoutElement::MeasureOverride(Size availableSize) noexcept {
@@ -375,8 +502,19 @@ Base::Result<void> LayoutManager::MeasureElement(
     if (element.measureValid_ && SameSize(element.previousMeasureConstraint_, constraint)) {
         return {};
     }
+    Size available = Deflate(constraint, element.margin_);
+    available = ClampSize(available, element.minSize_, element.maxSize_);
+    if (element.hasWidth_) {
+        available.width = ClampDimension(
+            element.width_, element.minSize_.width, element.maxSize_.width);
+    }
+    if (element.hasHeight_) {
+        available.height = ClampDimension(
+            element.height_, element.minSize_.height, element.maxSize_.height);
+    }
+
     element.measuring_ = true;
-    Base::Result<Size> result = element.MeasureOverride(constraint);
+    Base::Result<Size> result = element.MeasureOverride(available);
     element.measuring_ = false;
     if (!result) {
         return result.GetStatus();
@@ -384,6 +522,13 @@ Base::Result<void> LayoutManager::MeasureElement(
     Size desired = result.Value();
     if (!IsValidLayoutSize(desired)) {
         return InvalidArgument("MeasureOverride returned an invalid size");
+    }
+    desired = ClampSize(desired, element.minSize_, element.maxSize_);
+    if (element.hasWidth_) desired.width = available.width;
+    if (element.hasHeight_) desired.height = available.height;
+    desired = Inflate(desired, element.margin_);
+    if (!IsValidLayoutSize(desired)) {
+        return InvalidArgument("Layout constraints produced an invalid desired size");
     }
     if (element.useLayoutRounding_) {
         desired.width = RoundLayoutValue(desired.width, element.dpiScale_);
@@ -421,8 +566,46 @@ Base::Result<void> LayoutManager::ArrangeElement(
         slot.width = RoundLayoutValue(slot.width, element.dpiScale_);
         slot.height = RoundLayoutValue(slot.height, element.dpiScale_);
     }
+    const Size contentAvailable = Deflate({slot.width, slot.height}, element.margin_);
+    const Size desiredContent = Deflate(element.desiredSize_, element.margin_);
+    const Size constrainedDesired = ClampSize(
+        desiredContent, element.minSize_, element.maxSize_);
+
+    Size finalSize;
+    if (element.hasWidth_) {
+        finalSize.width = ClampDimension(
+            element.width_, element.minSize_.width, element.maxSize_.width);
+    } else if (element.horizontalAlignment_ == HorizontalAlignment::Stretch) {
+        finalSize.width = ClampDimension(
+            contentAvailable.width, element.minSize_.width, element.maxSize_.width);
+    } else {
+        finalSize.width = ClampDimension(std::min(
+            constrainedDesired.width, contentAvailable.width),
+            element.minSize_.width, element.maxSize_.width);
+    }
+    if (element.hasHeight_) {
+        finalSize.height = ClampDimension(
+            element.height_, element.minSize_.height, element.maxSize_.height);
+    } else if (element.verticalAlignment_ == VerticalAlignment::Stretch) {
+        finalSize.height = ClampDimension(
+            contentAvailable.height, element.minSize_.height, element.maxSize_.height);
+    } else {
+        finalSize.height = ClampDimension(std::min(
+            constrainedDesired.height, contentAvailable.height),
+            element.minSize_.height, element.maxSize_.height);
+    }
+
+    Rect contentSlot{slot.x + element.margin_.left, slot.y + element.margin_.top,
+        finalSize.width, finalSize.height};
+    contentSlot.x += AlignmentOffset(contentAvailable.width, finalSize.width,
+        element.horizontalAlignment_ == HorizontalAlignment::Center,
+        element.horizontalAlignment_ == HorizontalAlignment::Right);
+    contentSlot.y += AlignmentOffset(contentAvailable.height, finalSize.height,
+        element.verticalAlignment_ == VerticalAlignment::Center,
+        element.verticalAlignment_ == VerticalAlignment::Bottom);
+
     element.arranging_ = true;
-    Base::Result<Size> result = element.ArrangeOverride({slot.width, slot.height});
+    Base::Result<Size> result = element.ArrangeOverride(finalSize);
     element.arranging_ = false;
     if (!result) {
         return result.GetStatus();
@@ -431,11 +614,11 @@ Base::Result<void> LayoutManager::ArrangeElement(
     if (!IsValidLayoutSize(render)) {
         return InvalidArgument("ArrangeOverride returned an invalid size");
     }
-    element.layoutSlot_ = slot;
+    element.layoutSlot_ = contentSlot;
     element.renderSize_ = render;
     element.layoutClip_ = element.clipToBounds_
-        ? Intersect(slot, {slot.x, slot.y, render.width, render.height})
-        : Rect{slot.x, slot.y, render.width, render.height};
+        ? Intersect(contentSlot, {contentSlot.x, contentSlot.y, render.width, render.height})
+        : Rect{contentSlot.x, contentSlot.y, render.width, render.height};
     element.arrangeValid_ = true;
     element.arrangeQueued_ = false;
     ++element.layoutRevision_;
