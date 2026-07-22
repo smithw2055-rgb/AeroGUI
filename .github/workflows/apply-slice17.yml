@@ -1,0 +1,37 @@
+name: Apply Slice 17
+
+on:
+  push:
+    branches: ["agent/bootstrap-cxx17-foundation"]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Materialize slice
+        shell: bash
+        run: |
+          cat tools/slice17_parts/part-* | base64 --decode > /tmp/apply_slice17.py
+          python3 /tmp/apply_slice17.py
+          rm -rf tools/slice17_parts
+          git diff --check
+      - name: Validate
+        run: |
+          cmake -S . -B out/apply -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
+          cmake --build out/apply --parallel
+          ctest --test-dir out/apply --output-on-failure
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name "AeroGUI Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement context-aware XAML dependency properties"
+          git push origin HEAD:agent/bootstrap-cxx17-foundation
