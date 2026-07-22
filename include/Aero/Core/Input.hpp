@@ -81,4 +81,25 @@ private:
     PointerRouteEvents routedEvents_;
 };
 
+struct FocusRouteEvents final {
+    RoutedEventHandle gotFocus;
+    RoutedEventHandle lostFocus;
+};
+
+class AERO_API FocusManager final {
+public:
+    FocusManager(ObjectTree& tree, RoutedEventRegistry& events,
+        FocusRouteEvents routedEvents) noexcept;
+
+    AERO_NODISCARD TreeNode* FocusedNode() noexcept;
+    AERO_NODISCARD Base::Result<bool> SetFocus(TreeNode* node) noexcept;
+    AERO_NODISCARD Base::Result<bool> ClearFocus() noexcept;
+
+private:
+    ObjectTree* tree_ = nullptr;
+    RoutedEventRegistry* events_ = nullptr;
+    FocusRouteEvents routedEvents_;
+    TreeNodeHandle focused_;
+};
+
 } // namespace Aero::Core

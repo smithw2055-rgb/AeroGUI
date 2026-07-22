@@ -29,7 +29,7 @@ struct Fixture final {
     RoutedEventRegistry events{types};
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
-    RoutedEventHandle moved; RoutedEventHandle pressed; RoutedEventHandle released;
+    RoutedEventHandle moved; RoutedEventHandle pressed; RoutedEventHandle released; RoutedEventHandle gotFocus; RoutedEventHandle lostFocus;
     bool Build() {
         const StringView ns("urn:input"); objectType=MakeTypeId(ns,StringView("Object"));
         rootType=MakeTypeId(ns,StringView("StackPanel")); boxType=MakeTypeId(ns,StringView("Box"));
@@ -39,6 +39,8 @@ struct Fixture final {
         Result<RoutedEventHandle> move = events.TryRegister({StringView("PointerMove"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(move); moved=move.Value();
         Result<RoutedEventHandle> down = events.TryRegister({StringView("PointerDown"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(down); pressed=down.Value();
         Result<RoutedEventHandle> up = events.TryRegister({StringView("PointerUp"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(up); released=up.Value();
+        Result<RoutedEventHandle> got = events.TryRegister({StringView("GotFocus"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(got); gotFocus=got.Value();
+        Result<RoutedEventHandle> lost = events.TryRegister({StringView("LostFocus"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(lost); lostFocus=lost.Value();
         CHECK(types.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };
@@ -47,6 +49,7 @@ LayoutElement* CastStack(TreeNode& node, void*) noexcept { return static_cast<La
 LayoutElement* CastBox(TreeNode& node, void*) noexcept { return static_cast<LayoutElement*>(&static_cast<Box&>(node)); }
 struct PointerLog final { std::uint32_t count=0; std::uint32_t id=0; double x=0; double y=0; };
 void OnPointer(TreeNode&, RoutedEventArgs& args, void* context) noexcept { auto* log=static_cast<PointerLog*>(context); if (log != nullptr && args.hasPointer) { ++log->count; log->id=args.pointerId; log->x=args.pointerX; log->y=args.pointerY; } }
+void OnFocus(TreeNode&, RoutedEventArgs&, void* context) noexcept { ++*static_cast<std::uint32_t*>(context); }
 
 bool TestVisualHitTesting() {
     Fixture f; CHECK(f.Build());
@@ -75,6 +78,11 @@ bool TestVisualHitTesting() {
     });
     worker.join();
     CHECK(workerCode == ErrorCode::WrongThread);
+    std::uint32_t gotCount=0U; std::uint32_t lostCount=0U;
+    CHECK(first.AddHandler(f.gotFocus,&OnFocus,&gotCount)); CHECK(first.AddHandler(f.lostFocus,&OnFocus,&lostCount));
+    FocusManager focus(f.tree,f.events,{f.gotFocus,f.lostFocus});
+    Result<bool> focused=focus.SetFocus(&first); CHECK(focused && focused.Value() && focus.FocusedNode()==&first && gotCount==1U);
+    Result<bool> cleared=focus.ClearFocus(); CHECK(cleared && cleared.Value() && focus.FocusedNode()==nullptr && lostCount==1U);
     CHECK(f.layout.SetRoot(nullptr,{0,0})); for (LayoutElement* child : {static_cast<LayoutElement*>(&second),static_cast<LayoutElement*>(&first)}) { CHECK(f.layout.Detach(root,*child)); CHECK(f.tree.DetachVisual(root,*child)); CHECK(f.tree.DetachLogical(root,*child)); CHECK(f.values.DetachObject(*child)); } CHECK(f.tree.SetRoot(nullptr)); CHECK(f.values.DetachObject(root)); return true;
 }
 }

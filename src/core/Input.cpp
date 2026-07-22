@@ -131,4 +131,53 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     return result;
 }
 
+FocusManager::FocusManager(ObjectTree& tree, RoutedEventRegistry& events,
+    FocusRouteEvents routedEvents) noexcept
+    : tree_(&tree), events_(&events), routedEvents_(routedEvents) {}
+
+TreeNode* FocusManager::FocusedNode() noexcept {
+    TreeNode* node = tree_->ResolveHandle(focused_);
+    if (node == nullptr) focused_ = {};
+    return node;
+}
+
+Base::Result<bool> FocusManager::SetFocus(TreeNode* node) noexcept {
+    if (node == nullptr) return ClearFocus();
+    Base::Result<TreeNodeHandle> next = tree_->GetHandle(*node);
+    if (!next) return next.GetStatus();
+    if (!node->IsLoaded()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Keyboard focus target must be loaded");
+    }
+    TreeNode* previous = FocusedNode();
+    if (previous == node) return false;
+    if (!routedEvents_.gotFocus.IsValid() || !routedEvents_.lostFocus.IsValid()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Focus routed events must be configured");
+    }
+    if (previous != nullptr) {
+        Base::Result<void> lost = events_->RaiseEvent(*previous, routedEvents_.lostFocus);
+        if (!lost) return lost.GetStatus();
+    }
+    Base::Result<void> gained = events_->RaiseEvent(*node, routedEvents_.gotFocus);
+    if (!gained) return gained.GetStatus();
+    focused_ = next.Value();
+    return true;
+}
+
+Base::Result<bool> FocusManager::ClearFocus() noexcept {
+    TreeNode* previous = FocusedNode();
+    if (previous == nullptr) return false;
+    Base::Result<void> access = previous->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!routedEvents_.lostFocus.IsValid()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "LostFocus routed event must be configured");
+    }
+    Base::Result<void> lost = events_->RaiseEvent(*previous, routedEvents_.lostFocus);
+    if (!lost) return lost.GetStatus();
+    focused_ = {};
+    return true;
+}
+
 } // namespace Aero::Core
