@@ -70,5 +70,5 @@ jobs:
           retention-days: 7
       - name: Test
         run: ctest --test-dir out/build -C Debug --output-on-failure
-      - name: D3D11 WARP pixel conformance
-        run: ctest --test-dir out/build -C Debug -R AeroD3D11BackendTests -V
+      - name: D3D11 WARP pixel and swap-chain conformance
+        run: ctest --test-dir out/build -C Debug -R "AeroD3D11.*Tests" -V
