@@ -1,0 +1,24 @@
+name: Slice 18 Source Export
+
+on:
+  push:
+    branches: ["agent/bootstrap-cxx17-foundation"]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerogui-slice18-source-${{ github.sha }}
+          path: |
+            .
+            !.git
+            !out
+          if-no-files-found: error
+          retention-days: 1
