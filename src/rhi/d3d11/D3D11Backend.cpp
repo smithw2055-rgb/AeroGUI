@@ -12,5 +12,6 @@ namespace Aero::Rhi {
 #include "D3D11BackendCommands2.inc"
 #include "D3D11BackendCommands3.inc"
 #include "D3D11BackendReadback.inc"
+#include "D3D11BackendSurface.inc"
 
 } // namespace Aero::Rhi
