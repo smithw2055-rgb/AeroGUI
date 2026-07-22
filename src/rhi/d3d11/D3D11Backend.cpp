@@ -1,3 +1,7 @@
+#include <Aero/Base/Vector.hpp>
+
+#include <climits>
+
 #include "D3D11BackendPrivate.hpp"
 
 namespace Aero::Rhi {
