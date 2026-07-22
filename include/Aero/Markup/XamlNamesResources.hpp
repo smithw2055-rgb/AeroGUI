@@ -17,6 +17,27 @@ namespace Aero::Markup {
 
 class XamlObjectWriter;
 
+enum class ResourceChangeKind : std::uint8_t {
+    Added = 0U,
+    Replaced,
+    Removed,
+    Cleared
+};
+
+struct ResourceChangeSubscription final {
+    std::uint64_t value = 0U;
+
+    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+        return value != 0U;
+    }
+};
+
+using ResourceChangedCallback = void (*)(
+    void* context,
+    Base::StringView key,
+    ResourceChangeKind kind,
+    std::uint64_t generation) noexcept;
+
 AERO_NODISCARD inline constexpr Base::StringView
 XamlLanguageNamespaceUri() noexcept {
     return Base::StringView(
@@ -95,16 +116,34 @@ public:
         Core::TypeId type,
         const Base::Ref<Base::Object>& object,
         Core::SourceSpan source = {}) noexcept;
+    // Adds a missing key or atomically replaces its value. Resource changes
+    // notify DynamicResource expressions after the dictionary state commits.
+    AERO_NODISCARD Base::Result<void> TrySet(
+        Base::StringView key,
+        Core::TypeId type,
+        const Base::Ref<Base::Object>& object,
+        Core::SourceSpan source = {}) noexcept;
+    AERO_NODISCARD Base::Result<bool> Remove(
+        Base::StringView key) noexcept;
     AERO_NODISCARD Base::Result<XamlResourceValue> Lookup(
         Base::StringView key) const noexcept;
     AERO_NODISCARD bool Contains(Base::StringView key) const noexcept;
     AERO_NODISCARD Core::SourceSpan SourceOf(
         Base::StringView key) const noexcept;
 
+    AERO_NODISCARD Base::Result<ResourceChangeSubscription> SubscribeChanged(
+        ResourceChangedCallback callback,
+        void* context) noexcept;
+    AERO_NODISCARD bool Unsubscribe(
+        ResourceChangeSubscription subscription) noexcept;
+
     void Clear() noexcept;
 
     AERO_NODISCARD std::uint32_t Size() const noexcept {
         return entries_.Size();
+    }
+    AERO_NODISCARD std::uint64_t Generation() const noexcept {
+        return generation_;
     }
     AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
@@ -127,11 +166,24 @@ private:
         Core::SourceSpan source;
     };
 
+    struct Listener final {
+        ResourceChangeSubscription subscription;
+        ResourceChangedCallback callback = nullptr;
+        void* context = nullptr;
+    };
+
     AERO_NODISCARD const Entry* FindEntry(
         Base::StringView key) const noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Entry> entries_;
+    Base::Vector<Listener> listeners_;
+    std::uint64_t generation_ = 0U;
+    std::uint64_t nextSubscription_ = 1U;
+
+    void NotifyChanged(
+        Base::StringView key,
+        ResourceChangeKind kind) noexcept;
 };
 
 class AERO_API XamlNamespaceScope final {
