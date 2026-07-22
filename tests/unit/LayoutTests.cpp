@@ -174,6 +174,14 @@ bool TestNestedLayoutAndInvalidation() {
     CHECK(second.LayoutSlot().y == 20.0);
     CHECK(layout.Diagnostics().passVersion == 2U);
 
+    CHECK(root.SetOrientation(Orientation::Horizontal));
+    phase = fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout);
+    CHECK(phase);
+    CHECK(first.LayoutSlot().x == 0.0);
+    CHECK(second.LayoutSlot().x == 50.0);
+    CHECK(first.LayoutSlot().height == 80.0);
+    CHECK(second.LayoutSlot().height == 80.0);
+
     CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
     CHECK(layout.Detach(root, second));
     CHECK(layout.Detach(root, first));
