@@ -13,6 +13,7 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 #include <Aero/Markup/XamlStyle.hpp>
+#include <Aero/Markup/XamlTypeExtension.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
@@ -78,16 +79,19 @@ struct Fixture final {
     XamlActivationProviderRegistry activation{schema};
     XamlDependencyPropertyBridge dpBridge{schema, properties};
     XamlStyleExtension styleExtension{{
-        &styles, &properties, &AsDependencyObject, nullptr}};
+        &styles, &properties, InvalidTypeId, &AsDependencyObject, nullptr}};
+    XamlTypeExtension typeExtension{InvalidTypeId};
 
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
+    TypeId typeReferenceType = InvalidTypeId;
     TypeId rootType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
     TypeId brushType = InvalidTypeId;
     TypeId styleType = InvalidTypeId;
     TypeId setterType = InvalidTypeId;
+    TypeId typeExtensionType = InvalidTypeId;
     DependencyPropertyHandle width;
     DependencyPropertyHandle fill;
     DependencyPropertyHandle style;
@@ -100,17 +104,22 @@ struct Fixture final {
         objectType = MakeTypeId(ns, StringView("Object"));
         stringType = MakeTypeId(ns, StringView("String"));
         doubleType = MakeTypeId(ns, StringView("Double"));
+        typeReferenceType = MakeTypeId(ns, StringView("TypeReference"));
         rootType = MakeTypeId(ns, StringView("Root"));
         elementType = MakeTypeId(ns, StringView("Element"));
         brushType = MakeTypeId(ns, StringView("Brush"));
         styleType = MakeTypeId(ns, StringView("Style"));
         setterType = MakeTypeId(ns, StringView("Setter"));
+        typeExtensionType = MakeTypeId(
+            XamlLanguageNamespaceUri(), StringView("Type"));
 
         CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("TypeReference"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("Root"), objectType,
             TypeFlags::None, &MakeRoot}));
@@ -122,6 +131,8 @@ struct Fixture final {
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("Setter"), objectType,
             TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({XamlLanguageNamespaceUri(), StringView("Type"),
+            objectType, TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}));
 
         CHECK(types.TryRegisterProperty(rootType,
             {StringView("Children"), elementType, PropertyFlags::None}));
@@ -181,6 +192,9 @@ struct Fixture final {
             rootType, children, nullptr, nullptr, nullptr, nullptr, false, true}));
         CHECK(schema.TryRegisterMemberAdapter({
             children, XamlMemberWriteMode::Collection, &AddChild, nullptr, nullptr}));
+        typeExtension.SetTypeReferenceType(typeReferenceType);
+        styleExtension.SetTypeReferenceType(typeReferenceType);
+        CHECK(typeExtension.Register(schema, typeExtensionType));
         CHECK(styleExtension.Register(schema, activation, styleType, setterType, style));
         CHECK(dpBridge.TryRegisterType({elementType, &AsDependencyObject, nullptr}));
         CHECK(dpBridge.TryRegisterProperties());
@@ -253,7 +267,7 @@ bool TestXamlStyleResourceBasedOnAndDetach() {
         "<Style x:Key=\"base\" TargetType=\"Element\">"
         "<Setter Property=\"Width\" Value=\"12.5\"/>"
         "</Style>"
-        "<Style x:Key=\"derived\" TargetType=\"Element\" "
+        "<Style x:Key=\"derived\" TargetType=\"{x:Type Element}\" "
         "BasedOn=\"{StaticResource base}\">"
         "<Setter Property=\"Width\" Value=\"42.5\"/>"
         "<Setter Property=\"Fill\" Value=\"{StaticResource accent}\"/>"
@@ -328,6 +342,19 @@ bool TestXamlStyleAcceptsNullSetterValue() {
     return true;
 }
 
+bool TestXamlTypeRejectsUnknownTarget() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Result<Ref<Object>> loaded = Load(fixture,
+        "<Root xmlns=\"urn:xaml-style-tests\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Style x:Key=\"bad\" TargetType=\"{x:Type Missing}\">"
+        "<Setter Property=\"Width\" Value=\"1\"/>"
+        "</Style></Root>");
+    CHECK(!loaded);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -335,6 +362,7 @@ int main() {
     if (!TestXamlStyleRejectsUnknownSetterProperty()) return 1;
     if (!TestXamlStyleRejectsMissingTargetType()) return 1;
     if (!TestXamlStyleAcceptsNullSetterValue()) return 1;
+    if (!TestXamlTypeRejectsUnknownTarget()) return 1;
     std::puts("Aero XAML style tests passed");
     return 0;
 }

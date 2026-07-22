@@ -19,6 +19,9 @@ namespace Aero::Markup {
 struct XamlStyleExtensionOptions final {
     Core::StyleManager* styles = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
+    // Optional value type returned by XamlTypeExtension. When configured,
+    // Style.TargetType accepts both a literal type name and `{x:Type ...}`.
+    Core::TypeId typeReferenceType = Core::InvalidTypeId;
     XamlAsDependencyObjectCallback asDependencyObject = nullptr;
     void* castContext = nullptr;
 };
@@ -50,6 +53,10 @@ public:
         Core::TypeId styleType,
         Core::TypeId setterType,
         Core::DependencyPropertyHandle styleProperty) noexcept;
+
+    void SetTypeReferenceType(Core::TypeId type) noexcept {
+        options_.typeReferenceType = type;
+    }
 
     // Call before a DependencyObject is destroyed. This clears Core::Style
     // providers and releases the retained XAML Style object atomically.

@@ -268,7 +268,7 @@ Base::Result<void> XamlStyleExtension::Register(
     setterValueMember_ = value->Id();
 
     const XamlMemberAdapterRegistration members[] = {
-        {targetTypeMember_, XamlMemberWriteMode::SetOnce, nullptr, this, &SetTargetType},
+        {targetTypeMember_, XamlMemberWriteMode::SetOnce, nullptr, this, &SetTargetType, true},
         {basedOnMember_, XamlMemberWriteMode::SetOnce, &SetBasedOn, this, nullptr},
         {settersMember_, XamlMemberWriteMode::Collection, &AddSetter, this, nullptr},
         {setterPropertyMember_, XamlMemberWriteMode::SetOnce, &SetSetterProperty, this, nullptr},
@@ -505,15 +505,30 @@ Base::Result<void> XamlStyleExtension::SetTargetType(
     const XamlServiceProvider& services,
     void* context) noexcept {
     XamlStyleExtension* extension = static_cast<XamlStyleExtension*>(context);
-    if (extension == nullptr || value.Kind() != XamlValueKind::String) {
-        return InvalidStyleXaml("Style TargetType expects a type name string");
+    if (extension == nullptr) {
+        return InvalidStyleXaml("Style TargetType requires an extension context");
     }
-    Core::TypeId type = Core::InvalidTypeId;
-    Base::Result<void> resolved = ResolveQualifiedType(services, value.AsString(), type);
-    if (!resolved) {
-        return resolved.GetStatus();
+    if (value.Kind() == XamlValueKind::String) {
+        Core::TypeId type = Core::InvalidTypeId;
+        Base::Result<void> resolved = ResolveQualifiedType(
+            services, value.AsString(), type);
+        if (!resolved) {
+            return resolved.GetStatus();
+        }
+        return static_cast<StyleObject&>(object).Plan().TrySetTargetType(type);
     }
-    return static_cast<StyleObject&>(object).Plan().TrySetTargetType(type);
+    if (value.Kind() == XamlValueKind::UnsignedInteger &&
+        extension->options_.typeReferenceType != Core::InvalidTypeId &&
+        value.Type() == extension->options_.typeReferenceType) {
+        const Core::TypeId type = value.AsUnsignedInteger();
+        const Core::TypeInfo* info = services.schema != nullptr
+            ? services.schema->Types().FindType(type) : nullptr;
+        if (info == nullptr || HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType)) {
+            return InvalidStyleXaml("Style TargetType token is invalid");
+        }
+        return static_cast<StyleObject&>(object).Plan().TrySetTargetType(type);
+    }
+    return InvalidStyleXaml("Style TargetType expects a type name or x:Type token");
 }
 
 Base::Result<void> XamlStyleExtension::SetBasedOn(
