@@ -55,6 +55,13 @@ set_target_properties(AeroEffectiveValueTests PROPERTIES CXX_STANDARD 17 CXX_STA
 aero_apply_compiler_options(AeroEffectiveValueTests)
 add_test(NAME AeroEffectiveValueTests COMMAND AeroEffectiveValueTests)
 
+add_executable(AeroStyleTests unit/StyleTests.cpp)
+target_link_libraries(AeroStyleTests PRIVATE Aero::Core)
+target_compile_features(AeroStyleTests PRIVATE cxx_std_17)
+set_target_properties(AeroStyleTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroStyleTests)
+add_test(NAME AeroStyleTests COMMAND AeroStyleTests)
+
 add_executable(AeroObjectTreeTests unit/ObjectTreeTests.cpp)
 target_link_libraries(AeroObjectTreeTests PRIVATE Aero::Core)
 target_compile_features(AeroObjectTreeTests PRIVATE cxx_std_17)

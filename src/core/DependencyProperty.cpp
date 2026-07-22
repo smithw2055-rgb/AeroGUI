@@ -623,6 +623,25 @@ const DependencyProperty* DependencyPropertyRegistry::Find(
     return index != InvalidIndex ? &properties_[index] : nullptr;
 }
 
+Base::Result<void> DependencyPropertyRegistry::ValidateValueFor(
+    DependencyPropertyHandle propertyHandle,
+    TypeId ownerType,
+    const PropertyValue& value) const noexcept {
+    const DependencyProperty* property = Find(propertyHandle);
+    if (property == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Dependency property was not found");
+    }
+    const PropertyMetadata* metadata = property->MetadataFor(ownerType);
+    if (metadata == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Dependency property does not apply to this type");
+    }
+    return ValidateValue(*property, *metadata, value);
+}
+
 bool DependencyPropertyRegistry::ValidateKey(
     DependencyPropertyHandle property,
     const DependencyPropertyKey* key) const noexcept {

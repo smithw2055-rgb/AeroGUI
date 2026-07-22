@@ -390,6 +390,12 @@ public:
     AERO_NODISCARD const DependencyProperty* Find(
         TypeId ownerType,
         Base::StringView name) const noexcept;
+    // Validates a provider value without mutating an object. Style/template
+    // sealing uses this to reject invalid setter plans before frame execution.
+    AERO_NODISCARD Base::Result<void> ValidateValueFor(
+        DependencyPropertyHandle property,
+        TypeId ownerType,
+        const PropertyValue& value) const noexcept;
 
 private:
     friend class DependencyObject;
