@@ -26,4 +26,22 @@ private:
     Orientation orientation_ = Orientation::Vertical;
 };
 
+class AERO_API Canvas final : public LayoutElement {
+public:
+    Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+
+    AERO_NODISCARD Base::Result<void> SetChildPosition(
+        LayoutElement& child, Point position) noexcept;
+    AERO_NODISCARD Point ChildPosition(const LayoutElement& child) const noexcept;
+
+protected:
+    AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
+    AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
+
+private:
+    struct Position final { LayoutElement* child = nullptr; Point point; };
+    Base::Vector<Position> positions_;
+};
+
 } // namespace Aero::Core

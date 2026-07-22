@@ -214,12 +214,44 @@ bool TestRoundingClippingAndValidation() {
     return true;
 }
 
+bool TestCanvasChildPosition() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    Canvas root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    FixedElement child(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {12.0, 7.0});
+    CHECK(tree.SetRoot(&root));
+    CHECK(tree.AttachLogical(root, child));
+    CHECK(tree.AttachVisual(root, child));
+    CHECK(layout.Attach(root, child));
+    CHECK(root.SetChildPosition(child, {8.0, 9.0}));
+    CHECK(layout.SetRoot(&root, {100.0, 80.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(root.DesiredSize().width == 20.0 && root.DesiredSize().height == 16.0);
+    CHECK(child.LayoutSlot().x == 8.0 && child.LayoutSlot().y == 9.0);
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    CHECK(layout.Detach(root, child));
+    CHECK(tree.DetachVisual(root, child));
+    CHECK(tree.DetachLogical(root, child));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(child));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestGeometry()) return 1;
     if (!TestNestedLayoutAndInvalidation()) return 1;
     if (!TestRoundingClippingAndValidation()) return 1;
+    if (!TestCanvasChildPosition()) return 1;
     std::puts("Aero layout tests passed");
     return 0;
 }

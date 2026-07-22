@@ -52,4 +52,66 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
+Canvas::Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+    TypeId runtimeType, Base::IAllocator* allocator) noexcept
+    : LayoutElement(dispatcher, registry, runtimeType, allocator),
+      positions_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
+
+Base::Result<void> Canvas::SetChildPosition(
+    LayoutElement& child, Point position) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (!IsFinite(position)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Canvas child position must be finite");
+    }
+    bool attached = false;
+    for (LayoutElement* current : LayoutChildren()) attached = attached || current == &child;
+    if (!attached) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Canvas child must be attached before positioning");
+    }
+    for (Position& entry : positions_) {
+        if (entry.child == &child) {
+            entry.point = position;
+            return InvalidateArrange();
+        }
+    }
+    Base::Result<void> added = positions_.TryPushBack({&child, position});
+    if (!added) return added.GetStatus();
+    return InvalidateArrange();
+}
+
+Point Canvas::ChildPosition(const LayoutElement& child) const noexcept {
+    for (const Position& entry : positions_) {
+        if (entry.child == &child) return entry.point;
+    }
+    return {};
+}
+
+Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
+    Size desired;
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
+        if (!measured) return measured.GetStatus();
+        const Point position = ChildPosition(*child);
+        desired.width = std::max(desired.width, position.x + child->DesiredSize().width);
+        desired.height = std::max(desired.height, position.y + child->DesiredSize().height);
+    }
+    return desired;
+}
+
+Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Point position = ChildPosition(*child);
+        const Size desired = child->DesiredSize();
+        Base::Result<void> arranged = ArrangeChild(*child,
+            {position.x, position.y, desired.width, desired.height});
+        if (!arranged) return arranged.GetStatus();
+    }
+    return finalSize;
+}
+
 } // namespace Aero::Core
