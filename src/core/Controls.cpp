@@ -124,6 +124,240 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
+Grid::Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
+    TypeId runtimeType, Base::IAllocator* allocator) noexcept
+    : LayoutElement(dispatcher, registry, runtimeType, allocator),
+      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
+      columns_(allocator_),
+      rows_(allocator_),
+      cells_(allocator_),
+      desiredColumns_(allocator_),
+      desiredRows_(allocator_) {}
+
+Base::Result<void> Grid::SetColumnDefinitions(
+    Base::Span<const GridLength> definitions) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    Base::Result<void> valid = ValidateDefinitions(definitions);
+    if (!valid) return valid;
+    const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
+    for (const Cell& cell : cells_) {
+        if (cell.column >= count) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfRange,
+                "Grid column definition removal would orphan a child cell");
+        }
+    }
+    Base::Vector<GridLength> next(allocator_);
+    Base::Result<void> copied = next.TryAssign(definitions);
+    if (!copied) return copied.GetStatus();
+    columns_ = std::move(next);
+    return InvalidateMeasure();
+}
+
+Base::Result<void> Grid::SetRowDefinitions(
+    Base::Span<const GridLength> definitions) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    Base::Result<void> valid = ValidateDefinitions(definitions);
+    if (!valid) return valid;
+    const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
+    for (const Cell& cell : cells_) {
+        if (cell.row >= count) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfRange,
+                "Grid row definition removal would orphan a child cell");
+        }
+    }
+    Base::Vector<GridLength> next(allocator_);
+    Base::Result<void> copied = next.TryAssign(definitions);
+    if (!copied) return copied.GetStatus();
+    rows_ = std::move(next);
+    return InvalidateMeasure();
+}
+
+Base::Result<void> Grid::SetChildCell(
+    LayoutElement& child, std::uint32_t row, std::uint32_t column) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access;
+    if (row >= RowCount() || column >= ColumnCount()) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange,
+            "Grid child cell is outside the declared track range");
+    }
+    bool attached = false;
+    for (LayoutElement* current : LayoutChildren()) {
+        attached = attached || current == &child;
+    }
+    if (!attached) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Grid child must be attached before assigning a cell");
+    }
+    for (Cell& cell : cells_) {
+        if (cell.child == &child) {
+            cell.row = row;
+            cell.column = column;
+            return InvalidateMeasure();
+        }
+    }
+    Base::Result<void> added = cells_.TryPushBack({&child, row, column});
+    if (!added) return added.GetStatus();
+    return InvalidateMeasure();
+}
+
+Base::Result<Size> Grid::MeasureOverride(Size) noexcept {
+    const std::uint32_t columns = ColumnCount();
+    const std::uint32_t rows = RowCount();
+    Base::Vector<double> desiredColumns(allocator_);
+    Base::Vector<double> desiredRows(allocator_);
+    Base::Result<void> resized = desiredColumns.TryResize(columns, 0.0);
+    if (!resized) return resized.GetStatus();
+    resized = desiredRows.TryResize(rows, 0.0);
+    if (!resized) return resized.GetStatus();
+
+    for (std::uint32_t index = 0U; index < columns; ++index) {
+        const GridLength definition = ColumnAt(index);
+        if (definition.unit == GridUnitType::Pixel) desiredColumns[index] = definition.value;
+    }
+    for (std::uint32_t index = 0U; index < rows; ++index) {
+        const GridLength definition = RowAt(index);
+        if (definition.unit == GridUnitType::Pixel) desiredRows[index] = definition.value;
+    }
+
+    constexpr double Unconstrained = 1.0e12;
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Cell* cell = FindCell(*child);
+        const std::uint32_t row = cell != nullptr ? cell->row : 0U;
+        const std::uint32_t column = cell != nullptr ? cell->column : 0U;
+        const GridLength columnDefinition = ColumnAt(column);
+        const GridLength rowDefinition = RowAt(row);
+        const Size childAvailable{
+            columnDefinition.unit == GridUnitType::Pixel
+                ? columnDefinition.value : Unconstrained,
+            rowDefinition.unit == GridUnitType::Pixel
+                ? rowDefinition.value : Unconstrained};
+        Base::Result<void> measured = MeasureChild(*child, childAvailable);
+        if (!measured) return measured.GetStatus();
+        const Size childDesired = child->DesiredSize();
+        if (columnDefinition.unit != GridUnitType::Pixel) {
+            desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
+        }
+        if (rowDefinition.unit != GridUnitType::Pixel) {
+            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
+        }
+    }
+
+    double width = 0.0;
+    double height = 0.0;
+    for (double value : desiredColumns) width += value;
+    for (double value : desiredRows) height += value;
+    desiredColumns_ = std::move(desiredColumns);
+    desiredRows_ = std::move(desiredRows);
+    return Size{width, height};
+}
+
+Base::Result<Size> Grid::ArrangeOverride(Size finalSize) noexcept {
+    Base::Vector<double> columns(allocator_);
+    Base::Vector<double> rows(allocator_);
+    Base::Result<void> resolved = ResolveTracks(
+        {columns_.Data(), columns_.Size()},
+        {desiredColumns_.Data(), desiredColumns_.Size()}, finalSize.width, columns);
+    if (!resolved) return resolved.GetStatus();
+    resolved = ResolveTracks(
+        {rows_.Data(), rows_.Size()},
+        {desiredRows_.Data(), desiredRows_.Size()}, finalSize.height, rows);
+    if (!resolved) return resolved.GetStatus();
+
+    for (LayoutElement* child : LayoutChildren()) {
+        if (child == nullptr) continue;
+        const Cell* cell = FindCell(*child);
+        const std::uint32_t row = cell != nullptr ? cell->row : 0U;
+        const std::uint32_t column = cell != nullptr ? cell->column : 0U;
+        double x = 0.0;
+        double y = 0.0;
+        for (std::uint32_t index = 0U; index < column; ++index) x += columns[index];
+        for (std::uint32_t index = 0U; index < row; ++index) y += rows[index];
+        Base::Result<void> arranged = ArrangeChild(*child,
+            {x, y, columns[column], rows[row]});
+        if (!arranged) return arranged.GetStatus();
+    }
+    return finalSize;
+}
+
+std::uint32_t Grid::ColumnCount() const noexcept {
+    return columns_.Empty() ? 1U : columns_.Size();
+}
+
+std::uint32_t Grid::RowCount() const noexcept {
+    return rows_.Empty() ? 1U : rows_.Size();
+}
+
+GridLength Grid::ColumnAt(std::uint32_t index) const noexcept {
+    return columns_.Empty() ? GridLength::Star() : columns_[index];
+}
+
+GridLength Grid::RowAt(std::uint32_t index) const noexcept {
+    return rows_.Empty() ? GridLength::Star() : rows_[index];
+}
+
+Base::Result<void> Grid::ValidateDefinitions(
+    Base::Span<const GridLength> definitions) const noexcept {
+    for (const GridLength& definition : definitions) {
+        if (!std::isfinite(definition.value) || definition.value < 0.0 ||
+            (definition.unit == GridUnitType::Star && definition.value <= 0.0)) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                "Grid track definition is invalid");
+        }
+    }
+    return {};
+}
+
+const Grid::Cell* Grid::FindCell(const LayoutElement& child) const noexcept {
+    for (const Cell& cell : cells_) {
+        if (cell.child == &child) return &cell;
+    }
+    return nullptr;
+}
+
+Base::Result<void> Grid::ResolveTracks(
+    Base::Span<const GridLength> definitions,
+    Base::Span<const double> desired,
+    double available,
+    Base::Vector<double>& resolved) const noexcept {
+    const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
+    if (!std::isfinite(available) || available < 0.0 ||
+        (!desired.Empty() && desired.Size() != count)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Grid track resolution input is invalid");
+    }
+    Base::Result<void> resized = resolved.TryResize(count, 0.0);
+    if (!resized) return resized.GetStatus();
+    double occupied = 0.0;
+    double totalStarWeight = 0.0;
+    for (std::uint32_t index = 0U; index < count; ++index) {
+        const GridLength definition = definitions.Empty()
+            ? GridLength::Star() : definitions[index];
+        if (definition.unit == GridUnitType::Pixel) {
+            resolved[index] = definition.value;
+            occupied += definition.value;
+        } else if (definition.unit == GridUnitType::Auto) {
+            resolved[index] = desired.Empty() ? 0.0 : desired[index];
+            occupied += resolved[index];
+        } else {
+            totalStarWeight += definition.value;
+        }
+    }
+    const double remaining = std::max(0.0, available - occupied);
+    if (totalStarWeight > 0.0) {
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            const GridLength definition = definitions.Empty()
+                ? GridLength::Star() : definitions[index];
+            if (definition.unit == GridUnitType::Star) {
+                resolved[index] = remaining * (definition.value / totalStarWeight);
+            }
+        }
+    }
+    return {};
+}
+
 Border::Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Base::IAllocator* allocator) noexcept
     : RenderElement(dispatcher, registry, runtimeType, allocator) {}

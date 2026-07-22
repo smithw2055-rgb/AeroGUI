@@ -253,6 +253,75 @@ bool TestCanvasChildPosition() {
     return true;
 }
 
+bool TestGridFixedAutoAndStarTracks() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+
+    Grid root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    const GridLength columns[] = {
+        GridLength::Pixel(20.0), GridLength::Auto(), GridLength::Star(1.0)};
+    const GridLength rows[] = {
+        GridLength::Pixel(10.0), GridLength::Star(1.0)};
+    const GridLength invalidColumns[] = {GridLength::Star(0.0)};
+    CHECK(!root.SetColumnDefinitions({invalidColumns, 1U}));
+    CHECK(root.SetColumnDefinitions({columns, 3U}));
+    CHECK(root.SetRowDefinitions({rows, 2U}));
+
+    FixedElement fixed(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {5.0, 4.0});
+    FixedElement automatic(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {30.0, 8.0});
+    FixedElement star(fixture.dispatcher, fixture.properties,
+        fixture.elementType, {16.0, 25.0});
+    CHECK(tree.SetRoot(&root));
+    for (LayoutElement* child : {static_cast<LayoutElement*>(&fixed),
+            static_cast<LayoutElement*>(&automatic),
+            static_cast<LayoutElement*>(&star)}) {
+        CHECK(tree.AttachLogical(root, *child));
+        CHECK(tree.AttachVisual(root, *child));
+        CHECK(layout.Attach(root, *child));
+    }
+    CHECK(root.SetChildCell(fixed, 0U, 0U));
+    CHECK(root.SetChildCell(automatic, 0U, 1U));
+    CHECK(root.SetChildCell(star, 1U, 2U));
+    CHECK(!root.SetChildCell(star, 2U, 0U));
+    CHECK(layout.SetRoot(&root, {100.0, 80.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(root.DesiredSize().width == 66.0);
+    CHECK(root.DesiredSize().height == 35.0);
+    CHECK(fixed.LayoutSlot().x == 0.0 && fixed.LayoutSlot().width == 20.0);
+    CHECK(automatic.LayoutSlot().x == 20.0 && automatic.LayoutSlot().width == 30.0);
+    CHECK(star.LayoutSlot().x == 50.0 && star.LayoutSlot().width == 50.0);
+    CHECK(star.LayoutSlot().y == 10.0 && star.LayoutSlot().height == 70.0);
+
+    const GridLength weightedColumns[] = {
+        GridLength::Pixel(20.0), GridLength::Auto(),
+        GridLength::Star(1.0), GridLength::Star(2.0)};
+    CHECK(root.SetColumnDefinitions({weightedColumns, 4U}));
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(std::fabs(star.LayoutSlot().x - 50.0) < 0.000001);
+    CHECK(std::fabs(star.LayoutSlot().width - (50.0 / 3.0)) < 0.000001);
+
+    CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+    for (LayoutElement* child : {static_cast<LayoutElement*>(&star),
+            static_cast<LayoutElement*>(&automatic),
+            static_cast<LayoutElement*>(&fixed)}) {
+        CHECK(layout.Detach(root, *child));
+        CHECK(tree.DetachVisual(root, *child));
+        CHECK(tree.DetachLogical(root, *child));
+        CHECK(values.DetachObject(*child));
+    }
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -260,6 +329,7 @@ int main() {
     if (!TestNestedLayoutAndInvalidation()) return 1;
     if (!TestRoundingClippingAndValidation()) return 1;
     if (!TestCanvasChildPosition()) return 1;
+    if (!TestGridFixedAutoAndStarTracks()) return 1;
     std::puts("Aero layout tests passed");
     return 0;
 }
