@@ -40,7 +40,7 @@ jobs:
             echo "CXX=clang++" >> "$GITHUB_ENV"
           fi
       - name: Configure
-        run: cmake -S . -B out/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
+        run: cmake -S . -B out/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON -DAERO_ENABLE_D3D11_BACKEND=OFF
       - name: Build
         shell: bash
         run: |
@@ -58,12 +58,12 @@ jobs:
         run: ctest --test-dir out/build --output-on-failure
 
   windows:
-    name: Windows (MSVC C++17)
+    name: Windows (MSVC C++17 + D3D11 WARP)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -S . -B out/build -A x64 -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON
+        run: cmake -S . -B out/build -A x64 -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON -DAERO_ENABLE_D3D11_BACKEND=ON
       - name: Build
         shell: pwsh
         run: |
@@ -81,3 +81,5 @@ jobs:
           retention-days: 7
       - name: Test
         run: ctest --test-dir out/build -C Debug --output-on-failure
+      - name: D3D11 WARP pixel conformance
+        run: ctest --test-dir out/build -C Debug -R AeroD3D11BackendTests -V
