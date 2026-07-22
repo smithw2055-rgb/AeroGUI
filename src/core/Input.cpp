@@ -98,6 +98,8 @@ PointerInputManager::PointerInputManager(HitTestManager& hitTests,
 
 Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     const PointerInput& input) noexcept {
+    Base::Result<void> access = root_->VerifyAccess();
+    if (!access) return access.GetStatus();
     if (!IsFinite(input.position)) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Pointer position must be finite");

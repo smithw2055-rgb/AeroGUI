@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <thread>
 
 namespace {
 using namespace Aero::Base;
@@ -66,6 +67,14 @@ bool TestVisualHitTesting() {
     Result<PointerDispatchResult> dispatched=pointer.Dispatch({7U,PointerAction::Down,{10,35}});
     CHECK(dispatched && dispatched.Value().routed && dispatched.Value().hit.target==&second);
     CHECK(log.count==1U && log.id==7U && log.x==10.0 && log.y==5.0);
+    ErrorCode workerCode = ErrorCode::Ok;
+    std::thread worker([&]() {
+        Result<PointerDispatchResult> wrongThread = pointer.Dispatch(
+            {8U, PointerAction::Move, {10.0, 10.0}});
+        workerCode = wrongThread ? ErrorCode::Ok : wrongThread.GetStatus().code;
+    });
+    worker.join();
+    CHECK(workerCode == ErrorCode::WrongThread);
     CHECK(f.layout.SetRoot(nullptr,{0,0})); for (LayoutElement* child : {static_cast<LayoutElement*>(&second),static_cast<LayoutElement*>(&first)}) { CHECK(f.layout.Detach(root,*child)); CHECK(f.tree.DetachVisual(root,*child)); CHECK(f.tree.DetachLogical(root,*child)); CHECK(f.values.DetachObject(*child)); } CHECK(f.tree.SetRoot(nullptr)); CHECK(f.values.DetachObject(root)); return true;
 }
 }
