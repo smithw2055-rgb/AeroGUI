@@ -4,11 +4,10 @@
 #include <cstdint>
 
 #if defined(_WIN32) && defined(AERO_BUILD_SHARED)
-#  if defined(AERO_BASE_EXPORTS)
-#    define AERO_API __declspec(dllexport)
-#  else
-#    define AERO_API __declspec(dllimport)
-#  endif
+// CMake emits per-target export tables for the C++ surface. Avoid applying a
+// single module's dllexport/dllimport state to declarations from dependencies
+// included in the same translation unit.
+#  define AERO_API
 #elif defined(__GNUC__) && defined(AERO_BUILD_SHARED)
 #  define AERO_API __attribute__((visibility("default")))
 #else

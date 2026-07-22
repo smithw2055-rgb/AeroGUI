@@ -158,6 +158,7 @@ struct Fixture final {
     TypeId other = InvalidTypeId;
 
     DependencyPropertyHandle width;
+    DependencyPropertyHandle height;
     DependencyPropertyHandle isLocked;
     DependencyPropertyHandle dataContext;
     DependencyPropertyKey isLockedKey;
@@ -205,6 +206,17 @@ struct Fixture final {
         CHECK(widthResult);
         width = widthResult.Value().property;
         CHECK(!widthResult.Value().readOnlyKey.IsValid());
+
+        DependencyPropertyRegistration heightRegistration;
+        heightRegistration.name = StringView("Height");
+        heightRegistration.ownerType = uiElement;
+        heightRegistration.valueType = doubleType;
+        heightRegistration.metadata.defaultValue =
+            PropertyValue::FromDouble(doubleType, 0.0);
+        Result<DependencyPropertyRegistrationResult> heightResult =
+            properties.TryRegister(heightRegistration);
+        CHECK(heightResult);
+        height = heightResult.Value().property;
 
         DependencyPropertyRegistration lockedRegistration;
         lockedRegistration.name = StringView("IsLocked");
@@ -258,11 +270,55 @@ struct Fixture final {
     }
 };
 
+struct NestedNotificationState final {
+    DependencyPropertyHandle height;
+    DependencyPropertyChangeSubscription victim;
+    TypeId doubleType = InvalidTypeId;
+    ErrorCode removeStatus = ErrorCode::InternalError;
+    ErrorCode nestedSetStatus = ErrorCode::InternalError;
+    std::uint32_t sequence[4]{};
+    std::uint32_t count = 0U;
+};
+
+void NestedHeightHandler(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&,
+    void* context) noexcept {
+    auto& state = *static_cast<NestedNotificationState*>(context);
+    state.sequence[state.count++] = 2U;
+}
+
+void RemovedWidthHandler(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&,
+    void* context) noexcept {
+    auto& state = *static_cast<NestedNotificationState*>(context);
+    state.sequence[state.count++] = 3U;
+}
+
+void NestedWidthHandler(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&,
+    void* context) noexcept {
+    auto& state = *static_cast<NestedNotificationState*>(context);
+    state.sequence[state.count++] = 1U;
+    Result<bool> removed = object.RemoveValueChangedHandler(state.victim);
+    state.removeStatus = removed
+        ? ErrorCode::Ok
+        : removed.GetStatus().code;
+    Result<void> nested = object.SetValue(
+        state.height,
+        PropertyValue::FromDouble(state.doubleType, 42.0));
+    state.nestedSetStatus = nested
+        ? ErrorCode::Ok
+        : nested.GetStatus().code;
+}
+
 bool TestRegistrationAndMetadata() {
     Fixture fixture;
     CHECK(fixture.Build());
 
-    CHECK(fixture.properties.PropertyCount() == 3U);
+    CHECK(fixture.properties.PropertyCount() == 4U);
     CHECK(fixture.properties.IsFrozen());
     CHECK(fixture.properties.Freeze());
 
@@ -518,6 +574,45 @@ bool TestValidationCoercionAndReentrancy() {
     return true;
 }
 
+bool TestNestedChangeNotifications() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Dispatcher dispatcher;
+    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
+        fixture.allocator,
+        dispatcher,
+        fixture.properties,
+        fixture.button,
+        &fixture.allocator);
+    CHECK(made);
+    Ref<TestElement> element = std::move(made).Value();
+
+    NestedNotificationState state;
+    state.height = fixture.height;
+    state.doubleType = fixture.doubleType;
+    Result<DependencyPropertyChangeSubscription> driver =
+        element->AddValueChangedHandler(
+            fixture.width, &NestedWidthHandler, &state);
+    CHECK(driver);
+    Result<DependencyPropertyChangeSubscription> victim =
+        element->AddValueChangedHandler(
+            fixture.width, &RemovedWidthHandler, &state);
+    CHECK(victim);
+    state.victim = victim.Value();
+    CHECK(element->AddValueChangedHandler(
+        fixture.height, &NestedHeightHandler, &state));
+
+    CHECK(element->SetValue(
+        fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 20.0)));
+    CHECK(state.removeStatus == ErrorCode::Ok);
+    CHECK(state.nestedSetStatus == ErrorCode::Ok);
+    CHECK(state.count == 2U);
+    CHECK(state.sequence[0] == 1U && state.sequence[1] == 2U);
+    CHECK(!element->RemoveValueChangedHandler(state.victim).Value());
+    return true;
+}
+
 bool TestWrongThread() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -582,6 +677,47 @@ bool TestOomAndSparseStorage() {
     CHECK(element->StoredValueCount() == 1U);
     CHECK(element->ClearValue(fixture.width));
     CHECK(element->StoredValueCount() == 0U);
+    return true;
+}
+
+bool TestRegistrationIsTransactionalOnOom() {
+    bool observedFailure = false;
+    bool observedSuccess = false;
+    for (std::uint32_t allowance = 0U; allowance < 24U; ++allowance) {
+        TrackingAllocator allocator;
+        TypeRegistry types(&allocator);
+        DependencyPropertyRegistry properties(types, &allocator);
+        const StringView ns("urn:transaction");
+        const TypeId owner = MakeTypeId(ns, StringView("Owner"));
+        const TypeId valueType = MakeTypeId(ns, StringView("Double"));
+        CHECK(types.TryRegisterType({
+            ns, StringView("Owner"), InvalidTypeId, TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({
+            ns, StringView("Double"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+
+        DependencyPropertyRegistration registration;
+        registration.name = StringView("Value");
+        registration.ownerType = owner;
+        registration.valueType = valueType;
+        registration.metadata.defaultValue =
+            PropertyValue::FromDouble(valueType, 0.0);
+        allocator.FailAfter(allowance);
+        Result<DependencyPropertyRegistrationResult> result =
+            properties.TryRegister(registration);
+        allocator.DisableFailures();
+
+        if (!result) {
+            observedFailure = true;
+            CHECK(properties.PropertyCount() == 0U);
+            CHECK(types.FindProperty(owner, StringView("Value"), false) == nullptr);
+        } else {
+            observedSuccess = true;
+            CHECK(properties.PropertyCount() == 1U);
+            CHECK(types.FindProperty(owner, StringView("Value"), false) != nullptr);
+        }
+    }
+    CHECK(observedFailure && observedSuccess);
     return true;
 }
 
@@ -676,8 +812,10 @@ int main() {
         {"effective values and invalidation", &TestEffectiveValuesAndInvalidation},
         {"read-only and inheritance", &TestReadOnlyAndInheritance},
         {"validation, coercion, and reentrancy", &TestValidationCoercionAndReentrancy},
+        {"nested change notifications", &TestNestedChangeNotifications},
         {"wrong thread", &TestWrongThread},
         {"OOM and sparse storage", &TestOomAndSparseStorage},
+        {"transactional registration OOM", &TestRegistrationIsTransactionalOnOom},
         {"registration errors", &TestRegistrationErrors},
     };
 

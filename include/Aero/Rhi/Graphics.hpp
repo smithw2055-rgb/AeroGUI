@@ -6,7 +6,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Rendering.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Rhi/Rhi.hpp>
 
 #include <cstddef>
@@ -325,7 +325,7 @@ struct ColorAttachmentDescriptor final {
     ResourceHandle target;
     LoadOperation load = LoadOperation::Load;
     StoreOperation store = StoreOperation::Store;
-    Core::Color clearColor;
+    Base::Color clearColor;
 };
 
 struct DepthStencilAttachmentDescriptor final {
@@ -339,7 +339,7 @@ struct DepthStencilAttachmentDescriptor final {
 };
 
 struct RenderPassDescriptor final {
-    Core::Rect renderArea;
+    Base::Rect renderArea;
     std::uint8_t colorAttachmentCount = 0U;
     ColorAttachmentDescriptor colorAttachments[MaxColorAttachments]{};
     bool hasDepthStencil = false;
@@ -382,7 +382,7 @@ struct GraphicsCommand final {
     ResourceHandle resource1;
     RenderPassDescriptor renderPass;
     TextureRegion textureRegion;
-    Core::Rect rect;
+    Base::Rect rect;
     std::uint64_t resourceOffset = 0U;
     std::uint32_t resourceSize = 0U;
     std::uint32_t uploadOffset = 0U;
@@ -458,7 +458,7 @@ public:
         std::uint32_t slot,
         ResourceHandle texture,
         ResourceHandle sampler) noexcept;
-    AERO_NODISCARD Base::Result<void> SetScissor(Core::Rect rect) noexcept;
+    AERO_NODISCARD Base::Result<void> SetScissor(Base::Rect rect) noexcept;
     AERO_NODISCARD Base::Result<void> Draw(
         std::uint32_t vertexCount,
         std::uint32_t instanceCount = 1U,
@@ -619,6 +619,9 @@ public:
     AERO_NODISCARD Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+        return lastSubmittedFence_;
+    }
     AERO_NODISCARD FenceValue CompletedFence() const noexcept override {
         return completedFence_;
     }
@@ -727,11 +730,15 @@ public:
     AERO_NODISCARD Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+        return lastSubmittedFence_;
+    }
     AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
     AERO_NODISCARD bool IsDeviceLost() const noexcept override;
 
 private:
     SokolBackendApi api_;
+    FenceValue lastSubmittedFence_ = 0U;
 };
 
 } // namespace Aero::Rhi

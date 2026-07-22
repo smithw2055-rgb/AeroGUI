@@ -317,7 +317,7 @@ struct HostedGraphicsApi final {
     Base::Result<void> (*bindTextureSampler)(
         void*, std::uint32_t, ResourceHandle, ResourceHandle) noexcept = nullptr;
     Base::Result<void> (*setScissor)(
-        void*, Core::Rect) noexcept = nullptr;
+        void*, Base::Rect) noexcept = nullptr;
     Base::Result<void> (*draw)(
         void*, std::uint32_t, std::uint32_t,
         std::uint32_t, std::uint32_t) noexcept = nullptr;
@@ -382,6 +382,9 @@ public:
     AERO_NODISCARD Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+        return lastSubmittedFence_;
+    }
     AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
     AERO_NODISCARD bool IsDeviceLost() const noexcept override;
 

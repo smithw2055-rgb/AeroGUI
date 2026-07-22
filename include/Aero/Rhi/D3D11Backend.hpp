@@ -4,6 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
+#include <Aero/Core/Rendering.hpp>
 #include <Aero/Rhi/Graphics.hpp>
 #include <Aero/Rhi/Surface.hpp>
 
@@ -61,7 +62,7 @@ public:
     AERO_NODISCARD std::uintptr_t NativeImmediateContext() const noexcept;
     AERO_NODISCARD std::uint32_t NativeFeatureLevel() const noexcept;
     AERO_NODISCARD std::uint32_t LiveResourceCount() const noexcept;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept;
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override;
 
     AERO_NODISCARD Base::Result<void> ImportExternalRenderTarget(
         ResourceHandle handle,

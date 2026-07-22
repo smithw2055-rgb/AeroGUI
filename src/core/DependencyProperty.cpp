@@ -373,29 +373,24 @@ DependencyPropertyRegistry::TryRegister(
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
-    reserveResult = memberIndex_.TryReserve(properties_.Size() + 1U);
+    reserveResult = memberIndex_.TryReserve(memberIndex_.Size() + 1U);
     if (!reserveResult) {
         return reserveResult.GetStatus();
     }
 
-    Base::Result<MemberId> registered = typeRegistry_->TryRegisterProperty(
-        registration.ownerType,
-        {registration.name,
-         registration.valueType,
-         ToTypeRegistryFlags(registration.flags, registration.metadata.flags)});
-    if (!registered) {
-        return registered.GetStatus();
+    if (property.IsReadOnly() &&
+        nextReadOnlySecret_ == std::numeric_limits<std::uint64_t>::max()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Dependency property read-only key space is exhausted");
     }
 
-    property.handle_.value = registered.Value();
+    const MemberId member = MakeMemberId(
+        registration.ownerType, MemberKind::Property, registration.name);
+    property.handle_.value = member;
     if (property.IsReadOnly()) {
-        if (nextReadOnlySecret_ == std::numeric_limits<std::uint64_t>::max()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Dependency property read-only key space is exhausted");
-        }
         property.readOnlySecret_ = Base::MixHash64(
-            property.handle_.value ^ nextReadOnlySecret_++);
+            property.handle_.value ^ nextReadOnlySecret_);
         if (property.readOnlySecret_ == 0U) {
             property.readOnlySecret_ = 1U;
         }
@@ -412,16 +407,32 @@ DependencyPropertyRegistry::TryRegister(
     }
 
     Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
-        memberIndex_.TryInsert(registered.Value(), propertyIndex);
+        memberIndex_.TryInsert(member, propertyIndex);
     AERO_ASSERT(indexResult && indexResult.Value().inserted);
     if (!indexResult || !indexResult.Value().inserted) {
+        properties_.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
             "Reserved dependency property index insertion unexpectedly failed");
     }
 
+    Base::Result<MemberId> registered = typeRegistry_->TryRegisterProperty(
+        registration.ownerType,
+        {registration.name,
+         registration.valueType,
+         ToTypeRegistryFlags(registration.flags, registration.metadata.flags)});
+    if (!registered) {
+        static_cast<void>(memberIndex_.Erase(member));
+        properties_.PopBack();
+        return registered.GetStatus();
+    }
+    AERO_ASSERT(registered.Value() == member);
+    if (properties_[propertyIndex].IsReadOnly()) {
+        ++nextReadOnlySecret_;
+    }
+
     DependencyPropertyRegistrationResult result;
-    result.property.value = registered.Value();
+    result.property.value = member;
     const DependencyProperty& stored = properties_[propertyIndex];
     if (stored.IsReadOnly()) {
         result.readOnlyKey.registry_ = this;
@@ -477,15 +488,6 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
         return reserveResult.GetStatus();
     }
 
-    Base::Result<MemberId> alias = typeRegistry_->TryRegisterProperty(
-        ownerType,
-        {property.Name(),
-         property.ValueType(),
-         ToTypeRegistryFlags(property.Flags(), metadata.flags)});
-    if (!alias) {
-        return alias.GetStatus();
-    }
-
     DependencyProperty::MetadataEntry entry;
     entry.forType = ownerType;
     entry.owner = true;
@@ -500,13 +502,30 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     }
 
     Base::Result<Base::HashMap<MemberId, std::uint32_t>::InsertResult> indexResult =
-        memberIndex_.TryInsert(alias.Value(), propertyIndex);
+        memberIndex_.TryInsert(
+            MakeMemberId(ownerType, MemberKind::Property, property.Name()),
+            propertyIndex);
     AERO_ASSERT(indexResult && indexResult.Value().inserted);
     if (!indexResult || !indexResult.Value().inserted) {
+        property.metadata_.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
             "Reserved owner alias insertion unexpectedly failed");
     }
+
+    const MemberId aliasMember =
+        MakeMemberId(ownerType, MemberKind::Property, property.Name());
+    Base::Result<MemberId> alias = typeRegistry_->TryRegisterProperty(
+        ownerType,
+        {property.Name(),
+         property.ValueType(),
+         ToTypeRegistryFlags(property.Flags(), metadata.flags)});
+    if (!alias) {
+        static_cast<void>(memberIndex_.Erase(aliasMember));
+        property.metadata_.PopBack();
+        return alias.GetStatus();
+    }
+    AERO_ASSERT(alias.Value() == aliasMember);
     return {};
 }
 
@@ -887,7 +906,7 @@ Base::Result<bool> DependencyObject::RemoveValueChangedHandler(
         if (record.subscription.value != subscription.value || !record.active) {
             continue;
         }
-        if (notifyingChangeHandlers_) {
+        if (changeHandlerNotificationDepth_ != 0U) {
             record.active = false;
         } else {
             RemoveChangeHandler(index);
@@ -1128,8 +1147,8 @@ void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
 
 void DependencyObject::NotifyValueChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    AERO_ASSERT(!notifyingChangeHandlers_);
-    notifyingChangeHandlers_ = true;
+    AERO_ASSERT(changeHandlerNotificationDepth_ != UINT32_MAX);
+    ++changeHandlerNotificationDepth_;
     const std::uint32_t snapshotCount = changeHandlers_.Size();
     for (std::uint32_t index = 0U; index < snapshotCount; ++index) {
         if (index >= changeHandlers_.Size()) {
@@ -1140,7 +1159,10 @@ void DependencyObject::NotifyValueChanged(
             record.handler(*this, args, record.context);
         }
     }
-    notifyingChangeHandlers_ = false;
+    --changeHandlerNotificationDepth_;
+    if (changeHandlerNotificationDepth_ != 0U) {
+        return;
+    }
     for (std::uint32_t index = 0U; index < changeHandlers_.Size();) {
         if (!changeHandlers_[index].active) {
             RemoveChangeHandler(index);

@@ -2,13 +2,15 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Rendering.hpp>
 
 #include <cstddef>
 #include <cstdint>
+
+namespace Aero::Render { class RenderPlanTranslator; }
 
 namespace Aero::Rhi {
 
@@ -101,11 +103,11 @@ enum class RhiCommandKind : std::uint8_t {
 
 struct RhiCommand final {
     RhiCommandKind kind = RhiCommandKind::DrawFilledRect;
-    Core::Rect rect;
-    Core::Transform2D transform;
-    Core::Color color;
+    Base::Rect rect;
+    Base::Transform2D transform;
+    Base::Color color;
     double scalar = 0.0;
-    Core::RenderNodeId nodeId = Core::InvalidRenderNodeId;
+    Base::RenderNodeId nodeId = Base::InvalidRenderNodeId;
 };
 
 class AERO_API CommandBuffer final {
@@ -122,21 +124,8 @@ public:
     AERO_NODISCARD std::uint64_t StableHash() const noexcept;
 
 private:
-    friend class RenderPlanTranslator;
+    friend class Aero::Render::RenderPlanTranslator;
     Base::Vector<RhiCommand> commands_;
-};
-
-class AERO_API RenderPlanTranslator final {
-public:
-    explicit RenderPlanTranslator(
-        Base::IAllocator* allocator = nullptr) noexcept
-        : allocator_(allocator) {}
-
-    AERO_NODISCARD Base::Result<CommandBuffer> Translate(
-        const Core::RenderPlan& plan) const noexcept;
-
-private:
-    Base::IAllocator* allocator_ = nullptr;
 };
 
 struct UploadSlice final {
@@ -183,6 +172,10 @@ public:
     AERO_NODISCARD virtual Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept = 0;
+    // The backend owns the global submission timeline. Every queue facade must
+    // allocate its next fence from this value so legacy and graphics submits
+    // cannot independently reuse the same fence.
+    AERO_NODISCARD virtual FenceValue LastSubmittedFence() const noexcept = 0;
     AERO_NODISCARD virtual FenceValue CompletedFence() const noexcept = 0;
     AERO_NODISCARD virtual bool IsDeviceLost() const noexcept = 0;
 };
@@ -265,6 +258,9 @@ public:
     AERO_NODISCARD Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
+    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+        return lastSubmittedFence_;
+    }
     AERO_NODISCARD FenceValue CompletedFence() const noexcept override {
         return completedFence_;
     }

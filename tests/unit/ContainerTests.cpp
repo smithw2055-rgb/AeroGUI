@@ -122,17 +122,41 @@ bool TestVectorLifetimeAndOom() {
 
 bool TestSmallVector() {
     TrackingAllocator allocator;
-    SmallVector<int, 4U> values(&allocator);
-    for (int value = 0; value < 4; ++value) CHECK(values.TryPushBack(value));
-    CHECK(allocator.Active() == 0U);
-    CHECK(values.Capacity() == 4U);
-    CHECK(values.TryPushBack(4));
-    CHECK(allocator.Active() == 1U);
+    {
+        SmallVector<int, 4U> values(&allocator);
+        for (int value = 0; value < 4; ++value) CHECK(values.TryPushBack(value));
+        CHECK(allocator.Active() == 0U);
+        CHECK(values.Capacity() == 4U);
+        CHECK(values.TryPushBack(4));
+        CHECK(allocator.Active() == 1U);
 
-    SmallVector<int, 4U> moved(std::move(values));
-    CHECK(moved.Size() == 5U);
-    CHECK(values.Empty());
-    CHECK(moved[4] == 4);
+        SmallVector<int, 4U> moved(std::move(values));
+        CHECK(moved.Size() == 5U);
+        CHECK(values.Empty());
+        CHECK(moved[4] == 4);
+    }
+    CHECK(allocator.Active() == 0U);
+
+    Probe::copies = 0;
+    Probe::moves = 0;
+    {
+        SmallVector<Probe, 2U> values(&allocator);
+        CHECK(values.TryEmplaceBack(10));
+        CHECK(values.TryEmplaceBack(20));
+        CHECK(Probe::alive == 2);
+        CHECK(allocator.Active() == 0U);
+        CHECK(values.TryEmplaceBack(30));
+        CHECK(Probe::alive == 3);
+        CHECK(allocator.Active() == 1U);
+        CHECK(values[0].value == 10 && values[2].value == 30);
+
+        SmallVector<Probe, 2U> moved(std::move(values));
+        CHECK(values.Empty());
+        CHECK(moved.Size() == 3U);
+        CHECK(moved[1].value == 20);
+    }
+    CHECK(Probe::alive == 0);
+    CHECK(allocator.Active() == 0U);
     return true;
 }
 

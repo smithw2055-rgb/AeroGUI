@@ -37,24 +37,47 @@ int main(void) {
 
     {
         AeroBaseApi prefix;
-        (void)memset(&prefix, 0, sizeof(prefix));
+        (void)memset(&prefix, 0xCD, sizeof(prefix));
         if (AeroGetBaseApi(AERO_BASE_ABI_VERSION_1,
-                (uint32_t)offsetof(AeroBaseApi, runtime_version_major),
+            (uint32_t)offsetof(AeroBaseApi, runtime_version_major),
                 &prefix) != AERO_STATUS_OK) {
             return 5;
         }
         if (prefix.abi_version != AERO_BASE_ABI_VERSION_1) {
             return 6;
         }
+        if (prefix.runtime_version_major != 0xCDCDCDCDu) {
+            return 7;
+        }
+    }
+
+    {
+        AeroBaseApi partial;
+        (void)memset(&partial, 0xCD, sizeof(partial));
+        if (AeroGetBaseApi(AERO_BASE_ABI_VERSION_1,
+                (uint32_t)offsetof(AeroBaseApi, runtime_version_major) + 1u,
+                &partial) != AERO_STATUS_OK) {
+            return 8;
+        }
+        if (partial.runtime_version_major != 0xCDCDCDCDu) {
+            return 9;
+        }
+        if (AeroGetBaseApi(AERO_BASE_ABI_VERSION_1,
+                (uint32_t)offsetof(AeroBaseApi, runtime_version_minor),
+                &partial) != AERO_STATUS_OK ||
+            partial.runtime_version_major != 0u ||
+            partial.runtime_version_minor != 0xCDCDCDCDu) {
+            return 10;
+        }
     }
 
     if (AeroGetBaseApi(999u, (uint32_t)sizeof(api), &api) !=
         AERO_STATUS_UNSUPPORTED) {
-        return 7;
+        return 11;
     }
     if (AeroGetBaseApi(AERO_BASE_ABI_VERSION_1,
             (uint32_t)sizeof(api), NULL) != AERO_STATUS_INVALID_ARGUMENT) {
-        return 8;
+        return 12;
     }
     return 0;
 }

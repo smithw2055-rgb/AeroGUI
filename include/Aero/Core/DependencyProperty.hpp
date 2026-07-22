@@ -548,7 +548,7 @@ private:
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     std::uint64_t nextChangeHandler_ = 1U;
-    bool notifyingChangeHandlers_ = false;
+    std::uint32_t changeHandlerNotificationDepth_ = 0U;
 
     AERO_NODISCARD Base::Result<void> VerifyReady() const noexcept;
     AERO_NODISCARD std::uint32_t FindEntryIndex(

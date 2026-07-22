@@ -59,6 +59,15 @@ extern "C" AeroStatusCode AeroGetBaseApi(
     AeroBaseApi* outApi) {
     constexpr std::uint32_t HeaderSize =
         static_cast<std::uint32_t>(offsetof(AeroBaseApi, runtime_version_major));
+    constexpr std::uint32_t MajorEnd =
+        static_cast<std::uint32_t>(offsetof(AeroBaseApi, runtime_version_minor));
+    constexpr std::uint32_t MinorEnd =
+        static_cast<std::uint32_t>(offsetof(AeroBaseApi, runtime_version_patch));
+    constexpr std::uint32_t PatchEnd =
+        static_cast<std::uint32_t>(
+            offsetof(AeroBaseApi, runtime_version_patch) + sizeof(std::uint32_t));
+    constexpr std::uint32_t FullSize =
+        static_cast<std::uint32_t>(sizeof(AeroBaseApi));
 
     if (outApi == nullptr || callerStructSize < HeaderSize) {
         return AERO_STATUS_INVALID_ARGUMENT;
@@ -76,9 +85,21 @@ extern "C" AeroStatusCode AeroGetBaseApi(
         &ValidateUtf8Bridge
     };
 
-    const std::size_t bytesToCopy = callerStructSize < sizeof(AeroBaseApi)
-        ? static_cast<std::size_t>(callerStructSize)
-        : sizeof(AeroBaseApi);
+    // Copy only complete fields. This keeps arbitrary caller sizes from
+    // exposing torn integers or function pointers across an ABI boundary.
+    std::size_t bytesToCopy = HeaderSize;
+    if (callerStructSize >= MajorEnd) {
+        bytesToCopy = MajorEnd;
+    }
+    if (callerStructSize >= MinorEnd) {
+        bytesToCopy = MinorEnd;
+    }
+    if (callerStructSize >= PatchEnd) {
+        bytesToCopy = PatchEnd;
+    }
+    if (callerStructSize >= FullSize) {
+        bytesToCopy = FullSize;
+    }
     std::memcpy(outApi, &current, bytesToCopy);
     return AERO_STATUS_OK;
 }

@@ -1,4 +1,5 @@
-#include <Aero/Rhi/Rhi.hpp>
+#include <Aero/Rhi/Graphics.hpp>
+#include <Aero/Render/RenderPlanTranslator.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -7,6 +8,7 @@ namespace {
 using namespace Aero::Base;
 using namespace Aero::Core;
 using namespace Aero::Rhi;
+using namespace Aero::Render;
 
 #define CHECK(expression) \
     do { \
@@ -218,6 +220,37 @@ bool TestFenceRetirementAndDeviceLoss() {
     return true;
 }
 
+bool TestMixedSubmissionFenceTimeline() {
+    RenderPlan plan;
+    CHECK(BuildPlan(plan));
+    RenderPlanTranslator translator;
+    Result<CommandBuffer> legacyCommands = translator.Translate(plan);
+    CHECK(legacyCommands);
+    GraphicsCommandEncoder encoder;
+    Result<GraphicsCommandBuffer> graphicsCommands = encoder.Finish();
+    CHECK(graphicsCommands);
+
+    NullGraphicsBackend backend;
+    RhiDevice device(backend);
+    GraphicsQueue graphicsQueue(backend);
+    CHECK(device.Initialize());
+    CHECK(graphicsQueue.Initialize());
+
+    Result<FenceValue> graphicsFence =
+        graphicsQueue.Submit(graphicsCommands.Value());
+    CHECK(graphicsFence && graphicsFence.Value() == 1U);
+    Result<FrameContext> frame = device.BeginFrame();
+    CHECK(frame);
+    Result<FenceValue> legacyFence =
+        device.Submit(frame.Value(), legacyCommands.Value());
+    CHECK(legacyFence && legacyFence.Value() == 2U);
+    graphicsFence = graphicsQueue.Submit(graphicsCommands.Value());
+    CHECK(graphicsFence && graphicsFence.Value() == 3U);
+    CHECK(backend.LastSubmittedFence() == 3U);
+    CHECK(backend.SubmissionCount() == 3U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -225,6 +258,7 @@ int main() {
     if (!TestTranslationAndSubmission()) return 1;
     if (!TestResourceGenerationsAndDeferredDestroy()) return 1;
     if (!TestFenceRetirementAndDeviceLoss()) return 1;
+    if (!TestMixedSubmissionFenceTimeline()) return 1;
     std::puts("Aero RHI tests passed");
     return 0;
 }

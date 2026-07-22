@@ -4,7 +4,6 @@
 
 namespace {
 using namespace Aero::Base;
-using namespace Aero::Core;
 using namespace Aero::Rhi;
 
 #define CHECK(expression) \

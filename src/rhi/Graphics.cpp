@@ -52,14 +52,14 @@ void HashResource(std::uint64_t& hash, ResourceHandle handle) noexcept {
     HashValue(hash, handle.type);
 }
 
-void HashColor(std::uint64_t& hash, Core::Color value) noexcept {
+void HashColor(std::uint64_t& hash, Base::Color value) noexcept {
     HashValue(hash, value.red);
     HashValue(hash, value.green);
     HashValue(hash, value.blue);
     HashValue(hash, value.alpha);
 }
 
-void HashRect(std::uint64_t& hash, Core::Rect value) noexcept {
+void HashRect(std::uint64_t& hash, Base::Rect value) noexcept {
     HashValue(hash, value.x);
     HashValue(hash, value.y);
     HashValue(hash, value.width);
@@ -70,8 +70,8 @@ bool IsPowerOfTwo(std::uint32_t value) noexcept {
     return value != 0U && (value & (value - 1U)) == 0U;
 }
 
-bool IsValidColor(Core::Color value) noexcept {
-    return Core::IsFinite(value) &&
+bool IsValidColor(Base::Color value) noexcept {
+    return Base::IsFiniteColor(value) &&
         value.red >= 0.0F && value.red <= 1.0F &&
         value.green >= 0.0F && value.green <= 1.0F &&
         value.blue >= 0.0F && value.blue <= 1.0F &&
@@ -222,7 +222,7 @@ std::uint64_t StableSamplerHash(const SamplerDescriptor& descriptor) noexcept {
 
 Base::Result<void> ValidatePassDescriptorBasic(
     const RenderPassDescriptor& descriptor) noexcept {
-    if (!Core::IsValidLayoutRect(descriptor.renderArea)) {
+    if (!Base::IsValidRect(descriptor.renderArea)) {
         return InvalidArgument("Render pass area is invalid");
     }
     if (descriptor.colorAttachmentCount > MaxColorAttachments ||
@@ -681,8 +681,8 @@ Base::Result<void> GraphicsCommandEncoder::BindTextureSampler(
 }
 
 Base::Result<void> GraphicsCommandEncoder::SetScissor(
-    Core::Rect rect) noexcept {
-    if (!inRenderPass_ || !Core::IsValidLayoutRect(rect)) {
+    Base::Rect rect) noexcept {
+    if (!inRenderPass_ || !Base::IsValidRect(rect)) {
         return InvalidState("Scissor state requires a valid rectangle in a render pass");
     }
     GraphicsCommand command;
@@ -895,6 +895,7 @@ Base::Result<void> GraphicsQueue::Initialize() noexcept {
     if (!IsValidGraphicsCapabilities(capabilities_)) {
         return Unsupported("Graphics backend capabilities are incompatible");
     }
+    lastSubmittedFence_ = backend_->LastSubmittedFence();
     initialized_ = true;
     return {};
 }
@@ -909,12 +910,13 @@ Base::Result<FenceValue> GraphicsQueue::Submit(
     if (backend_->IsDeviceLost()) {
         return InvalidState("Graphics backend device is lost");
     }
-    if (lastSubmittedFence_ == UINT64_MAX) {
+    const FenceValue backendFence = backend_->LastSubmittedFence();
+    if (backendFence == UINT64_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Graphics queue fence space is exhausted");
     }
-    const FenceValue signalFence = lastSubmittedFence_ + 1U;
+    const FenceValue signalFence = backendFence + 1U;
     Base::Result<void> submitted = backend_->SubmitGraphics(
         commands, signalFence);
     if (!submitted) {
@@ -1276,7 +1278,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             break;
         }
         case GraphicsCommandKind::SetScissor:
-            if (!inPass || !Core::IsValidLayoutRect(command.rect) ||
+            if (!inPass || !Base::IsValidRect(command.rect) ||
                 !HasAllFeatures(capabilities.features,
                     FeatureBit(GraphicsFeature::Scissor))) {
                 return InvalidState("Scissor command is invalid");
@@ -1410,17 +1412,28 @@ Base::Result<void> SokolBackendAdapter::ConfigurePipeline(
 Base::Result<void> SokolBackendAdapter::Submit(
     const CommandBuffer& commands,
     FenceValue signalFence) noexcept {
-    return IsValid()
-        ? api_.submit(api_.context, commands, signalFence)
-        : Base::Result<void>(Unsupported("Sokol backend function table is invalid"));
+    if (!IsValid()) {
+        return Unsupported("Sokol backend function table is invalid");
+    }
+    Base::Result<void> submitted = api_.submit(api_.context, commands, signalFence);
+    if (submitted) {
+        lastSubmittedFence_ = signalFence;
+    }
+    return submitted;
 }
 
 Base::Result<void> SokolBackendAdapter::SubmitGraphics(
     const GraphicsCommandBuffer& commands,
     FenceValue signalFence) noexcept {
-    return IsValid()
-        ? api_.submitGraphics(api_.context, commands, signalFence)
-        : Base::Result<void>(Unsupported("Sokol backend function table is invalid"));
+    if (!IsValid()) {
+        return Unsupported("Sokol backend function table is invalid");
+    }
+    Base::Result<void> submitted =
+        api_.submitGraphics(api_.context, commands, signalFence);
+    if (submitted) {
+        lastSubmittedFence_ = signalFence;
+    }
+    return submitted;
 }
 
 FenceValue SokolBackendAdapter::CompletedFence() const noexcept {

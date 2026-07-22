@@ -119,6 +119,11 @@ bool TestResult() {
     CHECK(ok);
     Result<void> failed(Status::Failure(ErrorCode::Unsupported, "unsupported"));
     CHECK(!failed);
+    Result<int> missingValue(Status::Ok());
+    CHECK(!missingValue);
+    CHECK(missingValue.GetStatus().code == ErrorCode::InternalError);
+    Result<void> explicitSuccess(Status::Ok());
+    CHECK(explicitSuccess);
     return true;
 }
 

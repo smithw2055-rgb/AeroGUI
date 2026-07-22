@@ -8,6 +8,7 @@ project(AeroGUI
 find_package(Threads REQUIRED)
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
+option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
@@ -22,7 +23,16 @@ set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
 
 include(cmake/AeroCompilerOptions.cmake)
 
-add_library(AeroBase STATIC
+if(AERO_BUILD_SHARED)
+    set(AERO_LIBRARY_TYPE SHARED)
+    # Keep test executables beside the DLLs on multi-config Windows builds so
+    # CTest exercises the actual shared artifacts without PATH mutations.
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+else()
+    set(AERO_LIBRARY_TYPE STATIC)
+endif()
+
+add_library(AeroBase ${AERO_LIBRARY_TYPE}
     src/base/Allocator.cpp
     src/base/CAPI.cpp
     src/base/Object.cpp
@@ -41,7 +51,8 @@ set_target_properties(AeroBase PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroBase)
 
@@ -51,13 +62,16 @@ endif()
 
 target_compile_definitions(AeroBase
     PUBLIC
+        $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BUILD_SHARED>
         AERO_CXX_STANDARD=17
         $<$<BOOL:${AERO_ENABLE_EXCEPTIONS}>:AERO_EXCEPTIONS_ENABLED=1>
         $<$<NOT:$<BOOL:${AERO_ENABLE_EXCEPTIONS}>>:AERO_EXCEPTIONS_ENABLED=0>
         $<$<BOOL:${AERO_ENABLE_RTTI}>:AERO_RTTI_ENABLED=1>
-        $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>)
+        $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>
+    PRIVATE
+        $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
-add_library(AeroCore STATIC
+add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/Binding.cpp
     src/core/Controls.cpp
     src/core/DependencyProperty.cpp
@@ -88,11 +102,12 @@ set_target_properties(AeroCore PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroCore)
 
-add_library(AeroMarkup STATIC
+add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlLayout.cpp
@@ -120,11 +135,12 @@ set_target_properties(AeroMarkup PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroMarkup)
 
-add_library(AeroRhi STATIC
+add_library(AeroRhi ${AERO_LIBRARY_TYPE}
     src/rhi/Graphics.cpp
     src/rhi/Rhi.cpp
     src/rhi/Surface.cpp)
@@ -136,15 +152,33 @@ target_include_directories(AeroRhi
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(AeroRhi PUBLIC Aero::Core)
+target_link_libraries(AeroRhi PUBLIC Aero::Base)
 target_compile_features(AeroRhi PUBLIC cxx_std_17)
 set_target_properties(AeroRhi PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroRhi)
+
+add_library(AeroRender ${AERO_LIBRARY_TYPE}
+    src/render/RenderPlanTranslator.cpp)
+add_library(Aero::Render ALIAS AeroRender)
+target_include_directories(AeroRender
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroRender PUBLIC Aero::Core Aero::Rhi)
+target_compile_features(AeroRender PUBLIC cxx_std_17)
+set_target_properties(AeroRender PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroRender)
 
 if(AERO_ENABLE_SOKOL_BACKEND)
     if(AERO_SOKOL_BRIDGE_SOURCE STREQUAL "")
@@ -241,7 +275,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
     set_property(SOURCE src/rhi/d3d11/D3D11Backend.cpp APPEND
         PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
 
-    add_library(AeroRhiD3D11 STATIC
+    add_library(AeroRhiD3D11 ${AERO_LIBRARY_TYPE}
         src/rhi/d3d11/D3D11Backend.cpp
         src/rhi/d3d11/D3D11RenderPlanBackend.cpp
         ${_aero_d3d11_backend_fragments})
@@ -254,14 +288,15 @@ if(AERO_ENABLE_D3D11_BACKEND)
             $<INSTALL_INTERFACE:include>
         PRIVATE "${_aero_d3d11_shader_directory}")
     target_link_libraries(AeroRhiD3D11
-        PUBLIC Aero::Rhi
+        PUBLIC Aero::Rhi Aero::Core
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRhiD3D11 PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED YES
         CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON)
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
     target_compile_definitions(AeroRhiD3D11 PUBLIC AERO_HAS_D3D11_BACKEND=1)
     aero_apply_compiler_options(AeroRhiD3D11)
 else()

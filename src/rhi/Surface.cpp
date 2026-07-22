@@ -451,6 +451,7 @@ Base::Result<void> SurfaceGraphicsQueue::Initialize() noexcept {
         return Unsupported("Graphics backend capabilities are incompatible");
     }
 
+    lastSubmittedFence_ = backend_->LastSubmittedFence();
     initialized_ = true;
     return {};
 }
@@ -468,12 +469,13 @@ Base::Result<FenceValue> SurfaceGraphicsQueue::SubmitAndPresent(
         static_cast<void>(surface_->DiscardFrame(frame));
         return InvalidState("Graphics backend is lost");
     }
-    if (lastSubmittedFence_ == UINT64_MAX) {
+    const FenceValue backendFence = backend_->LastSubmittedFence();
+    if (backendFence == UINT64_MAX) {
         static_cast<void>(surface_->DiscardFrame(frame));
         return OutOfRange("Graphics fence space is exhausted");
     }
 
-    const FenceValue signalFence = lastSubmittedFence_ + 1U;
+    const FenceValue signalFence = backendFence + 1U;
     const std::uint64_t surfaceGeneration = frame.surfaceGeneration;
     const std::uint64_t frameSerial = frame.frameSerial;
     const ExternalRenderTargetDescriptor target = frame.target;

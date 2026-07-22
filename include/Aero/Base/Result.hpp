@@ -65,7 +65,11 @@ public:
 
     Result(Status status) noexcept
         : hasValue_(false) {
-        AERO_ASSERT(!status.IsOk());
+        if (status.IsOk()) {
+            status = Status::Failure(
+                ErrorCode::InternalError,
+                "Result<T> cannot represent success without a value");
+        }
         new (&storage_.status) Status(status);
     }
 
@@ -172,9 +176,7 @@ public:
     Result() noexcept = default;
 
     Result(Status status) noexcept
-        : status_(status) {
-        AERO_ASSERT(!status.IsOk());
-    }
+        : status_(status) {}
 
     AERO_NODISCARD bool HasValue() const noexcept {
         return status_.IsOk();

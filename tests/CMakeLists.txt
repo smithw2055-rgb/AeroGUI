@@ -149,7 +149,7 @@ aero_apply_compiler_options(AeroXamlVisualTreeTests)
 add_test(NAME AeroXamlVisualTreeTests COMMAND AeroXamlVisualTreeTests)
 
 add_executable(AeroRhiTests unit/RhiTests.cpp)
-target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
+target_link_libraries(AeroRhiTests PRIVATE Aero::Render)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)
 set_target_properties(AeroRhiTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroRhiTests)
@@ -225,7 +225,8 @@ if(WIN32 AND TARGET AeroRhiD3D11)
     add_dependencies(AeroD3D11BackendTests AeroD3D11TestShaders)
     target_include_directories(AeroD3D11BackendTests PRIVATE
         "${_aero_d3d11_shader_directory}")
-    target_link_libraries(AeroD3D11BackendTests PRIVATE Aero::RhiD3D11)
+    target_link_libraries(
+        AeroD3D11BackendTests PRIVATE Aero::RhiD3D11 d3d11)
     target_compile_features(AeroD3D11BackendTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11BackendTests PROPERTIES
         CXX_STANDARD 17

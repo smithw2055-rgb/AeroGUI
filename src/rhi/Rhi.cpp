@@ -25,6 +25,10 @@ Base::Status OutOfMemory(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::OutOfMemory, message);
 }
 
+Base::Status OutOfRange(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::OutOfRange, message);
+}
+
 void HashBytes(std::uint64_t& hash, const void* data, std::size_t size) noexcept {
     const auto* bytes = static_cast<const std::uint8_t*>(data);
     for (std::size_t index = 0U; index < size; ++index) {
@@ -42,8 +46,8 @@ bool IsPowerOfTwo(std::uint32_t value) noexcept {
     return value != 0U && (value & (value - 1U)) == 0U;
 }
 
-bool IsValidColor(Core::Color value) noexcept {
-    return Core::IsFinite(value) &&
+bool IsValidColor(Base::Color value) noexcept {
+    return Base::IsFiniteColor(value) &&
         value.red >= 0.0F && value.red <= 1.0F &&
         value.green >= 0.0F && value.green <= 1.0F &&
         value.blue >= 0.0F && value.blue <= 1.0F &&
@@ -74,86 +78,6 @@ std::uint64_t CommandBuffer::StableHash() const noexcept {
         HashValue(hash, command.nodeId);
     }
     return hash;
-}
-
-Base::Result<CommandBuffer> RenderPlanTranslator::Translate(
-    const Core::RenderPlan& plan) const noexcept {
-    CommandBuffer output(allocator_);
-    Base::Result<void> reserved = output.commands_.TryReserve(
-        plan.Commands().Size() + (plan.Nodes().Size() * 2U));
-    if (!reserved) {
-        return reserved.GetStatus();
-    }
-
-    for (const Core::RenderNodeSnapshot& node : plan.Nodes()) {
-        if (node.id == Core::InvalidRenderNodeId ||
-            node.commandOffset > plan.Commands().Size() ||
-            node.commandCount > plan.Commands().Size() - node.commandOffset) {
-            return InvalidArgument("RenderPlan contains an invalid node command range");
-        }
-
-        RhiCommand begin;
-        begin.kind = RhiCommandKind::BeginPass;
-        begin.rect = node.clip;
-        begin.nodeId = node.id;
-        Base::Result<void> appended = output.commands_.TryPushBack(begin);
-        if (!appended) {
-            return appended.GetStatus();
-        }
-
-        for (std::uint32_t index = 0U; index < node.commandCount; ++index) {
-            const Core::RenderCommand& source =
-                plan.Commands()[node.commandOffset + index];
-            RhiCommand translated;
-            translated.rect = source.rect;
-            translated.transform = source.transform;
-            translated.color = source.color;
-            translated.scalar = source.scalar;
-            translated.nodeId = node.id;
-
-            switch (source.kind) {
-            case Core::RenderCommandKind::PushClip:
-                translated.kind = RhiCommandKind::PushClip;
-                break;
-            case Core::RenderCommandKind::PopClip:
-                translated.kind = RhiCommandKind::PopClip;
-                break;
-            case Core::RenderCommandKind::PushOpacity:
-                translated.kind = RhiCommandKind::PushOpacity;
-                break;
-            case Core::RenderCommandKind::PopOpacity:
-                translated.kind = RhiCommandKind::PopOpacity;
-                break;
-            case Core::RenderCommandKind::PushTransform:
-                translated.kind = RhiCommandKind::PushTransform;
-                break;
-            case Core::RenderCommandKind::PopTransform:
-                translated.kind = RhiCommandKind::PopTransform;
-                break;
-            case Core::RenderCommandKind::FillRect:
-                translated.kind = RhiCommandKind::DrawFilledRect;
-                break;
-            case Core::RenderCommandKind::StrokeRect:
-                translated.kind = RhiCommandKind::DrawStrokedRect;
-                break;
-            }
-
-            appended = output.commands_.TryPushBack(translated);
-            if (!appended) {
-                return appended.GetStatus();
-            }
-        }
-
-        RhiCommand end;
-        end.kind = RhiCommandKind::EndPass;
-        end.nodeId = node.id;
-        appended = output.commands_.TryPushBack(end);
-        if (!appended) {
-            return appended.GetStatus();
-        }
-    }
-
-    return output;
 }
 
 UploadArena::UploadArena(
@@ -281,6 +205,7 @@ Base::Result<void> RhiDevice::Initialize() noexcept {
             return appended;
         }
     }
+    lastSubmittedFence_ = backend_->LastSubmittedFence();
     initialized_ = true;
     return {};
 }
@@ -420,6 +345,11 @@ Base::Result<FrameContext> RhiDevice::BeginFrame() noexcept {
     if (!collected) {
         return collected.GetStatus();
     }
+    const FenceValue backendFence = backend_->LastSubmittedFence();
+    if (backendFence == UINT64_MAX) {
+        return OutOfRange("RHI fence space is exhausted");
+    }
+    lastSubmittedFence_ = backendFence;
     FrameContext frame;
     frame.frameIndex = nextFrameIndex_;
     frame.signalFence = lastSubmittedFence_ + 1U;
@@ -436,10 +366,14 @@ Base::Result<FenceValue> RhiDevice::Submit(
     if (!ready) {
         return ready.GetStatus();
     }
-    if (frame.signalFence != lastSubmittedFence_ + 1U ||
-        frame.uploadArena == nullptr) {
+    if (frame.uploadArena == nullptr) {
         return InvalidState("FrameContext is stale or already submitted");
     }
+    const FenceValue backendFence = backend_->LastSubmittedFence();
+    if (backendFence == UINT64_MAX) {
+        return OutOfRange("RHI fence space is exhausted");
+    }
+    frame.signalFence = backendFence + 1U;
     Base::Result<void> submitted = backend_->Submit(commands, frame.signalFence);
     if (!submitted) {
         return submitted.GetStatus();
@@ -554,8 +488,8 @@ Base::Result<void> NullRhiBackend::Submit(
     for (const RhiCommand& command : commands.Commands()) {
         switch (command.kind) {
         case RhiCommandKind::BeginPass:
-            if (passDepth != 0U || command.nodeId == Core::InvalidRenderNodeId ||
-                !Core::IsValidLayoutRect(command.rect)) {
+            if (passDepth != 0U || command.nodeId == Base::InvalidRenderNodeId ||
+                !Base::IsValidRect(command.rect)) {
                 return InvalidState("Invalid BeginPass command");
             }
             ++passDepth;
@@ -568,7 +502,7 @@ Base::Result<void> NullRhiBackend::Submit(
             --passDepth;
             break;
         case RhiCommandKind::PushClip:
-            if (passDepth == 0U || !Core::IsValidLayoutRect(command.rect)) {
+            if (passDepth == 0U || !Base::IsValidRect(command.rect)) {
                 return InvalidArgument("Invalid clip command");
             }
             ++clipDepth;
@@ -578,7 +512,7 @@ Base::Result<void> NullRhiBackend::Submit(
             --clipDepth;
             break;
         case RhiCommandKind::PushOpacity:
-            if (!Core::IsValidOpacity(command.scalar)) {
+            if (!Base::IsNormalizedOpacity(command.scalar)) {
                 return InvalidArgument("Invalid opacity command");
             }
             ++opacityDepth;
@@ -588,7 +522,7 @@ Base::Result<void> NullRhiBackend::Submit(
             --opacityDepth;
             break;
         case RhiCommandKind::PushTransform:
-            if (!Core::IsFinite(command.transform)) {
+            if (!Base::IsFiniteTransform(command.transform)) {
                 return InvalidArgument("Invalid transform command");
             }
             ++transformDepth;
@@ -598,13 +532,13 @@ Base::Result<void> NullRhiBackend::Submit(
             --transformDepth;
             break;
         case RhiCommandKind::DrawFilledRect:
-            if (passDepth == 0U || !Core::IsValidLayoutRect(command.rect) ||
+            if (passDepth == 0U || !Base::IsValidRect(command.rect) ||
                 !IsValidColor(command.color)) {
                 return InvalidArgument("Invalid filled rectangle command");
             }
             break;
         case RhiCommandKind::DrawStrokedRect:
-            if (passDepth == 0U || !Core::IsValidLayoutRect(command.rect) ||
+            if (passDepth == 0U || !Base::IsValidRect(command.rect) ||
                 !IsValidColor(command.color) || !std::isfinite(command.scalar) ||
                 command.scalar < 0.0) {
                 return InvalidArgument("Invalid stroked rectangle command");

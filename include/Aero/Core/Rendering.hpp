@@ -11,24 +11,10 @@
 
 namespace Aero::Core {
 
-using RenderNodeId = std::uint64_t;
-constexpr RenderNodeId InvalidRenderNodeId = 0U;
-
-struct Color final {
-    float red = 0.0F;
-    float green = 0.0F;
-    float blue = 0.0F;
-    float alpha = 1.0F;
-};
-
-struct Transform2D final {
-    double m11 = 1.0;
-    double m12 = 0.0;
-    double m21 = 0.0;
-    double m22 = 1.0;
-    double dx = 0.0;
-    double dy = 0.0;
-};
+using RenderNodeId = Base::RenderNodeId;
+constexpr RenderNodeId InvalidRenderNodeId = Base::InvalidRenderNodeId;
+using Color = Base::Color;
+using Transform2D = Base::Transform2D;
 
 AERO_NODISCARD AERO_API bool IsFinite(Color value) noexcept;
 AERO_NODISCARD AERO_API bool IsFinite(Transform2D value) noexcept;

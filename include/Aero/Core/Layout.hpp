@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Dispatcher.hpp>
@@ -11,10 +12,10 @@
 
 namespace Aero::Core {
 
-struct Point final { double x = 0.0; double y = 0.0; };
-struct Size final { double width = 0.0; double height = 0.0; };
-struct Rect final { double x = 0.0; double y = 0.0; double width = 0.0; double height = 0.0; };
-struct Thickness final { double left = 0.0; double top = 0.0; double right = 0.0; double bottom = 0.0; };
+using Point = Base::Point;
+using Size = Base::Size;
+using Rect = Base::Rect;
+using Thickness = Base::Thickness;
 
 enum class HorizontalAlignment : std::uint8_t { Stretch = 0U, Left, Center, Right };
 enum class VerticalAlignment : std::uint8_t { Stretch = 0U, Top, Center, Bottom };
