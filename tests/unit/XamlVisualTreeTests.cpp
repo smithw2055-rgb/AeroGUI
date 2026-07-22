@@ -58,7 +58,9 @@ struct Fixture final {
     TypeId objectType = InvalidTypeId;
     TypeId layoutType = InvalidTypeId;
     TypeId presenterType = InvalidTypeId;
+    TypeId stackPanelType = InvalidTypeId;
     TypeId leafType = InvalidTypeId;
+    MemberId stackPanelChildren = InvalidMemberId;
 
     static Result<Ref<Object>> Activate(TypeId requestedType,
         const XamlActivationContext& activationContext,
@@ -75,6 +77,14 @@ struct Fixture final {
             if (!made) return made.GetStatus();
             Ref<ContentPresenter> presenter = std::move(made).Value();
             return Ref<Object>(std::move(presenter));
+        }
+        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("StackPanel"))) {
+            Result<Ref<StackPanel>> made = MakeRefWithAllocator<StackPanel>(allocator,
+                *activationContext.dispatcher, *activationContext.dependencyProperties,
+                requestedType, Orientation::Vertical, &allocator);
+            if (!made) return made.GetStatus();
+            Ref<StackPanel> panel = std::move(made).Value();
+            return Ref<Object>(std::move(panel));
         }
         Result<Ref<TestLeaf>> made = MakeRefWithAllocator<TestLeaf>(allocator,
             *activationContext.dispatcher, *activationContext.dependencyProperties,
@@ -96,12 +106,16 @@ struct Fixture final {
     static ContentPresenter* AsPresenter(Object& object, void*) noexcept {
         return &static_cast<ContentPresenter&>(object);
     }
+    static StackPanel* AsStackPanel(Object& object, void*) noexcept {
+        return &static_cast<StackPanel&>(object);
+    }
 
     bool Build() {
         const StringView ns("urn:xaml-visual");
         objectType = MakeTypeId(ns, StringView("Object"));
         layoutType = MakeTypeId(ns, StringView("LayoutElement"));
         presenterType = MakeTypeId(ns, StringView("ContentPresenter"));
+        stackPanelType = MakeTypeId(ns, StringView("StackPanel"));
         leafType = MakeTypeId(ns, StringView("Leaf"));
         CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
@@ -109,10 +123,16 @@ struct Fixture final {
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("ContentPresenter"), layoutType,
             TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({ns, StringView("StackPanel"), layoutType,
+            TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("Leaf"), layoutType,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterProperty(presenterType, {
             StringView("Content"), layoutType, PropertyFlags::None}));
+        Result<MemberId> children = types.TryRegisterProperty(stackPanelType, {
+            StringView("Children"), layoutType, PropertyFlags::None});
+        CHECK(children);
+        stackPanelChildren = children.Value();
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         CHECK(values.Initialize());
@@ -120,10 +140,14 @@ struct Fixture final {
         CHECK(layout.Initialize());
         CHECK(renderer.Initialize());
         CHECK(visual.TryRegisterType({presenterType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
+        CHECK(visual.TryRegisterType({stackPanelType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
         CHECK(visual.TryRegisterType({leafType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
         CHECK(visual.TryRegisterContentPresenter({presenterType, &AsPresenter, nullptr}));
+        CHECK(visual.TryRegisterCollectionContent({stackPanelType, stackPanelChildren,
+            &AsStackPanel, nullptr}));
         CHECK(visual.Register(schema));
         CHECK(activation.TryRegister({presenterType, &Activate, nullptr}));
+        CHECK(activation.TryRegister({stackPanelType, &Activate, nullptr}));
         CHECK(activation.TryRegister({leafType, &Activate, nullptr}));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
@@ -178,6 +202,35 @@ bool TestXamlContentMountLayoutRenderAndUnmount() {
     return true;
 }
 
+bool TestXamlStackPanelCollectionMountLayoutRenderAndUnmount() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<StackPanel xmlns=\"urn:xaml-visual\"><Leaf/><Leaf/></StackPanel>"),
+        &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
+        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
+    CHECK(root != nullptr && root->OwnedChildCount() == 2U);
+    CHECK(fixture.visual.StagedContentCount() == 2U);
+    CHECK(fixture.visual.Mount(*root, fixture.stackPanelType, {80.0, 40.0}));
+    CHECK(root->LogicalChildren().Size() == 2U && root->VisualChildren().Size() == 2U);
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(root->DesiredSize().width == 20.0 && root->DesiredSize().height == 20.0);
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
+    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 3U);
+    CHECK(fixture.backend.SubmissionCount() == 1U);
+    CHECK(fixture.visual.Unmount());
+    CHECK(root->OwnedChildCount() == 0U);
+    CHECK(fixture.tree.Root() == nullptr);
+    return true;
+}
+
 bool TestFailedLoadDiscardsStagedEdges() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -201,6 +254,7 @@ bool TestFailedLoadDiscardsStagedEdges() {
 
 int main() {
     if (!TestXamlContentMountLayoutRenderAndUnmount()) return 1;
+    if (!TestXamlStackPanelCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestFailedLoadDiscardsStagedEdges()) return 1;
     std::puts("Aero XAML visual-tree tests passed");
     return 0;

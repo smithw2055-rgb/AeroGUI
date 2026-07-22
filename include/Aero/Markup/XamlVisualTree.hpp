@@ -21,6 +21,8 @@ using XamlAsRenderElementCallback = Core::RenderElement* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlAsContentPresenterCallback = Core::ContentPresenter* (*)(
     Base::Object& object, void* context) noexcept;
+using XamlAsStackPanelCallback = Core::StackPanel* (*)(
+    Base::Object& object, void* context) noexcept;
 
 struct XamlVisualTreeTypeRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
@@ -33,6 +35,13 @@ struct XamlVisualTreeTypeRegistration final {
 struct XamlContentPresenterRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlAsContentPresenterCallback asPresenter = nullptr;
+    void* context = nullptr;
+};
+
+struct XamlCollectionContentRegistration final {
+    Core::TypeId type = Core::InvalidTypeId;
+    Core::MemberId member = Core::InvalidMemberId;
+    XamlAsStackPanelCallback asStackPanel = nullptr;
     void* context = nullptr;
 };
 
@@ -57,6 +66,8 @@ public:
         const XamlVisualTreeTypeRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> TryRegisterContentPresenter(
         const XamlContentPresenterRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterCollectionContent(
+        const XamlCollectionContentRegistration& registration) noexcept;
     AERO_NODISCARD Base::Result<void> Register(
         XamlSchemaContext& schema) noexcept;
 
@@ -73,8 +84,10 @@ public:
 
 private:
     struct Edge final {
-        Core::ContentPresenter* parent = nullptr;
+        Core::LayoutElement* parent = nullptr;
         Core::LayoutElement* child = nullptr;
+        Core::ContentPresenter* presenter = nullptr;
+        Core::StackPanel* stackPanel = nullptr;
         bool logicalAttached = false;
         bool visualAttached = false;
         bool layoutAttached = false;
@@ -89,6 +102,7 @@ private:
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<XamlVisualTreeTypeRegistration> types_;
     Base::Vector<XamlContentPresenterRegistration> presenters_;
+    Base::Vector<XamlCollectionContentRegistration> collections_;
     Base::Vector<Edge> edges_;
     Base::Vector<Core::TreeNode*> nodes_;
     Core::TreeNode* rootNode_ = nullptr;
@@ -100,6 +114,8 @@ private:
         Core::TypeId type) const noexcept;
     AERO_NODISCARD const XamlContentPresenterRegistration* FindPresenter(
         Core::TypeId type) const noexcept;
+    AERO_NODISCARD const XamlCollectionContentRegistration* FindCollection(
+        Core::TypeId type, Core::MemberId member) const noexcept;
     AERO_NODISCARD Base::Result<Core::TreeNode*> ResolveTreeNode(
         Base::Object& object, Core::TypeId type) const noexcept;
     AERO_NODISCARD Base::Result<Core::LayoutElement*> ResolveLayoutElement(

@@ -7,9 +7,10 @@ namespace Aero::Core {
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 
 // First production Panel: lays out visual/layout children sequentially in a
-// single axis. Child ownership and attach/detach remain in ObjectTree and
-// LayoutManager; StackPanel owns no child objects.
-class AERO_API StackPanel final : public LayoutElement {
+// single axis. Manual use keeps ownership outside the panel; XAML collection
+// content uses AddOwnedChild() and must be released after its tree edges have
+// been detached by XamlVisualTreeHost.
+class AERO_API StackPanel final : public RenderElement {
 public:
     StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Orientation orientation = Orientation::Vertical,
@@ -17,6 +18,13 @@ public:
 
     AERO_NODISCARD Orientation GetOrientation() const noexcept { return orientation_; }
     AERO_NODISCARD Base::Result<void> SetOrientation(Orientation value) noexcept;
+    AERO_NODISCARD std::uint32_t OwnedChildCount() const noexcept {
+        return ownedChildren_.Size();
+    }
+    AERO_NODISCARD Base::Result<void> AddOwnedChild(
+        const Base::Ref<Base::Object>& childObject,
+        LayoutElement& child) noexcept;
+    AERO_NODISCARD Base::Result<void> ClearOwnedChildren() noexcept;
 
 protected:
     AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -24,6 +32,9 @@ protected:
 
 private:
     Orientation orientation_ = Orientation::Vertical;
+    Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
+
+    AERO_NODISCARD bool IsOwnedChild(const LayoutElement& child) const noexcept;
 };
 
 class AERO_API Canvas final : public LayoutElement {

@@ -28,13 +28,51 @@ bool SameThickness(Thickness left, Thickness right) noexcept {
 
 StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Orientation orientation, Base::IAllocator* allocator) noexcept
-    : LayoutElement(dispatcher, registry, runtimeType, allocator), orientation_(orientation) {}
+    : RenderElement(dispatcher, registry, runtimeType, allocator),
+      orientation_(orientation),
+      ownedChildren_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
 Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access;
     if (orientation_ == value) return {};
     orientation_ = value;
+    return InvalidateMeasure();
+}
+
+bool StackPanel::IsOwnedChild(const LayoutElement& child) const noexcept {
+    for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
+        if (owned.Get() == &child) return true;
+    }
+    return false;
+}
+
+Base::Result<void> StackPanel::AddOwnedChild(
+    const Base::Ref<Base::Object>& childObject,
+    LayoutElement& child) noexcept {
+    if (!childObject || childObject.Get() != &child) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "StackPanel owned child does not match its layout object");
+    }
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (IsOwnedChild(child)) {
+        return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
+            "StackPanel already owns the child");
+    }
+    Base::Result<void> appended = ownedChildren_.TryPushBack(childObject);
+    if (!appended) return appended.GetStatus();
+    return InvalidateMeasure();
+}
+
+Base::Result<void> StackPanel::ClearOwnedChildren() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!LayoutChildren().Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "StackPanel children must be detached before releasing owned XAML children");
+    }
+    ownedChildren_.Clear();
     return InvalidateMeasure();
 }
 
