@@ -1,5 +1,6 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
 
+#include <cstring>
 #include <utility>
 
 namespace Aero::Markup {
@@ -37,11 +38,79 @@ constexpr Base::StringView MessageMissingMemberValue(
     "XAML member scope does not contain a value");
 constexpr Base::StringView MessageMultipleRoots(
     "XAML document contains more than one root object");
+constexpr Base::StringView MessageInvalidDirective(
+    "XAML language directive is unsupported or used in an invalid context");
+constexpr Base::StringView MessageDuplicateName(
+    "x:Name is duplicated in the active XAML name scope");
+constexpr Base::StringView MessageDuplicateResourceKey(
+    "x:Key is duplicated in the active XAML resource scope");
+constexpr Base::StringView MessageStaticResourceNotFound(
+    "StaticResource key is not available; forward references are not supported");
+constexpr Base::StringView MessageMissingResourceScope(
+    "x:Key requires an enclosing XAML resource scope");
+constexpr Base::StringView MessageNullNotAllowed(
+    "x:Null is not valid for this XAML value or document root");
+constexpr Base::StringView MessageInvalidMarkupExtension(
+    "XAML markup-extension text is malformed or unsupported");
+constexpr Base::StringView MessageNamespaceState(
+    "XAML namespace declaration state is invalid");
+constexpr Base::StringView MessageNameRegistrationFailed(
+    "XAML name registration callback failed");
+constexpr Base::StringView MessageResourceRegistrationFailed(
+    "XAML resource registration callback failed");
+
+constexpr Base::StringView XmlPrefix("xml");
+constexpr Base::StringView XmlNamespaceUri(
+    "http://www.w3.org/XML/1998/namespace");
+constexpr Base::StringView DirectiveName("Name");
+constexpr Base::StringView DirectiveKey("Key");
+constexpr Base::StringView DirectiveNull("Null");
+constexpr Base::StringView NullMarkup("x:Null");
+constexpr Base::StringView StaticResourceMarkup("StaticResource");
 
 Base::Status InvalidStateStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         MessageInvalidWriterState.Data());
+}
+
+bool IsAsciiWhitespace(char value) noexcept {
+    return value == ' ' || value == '\t' || value == '\r' || value == '\n';
+}
+
+Base::StringView TrimAscii(Base::StringView value) noexcept {
+    std::uint32_t begin = 0U;
+    while (begin < value.SizeBytes() && IsAsciiWhitespace(value[begin])) {
+        ++begin;
+    }
+    std::uint32_t end = value.SizeBytes();
+    while (end > begin && IsAsciiWhitespace(value[end - 1U])) {
+        --end;
+    }
+    return value.Substr(begin, end - begin);
+}
+
+bool StartsWith(
+    Base::StringView value,
+    Base::StringView prefix) noexcept {
+    return value.SizeBytes() >= prefix.SizeBytes() &&
+        (prefix.Empty() || std::memcmp(
+            value.Data(),
+            prefix.Data(),
+            prefix.SizeBytes()) == 0);
+}
+
+bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+bool IsValueType(
+    const Core::TypeRegistry& types,
+    Core::TypeId type) noexcept {
+    const Core::TypeInfo* info = types.FindType(type);
+    return info != nullptr &&
+        HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType);
 }
 
 } // namespace
@@ -55,7 +124,13 @@ XamlObjectWriter::XamlObjectWriter(
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
       frames_(allocator_),
       created_(allocator_),
-      assignments_(allocator_) {}
+      assignments_(allocator_),
+      nameScopes_(allocator_),
+      resourceScopes_(allocator_),
+      namespaceBindings_(allocator_),
+      pendingNamespaces_(allocator_),
+      committedNames_(allocator_),
+      committedResources_(allocator_) {}
 
 XamlObjectWriter::~XamlObjectWriter() noexcept {
     AbortTransaction();
@@ -70,6 +145,8 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     }
 
     AbortTransaction();
+    committedNames_.Clear();
+    committedResources_.Clear();
     if (!schema_->IsFrozen()) {
         return Failure(
             Base::Status::Failure(
@@ -100,7 +177,8 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
         }
     }
 
-    if (!frames_.Empty() || !root_) {
+    if (!frames_.Empty() || !root_ || !pendingNamespaces_.Empty() ||
+        !namespaceBindings_.Empty()) {
         const Base::Status status = Failure(
             InvalidStateStatus(),
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
@@ -111,17 +189,17 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
         return status;
     }
 
+    CommitDocumentScopes();
     Base::Ref<Base::Object> result = std::move(root_);
-    frames_.Clear();
-    assignments_.Clear();
-    created_.Clear();
-    ended_ = false;
+    ClearTransaction();
     loading_ = false;
     return result;
 }
 
 void XamlObjectWriter::Reset() noexcept {
     AbortTransaction();
+    committedNames_.Clear();
+    committedResources_.Clear();
     loading_ = false;
 }
 
@@ -129,7 +207,7 @@ Base::Result<void> XamlObjectWriter::ProcessNode(
     const XamlNode& node) noexcept {
     switch (node.Kind()) {
     case XamlNodeKind::NamespaceDeclaration:
-        return {};
+        return QueueNamespaceDeclaration(node);
     case XamlNodeKind::StartObject:
         return StartObject(node);
     case XamlNodeKind::EndObject:
@@ -141,7 +219,8 @@ Base::Result<void> XamlObjectWriter::ProcessNode(
     case XamlNodeKind::Value:
         return WriteText(node);
     case XamlNodeKind::EndOfDocument:
-        if (!frames_.Empty() || !root_) {
+        if (!frames_.Empty() || !root_ || !pendingNamespaces_.Empty() ||
+            !namespaceBindings_.Empty()) {
             return Failure(
                 InvalidStateStatus(),
                 XamlObjectWriterDiagnosticCodes::InvalidWriterState,
@@ -151,11 +230,7 @@ Base::Result<void> XamlObjectWriter::ProcessNode(
         ended_ = true;
         return {};
     case XamlNodeKind::None:
-        return Failure(
-            InvalidStateStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState,
-            node.Source());
+        break;
     }
 
     return Failure(
@@ -163,6 +238,33 @@ Base::Result<void> XamlObjectWriter::ProcessNode(
         XamlObjectWriterDiagnosticCodes::InvalidWriterState,
         MessageInvalidWriterState,
         node.Source());
+}
+
+Base::Result<void> XamlObjectWriter::QueueNamespaceDeclaration(
+    const XamlNode& node) noexcept {
+    if (node.NamespaceUri().Empty()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageNamespaceState.Data()),
+            XamlObjectWriterDiagnosticCodes::NamespaceState,
+            MessageNamespaceState,
+            node.Source());
+    }
+
+    PendingNamespaceRecord record(allocator_);
+    Base::Result<void> prefixResult = record.prefix.TryAssignUnchecked(
+        node.NamespacePrefix());
+    if (!prefixResult) {
+        return prefixResult.GetStatus();
+    }
+    Base::Result<void> uriResult = record.uri.TryAssignUnchecked(
+        node.NamespaceUri());
+    if (!uriResult) {
+        return uriResult.GetStatus();
+    }
+    record.source = node.Source();
+    return pendingNamespaces_.TryPushBack(std::move(record));
 }
 
 Base::Result<void> XamlObjectWriter::StartObject(
@@ -177,10 +279,28 @@ Base::Result<void> XamlObjectWriter::StartObject(
             node.Source());
     }
 
+    std::uint32_t bindingStart = InvalidIndex;
+    Base::Result<void> namespaceResult =
+        ActivatePendingNamespaces(bindingStart);
+    if (!namespaceResult) {
+        return Failure(
+            namespaceResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::NamespaceState,
+            MessageNamespaceState,
+            node.Source());
+    }
+
     if (!frames_.Empty() &&
         frames_.Back().kind == FrameKind::Object &&
         HasPropertyElementSyntax(node.Name())) {
-        return StartPropertyElement(node, frames_.Size() - 1U);
+        return StartPropertyElement(
+            node,
+            frames_.Size() - 1U,
+            bindingStart);
+    }
+
+    if (IsXamlNullObject(node.Name())) {
+        return StartNullObject(node, bindingStart);
     }
 
     Base::Result<const Core::TypeInfo*> typeResult = schema_->ResolveType(
@@ -205,21 +325,28 @@ Base::Result<void> XamlObjectWriter::StartObject(
             nonConstructible
                 ? XamlObjectWriterDiagnosticCodes::TypeNotConstructible
                 : XamlObjectWriterDiagnosticCodes::FactoryFailed,
-            nonConstructible ? MessageTypeNotConstructible : MessageFactoryFailed,
+            nonConstructible
+                ? MessageTypeNotConstructible
+                : MessageFactoryFailed,
             node.Source());
     }
 
-    CreatedObjectRecord record;
+    CreatedObjectRecord record(allocator_);
     record.object = std::move(createResult).Value();
     record.type = type->Id();
     const std::uint32_t objectIndex = created_.Size();
-    Base::Result<void> appendObject = created_.TryPushBack(std::move(record));
+    Base::Result<void> appendObject =
+        created_.TryPushBack(std::move(record));
     if (!appendObject) {
         return Failure(
             appendObject.GetStatus(),
             XamlObjectWriterDiagnosticCodes::FactoryFailed,
             MessageFactoryFailed,
             node.Source());
+    }
+
+    if (rootObjectIndex_ == InvalidIndex) {
+        rootObjectIndex_ = objectIndex;
     }
 
     CreatedObjectRecord& stored = created_[objectIndex];
@@ -238,7 +365,16 @@ Base::Result<void> XamlObjectWriter::StartObject(
     Frame frame;
     frame.kind = FrameKind::Object;
     frame.objectIndex = objectIndex;
+    frame.namespaceBindingStart = bindingStart;
     frame.source = node.Source();
+    Base::Result<void> scopeResult = CreateScopesForObject(
+        objectIndex,
+        frame,
+        node.Source());
+    if (!scopeResult) {
+        return scopeResult.GetStatus();
+    }
+
     Base::Result<void> appendFrame = frames_.TryPushBack(frame);
     if (!appendFrame) {
         return Failure(
@@ -246,6 +382,32 @@ Base::Result<void> XamlObjectWriter::StartObject(
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState,
             node.Source());
+    }
+    return {};
+}
+
+Base::Result<void> XamlObjectWriter::StartNullObject(
+    const XamlNode& node,
+    std::uint32_t bindingStart) noexcept {
+    if (frames_.Empty() ||
+        (frames_.Back().kind != FrameKind::Member &&
+         frames_.Back().kind != FrameKind::Object)) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageNullNotAllowed.Data()),
+            XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+            MessageNullNotAllowed,
+            node.Source());
+    }
+
+    Frame frame;
+    frame.kind = FrameKind::NullObject;
+    frame.namespaceBindingStart = bindingStart;
+    frame.source = node.Source();
+    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    if (!appendResult) {
+        return appendResult.GetStatus();
     }
     return {};
 }
@@ -261,6 +423,9 @@ Base::Result<void> XamlObjectWriter::EndObject(
     }
 
     Frame& frame = frames_.Back();
+    if (frame.kind == FrameKind::NullObject) {
+        return CompleteNullObject(node);
+    }
     if (frame.kind == FrameKind::Member) {
         if (!frame.propertyElement) {
             return Failure(
@@ -278,8 +443,17 @@ Base::Result<void> XamlObjectWriter::EndObject(
                 MessageMissingMemberValue,
                 node.Source());
         }
+        const std::uint32_t bindingStart = frame.namespaceBindingStart;
         frames_.PopBack();
+        PopNamespaceBindings(bindingStart);
         return {};
+    }
+    if (frame.kind != FrameKind::Object) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            node.Source());
     }
 
     return CompleteObject(node);
@@ -301,6 +475,28 @@ Base::Result<void> XamlObjectWriter::StartMember(
             InvalidStateStatus(),
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState,
+            node.Source());
+    }
+
+    if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {
+        if (IsXamlDirective(node.Name(), DirectiveName)) {
+            return StartDirective(
+                node,
+                DirectiveKind::Name,
+                objectFrame.objectIndex);
+        }
+        if (IsXamlDirective(node.Name(), DirectiveKey)) {
+            return StartDirective(
+                node,
+                DirectiveKind::Key,
+                objectFrame.objectIndex);
+        }
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                MessageInvalidDirective.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            MessageInvalidDirective,
             node.Source());
     }
 
@@ -349,18 +545,79 @@ Base::Result<void> XamlObjectWriter::StartMember(
     return {};
 }
 
+Base::Result<void> XamlObjectWriter::StartDirective(
+    const XamlNode& node,
+    DirectiveKind directive,
+    std::uint32_t targetObjectIndex) noexcept {
+    if (!node.IsFromAttribute() || targetObjectIndex >= created_.Size()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageInvalidDirective.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            MessageInvalidDirective,
+            node.Source());
+    }
+
+    const CreatedObjectRecord& record = created_[targetObjectIndex];
+    if ((directive == DirectiveKind::Name &&
+         (!record.name.Empty() || record.nameRegistered)) ||
+        (directive == DirectiveKind::Key &&
+         (!record.key.Empty() || record.resourceRegistered))) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                MessageInvalidDirective.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            MessageInvalidDirective,
+            node.Source());
+    }
+
+    Frame frame;
+    frame.kind = FrameKind::Directive;
+    frame.directive = directive;
+    frame.targetObjectIndex = targetObjectIndex;
+    frame.source = node.Source();
+    Base::Result<void> appendResult = frames_.TryPushBack(frame);
+    if (!appendResult) {
+        return appendResult.GetStatus();
+    }
+    return {};
+}
+
 Base::Result<void> XamlObjectWriter::EndMember(
     const XamlNode& node) noexcept {
-    if (frames_.Empty() ||
-        frames_.Back().kind != FrameKind::Member ||
-        frames_.Back().propertyElement) {
+    if (frames_.Empty()) {
         return Failure(
             InvalidStateStatus(),
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState,
             node.Source());
     }
-    if (frames_.Back().valuesWritten == 0U) {
+
+    const Frame& frame = frames_.Back();
+    if (frame.kind == FrameKind::Directive) {
+        if (frame.valuesWritten != 1U) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageMissingMemberValue.Data()),
+                XamlObjectWriterDiagnosticCodes::MissingMemberValue,
+                MessageMissingMemberValue,
+                node.Source());
+        }
+        frames_.PopBack();
+        return {};
+    }
+
+    if (frame.kind != FrameKind::Member || frame.propertyElement) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            node.Source());
+    }
+    if (frame.valuesWritten == 0U) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
@@ -389,7 +646,55 @@ Base::Result<void> XamlObjectWriter::WriteText(
     }
 
     Frame& frame = frames_.Back();
+    if (frame.kind == FrameKind::Directive) {
+        return WriteDirectiveText(frame, node);
+    }
+
     if (frame.kind == FrameKind::Member) {
+        Base::StringView argument;
+        const MarkupValueKind markup = ParseMarkupValue(
+            node.Value(),
+            argument);
+        if (markup == MarkupValueKind::Invalid) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageInvalidMarkupExtension.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
+                MessageInvalidMarkupExtension,
+                node.Source());
+        }
+        if (markup == MarkupValueKind::Null) {
+            if (IsValueType(schema_->Types(), frame.member.valueType)) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        MessageNullNotAllowed.Data()),
+                    XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+                    MessageNullNotAllowed,
+                    node.Source());
+            }
+            XamlValue value = XamlValue::NullObject(
+                frame.member.valueType,
+                allocator_);
+            return WriteValueToMember(frame, std::move(value), node.Source());
+        }
+        if (markup == MarkupValueKind::StaticResource) {
+            Base::Result<XamlResourceValue> resource = LookupResource(argument);
+            if (!resource) {
+                return Failure(
+                    resource.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                    MessageStaticResourceNotFound,
+                    node.Source());
+            }
+            XamlValue value = XamlValue::FromObject(
+                resource.Value().type,
+                resource.Value().object,
+                allocator_);
+            return WriteValueToMember(frame, std::move(value), node.Source());
+        }
+
         Base::Result<XamlValue> convertResult = schema_->ConvertText(
             frame.member.valueType,
             node.Value());
@@ -406,11 +711,14 @@ Base::Result<void> XamlObjectWriter::WriteText(
             node.Source());
     }
 
-    if (frame.objectIndex >= created_.Size()) {
+    if (frame.kind != FrameKind::Object ||
+        frame.objectIndex >= created_.Size()) {
         return Failure(
-            InvalidStateStatus(),
-            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
-            MessageInvalidWriterState,
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageUnexpectedText.Data()),
+            XamlObjectWriterDiagnosticCodes::UnexpectedText,
+            MessageUnexpectedText,
             node.Source());
     }
 
@@ -421,6 +729,58 @@ Base::Result<void> XamlObjectWriter::WriteText(
             contentResult.GetStatus(),
             XamlObjectWriterDiagnosticCodes::UnexpectedText,
             MessageUnexpectedText,
+            node.Source());
+    }
+
+    Base::StringView argument;
+    const MarkupValueKind markup = ParseMarkupValue(node.Value(), argument);
+    if (markup == MarkupValueKind::Invalid) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageInvalidMarkupExtension.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidMarkupExtension,
+            MessageInvalidMarkupExtension,
+            node.Source());
+    }
+    if (markup == MarkupValueKind::Null) {
+        if (IsValueType(
+                schema_->Types(),
+                contentResult.Value().valueType)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageNullNotAllowed.Data()),
+                XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+                MessageNullNotAllowed,
+                node.Source());
+        }
+        XamlValue value = XamlValue::NullObject(
+            contentResult.Value().valueType,
+            allocator_);
+        return WriteValue(
+            frame.objectIndex,
+            contentResult.Value(),
+            std::move(value),
+            node.Source());
+    }
+    if (markup == MarkupValueKind::StaticResource) {
+        Base::Result<XamlResourceValue> resource = LookupResource(argument);
+        if (!resource) {
+            return Failure(
+                resource.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                MessageStaticResourceNotFound,
+                node.Source());
+        }
+        XamlValue value = XamlValue::FromObject(
+            resource.Value().type,
+            resource.Value().object,
+            allocator_);
+        return WriteValue(
+            frame.objectIndex,
+            contentResult.Value(),
+            std::move(value),
             node.Source());
     }
 
@@ -441,9 +801,71 @@ Base::Result<void> XamlObjectWriter::WriteText(
         node.Source());
 }
 
+Base::Result<void> XamlObjectWriter::WriteDirectiveText(
+    Frame& frame,
+    const XamlNode& node) noexcept {
+    if (frame.targetObjectIndex >= created_.Size() ||
+        frame.valuesWritten != 0U || !node.IsFromAttribute()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageInvalidDirective.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            MessageInvalidDirective,
+            node.Source());
+    }
+
+    CreatedObjectRecord& object = created_[frame.targetObjectIndex];
+    if (frame.directive == DirectiveKind::Name) {
+        if (!NameScope::IsValidName(node.Value())) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidDirective.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidDirective,
+                MessageInvalidDirective,
+                node.Source());
+        }
+        Base::Result<void> assignResult = object.name.TryAssign(node.Value());
+        if (!assignResult) {
+            return assignResult.GetStatus();
+        }
+        Base::Result<void> registerResult = RegisterObjectName(
+            frame.targetObjectIndex,
+            node.Source());
+        if (!registerResult) {
+            return registerResult.GetStatus();
+        }
+    } else if (frame.directive == DirectiveKind::Key) {
+        if (node.Value().Empty()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidDirective.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidDirective,
+                MessageInvalidDirective,
+                node.Source());
+        }
+        Base::Result<void> assignResult = object.key.TryAssign(node.Value());
+        if (!assignResult) {
+            return assignResult.GetStatus();
+        }
+    } else {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            MessageInvalidDirective,
+            node.Source());
+    }
+
+    frame.valuesWritten = 1U;
+    return {};
+}
+
 Base::Result<void> XamlObjectWriter::StartPropertyElement(
     const XamlNode& node,
-    std::uint32_t targetFrameIndex) noexcept {
+    std::uint32_t targetFrameIndex,
+    std::uint32_t bindingStart) noexcept {
     if (targetFrameIndex >= frames_.Size() ||
         frames_[targetFrameIndex].kind != FrameKind::Object ||
         frames_[targetFrameIndex].objectIndex >= created_.Size()) {
@@ -487,6 +909,7 @@ Base::Result<void> XamlObjectWriter::StartPropertyElement(
     Frame frame;
     frame.kind = FrameKind::Member;
     frame.targetObjectIndex = targetObjectIndex;
+    frame.namespaceBindingStart = bindingStart;
     frame.member = member;
     frame.source = node.Source();
     frame.propertyElement = true;
@@ -511,7 +934,8 @@ Base::Result<void> XamlObjectWriter::CompleteObject(
             node.Source());
     }
 
-    const std::uint32_t objectIndex = frames_.Back().objectIndex;
+    const Frame frame = frames_.Back();
+    const std::uint32_t objectIndex = frame.objectIndex;
     if (objectIndex >= created_.Size()) {
         return Failure(
             InvalidStateStatus(),
@@ -529,6 +953,15 @@ Base::Result<void> XamlObjectWriter::CompleteObject(
             node.Source());
     }
 
+    if (!record.name.Empty() && !record.nameRegistered) {
+        Base::Result<void> nameResult = RegisterObjectName(
+            objectIndex,
+            node.Source());
+        if (!nameResult) {
+            return nameResult.GetStatus();
+        }
+    }
+
     Base::Result<void> endResult = schema_->EndInit(
         record.type,
         *record.object);
@@ -540,8 +973,36 @@ Base::Result<void> XamlObjectWriter::CompleteObject(
             node.Source());
     }
     record.endCalled = true;
+
     frames_.PopBack();
+    PopNamespaceBindings(frame.namespaceBindingStart);
+
+    Base::Result<bool> resourceResult = RegisterObjectResource(
+        objectIndex,
+        node.Source());
+    if (!resourceResult) {
+        return resourceResult.GetStatus();
+    }
+    if (resourceResult.Value()) {
+        return {};
+    }
     return WriteObjectToParent(objectIndex, node.Source());
+}
+
+Base::Result<void> XamlObjectWriter::CompleteNullObject(
+    const XamlNode& node) noexcept {
+    if (frames_.Empty() || frames_.Back().kind != FrameKind::NullObject) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            node.Source());
+    }
+    const std::uint32_t bindingStart =
+        frames_.Back().namespaceBindingStart;
+    frames_.PopBack();
+    PopNamespaceBindings(bindingStart);
+    return WriteNullToParent(node.Source());
 }
 
 Base::Result<void> XamlObjectWriter::WriteObjectToParent(
@@ -576,6 +1037,13 @@ Base::Result<void> XamlObjectWriter::WriteObjectToParent(
             created_[objectIndex].object,
             allocator_);
         return WriteValueToMember(parent, std::move(value), source);
+    }
+    if (parent.kind != FrameKind::Object) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
     }
 
     return WriteObjectToContent(
@@ -613,6 +1081,66 @@ Base::Result<void> XamlObjectWriter::WriteObjectToContent(
         allocator_);
     return WriteValue(
         parentObjectIndex,
+        contentResult.Value(),
+        std::move(value),
+        source);
+}
+
+Base::Result<void> XamlObjectWriter::WriteNullToParent(
+    Core::SourceSpan source) noexcept {
+    if (frames_.Empty()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageNullNotAllowed.Data()),
+            XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+            MessageNullNotAllowed,
+            source);
+    }
+
+    Frame& parent = frames_.Back();
+    if (parent.kind == FrameKind::Member) {
+        if (IsValueType(schema_->Types(), parent.member.valueType)) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    MessageNullNotAllowed.Data()),
+                XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+                MessageNullNotAllowed,
+                source);
+        }
+        XamlValue value = XamlValue::NullObject(
+            parent.member.valueType,
+            allocator_);
+        return WriteValueToMember(parent, std::move(value), source);
+    }
+    if (parent.kind != FrameKind::Object ||
+        parent.objectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    Base::Result<XamlResolvedMember> contentResult =
+        schema_->ResolveContentMember(created_[parent.objectIndex].type);
+    if (!contentResult ||
+        IsValueType(schema_->Types(), contentResult.Value().valueType)) {
+        return Failure(
+            contentResult ? Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                MessageNullNotAllowed.Data()) : contentResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::NullNotAllowed,
+            MessageNullNotAllowed,
+            source);
+    }
+
+    XamlValue value = XamlValue::NullObject(
+        contentResult.Value().valueType,
+        allocator_);
+    return WriteValue(
+        parent.objectIndex,
         contentResult.Value(),
         std::move(value),
         source);
@@ -658,7 +1186,8 @@ Base::Result<void> XamlObjectWriter::WriteValue(
 
     const XamlMemberAdapterRegistration* adapter =
         schema_->FindMemberAdapter(member.id);
-    if (adapter == nullptr || adapter->set == nullptr) {
+    if (adapter == nullptr ||
+        (adapter->set == nullptr && adapter->setWithServices == nullptr)) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -671,8 +1200,7 @@ Base::Result<void> XamlObjectWriter::WriteValue(
     AssignmentRecord* assignment = FindAssignment(
         targetObjectIndex,
         member.id);
-    if (assignment != nullptr &&
-        assignment->count != 0U &&
+    if (assignment != nullptr && assignment->count != 0U &&
         adapter->mode == XamlMemberWriteMode::SetOnce) {
         return Failure(
             Base::Status::Failure(
@@ -698,18 +1226,25 @@ Base::Result<void> XamlObjectWriter::WriteValue(
         assignment = &assignments_.Back();
     }
 
+    const XamlServiceProvider services = BuildServices(
+        targetObjectIndex,
+        member,
+        source);
     Base::Result<void> setResult = schema_->SetMember(
         *created_[targetObjectIndex].object,
         created_[targetObjectIndex].type,
         member,
-        value);
+        value,
+        &services);
     if (!setResult) {
-        Core::DiagnosticCode code = XamlObjectWriterDiagnosticCodes::InvalidValue;
+        Core::DiagnosticCode code =
+            XamlObjectWriterDiagnosticCodes::InvalidValue;
         Base::StringView message = MessageInvalidValue;
         if (setResult.GetStatus().code == Base::ErrorCode::Unsupported) {
             code = XamlObjectWriterDiagnosticCodes::UnsupportedMember;
             message = MessageUnsupportedMember;
-        } else if (setResult.GetStatus().code == Base::ErrorCode::InvalidArgument) {
+        } else if (setResult.GetStatus().code ==
+            Base::ErrorCode::InvalidArgument) {
             code = XamlObjectWriterDiagnosticCodes::TypeMismatch;
             message = MessageTypeMismatch;
         }
@@ -729,13 +1264,426 @@ Base::Result<void> XamlObjectWriter::WriteValue(
     return {};
 }
 
-std::uint32_t XamlObjectWriter::CurrentObjectFrameIndex() const noexcept {
+Base::Result<void> XamlObjectWriter::RegisterObjectName(
+    std::uint32_t objectIndex,
+    Core::SourceSpan source) noexcept {
+    if (objectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    CreatedObjectRecord& object = created_[objectIndex];
+    if (object.name.Empty() || object.nameRegistered) {
+        return {};
+    }
+
+    const std::uint32_t scopeIndex =
+        FindNameScopeIndexForObject(objectIndex);
+    if (scopeIndex == InvalidIndex || scopeIndex >= nameScopes_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    NameScopeRecord& scope = nameScopes_[scopeIndex];
+    Base::Result<void> localResult = scope.names.TryRegister(
+        object.name.View(),
+        *object.object);
+    if (!localResult) {
+        const bool duplicate =
+            localResult.GetStatus().code == Base::ErrorCode::AlreadyExists;
+        return Failure(
+            localResult.GetStatus(),
+            duplicate
+                ? XamlObjectWriterDiagnosticCodes::DuplicateName
+                : XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            duplicate ? MessageDuplicateName : MessageInvalidDirective,
+            source);
+    }
+
+    if (scope.ownerObjectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+    CreatedObjectRecord& owner = created_[scope.ownerObjectIndex];
+    Base::Result<void> callbackResult = schema_->RegisterName(
+        owner.type,
+        *owner.object,
+        object.name.View(),
+        *object.object);
+    if (!callbackResult) {
+        return Failure(
+            callbackResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::NameRegistrationFailed,
+            MessageNameRegistrationFailed,
+            source);
+    }
+
+    object.nameRegistered = true;
+    return {};
+}
+
+Base::Result<bool> XamlObjectWriter::RegisterObjectResource(
+    std::uint32_t objectIndex,
+    Core::SourceSpan source) noexcept {
+    if (objectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    CreatedObjectRecord& object = created_[objectIndex];
+    if (object.key.Empty()) {
+        return false;
+    }
+    if (object.resourceRegistered) {
+        return true;
+    }
+    if (!frames_.Empty() && frames_.Back().kind == FrameKind::Member) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                MessageMissingResourceScope.Data()),
+            XamlObjectWriterDiagnosticCodes::MissingResourceScope,
+            MessageMissingResourceScope,
+            source);
+    }
+
+    const std::uint32_t scopeIndex = FindResourceScopeIndexForParent();
+    if (scopeIndex == InvalidIndex || scopeIndex >= resourceScopes_.Size()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                MessageMissingResourceScope.Data()),
+            XamlObjectWriterDiagnosticCodes::MissingResourceScope,
+            MessageMissingResourceScope,
+            source);
+    }
+
+    ResourceScopeRecord& scope = resourceScopes_[scopeIndex];
+    Base::Result<void> localResult = scope.resources.TryAdd(
+        object.key.View(),
+        object.type,
+        object.object,
+        source);
+    if (!localResult) {
+        const bool duplicate =
+            localResult.GetStatus().code == Base::ErrorCode::AlreadyExists;
+        return Failure(
+            localResult.GetStatus(),
+            duplicate
+                ? XamlObjectWriterDiagnosticCodes::DuplicateResourceKey
+                : XamlObjectWriterDiagnosticCodes::InvalidDirective,
+            duplicate ? MessageDuplicateResourceKey : MessageInvalidDirective,
+            source);
+    }
+
+    if (scope.ownerObjectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+    CreatedObjectRecord& owner = created_[scope.ownerObjectIndex];
+    Base::Result<void> callbackResult = schema_->AddResource(
+        owner.type,
+        *owner.object,
+        object.key.View(),
+        object.type,
+        object.object);
+    if (!callbackResult) {
+        return Failure(
+            callbackResult.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::ResourceRegistrationFailed,
+            MessageResourceRegistrationFailed,
+            source);
+    }
+
+    object.resourceRegistered = true;
+    return true;
+}
+
+Base::Result<XamlResourceValue> XamlObjectWriter::LookupResource(
+    Base::StringView key) const noexcept {
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
-        if (frames_[index - 1U].kind == FrameKind::Object) {
+        const Frame& frame = frames_[index - 1U];
+        if (frame.kind != FrameKind::Object ||
+            frame.resourceScopeIndex == InvalidIndex ||
+            frame.resourceScopeIndex >= resourceScopes_.Size()) {
+            continue;
+        }
+        Base::Result<XamlResourceValue> value =
+            resourceScopes_[frame.resourceScopeIndex].resources.Lookup(key);
+        if (value) {
+            return value;
+        }
+        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+            return value.GetStatus();
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        MessageStaticResourceNotFound.Data());
+}
+
+Base::Result<void> XamlObjectWriter::CreateScopesForObject(
+    std::uint32_t objectIndex,
+    Frame& frame,
+    Core::SourceSpan source) noexcept {
+    if (objectIndex >= created_.Size()) {
+        return Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            source);
+    }
+
+    const bool documentRoot = objectIndex == rootObjectIndex_;
+    if (documentRoot || schema_->CreatesNameScope(created_[objectIndex].type)) {
+        NameScopeRecord scope(allocator_);
+        scope.ownerObjectIndex = objectIndex;
+        const std::uint32_t index = nameScopes_.Size();
+        Base::Result<void> appendResult =
+            nameScopes_.TryPushBack(std::move(scope));
+        if (!appendResult) {
+            return appendResult.GetStatus();
+        }
+        frame.nameScopeIndex = index;
+        if (documentRoot) {
+            documentNameScopeIndex_ = index;
+        }
+    }
+
+    if (documentRoot ||
+        schema_->CreatesResourceScope(created_[objectIndex].type)) {
+        ResourceScopeRecord scope(allocator_);
+        scope.ownerObjectIndex = objectIndex;
+        const std::uint32_t index = resourceScopes_.Size();
+        Base::Result<void> appendResult =
+            resourceScopes_.TryPushBack(std::move(scope));
+        if (!appendResult) {
+            return appendResult.GetStatus();
+        }
+        frame.resourceScopeIndex = index;
+        if (documentRoot) {
+            documentResourceScopeIndex_ = index;
+        }
+    }
+    return {};
+}
+
+Base::Result<void> XamlObjectWriter::ActivatePendingNamespaces(
+    std::uint32_t& bindingStart) noexcept {
+    bindingStart = namespaceBindings_.Size();
+    for (PendingNamespaceRecord& pending : pendingNamespaces_) {
+        NamespaceBindingRecord binding(allocator_);
+        Base::Result<void> prefixResult = binding.prefix.TryAssignUnchecked(
+            pending.prefix.View());
+        if (!prefixResult) {
+            return prefixResult.GetStatus();
+        }
+        Base::Result<void> uriResult = binding.uri.TryAssignUnchecked(
+            pending.uri.View());
+        if (!uriResult) {
+            return uriResult.GetStatus();
+        }
+        Base::Result<void> appendResult =
+            namespaceBindings_.TryPushBack(std::move(binding));
+        if (!appendResult) {
+            return appendResult.GetStatus();
+        }
+    }
+    pendingNamespaces_.Clear();
+    return {};
+}
+
+void XamlObjectWriter::PopNamespaceBindings(
+    std::uint32_t bindingStart) noexcept {
+    if (bindingStart == InvalidIndex) {
+        return;
+    }
+    while (namespaceBindings_.Size() > bindingStart) {
+        namespaceBindings_.PopBack();
+    }
+}
+
+Base::Result<Base::StringView> XamlObjectWriter::LookupNamespace(
+    Base::StringView prefix) const noexcept {
+    if (prefix == XmlPrefix) {
+        return XmlNamespaceUri;
+    }
+    for (std::uint32_t index = namespaceBindings_.Size();
+         index > 0U;
+         --index) {
+        const NamespaceBindingRecord& binding =
+            namespaceBindings_[index - 1U];
+        if (binding.prefix.View() == prefix) {
+            return binding.uri.View();
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "XAML namespace prefix is not bound in the active scope");
+}
+
+XamlServiceProvider XamlObjectWriter::BuildServices(
+    std::uint32_t targetObjectIndex,
+    const XamlResolvedMember& member,
+    Core::SourceSpan source) noexcept {
+    XamlServiceProvider services;
+    if (targetObjectIndex < created_.Size()) {
+        services.targetObject = created_[targetObjectIndex].object.Get();
+        services.targetObjectType = created_[targetObjectIndex].type;
+    }
+    services.targetMember = member.id;
+    services.targetValueType = member.valueType;
+    if (rootObjectIndex_ < created_.Size()) {
+        services.rootObject = created_[rootObjectIndex_].object.Get();
+    }
+    services.source = source;
+    services.nameScope = FindActiveNameScope();
+    services.namespaces = XamlNamespaceScope(
+        &XamlObjectWriter::NamespaceLookupCallback,
+        this);
+    services.resources = XamlResourceResolver(
+        &XamlObjectWriter::ResourceLookupCallback,
+        this);
+    return services;
+}
+
+const NameScope* XamlObjectWriter::FindActiveNameScope() const noexcept {
+    for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
+        const Frame& frame = frames_[index - 1U];
+        if (frame.kind == FrameKind::Object &&
+            frame.nameScopeIndex != InvalidIndex &&
+            frame.nameScopeIndex < nameScopes_.Size()) {
+            return &nameScopes_[frame.nameScopeIndex].names;
+        }
+    }
+    return nullptr;
+}
+
+std::uint32_t XamlObjectWriter::FindNameScopeIndexForObject(
+    std::uint32_t objectIndex) const noexcept {
+    const std::uint32_t objectFrame = FindObjectFrameIndex(objectIndex);
+    if (objectFrame == InvalidIndex) {
+        return InvalidIndex;
+    }
+    for (std::uint32_t index = objectFrame + 1U; index > 0U; --index) {
+        const Frame& frame = frames_[index - 1U];
+        if (frame.kind == FrameKind::Object &&
+            frame.nameScopeIndex != InvalidIndex) {
+            return frame.nameScopeIndex;
+        }
+    }
+    return InvalidIndex;
+}
+
+std::uint32_t XamlObjectWriter::FindResourceScopeIndexForParent() const noexcept {
+    for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
+        const Frame& frame = frames_[index - 1U];
+        if (frame.kind == FrameKind::Object &&
+            frame.resourceScopeIndex != InvalidIndex) {
+            return frame.resourceScopeIndex;
+        }
+    }
+    return InvalidIndex;
+}
+
+std::uint32_t XamlObjectWriter::FindObjectFrameIndex(
+    std::uint32_t objectIndex) const noexcept {
+    for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
+        const Frame& frame = frames_[index - 1U];
+        if (frame.kind == FrameKind::Object &&
+            frame.objectIndex == objectIndex) {
             return index - 1U;
         }
     }
     return InvalidIndex;
+}
+
+XamlObjectWriter::MarkupValueKind XamlObjectWriter::ParseMarkupValue(
+    Base::StringView text,
+    Base::StringView& argument) const noexcept {
+    argument = {};
+    const Base::StringView value = TrimAscii(text);
+    if (value.Empty() || value[0] != '{') {
+        return MarkupValueKind::Literal;
+    }
+    if (value.SizeBytes() < 2U ||
+        value[value.SizeBytes() - 1U] != '}') {
+        return MarkupValueKind::Invalid;
+    }
+
+    const Base::StringView inner = TrimAscii(value.Substr(
+        1U,
+        value.SizeBytes() - 2U));
+    if (inner == NullMarkup) {
+        return MarkupValueKind::Null;
+    }
+    if (!StartsWith(inner, StaticResourceMarkup)) {
+        return MarkupValueKind::Invalid;
+    }
+    if (inner.SizeBytes() == StaticResourceMarkup.SizeBytes() ||
+        !IsAsciiWhitespace(inner[StaticResourceMarkup.SizeBytes()])) {
+        return MarkupValueKind::Invalid;
+    }
+
+    argument = TrimAscii(inner.Substr(
+        StaticResourceMarkup.SizeBytes(),
+        inner.SizeBytes() - StaticResourceMarkup.SizeBytes()));
+    if (argument.Empty()) {
+        return MarkupValueKind::Invalid;
+    }
+    for (char character : argument) {
+        if (character == '{' || character == '}') {
+            return MarkupValueKind::Invalid;
+        }
+    }
+    return MarkupValueKind::StaticResource;
+}
+
+bool XamlObjectWriter::IsXamlDirective(
+    const XamlQualifiedName& name,
+    Base::StringView localName) const noexcept {
+    return name.NamespaceUri() == XamlLanguageNamespaceUri() &&
+        name.LocalName() == localName;
+}
+
+bool XamlObjectWriter::IsXamlNullObject(
+    const XamlQualifiedName& name) const noexcept {
+    return IsXamlDirective(name, DirectiveNull);
+}
+
+bool XamlObjectWriter::HasPropertyElementSyntax(
+    const XamlQualifiedName& name) const noexcept {
+    for (char character : name.LocalName()) {
+        if (character == '.') {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool XamlObjectWriter::IsWhitespaceOnly(
+    Base::StringView value) const noexcept {
+    for (char character : value) {
+        if (!IsAsciiWhitespace(character)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 XamlObjectWriter::AssignmentRecord* XamlObjectWriter::FindAssignment(
@@ -750,24 +1698,17 @@ XamlObjectWriter::AssignmentRecord* XamlObjectWriter::FindAssignment(
     return nullptr;
 }
 
-bool XamlObjectWriter::HasPropertyElementSyntax(
-    const XamlQualifiedName& name) const noexcept {
-    for (char character : name.LocalName()) {
-        if (character == '.') {
-            return true;
-        }
+void XamlObjectWriter::CommitDocumentScopes() noexcept {
+    committedNames_.Clear();
+    committedResources_.Clear();
+    if (documentNameScopeIndex_ < nameScopes_.Size()) {
+        committedNames_ = std::move(
+            nameScopes_[documentNameScopeIndex_].names);
     }
-    return false;
-}
-
-bool XamlObjectWriter::IsWhitespaceOnly(Base::StringView value) const noexcept {
-    for (char character : value) {
-        if (character != ' ' && character != '\t' &&
-            character != '\r' && character != '\n') {
-            return false;
-        }
+    if (documentResourceScopeIndex_ < resourceScopes_.Size()) {
+        committedResources_ = std::move(
+            resourceScopes_[documentResourceScopeIndex_].resources);
     }
-    return true;
 }
 
 void XamlObjectWriter::AbortTransaction() noexcept {
@@ -784,8 +1725,15 @@ void XamlObjectWriter::AbortTransaction() noexcept {
 void XamlObjectWriter::ClearTransaction() noexcept {
     frames_.Clear();
     assignments_.Clear();
+    nameScopes_.Clear();
+    resourceScopes_.Clear();
+    namespaceBindings_.Clear();
+    pendingNamespaces_.Clear();
     created_.Clear();
     root_.Reset();
+    rootObjectIndex_ = InvalidIndex;
+    documentNameScopeIndex_ = InvalidIndex;
+    documentResourceScopeIndex_ = InvalidIndex;
     ended_ = false;
 }
 
@@ -813,6 +1761,28 @@ Base::Status XamlObjectWriter::Failure(
         }
     }
     return status;
+}
+
+Base::Result<Base::StringView> XamlObjectWriter::NamespaceLookupCallback(
+    void* context,
+    Base::StringView prefix) noexcept {
+    if (context == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            MessageNamespaceState.Data());
+    }
+    return static_cast<XamlObjectWriter*>(context)->LookupNamespace(prefix);
+}
+
+Base::Result<XamlResourceValue> XamlObjectWriter::ResourceLookupCallback(
+    void* context,
+    Base::StringView key) noexcept {
+    if (context == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            MessageStaticResourceNotFound.Data());
+    }
+    return static_cast<XamlObjectWriter*>(context)->LookupResource(key);
 }
 
 } // namespace Aero::Markup
