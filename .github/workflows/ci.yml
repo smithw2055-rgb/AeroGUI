@@ -18,6 +18,17 @@ jobs:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v4
+      - name: Upload source snapshot
+        if: matrix.compiler == 'gcc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerogui-source-${{ github.sha }}
+          path: |
+            .
+            !.git
+            !out
+          if-no-files-found: error
+          retention-days: 1
       - name: Select compiler
         shell: bash
         run: |
