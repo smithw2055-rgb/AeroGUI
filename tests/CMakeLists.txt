@@ -91,6 +91,14 @@ set_target_properties(AeroXamlDirectivesResourcesTests PROPERTIES CXX_STANDARD 1
 aero_apply_compiler_options(AeroXamlDirectivesResourcesTests)
 add_test(NAME AeroXamlDirectivesResourcesTests COMMAND AeroXamlDirectivesResourcesTests)
 
+add_executable(AeroXamlDependencyPropertyTests
+    unit/XamlDependencyPropertyTests.cpp)
+target_link_libraries(AeroXamlDependencyPropertyTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlDependencyPropertyTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlDependencyPropertyTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlDependencyPropertyTests)
+add_test(NAME AeroXamlDependencyPropertyTests COMMAND AeroXamlDependencyPropertyTests)
+
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)

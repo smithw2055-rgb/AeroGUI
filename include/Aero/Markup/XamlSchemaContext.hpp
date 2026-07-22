@@ -225,6 +225,10 @@ public:
 
     AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> CreateObject(
         Core::TypeId type) const noexcept;
+    // Internal activation seam used by the XAML object-writer translation unit.
+    // Direct callers should normally use CreateObject().
+    AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> CreateObjectActivated(
+        Core::TypeId type) const noexcept;
     AERO_NODISCARD Base::Result<XamlValue> ConvertText(
         Core::TypeId type,
         Base::StringView text) const noexcept;

@@ -90,9 +90,11 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup STATIC
     src/markup/XmlTokenizer.cpp
+    src/markup/XamlActivation.cpp
+    src/markup/XamlDependencyProperty.cpp
     src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
-    src/markup/XamlObjectWriter.cpp
+    src/markup/XamlObjectWriterCompiled.cpp
     src/markup/XamlSchemaContext.cpp)
 
 add_library(Aero::Markup ALIAS AeroMarkup)
