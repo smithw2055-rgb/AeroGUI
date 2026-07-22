@@ -102,6 +102,7 @@ set_target_properties(AeroMarkup PROPERTIES
 aero_apply_compiler_options(AeroMarkup)
 
 add_library(AeroRhi STATIC
+    src/rhi/Graphics.cpp
     src/rhi/Rhi.cpp)
 
 add_library(Aero::Rhi ALIAS AeroRhi)
