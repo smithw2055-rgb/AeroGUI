@@ -120,6 +120,13 @@ set_target_properties(AeroXamlBindingTests PROPERTIES CXX_STANDARD 17 CXX_STANDA
 aero_apply_compiler_options(AeroXamlBindingTests)
 add_test(NAME AeroXamlBindingTests COMMAND AeroXamlBindingTests)
 
+add_executable(AeroXamlStyleTests unit/XamlStyleTests.cpp)
+target_link_libraries(AeroXamlStyleTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlStyleTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlStyleTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlStyleTests)
+add_test(NAME AeroXamlStyleTests COMMAND AeroXamlStyleTests)
+
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Rhi)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)

@@ -94,6 +94,7 @@ aero_apply_compiler_options(AeroCore)
 add_library(AeroMarkup STATIC
     src/markup/XamlBinding.cpp
     src/markup/XamlDynamicResource.cpp
+    src/markup/XamlStyle.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
     src/markup/XamlDependencyProperty.cpp

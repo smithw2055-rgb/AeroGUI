@@ -30,6 +30,13 @@ public:
     AERO_NODISCARD Base::Result<void> TryAddSetter(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    // Builder configuration is intentionally available only before Seal().
+    // XAML object construction supplies TargetType and BasedOn as members,
+    // whereas native callers commonly provide both to the constructor.
+    AERO_NODISCARD Base::Result<void> TrySetTargetType(
+        TypeId targetType) noexcept;
+    AERO_NODISCARD Base::Result<void> TrySetBasedOn(
+        const Style* basedOn) noexcept;
     AERO_NODISCARD Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 

@@ -26,6 +26,32 @@ Style::Style(
       authored_(allocator_),
       flattened_(allocator_) {}
 
+Base::Result<void> Style::TrySetTargetType(TypeId targetType) noexcept {
+    if (sealed_) {
+        return InvalidStyle("Cannot modify a sealed Style");
+    }
+    if (targetType == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Style target type is invalid");
+    }
+    targetType_ = targetType;
+    return {};
+}
+
+Base::Result<void> Style::TrySetBasedOn(const Style* basedOn) noexcept {
+    if (sealed_) {
+        return InvalidStyle("Cannot modify a sealed Style");
+    }
+    if (basedOn == this) {
+        return Base::Status::Failure(
+            Base::ErrorCode::CycleDetected,
+            "Style cannot be BasedOn itself");
+    }
+    basedOn_ = basedOn;
+    return {};
+}
+
 Base::Result<void> Style::TryAddSetter(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
