@@ -12,6 +12,9 @@
 
 namespace Aero::Markup {
 
+class XamlActivationProviderRegistry;
+class XamlVisualTreeHost;
+
 using XamlAsDependencyObjectCallback = Core::DependencyObject* (*)(
     Base::Object& object,
     void* context) noexcept;
@@ -69,5 +72,20 @@ private:
         const XamlServiceProvider& services,
         void* context) noexcept;
 };
+
+// Registers the canonical DependencyObject base cast and the single generic
+// dependency-property member provider. Custom derived controls require no
+// additional DP bridge registration.
+AERO_NODISCARD AERO_API Base::Result<std::uint32_t>
+TryRegisterCorePresentationXaml(
+    XamlDependencyPropertyBridge& bridge) noexcept;
+
+// Registers core control activation factories and, when supplied, the exact
+// structural adapters for Content/Children ownership transactions.
+AERO_NODISCARD AERO_API Base::Result<std::uint32_t>
+TryRegisterCorePresentationXaml(
+    XamlDependencyPropertyBridge& bridge,
+    XamlActivationProviderRegistry& activation,
+    XamlVisualTreeHost* visualTree = nullptr) noexcept;
 
 } // namespace Aero::Markup

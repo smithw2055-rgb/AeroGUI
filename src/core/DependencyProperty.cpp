@@ -4,7 +4,6 @@
 #include <Aero/Base/Hash.hpp>
 
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -42,117 +41,7 @@ AERO_NODISCARD bool IsValueType(const TypeInfo& type) noexcept {
         static_cast<std::uint32_t>(TypeFlags::ValueType)) != 0U;
 }
 
-AERO_NODISCARD std::uint64_t DoubleBits(double value) noexcept {
-    std::uint64_t bits = 0U;
-    static_assert(sizeof(bits) == sizeof(value),
-        "AeroGUI requires a 64-bit IEEE-style double representation");
-    std::memcpy(&bits, &value, sizeof(bits));
-    return bits;
-}
-
 } // namespace
-
-PropertyValue PropertyValue::Unset() noexcept {
-    return {};
-}
-
-PropertyValue PropertyValue::FromBoolean(TypeId type, bool value) noexcept {
-    PropertyValue result;
-    result.type_ = type;
-    result.kind_ = PropertyValueKind::Boolean;
-    result.scalar_.boolean = value;
-    return result;
-}
-
-PropertyValue PropertyValue::FromSignedInteger(
-    TypeId type,
-    std::int64_t value) noexcept {
-    PropertyValue result;
-    result.type_ = type;
-    result.kind_ = PropertyValueKind::SignedInteger;
-    result.scalar_.signedInteger = value;
-    return result;
-}
-
-PropertyValue PropertyValue::FromUnsignedInteger(
-    TypeId type,
-    std::uint64_t value) noexcept {
-    PropertyValue result;
-    result.type_ = type;
-    result.kind_ = PropertyValueKind::UnsignedInteger;
-    result.scalar_.unsignedInteger = value;
-    return result;
-}
-
-PropertyValue PropertyValue::FromDouble(TypeId type, double value) noexcept {
-    PropertyValue result;
-    result.type_ = type;
-    result.kind_ = PropertyValueKind::Double;
-    result.scalar_.floatingPoint = value;
-    return result;
-}
-
-PropertyValue PropertyValue::FromObject(
-    TypeId type,
-    Base::Ref<Base::Object> value) noexcept {
-    PropertyValue result;
-    result.type_ = type;
-    result.kind_ = PropertyValueKind::Object;
-    result.object_ = std::move(value);
-    return result;
-}
-
-PropertyValue PropertyValue::NullObject(TypeId type) noexcept {
-    return FromObject(type, {});
-}
-
-bool PropertyValue::AsBoolean() const noexcept {
-    AERO_ASSERT(kind_ == PropertyValueKind::Boolean);
-    return scalar_.boolean;
-}
-
-std::int64_t PropertyValue::AsSignedInteger() const noexcept {
-    AERO_ASSERT(kind_ == PropertyValueKind::SignedInteger);
-    return scalar_.signedInteger;
-}
-
-std::uint64_t PropertyValue::AsUnsignedInteger() const noexcept {
-    AERO_ASSERT(kind_ == PropertyValueKind::UnsignedInteger);
-    return scalar_.unsignedInteger;
-}
-
-double PropertyValue::AsDouble() const noexcept {
-    AERO_ASSERT(kind_ == PropertyValueKind::Double);
-    return scalar_.floatingPoint;
-}
-
-const Base::Ref<Base::Object>& PropertyValue::AsObject() const noexcept {
-    AERO_ASSERT(kind_ == PropertyValueKind::Object);
-    return object_;
-}
-
-bool PropertyValue::Equals(const PropertyValue& other) const noexcept {
-    if (type_ != other.type_ || kind_ != other.kind_) {
-        return false;
-    }
-
-    switch (kind_) {
-    case PropertyValueKind::Unset:
-        return true;
-    case PropertyValueKind::Boolean:
-        return scalar_.boolean == other.scalar_.boolean;
-    case PropertyValueKind::SignedInteger:
-        return scalar_.signedInteger == other.scalar_.signedInteger;
-    case PropertyValueKind::UnsignedInteger:
-        return scalar_.unsignedInteger == other.scalar_.unsignedInteger;
-    case PropertyValueKind::Double:
-        return DoubleBits(scalar_.floatingPoint) ==
-            DoubleBits(other.scalar_.floatingPoint);
-    case PropertyValueKind::Object:
-        return object_.Get() == other.object_.Get();
-    }
-    return false;
-}
 
 const DependencyProperty::MetadataEntry*
 DependencyProperty::FindMetadataExact(TypeId forType) const noexcept {
@@ -184,6 +73,10 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
         }
         current = type->BaseType();
         --remaining;
+    }
+    if (IsAttached()) {
+        const MetadataEntry* owner = FindMetadataExact(registeredOwnerType_);
+        return owner != nullptr ? &owner->metadata : nullptr;
     }
     return nullptr;
 }
@@ -304,6 +197,12 @@ PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(
     }
     if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsRender)) {
         result = result | PropertyFlags::AffectsRender;
+    }
+    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentMeasure)) {
+        result = result | PropertyFlags::AffectsParentMeasure;
+    }
+    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentArrange)) {
+        result = result | PropertyFlags::AffectsParentArrange;
     }
     return result;
 }
@@ -1100,7 +999,8 @@ Base::Result<void> DependencyObject::ApplyChange(
     }
 
     if (newEffective != oldEffective) {
-        AccumulateInvalidations(metadata->flags);
+        const PropertyInvalidationFlags changeInvalidations =
+            AccumulateInvalidations(metadata->flags);
         if (metadata->changed != nullptr) {
             const DependencyPropertyChangedEventArgs args{
                 propertyHandle,
@@ -1121,7 +1021,13 @@ Base::Result<void> DependencyObject::ApplyChange(
             };
             NotifyValueChanged(args);
         }
+        return OnPropertyInvalidated(changeInvalidations);
     }
+    return {};
+}
+
+Base::Result<void> DependencyObject::OnPropertyInvalidated(
+    PropertyInvalidationFlags) noexcept {
     return {};
 }
 
@@ -1172,20 +1078,29 @@ void DependencyObject::NotifyValueChanged(
     }
 }
 
-void DependencyObject::AccumulateInvalidations(
+PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
     PropertyMetadataFlags metadataFlags) noexcept {
+    PropertyInvalidationFlags change = PropertyInvalidationFlags::None;
     if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsMeasure)) {
-        invalidations_ |= PropertyInvalidationFlags::Measure;
+        change |= PropertyInvalidationFlags::Measure;
     }
     if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsArrange)) {
-        invalidations_ |= PropertyInvalidationFlags::Arrange;
+        change |= PropertyInvalidationFlags::Arrange;
     }
     if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsRender)) {
-        invalidations_ |= PropertyInvalidationFlags::Render;
+        change |= PropertyInvalidationFlags::Render;
     }
     if (HasFlag(metadataFlags, PropertyMetadataFlags::Inherits)) {
-        invalidations_ |= PropertyInvalidationFlags::Inheritance;
+        change |= PropertyInvalidationFlags::Inheritance;
     }
+    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentMeasure)) {
+        change |= PropertyInvalidationFlags::ParentMeasure;
+    }
+    if (HasFlag(metadataFlags, PropertyMetadataFlags::AffectsParentArrange)) {
+        change |= PropertyInvalidationFlags::ParentArrange;
+    }
+    invalidations_ |= change;
+    return change;
 }
 
 } // namespace Aero::Core

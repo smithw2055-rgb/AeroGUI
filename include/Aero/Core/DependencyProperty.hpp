@@ -11,6 +11,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/Value.hpp>
 
 #include <cstdint>
 
@@ -40,85 +41,8 @@ AERO_NODISCARD constexpr bool operator!=(
     return !(left == right);
 }
 
-enum class PropertyValueKind : std::uint8_t {
-    Unset = 0U,
-    Boolean,
-    SignedInteger,
-    UnsignedInteger,
-    Double,
-    Object
-};
-
-class AERO_API PropertyValue final {
-public:
-    PropertyValue() noexcept = default;
-    PropertyValue(const PropertyValue&) noexcept = default;
-    PropertyValue(PropertyValue&&) noexcept = default;
-    PropertyValue& operator=(const PropertyValue&) noexcept = default;
-    PropertyValue& operator=(PropertyValue&&) noexcept = default;
-    ~PropertyValue() = default;
-
-    AERO_NODISCARD static PropertyValue Unset() noexcept;
-    AERO_NODISCARD static PropertyValue FromBoolean(
-        TypeId type,
-        bool value) noexcept;
-    AERO_NODISCARD static PropertyValue FromSignedInteger(
-        TypeId type,
-        std::int64_t value) noexcept;
-    AERO_NODISCARD static PropertyValue FromUnsignedInteger(
-        TypeId type,
-        std::uint64_t value) noexcept;
-    AERO_NODISCARD static PropertyValue FromDouble(
-        TypeId type,
-        double value) noexcept;
-    AERO_NODISCARD static PropertyValue FromObject(
-        TypeId type,
-        Base::Ref<Base::Object> value) noexcept;
-    AERO_NODISCARD static PropertyValue NullObject(TypeId type) noexcept;
-
-    AERO_NODISCARD TypeId Type() const noexcept { return type_; }
-    AERO_NODISCARD PropertyValueKind Kind() const noexcept { return kind_; }
-    AERO_NODISCARD bool IsUnset() const noexcept {
-        return kind_ == PropertyValueKind::Unset;
-    }
-    AERO_NODISCARD bool IsNullObject() const noexcept {
-        return kind_ == PropertyValueKind::Object && !object_;
-    }
-
-    AERO_NODISCARD bool AsBoolean() const noexcept;
-    AERO_NODISCARD std::int64_t AsSignedInteger() const noexcept;
-    AERO_NODISCARD std::uint64_t AsUnsignedInteger() const noexcept;
-    AERO_NODISCARD double AsDouble() const noexcept;
-    AERO_NODISCARD const Base::Ref<Base::Object>& AsObject() const noexcept;
-
-    AERO_NODISCARD bool Equals(const PropertyValue& other) const noexcept;
-
-private:
-    union Scalar final {
-        Scalar() noexcept : unsignedInteger(0U) {}
-
-        bool boolean;
-        std::int64_t signedInteger;
-        std::uint64_t unsignedInteger;
-        double floatingPoint;
-    } scalar_;
-
-    TypeId type_ = InvalidTypeId;
-    PropertyValueKind kind_ = PropertyValueKind::Unset;
-    Base::Ref<Base::Object> object_;
-};
-
-AERO_NODISCARD inline bool operator==(
-    const PropertyValue& left,
-    const PropertyValue& right) noexcept {
-    return left.Equals(right);
-}
-
-AERO_NODISCARD inline bool operator!=(
-    const PropertyValue& left,
-    const PropertyValue& right) noexcept {
-    return !(left == right);
-}
+using PropertyValueKind = ValueKind;
+using PropertyValue = Value;
 
 enum class DependencyPropertyFlags : std::uint32_t {
     None = 0U,
@@ -132,7 +56,9 @@ enum class PropertyMetadataFlags : std::uint32_t {
     AffectsMeasure = 1U << 1U,
     AffectsArrange = 1U << 2U,
     AffectsRender = 1U << 3U,
-    BindsTwoWayByDefault = 1U << 4U
+    BindsTwoWayByDefault = 1U << 4U,
+    AffectsParentMeasure = 1U << 5U,
+    AffectsParentArrange = 1U << 6U
 };
 
 enum class UpdateSourceTrigger : std::uint8_t {
@@ -183,7 +109,9 @@ enum class PropertyInvalidationFlags : std::uint32_t {
     Measure = 1U << 0U,
     Arrange = 1U << 1U,
     Render = 1U << 2U,
-    Inheritance = 1U << 3U
+    Inheritance = 1U << 3U,
+    ParentMeasure = 1U << 4U,
+    ParentArrange = 1U << 5U
 };
 
 AERO_NODISCARD constexpr PropertyInvalidationFlags operator|(
@@ -491,6 +419,8 @@ protected:
         TypeId runtimeType,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~DependencyObject() override = default;
+    AERO_NODISCARD virtual Base::Result<void> OnPropertyInvalidated(
+        PropertyInvalidationFlags flags) noexcept;
 
 private:
     enum class ChangeKind : std::uint8_t {
@@ -567,7 +497,7 @@ private:
     void RemoveChangeHandler(std::uint32_t index) noexcept;
     void NotifyValueChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    void AccumulateInvalidations(
+    AERO_NODISCARD PropertyInvalidationFlags AccumulateInvalidations(
         PropertyMetadataFlags metadataFlags) noexcept;
 };
 

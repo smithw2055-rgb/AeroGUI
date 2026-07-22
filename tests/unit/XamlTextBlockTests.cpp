@@ -4,12 +4,13 @@
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XamlTextBlock.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
@@ -30,7 +31,7 @@ struct Fixture final {
     DependencyPropertyRegistry properties{types};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activation{schema};
-    XamlTextBlockExtension textBlock;
+    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
@@ -56,29 +57,17 @@ struct Fixture final {
         return Ref<Object>(std::move(text));
     }
 
-    static TextBlock* Cast(Object& object, void*) noexcept {
-        return &static_cast<TextBlock&>(object);
-    }
-
     bool Build() {
-        const StringView ns("urn:xaml-text-block");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        stringType = MakeTypeId(ns, StringView("String"));
-        textBlockType = MakeTypeId(ns, StringView("TextBlock"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("TextBlock"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterProperty(textBlockType, {
-            StringView("Text"), stringType, PropertyFlags::None}));
+        Result<CorePresentationMetadata> metadata =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(metadata);
+        objectType = metadata.Value().objectType;
+        stringType = metadata.Value().stringType;
+        textBlockType = metadata.Value().textBlockType;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
-        CHECK(textBlock.TryRegisterType({textBlockType, &Cast, nullptr}));
-        CHECK(textBlock.Register(schema));
         CHECK(activation.TryRegister({textBlockType, &Activate, nullptr}));
+        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;
@@ -98,7 +87,7 @@ bool TestTextAttributeActivatesCoreTextBlock() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<TextBlock xmlns=\"urn:xaml-text-block\" Text=\"Hello, 世界\"/>"),
+        "<TextBlock xmlns=\"urn:aero\" Text=\"Hello, 世界\"/>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);

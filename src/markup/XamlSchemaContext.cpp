@@ -271,111 +271,6 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
 
 } // namespace
 
-XamlValue XamlValue::FromBoolean(
-    Core::TypeId type,
-    bool value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    result.type_ = type;
-    result.kind_ = XamlValueKind::Boolean;
-    result.scalar_.boolean = value;
-    return result;
-}
-
-XamlValue XamlValue::FromSignedInteger(
-    Core::TypeId type,
-    std::int64_t value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    result.type_ = type;
-    result.kind_ = XamlValueKind::SignedInteger;
-    result.scalar_.signedInteger = value;
-    return result;
-}
-
-XamlValue XamlValue::FromUnsignedInteger(
-    Core::TypeId type,
-    std::uint64_t value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    result.type_ = type;
-    result.kind_ = XamlValueKind::UnsignedInteger;
-    result.scalar_.unsignedInteger = value;
-    return result;
-}
-
-XamlValue XamlValue::FromDouble(
-    Core::TypeId type,
-    double value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    result.type_ = type;
-    result.kind_ = XamlValueKind::Double;
-    result.scalar_.floatingPoint = value;
-    return result;
-}
-
-Base::Result<XamlValue> XamlValue::TryFromString(
-    Core::TypeId type,
-    Base::StringView value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    Base::Result<void> assignResult = result.string_.TryAssign(value);
-    if (!assignResult) {
-        return assignResult.GetStatus();
-    }
-    result.type_ = type;
-    result.kind_ = XamlValueKind::String;
-    return result;
-}
-
-XamlValue XamlValue::FromObject(
-    Core::TypeId type,
-    Base::Ref<Base::Object> value,
-    Base::IAllocator* allocator) noexcept {
-    XamlValue result(allocator);
-    result.type_ = type;
-    result.kind_ = XamlValueKind::Object;
-    result.object_ = std::move(value);
-    return result;
-}
-
-XamlValue XamlValue::NullObject(
-    Core::TypeId type,
-    Base::IAllocator* allocator) noexcept {
-    return FromObject(type, Base::Ref<Base::Object>{}, allocator);
-}
-
-bool XamlValue::AsBoolean() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::Boolean);
-    return scalar_.boolean;
-}
-
-std::int64_t XamlValue::AsSignedInteger() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::SignedInteger);
-    return scalar_.signedInteger;
-}
-
-std::uint64_t XamlValue::AsUnsignedInteger() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::UnsignedInteger);
-    return scalar_.unsignedInteger;
-}
-
-double XamlValue::AsDouble() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::Double);
-    return scalar_.floatingPoint;
-}
-
-Base::StringView XamlValue::AsString() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::String);
-    return string_.View();
-}
-
-const Base::Ref<Base::Object>& XamlValue::AsObject() const noexcept {
-    AERO_ASSERT(kind_ == XamlValueKind::Object);
-    return object_;
-}
-
 XamlSchemaContext::XamlSchemaContext(
     Core::TypeRegistry& types,
     Base::IAllocator* allocator) noexcept
@@ -721,6 +616,14 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
+    }
+    Base::Result<Core::Value> reflected = types_->TryConvertText(
+        type, text, allocator_);
+    if (reflected) {
+        return reflected;
+    }
+    if (reflected.GetStatus().code != Base::ErrorCode::NotFound) {
+        return reflected.GetStatus();
     }
     const XamlTextConverterRegistration* converter = FindTextConverter(type);
     if (converter != nullptr) {

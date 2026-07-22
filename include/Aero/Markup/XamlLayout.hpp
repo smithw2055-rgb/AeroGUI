@@ -21,7 +21,7 @@ struct XamlLayoutTypeRegistration final {
 // Bridges the first FrameworkElement layout contract into XAML. Numeric
 // members use the registered Double scalar type; Margin and alignment members
 // use a registered String scalar and are parsed by this bridge.
-class AERO_API XamlLayoutExtension final {
+class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlLayoutExtension final {
 public:
     explicit XamlLayoutExtension(
         Core::TypeId layoutElementType,

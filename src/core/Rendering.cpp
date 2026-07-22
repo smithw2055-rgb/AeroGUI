@@ -320,6 +320,16 @@ RenderElement::~RenderElement() {
     AERO_ASSERT(renderChildren_.Empty());
 }
 
+Base::Result<void> RenderElement::OnPropertyInvalidated(
+    PropertyInvalidationFlags flags) noexcept {
+    Base::Result<void> layout = LayoutElement::OnPropertyInvalidated(flags);
+    if (!layout) return layout;
+    if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
+        return InvalidateRender();
+    }
+    return {};
+}
+
 Base::Result<void> RenderElement::InvalidateRender() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {

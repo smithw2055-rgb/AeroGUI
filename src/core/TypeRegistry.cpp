@@ -351,7 +351,9 @@ TypeRegistry::TypeRegistry(Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
       types_(allocator_),
       typeIndex_(allocator_),
-      memberIndex_(allocator_) {}
+      memberIndex_(allocator_),
+      valueSemantics_(allocator_),
+      textConverters_(allocator_) {}
 
 Base::Result<TypeId> TypeRegistry::TryRegisterType(
     const TypeRegistration& registration) noexcept {
@@ -537,6 +539,90 @@ Base::Result<MemberId> TypeRegistry::TryRegisterEvent(
         return IdCollisionStatus();
     }
     return id;
+}
+
+Base::Result<void> TypeRegistry::TryRegisterValueSemantics(
+    TypeId type,
+    const ValueTypeRegistration& registration) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    const TypeInfo* info = FindType(type);
+    if (info == nullptr) return MissingRelatedTypeStatus();
+    if ((static_cast<std::uint32_t>(info->Flags()) &
+            static_cast<std::uint32_t>(TypeFlags::ValueType)) == 0U ||
+        registration.size == 0U || registration.alignment == 0U ||
+        !Base::IsValidAlignment(registration.alignment) ||
+        registration.equals == nullptr ||
+        (registration.inlineSafe &&
+            (registration.size > Value::InlineCapacity ||
+             registration.alignment > alignof(std::max_align_t))) ||
+        (!registration.inlineSafe && registration.copy == nullptr)) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Value type semantics are invalid");
+    }
+    for (const ValueSemanticsEntry& entry : valueSemantics_) {
+        if (entry.type == type) {
+            return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
+                "Value type semantics are already registered");
+        }
+    }
+    Base::Result<Base::Ref<ValueTypeSemantics>> created =
+        Base::MakeRefWithAllocator<ValueTypeSemantics>(
+            *allocator_, registration);
+    if (!created) return created.GetStatus();
+    return valueSemantics_.TryPushBack({type, std::move(created).Value()});
+}
+
+Base::Result<void> TypeRegistry::TryRegisterTextConverter(
+    const TextValueConverterRegistration& registration) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (registration.type == InvalidTypeId || registration.convert == nullptr ||
+        FindType(registration.type) == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Text value converter registration is invalid");
+    }
+    for (const TextValueConverterRegistration& entry : textConverters_) {
+        if (entry.type == registration.type) {
+            return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
+                "Text value converter is already registered");
+        }
+    }
+    return textConverters_.TryPushBack(registration);
+}
+
+Base::Result<Value> TypeRegistry::TryCreateValue(
+    TypeId type,
+    const void* source,
+    Base::IAllocator* allocator) const noexcept {
+    for (const ValueSemanticsEntry& entry : valueSemantics_) {
+        if (entry.type == type) {
+            return Value::TryFromCustom(
+                type, source, entry.semantics,
+                allocator != nullptr ? allocator : allocator_);
+        }
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "Value type semantics are not registered");
+}
+
+Base::Result<Value> TypeRegistry::TryConvertText(
+    TypeId type,
+    Base::StringView text,
+    Base::IAllocator* allocator) const noexcept {
+    for (const TextValueConverterRegistration& entry : textConverters_) {
+        if (entry.type == type) {
+            Base::IAllocator& selected = allocator != nullptr
+                ? *allocator : *allocator_;
+            Base::Result<Value> converted = entry.convert(
+                type, text, selected, entry.context);
+            if (converted && converted.Value().Type() != type) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                    "Text converter returned a value with the wrong type");
+            }
+            return converted;
+        }
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "Text value converter is not registered");
 }
 
 Base::Result<void> TypeRegistry::Freeze() noexcept {

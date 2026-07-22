@@ -21,7 +21,7 @@ struct XamlTextBlockTypeRegistration final {
 // Writes the Text property of a core TextBlock from the XAML string scalar.
 // Glyph shaping remains independent: a text provider later selects and
 // registers the glyph run consumed by TextBlock::SetGlyphRun().
-class AERO_API XamlTextBlockExtension final {
+class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlTextBlockExtension final {
 public:
     explicit XamlTextBlockExtension(
         Base::IAllocator* allocator = nullptr) noexcept;

@@ -22,7 +22,7 @@ struct XamlPanelLayoutTypeRegistration final {
 // Stages Canvas.Left/Top and Grid.Row/Column attached values while XAML is
 // constructed, then applies them once XamlVisualTreeHost has attached the
 // child to its parent container.
-class AERO_API XamlPanelLayoutExtension final {
+class [[deprecated("Use attached dependency properties")]] AERO_API XamlPanelLayoutExtension final {
 public:
     XamlPanelLayoutExtension(Core::TypeId canvasType, Core::TypeId gridType,
         Base::IAllocator* allocator = nullptr) noexcept;

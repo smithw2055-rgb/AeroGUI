@@ -5,9 +5,10 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Layout.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlLayout.hpp>
+#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -38,12 +39,12 @@ struct Fixture final {
     DependencyPropertyRegistry properties{types};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activation{schema};
+    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId layoutType = InvalidTypeId;
     TypeId testType = InvalidTypeId;
-    XamlLayoutExtension layout{InvalidTypeId};
 
     static Result<Ref<Object>> Activate(TypeId type,
         const XamlActivationContext& activation,
@@ -64,38 +65,20 @@ struct Fixture final {
 
     bool Build() {
         const StringView ns("urn:xaml-layout");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        doubleType = MakeTypeId(ns, StringView("Double"));
-        stringType = MakeTypeId(ns, StringView("String"));
-        layoutType = MakeTypeId(ns, StringView("LayoutElement"));
+        Result<CorePresentationMetadata> metadata =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(metadata);
+        objectType = metadata.Value().objectType;
+        doubleType = metadata.Value().doubleType;
+        stringType = metadata.Value().stringType;
+        layoutType = metadata.Value().layoutElementType;
         testType = MakeTypeId(ns, StringView("TestElement"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("LayoutElement"), objectType,
-            TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({ns, StringView("TestElement"), layoutType,
             TypeFlags::Sealed, nullptr}));
-        const StringView dimensions[] = {StringView("Width"), StringView("Height"),
-            StringView("MinWidth"), StringView("MaxWidth"), StringView("MinHeight"),
-            StringView("MaxHeight")};
-        for (StringView name : dimensions) {
-            CHECK(types.TryRegisterProperty(layoutType, {name, doubleType, PropertyFlags::None}));
-        }
-        CHECK(types.TryRegisterProperty(layoutType, {StringView("Margin"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(layoutType, {StringView("HorizontalAlignment"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(layoutType, {StringView("VerticalAlignment"), stringType, PropertyFlags::None}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
         CHECK(activation.TryRegister({testType, &Activate, this}));
-        layout.SetLayoutElementType(layoutType);
-        CHECK(layout.TryRegisterType({testType, &Cast, nullptr}));
-        Result<std::uint32_t> registered = layout.Register(schema);
-        CHECK(registered && registered.Value() == 9U);
+        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;

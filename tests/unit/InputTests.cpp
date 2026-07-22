@@ -1,5 +1,6 @@
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/Input.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -31,11 +32,14 @@ struct Fixture final {
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
     RoutedEventHandle moved; RoutedEventHandle pressed; RoutedEventHandle released; RoutedEventHandle gotFocus; RoutedEventHandle lostFocus; RoutedEventHandle keyDown; RoutedEventHandle keyUp; RoutedEventHandle textInput;
     bool Build() {
-        const StringView ns("urn:input"); objectType=MakeTypeId(ns,StringView("Object"));
-        rootType=MakeTypeId(ns,StringView("StackPanel")); boxType=MakeTypeId(ns,StringView("Box"));
-        CHECK(types.TryRegisterType({ns,StringView("Object"),InvalidTypeId,TypeFlags::None,nullptr}));
-        CHECK(types.TryRegisterType({ns,StringView("StackPanel"),objectType,TypeFlags::None,nullptr}));
-        CHECK(types.TryRegisterType({ns,StringView("Box"),objectType,TypeFlags::None,nullptr}));
+        Result<CorePresentationMetadata> registered =
+            TryRegisterCorePresentationMetadata(types, properties); CHECK(registered);
+        const StringView ns("urn:input");
+        objectType=registered.Value().objectType;
+        rootType=registered.Value().stackPanelType;
+        boxType=MakeTypeId(ns,StringView("Box"));
+        CHECK(types.TryRegisterType({ns,StringView("Box"),
+            registered.Value().layoutElementType,TypeFlags::None,nullptr}));
         Result<RoutedEventHandle> move = events.TryRegister({StringView("PointerMove"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(move); moved=move.Value();
         Result<RoutedEventHandle> down = events.TryRegister({StringView("PointerDown"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(down); pressed=down.Value();
         Result<RoutedEventHandle> up = events.TryRegister({StringView("PointerUp"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(up); released=up.Value();

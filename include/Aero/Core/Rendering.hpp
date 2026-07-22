@@ -133,6 +133,8 @@ public:
     AERO_NODISCARD Base::Result<void> InvalidateRender() noexcept;
 
 protected:
+    AERO_NODISCARD Base::Result<void> OnPropertyInvalidated(
+        PropertyInvalidationFlags flags) noexcept override;
     AERO_NODISCARD virtual Base::Result<void> BuildDisplayList(
         DisplayListBuilder& builder) noexcept;
 

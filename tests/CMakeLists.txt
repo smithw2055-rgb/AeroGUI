@@ -162,6 +162,13 @@ set_target_properties(AeroXamlVisualTreeTests PROPERTIES CXX_STANDARD 17 CXX_STA
 aero_apply_compiler_options(AeroXamlVisualTreeTests)
 add_test(NAME AeroXamlVisualTreeTests COMMAND AeroXamlVisualTreeTests)
 
+add_executable(AeroXamlCustomControlTests unit/XamlCustomControlTests.cpp)
+target_link_libraries(AeroXamlCustomControlTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlCustomControlTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlCustomControlTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlCustomControlTests)
+add_test(NAME AeroXamlCustomControlTests COMMAND AeroXamlCustomControlTests)
+
 add_executable(AeroRhiTests unit/RhiTests.cpp)
 target_link_libraries(AeroRhiTests PRIVATE Aero::Render)
 target_compile_features(AeroRhiTests PRIVATE cxx_std_17)

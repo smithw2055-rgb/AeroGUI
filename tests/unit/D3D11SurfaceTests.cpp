@@ -1,13 +1,12 @@
 #include <Aero/Rhi/D3D11Backend.hpp>
 
 #include <Aero/Base/Ref.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlBorder.hpp>
-#include <Aero/Markup/XamlLayout.hpp>
+#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XamlTextBlock.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
 
@@ -323,9 +322,7 @@ struct XamlControlFixture final {
           renderer(dispatcher, renderBackend),
           schema(types),
           activation(schema),
-          layoutProperties(InvalidTypeId),
-          border(),
-          textBlock(),
+          dependencyProperties(schema, properties),
           visual(tree, layout, values, &renderer) {}
 
     Dispatcher dispatcher;
@@ -337,9 +334,7 @@ struct XamlControlFixture final {
     RenderManager renderer;
     XamlSchemaContext schema;
     XamlActivationProviderRegistry activation;
-    XamlLayoutExtension layoutProperties;
-    XamlBorderExtension border;
-    XamlTextBlockExtension textBlock;
+    XamlDependencyPropertyBridge dependencyProperties;
     XamlVisualTreeHost visual;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -349,154 +344,26 @@ struct XamlControlFixture final {
     TypeId stackPanelType = InvalidTypeId;
     TypeId borderType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
-    MemberId stackPanelChildren = InvalidMemberId;
-
-    static Result<Ref<Object>> Activate(
-        TypeId type,
-        const XamlActivationContext& context,
-        IAllocator& allocator,
-        void*) noexcept {
-        if (context.dispatcher == nullptr ||
-            context.dependencyProperties == nullptr) {
-            return Status::Failure(ErrorCode::InvalidArgument,
-                "XAML control activation services are missing");
-        }
-        if (type == MakeTypeId(
-                StringView("urn:aero-m2-controls"), StringView("StackPanel"))) {
-            Result<Ref<StackPanel>> made = MakeRefWithAllocator<StackPanel>(
-                allocator,
-                *context.dispatcher,
-                *context.dependencyProperties,
-                type,
-                Orientation::Vertical,
-                &allocator);
-            if (!made) return made.GetStatus();
-            Ref<StackPanel> panel = std::move(made).Value();
-            return Ref<Object>(std::move(panel));
-        }
-        if (type == MakeTypeId(
-                StringView("urn:aero-m2-controls"), StringView("TextBlock"))) {
-            Result<Ref<TextBlock>> made = MakeRefWithAllocator<TextBlock>(
-                allocator,
-                *context.dispatcher,
-                *context.dependencyProperties,
-                type,
-                &allocator);
-            if (!made) return made.GetStatus();
-            Ref<TextBlock> text = std::move(made).Value();
-            return Ref<Object>(std::move(text));
-        }
-        Result<Ref<Border>> made = MakeRefWithAllocator<Border>(
-            allocator,
-            *context.dispatcher,
-            *context.dependencyProperties,
-            type,
-            &allocator);
-        if (!made) return made.GetStatus();
-        Ref<Border> border = std::move(made).Value();
-        return Ref<Object>(std::move(border));
-    }
-
-    static TreeNode* AsTreeNode(Object& object, void*) noexcept {
-        return &static_cast<LayoutElement&>(object);
-    }
-
-    static LayoutElement* AsLayoutElement(Object& object, void*) noexcept {
-        return &static_cast<LayoutElement&>(object);
-    }
-
-    static RenderElement* AsRenderElement(Object& object, void*) noexcept {
-        return &static_cast<RenderElement&>(object);
-    }
-
-    static StackPanel* AsStackPanel(Object& object, void*) noexcept {
-        return &static_cast<StackPanel&>(object);
-    }
-
-    static TextBlock* AsTextBlock(Object& object, void*) noexcept {
-        return &static_cast<TextBlock&>(object);
-    }
-
-    static Border* AsBorder(Object& object, void*) noexcept {
-        return &static_cast<Border&>(object);
-    }
-
     bool Initialize() {
-        const StringView ns("urn:aero-m2-controls");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        doubleType = MakeTypeId(ns, StringView("Double"));
-        stringType = MakeTypeId(ns, StringView("String"));
-        layoutType = MakeTypeId(ns, StringView("LayoutElement"));
-        renderType = MakeTypeId(ns, StringView("RenderElement"));
-        stackPanelType = MakeTypeId(ns, StringView("StackPanel"));
-        borderType = MakeTypeId(ns, StringView("Border"));
-        textBlockType = MakeTypeId(ns, StringView("TextBlock"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("LayoutElement"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("RenderElement"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("StackPanel"), renderType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Border"), renderType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("TextBlock"), renderType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterProperty(textBlockType, {
-            StringView("Text"), stringType, PropertyFlags::None}));
-        const StringView dimensions[] = {StringView("Width"), StringView("Height"),
-            StringView("MinWidth"), StringView("MaxWidth"), StringView("MinHeight"),
-            StringView("MaxHeight")};
-        for (StringView name : dimensions) {
-            CHECK(types.TryRegisterProperty(layoutType, {
-                name, doubleType, PropertyFlags::None}));
-        }
-        CHECK(types.TryRegisterProperty(layoutType, {
-            StringView("Margin"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(layoutType, {
-            StringView("HorizontalAlignment"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(layoutType, {
-            StringView("VerticalAlignment"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(borderType, {
-            StringView("Background"), stringType, PropertyFlags::None}));
-        Result<MemberId> children = types.TryRegisterProperty(stackPanelType, {
-            StringView("Children"), layoutType, PropertyFlags::None});
-        CHECK(children);
-        stackPanelChildren = children.Value();
+        Result<CorePresentationMetadata> metadata =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(metadata);
+        objectType = metadata.Value().objectType;
+        doubleType = metadata.Value().doubleType;
+        stringType = metadata.Value().stringType;
+        layoutType = metadata.Value().layoutElementType;
+        renderType = metadata.Value().renderElementType;
+        stackPanelType = metadata.Value().stackPanelType;
+        borderType = metadata.Value().borderType;
+        textBlockType = metadata.Value().textBlockType;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
         CHECK(values.Initialize());
         CHECK(tree.Initialize());
         CHECK(layout.Initialize());
         CHECK(renderer.Initialize());
-        CHECK(visual.TryRegisterType({stackPanelType, &AsTreeNode,
-            &AsLayoutElement, &AsRenderElement, nullptr}));
-        CHECK(visual.TryRegisterType({borderType, &AsTreeNode,
-            &AsLayoutElement, &AsRenderElement, nullptr}));
-        CHECK(visual.TryRegisterType({textBlockType, &AsTreeNode,
-            &AsLayoutElement, &AsRenderElement, nullptr}));
-        CHECK(visual.TryRegisterCollectionContent({stackPanelType,
-            stackPanelChildren, &AsStackPanel, nullptr}));
-        CHECK(visual.Register(schema));
-        layoutProperties.SetLayoutElementType(layoutType);
-        CHECK(layoutProperties.TryRegisterType({stackPanelType, &AsLayoutElement, nullptr}));
-        CHECK(layoutProperties.TryRegisterType({borderType, &AsLayoutElement, nullptr}));
-        CHECK(layoutProperties.TryRegisterType({textBlockType, &AsLayoutElement, nullptr}));
-        CHECK(layoutProperties.Register(schema));
-        CHECK(border.TryRegisterType({borderType, &AsBorder, nullptr}));
-        CHECK(border.Register(schema));
-        CHECK(textBlock.TryRegisterType({textBlockType, &AsTextBlock, nullptr}));
-        CHECK(textBlock.Register(schema));
-        CHECK(activation.TryRegister({stackPanelType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({borderType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({textBlockType, &Activate, nullptr}));
+        CHECK(TryRegisterCorePresentationXaml(
+            dependencyProperties, activation, &visual));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;
@@ -972,7 +839,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<StackPanel xmlns=\"urn:aero-m2-controls\"><Border Width=\"24\" Height=\"16\" "
+        "<StackPanel xmlns=\"urn:aero\"><Border Width=\"24\" Height=\"16\" "
         "Background=\"#FF0000\"/><TextBlock Text=\"A\"/>"
         "</StackPanel>"),
         &diagnostics));

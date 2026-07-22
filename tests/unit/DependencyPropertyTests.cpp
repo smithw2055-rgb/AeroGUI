@@ -133,7 +133,7 @@ PropertyMetadata WidthMetadata(
     return metadata;
 }
 
-class TestElement final : public DependencyObject {
+class TestElement : public DependencyObject {
 public:
     TestElement(
         Dispatcher& dispatcher,
@@ -143,6 +143,20 @@ public:
         : DependencyObject(dispatcher, registry, runtimeType, allocator) {}
 
     ~TestElement() override = default;
+
+    void RejectInvalidation(bool value) noexcept { rejectInvalidation_ = value; }
+
+protected:
+    Result<void> OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override {
+        if (rejectInvalidation_) {
+            return Status::Failure(ErrorCode::InvalidState,
+                "Synthetic invalidation routing failure");
+        }
+        return DependencyObject::OnPropertyInvalidated(flags);
+    }
+
+private:
+    bool rejectInvalidation_ = false;
 };
 
 struct Fixture final {
@@ -799,6 +813,23 @@ bool TestRegistrationErrors() {
     return true;
 }
 
+bool TestCommittedValueSurvivesInvalidationFailure() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Dispatcher dispatcher;
+    TestElement element(dispatcher, fixture.properties, fixture.uiElement);
+    element.RejectInvalidation(true);
+    Result<void> set = element.SetValue(fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 37.0));
+    CHECK(!set && set.GetStatus().code == ErrorCode::InvalidState);
+    Result<PropertyValue> committed = element.GetValue(fixture.width);
+    CHECK(committed && committed.Value().AsDouble() == 37.0);
+    element.RejectInvalidation(false);
+    CHECK(element.ClearValue(fixture.width));
+    CHECK(element.GetValue(fixture.width).Value().AsDouble() == 0.0);
+    return true;
+}
+
 struct TestCase final {
     const char* name;
     bool (*run)();
@@ -817,6 +848,8 @@ int main() {
         {"OOM and sparse storage", &TestOomAndSparseStorage},
         {"transactional registration OOM", &TestRegistrationIsTransactionalOnOom},
         {"registration errors", &TestRegistrationErrors},
+        {"committed value survives invalidation failure",
+            &TestCommittedValueSurvivesInvalidationFailure},
     };
 
     for (const TestCase& test : tests) {

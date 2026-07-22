@@ -19,82 +19,8 @@ namespace Aero::Markup {
 
 class XamlSchemaContext;
 
-enum class XamlValueKind : std::uint8_t {
-    None = 0U,
-    Boolean,
-    SignedInteger,
-    UnsignedInteger,
-    Double,
-    String,
-    Object
-};
-
-class AERO_API XamlValue final {
-public:
-    explicit XamlValue(Base::IAllocator* allocator = nullptr) noexcept
-        : string_(allocator) {}
-
-    XamlValue(XamlValue&&) noexcept = default;
-    XamlValue& operator=(XamlValue&&) noexcept = default;
-
-    XamlValue(const XamlValue&) = delete;
-    XamlValue& operator=(const XamlValue&) = delete;
-
-    AERO_NODISCARD static XamlValue FromBoolean(
-        Core::TypeId type,
-        bool value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static XamlValue FromSignedInteger(
-        Core::TypeId type,
-        std::int64_t value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static XamlValue FromUnsignedInteger(
-        Core::TypeId type,
-        std::uint64_t value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static XamlValue FromDouble(
-        Core::TypeId type,
-        double value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Base::Result<XamlValue> TryFromString(
-        Core::TypeId type,
-        Base::StringView value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static XamlValue FromObject(
-        Core::TypeId type,
-        Base::Ref<Base::Object> value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static XamlValue NullObject(
-        Core::TypeId type,
-        Base::IAllocator* allocator = nullptr) noexcept;
-
-    AERO_NODISCARD XamlValueKind Kind() const noexcept { return kind_; }
-    AERO_NODISCARD Core::TypeId Type() const noexcept { return type_; }
-    AERO_NODISCARD bool IsNullObject() const noexcept {
-        return kind_ == XamlValueKind::Object && !object_;
-    }
-    AERO_NODISCARD bool AsBoolean() const noexcept;
-    AERO_NODISCARD std::int64_t AsSignedInteger() const noexcept;
-    AERO_NODISCARD std::uint64_t AsUnsignedInteger() const noexcept;
-    AERO_NODISCARD double AsDouble() const noexcept;
-    AERO_NODISCARD Base::StringView AsString() const noexcept;
-    AERO_NODISCARD const Base::Ref<Base::Object>& AsObject() const noexcept;
-
-private:
-    union Scalar final {
-        Scalar() noexcept : unsignedInteger(0U) {}
-
-        bool boolean;
-        std::int64_t signedInteger;
-        std::uint64_t unsignedInteger;
-        double floatingPoint;
-    } scalar_;
-
-    Core::TypeId type_ = Core::InvalidTypeId;
-    XamlValueKind kind_ = XamlValueKind::None;
-    Base::String string_;
-    Base::Ref<Base::Object> object_;
-};
+using XamlValueKind = Core::ValueKind;
+using XamlValue = Core::Value;
 
 using XamlConvertTextCallback = Base::Result<XamlValue> (*)(
     Core::TypeId targetType,

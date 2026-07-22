@@ -20,6 +20,16 @@ using Thickness = Base::Thickness;
 enum class HorizontalAlignment : std::uint8_t { Stretch = 0U, Left, Center, Right };
 enum class VerticalAlignment : std::uint8_t { Stretch = 0U, Top, Center, Bottom };
 
+struct Length final {
+    double value = 0.0;
+    bool isAuto = true;
+
+    AERO_NODISCARD static constexpr Length Auto() noexcept { return {}; }
+    AERO_NODISCARD static constexpr Length Pixels(double value) noexcept {
+        return {value, false};
+    }
+};
+
 AERO_NODISCARD AERO_API bool IsFinite(Point value) noexcept;
 AERO_NODISCARD AERO_API bool IsFinite(Size value) noexcept;
 AERO_NODISCARD AERO_API bool IsFinite(Rect value) noexcept;
@@ -47,24 +57,33 @@ public:
     AERO_NODISCARD Rect LayoutClip() const noexcept { return layoutClip_; }
     AERO_NODISCARD bool IsMeasureValid() const noexcept { return measureValid_; }
     AERO_NODISCARD bool IsArrangeValid() const noexcept { return arrangeValid_; }
-    AERO_NODISCARD bool ClipToBounds() const noexcept { return clipToBounds_; }
-    AERO_NODISCARD bool IsHitTestVisible() const noexcept { return hitTestVisible_; }
-    AERO_NODISCARD bool UseLayoutRounding() const noexcept { return useLayoutRounding_; }
+    AERO_NODISCARD bool ClipToBounds() const noexcept;
+    AERO_NODISCARD bool IsHitTestVisible() const noexcept;
+    AERO_NODISCARD bool UseLayoutRounding() const noexcept;
     AERO_NODISCARD double DpiScale() const noexcept { return dpiScale_; }
     AERO_NODISCARD std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
-    AERO_NODISCARD bool HasWidth() const noexcept { return hasWidth_; }
-    AERO_NODISCARD bool HasHeight() const noexcept { return hasHeight_; }
-    AERO_NODISCARD double Width() const noexcept { return width_; }
-    AERO_NODISCARD double Height() const noexcept { return height_; }
-    AERO_NODISCARD Size MinSize() const noexcept { return minSize_; }
-    AERO_NODISCARD Size MaxSize() const noexcept { return maxSize_; }
-    AERO_NODISCARD Thickness Margin() const noexcept { return margin_; }
-    AERO_NODISCARD HorizontalAlignment GetHorizontalAlignment() const noexcept {
-        return horizontalAlignment_;
-    }
-    AERO_NODISCARD VerticalAlignment GetVerticalAlignment() const noexcept {
-        return verticalAlignment_;
-    }
+    AERO_NODISCARD bool HasWidth() const noexcept;
+    AERO_NODISCARD bool HasHeight() const noexcept;
+    AERO_NODISCARD double Width() const noexcept;
+    AERO_NODISCARD double Height() const noexcept;
+    AERO_NODISCARD Size MinSize() const noexcept;
+    AERO_NODISCARD Size MaxSize() const noexcept;
+    AERO_NODISCARD Thickness Margin() const noexcept;
+    AERO_NODISCARD HorizontalAlignment GetHorizontalAlignment() const noexcept;
+    AERO_NODISCARD VerticalAlignment GetVerticalAlignment() const noexcept;
+
+    AERO_NODISCARD static DependencyPropertyHandle WidthProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle HeightProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle MinWidthProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle MaxWidthProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle MinHeightProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle MaxHeightProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle MarginProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle HorizontalAlignmentProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle VerticalAlignmentProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle ClipToBoundsProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle IsHitTestVisibleProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle UseLayoutRoundingProperty() noexcept;
 
     AERO_NODISCARD Base::Result<void> SetClipToBounds(bool value) noexcept;
     AERO_NODISCARD Base::Result<void> SetHitTestVisible(bool value) noexcept;
@@ -83,6 +102,8 @@ public:
         VerticalAlignment value) noexcept;
 
 protected:
+    AERO_NODISCARD Base::Result<void> OnPropertyInvalidated(
+        PropertyInvalidationFlags flags) noexcept override;
     AERO_NODISCARD virtual Base::Result<Size> MeasureOverride(Size availableSize) noexcept;
     AERO_NODISCARD virtual Base::Result<Size> ArrangeOverride(Size finalSize) noexcept;
     AERO_NODISCARD Base::Result<void> MeasureChild(
@@ -100,14 +121,9 @@ private:
     Base::Vector<LayoutElement*> layoutChildren_;
     Size desiredSize_;
     Size renderSize_;
-    Size minSize_;
-    Size maxSize_{1.0e12, 1.0e12};
     Size previousMeasureConstraint_;
     Rect layoutSlot_;
     Rect layoutClip_;
-    Thickness margin_;
-    double width_ = 0.0;
-    double height_ = 0.0;
     std::uint64_t layoutRevision_ = 0U;
     bool measureValid_ = false;
     bool arrangeValid_ = false;
@@ -115,14 +131,7 @@ private:
     bool arrangeQueued_ = false;
     bool measuring_ = false;
     bool arranging_ = false;
-    bool clipToBounds_ = false;
-    bool hitTestVisible_ = true;
-    bool useLayoutRounding_ = false;
-    bool hasWidth_ = false;
-    bool hasHeight_ = false;
     double dpiScale_ = 1.0;
-    HorizontalAlignment horizontalAlignment_ = HorizontalAlignment::Stretch;
-    VerticalAlignment verticalAlignment_ = VerticalAlignment::Stretch;
 };
 
 struct LayoutDiagnostics final {

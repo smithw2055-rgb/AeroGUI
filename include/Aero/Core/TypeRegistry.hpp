@@ -11,16 +11,13 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Core/MetadataId.hpp>
+#include <Aero/Core/Value.hpp>
 
 #include <cstdint>
 
 namespace Aero::Core {
 
-using TypeId = std::uint64_t;
-using MemberId = std::uint64_t;
-
-inline constexpr TypeId InvalidTypeId = 0U;
-inline constexpr MemberId InvalidMemberId = 0U;
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 1U;
 
@@ -45,7 +42,9 @@ enum class PropertyFlags : std::uint32_t {
     Inherits = 1U << 2U,
     AffectsMeasure = 1U << 3U,
     AffectsArrange = 1U << 4U,
-    AffectsRender = 1U << 5U
+    AffectsRender = 1U << 5U,
+    AffectsParentMeasure = 1U << 6U,
+    AffectsParentArrange = 1U << 7U
 };
 
 enum class EventFlags : std::uint32_t {
@@ -223,6 +222,19 @@ public:
     AERO_NODISCARD Base::Result<MemberId> TryRegisterEvent(
         TypeId ownerType,
         const EventRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterValueSemantics(
+        TypeId type,
+        const ValueTypeRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<void> TryRegisterTextConverter(
+        const TextValueConverterRegistration& registration) noexcept;
+    AERO_NODISCARD Base::Result<Value> TryCreateValue(
+        TypeId type,
+        const void* source,
+        Base::IAllocator* allocator = nullptr) const noexcept;
+    AERO_NODISCARD Base::Result<Value> TryConvertText(
+        TypeId type,
+        Base::StringView text,
+        Base::IAllocator* allocator = nullptr) const noexcept;
 
     AERO_NODISCARD Base::Result<void> Freeze() noexcept;
 
@@ -274,6 +286,12 @@ private:
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
+    struct ValueSemanticsEntry final {
+        TypeId type = InvalidTypeId;
+        Base::Ref<ValueTypeSemantics> semantics;
+    };
+    Base::Vector<ValueSemanticsEntry> valueSemantics_;
+    Base::Vector<TextValueConverterRegistration> textConverters_;
     bool frozen_ = false;
 
     AERO_NODISCARD TypeInfo* MutableType(TypeId id) noexcept;

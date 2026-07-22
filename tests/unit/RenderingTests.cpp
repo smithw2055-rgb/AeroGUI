@@ -1,4 +1,5 @@
 #include <Aero/Core/Rendering.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Controls.hpp>
 
 #include <algorithm>
@@ -102,20 +103,19 @@ struct Fixture final {
     TypeId elementType = InvalidTypeId;
     TypeId panelType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
+    TypeId borderType = InvalidTypeId;
 
     bool Build() {
-        const StringView ns("urn:aero");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        elementType = MakeTypeId(ns, StringView("RenderElement"));
+        Result<CorePresentationMetadata> registered =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(registered);
+        const StringView ns("urn:render-tests");
+        objectType = registered.Value().objectType;
+        elementType = registered.Value().renderElementType;
         panelType = MakeTypeId(ns, StringView("RenderPanel"));
-        textBlockType = MakeTypeId(ns, StringView("TextBlock"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("RenderElement"), objectType,
-            TypeFlags::None, nullptr}));
+        textBlockType = registered.Value().textBlockType;
+        borderType = registered.Value().borderType;
         CHECK(types.TryRegisterType({ns, StringView("RenderPanel"), elementType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("TextBlock"), elementType,
             TypeFlags::None, nullptr}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
@@ -178,7 +178,7 @@ bool TestBorderDisplayList() {
     CHECK(fixture.Build());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    TestBorder border(fixture.dispatcher, fixture.properties, fixture.panelType);
+    TestBorder border(fixture.dispatcher, fixture.properties, fixture.borderType);
     CHECK(border.SetBackground({0.1F, 0.2F, 0.3F, 1.0F}));
     CHECK(border.SetStroke({1.0F, 1.0F, 1.0F, 1.0F}, 2.0));
     CHECK(!border.SetBackground({2.0F, 0.0F, 0.0F, 1.0F}));

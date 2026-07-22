@@ -81,9 +81,11 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/Input.cpp
     src/core/Layout.cpp
     src/core/ObjectTree.cpp
+    src/core/Presentation.cpp
     src/core/Rendering.cpp
     src/core/Style.cpp
-    src/core/TypeRegistry.cpp)
+    src/core/TypeRegistry.cpp
+    src/core/Value.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
 

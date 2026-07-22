@@ -20,7 +20,7 @@ struct XamlBorderTypeRegistration final {
 
 // Writes the core Border Background property from #RRGGBB or #AARRGGBB XAML
 // color text. Stroke and brush/resource indirection remain later M2 work.
-class AERO_API XamlBorderExtension final {
+class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlBorderExtension final {
 public:
     explicit XamlBorderExtension(
         Base::IAllocator* allocator = nullptr) noexcept;

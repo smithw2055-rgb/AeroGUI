@@ -1,5 +1,6 @@
 #include <Aero/Core/Layout.hpp>
 #include <Aero/Core/Controls.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -88,19 +89,24 @@ struct Fixture final {
     Dispatcher dispatcher;
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
-    TypeId panelType = InvalidTypeId;
+    TypeId stackPanelType = InvalidTypeId;
+    TypeId canvasType = InvalidTypeId;
+    TypeId gridType = InvalidTypeId;
+    TypeId borderType = InvalidTypeId;
+    TypeId presenterType = InvalidTypeId;
 
     bool Build() {
-        const StringView ns("urn:aero");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        elementType = MakeTypeId(ns, StringView("LayoutElement"));
-        panelType = MakeTypeId(ns, StringView("VerticalPanel"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("LayoutElement"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("VerticalPanel"), elementType,
-            TypeFlags::None, nullptr}));
+        Result<CorePresentationMetadata> registered =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(registered);
+        const CorePresentationMetadata& metadata = registered.Value();
+        objectType = metadata.objectType;
+        elementType = metadata.layoutElementType;
+        stackPanelType = metadata.stackPanelType;
+        canvasType = metadata.canvasType;
+        gridType = metadata.gridType;
+        borderType = metadata.borderType;
+        presenterType = metadata.contentPresenterType;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         return true;
@@ -135,7 +141,7 @@ bool TestNestedLayoutAndInvalidation() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    StackPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    StackPanel root(fixture.dispatcher, fixture.properties, fixture.stackPanelType);
     FixedElement first(fixture.dispatcher, fixture.properties,
         fixture.elementType, {30.0, 10.0});
     FixedElement second(fixture.dispatcher, fixture.properties,
@@ -235,7 +241,7 @@ bool TestCanvasChildPosition() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    Canvas root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    Canvas root(fixture.dispatcher, fixture.properties, fixture.canvasType);
     FixedElement child(fixture.dispatcher, fixture.properties,
         fixture.elementType, {12.0, 7.0});
     CHECK(tree.SetRoot(&root));
@@ -247,6 +253,11 @@ bool TestCanvasChildPosition() {
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(root.DesiredSize().width == 20.0 && root.DesiredSize().height == 16.0);
     CHECK(child.LayoutSlot().x == 8.0 && child.LayoutSlot().y == 9.0);
+    CHECK(child.SetValue(Canvas::LeftProperty(), Value::FromDouble(
+        MakeTypeId(AeroPresentationNamespaceUri(), StringView("Double")), -3.0)));
+    CHECK(!root.IsMeasureValid());
+    CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
+    CHECK(child.LayoutSlot().x == -3.0 && child.LayoutSlot().y == 9.0);
     CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
     CHECK(layout.Detach(root, child));
     CHECK(tree.DetachVisual(root, child));
@@ -266,7 +277,7 @@ bool TestBorderPaddingDecoratorLayout() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    Border root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    Border root(fixture.dispatcher, fixture.properties, fixture.borderType);
     FixedElement child(fixture.dispatcher, fixture.properties,
         fixture.elementType, {30.0, 12.0});
     CHECK(root.SetPadding({4.0, 3.0, 6.0, 5.0}));
@@ -301,7 +312,7 @@ bool TestContentPresenterLayout() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    ContentPresenter root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    ContentPresenter root(fixture.dispatcher, fixture.properties, fixture.presenterType);
     FixedElement child(fixture.dispatcher, fixture.properties,
         fixture.elementType, {30.0, 12.0});
     FixedElement extra(fixture.dispatcher, fixture.properties,
@@ -405,7 +416,7 @@ bool TestGridFixedAutoAndStarTracks() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    Grid root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    Grid root(fixture.dispatcher, fixture.properties, fixture.gridType);
     const GridLength columns[] = {
         GridLength::Pixel(20.0), GridLength::Auto(), GridLength::Star(1.0)};
     const GridLength rows[] = {

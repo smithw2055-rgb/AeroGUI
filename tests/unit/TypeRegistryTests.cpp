@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 namespace {
 
@@ -366,6 +367,192 @@ bool TestRegistrationRollbackOnOom() {
     return true;
 }
 
+struct SmallValue final {
+    std::uint64_t first = 0U;
+    std::uint64_t second = 0U;
+};
+
+struct ManagedValue final {
+    int* active = nullptr;
+    int payload = 0;
+
+    ManagedValue(int& count, int value) noexcept : active(&count), payload(value) {
+        ++*active;
+    }
+    ManagedValue(const ManagedValue& other) noexcept
+        : active(other.active), payload(other.payload) {
+        ++*active;
+    }
+    ~ManagedValue() { --*active; }
+};
+
+struct LargeValue final {
+    std::uint8_t bytes[40]{};
+};
+
+class ValueProbe final : public Object {};
+
+bool EqualSmall(const void* left, const void* right, void*) noexcept {
+    const auto& a = *static_cast<const SmallValue*>(left);
+    const auto& b = *static_cast<const SmallValue*>(right);
+    return a.first == b.first && a.second == b.second;
+}
+
+Result<void> CopyManaged(void* destination, const void* source, void*) noexcept {
+    new (destination) ManagedValue(*static_cast<const ManagedValue*>(source));
+    return {};
+}
+
+void DestroyManaged(void* value, void*) noexcept {
+    static_cast<ManagedValue*>(value)->~ManagedValue();
+}
+
+bool EqualManaged(const void* left, const void* right, void*) noexcept {
+    return static_cast<const ManagedValue*>(left)->payload ==
+        static_cast<const ManagedValue*>(right)->payload;
+}
+
+Result<void> CopyLarge(void* destination, const void* source, void*) noexcept {
+    std::memcpy(destination, source, sizeof(LargeValue));
+    return {};
+}
+
+bool EqualLarge(const void* left, const void* right, void*) noexcept {
+    return std::memcmp(left, right, sizeof(LargeValue)) == 0;
+}
+
+Result<Value> ConvertSmall(TypeId type, StringView text,
+    IAllocator&, void* context) noexcept {
+    auto* registry = static_cast<TypeRegistry*>(context);
+    if (text != StringView("7,9")) {
+        return Status::Failure(ErrorCode::InvalidArgument, "Invalid SmallValue");
+    }
+    const SmallValue value{7U, 9U};
+    return registry->TryCreateValue(type, &value);
+}
+
+bool TestUnifiedValueAndRegistrySemantics() {
+    static_assert(noexcept(Value(std::declval<const Value&>())),
+        "Value copies must remain noexcept");
+    static_assert(noexcept(Value(std::declval<Value&&>())),
+        "Value moves must remain noexcept");
+
+    TrackingAllocator allocator;
+    TypeRegistry registry(&allocator);
+    const StringView ns("urn:value-tests");
+    const TypeId smallType = MakeTypeId(ns, StringView("Small"));
+    const TypeId managedType = MakeTypeId(ns, StringView("Managed"));
+    const TypeId largeType = MakeTypeId(ns, StringView("Large"));
+    const TypeId objectType = MakeTypeId(ns, StringView("Object"));
+    CHECK(registry.TryRegisterType({ns, StringView("Small"), InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+    CHECK(registry.TryRegisterType({ns, StringView("Managed"), InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+    CHECK(registry.TryRegisterType({ns, StringView("Large"), InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+    CHECK(registry.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+        TypeFlags::None, nullptr}));
+    CHECK(registry.TryRegisterValueSemantics(smallType,
+        {sizeof(SmallValue), alignof(SmallValue), nullptr, nullptr,
+         &EqualSmall, nullptr, true}));
+    CHECK(registry.TryRegisterValueSemantics(managedType,
+        {sizeof(ManagedValue), alignof(ManagedValue), &CopyManaged,
+         &DestroyManaged, &EqualManaged, nullptr, false}));
+    CHECK(registry.TryRegisterValueSemantics(largeType,
+        {sizeof(LargeValue), alignof(LargeValue), &CopyLarge, nullptr,
+         &EqualLarge, nullptr, false}));
+    Result<void> duplicate = registry.TryRegisterValueSemantics(smallType,
+        {sizeof(SmallValue), alignof(SmallValue), nullptr, nullptr,
+         &EqualSmall, nullptr, true});
+    CHECK(!duplicate && duplicate.GetStatus().code == ErrorCode::AlreadyExists);
+    Result<void> invalid = registry.TryRegisterValueSemantics(managedType,
+        {sizeof(ManagedValue), 3U, &CopyManaged, &DestroyManaged,
+         &EqualManaged, nullptr, false});
+    CHECK(!invalid && invalid.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(registry.TryRegisterTextConverter({smallType, &ConvertSmall, &registry}));
+    Result<void> duplicateConverter = registry.TryRegisterTextConverter(
+        {smallType, &ConvertSmall, &registry});
+    CHECK(!duplicateConverter &&
+        duplicateConverter.GetStatus().code == ErrorCode::AlreadyExists);
+
+    const SmallValue first{7U, 9U};
+    const SmallValue second{7U, 10U};
+    Result<Value> inlineValue = registry.TryCreateValue(smallType, &first);
+    Result<Value> differentValue = registry.TryCreateValue(smallType, &second);
+    CHECK(inlineValue && inlineValue.Value().IsInlineCustom());
+    CHECK(differentValue && inlineValue.Value() != differentValue.Value());
+    Value inlineCopy = inlineValue.Value();
+    Value inlineMove = std::move(inlineCopy);
+    CHECK(inlineMove == inlineValue.Value());
+    Result<Value> converted = registry.TryConvertText(smallType, StringView("7,9"));
+    CHECK(converted && converted.Value() == inlineValue.Value());
+    Result<Value> failedConversion = registry.TryConvertText(
+        smallType, StringView("bad"));
+    CHECK(!failedConversion &&
+        failedConversion.GetStatus().code == ErrorCode::InvalidArgument);
+
+    Result<Value> empty = Value::TryFromString(smallType, StringView(), &allocator);
+    Result<Value> text = Value::TryFromString(smallType, StringView("aero"), &allocator);
+    Result<Value> sameText = Value::TryFromString(smallType, StringView("aero"), &allocator);
+    CHECK(empty && empty.Value().AsString().Empty());
+    CHECK(text && sameText && text.Value() == sameText.Value());
+
+    CHECK(Value::Unset().IsUnset());
+    CHECK(Value::FromBoolean(smallType, true).AsBoolean());
+    CHECK(Value::FromSignedInteger(smallType, -8).AsSignedInteger() == -8);
+    CHECK(Value::FromUnsignedInteger(smallType, 8U).AsUnsignedInteger() == 8U);
+    CHECK(Value::FromDouble(smallType, 1.25).AsDouble() == 1.25);
+    Result<Ref<ValueProbe>> firstObject = MakeRef<ValueProbe>();
+    Result<Ref<ValueProbe>> secondObject = MakeRef<ValueProbe>();
+    CHECK(firstObject && secondObject);
+    Ref<Object> firstRef(firstObject.Value());
+    Ref<Object> sameRef(firstObject.Value());
+    Ref<Object> secondRef(secondObject.Value());
+    const Value object = Value::FromObject(objectType, firstRef);
+    CHECK(object == Value::FromObject(objectType, sameRef));
+    CHECK(object != Value::FromObject(objectType, secondRef));
+    CHECK(Value::NullObject(objectType).IsNullObject());
+
+    LargeValue large{};
+    large.bytes[39] = 91U;
+    Result<Value> boxedLarge = registry.TryCreateValue(largeType, &large);
+    CHECK(boxedLarge && !boxedLarge.Value().IsInlineCustom());
+    Value largeCopy = boxedLarge.Value();
+    CHECK(largeCopy == boxedLarge.Value());
+
+    int activeManaged = 0;
+    {
+        ManagedValue source(activeManaged, 42);
+        CHECK(activeManaged == 1);
+        Result<Value> boxed = registry.TryCreateValue(managedType, &source);
+        CHECK(boxed && !boxed.Value().IsInlineCustom() && activeManaged == 2);
+        {
+            Value copy = boxed.Value();
+            Value moved = std::move(copy);
+            CHECK(moved == boxed.Value() && activeManaged == 2);
+        }
+        CHECK(activeManaged == 2);
+    }
+    CHECK(activeManaged == 0);
+
+    allocator.FailAfter(0U);
+    Result<Value> stringOom = Value::TryFromString(
+        smallType, StringView("allocation"), &allocator);
+    CHECK(!stringOom && stringOom.GetStatus().code == ErrorCode::OutOfMemory);
+    int failedActive = 0;
+    ManagedValue failedSource(failedActive, 5);
+    Result<Value> boxedOom = registry.TryCreateValue(
+        managedType, &failedSource, &allocator);
+    CHECK(!boxedOom && boxedOom.GetStatus().code == ErrorCode::OutOfMemory);
+    allocator.DisableFailures();
+
+    CHECK(registry.Freeze());
+    Result<void> late = registry.TryRegisterTextConverter(
+        {managedType, &ConvertSmall, &registry});
+    CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);
+    return true;
+}
+
 struct TestCase final {
     const char* name;
     bool (*run)();
@@ -380,6 +567,7 @@ int main() {
         {"Freeze validation", &TestFreezeValidation},
         {"Deterministic snapshot", &TestDeterministicSnapshot},
         {"Registration rollback on OOM", &TestRegistrationRollbackOnOom},
+        {"Unified Value and registry semantics", &TestUnifiedValueAndRegistrySemantics},
     };
 
     std::uint32_t passed = 0U;

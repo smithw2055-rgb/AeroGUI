@@ -17,8 +17,9 @@ public:
         TypeId runtimeType, Orientation orientation = Orientation::Vertical,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Orientation GetOrientation() const noexcept { return orientation_; }
+    AERO_NODISCARD Orientation GetOrientation() const noexcept;
     AERO_NODISCARD Base::Result<void> SetOrientation(Orientation value) noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle OrientationProperty() noexcept;
     AERO_NODISCARD std::uint32_t OwnedChildCount() const noexcept {
         return ownedChildren_.Size();
     }
@@ -32,7 +33,6 @@ protected:
     AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    Orientation orientation_ = Orientation::Vertical;
     Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
 
     AERO_NODISCARD bool IsOwnedChild(const LayoutElement& child) const noexcept;
@@ -48,14 +48,13 @@ public:
     AERO_NODISCARD Base::Result<void> SetChildPosition(
         LayoutElement& child, Point position) noexcept;
     AERO_NODISCARD Point ChildPosition(const LayoutElement& child) const noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle LeftProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle TopProperty() noexcept;
 
 protected:
     AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 
-private:
-    struct Position final { LayoutElement* child = nullptr; Point point; };
-    Base::Vector<Position> positions_;
 };
 
 enum class GridUnitType : std::uint8_t { Auto = 0U, Pixel, Star };
@@ -92,6 +91,8 @@ public:
         Base::Span<const GridLength> definitions) noexcept;
     AERO_NODISCARD Base::Result<void> SetChildCell(
         LayoutElement& child, std::uint32_t row, std::uint32_t column) noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle RowProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle ColumnProperty() noexcept;
 
     AERO_NODISCARD Base::Span<const GridLength> ColumnDefinitions() const noexcept {
         return {columns_.Data(), columns_.Size()};
@@ -105,16 +106,9 @@ protected:
     AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    struct Cell final {
-        LayoutElement* child = nullptr;
-        std::uint32_t row = 0U;
-        std::uint32_t column = 0U;
-    };
-
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<GridLength> columns_;
     Base::Vector<GridLength> rows_;
-    Base::Vector<Cell> cells_;
     Base::Vector<double> desiredColumns_;
     Base::Vector<double> desiredRows_;
 
@@ -124,7 +118,8 @@ private:
     AERO_NODISCARD GridLength RowAt(std::uint32_t index) const noexcept;
     AERO_NODISCARD Base::Result<void> ValidateDefinitions(
         Base::Span<const GridLength> definitions) const noexcept;
-    AERO_NODISCARD const Cell* FindCell(const LayoutElement& child) const noexcept;
+    AERO_NODISCARD std::uint32_t ChildRow(const LayoutElement& child) const noexcept;
+    AERO_NODISCARD std::uint32_t ChildColumn(const LayoutElement& child) const noexcept;
     AERO_NODISCARD Base::Result<void> ResolveTracks(
         Base::Span<const GridLength> definitions,
         Base::Span<const double> desired,
@@ -138,20 +133,23 @@ public:
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
     AERO_NODISCARD Base::Result<void> SetBackground(Color value) noexcept;
     AERO_NODISCARD Base::Result<void> SetStroke(Color value, double thickness) noexcept;
+    AERO_NODISCARD Base::Result<void> SetBorderBrush(Color value) noexcept;
+    AERO_NODISCARD Base::Result<void> SetBorderThickness(double value) noexcept;
     AERO_NODISCARD Base::Result<void> SetPadding(Thickness value) noexcept;
-    AERO_NODISCARD Color Background() const noexcept { return background_; }
-    AERO_NODISCARD Thickness Padding() const noexcept { return padding_; }
+    AERO_NODISCARD Color Background() const noexcept;
+    AERO_NODISCARD Color BorderBrush() const noexcept;
+    AERO_NODISCARD double BorderThickness() const noexcept;
+    AERO_NODISCARD Thickness Padding() const noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle BackgroundProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle BorderBrushProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle BorderThicknessProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle PaddingProperty() noexcept;
 
 protected:
     AERO_NODISCARD Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     AERO_NODISCARD Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
     AERO_NODISCARD Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
 
-private:
-    Color background_;
-    Color stroke_{0.0F, 0.0F, 0.0F, 0.0F};
-    double strokeThickness_ = 0.0;
-    Thickness padding_;
 };
 
 // M2 text control seam. Text shaping and atlas allocation remain provider
@@ -163,12 +161,14 @@ public:
     TextBlock(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
         TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::StringView Text() const noexcept { return text_.View(); }
-    AERO_NODISCARD Color Foreground() const noexcept { return foreground_; }
+    AERO_NODISCARD Base::StringView Text() const noexcept;
+    AERO_NODISCARD Color Foreground() const noexcept;
     AERO_NODISCARD RenderGlyphRunId GlyphRun() const noexcept { return glyphRun_; }
     AERO_NODISCARD Size GlyphRunSize() const noexcept { return glyphRunSize_; }
     AERO_NODISCARD Base::Result<void> SetText(Base::StringView value) noexcept;
     AERO_NODISCARD Base::Result<void> SetForeground(Color value) noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle TextProperty() noexcept;
+    AERO_NODISCARD static DependencyPropertyHandle ForegroundProperty() noexcept;
     // A run id of InvalidRenderGlyphRunId clears the shaped presentation and
     // requires a zero size. The id must be registered with the render backend
     // before a frame containing this TextBlock is submitted.
@@ -181,8 +181,6 @@ protected:
         DisplayListBuilder& builder) noexcept override;
 
 private:
-    Base::String text_;
-    Color foreground_{0.0F, 0.0F, 0.0F, 1.0F};
     RenderGlyphRunId glyphRun_ = InvalidRenderGlyphRunId;
     Size glyphRunSize_;
 };

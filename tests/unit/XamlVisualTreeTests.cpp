@@ -5,12 +5,13 @@
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/EffectiveValueEngine.hpp>
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Rendering.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlPanelLayout.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
@@ -45,11 +46,6 @@ protected:
 };
 
 struct Fixture final {
-    Fixture() noexcept
-        : panelLayout(
-            MakeTypeId(StringView("urn:xaml-visual"), StringView("Canvas")),
-            MakeTypeId(StringView("urn:xaml-visual"), StringView("Grid"))) {}
-
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
@@ -60,7 +56,7 @@ struct Fixture final {
     RenderManager renderer{dispatcher, backend};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activation{schema};
-    XamlPanelLayoutExtension panelLayout;
+    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
     XamlVisualTreeHost visual{tree, layout, values, &renderer};
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -84,46 +80,6 @@ struct Fixture final {
             return Status::Failure(ErrorCode::InvalidArgument,
                 "XAML visual-tree activation services are missing");
         }
-        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("ContentPresenter"))) {
-            Result<Ref<ContentPresenter>> made = MakeRefWithAllocator<ContentPresenter>(allocator,
-                *activationContext.dispatcher, *activationContext.dependencyProperties,
-                requestedType, &allocator);
-            if (!made) return made.GetStatus();
-            Ref<ContentPresenter> presenter = std::move(made).Value();
-            return Ref<Object>(std::move(presenter));
-        }
-        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("Border"))) {
-            Result<Ref<Border>> made = MakeRefWithAllocator<Border>(allocator,
-                *activationContext.dispatcher, *activationContext.dependencyProperties,
-                requestedType, &allocator);
-            if (!made) return made.GetStatus();
-            Ref<Border> border = std::move(made).Value();
-            return Ref<Object>(std::move(border));
-        }
-        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("StackPanel"))) {
-            Result<Ref<StackPanel>> made = MakeRefWithAllocator<StackPanel>(allocator,
-                *activationContext.dispatcher, *activationContext.dependencyProperties,
-                requestedType, Orientation::Vertical, &allocator);
-            if (!made) return made.GetStatus();
-            Ref<StackPanel> panel = std::move(made).Value();
-            return Ref<Object>(std::move(panel));
-        }
-        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("Canvas"))) {
-            Result<Ref<Canvas>> made = MakeRefWithAllocator<Canvas>(allocator,
-                *activationContext.dispatcher, *activationContext.dependencyProperties,
-                requestedType, &allocator);
-            if (!made) return made.GetStatus();
-            Ref<Canvas> canvas = std::move(made).Value();
-            return Ref<Object>(std::move(canvas));
-        }
-        if (requestedType == MakeTypeId(StringView("urn:xaml-visual"), StringView("Grid"))) {
-            Result<Ref<Grid>> made = MakeRefWithAllocator<Grid>(allocator,
-                *activationContext.dispatcher, *activationContext.dependencyProperties,
-                requestedType, &allocator);
-            if (!made) return made.GetStatus();
-            Ref<Grid> grid = std::move(made).Value();
-            return Ref<Object>(std::move(grid));
-        }
         Result<Ref<TestLeaf>> made = MakeRefWithAllocator<TestLeaf>(allocator,
             *activationContext.dispatcher, *activationContext.dependencyProperties,
             requestedType, &allocator);
@@ -141,110 +97,38 @@ struct Fixture final {
     static RenderElement* AsRender(Object& object, void*) noexcept {
         return &static_cast<RenderElement&>(object);
     }
-    static ContentPresenter* AsPresenter(Object& object, void*) noexcept {
-        return &static_cast<ContentPresenter&>(object);
-    }
-    static StackPanel* AsStackPanel(Object& object, void*) noexcept {
-        return &static_cast<StackPanel&>(object);
-    }
-    static LayoutElement* AsBorder(Object& object, void*) noexcept {
-        return &static_cast<Border&>(object);
-    }
-    static LayoutElement* AsCanvas(Object& object, void*) noexcept {
-        return &static_cast<Canvas&>(object);
-    }
-    static LayoutElement* AsGrid(Object& object, void*) noexcept {
-        return &static_cast<Grid&>(object);
-    }
-
     bool Build() {
         const StringView ns("urn:xaml-visual");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        doubleType = MakeTypeId(ns, StringView("Double"));
-        unsignedType = MakeTypeId(ns, StringView("Unsigned"));
-        layoutType = MakeTypeId(ns, StringView("LayoutElement"));
-        presenterType = MakeTypeId(ns, StringView("ContentPresenter"));
-        borderType = MakeTypeId(ns, StringView("Border"));
-        stackPanelType = MakeTypeId(ns, StringView("StackPanel"));
-        canvasType = MakeTypeId(ns, StringView("Canvas"));
-        gridType = MakeTypeId(ns, StringView("Grid"));
+        Result<CorePresentationMetadata> metadata =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(metadata);
+        objectType = metadata.Value().objectType;
+        doubleType = metadata.Value().doubleType;
+        unsignedType = metadata.Value().unsignedIntegerType;
+        layoutType = metadata.Value().layoutElementType;
+        presenterType = metadata.Value().contentPresenterType;
+        borderType = metadata.Value().borderType;
+        stackPanelType = metadata.Value().stackPanelType;
+        canvasType = metadata.Value().canvasType;
+        gridType = metadata.Value().gridType;
         leafType = MakeTypeId(ns, StringView("Leaf"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+        CHECK(types.TryRegisterType({ns, StringView("Leaf"), metadata.Value().renderElementType,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Unsigned"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("LayoutElement"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("ContentPresenter"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Border"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("StackPanel"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Canvas"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Grid"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Leaf"), layoutType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterProperty(presenterType, {
-            StringView("Content"), layoutType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(borderType, {
-            StringView("Content"), layoutType, PropertyFlags::None}));
-        Result<MemberId> children = types.TryRegisterProperty(stackPanelType, {
-            StringView("Children"), layoutType, PropertyFlags::None});
-        CHECK(children);
-        stackPanelChildren = children.Value();
-        Result<MemberId> canvasChildrenResult = types.TryRegisterProperty(canvasType, {
-            StringView("Children"), layoutType, PropertyFlags::None});
-        CHECK(canvasChildrenResult);
-        canvasChildren = canvasChildrenResult.Value();
-        Result<MemberId> gridChildrenResult = types.TryRegisterProperty(gridType, {
-            StringView("Children"), layoutType, PropertyFlags::None});
-        CHECK(gridChildrenResult);
-        gridChildren = gridChildrenResult.Value();
-        CHECK(types.TryRegisterProperty(canvasType, {
-            StringView("Left"), doubleType, PropertyFlags::Attached}));
-        CHECK(types.TryRegisterProperty(canvasType, {
-            StringView("Top"), doubleType, PropertyFlags::Attached}));
-        CHECK(types.TryRegisterProperty(gridType, {
-            StringView("Row"), unsignedType, PropertyFlags::Attached}));
-        CHECK(types.TryRegisterProperty(gridType, {
-            StringView("Column"), unsignedType, PropertyFlags::Attached}));
+        stackPanelChildren = MakeMemberId(stackPanelType, MemberKind::Property,
+            StringView("Children"));
+        canvasChildren = MakeMemberId(canvasType, MemberKind::Property,
+            StringView("Children"));
+        gridChildren = MakeMemberId(gridType, MemberKind::Property,
+            StringView("Children"));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
-        CHECK(schema.TryRegisterScalarType(unsignedType, XamlScalarKind::UnsignedInteger));
         CHECK(values.Initialize());
         CHECK(tree.Initialize());
         CHECK(layout.Initialize());
         CHECK(renderer.Initialize());
-        CHECK(visual.TryRegisterType({presenterType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(visual.TryRegisterType({borderType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(visual.TryRegisterType({stackPanelType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(visual.TryRegisterType({canvasType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(visual.TryRegisterType({gridType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
         CHECK(visual.TryRegisterType({leafType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(visual.TryRegisterContentPresenter({presenterType, &AsPresenter, nullptr}));
-        CHECK(visual.TryRegisterContentPresenter({borderType, nullptr, nullptr, &AsBorder}));
-        CHECK(visual.TryRegisterCollectionContent({stackPanelType, stackPanelChildren,
-            &AsStackPanel, nullptr}));
-        CHECK(visual.TryRegisterCollectionContent({canvasType, canvasChildren,
-            nullptr, &panelLayout, &AsCanvas,
-            &XamlPanelLayoutExtension::ConfigureCanvasChild}));
-        CHECK(visual.TryRegisterCollectionContent({gridType, gridChildren,
-            nullptr, &panelLayout, &AsGrid,
-            &XamlPanelLayoutExtension::ConfigureGridChild}));
-        CHECK(visual.Register(schema));
-        CHECK(panelLayout.TryRegisterType({leafType, &AsLayout, nullptr}));
-        CHECK(panelLayout.Register(schema));
-        CHECK(activation.TryRegister({presenterType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({borderType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({stackPanelType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({canvasType, &Activate, nullptr}));
-        CHECK(activation.TryRegister({gridType, &Activate, nullptr}));
+        CHECK(TryRegisterCorePresentationXaml(
+            dependencyProperties, activation, &visual));
         CHECK(activation.TryRegister({leafType, &Activate, nullptr}));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
@@ -265,7 +149,8 @@ bool TestXamlContentMountLayoutRenderAndUnmount() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<ContentPresenter xmlns=\"urn:xaml-visual\"><ContentPresenter><Leaf/>"
+        "<ContentPresenter xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\">"
+        "<ContentPresenter><local:Leaf/>"
         "</ContentPresenter></ContentPresenter>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
@@ -305,7 +190,8 @@ bool TestXamlBorderContentMountLayoutRenderAndUnmount() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<Border xmlns=\"urn:xaml-visual\"><Leaf/></Border>"), &diagnostics));
+        "<Border xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\">"
+        "<local:Leaf/></Border>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
@@ -330,7 +216,8 @@ bool TestXamlStackPanelCollectionMountLayoutRenderAndUnmount() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<StackPanel xmlns=\"urn:xaml-visual\"><Leaf/><Leaf/></StackPanel>"),
+        "<StackPanel xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\">"
+        "<local:Leaf/><local:Leaf/></StackPanel>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);
@@ -359,8 +246,9 @@ bool TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<Canvas xmlns=\"urn:xaml-visual\"><Leaf Canvas.Left=\"8\" "
-        "Canvas.Top=\"9\"/></Canvas>"), &diagnostics));
+        "<Canvas xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\" "
+        "xmlns:aero=\"urn:aero\"><local:Leaf aero:Canvas.Left=\"8\" "
+        "aero:Canvas.Top=\"9\"/></Canvas>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
@@ -389,8 +277,9 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<Grid xmlns=\"urn:xaml-visual\"><Leaf Grid.Row=\"1\" "
-        "Grid.Column=\"1\"/></Grid>"), &diagnostics));
+        "<Grid xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\" "
+        "xmlns:aero=\"urn:aero\"><local:Leaf aero:Grid.Row=\"1\" "
+        "aero:Grid.Column=\"1\"/></Grid>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
@@ -422,8 +311,9 @@ bool TestFailedLoadDiscardsStagedEdges() {
     DiagnosticBag diagnostics;
     Utf8XmlTokenizer tokenizer;
     CHECK(tokenizer.Reset(StringView(
-        "<ContentPresenter xmlns=\"urn:xaml-visual\"><Leaf/></ContentPresenter>"
-        "<Leaf xmlns=\"urn:xaml-visual\"/>"), &diagnostics));
+        "<ContentPresenter xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\">"
+        "<local:Leaf/></ContentPresenter>"
+        "<local:Leaf xmlns:local=\"urn:xaml-visual\"/>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
@@ -435,6 +325,32 @@ bool TestFailedLoadDiscardsStagedEdges() {
     return true;
 }
 
+bool TestXamlGridRejectsOutOfRangeCellOnFirstLayout() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<Grid xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\" "
+        "xmlns:aero=\"urn:aero\"><local:Leaf aero:Grid.Row=\"2\"/>"
+        "</Grid>"), &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
+        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    Grid* root = static_cast<Grid*>(loaded.Value().Get());
+    const GridLength track[] = {GridLength::Star()};
+    CHECK(root->SetColumnDefinitions({track, 1U}));
+    CHECK(root->SetRowDefinitions({track, 1U}));
+    CHECK(fixture.visual.Mount(*root, fixture.gridType, {80.0, 40.0}));
+    Result<std::uint32_t> phase = fixture.layout.Flush();
+    const ErrorCode layoutError = phase ? ErrorCode::Ok : phase.GetStatus().code;
+    CHECK(fixture.visual.Unmount());
+    CHECK(!phase && layoutError == ErrorCode::OutOfRange);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -443,6 +359,7 @@ int main() {
     if (!TestXamlStackPanelCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlGridGenericCollectionMountLayoutRenderAndUnmount()) return 1;
+    if (!TestXamlGridRejectsOutOfRangeCellOnFirstLayout()) return 1;
     if (!TestFailedLoadDiscardsStagedEdges()) return 1;
     std::puts("Aero XAML visual-tree tests passed");
     return 0;

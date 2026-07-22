@@ -1,9 +1,11 @@
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlBorder.hpp>
+#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/Controls.hpp>
 
 #include <cstdio>
 
@@ -28,7 +30,7 @@ struct Fixture final {
     DependencyPropertyRegistry properties{types};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activation{schema};
-    XamlBorderExtension border;
+    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId borderType = InvalidTypeId;
@@ -44,29 +46,17 @@ struct Fixture final {
         return Ref<Object>(std::move(made).Value());
     }
 
-    static Border* Cast(Object& object, void*) noexcept {
-        return &static_cast<Border&>(object);
-    }
-
     bool Build() {
-        const StringView ns("urn:xaml-border");
-        objectType = MakeTypeId(ns, StringView("Object"));
-        stringType = MakeTypeId(ns, StringView("String"));
-        borderType = MakeTypeId(ns, StringView("Border"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Border"), objectType,
-            TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterProperty(borderType, {
-            StringView("Background"), stringType, PropertyFlags::None}));
+        Result<CorePresentationMetadata> metadata =
+            TryRegisterCorePresentationMetadata(types, properties);
+        CHECK(metadata);
+        objectType = metadata.Value().objectType;
+        stringType = metadata.Value().stringType;
+        borderType = metadata.Value().borderType;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
-        CHECK(border.TryRegisterType({borderType, &Cast, nullptr}));
-        CHECK(border.Register(schema));
         CHECK(activation.TryRegister({borderType, &Activate, nullptr}));
+        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;
@@ -95,7 +85,7 @@ bool TestBackgroundAttributes() {
     CHECK(fixture.Build());
     DiagnosticBag diagnostics;
     Result<Ref<Object>> loaded = Load(fixture, StringView(
-        "<Border xmlns=\"urn:xaml-border\" Background=\"#80FF4000\"/>"), diagnostics);
+        "<Border xmlns=\"urn:aero\" Background=\"#80FF4000\"/>"), diagnostics);
     CHECK(loaded && diagnostics.Size() == 0U);
     Border* border = static_cast<Border*>(loaded.Value().Get());
     CHECK(border != nullptr);
@@ -110,7 +100,7 @@ bool TestInvalidBackground() {
     CHECK(fixture.Build());
     DiagnosticBag diagnostics;
     Result<Ref<Object>> loaded = Load(fixture, StringView(
-        "<Border xmlns=\"urn:xaml-border\" Background=\"blue\"/>"), diagnostics);
+        "<Border xmlns=\"urn:aero\" Background=\"blue\"/>"), diagnostics);
     CHECK(!loaded && diagnostics.Size() > 0U);
     return true;
 }
