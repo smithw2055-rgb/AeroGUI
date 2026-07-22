@@ -8,10 +8,13 @@ namespace {
 constexpr Base::StringView ElementNameKey("ElementName");
 constexpr Base::StringView PathKey("Path");
 constexpr Base::StringView ModeKey("Mode");
+constexpr Base::StringView UpdateSourceTriggerKey("UpdateSourceTrigger");
 constexpr Base::StringView OneTimeMode("OneTime");
 constexpr Base::StringView OneWayMode("OneWay");
 constexpr Base::StringView TwoWayMode("TwoWay");
 constexpr Base::StringView OneWayToSourceMode("OneWayToSource");
+constexpr Base::StringView PropertyChangedTrigger("PropertyChanged");
+constexpr Base::StringView ExplicitTrigger("Explicit");
 
 Base::StringView TrimAscii(Base::StringView value) noexcept {
     std::uint32_t first = 0U;
@@ -57,10 +60,12 @@ Base::Result<void> ParseArguments(
     Base::StringView arguments,
     Base::StringView& elementName,
     Base::StringView& path,
-    Core::BindingMode& mode) noexcept {
+    Core::BindingMode& mode,
+    Core::UpdateSourceTrigger& updateSourceTrigger) noexcept {
     elementName = {};
     path = {};
     mode = Core::BindingMode::OneWay;
+    updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
 
     std::uint32_t begin = 0U;
     while (begin < arguments.SizeBytes()) {
@@ -119,6 +124,16 @@ Base::Result<void> ParseArguments(
                     Base::ErrorCode::Unsupported,
                     "Binding mode is not supported");
             }
+        } else if (key == UpdateSourceTriggerKey) {
+            if (value == PropertyChangedTrigger) {
+                updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
+            } else if (value == ExplicitTrigger) {
+                updateSourceTrigger = Core::UpdateSourceTrigger::Explicit;
+            } else {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding update trigger is not supported");
+            }
         } else {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -173,7 +188,10 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
     Base::StringView elementName;
     Base::StringView path;
     Core::BindingMode mode = Core::BindingMode::OneWay;
-    Base::Result<void> parsed = ParseArguments(arguments, elementName, path, mode);
+    Core::UpdateSourceTrigger updateSourceTrigger =
+        Core::UpdateSourceTrigger::PropertyChanged;
+    Base::Result<void> parsed = ParseArguments(
+        arguments, elementName, path, mode, updateSourceTrigger);
     if (!parsed) {
         return parsed.GetStatus();
     }
@@ -239,7 +257,8 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
             sourceProperty->Handle(),
             target,
             targetHandle,
-            mode});
+            mode,
+            updateSourceTrigger});
     if (!attached) {
         return attached.GetStatus();
     }

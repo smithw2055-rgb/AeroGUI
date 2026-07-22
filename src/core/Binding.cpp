@@ -130,6 +130,28 @@ Base::Result<bool> BindingManager::Detach(BindingHandle handle) noexcept {
     return false;
 }
 
+Base::Result<bool> BindingManager::UpdateSource(BindingHandle handle) noexcept {
+    if (!dispatcher_->CheckAccess()) {
+        return dispatcher_->VerifyAccess().GetStatus();
+    }
+    if (!hook_.IsValid() || flushing_) {
+        return InvalidState("BindingManager is not ready to update a source");
+    }
+    for (BindingRecord& record : bindings_) {
+        if (record.handle.value != handle.value) {
+            continue;
+        }
+        if (record.descriptor.mode != BindingMode::TwoWay &&
+            record.descriptor.mode != BindingMode::OneWayToSource) {
+            return false;
+        }
+        record.targetDirty = true;
+        record.forceSourceUpdate = true;
+        return true;
+    }
+    return false;
+}
+
 Base::Result<std::uint32_t> BindingManager::DetachObject(
     DependencyObject& object) noexcept {
     if (!dispatcher_->CheckAccess()) {
@@ -191,7 +213,10 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
         }
 
         const bool sourceChanged = !record.applied || record.sourceDirty;
-        const bool targetChanged = !record.applied || record.targetDirty;
+        const bool targetChanged = record.descriptor.updateSourceTrigger ==
+                UpdateSourceTrigger::Explicit
+            ? record.forceSourceUpdate
+            : (!record.applied || record.targetDirty);
         Base::Result<void> applied;
         switch (record.descriptor.mode) {
         case BindingMode::OneTime:
@@ -262,6 +287,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
         record.applied = true;
         record.sourceDirty = false;
         record.targetDirty = false;
+        record.forceSourceUpdate = false;
     }
     flushing_ = false;
     lastError_ = {};

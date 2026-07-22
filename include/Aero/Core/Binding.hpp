@@ -32,6 +32,7 @@ struct BindingDescriptor final {
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
     BindingMode mode = BindingMode::OneWay;
+    UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
 };
 
 // A host-owned binding scheduler. This first slice supports direct
@@ -57,6 +58,7 @@ public:
     AERO_NODISCARD Base::Result<BindingHandle> Attach(
         const BindingDescriptor& descriptor) noexcept;
     AERO_NODISCARD Base::Result<bool> Detach(BindingHandle handle) noexcept;
+    AERO_NODISCARD Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
 
     // Removes every binding whose source or target is object. Tree/object
     // ownership code uses this before destroying a DependencyObject.
@@ -88,6 +90,7 @@ private:
         bool applied = false;
         bool sourceDirty = true;
         bool targetDirty = true;
+        bool forceSourceUpdate = false;
     };
 
     Dispatcher* dispatcher_ = nullptr;

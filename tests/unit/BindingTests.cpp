@@ -184,12 +184,38 @@ bool TestTwoWayAndOneWayToSource() {
     return true;
 }
 
+bool TestExplicitUpdateSourceTrigger() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    TestObject source(fixture.dispatcher, fixture.properties, fixture.elementType);
+    TestObject target(fixture.dispatcher, fixture.properties, fixture.elementType);
+    BindingManager bindings(fixture.dispatcher);
+    CHECK(bindings.Initialize());
+    CHECK(source.SetValue(
+        fixture.source, PropertyValue::FromDouble(fixture.doubleType, 3.0)));
+    Result<BindingHandle> binding = bindings.Attach({
+        &source, fixture.source, &target, fixture.target, BindingMode::TwoWay,
+        UpdateSourceTrigger::Explicit});
+    CHECK(binding);
+    CHECK(bindings.Flush().Value() == 1U);
+    CHECK(target.GetValue(fixture.target).Value().AsDouble() == 3.0);
+    CHECK(target.SetValue(
+        fixture.target, PropertyValue::FromDouble(fixture.doubleType, 9.0)));
+    CHECK(bindings.Flush().Value() == 0U);
+    CHECK(source.GetValue(fixture.source).Value().AsDouble() == 3.0);
+    CHECK(bindings.UpdateSource(binding.Value()).Value());
+    CHECK(bindings.Flush().Value() == 1U);
+    CHECK(source.GetValue(fixture.source).Value().AsDouble() == 9.0);
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestOneWayBindsAtDataBindPhase()) return 1;
     if (!TestOneTimeAndValidation()) return 1;
     if (!TestTwoWayAndOneWayToSource()) return 1;
+    if (!TestExplicitUpdateSourceTrigger()) return 1;
     std::puts("Aero binding tests passed");
     return 0;
 }
