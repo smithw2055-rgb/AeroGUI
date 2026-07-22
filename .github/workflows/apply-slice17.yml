@@ -21,6 +21,7 @@ jobs:
           cat tools/slice17_parts/part-* | base64 --decode > /tmp/apply_slice17.py
           python3 /tmp/apply_slice17.py
           rm -rf tools/slice17_parts
+          rm -f tools/slice17-trigger
           git diff --check
       - name: Validate
         run: |
