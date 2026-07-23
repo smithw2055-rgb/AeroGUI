@@ -115,8 +115,11 @@ Base::Result<void> MemberAccessor::Freeze() noexcept {
     }
     for (const TypeInfo& type : types_->Types()) {
         for (const PropertyInfo& property : type.Properties()) {
-            if (property.Access() == PropertyAccessKind::Provider &&
-                FindProvider(property.Provider()) == nullptr) {
+            const PropertyAccessorRegistration* accessor =
+                types_->FindPropertyAccessor(property.Id());
+            if (accessor != nullptr &&
+                accessor->access == PropertyAccessKind::Provider &&
+                FindProvider(accessor->provider) == nullptr) {
                 return Base::Status::Failure(Base::ErrorCode::NotFound,
                     "Property provider required by metadata is not registered");
             }
@@ -158,17 +161,21 @@ Base::Result<Value> MemberAccessor::GetProperty(
             "Write-only property cannot be read");
     }
 
-    if (property.Access() == PropertyAccessKind::Ordinary) {
-        if (property.Getter() == nullptr) return UnsupportedPropertyStatus();
+    const PropertyAccessorRegistration* accessor =
+        types_->FindPropertyAccessor(property.Id());
+    if (accessor == nullptr) return UnsupportedPropertyStatus();
+    if (accessor->access == PropertyAccessKind::Ordinary) {
+        if (accessor->get == nullptr) return UnsupportedPropertyStatus();
         return ValidateGetterResult(
-            property.Getter()(object, property.Context()),
+            accessor->get(object, accessor->context),
             property.ValueType());
     }
-    if (property.Access() == PropertyAccessKind::Provider) {
+    if (accessor->access == PropertyAccessKind::Provider) {
         const PropertyProviderRegistration* provider =
-            FindProvider(property.Provider());
+            FindProvider(accessor->provider);
         if (provider == nullptr || provider->get == nullptr ||
-            !types_->IsDerivedFrom(object.RuntimeType(), provider->objectType)) {
+            !types_->IsDerivedFrom(
+                object.RuntimeType(), provider->objectType)) {
             return Base::Status::Failure(Base::ErrorCode::NotFound,
                 "Readable property provider is not registered for the object");
         }
@@ -201,8 +208,11 @@ Base::Result<void> MemberAccessor::SetProperty(
                 "Attached property target has no registered runtime type")))
         : ValidateTarget(object, property.OwnerType());
     if (!target) return target.GetStatus();
-    const bool providerObjectAssignment =
-        property.Access() == PropertyAccessKind::Provider &&
+
+    const PropertyAccessorRegistration* accessor =
+        types_->FindPropertyAccessor(property.Id());
+    const bool providerObjectAssignment = accessor != nullptr &&
+        accessor->access == PropertyAccessKind::Provider &&
         value.Kind() == ValueKind::Object &&
         types_->IsDerivedFrom(value.Type(), property.ValueType());
     if (value.IsUnset() ||
@@ -214,16 +224,18 @@ Base::Result<void> MemberAccessor::SetProperty(
         return Base::Status::Failure(Base::ErrorCode::ReadOnly,
             "Read-only property cannot be written");
     }
-    if (property.Access() == PropertyAccessKind::Ordinary) {
-        return property.Setter() != nullptr
-            ? property.Setter()(object, value, property.Context())
+    if (accessor == nullptr) return UnsupportedPropertyStatus();
+    if (accessor->access == PropertyAccessKind::Ordinary) {
+        return accessor->set != nullptr
+            ? accessor->set(object, value, accessor->context)
             : Base::Result<void>(UnsupportedPropertyStatus());
     }
-    if (property.Access() == PropertyAccessKind::Provider) {
+    if (accessor->access == PropertyAccessKind::Provider) {
         const PropertyProviderRegistration* provider =
-            FindProvider(property.Provider());
+            FindProvider(accessor->provider);
         if (provider == nullptr || provider->set == nullptr ||
-            !types_->IsDerivedFrom(object.RuntimeType(), provider->objectType)) {
+            !types_->IsDerivedFrom(
+                object.RuntimeType(), provider->objectType)) {
             return Base::Status::Failure(Base::ErrorCode::NotFound,
                 "Writable property provider is not registered for the object");
         }
@@ -257,8 +269,15 @@ Base::Result<Value> MemberAccessor::InvokeMethod(
                 "Method argument type does not match metadata");
         }
     }
-    Base::Result<Value> result = method.Invoker()(
-        object, arguments, method.Context());
+
+    const MethodInvokerRegistration* invoker =
+        types_->FindMethodInvoker(method.Id());
+    if (invoker == nullptr || invoker->invoke == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::NotFound,
+            "Method invoker is not registered");
+    }
+    Base::Result<Value> result = invoker->invoke(
+        object, arguments, invoker->context);
     if (!result) return result.GetStatus();
     if ((method.ReturnType() == InvalidTypeId && !result.Value().IsUnset()) ||
         (method.ReturnType() != InvalidTypeId &&
