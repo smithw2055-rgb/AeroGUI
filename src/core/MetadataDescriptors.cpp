@@ -420,9 +420,11 @@ Base::Result<void> MetadataFacetStore::Build(
 
     for (const TypeInfo& type : source.Types()) {
         Base::Result<void> result;
-        if (type.Factory() != nullptr) {
+        const TypeFactoryRegistration* factory =
+            source.FindTypeFactory(type.Id());
+        if (factory != nullptr && factory->factory != nullptr) {
             const std::uint32_t index = factories_.Size();
-            result = factories_.TryPushBack({type.Id(), type.Factory()});
+            result = factories_.TryPushBack({type.Id(), factory->factory});
             if (!result) return result.GetStatus();
             result = InsertUnique(factoryIndex_, type.Id(), index,
                 "Type factory facet collision");
@@ -442,11 +444,14 @@ Base::Result<void> MetadataFacetStore::Build(
         }
 
         for (const PropertyInfo& property : type.Properties()) {
-            if (property.Access() != PropertyAccessKind::External) {
+            const PropertyAccessorRegistration* accessor =
+                source.FindPropertyAccessor(property.Id());
+            if (accessor != nullptr &&
+                accessor->access != PropertyAccessKind::External) {
                 const std::uint32_t index = propertyAccessors_.Size();
                 result = propertyAccessors_.TryPushBack({
-                    property.Id(), property.Access(), property.Getter(),
-                    property.Setter(), property.Provider(), property.Context()});
+                    property.Id(), accessor->access, accessor->get,
+                    accessor->set, accessor->provider, accessor->context});
                 if (!result) return result.GetStatus();
                 result = InsertUnique(
                     propertyAccessorIndex_, property.Id(), index,
@@ -478,10 +483,12 @@ Base::Result<void> MetadataFacetStore::Build(
         }
 
         for (const MethodInfo& method : type.Methods()) {
-            if (method.Invoker() == nullptr) continue;
+            const MethodInvokerRegistration* invoker =
+                source.FindMethodInvoker(method.Id());
+            if (invoker == nullptr || invoker->invoke == nullptr) continue;
             const std::uint32_t index = methodInvokers_.Size();
             result = methodInvokers_.TryPushBack({
-                method.Id(), method.Invoker(), method.Context()});
+                method.Id(), invoker->invoke, invoker->context});
             if (!result) return result.GetStatus();
             result = InsertUnique(methodInvokerIndex_, method.Id(), index,
                 "Method invoker facet collision");
