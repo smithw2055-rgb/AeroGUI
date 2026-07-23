@@ -1,6 +1,8 @@
 #include <Aero/Core/MemberAccessor.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 
+#include <utility>
+
 namespace Aero::Core {
 namespace {
 
@@ -39,6 +41,19 @@ Base::Result<void> SetDependencyProperty(
     }
     return static_cast<DependencyObject&>(object).SetValue(
         DependencyPropertyHandle{property.Id()}, value);
+}
+
+Base::Result<Value> ValidateGetterResult(
+    Base::Result<Value> result,
+    TypeId expectedType) noexcept {
+    if (!result) {
+        return result.GetStatus();
+    }
+    if (result.Value().IsUnset() || result.Value().Type() != expectedType) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Property getter returned a value with the wrong type");
+    }
+    return std::move(result).Value();
 }
 
 } // namespace
@@ -110,11 +125,17 @@ Base::Result<Value> MemberAccessor::GetProperty(
         return Base::Status::Failure(Base::ErrorCode::Unsupported,
             "Write-only property cannot be read");
     }
-    Base::Result<Value> result = UnsupportedPropertyStatus();
+
     if (property.Access() == PropertyAccessKind::Ordinary) {
-        if (property.Getter() == nullptr) return UnsupportedPropertyStatus();
-        result = property.Getter()(object, property.Context());
-    } else if (property.Access() == PropertyAccessKind::Provider) {
+        if (property.Getter() == nullptr) {
+            return UnsupportedPropertyStatus();
+        }
+        return ValidateGetterResult(
+            property.Getter()(object, property.Context()),
+            property.ValueType());
+    }
+
+    if (property.Access() == PropertyAccessKind::Provider) {
         const PropertyProviderRegistration* provider =
             FindProvider(property.Provider());
         if (provider == nullptr || provider->get == nullptr ||
@@ -122,14 +143,12 @@ Base::Result<Value> MemberAccessor::GetProperty(
             return Base::Status::Failure(Base::ErrorCode::NotFound,
                 "Readable property provider is not registered for the object");
         }
-        result = provider->get(object, property, provider->context);
+        return ValidateGetterResult(
+            provider->get(object, property, provider->context),
+            property.ValueType());
     }
-    if (result && (result.Value().IsUnset() ||
-                   result.Value().Type() != property.ValueType())) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Property getter returned a value with the wrong type");
-    }
-    return result;
+
+    return UnsupportedPropertyStatus();
 }
 
 Base::Result<void> MemberAccessor::SetProperty(
