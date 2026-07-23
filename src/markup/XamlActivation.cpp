@@ -1,8 +1,8 @@
 #include <Aero/Markup/XamlActivation.hpp>
 
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Core/Presentation.hpp>
 
 namespace Aero::Markup {
 namespace {
@@ -13,11 +13,6 @@ struct ActiveActivation final {
 };
 
 thread_local ActiveActivation gActiveActivation;
-
-bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
 
 class ActiveActivationScope final {
 public:
@@ -45,33 +40,15 @@ private:
 XamlActivationProviderRegistry::XamlActivationProviderRegistry(
     XamlSchemaContext& schema) noexcept
     : schema_(&schema),
-      providers_() {}
+      providers_(schema.Types()) {}
 
 Base::Result<void> XamlActivationProviderRegistry::TryRegister(
     const XamlActivationProviderRegistration& registration) noexcept {
-    if (frozen_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML activation provider registry is frozen");
-    }
-    const Core::TypeInfo* type = schema_->Types().FindType(registration.type);
-    if (type == nullptr ||
-        HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType) ||
-        registration.activate == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML activation provider registration is invalid");
-    }
-    if (FindExact(registration.type) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "XAML activation provider is already registered");
-    }
-    return providers_.TryPushBack(registration);
+    return providers_.TryRegister(registration);
 }
 
 Base::Result<void> XamlActivationProviderRegistry::Freeze() noexcept {
-    if (frozen_) {
+    if (providers_.IsFrozen()) {
         return {};
     }
     if (!schema_->IsFrozen()) {
@@ -79,15 +56,14 @@ Base::Result<void> XamlActivationProviderRegistry::Freeze() noexcept {
             Base::ErrorCode::InvalidState,
             "XAML schema context must be frozen before activation providers");
     }
-    frozen_ = true;
-    return {};
+    return providers_.Freeze();
 }
 
 Base::Result<Base::Ref<Base::Object>>
 XamlActivationProviderRegistry::CreateObject(
     Core::TypeId requestedType,
     const XamlActivationContext& activation) const noexcept {
-    if (!frozen_) {
+    if (!providers_.IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML activation provider registry is not frozen");
@@ -105,53 +81,13 @@ XamlActivationProviderRegistry::CreateObject(
     }
 
     Core::PresentationContextScope presentationScope(
-        *activation.dispatcher, *activation.dependencyProperties);
+        *activation.dispatcher,
+        *activation.dependencyProperties);
 
-    const XamlActivationProviderRegistration* provider = Find(requestedType);
-    if (provider == nullptr) {
+    if (providers_.Find(requestedType) == nullptr) {
         return schema_->CreateObject(requestedType);
     }
-
-    Base::Result<Base::Ref<Base::Object>> created = provider->activate(
-        requestedType,
-        activation,
-        provider->context);
-    if (!created) {
-        return created.GetStatus();
-    }
-    if (!created.Value()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "XAML activation provider returned a null object");
-    }
-    return created;
-}
-
-const XamlActivationProviderRegistration*
-XamlActivationProviderRegistry::FindExact(Core::TypeId type) const noexcept {
-    for (const XamlActivationProviderRegistration& provider : providers_) {
-        if (provider.type == type) {
-            return &provider;
-        }
-    }
-    return nullptr;
-}
-
-const XamlActivationProviderRegistration*
-XamlActivationProviderRegistry::Find(Core::TypeId type) const noexcept {
-    Core::TypeId current = type;
-    while (current != Core::InvalidTypeId) {
-        const XamlActivationProviderRegistration* provider = FindExact(current);
-        if (provider != nullptr) {
-            return provider;
-        }
-        const Core::TypeInfo* info = schema_->Types().FindType(current);
-        if (info == nullptr) {
-            break;
-        }
-        current = info->BaseType();
-    }
-    return nullptr;
+    return providers_.CreateObject(requestedType, activation);
 }
 
 Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectActivated(
