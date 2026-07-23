@@ -14,6 +14,14 @@ inline constexpr TypeId LayoutElement =
 inline constexpr TypeId RenderElement =
     MakeTypeId(Base::StringView("RenderElement"));
 
+inline constexpr TypeId Panel = MakeTypeId(Base::StringView("Panel"));
+inline constexpr TypeId Decorator = MakeTypeId(Base::StringView("Decorator"));
+inline constexpr TypeId Control = MakeTypeId(Base::StringView("Control"));
+inline constexpr TypeId ContentControl =
+    MakeTypeId(Base::StringView("ContentControl"));
+inline constexpr TypeId UserControl =
+    MakeTypeId(Base::StringView("UserControl"));
+
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));
 inline constexpr TypeId Grid = MakeTypeId(Base::StringView("Grid"));
