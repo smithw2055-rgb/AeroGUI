@@ -30,6 +30,18 @@ jobs:
             sanitizer: ON
     steps:
       - uses: actions/checkout@v4
+      - name: Package source snapshot
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        shell: bash
+        run: tar --exclude=.git --exclude=out -czf /tmp/aerogui-source.tgz .
+      - name: Upload source snapshot
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerogui-source-${{ github.sha }}
+          path: /tmp/aerogui-source.tgz
+          if-no-files-found: error
+          retention-days: 1
       - name: Select compiler
         shell: bash
         run: |
