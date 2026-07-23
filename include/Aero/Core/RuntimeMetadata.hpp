@@ -23,8 +23,9 @@ inline constexpr Base::StringView AeroPresentationMetadataModuleName() noexcept 
 
 inline Base::Result<void> TryRegisterAeroPresentationMetadata(
     MetadataDomain& domain) noexcept {
-    // Version 4 adds sealed value-semantics and text-converter runtime facets.
-    constexpr std::uint32_t SchemaVersion = 4U;
+    // Version 5 makes value-semantics/text-converter facets own their runtime
+    // registrations and moves host construction providers into ActivationFacet.
+    constexpr std::uint32_t SchemaVersion = 5U;
     const Base::StringView name = AeroPresentationMetadataModuleName();
     return domain.TryRegisterModule({
         MakeMetadataModuleId(name),
