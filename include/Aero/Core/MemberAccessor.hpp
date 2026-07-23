@@ -8,6 +8,7 @@
 namespace Aero::Core {
 
 class DependencyPropertyRegistry;
+class MetadataRuntime;
 
 using PropertyProviderGetCallback = Base::Result<Value> (*)(
     const Base::Object& object,
@@ -31,6 +32,7 @@ class AERO_API MemberAccessor final {
 public:
     explicit MemberAccessor(TypeRegistry& types) noexcept;
 
+    Base::Result<void> UseRuntime(MetadataRuntime& runtime) noexcept;
     Base::Result<void> TryRegisterProvider(
         const PropertyProviderRegistration& registration) noexcept;
     Base::Result<void> Freeze() noexcept;
@@ -48,10 +50,12 @@ public:
         Base::Span<const Value> arguments) const noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
+    bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
     TypeRegistry& Types() const noexcept { return *types_; }
 
 private:
     TypeRegistry* types_ = nullptr;
+    MetadataRuntime* runtime_ = nullptr;
     Base::Vector<PropertyProviderRegistration> providers_;
     bool frozen_ = false;
 
