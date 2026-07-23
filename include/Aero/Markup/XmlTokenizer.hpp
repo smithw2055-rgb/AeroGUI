@@ -71,19 +71,19 @@ public:
     XmlAttribute(const XmlAttribute&) = delete;
     XmlAttribute& operator=(const XmlAttribute&) = delete;
 
-    AERO_NODISCARD Base::StringView Name() const noexcept {
+    Base::StringView Name() const noexcept {
         return name_.View();
     }
-    AERO_NODISCARD Base::StringView Value() const noexcept {
+    Base::StringView Value() const noexcept {
         return value_.View();
     }
-    AERO_NODISCARD Core::SourceSpan Source() const noexcept {
+    Core::SourceSpan Source() const noexcept {
         return source_;
     }
-    AERO_NODISCARD Core::SourceSpan NameSource() const noexcept {
+    Core::SourceSpan NameSource() const noexcept {
         return nameSource_;
     }
-    AERO_NODISCARD Core::SourceSpan ValueSource() const noexcept {
+    Core::SourceSpan ValueSource() const noexcept {
         return valueSource_;
     }
 
@@ -110,23 +110,23 @@ public:
 
     void Clear() noexcept;
 
-    AERO_NODISCARD XmlTokenKind Kind() const noexcept { return kind_; }
-    AERO_NODISCARD Base::StringView Name() const noexcept {
+    XmlTokenKind Kind() const noexcept { return kind_; }
+    Base::StringView Name() const noexcept {
         return name_.View();
     }
-    AERO_NODISCARD Base::StringView Text() const noexcept {
+    Base::StringView Text() const noexcept {
         return text_.View();
     }
-    AERO_NODISCARD Base::Span<const XmlAttribute> Attributes() const noexcept {
+    Base::Span<const XmlAttribute> Attributes() const noexcept {
         return {attributes_.Data(), attributes_.Size()};
     }
-    AERO_NODISCARD Core::SourceSpan Source() const noexcept {
+    Core::SourceSpan Source() const noexcept {
         return source_;
     }
-    AERO_NODISCARD Core::SourceSpan NameSource() const noexcept {
+    Core::SourceSpan NameSource() const noexcept {
         return nameSource_;
     }
-    AERO_NODISCARD bool IsEmptyElement() const noexcept {
+    bool IsEmptyElement() const noexcept {
         return emptyElement_;
     }
 
@@ -146,12 +146,12 @@ class AERO_API IXmlTokenizer {
 public:
     virtual ~IXmlTokenizer() = default;
 
-    AERO_NODISCARD virtual Base::Result<void> Reset(
+    virtual Base::Result<void> Reset(
         Base::StringView utf8,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<XmlTokenKind> Read(
+    virtual Base::Result<XmlTokenKind> Read(
         XmlToken& token) noexcept = 0;
-    AERO_NODISCARD virtual std::uint32_t Depth() const noexcept = 0;
+    virtual std::uint32_t Depth() const noexcept = 0;
 };
 
 class AERO_API Utf8XmlTokenizer final : public IXmlTokenizer {
@@ -160,19 +160,19 @@ public:
         XmlTokenizerLimits limits = {},
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Reset(
+    Base::Result<void> Reset(
         Base::StringView utf8,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept override;
-    AERO_NODISCARD Base::Result<XmlTokenKind> Read(
+    Base::Result<XmlTokenKind> Read(
         XmlToken& token) noexcept override;
-    AERO_NODISCARD std::uint32_t Depth() const noexcept override {
+    std::uint32_t Depth() const noexcept override {
         return openElements_.Size();
     }
 
-    AERO_NODISCARD const XmlTokenizerLimits& Limits() const noexcept {
+    const XmlTokenizerLimits& Limits() const noexcept {
         return limits_;
     }
-    AERO_NODISCARD std::uint64_t ByteOffset() const noexcept {
+    std::uint64_t ByteOffset() const noexcept {
         return offset_;
     }
 
@@ -191,46 +191,46 @@ private:
     bool initialized_ = false;
     bool failed_ = false;
 
-    AERO_NODISCARD bool AtEnd() const noexcept;
-    AERO_NODISCARD bool StartsWith(
+    bool AtEnd() const noexcept;
+    bool StartsWith(
         const char* literal,
         std::uint32_t length) const noexcept;
-    AERO_NODISCARD Core::SourcePosition Position() const noexcept;
-    AERO_NODISCARD Core::SourceSpan SpanFrom(
+    Core::SourcePosition Position() const noexcept;
+    Core::SourceSpan SpanFrom(
         Core::SourcePosition begin) const noexcept;
-    AERO_NODISCARD std::uint32_t CurrentCodePointLength() const noexcept;
-    AERO_NODISCARD std::uint32_t CurrentCodePoint() const noexcept;
+    std::uint32_t CurrentCodePointLength() const noexcept;
+    std::uint32_t CurrentCodePoint() const noexcept;
     void AdvanceCodePoint() noexcept;
     void ConsumeAscii(std::uint32_t count) noexcept;
-    AERO_NODISCARD bool SkipWhitespace() noexcept;
+    bool SkipWhitespace() noexcept;
 
-    AERO_NODISCARD Base::Result<XmlTokenKind> ParseStartElement(
+    Base::Result<XmlTokenKind> ParseStartElement(
         XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<XmlTokenKind> ParseEndElement(
+    Base::Result<XmlTokenKind> ParseEndElement(
         XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<XmlTokenKind> ParseText(
+    Base::Result<XmlTokenKind> ParseText(
         XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<XmlTokenKind> ParseCdata(
+    Base::Result<XmlTokenKind> ParseCdata(
         XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<void> ParseName(
+    Base::Result<void> ParseName(
         Base::String& name,
         Core::SourceSpan& source) noexcept;
-    AERO_NODISCARD Base::Result<void> ParseAttributeValue(
+    Base::Result<void> ParseAttributeValue(
         char quote,
         Base::String& value,
         Core::SourceSpan& source) noexcept;
-    AERO_NODISCARD Base::Result<void> AppendEntity(
+    Base::Result<void> AppendEntity(
         Base::String& output) noexcept;
-    AERO_NODISCARD Base::Result<void> AppendCodePoint(
+    Base::Result<void> AppendCodePoint(
         Base::String& output,
         std::uint32_t codePoint) noexcept;
-    AERO_NODISCARD Base::Result<void> AppendCurrentCodePoint(
+    Base::Result<void> AppendCurrentCodePoint(
         Base::String& output,
         bool attributeValue = false) noexcept;
-    AERO_NODISCARD Base::Result<void> SkipComment() noexcept;
-    AERO_NODISCARD Base::Result<void> SkipProcessingInstruction() noexcept;
+    Base::Result<void> SkipComment() noexcept;
+    Base::Result<void> SkipProcessingInstruction() noexcept;
 
-    AERO_NODISCARD Base::Status Failure(
+    Base::Status Failure(
         Base::ErrorCode error,
         Core::DiagnosticCode diagnostic,
         Base::StringView message,

@@ -125,7 +125,7 @@ public:
     explicit SetterObject(Base::IAllocator* allocator) noexcept
         : allocator_(allocator), property_(allocator), value_(allocator) {}
 
-    AERO_NODISCARD Base::Result<void> SetProperty(
+    Base::Result<void> SetProperty(
         Base::StringView property) noexcept {
         if (property.Empty()) {
             return InvalidStyleXaml("Setter Property is empty");
@@ -134,7 +134,7 @@ public:
         return property_.TryAssign(property);
     }
 
-    AERO_NODISCARD Base::Result<void> SetValue(
+    Base::Result<void> SetValue(
         const XamlValue& value) noexcept {
         Base::Result<XamlValue> copied = CloneValue(value, allocator_);
         if (!copied) {
@@ -145,11 +145,11 @@ public:
         return {};
     }
 
-    AERO_NODISCARD Base::StringView Property() const noexcept {
+    Base::StringView Property() const noexcept {
         return property_.View();
     }
-    AERO_NODISCARD const XamlValue& Value() const noexcept { return value_; }
-    AERO_NODISCARD bool IsConfigured() const noexcept {
+    const XamlValue& Value() const noexcept { return value_; }
+    bool IsConfigured() const noexcept {
         return propertySet_ && valueSet_;
     }
 
@@ -167,22 +167,22 @@ public:
         : plan_(Core::InvalidTypeId, nullptr, allocator),
           setters_(allocator) {}
 
-    AERO_NODISCARD Core::Style& Plan() noexcept { return plan_; }
-    AERO_NODISCARD const Core::Style& Plan() const noexcept { return plan_; }
+    Core::Style& Plan() noexcept { return plan_; }
+    const Core::Style& Plan() const noexcept { return plan_; }
 
-    AERO_NODISCARD Base::Result<void> SetBasedOn(
+    Base::Result<void> SetBasedOn(
         const Base::Ref<Base::Object>& value,
         const StyleObject& style) noexcept {
         basedOn_ = value;
         return plan_.TrySetBasedOn(&style.Plan());
     }
 
-    AERO_NODISCARD Base::Result<void> AddSetter(
+    Base::Result<void> AddSetter(
         const Base::Ref<Base::Object>& setter) noexcept {
         return setters_.TryPushBack(setter);
     }
 
-    AERO_NODISCARD Base::Span<const Base::Ref<Base::Object>> Setters() const noexcept {
+    Base::Span<const Base::Ref<Base::Object>> Setters() const noexcept {
         return {setters_.Data(), setters_.Size()};
     }
 

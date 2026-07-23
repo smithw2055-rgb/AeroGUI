@@ -80,6 +80,8 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/EffectiveValueEngine.cpp
     src/core/Input.cpp
     src/core/Layout.cpp
+    src/core/MemberAccessor.cpp
+    src/core/Metadata.cpp
     src/core/ObjectTree.cpp
     src/core/Presentation.cpp
     src/core/Rendering.cpp

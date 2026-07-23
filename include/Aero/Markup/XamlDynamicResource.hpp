@@ -15,7 +15,7 @@ namespace Aero::Markup {
 // expression, or the host must clear/detach the target property first.
 class AERO_API DynamicResource final {
 public:
-    AERO_NODISCARD static Base::Result<void> Attach(
+    static Base::Result<void> Attach(
         Core::EffectiveValueEngine& effectiveValues,
         ResourceDictionary& resources,
         Core::DependencyObject& target,
@@ -43,14 +43,14 @@ public:
     XamlDynamicResourceExtension& operator=(
         const XamlDynamicResourceExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Register(
+    Base::Result<void> Register(
         XamlSchemaContext& schema,
         Core::TypeId dynamicResourceExtensionType) noexcept;
 
 private:
     XamlDynamicResourceExtensionOptions options_;
 
-    static AERO_NODISCARD Base::Result<XamlValue> ProvideValue(
+    static Base::Result<XamlValue> ProvideValue(
         Base::StringView arguments,
         const XamlServiceProvider& services,
         void* context) noexcept;

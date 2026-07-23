@@ -12,7 +12,7 @@ class StringValueStorage final : public Base::Object {
 public:
     explicit StringValueStorage(Base::String&& value) noexcept
         : value_(std::move(value)) {}
-    AERO_NODISCARD Base::StringView View() const noexcept { return value_.View(); }
+    Base::StringView View() const noexcept { return value_.View(); }
 private:
     Base::String value_;
 };
@@ -30,7 +30,7 @@ public:
         allocator_->Deallocate(value_, registration.size, registration.alignment,
             Base::MemoryTag::Presentation);
     }
-    AERO_NODISCARD const void* Data() const noexcept { return value_; }
+    const void* Data() const noexcept { return value_; }
 private:
     void* value_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;

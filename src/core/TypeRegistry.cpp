@@ -9,51 +9,6 @@
 namespace Aero::Core {
 namespace {
 
-constexpr Base::HashCode StableOffsetBasis =
-    UINT64_C(14695981039346656037);
-constexpr Base::HashCode StablePrime = UINT64_C(1099511628211);
-constexpr Base::HashCode NonZeroFallback = UINT64_C(0x9E3779B97F4A7C15);
-
-class StableIdBuilder final {
-public:
-    void AddByte(std::uint8_t value) noexcept {
-        value_ ^= static_cast<Base::HashCode>(value);
-        value_ *= StablePrime;
-    }
-
-    void AddBytes(const void* data, std::uint32_t size) noexcept {
-        const auto* bytes = static_cast<const unsigned char*>(data);
-        for (std::uint32_t index = 0U; index < size; ++index) {
-            AddByte(bytes[index]);
-        }
-    }
-
-    void AddString(Base::StringView value) noexcept {
-        AddU32(value.SizeBytes());
-        AddBytes(value.Data(), value.SizeBytes());
-    }
-
-    void AddU32(std::uint32_t value) noexcept {
-        for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-            AddByte(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
-    }
-
-    void AddU64(std::uint64_t value) noexcept {
-        for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-            AddByte(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
-    }
-
-    AERO_NODISCARD std::uint64_t Finish() const noexcept {
-        const std::uint64_t result = Base::MixHash64(value_);
-        return result != 0U ? result : NonZeroFallback;
-    }
-
-private:
-    Base::HashCode value_ = StableOffsetBasis;
-};
-
 constexpr Base::Status EmptyTypeNameStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
@@ -114,12 +69,12 @@ constexpr Base::Status SnapshotBeforeFreezeStatus() noexcept {
         "TypeRegistry snapshot requires a frozen registry");
 }
 
-AERO_NODISCARD Base::Result<void> Append(
+Base::Result<void> Append(
     Base::String& output, Base::StringView text) noexcept {
     return output.TryAppendUnchecked(text);
 }
 
-AERO_NODISCARD Base::Result<void> AppendHex(
+Base::Result<void> AppendHex(
     Base::String& output,
     std::uint64_t value,
     std::uint32_t digits) noexcept {
@@ -134,7 +89,7 @@ AERO_NODISCARD Base::Result<void> AppendHex(
     return Append(output, Base::StringView(buffer, digits));
 }
 
-AERO_NODISCARD Base::Result<void> AppendSizedText(
+Base::Result<void> AppendSizedText(
     Base::String& output,
     Base::StringView text) noexcept {
     Base::Result<void> result = AppendHex(
@@ -150,7 +105,7 @@ AERO_NODISCARD Base::Result<void> AppendSizedText(
 }
 
 template<class Less>
-AERO_NODISCARD Base::Result<void> BuildOrder(
+Base::Result<void> BuildOrder(
     std::uint32_t count,
     Base::Vector<std::uint32_t>& order,
     Less less) noexcept {
@@ -178,7 +133,7 @@ AERO_NODISCARD Base::Result<void> BuildOrder(
     return {};
 }
 
-AERO_NODISCARD Base::Result<void> AppendTypeLine(
+Base::Result<void> AppendTypeLine(
     Base::String& output,
     const TypeInfo& type) noexcept {
     Base::Result<void> result = Append(output, Base::StringView("T|"));
@@ -210,6 +165,10 @@ AERO_NODISCARD Base::Result<void> AppendTypeLine(
     if (!result) {
         return result.GetStatus();
     }
+    result = AppendHex(output, type.ContentMember(), 16U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
     result = AppendSizedText(output, type.XamlNamespace());
     if (!result) {
         return result.GetStatus();
@@ -225,7 +184,7 @@ AERO_NODISCARD Base::Result<void> AppendTypeLine(
     return Append(output, Base::StringView("\n"));
 }
 
-AERO_NODISCARD Base::Result<void> AppendPropertyLine(
+Base::Result<void> AppendPropertyLine(
     Base::String& output,
     const PropertyInfo& property) noexcept {
     Base::Result<void> result = Append(output, Base::StringView("P|"));
@@ -265,6 +224,15 @@ AERO_NODISCARD Base::Result<void> AppendPropertyLine(
     if (!result) {
         return result.GetStatus();
     }
+    result = AppendHex(output,
+        static_cast<std::uint32_t>(property.Access()), 2U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, property.Provider(), 16U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
     result = AppendSizedText(output, property.Name());
     if (!result) {
         return result.GetStatus();
@@ -272,7 +240,7 @@ AERO_NODISCARD Base::Result<void> AppendPropertyLine(
     return Append(output, Base::StringView("\n"));
 }
 
-AERO_NODISCARD Base::Result<void> AppendEventLine(
+Base::Result<void> AppendEventLine(
     Base::String& output,
     const EventInfo& eventInfo) noexcept {
     Base::Result<void> result = Append(output, Base::StringView("E|"));
@@ -321,29 +289,60 @@ AERO_NODISCARD Base::Result<void> AppendEventLine(
 
 } // namespace
 
-TypeId MakeTypeId(
-    Base::StringView xamlNamespace,
-    Base::StringView name) noexcept {
-    static constexpr char Domain[] = "AERO.TYPE.V1";
-    StableIdBuilder builder;
-    builder.AddBytes(
-        Domain, static_cast<std::uint32_t>(sizeof(Domain) - 1U));
-    builder.AddString(xamlNamespace);
-    builder.AddString(name);
-    return builder.Finish();
+Base::Result<void> AppendMethodLine(
+    Base::String& output,
+    const MethodInfo& method) noexcept {
+    Base::Result<void> result = Append(output, Base::StringView("M|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, method.Id(), 16U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, method.OwnerType(), 16U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, method.ReturnType(), 16U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, static_cast<std::uint32_t>(method.Flags()), 8U);
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendSizedText(output, method.Name());
+    if (!result) return result.GetStatus();
+    result = Append(output, Base::StringView("|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, method.Parameters().Size(), 8U);
+    if (!result) return result.GetStatus();
+    for (const MethodParameterInfo& parameter : method.Parameters()) {
+        result = Append(output, Base::StringView("|"));
+        if (!result) return result.GetStatus();
+        result = AppendHex(output, parameter.Type(), 16U);
+        if (!result) return result.GetStatus();
+        result = Append(output, Base::StringView(":"));
+        if (!result) return result.GetStatus();
+        result = AppendSizedText(output, parameter.Name());
+        if (!result) return result.GetStatus();
+    }
+    return Append(output, Base::StringView("\n"));
 }
 
-MemberId MakeMemberId(
+MemberId MakeMethodId(
     TypeId ownerType,
-    MemberKind kind,
-    Base::StringView name) noexcept {
-    static constexpr char Domain[] = "AERO.MEMBER.V1";
-    StableIdBuilder builder;
-    builder.AddBytes(
+    Base::StringView name,
+    Base::Span<const TypeId> parameterTypes) noexcept {
+    static constexpr char Domain[] = "AERO.METHOD.V1";
+    Detail::StableIdBuilder builder;
+    builder.AddText(
         Domain, static_cast<std::uint32_t>(sizeof(Domain) - 1U));
     builder.AddU64(ownerType);
-    builder.AddByte(static_cast<std::uint8_t>(kind));
     builder.AddString(name);
+    builder.AddU32(parameterTypes.Size());
+    for (TypeId parameterType : parameterTypes) {
+        builder.AddU64(parameterType);
+    }
     return builder.Finish();
 }
 
@@ -450,6 +449,11 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
     property.ownerType_ = ownerType;
     property.valueType_ = registration.valueType;
     property.flags_ = registration.flags;
+    property.access_ = registration.access;
+    property.get_ = registration.get;
+    property.set_ = registration.set;
+    property.provider_ = registration.provider;
+    property.context_ = registration.context;
     Base::Result<void> result = property.name_.TryAssign(registration.name);
     if (!result) {
         return result.GetStatus();
@@ -539,6 +543,118 @@ Base::Result<MemberId> TypeRegistry::TryRegisterEvent(
         return IdCollisionStatus();
     }
     return id;
+}
+
+Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
+    TypeId ownerType,
+    const MethodRegistration& registration) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (registration.name.Empty() || registration.invoke == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Method name and invoke callback are required");
+    }
+    std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
+    if (ownerIndex == nullptr) return MissingOwnerStatus();
+
+    Base::Vector<TypeId> signature(allocator_);
+    Base::Result<void> result = signature.TryReserve(
+        registration.parameters.Size());
+    if (!result) return result.GetStatus();
+    for (const MethodParameterRegistration& parameter :
+         registration.parameters) {
+        if (parameter.name.Empty() || parameter.type == InvalidTypeId) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                "Method parameters require a name and valid type");
+        }
+        result = signature.TryPushBack(parameter.type);
+        if (!result) return result.GetStatus();
+    }
+    const MemberId id = MakeMethodId(ownerType, registration.name,
+        {signature.Data(), signature.Size()});
+    if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
+
+    TypeInfo& owner = types_[*ownerIndex];
+    MethodInfo method(allocator_);
+    method.id_ = id;
+    method.ownerType_ = ownerType;
+    method.returnType_ = registration.returnType;
+    method.flags_ = registration.flags;
+    method.invoke_ = registration.invoke;
+    method.context_ = registration.context;
+    result = method.name_.TryAssign(registration.name);
+    if (!result) return result.GetStatus();
+    result = method.parameters_.TryReserve(registration.parameters.Size());
+    if (!result) return result.GetStatus();
+    for (const MethodParameterRegistration& source :
+         registration.parameters) {
+        MethodParameterInfo parameter(allocator_);
+        parameter.type_ = source.type;
+        result = parameter.name_.TryAssign(source.name);
+        if (!result) return result.GetStatus();
+        result = method.parameters_.TryPushBack(std::move(parameter));
+        if (!result) return result.GetStatus();
+    }
+
+    const std::uint32_t methodIndex = owner.methods_.Size();
+    result = owner.methods_.TryPushBack(std::move(method));
+    if (!result) return result.GetStatus();
+    const MemberLocation location{*ownerIndex, methodIndex, MemberKind::Method};
+    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+        memberIndex_.TryInsert(id, location);
+    if (!inserted) {
+        owner.methods_.PopBack();
+        return inserted.GetStatus();
+    }
+    if (!inserted.Value().inserted) {
+        owner.methods_.PopBack();
+        return IdCollisionStatus();
+    }
+    return id;
+}
+
+Base::Result<void> TypeRegistry::TrySetFactory(
+    TypeId type,
+    ObjectFactory factory) noexcept {
+    if (frozen_) {
+        return RegistryFrozenStatus();
+    }
+    TypeInfo* info = MutableType(type);
+    if (info == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Factory owner type was not found");
+    }
+    if (factory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Type factory must not be null");
+    }
+    if (info->factory_ != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Type factory is already registered");
+    }
+    info->factory_ = factory;
+    return {};
+}
+
+Base::Result<void> TypeRegistry::TrySetContentMember(
+    TypeId type,
+    MemberId member) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    TypeInfo* info = MutableType(type);
+    if (info == nullptr) return MissingOwnerStatus();
+    if (info->contentMember_ != InvalidMemberId) {
+        return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
+            "Content member is already registered");
+    }
+    const PropertyInfo* property = FindProperty(member);
+    if (property == nullptr || property->OwnerType() != type) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Content member must be a property declared by the type");
+    }
+    info->contentMember_ = member;
+    return {};
 }
 
 Base::Result<void> TypeRegistry::TryRegisterValueSemantics(
@@ -639,10 +755,40 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
             if (FindType(property.ValueType()) == nullptr) {
                 return MissingRelatedTypeStatus();
             }
+            if ((property.Access() == PropertyAccessKind::Ordinary &&
+                 property.Getter() == nullptr && property.Setter() == nullptr) ||
+                (property.Access() == PropertyAccessKind::Provider &&
+                 property.Provider() == InvalidPropertyProviderId) ||
+                (property.Access() == PropertyAccessKind::External &&
+                 property.Provider() != InvalidPropertyProviderId)) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                    "Property access metadata is invalid");
+            }
         }
         for (const EventInfo& eventInfo : type.Events()) {
             if (FindType(eventInfo.EventArgsType()) == nullptr) {
                 return MissingRelatedTypeStatus();
+            }
+        }
+        for (const MethodInfo& method : type.Methods()) {
+            if (method.Invoker() == nullptr ||
+                (method.ReturnType() != InvalidTypeId &&
+                 FindType(method.ReturnType()) == nullptr)) {
+                return MissingRelatedTypeStatus();
+            }
+            for (const MethodParameterInfo& parameter : method.Parameters()) {
+                if (FindType(parameter.Type()) == nullptr) {
+                    return MissingRelatedTypeStatus();
+                }
+            }
+        }
+        if (type.ContentMember() != InvalidMemberId) {
+            const PropertyInfo* content = FindProperty(type.ContentMember());
+            if (content == nullptr || content->OwnerType() != type.Id() ||
+                (static_cast<std::uint32_t>(content->Flags()) &
+                 static_cast<std::uint32_t>(PropertyFlags::Structural)) == 0U) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                    "Content member must be a structural property");
             }
         }
     }
@@ -777,6 +923,45 @@ const EventInfo* TypeRegistry::FindEvent(
     return nullptr;
 }
 
+const MethodInfo* TypeRegistry::FindMethod(MemberId id) const noexcept {
+    const MemberLocation* location = memberIndex_.Find(id);
+    return location != nullptr ? MethodAt(*location) : nullptr;
+}
+
+const MethodInfo* TypeRegistry::FindMethod(
+    TypeId ownerType,
+    Base::StringView name,
+    Base::Span<const TypeId> parameterTypes,
+    bool includeBaseTypes) const noexcept {
+    TypeId current = ownerType;
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= types_.Size(); ++depth) {
+        const MethodInfo* method = FindMethod(
+            MakeMethodId(current, name, parameterTypes));
+        if (method != nullptr && method->OwnerType() == current &&
+            method->Name() == name) return method;
+        if (!includeBaseTypes) return nullptr;
+        const TypeInfo* type = FindType(current);
+        if (type == nullptr) return nullptr;
+        current = type->BaseType();
+    }
+    return nullptr;
+}
+
+MemberId TypeRegistry::FindContentMember(TypeId type) const noexcept {
+    TypeId current = type;
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= types_.Size(); ++depth) {
+        const TypeInfo* info = FindType(current);
+        if (info == nullptr) return InvalidMemberId;
+        if (info->ContentMember() != InvalidMemberId) {
+            return info->ContentMember();
+        }
+        current = info->BaseType();
+    }
+    return InvalidMemberId;
+}
+
 bool TypeRegistry::IsDerivedFrom(
     TypeId type,
     TypeId expectedBase) const noexcept {
@@ -800,6 +985,12 @@ bool TypeRegistry::IsDerivedFrom(
     return false;
 }
 
+bool TypeRegistry::IsInstanceOf(
+    const Base::Object& object,
+    TypeId expectedType) const noexcept {
+    return IsDerivedFrom(object.RuntimeType(), expectedType);
+}
+
 Base::Result<void> TypeRegistry::BuildSnapshot(
     Base::String& output) const noexcept {
     if (!frozen_) {
@@ -808,7 +999,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
 
     Base::String snapshot(&output.Allocator());
     Base::Result<void> result = Append(
-        snapshot, Base::StringView("AERO-TYPE-REGISTRY|1\n"));
+        snapshot, Base::StringView("AERO-TYPE-REGISTRY|2\n"));
     if (!result) {
         return result.GetStatus();
     }
@@ -866,6 +1057,18 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
                 return result.GetStatus();
             }
         }
+
+        Base::Vector<std::uint32_t> methodOrder(allocator_);
+        const Base::Span<const MethodInfo> methods = type.Methods();
+        result = BuildOrder(methods.Size(), methodOrder,
+            [&methods](std::uint32_t left, std::uint32_t right) noexcept {
+                return methods[left].Id() < methods[right].Id();
+            });
+        if (!result) return result.GetStatus();
+        for (std::uint32_t methodIndex : methodOrder) {
+            result = AppendMethodLine(snapshot, methods[methodIndex]);
+            if (!result) return result.GetStatus();
+        }
     }
 
     output = std::move(snapshot);
@@ -915,6 +1118,16 @@ const EventInfo* TypeRegistry::EventAt(
         return nullptr;
     }
     return &owner->events_[location.memberIndex];
+}
+
+const MethodInfo* TypeRegistry::MethodAt(
+    const MemberLocation& location) const noexcept {
+    if (location.kind != MemberKind::Method) return nullptr;
+    const TypeInfo* owner = TypeAt(location.typeIndex);
+    if (owner == nullptr || location.memberIndex >= owner->methods_.Size()) {
+        return nullptr;
+    }
+    return &owner->methods_[location.memberIndex];
 }
 
 } // namespace Aero::Core

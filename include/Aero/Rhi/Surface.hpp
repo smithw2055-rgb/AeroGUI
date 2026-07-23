@@ -27,14 +27,14 @@ enum class SurfaceKind : std::uint8_t {
 
 using SurfaceKindFlags = std::uint32_t;
 
-AERO_NODISCARD constexpr SurfaceKindFlags SurfaceKindBit(
+constexpr SurfaceKindFlags SurfaceKindBit(
     SurfaceKind kind) noexcept {
     return kind == SurfaceKind::Invalid
         ? 0U
         : (UINT32_C(1) << static_cast<std::uint32_t>(kind));
 }
 
-AERO_NODISCARD constexpr bool SupportsSurfaceKind(
+constexpr bool SupportsSurfaceKind(
     SurfaceKindFlags available,
     SurfaceKind kind) noexcept {
     return (available & SurfaceKindBit(kind)) != 0U;
@@ -146,11 +146,11 @@ struct SurfaceFrame final {
     ExternalRenderTargetDescriptor target;
 };
 
-AERO_NODISCARD AERO_API Base::Result<void> ValidateNativeSurfaceDescriptor(
+AERO_API Base::Result<void> ValidateNativeSurfaceDescriptor(
     const NativeSurfaceDescriptor& descriptor,
     const SurfaceCapabilities& capabilities) noexcept;
 
-AERO_NODISCARD AERO_API Base::Result<void>
+AERO_API Base::Result<void>
 ValidateExternalRenderTargetDescriptor(
     const ExternalRenderTargetDescriptor& descriptor) noexcept;
 
@@ -158,24 +158,24 @@ class AERO_API ISurfaceBackend {
 public:
     virtual ~ISurfaceBackend() = default;
 
-    AERO_NODISCARD virtual SurfaceCapabilities
+    virtual SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> CreateSurface(
+    virtual Base::Result<void> CreateSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept = 0;
     virtual void DestroySurface() noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> ResizeSurface(
+    virtual Base::Result<void> ResizeSurface(
         std::uint32_t width,
         std::uint32_t height) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<ExternalRenderTargetDescriptor>
+    virtual Base::Result<ExternalRenderTargetDescriptor>
     AcquireSurfaceTarget(std::uint64_t frameSerial) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> PresentSurface(
+    virtual Base::Result<void> PresentSurface(
         std::uint64_t frameSerial,
         FenceValue signalFence) noexcept = 0;
     virtual void DiscardSurfaceFrame(std::uint64_t frameSerial) noexcept = 0;
     virtual void NotifySurfaceLost() noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> RestoreSurface(
+    virtual Base::Result<void> RestoreSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept = 0;
-    AERO_NODISCARD virtual bool IsSurfaceLost() const noexcept = 0;
+    virtual bool IsSurfaceLost() const noexcept = 0;
 };
 
 class AERO_API SurfaceSession final {
@@ -187,36 +187,36 @@ public:
     SurfaceSession(const SurfaceSession&) = delete;
     SurfaceSession& operator=(const SurfaceSession&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize(
+    Base::Result<void> Initialize(
         const NativeSurfaceDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<void> Resize(
+    Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept;
-    AERO_NODISCARD Base::Result<SurfaceFrame> AcquireFrame() noexcept;
-    AERO_NODISCARD Base::Result<void> Present(
+    Base::Result<SurfaceFrame> AcquireFrame() noexcept;
+    Base::Result<void> Present(
         SurfaceFrame& frame,
         FenceValue signalFence) noexcept;
-    AERO_NODISCARD Base::Result<void> DiscardFrame(
+    Base::Result<void> DiscardFrame(
         SurfaceFrame& frame) noexcept;
-    AERO_NODISCARD Base::Result<void> NotifyContextLost() noexcept;
-    AERO_NODISCARD Base::Result<void> Restore(
+    Base::Result<void> NotifyContextLost() noexcept;
+    Base::Result<void> Restore(
         const NativeSurfaceDescriptor& descriptor) noexcept;
     void Shutdown() noexcept;
 
-    AERO_NODISCARD SurfaceState State() const noexcept { return state_; }
-    AERO_NODISCARD std::uint64_t Generation() const noexcept {
+    SurfaceState State() const noexcept { return state_; }
+    std::uint64_t Generation() const noexcept {
         return generation_;
     }
-    AERO_NODISCARD bool HasFrameInFlight() const noexcept {
+    bool HasFrameInFlight() const noexcept {
         return activeFrameSerial_ != 0U;
     }
-    AERO_NODISCARD const NativeSurfaceDescriptor& Descriptor() const noexcept {
+    const NativeSurfaceDescriptor& Descriptor() const noexcept {
         return descriptor_;
     }
-    AERO_NODISCARD const SurfaceCapabilities& Capabilities() const noexcept {
+    const SurfaceCapabilities& Capabilities() const noexcept {
         return capabilities_;
     }
-    AERO_NODISCARD bool IsCurrentFrame(
+    bool IsCurrentFrame(
         const SurfaceFrame& frame) const noexcept;
 
 private:
@@ -228,8 +228,8 @@ private:
     std::uint64_t nextFrameSerial_ = 1U;
     std::uint64_t activeFrameSerial_ = 0U;
 
-    AERO_NODISCARD Base::Result<void> VerifyReady() noexcept;
-    AERO_NODISCARD Base::Result<void> AdvanceGeneration() noexcept;
+    Base::Result<void> VerifyReady() noexcept;
+    Base::Result<void> AdvanceGeneration() noexcept;
 };
 
 struct SurfaceFrameCapture final {
@@ -253,15 +253,15 @@ public:
         SurfaceSession& surface) noexcept
         : backend_(&backend), surface_(&surface) {}
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD Base::Result<FenceValue> SubmitAndPresent(
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<FenceValue> SubmitAndPresent(
         SurfaceFrame& frame,
         const GraphicsCommandBuffer& commands) noexcept;
 
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept {
+    FenceValue LastSubmittedFence() const noexcept {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD const SurfaceFrameCapture& LastCapture() const noexcept {
+    const SurfaceFrameCapture& LastCapture() const noexcept {
         return lastCapture_;
     }
 
@@ -352,65 +352,65 @@ public:
     explicit HostedGraphicsBackend(const HostedGraphicsApi& api) noexcept
         : api_(api) {}
 
-    AERO_NODISCARD bool IsValid() const noexcept;
+    bool IsValid() const noexcept;
 
-    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
-    AERO_NODISCARD GraphicsBackendKind Kind() const noexcept override {
+    DeviceCapabilities Capabilities() const noexcept override;
+    GraphicsBackendKind Kind() const noexcept override {
         return api_.kind;
     }
-    AERO_NODISCARD GraphicsCapabilities
+    GraphicsCapabilities
     QueryGraphicsCapabilities() const noexcept override;
-    AERO_NODISCARD SurfaceCapabilities
+    SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept override;
 
-    AERO_NODISCARD Base::Result<void> CreateResource(
+    Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept override;
     void DestroyResource(ResourceHandle handle) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureTexture(
+    Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
         const TextureResourceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureSampler(
+    Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
         const SamplerDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigurePipeline(
+    Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD Base::Result<void> SubmitGraphics(
+    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+    FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
-    AERO_NODISCARD bool IsDeviceLost() const noexcept override;
+    FenceValue CompletedFence() const noexcept override;
+    bool IsDeviceLost() const noexcept override;
 
-    AERO_NODISCARD Base::Result<void> CreateSurface(
+    Base::Result<void> CreateSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept override;
     void DestroySurface() noexcept override;
-    AERO_NODISCARD Base::Result<void> ResizeSurface(
+    Base::Result<void> ResizeSurface(
         std::uint32_t width,
         std::uint32_t height) noexcept override;
-    AERO_NODISCARD Base::Result<ExternalRenderTargetDescriptor>
+    Base::Result<ExternalRenderTargetDescriptor>
     AcquireSurfaceTarget(std::uint64_t frameSerial) noexcept override;
-    AERO_NODISCARD Base::Result<void> PresentSurface(
+    Base::Result<void> PresentSurface(
         std::uint64_t frameSerial,
         FenceValue signalFence) noexcept override;
     void DiscardSurfaceFrame(std::uint64_t frameSerial) noexcept override;
     void NotifySurfaceLost() noexcept override;
-    AERO_NODISCARD Base::Result<void> RestoreSurface(
+    Base::Result<void> RestoreSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD bool IsSurfaceLost() const noexcept override;
+    bool IsSurfaceLost() const noexcept override;
 
 private:
     HostedGraphicsApi api_;
     FenceValue lastSubmittedFence_ = 0U;
 
-    AERO_NODISCARD Base::Result<void> VerifyApi() const noexcept;
-    AERO_NODISCARD Base::Result<void> VerifySubmission(
+    Base::Result<void> VerifyApi() const noexcept;
+    Base::Result<void> VerifySubmission(
         FenceValue signalFence) const noexcept;
 };
 

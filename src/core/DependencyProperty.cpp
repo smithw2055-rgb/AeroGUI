@@ -12,19 +12,19 @@ namespace {
 
 constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 
-AERO_NODISCARD constexpr Base::Status ReadOnlyStatus() noexcept {
+constexpr Base::Status ReadOnlyStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::ReadOnly,
         "Dependency property is read-only");
 }
 
-AERO_NODISCARD constexpr Base::Status ValidationFailedStatus() noexcept {
+constexpr Base::Status ValidationFailedStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed,
         "Dependency property value validation failed");
 }
 
-AERO_NODISCARD bool IsValidUpdateSourceTrigger(
+bool IsValidUpdateSourceTrigger(
     UpdateSourceTrigger trigger) noexcept {
     switch (trigger) {
     case UpdateSourceTrigger::Default:
@@ -36,7 +36,7 @@ AERO_NODISCARD bool IsValidUpdateSourceTrigger(
     return false;
 }
 
-AERO_NODISCARD bool IsValueType(const TypeInfo& type) noexcept {
+bool IsValueType(const TypeInfo& type) noexcept {
     return (static_cast<std::uint32_t>(type.Flags()) &
         static_cast<std::uint32_t>(TypeFlags::ValueType)) != 0U;
 }
@@ -142,7 +142,7 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
             "Dependency property value type is not assignable to the property type");
     }
 
-    if (metadata.validate != nullptr && !metadata.validate(value)) {
+    if (!metadata.validate.Empty() && !metadata.validate(value)) {
         return ValidationFailedStatus();
     }
     return {};
@@ -159,7 +159,7 @@ Base::Result<PropertyValue> DependencyPropertyRegistry::EvaluateValue(
         return validation.GetStatus();
     }
 
-    if (metadata.coerce == nullptr) {
+    if (metadata.coerce.Empty()) {
         return baseValue;
     }
 
@@ -315,11 +315,15 @@ DependencyPropertyRegistry::TryRegister(
             "Reserved dependency property index insertion unexpectedly failed");
     }
 
+    PropertyRegistration metaProperty;
+    metaProperty.name = registration.name;
+    metaProperty.valueType = registration.valueType;
+    metaProperty.flags = ToTypeRegistryFlags(
+        registration.flags, registration.metadata.flags);
+    metaProperty.access = PropertyAccessKind::Provider;
+    metaProperty.provider = DependencyPropertyProviderId;
     Base::Result<MemberId> registered = typeRegistry_->TryRegisterProperty(
-        registration.ownerType,
-        {registration.name,
-         registration.valueType,
-         ToTypeRegistryFlags(registration.flags, registration.metadata.flags)});
+        registration.ownerType, metaProperty);
     if (!registered) {
         static_cast<void>(memberIndex_.Erase(member));
         properties_.PopBack();
@@ -414,11 +418,14 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
 
     const MemberId aliasMember =
         MakeMemberId(ownerType, MemberKind::Property, property.Name());
+    PropertyRegistration metaProperty;
+    metaProperty.name = property.Name();
+    metaProperty.valueType = property.ValueType();
+    metaProperty.flags = ToTypeRegistryFlags(property.Flags(), metadata.flags);
+    metaProperty.access = PropertyAccessKind::Provider;
+    metaProperty.provider = DependencyPropertyProviderId;
     Base::Result<MemberId> alias = typeRegistry_->TryRegisterProperty(
-        ownerType,
-        {property.Name(),
-         property.ValueType(),
-         ToTypeRegistryFlags(property.Flags(), metadata.flags)});
+        ownerType, metaProperty);
     if (!alias) {
         static_cast<void>(memberIndex_.Erase(aliasMember));
         property.metadata_.PopBack();
@@ -757,52 +764,41 @@ Base::Result<void> DependencyObject::CoerceValue(
     return ApplyChange(property, nullptr, ChangeKind::ReCoerce, nullptr);
 }
 
-Base::Result<DependencyPropertyChangeSubscription>
-DependencyObject::AddValueChangedHandler(
+Base::Result<void> DependencyObject::TryAddValueChangedHandler(
     DependencyPropertyHandle property,
-    DependencyPropertyChangeHandler handler,
-    void* context) noexcept {
+    const DependencyPropertyChangedEventHandler& handler) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) {
         return ready.GetStatus();
     }
-    if (!property.IsValid() || handler == nullptr ||
+    if (!property.IsValid() || handler.Empty() ||
         registry_->Find(property) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Dependency property change handler registration is invalid");
     }
-    if (nextChangeHandler_ == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Dependency property change handler sequence is exhausted");
-    }
     ChangeHandlerRecord record;
-    record.subscription.value = nextChangeHandler_++;
     record.property = property;
     record.handler = handler;
-    record.context = context;
     record.active = true;
-    Base::Result<void> appended = changeHandlers_.TryPushBack(std::move(record));
-    if (!appended) {
-        --nextChangeHandler_;
-        return appended.GetStatus();
-    }
-    return changeHandlers_.Back().subscription;
+    return changeHandlers_.TryPushBack(std::move(record));
 }
 
 Base::Result<bool> DependencyObject::RemoveValueChangedHandler(
-    DependencyPropertyChangeSubscription subscription) noexcept {
+    DependencyPropertyHandle property,
+    const DependencyPropertyChangedEventHandler& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return access.GetStatus();
     }
-    if (!subscription.IsValid()) {
+    if (!property.IsValid() || handler.Empty()) {
         return false;
     }
-    for (std::uint32_t index = 0U; index < changeHandlers_.Size(); ++index) {
+    for (std::uint32_t count = changeHandlers_.Size(); count > 0U; --count) {
+        const std::uint32_t index = count - 1U;
         ChangeHandlerRecord& record = changeHandlers_[index];
-        if (record.subscription.value != subscription.value || !record.active) {
+        if (record.property != property || record.handler != handler ||
+            !record.active) {
             continue;
         }
         if (changeHandlerNotificationDepth_ != 0U) {
@@ -1001,7 +997,7 @@ Base::Result<void> DependencyObject::ApplyChange(
     if (newEffective != oldEffective) {
         const PropertyInvalidationFlags changeInvalidations =
             AccumulateInvalidations(metadata->flags);
-        if (metadata->changed != nullptr) {
+        if (!metadata->changed.Empty()) {
             const DependencyPropertyChangedEventArgs args{
                 propertyHandle,
                 oldEffective,
@@ -1062,7 +1058,7 @@ void DependencyObject::NotifyValueChanged(
         }
         ChangeHandlerRecord& record = changeHandlers_[index];
         if (record.active && record.property == args.property) {
-            record.handler(*this, args, record.context);
+            record.handler(*this, args);
         }
     }
     --changeHandlerNotificationDepth_;

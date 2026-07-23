@@ -47,16 +47,16 @@ public:
     XamlQualifiedName(const XamlQualifiedName&) = delete;
     XamlQualifiedName& operator=(const XamlQualifiedName&) = delete;
 
-    AERO_NODISCARD Base::StringView Prefix() const noexcept {
+    Base::StringView Prefix() const noexcept {
         return prefix_.View();
     }
-    AERO_NODISCARD Base::StringView LocalName() const noexcept {
+    Base::StringView LocalName() const noexcept {
         return localName_.View();
     }
-    AERO_NODISCARD Base::StringView NamespaceUri() const noexcept {
+    Base::StringView NamespaceUri() const noexcept {
         return namespaceUri_.View();
     }
-    AERO_NODISCARD bool HasNamespace() const noexcept {
+    bool HasNamespace() const noexcept {
         return !namespaceUri_.Empty();
     }
 
@@ -85,23 +85,23 @@ public:
 
     void Clear() noexcept;
 
-    AERO_NODISCARD XamlNodeKind Kind() const noexcept { return kind_; }
-    AERO_NODISCARD const XamlQualifiedName& Name() const noexcept {
+    XamlNodeKind Kind() const noexcept { return kind_; }
+    const XamlQualifiedName& Name() const noexcept {
         return name_;
     }
-    AERO_NODISCARD Base::StringView NamespacePrefix() const noexcept {
+    Base::StringView NamespacePrefix() const noexcept {
         return namespacePrefix_.View();
     }
-    AERO_NODISCARD Base::StringView NamespaceUri() const noexcept {
+    Base::StringView NamespaceUri() const noexcept {
         return namespaceUri_.View();
     }
-    AERO_NODISCARD Base::StringView Value() const noexcept {
+    Base::StringView Value() const noexcept {
         return value_.View();
     }
-    AERO_NODISCARD Core::SourceSpan Source() const noexcept {
+    Core::SourceSpan Source() const noexcept {
         return source_;
     }
-    AERO_NODISCARD bool IsFromAttribute() const noexcept {
+    bool IsFromAttribute() const noexcept {
         return fromAttribute_;
     }
 
@@ -126,9 +126,9 @@ public:
 
     void Reset() noexcept;
 
-    AERO_NODISCARD Base::Result<XamlNodeKind> Read(
+    Base::Result<XamlNodeKind> Read(
         XamlNode& node) noexcept;
-    AERO_NODISCARD std::uint32_t ObjectDepth() const noexcept {
+    std::uint32_t ObjectDepth() const noexcept {
         return scopes_.Size();
     }
 
@@ -172,51 +172,51 @@ private:
     bool ended_ = false;
     bool failed_ = false;
 
-    AERO_NODISCARD Base::Result<void> QueueStartElement(
+    Base::Result<void> QueueStartElement(
         const XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueEndElement(
+    Base::Result<void> QueueEndElement(
         const XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueText(
+    Base::Result<void> QueueText(
         const XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueEndOfDocument(
+    Base::Result<void> QueueEndOfDocument(
         const XmlToken& token) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueNamespaceDeclaration(
+    Base::Result<void> QueueNamespaceDeclaration(
         Base::StringView prefix,
         Base::StringView uri,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueObjectNode(
+    Base::Result<void> QueueObjectNode(
         XamlNodeKind kind,
         const XamlQualifiedName& name,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueMemberNodes(
+    Base::Result<void> QueueMemberNodes(
         const XmlAttribute& attribute) noexcept;
-    AERO_NODISCARD Base::Result<void> AppendPending(
+    Base::Result<void> AppendPending(
         XamlNode&& node) noexcept;
 
-    AERO_NODISCARD Base::Result<void> AddNamespaceBinding(
+    Base::Result<void> AddNamespaceBinding(
         Base::StringView prefix,
         Base::StringView uri,
         std::uint32_t bindingStart,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> ResolveQualifiedName(
+    Base::Result<void> ResolveQualifiedName(
         Base::StringView qualifiedName,
         bool useDefaultNamespace,
         Core::SourceSpan source,
         XamlQualifiedName& output) noexcept;
-    AERO_NODISCARD Base::Result<void> CopyQualifiedName(
+    Base::Result<void> CopyQualifiedName(
         const XamlQualifiedName& source,
         XamlQualifiedName& output) noexcept;
-    AERO_NODISCARD Base::StringView LookupNamespace(
+    Base::StringView LookupNamespace(
         Base::StringView prefix,
         bool& found) const noexcept;
-    AERO_NODISCARD bool IsNamespaceDeclaration(
+    bool IsNamespaceDeclaration(
         Base::StringView attributeName,
         Base::StringView& prefix) const noexcept;
     void PopBindings(std::uint32_t bindingStart) noexcept;
 
-    AERO_NODISCARD Base::Result<XamlNodeKind> EmitPending(
+    Base::Result<XamlNodeKind> EmitPending(
         XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Status Failure(
+    Base::Status Failure(
         Base::ErrorCode error,
         Core::DiagnosticCode diagnostic,
         Base::StringView message,

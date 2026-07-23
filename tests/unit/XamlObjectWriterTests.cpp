@@ -43,17 +43,17 @@ public:
         --liveCount_;
     }
 
-    AERO_NODISCARD StringView Title() const noexcept { return title_.View(); }
-    AERO_NODISCARD bool Enabled() const noexcept { return enabled_; }
-    AERO_NODISCARD std::int64_t Count() const noexcept { return count_; }
-    AERO_NODISCARD double Ratio() const noexcept { return ratio_; }
-    AERO_NODISCARD std::int64_t Row() const noexcept { return row_; }
-    AERO_NODISCARD bool IsLeaf() const noexcept { return leaf_; }
-    AERO_NODISCARD bool BeginCalled() const noexcept { return beginCalled_; }
-    AERO_NODISCARD bool EndCalled() const noexcept { return endCalled_; }
-    AERO_NODISCARD bool Aborted() const noexcept { return aborted_; }
-    AERO_NODISCARD const Ref<Object>& Child() const noexcept { return child_; }
-    AERO_NODISCARD Span<const Ref<Object>> Children() const noexcept {
+    StringView Title() const noexcept { return title_.View(); }
+    bool Enabled() const noexcept { return enabled_; }
+    std::int64_t Count() const noexcept { return count_; }
+    double Ratio() const noexcept { return ratio_; }
+    std::int64_t Row() const noexcept { return row_; }
+    bool IsLeaf() const noexcept { return leaf_; }
+    bool BeginCalled() const noexcept { return beginCalled_; }
+    bool EndCalled() const noexcept { return endCalled_; }
+    bool Aborted() const noexcept { return aborted_; }
+    const Ref<Object>& Child() const noexcept { return child_; }
+    Span<const Ref<Object>> Children() const noexcept {
         return {children_.Data(), children_.Size()};
     }
 
@@ -64,16 +64,16 @@ public:
         abortCount_ = 0U;
     }
 
-    AERO_NODISCARD static std::uint32_t LiveCount() noexcept {
+    static std::uint32_t LiveCount() noexcept {
         return liveCount_;
     }
-    AERO_NODISCARD static std::uint32_t BeginCount() noexcept {
+    static std::uint32_t BeginCount() noexcept {
         return beginCount_;
     }
-    AERO_NODISCARD static std::uint32_t EndCount() noexcept {
+    static std::uint32_t EndCount() noexcept {
         return endCount_;
     }
-    AERO_NODISCARD static std::uint32_t AbortCount() noexcept {
+    static std::uint32_t AbortCount() noexcept {
         return abortCount_;
     }
 

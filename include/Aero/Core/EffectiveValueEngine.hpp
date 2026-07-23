@@ -39,7 +39,7 @@ struct PropertyExpression final {
     PropertyExpressionCleanupCallback cleanup = nullptr;
     PropertyExpressionKind kind = PropertyExpressionKind::Custom;
 
-    AERO_NODISCARD bool IsValid() const noexcept {
+    bool IsValid() const noexcept {
         return evaluate != nullptr;
     }
 };
@@ -66,71 +66,71 @@ public:
     EffectiveValueEngine(EffectiveValueEngine&&) = delete;
     EffectiveValueEngine& operator=(EffectiveValueEngine&&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD bool IsInitialized() const noexcept {
+    Base::Result<void> Initialize() noexcept;
+    bool IsInitialized() const noexcept {
         return phaseHook_.IsValid();
     }
 
-    AERO_NODISCARD Base::Result<void> SetInheritanceParent(
+    Base::Result<void> SetInheritanceParent(
         DependencyObject& child,
         DependencyObject* parent) noexcept;
-    AERO_NODISCARD DependencyObject* InheritanceParent(
+    DependencyObject* InheritanceParent(
         const DependencyObject& child) const noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetStyleValue(
+    Base::Result<void> SetStyleValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearStyleValue(
+    Base::Result<void> ClearStyleValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetTemplateValue(
+    Base::Result<void> SetTemplateValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearTemplateValue(
+    Base::Result<void> ClearTemplateValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
     // Ownership of expression.context transfers only after this call succeeds.
-    AERO_NODISCARD Base::Result<void> SetLocalExpression(
+    Base::Result<void> SetLocalExpression(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyExpression& expression) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearLocalExpression(
+    Base::Result<void> ClearLocalExpression(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetAnimationValue(
+    Base::Result<void> SetAnimationValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearAnimationValue(
+    Base::Result<void> ClearAnimationValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Invalidate(
+    Base::Result<void> Invalidate(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
     // Processes only the queue snapshot that existed at entry. Changes queued by
     // inheritance propagation are deferred to the next PropertyChanges phase.
-    AERO_NODISCARD Base::Result<std::uint32_t> Flush() noexcept;
+    Base::Result<std::uint32_t> Flush() noexcept;
 
-    AERO_NODISCARD Base::Result<EffectiveValueDiagnostics> Diagnostics(
+    Base::Result<EffectiveValueDiagnostics> Diagnostics(
         const DependencyObject& object,
         DependencyPropertyHandle property) const noexcept;
 
     // Tracked objects are non-owning. Hosts must detach an object before its
     // destruction unless the engine itself is destroyed first.
-    AERO_NODISCARD Base::Result<void> DetachObject(
+    Base::Result<void> DetachObject(
         DependencyObject& object) noexcept;
 
-    AERO_NODISCARD std::uint32_t TrackedPropertyCount() const noexcept {
+    std::uint32_t TrackedPropertyCount() const noexcept {
         return entries_.Size();
     }
-    AERO_NODISCARD std::uint32_t PendingPropertyCount() const noexcept;
+    std::uint32_t PendingPropertyCount() const noexcept;
 
 private:
     struct ProviderSlot final {
@@ -178,34 +178,34 @@ private:
     std::uint64_t nextRevision_ = 1U;
     bool flushing_ = false;
 
-    AERO_NODISCARD Base::Result<void> VerifyMutable() const noexcept;
-    AERO_NODISCARD std::uint32_t FindEntryIndex(
+    Base::Result<void> VerifyMutable() const noexcept;
+    std::uint32_t FindEntryIndex(
         const DependencyObject& object,
         DependencyPropertyHandle property) const noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> EnsureEntry(
+    Base::Result<std::uint32_t> EnsureEntry(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
-    AERO_NODISCARD std::uint32_t FindParentIndex(
+    std::uint32_t FindParentIndex(
         const DependencyObject& child) const noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetProviderValue(
+    Base::Result<void> SetProviderValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         EffectiveValueProvider provider,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearProviderValue(
+    Base::Result<void> ClearProviderValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         EffectiveValueProvider provider) noexcept;
 
-    AERO_NODISCARD Base::Result<void> QueueEntry(
+    Base::Result<void> QueueEntry(
         std::uint32_t index) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueDescendants(
+    Base::Result<void> QueueDescendants(
         DependencyObject& parent,
         DependencyPropertyHandle property) noexcept;
-    AERO_NODISCARD Base::Result<Resolution> Resolve(
+    Base::Result<Resolution> Resolve(
         Entry& entry) noexcept;
-    AERO_NODISCARD Base::Result<void> Apply(
+    Base::Result<void> Apply(
         Entry& entry,
         const Resolution& resolution) noexcept;
 

@@ -32,11 +32,11 @@ public:
     public:
         IteratorBase() noexcept = default;
 
-        AERO_NODISCARD const T& operator*() const noexcept {
+        const T& operator*() const noexcept {
             return iterator_->Key();
         }
 
-        AERO_NODISCARD const T* operator->() const noexcept {
+        const T* operator->() const noexcept {
             return &iterator_->Key();
         }
 
@@ -45,11 +45,11 @@ public:
             return *this;
         }
 
-        AERO_NODISCARD bool operator==(const IteratorBase& other) const noexcept {
+        bool operator==(const IteratorBase& other) const noexcept {
             return iterator_ == other.iterator_;
         }
 
-        AERO_NODISCARD bool operator!=(const IteratorBase& other) const noexcept {
+        bool operator!=(const IteratorBase& other) const noexcept {
             return !(*this == other);
         }
 
@@ -77,36 +77,36 @@ public:
     HashSet& operator=(HashSet&&) noexcept = default;
     ~HashSet() = default;
 
-    AERO_NODISCARD SizeType Size() const noexcept { return map_.Size(); }
-    AERO_NODISCARD SizeType Capacity() const noexcept { return map_.Capacity(); }
-    AERO_NODISCARD bool Empty() const noexcept { return map_.Empty(); }
-    AERO_NODISCARD HashCode Seed() const noexcept { return map_.Seed(); }
-    AERO_NODISCARD IAllocator& Allocator() const noexcept { return map_.Allocator(); }
+    SizeType Size() const noexcept { return map_.Size(); }
+    SizeType Capacity() const noexcept { return map_.Capacity(); }
+    bool Empty() const noexcept { return map_.Empty(); }
+    HashCode Seed() const noexcept { return map_.Seed(); }
+    IAllocator& Allocator() const noexcept { return map_.Allocator(); }
 
-    AERO_NODISCARD Iterator begin() noexcept { return Iterator(map_.begin()); }
-    AERO_NODISCARD Iterator end() noexcept { return Iterator(map_.end()); }
-    AERO_NODISCARD ConstIterator begin() const noexcept {
+    Iterator begin() noexcept { return Iterator(map_.begin()); }
+    Iterator end() noexcept { return Iterator(map_.end()); }
+    ConstIterator begin() const noexcept {
         return ConstIterator(map_.begin());
     }
-    AERO_NODISCARD ConstIterator end() const noexcept {
+    ConstIterator end() const noexcept {
         return ConstIterator(map_.end());
     }
 
     void Clear() noexcept { map_.Clear(); }
 
-    AERO_NODISCARD Result<void> TryReserve(SizeType expectedElements) noexcept {
+    Result<void> TryReserve(SizeType expectedElements) noexcept {
         return map_.TryReserve(expectedElements);
     }
 
-    AERO_NODISCARD bool Contains(const T& value) const noexcept {
+    bool Contains(const T& value) const noexcept {
         return map_.Contains(value);
     }
 
-    AERO_NODISCARD bool Erase(const T& value) noexcept {
+    bool Erase(const T& value) noexcept {
         return map_.Erase(value);
     }
 
-    AERO_NODISCARD Result<InsertResult> TryInsert(const T& value) noexcept {
+    Result<InsertResult> TryInsert(const T& value) noexcept {
         Result<typename Map::InsertResult> result = map_.TryInsert(
             value, Detail::HashSetMarker{});
         if (!result) {
@@ -115,7 +115,7 @@ public:
         return InsertResult{&result.Value().entry->Key(), result.Value().inserted};
     }
 
-    AERO_NODISCARD Result<InsertResult> TryInsert(T&& value) noexcept {
+    Result<InsertResult> TryInsert(T&& value) noexcept {
         Result<typename Map::InsertResult> result = map_.TryInsert(
             std::move(value), Detail::HashSetMarker{});
         if (!result) {

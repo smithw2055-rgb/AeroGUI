@@ -54,58 +54,58 @@ public:
     D3D11GraphicsBackend(const D3D11GraphicsBackend&) = delete;
     D3D11GraphicsBackend& operator=(const D3D11GraphicsBackend&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    AERO_NODISCARD bool IsInitialized() const noexcept;
-    AERO_NODISCARD std::uintptr_t NativeDevice() const noexcept;
-    AERO_NODISCARD std::uintptr_t NativeImmediateContext() const noexcept;
-    AERO_NODISCARD std::uint32_t NativeFeatureLevel() const noexcept;
-    AERO_NODISCARD std::uint32_t LiveResourceCount() const noexcept;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override;
+    bool IsInitialized() const noexcept;
+    std::uintptr_t NativeDevice() const noexcept;
+    std::uintptr_t NativeImmediateContext() const noexcept;
+    std::uint32_t NativeFeatureLevel() const noexcept;
+    std::uint32_t LiveResourceCount() const noexcept;
+    FenceValue LastSubmittedFence() const noexcept override;
 
-    AERO_NODISCARD Base::Result<void> ImportExternalRenderTarget(
+    Base::Result<void> ImportExternalRenderTarget(
         ResourceHandle handle,
         const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept;
 
-    AERO_NODISCARD Base::Result<void> ReadbackTexture(
+    Base::Result<void> ReadbackTexture(
         ResourceHandle handle,
         Base::Span<std::uint8_t> destination,
         std::uint32_t destinationRowPitch) noexcept;
-    AERO_NODISCARD Base::Result<std::uint64_t> ReadbackTextureChecksum(
+    Base::Result<std::uint64_t> ReadbackTextureChecksum(
         ResourceHandle handle) noexcept;
-    AERO_NODISCARD Base::Result<void> WaitForFence(
+    Base::Result<void> WaitForFence(
         FenceValue fence,
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
 
-    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
-    AERO_NODISCARD GraphicsBackendKind Kind() const noexcept override {
+    DeviceCapabilities Capabilities() const noexcept override;
+    GraphicsBackendKind Kind() const noexcept override {
         return GraphicsBackendKind::D3D11;
     }
-    AERO_NODISCARD GraphicsCapabilities
+    GraphicsCapabilities
     QueryGraphicsCapabilities() const noexcept override;
 
-    AERO_NODISCARD Base::Result<void> CreateResource(
+    Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept override;
     void DestroyResource(ResourceHandle handle) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureTexture(
+    Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
         const TextureResourceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureSampler(
+    Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
         const SamplerDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigurePipeline(
+    Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD Base::Result<void> SubmitGraphics(
+    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
-    AERO_NODISCARD bool IsDeviceLost() const noexcept override;
+    FenceValue CompletedFence() const noexcept override;
+    bool IsDeviceLost() const noexcept override;
 
 private:
     friend class D3D11SwapChainSurface;
@@ -131,27 +131,27 @@ public:
     D3D11SwapChainSurface(const D3D11SwapChainSurface&) = delete;
     D3D11SwapChainSurface& operator=(const D3D11SwapChainSurface&) = delete;
 
-    AERO_NODISCARD std::uintptr_t NativeSwapChain() const noexcept;
-    AERO_NODISCARD bool OwnsSwapChain() const noexcept;
+    std::uintptr_t NativeSwapChain() const noexcept;
+    bool OwnsSwapChain() const noexcept;
 
-    AERO_NODISCARD SurfaceCapabilities
+    SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept override;
-    AERO_NODISCARD Base::Result<void> CreateSurface(
+    Base::Result<void> CreateSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept override;
     void DestroySurface() noexcept override;
-    AERO_NODISCARD Base::Result<void> ResizeSurface(
+    Base::Result<void> ResizeSurface(
         std::uint32_t width,
         std::uint32_t height) noexcept override;
-    AERO_NODISCARD Base::Result<ExternalRenderTargetDescriptor>
+    Base::Result<ExternalRenderTargetDescriptor>
     AcquireSurfaceTarget(std::uint64_t frameSerial) noexcept override;
-    AERO_NODISCARD Base::Result<void> PresentSurface(
+    Base::Result<void> PresentSurface(
         std::uint64_t frameSerial,
         FenceValue signalFence) noexcept override;
     void DiscardSurfaceFrame(std::uint64_t frameSerial) noexcept override;
     void NotifySurfaceLost() noexcept override;
-    AERO_NODISCARD Base::Result<void> RestoreSurface(
+    Base::Result<void> RestoreSurface(
         const NativeSurfaceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD bool IsSurfaceLost() const noexcept override;
+    bool IsSurfaceLost() const noexcept override;
 
 private:
     struct Impl;
@@ -165,7 +165,7 @@ struct D3D11SurfaceFrame final {
     SurfaceFrame surface;
     ResourceHandle renderTarget;
 
-    AERO_NODISCARD bool IsValid() const noexcept {
+    bool IsValid() const noexcept {
         return surface.frameSerial != 0U && renderTarget.IsValid();
     }
 };
@@ -181,25 +181,25 @@ public:
     D3D11SurfacePresenter(const D3D11SurfacePresenter&) = delete;
     D3D11SurfacePresenter& operator=(const D3D11SurfacePresenter&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    AERO_NODISCARD Base::Result<D3D11SurfaceFrame> AcquireFrame() noexcept;
-    AERO_NODISCARD Base::Result<FenceValue> SubmitAndPresent(
+    Base::Result<D3D11SurfaceFrame> AcquireFrame() noexcept;
+    Base::Result<FenceValue> SubmitAndPresent(
         D3D11SurfaceFrame& frame,
         const GraphicsCommandBuffer& commands) noexcept;
-    AERO_NODISCARD Base::Result<void> DiscardFrame(
+    Base::Result<void> DiscardFrame(
         D3D11SurfaceFrame& frame) noexcept;
-    AERO_NODISCARD Base::Result<void> Resize(
+    Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height,
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    Base::Result<std::uint32_t> CollectGarbage() noexcept;
 
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept {
+    FenceValue LastSubmittedFence() const noexcept {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD bool HasFrameInFlight() const noexcept {
+    bool HasFrameInFlight() const noexcept {
         return active_.IsValid();
     }
 
@@ -211,10 +211,10 @@ private:
     FenceValue lastSubmittedFence_ = 0U;
     bool initialized_ = false;
 
-    AERO_NODISCARD bool Matches(
+    bool Matches(
         const D3D11SurfaceFrame& frame) const noexcept;
     void ClearFrame(D3D11SurfaceFrame& frame) noexcept;
-    AERO_NODISCARD Base::Result<void> RetireRenderTarget(
+    Base::Result<void> RetireRenderTarget(
         ResourceHandle handle,
         FenceValue fence) noexcept;
 };
@@ -254,32 +254,32 @@ public:
     D3D11RenderPlanBackend(const D3D11RenderPlanBackend&) = delete;
     D3D11RenderPlanBackend& operator=(const D3D11RenderPlanBackend&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
     // Image resources stay owned by the caller. They must remain alive until
     // no submitted frame can reference them, then be unregistered before destruction.
-    AERO_NODISCARD Base::Result<void> RegisterImage(
+    Base::Result<void> RegisterImage(
         Core::RenderImageId image,
         ResourceHandle texture,
         ResourceHandle sampler) noexcept;
-    AERO_NODISCARD Base::Result<void> UnregisterImage(
+    Base::Result<void> UnregisterImage(
         Core::RenderImageId image) noexcept;
 
     // Mesh vertex buffers use Float2 position at byte offset zero followed by
     // Float4 vertex color at byte offset eight; meshes use indexed triangles.
-    AERO_NODISCARD Base::Result<void> RegisterMesh(
+    Base::Result<void> RegisterMesh(
         Core::RenderMeshId mesh,
         ResourceHandle vertexBuffer,
         ResourceHandle indexBuffer,
         std::uint32_t indexCount,
         IndexType indexType = IndexType::UInt16) noexcept;
-    AERO_NODISCARD Base::Result<void> UnregisterMesh(
+    Base::Result<void> UnregisterMesh(
         Core::RenderMeshId mesh) noexcept;
 
     // Glyph vertices use Float2 position followed by Float2 atlas UV. The
     // sampled atlas is R8Unorm; its alpha coverage is multiplied by tint.
-    AERO_NODISCARD Base::Result<void> RegisterGlyphRun(
+    Base::Result<void> RegisterGlyphRun(
         Core::RenderGlyphRunId glyphRun,
         ResourceHandle vertexBuffer,
         ResourceHandle indexBuffer,
@@ -287,15 +287,15 @@ public:
         ResourceHandle atlasTexture,
         ResourceHandle sampler,
         IndexType indexType = IndexType::UInt16) noexcept;
-    AERO_NODISCARD Base::Result<void> UnregisterGlyphRun(
+    Base::Result<void> UnregisterGlyphRun(
         Core::RenderGlyphRunId glyphRun) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const Core::RenderPlan& plan) noexcept override;
 
-    AERO_NODISCARD bool IsInitialized() const noexcept;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept;
-    AERO_NODISCARD D3D11RenderPlanSubmitStatistics
+    bool IsInitialized() const noexcept;
+    FenceValue LastSubmittedFence() const noexcept;
+    D3D11RenderPlanSubmitStatistics
     LastSubmitStatistics() const noexcept;
 
 private:
@@ -308,7 +308,7 @@ private:
     Impl* impl_ = nullptr;
 };
 
-AERO_NODISCARD AERO_API Base::Result<ResourceHandle>
+AERO_API Base::Result<ResourceHandle>
 ImportD3D11ExternalRenderTarget(
     RhiDevice& device,
     D3D11GraphicsBackend& backend,

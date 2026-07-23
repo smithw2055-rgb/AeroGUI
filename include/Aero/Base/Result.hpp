@@ -36,22 +36,22 @@ struct Status final {
     constexpr Status(ErrorCode value, const char* text) noexcept
         : code(value), message(text != nullptr ? text : "") {}
 
-    AERO_NODISCARD constexpr bool IsOk() const noexcept {
+    constexpr bool IsOk() const noexcept {
         return code == ErrorCode::Ok;
     }
 
-    AERO_NODISCARD static constexpr Status Ok() noexcept {
+    static constexpr Status Ok() noexcept {
         return {};
     }
 
-    AERO_NODISCARD static constexpr Status Failure(
+    static constexpr Status Failure(
         ErrorCode code, const char* message) noexcept {
         return {code, message};
     }
 };
 
 template<class T>
-class AERO_NODISCARD Result final {
+class Result final {
 public:
     Result(const T& value)
         : hasValue_(true) {
@@ -123,30 +123,30 @@ public:
         Destroy();
     }
 
-    AERO_NODISCARD bool HasValue() const noexcept {
+    bool HasValue() const noexcept {
         return hasValue_;
     }
 
-    AERO_NODISCARD explicit operator bool() const noexcept {
+    explicit operator bool() const noexcept {
         return HasValue();
     }
 
-    AERO_NODISCARD T& Value() & noexcept {
+    T& Value() & noexcept {
         AERO_ASSERT(hasValue_);
         return storage_.value;
     }
 
-    AERO_NODISCARD const T& Value() const& noexcept {
+    const T& Value() const& noexcept {
         AERO_ASSERT(hasValue_);
         return storage_.value;
     }
 
-    AERO_NODISCARD T&& Value() && noexcept {
+    T&& Value() && noexcept {
         AERO_ASSERT(hasValue_);
         return std::move(storage_.value);
     }
 
-    AERO_NODISCARD Status GetStatus() const noexcept {
+    Status GetStatus() const noexcept {
         return hasValue_ ? Status::Ok() : storage_.status;
     }
 
@@ -171,22 +171,22 @@ private:
 };
 
 template<>
-class AERO_NODISCARD Result<void> final {
+class Result<void> final {
 public:
     Result() noexcept = default;
 
     Result(Status status) noexcept
         : status_(status) {}
 
-    AERO_NODISCARD bool HasValue() const noexcept {
+    bool HasValue() const noexcept {
         return status_.IsOk();
     }
 
-    AERO_NODISCARD explicit operator bool() const noexcept {
+    explicit operator bool() const noexcept {
         return HasValue();
     }
 
-    AERO_NODISCARD Status GetStatus() const noexcept {
+    Status GetStatus() const noexcept {
         return status_;
     }
 

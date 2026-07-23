@@ -12,7 +12,7 @@ namespace Aero::Base {
 
 using HashCode = std::uint64_t;
 
-AERO_NODISCARD constexpr HashCode MixHash64(HashCode value) noexcept {
+constexpr HashCode MixHash64(HashCode value) noexcept {
     value ^= value >> 30U;
     value *= UINT64_C(0xBF58476D1CE4E5B9);
     value ^= value >> 27U;
@@ -21,7 +21,7 @@ AERO_NODISCARD constexpr HashCode MixHash64(HashCode value) noexcept {
     return value;
 }
 
-AERO_NODISCARD inline HashCode HashBytes(
+inline HashCode HashBytes(
     const void* data, std::uint32_t size, HashCode seed = 0U) noexcept {
     constexpr HashCode OffsetBasis = UINT64_C(14695981039346656037);
     constexpr HashCode Prime = UINT64_C(1099511628211);
@@ -40,7 +40,7 @@ struct DefaultHash;
 template<class T>
 struct DefaultHash<T, std::enable_if_t<
     std::is_integral<T>::value && !std::is_same<T, bool>::value>> final {
-    AERO_NODISCARD HashCode operator()(T value, HashCode seed = 0U) const noexcept {
+    HashCode operator()(T value, HashCode seed = 0U) const noexcept {
         using Unsigned = typename std::make_unsigned<T>::type;
         return MixHash64(static_cast<HashCode>(static_cast<Unsigned>(value)) ^ seed);
     }
@@ -48,7 +48,7 @@ struct DefaultHash<T, std::enable_if_t<
 
 template<>
 struct DefaultHash<bool, void> final {
-    AERO_NODISCARD HashCode operator()(
+    HashCode operator()(
         bool value, HashCode seed = 0U) const noexcept {
         return MixHash64((value ? HashCode{1U} : HashCode{0U}) ^ seed);
     }
@@ -56,7 +56,7 @@ struct DefaultHash<bool, void> final {
 
 template<class T>
 struct DefaultHash<T, std::enable_if_t<std::is_enum<T>::value>> final {
-    AERO_NODISCARD HashCode operator()(T value, HashCode seed = 0U) const noexcept {
+    HashCode operator()(T value, HashCode seed = 0U) const noexcept {
         using Underlying = typename std::underlying_type<T>::type;
         using Unsigned = typename std::make_unsigned<Underlying>::type;
         return MixHash64(static_cast<HashCode>(
@@ -66,7 +66,7 @@ struct DefaultHash<T, std::enable_if_t<std::is_enum<T>::value>> final {
 
 template<class T>
 struct DefaultHash<T*, void> final {
-    AERO_NODISCARD HashCode operator()(const T* value, HashCode seed = 0U) const noexcept {
+    HashCode operator()(const T* value, HashCode seed = 0U) const noexcept {
         return MixHash64(static_cast<HashCode>(
             reinterpret_cast<std::uintptr_t>(value)) ^ seed);
     }
@@ -74,7 +74,7 @@ struct DefaultHash<T*, void> final {
 
 template<>
 struct DefaultHash<StringView, void> final {
-    AERO_NODISCARD HashCode operator()(
+    HashCode operator()(
         StringView value, HashCode seed = 0U) const noexcept {
         return HashBytes(value.Data(), value.SizeBytes(), seed);
     }
@@ -82,7 +82,7 @@ struct DefaultHash<StringView, void> final {
 
 template<>
 struct DefaultHash<String, void> final {
-    AERO_NODISCARD HashCode operator()(
+    HashCode operator()(
         const String& value, HashCode seed = 0U) const noexcept {
         return HashBytes(value.View().Data(), value.View().SizeBytes(), seed);
     }
@@ -90,7 +90,7 @@ struct DefaultHash<String, void> final {
 
 template<class T>
 struct DefaultEqual final {
-    AERO_NODISCARD bool operator()(const T& left, const T& right) const
+    bool operator()(const T& left, const T& right) const
         noexcept(noexcept(left == right)) {
         return left == right;
     }
@@ -98,7 +98,7 @@ struct DefaultEqual final {
 
 template<>
 struct DefaultEqual<String> final {
-    AERO_NODISCARD bool operator()(
+    bool operator()(
         const String& left, const String& right) const noexcept {
         return left.View() == right.View();
     }

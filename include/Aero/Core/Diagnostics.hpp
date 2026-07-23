@@ -40,7 +40,7 @@ enum class DiagnosticDomain : std::uint8_t {
 struct DiagnosticCode final {
     std::uint32_t value = 0U;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         const DiagnosticDomain domain = Domain();
         const std::uint16_t number = Number();
         return domain > DiagnosticDomain::Invalid &&
@@ -48,16 +48,16 @@ struct DiagnosticCode final {
             number > 0U && number <= 9999U;
     }
 
-    AERO_NODISCARD constexpr DiagnosticDomain Domain() const noexcept {
+    constexpr DiagnosticDomain Domain() const noexcept {
         return static_cast<DiagnosticDomain>((value >> 16U) & 0xFFU);
     }
 
-    AERO_NODISCARD constexpr std::uint16_t Number() const noexcept {
+    constexpr std::uint16_t Number() const noexcept {
         return static_cast<std::uint16_t>(value & 0xFFFFU);
     }
 };
 
-AERO_NODISCARD constexpr DiagnosticCode MakeDiagnosticCode(
+constexpr DiagnosticCode MakeDiagnosticCode(
     DiagnosticDomain domain,
     std::uint16_t number) noexcept {
     return domain > DiagnosticDomain::Invalid &&
@@ -69,13 +69,13 @@ AERO_NODISCARD constexpr DiagnosticCode MakeDiagnosticCode(
         : DiagnosticCode{};
 }
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr bool operator==(
     DiagnosticCode left,
     DiagnosticCode right) noexcept {
     return left.value == right.value;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     DiagnosticCode left,
     DiagnosticCode right) noexcept {
     return !(left == right);
@@ -87,7 +87,7 @@ struct SourcePosition final {
     std::uint32_t column = 0U;
     std::uint64_t byteOffset = 0U;
 
-    AERO_NODISCARD constexpr bool IsKnown() const noexcept {
+    constexpr bool IsKnown() const noexcept {
         return line != 0U || column != 0U;
     }
 };
@@ -101,12 +101,12 @@ struct SourceSpan final {
 using DiagnosticObjectId = std::uint64_t;
 inline constexpr DiagnosticObjectId InvalidDiagnosticObjectId = 0U;
 
-AERO_NODISCARD AERO_API bool IsValidSourcePosition(
+AERO_API bool IsValidSourcePosition(
     SourcePosition position) noexcept;
-AERO_NODISCARD AERO_API bool IsValidSourceSpan(SourceSpan span) noexcept;
-AERO_NODISCARD AERO_API Base::StringView DiagnosticPrefix(
+AERO_API bool IsValidSourceSpan(SourceSpan span) noexcept;
+AERO_API Base::StringView DiagnosticPrefix(
     DiagnosticDomain domain) noexcept;
-AERO_NODISCARD AERO_API Base::Result<void> TryFormatDiagnosticCode(
+AERO_API Base::Result<void> TryFormatDiagnosticCode(
     DiagnosticCode code,
     Base::String& output) noexcept;
 
@@ -118,8 +118,8 @@ public:
     DiagnosticNote(const DiagnosticNote&) = delete;
     DiagnosticNote& operator=(const DiagnosticNote&) = delete;
 
-    AERO_NODISCARD SourceSpan Source() const noexcept { return source_; }
-    AERO_NODISCARD Base::StringView Message() const noexcept {
+    SourceSpan Source() const noexcept { return source_; }
+    Base::StringView Message() const noexcept {
         return message_.View();
     }
 
@@ -141,7 +141,7 @@ public:
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
 
-    AERO_NODISCARD static Base::Result<Diagnostic> TryCreate(
+    static Base::Result<Diagnostic> TryCreate(
         DiagnosticCode code,
         DiagnosticSeverity severity,
         Base::StringView message,
@@ -150,24 +150,24 @@ public:
         MemberId member = InvalidMemberId,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> TryAddNote(
+    Base::Result<void> TryAddNote(
         Base::StringView message,
         SourceSpan source = {}) noexcept;
 
-    AERO_NODISCARD DiagnosticCode Code() const noexcept { return code_; }
-    AERO_NODISCARD DiagnosticSeverity Severity() const noexcept {
+    DiagnosticCode Code() const noexcept { return code_; }
+    DiagnosticSeverity Severity() const noexcept {
         return severity_;
     }
-    AERO_NODISCARD Base::StringView Message() const noexcept {
+    Base::StringView Message() const noexcept {
         return message_.View();
     }
-    AERO_NODISCARD SourceSpan Source() const noexcept { return source_; }
-    AERO_NODISCARD DiagnosticObjectId Object() const noexcept { return object_; }
-    AERO_NODISCARD MemberId Member() const noexcept { return member_; }
-    AERO_NODISCARD Base::Span<const DiagnosticNote> Notes() const noexcept {
+    SourceSpan Source() const noexcept { return source_; }
+    DiagnosticObjectId Object() const noexcept { return object_; }
+    MemberId Member() const noexcept { return member_; }
+    Base::Span<const DiagnosticNote> Notes() const noexcept {
         return {notes_.Data(), notes_.Size()};
     }
-    AERO_NODISCARD bool IsError() const noexcept {
+    bool IsError() const noexcept {
         return severity_ == DiagnosticSeverity::Error ||
             severity_ == DiagnosticSeverity::Fatal;
     }
@@ -189,7 +189,7 @@ class AERO_API IDiagnosticSink {
 public:
     virtual ~IDiagnosticSink() = default;
 
-    AERO_NODISCARD virtual Base::Result<void> Report(
+    virtual Base::Result<void> Report(
         Diagnostic&& diagnostic) noexcept = 0;
 };
 
@@ -199,10 +199,10 @@ public:
         std::uint32_t maxDiagnostics = 1024U,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Report(
+    Base::Result<void> Report(
         Diagnostic&& diagnostic) noexcept override;
 
-    AERO_NODISCARD Base::Result<void> TryReport(
+    Base::Result<void> TryReport(
         DiagnosticCode code,
         DiagnosticSeverity severity,
         Base::StringView message,
@@ -212,23 +212,23 @@ public:
 
     void Clear() noexcept;
 
-    AERO_NODISCARD Base::Span<const Diagnostic> Items() const noexcept {
+    Base::Span<const Diagnostic> Items() const noexcept {
         return {items_.Data(), items_.Size()};
     }
-    AERO_NODISCARD std::uint32_t Size() const noexcept { return items_.Size(); }
-    AERO_NODISCARD std::uint32_t MaxDiagnostics() const noexcept {
+    std::uint32_t Size() const noexcept { return items_.Size(); }
+    std::uint32_t MaxDiagnostics() const noexcept {
         return maxDiagnostics_;
     }
-    AERO_NODISCARD std::uint32_t WarningCount() const noexcept {
+    std::uint32_t WarningCount() const noexcept {
         return warningCount_;
     }
-    AERO_NODISCARD std::uint32_t ErrorCount() const noexcept {
+    std::uint32_t ErrorCount() const noexcept {
         return errorCount_;
     }
-    AERO_NODISCARD std::uint32_t DroppedCount() const noexcept {
+    std::uint32_t DroppedCount() const noexcept {
         return droppedCount_;
     }
-    AERO_NODISCARD bool HasErrors() const noexcept { return errorCount_ != 0U; }
+    bool HasErrors() const noexcept { return errorCount_ != 0U; }
 
 private:
     Base::IAllocator* allocator_ = nullptr;

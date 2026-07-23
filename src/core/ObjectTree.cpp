@@ -21,6 +21,59 @@ Base::Status NotFound(const char* message) noexcept {
 
 } // namespace
 
+Detail::RoutedHandlerStorage::RoutedHandlerStorage(
+    const RoutedHandlerStorage& other) noexcept
+    : operations_(other.operations_), argsType_(other.argsType_) {
+    if (operations_ != nullptr) operations_->copy(storage_, other.storage_);
+}
+
+Detail::RoutedHandlerStorage::RoutedHandlerStorage(
+    RoutedHandlerStorage&& other) noexcept
+    : RoutedHandlerStorage(static_cast<const RoutedHandlerStorage&>(other)) {
+    other.Reset();
+}
+
+Detail::RoutedHandlerStorage& Detail::RoutedHandlerStorage::operator=(
+    const RoutedHandlerStorage& other) noexcept {
+    if (this != &other) {
+        Reset();
+        operations_ = other.operations_;
+        argsType_ = other.argsType_;
+        if (operations_ != nullptr) operations_->copy(storage_, other.storage_);
+    }
+    return *this;
+}
+
+Detail::RoutedHandlerStorage& Detail::RoutedHandlerStorage::operator=(
+    RoutedHandlerStorage&& other) noexcept {
+    if (this != &other) {
+        *this = static_cast<const RoutedHandlerStorage&>(other);
+        other.Reset();
+    }
+    return *this;
+}
+
+Detail::RoutedHandlerStorage::~RoutedHandlerStorage() noexcept { Reset(); }
+
+void Detail::RoutedHandlerStorage::Reset() noexcept {
+    if (operations_ != nullptr) operations_->destroy(storage_);
+    operations_ = nullptr;
+    argsType_ = InvalidTypeId;
+}
+
+bool Detail::RoutedHandlerStorage::Equals(
+    const RoutedHandlerStorage& other) const noexcept {
+    return operations_ == other.operations_ && argsType_ == other.argsType_ &&
+        (operations_ == nullptr || operations_->equals(storage_, other.storage_));
+}
+
+void Detail::RoutedHandlerStorage::Invoke(
+    Base::Object* sender,
+    const RoutedEventArgs& args) const noexcept {
+    AERO_ASSERT(operations_ != nullptr && args.eventArgsType == argsType_);
+    operations_->invoke(storage_, sender, args);
+}
+
 TreeNode::TreeNode(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& registry,
@@ -40,62 +93,49 @@ TreeNode::~TreeNode() {
     CleanupHandlers();
 }
 
-Base::Result<RoutedEventHandlerToken> TreeNode::AddHandler(
+Base::Result<void> TreeNode::TryAddHandler(
     RoutedEventHandle event,
-    RoutedEventHandler handler,
-    void* context,
-    RoutedEventCleanup cleanup,
+    const Detail::RoutedHandlerStorage& handler,
     bool handledEventsToo) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return access.GetStatus();
     }
-    if (!event.IsValid() || handler == nullptr) {
+    if (!event.IsValid() || handler.Empty()) {
         return InvalidArgument("Routed event handler requires a valid event and callback");
     }
-    if (nextHandlerToken_ == 0U || nextHandlerSequence_ == 0U) {
+    if (nextHandlerSequence_ == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
-            "Routed event handler token space exhausted");
+            "Routed event handler sequence space exhausted");
     }
 
     HandlerRecord record;
-    record.token.value = nextHandlerToken_;
     record.event = event;
     record.handler = handler;
-    record.cleanup = cleanup;
-    record.context = context;
     record.sequence = nextHandlerSequence_;
     record.handledEventsToo = handledEventsToo;
     Base::Result<void> appended = handlers_.TryPushBack(record);
     if (!appended) {
         return appended.GetStatus();
     }
-    ++nextHandlerToken_;
     ++nextHandlerSequence_;
-    return record.token;
+    return {};
 }
 
-Base::Result<bool> TreeNode::RemoveHandler(
-    RoutedEventHandlerToken token) noexcept {
+bool TreeNode::RemoveHandler(
+    RoutedEventHandle event,
+    const Detail::RoutedHandlerStorage& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return access.GetStatus();
-    }
-    if (!token.IsValid()) {
-        return InvalidArgument("Routed event handler token is invalid");
-    }
+    if (!access || !event.IsValid() || handler.Empty()) return false;
     for (std::uint32_t index = 0U; index < handlers_.Size(); ++index) {
-        if (handlers_[index].token.value == token.value) {
-            HandlerRecord removed = handlers_[index];
+        if (handlers_[index].event == event &&
+            handlers_[index].handler.Equals(handler)) {
             for (std::uint32_t current = index + 1U;
                  current < handlers_.Size(); ++current) {
-                handlers_[current - 1U] = handlers_[current];
+                handlers_[current - 1U] = std::move(handlers_[current]);
             }
             handlers_.PopBack();
-            if (removed.cleanup != nullptr) {
-                removed.cleanup(removed.context);
-            }
             return true;
         }
     }
@@ -103,11 +143,6 @@ Base::Result<bool> TreeNode::RemoveHandler(
 }
 
 void TreeNode::CleanupHandlers() noexcept {
-    for (HandlerRecord& record : handlers_) {
-        if (record.cleanup != nullptr) {
-            record.cleanup(record.context);
-        }
-    }
     handlers_.Clear();
 }
 
@@ -631,34 +666,6 @@ const RoutedEventRegistry::EventRecord* RoutedEventRegistry::Find(
     return nullptr;
 }
 
-Base::Result<void> RoutedEventRegistry::RegisterClassHandler(
-    RoutedEventHandle event,
-    TypeId classType,
-    RoutedEventHandler handler,
-    void* context,
-    RoutedEventCleanup cleanup,
-    bool handledEventsToo) noexcept {
-    if (!frozen_) {
-        return InvalidState("RoutedEventRegistry must be frozen before handlers");
-    }
-    if (raising_) {
-        return InvalidState("Cannot mutate class handlers during routed event dispatch");
-    }
-    if (Find(event) == nullptr || types_->FindType(classType) == nullptr ||
-        handler == nullptr) {
-        return InvalidArgument("Class handler registration is invalid");
-    }
-    ClassHandlerRecord record;
-    record.event = event;
-    record.classType = classType;
-    record.handler = handler;
-    record.context = context;
-    record.cleanup = cleanup;
-    record.handledEventsToo = handledEventsToo;
-    record.sequence = nextClassSequence_++;
-    return classHandlers_.TryPushBack(record);
-}
-
 Base::Result<void> RoutedEventRegistry::BuildRoute(
     TreeNode& source,
     RoutingStrategy strategy,
@@ -691,19 +698,19 @@ void RoutedEventRegistry::InvokeNode(
     TreeNode& node,
     RoutedEventArgs& args) noexcept {
     for (const ClassHandlerRecord& record : classHandlers_) {
-        if (record.event == args.event &&
+        if (record.event == args.routedEvent &&
             types_->IsDerivedFrom(node.RuntimeType(), record.classType) &&
             (!args.handled || record.handledEventsToo)) {
-            record.handler(node, args, record.context);
+            record.handler.Invoke(&node, args);
         }
     }
 
     const std::uint32_t count = node.handlers_.Size();
     for (std::uint32_t index = 0U; index < count; ++index) {
         const TreeNode::HandlerRecord record = node.handlers_[index];
-        if (record.event == args.event &&
+        if (record.event == args.routedEvent &&
             (!args.handled || record.handledEventsToo)) {
-            record.handler(node, args, record.context);
+            record.handler.Invoke(&node, args);
         }
     }
 }
@@ -735,7 +742,10 @@ Base::Result<void> RoutedEventRegistry::RaiseEvent(
 
     RoutedEventArgs localArgs;
     RoutedEventArgs& args = suppliedArgs != nullptr ? *suppliedArgs : localArgs;
-    args.event = event;
+    if (args.eventArgsType != record->argsType) {
+        return InvalidArgument("Routed event arguments do not match the registered type");
+    }
+    args.routedEvent = event;
     args.source = &source;
     if (args.originalSource == nullptr) {
         args.originalSource = &source;
@@ -750,11 +760,6 @@ Base::Result<void> RoutedEventRegistry::RaiseEvent(
 }
 
 void RoutedEventRegistry::CleanupClassHandlers() noexcept {
-    for (ClassHandlerRecord& record : classHandlers_) {
-        if (record.cleanup != nullptr) {
-            record.cleanup(record.context);
-        }
-    }
     classHandlers_.Clear();
 }
 

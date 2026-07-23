@@ -11,6 +11,8 @@
 
 namespace Aero::Core {
 
+struct MetaRegistrationContext;
+
 using RenderNodeId = Base::RenderNodeId;
 constexpr RenderNodeId InvalidRenderNodeId = Base::InvalidRenderNodeId;
 using RenderImageId = std::uint64_t;
@@ -22,9 +24,9 @@ constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 
-AERO_NODISCARD AERO_API bool IsFinite(Color value) noexcept;
-AERO_NODISCARD AERO_API bool IsFinite(Transform2D value) noexcept;
-AERO_NODISCARD AERO_API bool IsValidOpacity(double value) noexcept;
+AERO_API bool IsFinite(Color value) noexcept;
+AERO_API bool IsFinite(Transform2D value) noexcept;
+AERO_API bool IsValidOpacity(double value) noexcept;
 
 // Commands contain only immutable value data. Backends must never retain pointers
 // to active UI objects while consuming a RenderPlan.
@@ -60,13 +62,13 @@ public:
     explicit DisplayList(Base::IAllocator* allocator = nullptr) noexcept
         : commands_(allocator) {}
 
-    AERO_NODISCARD Base::Span<const RenderCommand> Commands() const noexcept {
+    Base::Span<const RenderCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
-    AERO_NODISCARD std::uint32_t CommandCount() const noexcept {
+    std::uint32_t CommandCount() const noexcept {
         return commands_.Size();
     }
-    AERO_NODISCARD std::uint64_t StableHash() const noexcept;
+    std::uint64_t StableHash() const noexcept;
 
 private:
     friend class DisplayListBuilder;
@@ -79,29 +81,29 @@ public:
     explicit DisplayListBuilder(Base::IAllocator* allocator = nullptr) noexcept
         : list_(allocator) {}
 
-    AERO_NODISCARD Base::Result<void> PushClip(Rect clip) noexcept;
-    AERO_NODISCARD Base::Result<void> PopClip() noexcept;
-    AERO_NODISCARD Base::Result<void> PushOpacity(double opacity) noexcept;
-    AERO_NODISCARD Base::Result<void> PopOpacity() noexcept;
-    AERO_NODISCARD Base::Result<void> PushTransform(Transform2D value) noexcept;
-    AERO_NODISCARD Base::Result<void> PopTransform() noexcept;
-    AERO_NODISCARD Base::Result<void> FillRect(Rect rect, Color color) noexcept;
-    AERO_NODISCARD Base::Result<void> FillRoundedRect(
+    Base::Result<void> PushClip(Rect clip) noexcept;
+    Base::Result<void> PopClip() noexcept;
+    Base::Result<void> PushOpacity(double opacity) noexcept;
+    Base::Result<void> PopOpacity() noexcept;
+    Base::Result<void> PushTransform(Transform2D value) noexcept;
+    Base::Result<void> PopTransform() noexcept;
+    Base::Result<void> FillRect(Rect rect, Color color) noexcept;
+    Base::Result<void> FillRoundedRect(
         Rect rect, Color color, double cornerRadius) noexcept;
-    AERO_NODISCARD Base::Result<void> StrokeRect(
+    Base::Result<void> StrokeRect(
         Rect rect, Color color, double thickness) noexcept;
-    AERO_NODISCARD Base::Result<void> DrawImage(
+    Base::Result<void> DrawImage(
         RenderImageId image,
         Rect destination,
         Rect sourceUv,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    AERO_NODISCARD Base::Result<void> DrawMesh(
+    Base::Result<void> DrawMesh(
         RenderMeshId mesh,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    AERO_NODISCARD Base::Result<void> DrawGlyphRun(
+    Base::Result<void> DrawGlyphRun(
         RenderGlyphRunId glyphRun,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    AERO_NODISCARD Base::Result<DisplayList> Finish() noexcept;
+    Base::Result<DisplayList> Finish() noexcept;
 
 private:
     DisplayList list_;
@@ -110,13 +112,14 @@ private:
     std::uint32_t transformDepth_ = 0U;
     bool finished_ = false;
 
-    AERO_NODISCARD Base::Result<void> Append(
+    Base::Result<void> Append(
         const RenderCommand& command) noexcept;
 };
 
 class RenderManager;
 
 class AERO_API RenderElement : public LayoutElement {
+    AERO_DECLARE_METADATA(RenderElement, LayoutElement)
 public:
     RenderElement(
         Dispatcher& dispatcher,
@@ -125,17 +128,17 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RenderElement() override;
 
-    AERO_NODISCARD RenderNodeId NodeId() const noexcept { return nodeId_; }
-    AERO_NODISCARD bool IsRenderValid() const noexcept { return renderValid_; }
-    AERO_NODISCARD std::uint64_t RenderRevision() const noexcept {
+    RenderNodeId NodeId() const noexcept { return nodeId_; }
+    bool IsRenderValid() const noexcept { return renderValid_; }
+    std::uint64_t RenderRevision() const noexcept {
         return renderRevision_;
     }
-    AERO_NODISCARD Base::Result<void> InvalidateRender() noexcept;
+    Base::Result<void> InvalidateRender() noexcept;
 
 protected:
-    AERO_NODISCARD Base::Result<void> OnPropertyInvalidated(
+    Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
-    AERO_NODISCARD virtual Base::Result<void> BuildDisplayList(
+    virtual Base::Result<void> BuildDisplayList(
         DisplayListBuilder& builder) noexcept;
 
 private:
@@ -166,14 +169,14 @@ public:
     explicit RenderPlan(Base::IAllocator* allocator = nullptr) noexcept
         : nodes_(allocator), commands_(allocator) {}
 
-    AERO_NODISCARD Base::Span<const RenderNodeSnapshot> Nodes() const noexcept {
+    Base::Span<const RenderNodeSnapshot> Nodes() const noexcept {
         return {nodes_.Data(), nodes_.Size()};
     }
-    AERO_NODISCARD Base::Span<const RenderCommand> Commands() const noexcept {
+    Base::Span<const RenderCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
-    AERO_NODISCARD std::uint64_t Version() const noexcept { return version_; }
-    AERO_NODISCARD std::uint64_t StableHash() const noexcept;
+    std::uint64_t Version() const noexcept { return version_; }
+    std::uint64_t StableHash() const noexcept;
 
 private:
     friend class RenderManager;
@@ -185,20 +188,20 @@ private:
 class AERO_API IRenderBackend {
 public:
     virtual ~IRenderBackend() = default;
-    AERO_NODISCARD virtual Base::Result<void> Submit(
+    virtual Base::Result<void> Submit(
         const RenderPlan& plan) noexcept = 0;
 };
 
 class AERO_API NullRenderBackend final : public IRenderBackend {
 public:
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const RenderPlan& plan) noexcept override;
 
-    AERO_NODISCARD std::uint64_t LastVersion() const noexcept {
+    std::uint64_t LastVersion() const noexcept {
         return lastVersion_;
     }
-    AERO_NODISCARD std::uint64_t LastHash() const noexcept { return lastHash_; }
-    AERO_NODISCARD std::uint32_t SubmissionCount() const noexcept {
+    std::uint64_t LastHash() const noexcept { return lastHash_; }
+    std::uint32_t SubmissionCount() const noexcept {
         return submissionCount_;
     }
 
@@ -227,22 +230,22 @@ public:
     RenderManager(const RenderManager&) = delete;
     RenderManager& operator=(const RenderManager&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD Base::Result<void> SetRoot(RenderElement* root) noexcept;
-    AERO_NODISCARD Base::Result<void> Attach(
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<void> SetRoot(RenderElement* root) noexcept;
+    Base::Result<void> Attach(
         RenderElement& parent,
         RenderElement& child) noexcept;
-    AERO_NODISCARD Base::Result<void> Detach(
+    Base::Result<void> Detach(
         RenderElement& parent,
         RenderElement& child) noexcept;
-    AERO_NODISCARD Base::Result<void> Invalidate(
+    Base::Result<void> Invalidate(
         RenderElement& element) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> Commit() noexcept;
+    Base::Result<std::uint32_t> Commit() noexcept;
 
-    AERO_NODISCARD const RenderPlan& CurrentPlan() const noexcept {
+    const RenderPlan& CurrentPlan() const noexcept {
         return currentPlan_;
     }
-    AERO_NODISCARD RenderDiagnostics Diagnostics() const noexcept;
+    RenderDiagnostics Diagnostics() const noexcept;
 
 private:
     Dispatcher* dispatcher_ = nullptr;
@@ -256,11 +259,11 @@ private:
     std::uint64_t commitVersion_ = 0U;
     bool committing_ = false;
 
-    AERO_NODISCARD Base::Result<void> VerifyElement(
+    Base::Result<void> VerifyElement(
         const RenderElement& element) const noexcept;
-    AERO_NODISCARD Base::Result<void> QueueDirty(
+    Base::Result<void> QueueDirty(
         RenderElement& element) noexcept;
-    AERO_NODISCARD Base::Result<void> BuildSubtree(
+    Base::Result<void> BuildSubtree(
         RenderElement& element,
         RenderNodeId parentId,
         RenderPlan& plan) noexcept;

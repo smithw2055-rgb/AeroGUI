@@ -47,12 +47,12 @@ enum class GraphicsFeature : std::uint64_t {
 
 using GraphicsFeatureFlags = std::uint64_t;
 
-AERO_NODISCARD constexpr GraphicsFeatureFlags FeatureBit(
+constexpr GraphicsFeatureFlags FeatureBit(
     GraphicsFeature feature) noexcept {
     return static_cast<GraphicsFeatureFlags>(feature);
 }
 
-AERO_NODISCARD constexpr bool HasAllFeatures(
+constexpr bool HasAllFeatures(
     GraphicsFeatureFlags available,
     GraphicsFeatureFlags required) noexcept {
     return (available & required) == required;
@@ -76,7 +76,7 @@ enum class ShaderLanguage : std::uint8_t {
 
 using ShaderLanguageFlags = std::uint32_t;
 
-AERO_NODISCARD constexpr ShaderLanguageFlags ShaderLanguageBit(
+constexpr ShaderLanguageFlags ShaderLanguageBit(
     ShaderLanguage language) noexcept {
     return language == ShaderLanguage::Invalid
         ? 0U
@@ -265,12 +265,12 @@ enum class TextureUsage : std::uint32_t {
 
 using TextureUsageFlags = std::uint32_t;
 
-AERO_NODISCARD constexpr TextureUsageFlags TextureUsageBit(
+constexpr TextureUsageFlags TextureUsageBit(
     TextureUsage usage) noexcept {
     return static_cast<TextureUsageFlags>(usage);
 }
 
-AERO_NODISCARD constexpr bool HasTextureUsage(
+constexpr bool HasTextureUsage(
     TextureUsageFlags value,
     TextureUsage usage) noexcept {
     return (value & TextureUsageBit(usage)) != 0U;
@@ -402,19 +402,19 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept
         : commands_(allocator), uploadBytes_(allocator) {}
 
-    AERO_NODISCARD Base::Span<const GraphicsCommand> Commands() const noexcept {
+    Base::Span<const GraphicsCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
-    AERO_NODISCARD Base::Span<const std::uint8_t> UploadBytes() const noexcept {
+    Base::Span<const std::uint8_t> UploadBytes() const noexcept {
         return {uploadBytes_.Data(), uploadBytes_.Size()};
     }
-    AERO_NODISCARD std::uint32_t CommandCount() const noexcept {
+    std::uint32_t CommandCount() const noexcept {
         return commands_.Size();
     }
-    AERO_NODISCARD std::uint32_t UploadByteCount() const noexcept {
+    std::uint32_t UploadByteCount() const noexcept {
         return uploadBytes_.Size();
     }
-    AERO_NODISCARD std::uint64_t StableHash() const noexcept;
+    std::uint64_t StableHash() const noexcept;
 
 private:
     friend class GraphicsCommandEncoder;
@@ -428,90 +428,90 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept
         : buffer_(allocator) {}
 
-    AERO_NODISCARD Base::Result<void> UploadBuffer(
+    Base::Result<void> UploadBuffer(
         ResourceHandle buffer,
         std::uint64_t destinationOffset,
         Base::Span<const std::uint8_t> data) noexcept;
-    AERO_NODISCARD Base::Result<void> UploadTexture(
+    Base::Result<void> UploadTexture(
         ResourceHandle texture,
         TextureRegion region,
         Base::Span<const std::uint8_t> data) noexcept;
-    AERO_NODISCARD Base::Result<void> BeginRenderPass(
+    Base::Result<void> BeginRenderPass(
         const RenderPassDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<void> EndRenderPass() noexcept;
-    AERO_NODISCARD Base::Result<void> BindPipeline(
+    Base::Result<void> EndRenderPass() noexcept;
+    Base::Result<void> BindPipeline(
         ResourceHandle pipeline) noexcept;
-    AERO_NODISCARD Base::Result<void> BindVertexBuffer(
+    Base::Result<void> BindVertexBuffer(
         std::uint32_t slot,
         ResourceHandle buffer,
         std::uint64_t offset = 0U) noexcept;
-    AERO_NODISCARD Base::Result<void> BindIndexBuffer(
+    Base::Result<void> BindIndexBuffer(
         ResourceHandle buffer,
         IndexType type,
         std::uint64_t offset = 0U) noexcept;
-    AERO_NODISCARD Base::Result<void> BindUniformBuffer(
+    Base::Result<void> BindUniformBuffer(
         std::uint32_t slot,
         ResourceHandle buffer,
         std::uint64_t offset,
         std::uint32_t size) noexcept;
-    AERO_NODISCARD Base::Result<void> BindTextureSampler(
+    Base::Result<void> BindTextureSampler(
         std::uint32_t slot,
         ResourceHandle texture,
         ResourceHandle sampler) noexcept;
-    AERO_NODISCARD Base::Result<void> SetScissor(Base::Rect rect) noexcept;
-    AERO_NODISCARD Base::Result<void> Draw(
+    Base::Result<void> SetScissor(Base::Rect rect) noexcept;
+    Base::Result<void> Draw(
         std::uint32_t vertexCount,
         std::uint32_t instanceCount = 1U,
         std::uint32_t firstVertex = 0U,
         std::uint32_t firstInstance = 0U) noexcept;
-    AERO_NODISCARD Base::Result<void> DrawIndexed(
+    Base::Result<void> DrawIndexed(
         std::uint32_t indexCount,
         std::uint32_t instanceCount = 1U,
         std::uint32_t firstIndex = 0U,
         std::int32_t baseVertex = 0,
         std::uint32_t firstInstance = 0U) noexcept;
-    AERO_NODISCARD Base::Result<GraphicsCommandBuffer> Finish() noexcept;
+    Base::Result<GraphicsCommandBuffer> Finish() noexcept;
 
 private:
     GraphicsCommandBuffer buffer_;
     bool inRenderPass_ = false;
     bool finished_ = false;
 
-    AERO_NODISCARD Base::Result<void> VerifyRecording() const noexcept;
-    AERO_NODISCARD Base::Result<void> Append(
+    Base::Result<void> VerifyRecording() const noexcept;
+    Base::Result<void> Append(
         const GraphicsCommand& command) noexcept;
-    AERO_NODISCARD Base::Result<void> AppendUpload(
+    Base::Result<void> AppendUpload(
         GraphicsCommand& command,
         Base::Span<const std::uint8_t> data) noexcept;
 };
 
-AERO_NODISCARD AERO_API Base::Result<void> ValidateTextureDescriptor(
+AERO_API Base::Result<void> ValidateTextureDescriptor(
     const TextureResourceDescriptor& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_NODISCARD AERO_API Base::Result<void> ValidateSamplerDescriptor(
+AERO_API Base::Result<void> ValidateSamplerDescriptor(
     const SamplerDescriptor& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_NODISCARD AERO_API Base::Result<void> ValidatePipelineDescriptor(
+AERO_API Base::Result<void> ValidatePipelineDescriptor(
     const PipelineDescriptor& descriptor,
     const GraphicsCapabilities& capabilities) noexcept;
-AERO_NODISCARD AERO_API std::uint64_t StablePipelineHash(
+AERO_API std::uint64_t StablePipelineHash(
     const PipelineDescriptor& descriptor) noexcept;
 
 class AERO_API IGraphicsBackend : public IRhiBackend {
 public:
-    AERO_NODISCARD virtual GraphicsBackendKind Kind() const noexcept = 0;
-    AERO_NODISCARD virtual GraphicsCapabilities
+    virtual GraphicsBackendKind Kind() const noexcept = 0;
+    virtual GraphicsCapabilities
     QueryGraphicsCapabilities() const noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> ConfigureTexture(
+    virtual Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
         const TextureResourceDescriptor& descriptor) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> ConfigureSampler(
+    virtual Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
         const SamplerDescriptor& descriptor) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> ConfigurePipeline(
+    virtual Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> SubmitGraphics(
+    virtual Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept = 0;
 };
@@ -523,7 +523,7 @@ struct BackendRequest final {
     bool allowFallback = true;
 };
 
-AERO_NODISCARD AERO_API Base::Result<IGraphicsBackend*>
+AERO_API Base::Result<IGraphicsBackend*>
 SelectGraphicsBackend(
     Base::Span<IGraphicsBackend*> backends,
     const BackendRequest& request) noexcept;
@@ -535,22 +535,22 @@ public:
         IGraphicsBackend& backend) noexcept
         : device_(&device), backend_(&backend) {}
 
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateBuffer(
+    Base::Result<ResourceHandle> CreateBuffer(
         const BufferDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateTexture(
+    Base::Result<ResourceHandle> CreateTexture(
         const TextureResourceDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateRenderTarget(
+    Base::Result<ResourceHandle> CreateRenderTarget(
         const TextureResourceDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateSampler(
+    Base::Result<ResourceHandle> CreateSampler(
         const SamplerDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<ResourceHandle> CreatePipeline(
+    Base::Result<ResourceHandle> CreatePipeline(
         const PipelineDescriptor& descriptor) noexcept;
 
 private:
     RhiDevice* device_ = nullptr;
     IGraphicsBackend* backend_ = nullptr;
 
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateTextureInternal(
+    Base::Result<ResourceHandle> CreateTextureInternal(
         const TextureResourceDescriptor& descriptor,
         ResourceType resourceType) noexcept;
     void Rollback(ResourceHandle handle) noexcept;
@@ -569,13 +569,13 @@ public:
     explicit GraphicsQueue(IGraphicsBackend& backend) noexcept
         : backend_(&backend) {}
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD Base::Result<FenceValue> Submit(
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<FenceValue> Submit(
         const GraphicsCommandBuffer& commands) noexcept;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept {
+    FenceValue LastSubmittedFence() const noexcept {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD const GraphicsFrameCapture& LastCapture() const noexcept {
+    const GraphicsFrameCapture& LastCapture() const noexcept {
         return lastCapture_;
     }
 
@@ -593,52 +593,52 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept
         : base_(allocator), resources_(allocator) {}
 
-    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
-    AERO_NODISCARD GraphicsBackendKind Kind() const noexcept override {
+    DeviceCapabilities Capabilities() const noexcept override;
+    GraphicsBackendKind Kind() const noexcept override {
         return GraphicsBackendKind::Null;
     }
-    AERO_NODISCARD GraphicsCapabilities
+    GraphicsCapabilities
     QueryGraphicsCapabilities() const noexcept override;
 
-    AERO_NODISCARD Base::Result<void> CreateResource(
+    Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept override;
     void DestroyResource(ResourceHandle handle) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureTexture(
+    Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
         const TextureResourceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureSampler(
+    Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
         const SamplerDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigurePipeline(
+    Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD Base::Result<void> SubmitGraphics(
+    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+    FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD FenceValue CompletedFence() const noexcept override {
+    FenceValue CompletedFence() const noexcept override {
         return completedFence_;
     }
-    AERO_NODISCARD bool IsDeviceLost() const noexcept override {
+    bool IsDeviceLost() const noexcept override {
         return deviceLost_ || base_.IsDeviceLost();
     }
 
     void CompleteThrough(FenceValue fence) noexcept;
     void SimulateDeviceLoss() noexcept;
 
-    AERO_NODISCARD std::uint32_t SubmissionCount() const noexcept {
+    std::uint32_t SubmissionCount() const noexcept {
         return submissionCount_;
     }
-    AERO_NODISCARD std::uint64_t LastGraphicsHash() const noexcept {
+    std::uint64_t LastGraphicsHash() const noexcept {
         return lastGraphicsHash_;
     }
-    AERO_NODISCARD std::uint32_t LiveBackendResourceCount() const noexcept {
+    std::uint32_t LiveBackendResourceCount() const noexcept {
         return base_.LiveBackendResourceCount();
     }
 
@@ -666,13 +666,13 @@ private:
     std::uint32_t submissionCount_ = 0U;
     bool deviceLost_ = false;
 
-    AERO_NODISCARD ResourceRecord* Find(ResourceHandle handle) noexcept;
-    AERO_NODISCARD const ResourceRecord* Find(
+    ResourceRecord* Find(ResourceHandle handle) noexcept;
+    const ResourceRecord* Find(
         ResourceHandle handle) const noexcept;
-    AERO_NODISCARD bool IsConfigured(
+    bool IsConfigured(
         ResourceHandle handle,
         ConfigurationKind configuration) const noexcept;
-    AERO_NODISCARD Base::Result<void> ValidateGraphicsCommands(
+    Base::Result<void> ValidateGraphicsCommands(
         const GraphicsCommandBuffer& commands) const noexcept;
 };
 
@@ -704,37 +704,37 @@ public:
     explicit SokolBackendAdapter(const SokolBackendApi& api) noexcept
         : api_(api) {}
 
-    AERO_NODISCARD bool IsValid() const noexcept;
-    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
-    AERO_NODISCARD GraphicsBackendKind Kind() const noexcept override {
+    bool IsValid() const noexcept;
+    DeviceCapabilities Capabilities() const noexcept override;
+    GraphicsBackendKind Kind() const noexcept override {
         return GraphicsBackendKind::Sokol;
     }
-    AERO_NODISCARD GraphicsCapabilities
+    GraphicsCapabilities
     QueryGraphicsCapabilities() const noexcept override;
-    AERO_NODISCARD Base::Result<void> CreateResource(
+    Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept override;
     void DestroyResource(ResourceHandle handle) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureTexture(
+    Base::Result<void> ConfigureTexture(
         ResourceHandle handle,
         const TextureResourceDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigureSampler(
+    Base::Result<void> ConfigureSampler(
         ResourceHandle handle,
         const SamplerDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> ConfigurePipeline(
+    Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD Base::Result<void> SubmitGraphics(
+    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+    FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD FenceValue CompletedFence() const noexcept override;
-    AERO_NODISCARD bool IsDeviceLost() const noexcept override;
+    FenceValue CompletedFence() const noexcept override;
+    bool IsDeviceLost() const noexcept override;
 
 private:
     SokolBackendApi api_;

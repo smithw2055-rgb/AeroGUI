@@ -27,15 +27,15 @@ public:
     XamlPanelLayoutExtension(Core::TypeId canvasType, Core::TypeId gridType,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlPanelLayoutTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> Register(
+    Base::Result<std::uint32_t> Register(
         XamlSchemaContext& schema) noexcept;
 
-    static AERO_NODISCARD Base::Result<void> ConfigureCanvasChild(
+    static Base::Result<void> ConfigureCanvasChild(
         Base::Object& parentObject, Core::LayoutElement& parent,
         Core::LayoutElement& child, void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> ConfigureGridChild(
+    static Base::Result<void> ConfigureGridChild(
         Base::Object& parentObject, Core::LayoutElement& parent,
         Core::LayoutElement& child, void* context) noexcept;
 
@@ -63,16 +63,16 @@ private:
     Core::MemberId gridRowMember_ = Core::InvalidMemberId;
     Core::MemberId gridColumnMember_ = Core::InvalidMemberId;
 
-    AERO_NODISCARD const XamlPanelLayoutTypeRegistration* FindType(
+    const XamlPanelLayoutTypeRegistration* FindType(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::LayoutElement*> ResolveElement(
+    Base::Result<Core::LayoutElement*> ResolveElement(
         Base::Object& object, const XamlServiceProvider& services) const noexcept;
-    AERO_NODISCARD Base::Result<Values*> FindOrCreate(
+    Base::Result<Values*> FindOrCreate(
         Core::LayoutElement& child) noexcept;
     Values* FindValues(Core::LayoutElement& child) noexcept;
     void RemoveValues(Core::LayoutElement& child) noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetAttachedMember(
+    static Base::Result<void> SetAttachedMember(
         Base::Object& object, const XamlValue& value,
         const XamlServiceProvider& services, void* context) noexcept;
 };

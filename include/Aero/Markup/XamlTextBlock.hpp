@@ -29,9 +29,9 @@ public:
     XamlTextBlockExtension(const XamlTextBlockExtension&) = delete;
     XamlTextBlockExtension& operator=(const XamlTextBlockExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlTextBlockTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> Register(
+    Base::Result<std::uint32_t> Register(
         XamlSchemaContext& schema) noexcept;
 
 private:
@@ -40,14 +40,14 @@ private:
     Base::Vector<XamlTextBlockTypeRegistration> types_;
     Base::Vector<Core::MemberId> textMembers_;
 
-    AERO_NODISCARD const XamlTextBlockTypeRegistration* FindTypeRegistration(
+    const XamlTextBlockTypeRegistration* FindTypeRegistration(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::TextBlock*> ResolveTextBlock(
+    Base::Result<Core::TextBlock*> ResolveTextBlock(
         Base::Object& object,
         const XamlServiceProvider& services) const noexcept;
-    AERO_NODISCARD bool IsTextMember(Core::MemberId member) const noexcept;
+    bool IsTextMember(Core::MemberId member) const noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetTextMember(
+    static Base::Result<void> SetTextMember(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,

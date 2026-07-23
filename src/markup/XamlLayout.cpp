@@ -1,5 +1,10 @@
 #include <Aero/Markup/XamlLayout.hpp>
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <Aero/Base/String.hpp>
 
 #include <cctype>
@@ -251,3 +256,7 @@ Base::Result<void> XamlLayoutExtension::SetLayoutMember(
 }
 
 } // namespace Aero::Markup
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif

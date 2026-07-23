@@ -30,21 +30,21 @@ public:
     constexpr Span(const Span<U>& other) noexcept
         : data_(other.Data()), size_(other.Size()) {}
 
-    AERO_NODISCARD constexpr T* Data() const noexcept { return data_; }
-    AERO_NODISCARD constexpr std::uint32_t Size() const noexcept { return size_; }
-    AERO_NODISCARD constexpr bool Empty() const noexcept { return size_ == 0U; }
+    constexpr T* Data() const noexcept { return data_; }
+    constexpr std::uint32_t Size() const noexcept { return size_; }
+    constexpr bool Empty() const noexcept { return size_ == 0U; }
 
-    AERO_NODISCARD constexpr T& operator[](std::uint32_t index) const noexcept {
+    constexpr T& operator[](std::uint32_t index) const noexcept {
         AERO_ASSERT(index < size_);
         return data_[index];
     }
 
-    AERO_NODISCARD constexpr T* begin() const noexcept { return data_; }
-    AERO_NODISCARD constexpr T* end() const noexcept {
+    constexpr T* begin() const noexcept { return data_; }
+    constexpr T* end() const noexcept {
         return size_ == 0U ? data_ : data_ + size_;
     }
 
-    AERO_NODISCARD constexpr Span Subspan(
+    constexpr Span Subspan(
         std::uint32_t offset, std::uint32_t count) const noexcept {
         AERO_ASSERT(offset <= size_);
         AERO_ASSERT(count <= size_ - offset);

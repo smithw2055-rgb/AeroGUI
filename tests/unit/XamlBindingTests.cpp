@@ -45,10 +45,10 @@ public:
         : DependencyObject(dispatcher, properties, type, allocator),
           children_(allocator) {}
 
-    AERO_NODISCARD Result<void> AddChild(Ref<Object> child) noexcept {
+    Result<void> AddChild(Ref<Object> child) noexcept {
         return children_.TryPushBack(std::move(child));
     }
-    AERO_NODISCARD Span<const Ref<Object>> Children() const noexcept {
+    Span<const Ref<Object>> Children() const noexcept {
         return {children_.Data(), children_.Size()};
     }
 
@@ -203,6 +203,8 @@ struct Fixture final {
         extension_.SetDataContextProperty(dataContext);
         CHECK(extension_.Register(schema, bindingExtensionType));
         CHECK(dynamicResource_.Register(schema, dynamicResourceExtensionType));
+        CHECK(TryRegisterDependencyPropertyProvider(
+            schema.Members(), properties, objectType));
         CHECK(schema.Freeze());
         return true;
     }

@@ -21,7 +21,7 @@ struct HitTestTypeRegistration final {
 struct HitTestResult final {
     LayoutElement* target = nullptr;
     Point position;
-    AERO_NODISCARD bool HasTarget() const noexcept { return target != nullptr; }
+    bool HasTarget() const noexcept { return target != nullptr; }
 };
 
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
@@ -33,14 +33,14 @@ public:
         TypeRegistry& types,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const HitTestTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<HitTestResult> HitTest(
+    Base::Result<HitTestResult> HitTest(
         TreeNode& root, Point position) const noexcept;
     // Converts a position expressed in root coordinates to target-local
     // coordinates. Unlike HitTest(), capture routing intentionally does not
     // test visibility, clipping, or bounds.
-    AERO_NODISCARD Base::Result<HitTestResult> RootToLocal(
+    Base::Result<HitTestResult> RootToLocal(
         TreeNode& root, TreeNode& target, Point position) const noexcept;
 
 private:
@@ -48,10 +48,10 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<HitTestTypeRegistration> typesByRuntimeType_;
 
-    AERO_NODISCARD const HitTestTypeRegistration* FindRegistration(
+    const HitTestTypeRegistration* FindRegistration(
         TypeId type) const noexcept;
-    AERO_NODISCARD LayoutElement* AsLayoutElement(TreeNode& node) const noexcept;
-    AERO_NODISCARD Base::Result<HitTestResult> HitTestElement(
+    LayoutElement* AsLayoutElement(TreeNode& node) const noexcept;
+    Base::Result<HitTestResult> HitTestElement(
         LayoutElement& element, Point position) const noexcept;
 };
 
@@ -59,12 +59,7 @@ struct PointerInput final {
     std::uint32_t pointerId = 0U;
     PointerAction action = PointerAction::Move;
     Point position;
-};
-
-struct PointerRouteEvents final {
-    RoutedEventHandle moved;
-    RoutedEventHandle pressed;
-    RoutedEventHandle released;
+    MouseButton changedButton = MouseButton::Left;
 };
 
 struct PointerDispatchResult final {
@@ -82,11 +77,6 @@ struct KeyboardInput final {
     bool isRepeat = false;
 };
 
-struct KeyboardRouteEvents final {
-    RoutedEventHandle keyDown;
-    RoutedEventHandle keyUp;
-};
-
 struct KeyboardDispatchResult final {
     TreeNode* target = nullptr;
     bool routed = false;
@@ -99,10 +89,6 @@ struct TextInput final {
     Base::StringView text;
 };
 
-struct TextInputRouteEvents final {
-    RoutedEventHandle textInput;
-};
-
 struct TextInputDispatchResult final {
     TreeNode* target = nullptr;
     bool routed = false;
@@ -111,15 +97,15 @@ struct TextInputDispatchResult final {
 class AERO_API PointerInputManager final {
 public:
     PointerInputManager(HitTestManager& hitTests, RoutedEventRegistry& events,
-        TreeNode& root, PointerRouteEvents routedEvents) noexcept;
+        TreeNode& root) noexcept;
 
-    AERO_NODISCARD Base::Result<PointerDispatchResult> Dispatch(
+    Base::Result<PointerDispatchResult> Dispatch(
         const PointerInput& input) noexcept;
-    AERO_NODISCARD Base::Result<void> CapturePointer(
+    Base::Result<void> CapturePointer(
         std::uint32_t pointerId, TreeNode& target) noexcept;
-    AERO_NODISCARD Base::Result<bool> ReleasePointer(
+    Base::Result<bool> ReleasePointer(
         std::uint32_t pointerId) noexcept;
-    AERO_NODISCARD TreeNode* CapturedNode(
+    TreeNode* CapturedNode(
         std::uint32_t pointerId) noexcept;
 
 private:
@@ -131,32 +117,24 @@ private:
     HitTestManager* hitTests_ = nullptr;
     RoutedEventRegistry* events_ = nullptr;
     TreeNode* root_ = nullptr;
-    PointerRouteEvents routedEvents_;
     Base::Vector<PointerCapture> captures_;
 
-    AERO_NODISCARD std::uint32_t FindCapture(
+    std::uint32_t FindCapture(
         std::uint32_t pointerId) const noexcept;
     void RemoveCaptureAt(std::uint32_t index) noexcept;
 };
 
-struct FocusRouteEvents final {
-    RoutedEventHandle gotFocus;
-    RoutedEventHandle lostFocus;
-};
-
 class AERO_API FocusManager final {
 public:
-    FocusManager(ObjectTree& tree, RoutedEventRegistry& events,
-        FocusRouteEvents routedEvents) noexcept;
+    FocusManager(ObjectTree& tree, RoutedEventRegistry& events) noexcept;
 
-    AERO_NODISCARD TreeNode* FocusedNode() noexcept;
-    AERO_NODISCARD Base::Result<bool> SetFocus(TreeNode* node) noexcept;
-    AERO_NODISCARD Base::Result<bool> ClearFocus() noexcept;
+    TreeNode* FocusedNode() noexcept;
+    Base::Result<bool> SetFocus(TreeNode* node) noexcept;
+    Base::Result<bool> ClearFocus() noexcept;
 
 private:
     ObjectTree* tree_ = nullptr;
     RoutedEventRegistry* events_ = nullptr;
-    FocusRouteEvents routedEvents_;
     TreeNodeHandle focused_;
 };
 
@@ -165,31 +143,29 @@ private:
 class AERO_API KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventRegistry& events,
-        ObjectTree& tree, KeyboardRouteEvents routedEvents) noexcept;
+        ObjectTree& tree) noexcept;
 
-    AERO_NODISCARD Base::Result<KeyboardDispatchResult> Dispatch(
+    Base::Result<KeyboardDispatchResult> Dispatch(
         const KeyboardInput& input) noexcept;
 
 private:
     FocusManager* focus_ = nullptr;
     RoutedEventRegistry* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
-    KeyboardRouteEvents routedEvents_;
 };
 
 class AERO_API TextInputManager final {
 public:
     TextInputManager(FocusManager& focus, RoutedEventRegistry& events,
-        ObjectTree& tree, TextInputRouteEvents routedEvents) noexcept;
+        ObjectTree& tree) noexcept;
 
-    AERO_NODISCARD Base::Result<TextInputDispatchResult> Dispatch(
+    Base::Result<TextInputDispatchResult> Dispatch(
         const TextInput& input) noexcept;
 
 private:
     FocusManager* focus_ = nullptr;
     RoutedEventRegistry* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
-    TextInputRouteEvents routedEvents_;
 };
 
 } // namespace Aero::Core

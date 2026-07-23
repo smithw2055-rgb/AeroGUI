@@ -309,38 +309,17 @@ Base::Result<Value> CheckMaximum(DependencyObject& object,
     return value;
 }
 Base::Result<Value> CoerceMinWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxWidthProperty()); }
+    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxWidthProperty); }
 Base::Result<Value> CoerceMaxWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinWidthProperty()); }
+    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinWidthProperty); }
 Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxHeightProperty()); }
+    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxHeightProperty); }
 Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinHeightProperty()); }
+    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinHeightProperty); }
 
 Base::Result<TypeId> RegisterType(TypeRegistry& types, Base::StringView name,
     TypeId base, TypeFlags flags = TypeFlags::None) noexcept {
     return types.TryRegisterType({PresentationNamespace, name, base, flags, nullptr});
-}
-
-Base::Result<DependencyPropertyHandle> RegisterProperty(
-    DependencyPropertyRegistry& properties, Base::StringView name,
-    TypeId owner, TypeId valueType, DependencyPropertyFlags propertyFlags,
-    Value defaultValue, PropertyMetadataFlags metadataFlags,
-    ValidateValueCallback validate = nullptr,
-    CoerceValueCallback coerce = nullptr) noexcept {
-    DependencyPropertyRegistration registration;
-    registration.name = name;
-    registration.ownerType = owner;
-    registration.valueType = valueType;
-    registration.flags = propertyFlags;
-    registration.metadata.defaultValue = std::move(defaultValue);
-    registration.metadata.flags = metadataFlags;
-    registration.metadata.validate = validate;
-    registration.metadata.coerce = coerce;
-    Base::Result<DependencyPropertyRegistrationResult> result =
-        properties.TryRegister(registration);
-    return result ? Base::Result<DependencyPropertyHandle>(result.Value().property)
-                  : Base::Result<DependencyPropertyHandle>(result.GetStatus());
 }
 
 } // namespace
@@ -349,24 +328,192 @@ Base::StringView AeroPresentationNamespaceUri() noexcept {
     return PresentationNamespace;
 }
 
+AERO_IMPLEMENT_EMPTY_METADATA(DependencyObject, TypeFlags::Abstract)
+AERO_IMPLEMENT_METADATA(TreeNode, TypeFlags::Abstract) {
+    if (helper.Context().routedEvents == nullptr) return;
+    const CorePresentationMetadata& m = helper.Context().core;
+    AeroEvent(MouseMoveEvent, m.mouseEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(MouseDownEvent, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(MouseUpEvent, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(GotKeyboardFocusEvent, m.keyboardFocusChangedEventArgsType,
+        RoutingStrategy::Bubble);
+    AeroEvent(LostKeyboardFocusEvent, m.keyboardFocusChangedEventArgsType,
+        RoutingStrategy::Bubble);
+    AeroEvent(KeyDownEvent, m.keyEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(KeyUpEvent, m.keyEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(TextInputEvent, m.textCompositionEventArgsType,
+        RoutingStrategy::Bubble);
+}
+
+AERO_IMPLEMENT_METADATA(LayoutElement, TypeFlags::Abstract) {
+    MetaRegistrationContext& context = helper.Context();
+    const CorePresentationMetadata& m = context.core;
+    const Length autoSource = Length::Auto();
+    Base::Result<Value> automatic = context.types.TryCreateValue(
+        m.lengthType, &autoSource);
+    if (!automatic) {
+        helper.Fail(automatic.GetStatus());
+        return;
+    }
+    const Thickness zero{};
+    Base::Result<Value> margin = context.types.TryCreateValue(
+        m.thicknessType, &zero);
+    if (!margin) {
+        helper.Fail(margin.GetStatus());
+        return;
+    }
+    const auto measure = PropertyMetadataFlags::AffectsMeasure;
+    const auto arrange = PropertyMetadataFlags::AffectsArrange;
+    AeroDP(WidthProperty, m.lengthType, automatic.Value(), measure, &ValidateLength);
+    AeroDP(HeightProperty, m.lengthType, automatic.Value(), measure, &ValidateLength);
+    AeroDP(MinWidthProperty, m.doubleType,
+        Value::FromDouble(m.doubleType, 0.0), measure,
+        &ValidateNonnegativeDouble, &CoerceMinWidth);
+    AeroDP(MaxWidthProperty, m.doubleType,
+        Value::FromDouble(m.doubleType, DefaultMaximum), measure,
+        &ValidateNonnegativeDouble, &CoerceMaxWidth);
+    AeroDP(MinHeightProperty, m.doubleType,
+        Value::FromDouble(m.doubleType, 0.0), measure,
+        &ValidateNonnegativeDouble, &CoerceMinHeight);
+    AeroDP(MaxHeightProperty, m.doubleType,
+        Value::FromDouble(m.doubleType, DefaultMaximum), measure,
+        &ValidateNonnegativeDouble, &CoerceMaxHeight);
+    AeroDP(MarginProperty, m.thicknessType, margin.Value(), measure,
+        &ValidateThicknessValue);
+    AeroDP(HorizontalAlignmentProperty, m.horizontalAlignmentType,
+        Value::FromUnsignedInteger(m.horizontalAlignmentType, 0U), arrange,
+        &ValidateHorizontalValue);
+    AeroDP(VerticalAlignmentProperty, m.verticalAlignmentType,
+        Value::FromUnsignedInteger(m.verticalAlignmentType, 0U), arrange,
+        &ValidateVerticalValue);
+    AeroDP(ClipToBoundsProperty, m.booleanType,
+        Value::FromBoolean(m.booleanType, false), arrange);
+    AeroDP(IsHitTestVisibleProperty, m.booleanType,
+        Value::FromBoolean(m.booleanType, true), PropertyMetadataFlags::None);
+    AeroDP(UseLayoutRoundingProperty, m.booleanType,
+        Value::FromBoolean(m.booleanType, false), measure);
+}
+
+AERO_IMPLEMENT_EMPTY_METADATA(RenderElement, TypeFlags::Abstract)
+
+AERO_IMPLEMENT_METADATA(StackPanel, TypeFlags::None) {
+    MetaRegistrationContext& context = helper.Context();
+    AeroDP(OrientationProperty, context.core.orientationType,
+        Value::FromUnsignedInteger(context.core.orientationType, 1U),
+        PropertyMetadataFlags::AffectsMeasure, &ValidateOrientationValue);
+    AeroContent("Children", ContentKind::Collection);
+}
+
+AERO_IMPLEMENT_METADATA(Canvas, TypeFlags::None) {
+    MetaRegistrationContext& context = helper.Context();
+    AeroAttachedDP(LeftProperty, context.core.doubleType,
+        Value::FromDouble(context.core.doubleType, 0.0),
+        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
+    AeroAttachedDP(TopProperty, context.core.doubleType,
+        Value::FromDouble(context.core.doubleType, 0.0),
+        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
+    AeroContent("Children", ContentKind::Collection);
+}
+
+AERO_IMPLEMENT_METADATA(Grid, TypeFlags::None) {
+    MetaRegistrationContext& context = helper.Context();
+    AeroAttachedDP(RowProperty, context.core.unsignedIntegerType,
+        Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
+        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
+    AeroAttachedDP(ColumnProperty, context.core.unsignedIntegerType,
+        Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
+        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
+    AeroContent("Children", ContentKind::Collection);
+}
+
+AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
+    MetaRegistrationContext& context = helper.Context();
+    const Color transparent{};
+    Base::Result<Value> color = context.types.TryCreateValue(
+        context.core.colorType, &transparent);
+    if (!color) {
+        helper.Fail(color.GetStatus());
+        return;
+    }
+    const Thickness zero{};
+    Base::Result<Value> padding = context.types.TryCreateValue(
+        context.core.thicknessType, &zero);
+    if (!padding) {
+        helper.Fail(padding.GetStatus());
+        return;
+    }
+    AeroDP(BackgroundProperty, context.core.colorType, color.Value(),
+        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
+    AeroDP(BorderBrushProperty, context.core.colorType, color.Value(),
+        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
+    AeroDP(BorderThicknessProperty, context.core.doubleType,
+        Value::FromDouble(context.core.doubleType, 0.0),
+        PropertyMetadataFlags::AffectsRender, &ValidateNonnegativeDouble);
+    AeroDP(PaddingProperty, context.core.thicknessType, padding.Value(),
+        PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue);
+    AeroContent("Content", ContentKind::Single);
+}
+
+AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
+    MetaRegistrationContext& context = helper.Context();
+    Base::Result<Value> text = Value::TryFromString(
+        context.core.stringType, {}, &context.types.Allocator());
+    if (!text) {
+        helper.Fail(text.GetStatus());
+        return;
+    }
+    const Color black{0.0F, 0.0F, 0.0F, 1.0F};
+    Base::Result<Value> foreground = context.types.TryCreateValue(
+        context.core.colorType, &black);
+    if (!foreground) {
+        helper.Fail(foreground.GetStatus());
+        return;
+    }
+    AeroDP(TextProperty, context.core.stringType, text.Value(),
+        PropertyMetadataFlags::AffectsMeasure);
+    AeroDP(ForegroundProperty, context.core.colorType, foreground.Value(),
+        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
+}
+
+AERO_IMPLEMENT_METADATA(ContentPresenter, TypeFlags::None) {
+    AeroContent("Content", ContentKind::Single);
+}
+
 Base::Result<CorePresentationMetadata> TryRegisterCorePresentationMetadata(
     TypeRegistry& types,
-    DependencyPropertyRegistry& properties) noexcept {
+    DependencyPropertyRegistry& properties,
+    RoutedEventRegistry* routedEvents) noexcept {
     CorePresentationMetadata m;
 #define AERO_REGISTER_TYPE(field, name, base, flags) \
     do { auto r = RegisterType(types, Base::StringView(name), base, flags); \
          if (!r) return r.GetStatus(); m.field = r.Value(); } while (false)
     AERO_REGISTER_TYPE(objectType, "Object", InvalidTypeId, TypeFlags::None);
-    AERO_REGISTER_TYPE(dependencyObjectType, "DependencyObject", m.objectType, TypeFlags::Abstract);
-    AERO_REGISTER_TYPE(treeNodeType, "TreeNode", m.dependencyObjectType, TypeFlags::Abstract);
-    AERO_REGISTER_TYPE(layoutElementType, "LayoutElement", m.treeNodeType, TypeFlags::Abstract);
-    AERO_REGISTER_TYPE(renderElementType, "RenderElement", m.layoutElementType, TypeFlags::Abstract);
-    AERO_REGISTER_TYPE(stackPanelType, "StackPanel", m.renderElementType, TypeFlags::None);
-    AERO_REGISTER_TYPE(canvasType, "Canvas", m.renderElementType, TypeFlags::None);
-    AERO_REGISTER_TYPE(gridType, "Grid", m.renderElementType, TypeFlags::None);
-    AERO_REGISTER_TYPE(borderType, "Border", m.renderElementType, TypeFlags::None);
-    AERO_REGISTER_TYPE(textBlockType, "TextBlock", m.renderElementType, TypeFlags::None);
-    AERO_REGISTER_TYPE(contentPresenterType, "ContentPresenter", m.renderElementType, TypeFlags::None);
+    AERO_REGISTER_TYPE(eventArgsType, "EventArgs", InvalidTypeId, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(routedEventArgsType, "RoutedEventArgs",
+        m.eventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(inputEventArgsType, "InputEventArgs",
+        m.routedEventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(mouseEventArgsType, "MouseEventArgs",
+        m.inputEventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(mouseButtonEventArgsType, "MouseButtonEventArgs",
+        m.mouseEventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(keyEventArgsType, "KeyEventArgs",
+        m.inputEventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(textCompositionEventArgsType, "TextCompositionEventArgs",
+        m.inputEventArgsType, TypeFlags::ValueType);
+    AERO_REGISTER_TYPE(keyboardFocusChangedEventArgsType,
+        "KeyboardFocusChangedEventArgs", m.routedEventArgsType,
+        TypeFlags::ValueType);
+    m.dependencyObjectType = DependencyObject::StaticTypeId();
+    m.treeNodeType = TreeNode::StaticTypeId();
+    m.layoutElementType = LayoutElement::StaticTypeId();
+    m.renderElementType = RenderElement::StaticTypeId();
+    m.stackPanelType = StackPanel::StaticTypeId();
+    m.canvasType = Canvas::StaticTypeId();
+    m.gridType = Grid::StaticTypeId();
+    m.borderType = Border::StaticTypeId();
+    m.textBlockType = TextBlock::StaticTypeId();
+    m.contentPresenterType = ContentPresenter::StaticTypeId();
     AERO_REGISTER_TYPE(booleanType, "Boolean", InvalidTypeId, TypeFlags::ValueType);
     AERO_REGISTER_TYPE(unsignedIntegerType, "UInt32", InvalidTypeId, TypeFlags::ValueType);
     AERO_REGISTER_TYPE(doubleType, "Double", InvalidTypeId, TypeFlags::ValueType);
@@ -406,102 +553,25 @@ Base::Result<CorePresentationMetadata> TryRegisterCorePresentationMetadata(
         if (!status) return status.GetStatus();
     }
 
-    const Length autoLengthValue = Length::Auto();
-    Base::Result<Value> autoLength = types.TryCreateValue(
-        m.lengthType, &autoLengthValue);
-    if (!autoLength) return autoLength.GetStatus();
-    const Thickness zeroThickness{};
-    Base::Result<Value> thickness = types.TryCreateValue(m.thicknessType, &zeroThickness);
-    if (!thickness) return thickness.GetStatus();
-    const Color transparent{};
-    Base::Result<Value> transparentValue = types.TryCreateValue(m.colorType, &transparent);
-    if (!transparentValue) return transparentValue.GetStatus();
-    const Color black{0.0F, 0.0F, 0.0F, 1.0F};
-    Base::Result<Value> blackValue = types.TryCreateValue(m.colorType, &black);
-    if (!blackValue) return blackValue.GetStatus();
-    Base::Result<Value> emptyString = Value::TryFromString(m.stringType, Base::StringView(), &types.Allocator());
-    if (!emptyString) return emptyString.GetStatus();
-
-#define AERO_REGISTER_DP(expr) do { auto r = (expr); if (!r) return r.GetStatus(); } while (false)
-    const auto measure = PropertyMetadataFlags::AffectsMeasure;
-    const auto arrange = PropertyMetadataFlags::AffectsArrange;
-    const auto render = PropertyMetadataFlags::AffectsRender;
-    AERO_REGISTER_DP(RegisterProperty(properties, "Width", m.layoutElementType, m.lengthType,
-        DependencyPropertyFlags::None, autoLength.Value(), measure, &ValidateLength));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Height", m.layoutElementType, m.lengthType,
-        DependencyPropertyFlags::None, autoLength.Value(), measure, &ValidateLength));
-    AERO_REGISTER_DP(RegisterProperty(properties, "MinWidth", m.layoutElementType, m.doubleType,
-        DependencyPropertyFlags::None, Value::FromDouble(m.doubleType, 0.0), measure,
-        &ValidateNonnegativeDouble, &CoerceMinWidth));
-    AERO_REGISTER_DP(RegisterProperty(properties, "MaxWidth", m.layoutElementType, m.doubleType,
-        DependencyPropertyFlags::None, Value::FromDouble(m.doubleType, DefaultMaximum), measure,
-        &ValidateNonnegativeDouble, &CoerceMaxWidth));
-    AERO_REGISTER_DP(RegisterProperty(properties, "MinHeight", m.layoutElementType, m.doubleType,
-        DependencyPropertyFlags::None, Value::FromDouble(m.doubleType, 0.0), measure,
-        &ValidateNonnegativeDouble, &CoerceMinHeight));
-    AERO_REGISTER_DP(RegisterProperty(properties, "MaxHeight", m.layoutElementType, m.doubleType,
-        DependencyPropertyFlags::None, Value::FromDouble(m.doubleType, DefaultMaximum), measure,
-        &ValidateNonnegativeDouble, &CoerceMaxHeight));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Margin", m.layoutElementType, m.thicknessType,
-        DependencyPropertyFlags::None, thickness.Value(), measure, &ValidateThicknessValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "HorizontalAlignment", m.layoutElementType,
-        m.horizontalAlignmentType, DependencyPropertyFlags::None,
-        Value::FromUnsignedInteger(m.horizontalAlignmentType, 0U), arrange, &ValidateHorizontalValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "VerticalAlignment", m.layoutElementType,
-        m.verticalAlignmentType, DependencyPropertyFlags::None,
-        Value::FromUnsignedInteger(m.verticalAlignmentType, 0U), arrange, &ValidateVerticalValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "ClipToBounds", m.layoutElementType, m.booleanType,
-        DependencyPropertyFlags::None, Value::FromBoolean(m.booleanType, false), arrange));
-    AERO_REGISTER_DP(RegisterProperty(properties, "IsHitTestVisible", m.layoutElementType, m.booleanType,
-        DependencyPropertyFlags::None, Value::FromBoolean(m.booleanType, true), PropertyMetadataFlags::None));
-    AERO_REGISTER_DP(RegisterProperty(properties, "UseLayoutRounding", m.layoutElementType, m.booleanType,
-        DependencyPropertyFlags::None, Value::FromBoolean(m.booleanType, false), measure));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Orientation", m.stackPanelType, m.orientationType,
-        DependencyPropertyFlags::None, Value::FromUnsignedInteger(m.orientationType, 1U), measure,
-        &ValidateOrientationValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Left", m.canvasType, m.doubleType,
-        DependencyPropertyFlags::Attached, Value::FromDouble(m.doubleType, 0.0),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Top", m.canvasType, m.doubleType,
-        DependencyPropertyFlags::Attached, Value::FromDouble(m.doubleType, 0.0),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Row", m.gridType, m.unsignedIntegerType,
-        DependencyPropertyFlags::Attached, Value::FromUnsignedInteger(m.unsignedIntegerType, 0U),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Column", m.gridType, m.unsignedIntegerType,
-        DependencyPropertyFlags::Attached, Value::FromUnsignedInteger(m.unsignedIntegerType, 0U),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Background", m.borderType, m.colorType,
-        DependencyPropertyFlags::None, transparentValue.Value(), render, &ValidateColorValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "BorderBrush", m.borderType, m.colorType,
-        DependencyPropertyFlags::None, transparentValue.Value(), render, &ValidateColorValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "BorderThickness", m.borderType, m.doubleType,
-        DependencyPropertyFlags::None, Value::FromDouble(m.doubleType, 0.0), render,
-        &ValidateNonnegativeDouble));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Padding", m.borderType, m.thicknessType,
-        DependencyPropertyFlags::None, thickness.Value(), measure, &ValidateThicknessValue));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Text", m.textBlockType, m.stringType,
-        DependencyPropertyFlags::None, emptyString.Value(), measure));
-    AERO_REGISTER_DP(RegisterProperty(properties, "Foreground", m.textBlockType, m.colorType,
-        DependencyPropertyFlags::None, blackValue.Value(), render, &ValidateColorValue));
-#undef AERO_REGISTER_DP
-
-    const struct {
-        TypeId owner;
-        Base::StringView name;
-    } structuralMembers[] = {
-        {m.stackPanelType, "Children"},
-        {m.canvasType, "Children"},
-        {m.gridType, "Children"},
-        {m.borderType, "Content"},
-        {m.contentPresenterType, "Content"}
+    MetaRegistrationContext registrationContext{types, properties, m, routedEvents};
+    using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
+    const Registrar registrars[] = {
+        &DependencyObject::TryRegisterMetadata,
+        &TreeNode::TryRegisterMetadata,
+        &LayoutElement::TryRegisterMetadata,
+        &RenderElement::TryRegisterMetadata,
+        &StackPanel::TryRegisterMetadata,
+        &Canvas::TryRegisterMetadata,
+        &Grid::TryRegisterMetadata,
+        &Border::TryRegisterMetadata,
+        &TextBlock::TryRegisterMetadata,
+        &ContentPresenter::TryRegisterMetadata
     };
-    for (const auto& member : structuralMembers) {
-        Base::Result<MemberId> registered = types.TryRegisterProperty(
-            member.owner, {member.name, m.layoutElementType,
-                PropertyFlags::None});
-        if (!registered) return registered.GetStatus();
+    for (Registrar registrar : registrars) {
+        status = registrar(registrationContext);
+        if (!status) return status.GetStatus();
     }
+
     return m;
 }
 

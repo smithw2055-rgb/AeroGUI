@@ -1,4 +1,5 @@
 #include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
@@ -102,6 +103,49 @@ private:
 };
 
 std::atomic<int> ProbeObject::aliveCount{0};
+
+int DoubleValue(int value) noexcept {
+    return value * 2;
+}
+
+class DelegateTarget final {
+public:
+    explicit DelegateTarget(int bias) noexcept : bias_(bias) {}
+
+    int Add(int value) noexcept { return value + bias_; }
+    int AddConst(int value) const noexcept { return value + bias_ + 1; }
+
+private:
+    int bias_ = 0;
+};
+
+struct SequenceHandler final {
+    std::uint32_t* sequence = nullptr;
+    std::uint32_t* count = nullptr;
+    std::uint32_t value = 0U;
+
+    void operator()(int) const noexcept {
+        sequence[(*count)++] = value;
+    }
+};
+
+struct NestedDelegateHandler final {
+    Delegate<void(int)>* multicast = nullptr;
+    const Delegate<void(int)>* appended = nullptr;
+    bool* added = nullptr;
+
+    void operator()(int) const noexcept {
+        if (!*added) {
+            *added = true;
+            CHECK_INTERNAL(multicast->TryAdd(*appended));
+        }
+    }
+
+private:
+    static void CHECK_INTERNAL(const Result<void>& result) noexcept {
+        if (!result) std::abort();
+    }
+};
 
 bool TestResult() {
     Result<int> value(42);
@@ -301,6 +345,78 @@ bool TestRefAllocationFailure() {
     return true;
 }
 
+bool TestDelegate() {
+    using IntDelegate = Delegate<int(int)>;
+    static_assert(sizeof(IntDelegate) == sizeof(void*) * 4U,
+        "Delegate must remain four pointers wide");
+
+    IntDelegate freeFunction(&DoubleValue);
+    CHECK(freeFunction.Size() == 1U);
+    CHECK(freeFunction(4) == 8);
+
+    DelegateTarget target(5);
+    IntDelegate member(&target, &DelegateTarget::Add);
+    const DelegateTarget constTarget(7);
+    IntDelegate constMember(&constTarget, &DelegateTarget::AddConst);
+    CHECK(member(4) == 9);
+    CHECK(constMember(4) == 12);
+
+    int bias = 3;
+    IntDelegate lambda([bias](int value) noexcept { return value + bias; });
+    CHECK(lambda(9) == 12);
+    IntDelegate lambdaCopy = lambda;
+    CHECK(lambda == lambdaCopy);
+
+    std::uint32_t sequence[8]{};
+    std::uint32_t count = 0U;
+    SequenceHandler first{sequence, &count, 1U};
+    SequenceHandler second{sequence, &count, 2U};
+    SequenceHandler third{sequence, &count, 3U};
+    Delegate<void(int)> firstDelegate(&first);
+    Delegate<void(int)> secondDelegate(&second);
+    Delegate<void(int)> thirdDelegate(&third);
+
+    Delegate<void(int)> multicast = firstDelegate;
+    CHECK(multicast.TryAdd(secondDelegate));
+    CHECK(multicast.TryAdd(thirdDelegate));
+    CHECK(multicast.Size() == 3U);
+    multicast(0);
+    CHECK(count == 3U);
+    CHECK(sequence[0] == 1U && sequence[1] == 2U && sequence[2] == 3U);
+
+    Delegate<void(int)> copy = multicast;
+    CHECK(copy.Remove(secondDelegate));
+    CHECK(copy.Size() == 2U);
+    count = 0U;
+    copy(0);
+    CHECK(count == 2U && sequence[0] == 1U && sequence[1] == 3U);
+    CHECK(multicast.Size() == 3U);
+
+    count = 0U;
+    bool added = false;
+    Delegate<void(int)> nested;
+    NestedDelegateHandler nestedTarget{&nested, &thirdDelegate, &added};
+    Delegate<void(int)> nestedDelegate(&nestedTarget);
+    nested = nestedDelegate;
+    CHECK(nested.TryAdd(firstDelegate));
+    nested(0);
+    CHECK(count == 1U && sequence[0] == 1U);
+    CHECK(nested.Size() == 3U);
+    count = 0U;
+    nested(0);
+    CHECK(count == 2U && sequence[0] == 1U && sequence[1] == 3U);
+
+    TrackingAllocator allocator;
+    Delegate<void(int)> allocationFailure = firstDelegate;
+    allocator.FailAfter(0U);
+    Result<void> failed = allocationFailure.TryAdd(secondDelegate, &allocator);
+    CHECK(!failed);
+    CHECK(failed.GetStatus().code == ErrorCode::OutOfMemory);
+    CHECK(allocationFailure == firstDelegate);
+    CHECK(allocator.ActiveCount() == 0U);
+    return true;
+}
+
 struct TestCase final {
     const char* name;
     bool (*run)();
@@ -319,6 +435,7 @@ int main() {
         {"String allocation failure", &TestStringAllocationFailure},
         {"Ref/WeakRef", &TestRefAndWeakRef},
         {"Ref allocation failure", &TestRefAllocationFailure},
+        {"Delegate", &TestDelegate},
     };
 
     std::uint32_t passed = 0U;

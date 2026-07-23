@@ -36,15 +36,15 @@ public:
     XamlDependencyPropertyBridge& operator=(
         const XamlDependencyPropertyBridge&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlDependencyObjectTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> TryRegisterProperties() noexcept;
+    Base::Result<std::uint32_t> TryRegisterProperties() noexcept;
 
-    AERO_NODISCARD bool IsTypeRegistered(Core::TypeId type) const noexcept;
-    AERO_NODISCARD std::uint32_t RegisteredTypeCount() const noexcept {
+    bool IsTypeRegistered(Core::TypeId type) const noexcept;
+    std::uint32_t RegisteredTypeCount() const noexcept {
         return types_.Size();
     }
-    AERO_NODISCARD std::uint32_t RegisteredPropertyCount() const noexcept {
+    std::uint32_t RegisteredPropertyCount() const noexcept {
         return registeredPropertyCount_;
     }
 
@@ -56,17 +56,17 @@ private:
     std::uint32_t registeredPropertyCount_ = 0U;
     bool providerRegistered_ = false;
 
-    AERO_NODISCARD const XamlDependencyObjectTypeRegistration*
+    const XamlDependencyObjectTypeRegistration*
     FindTypeRegistration(Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::PropertyValue> ConvertValue(
+    Base::Result<Core::PropertyValue> ConvertValue(
         const XamlValue& value,
         const Core::DependencyProperty& property) const noexcept;
 
-    AERO_NODISCARD static bool HandlesDependencyProperty(
+    static bool HandlesDependencyProperty(
         const XamlResolvedMember& member,
         void* context) noexcept;
 
-    AERO_NODISCARD static Base::Result<void> SetDependencyProperty(
+    static Base::Result<void> SetDependencyProperty(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,
@@ -76,13 +76,13 @@ private:
 // Registers the canonical DependencyObject base cast and the single generic
 // dependency-property member provider. Custom derived controls require no
 // additional DP bridge registration.
-AERO_NODISCARD AERO_API Base::Result<std::uint32_t>
+AERO_API Base::Result<std::uint32_t>
 TryRegisterCorePresentationXaml(
     XamlDependencyPropertyBridge& bridge) noexcept;
 
 // Registers core control activation factories and, when supplied, the exact
 // structural adapters for Content/Children ownership transactions.
-AERO_NODISCARD AERO_API Base::Result<std::uint32_t>
+AERO_API Base::Result<std::uint32_t>
 TryRegisterCorePresentationXaml(
     XamlDependencyPropertyBridge& bridge,
     XamlActivationProviderRegistry& activation,

@@ -23,28 +23,28 @@ public:
         static_assert(N - 1U <= UINT32_MAX, "String literal is too large");
     }
 
-    AERO_NODISCARD constexpr const char* Data() const noexcept { return data_; }
-    AERO_NODISCARD constexpr std::uint32_t SizeBytes() const noexcept { return size_; }
-    AERO_NODISCARD constexpr bool Empty() const noexcept { return size_ == 0U; }
+    constexpr const char* Data() const noexcept { return data_; }
+    constexpr std::uint32_t SizeBytes() const noexcept { return size_; }
+    constexpr bool Empty() const noexcept { return size_ == 0U; }
 
-    AERO_NODISCARD constexpr char operator[](std::uint32_t index) const noexcept {
+    constexpr char operator[](std::uint32_t index) const noexcept {
         AERO_ASSERT(index < size_);
         return data_[index];
     }
 
-    AERO_NODISCARD constexpr const char* begin() const noexcept { return data_; }
-    AERO_NODISCARD constexpr const char* end() const noexcept {
+    constexpr const char* begin() const noexcept { return data_; }
+    constexpr const char* end() const noexcept {
         return size_ == 0U ? data_ : data_ + size_;
     }
 
-    AERO_NODISCARD constexpr StringView Substr(
+    constexpr StringView Substr(
         std::uint32_t offset, std::uint32_t count) const noexcept {
         AERO_ASSERT(offset <= size_);
         AERO_ASSERT(count <= size_ - offset);
         return {offset == 0U ? data_ : data_ + offset, count};
     }
 
-    AERO_NODISCARD int Compare(StringView other) const noexcept {
+    int Compare(StringView other) const noexcept {
         const std::uint32_t common = size_ < other.size_ ? size_ : other.size_;
         if (common > 0U) {
             const int result = std::memcmp(data_, other.data_, common);
@@ -60,11 +60,11 @@ private:
     std::uint32_t size_ = 0;
 };
 
-AERO_NODISCARD inline bool operator==(StringView left, StringView right) noexcept {
+inline bool operator==(StringView left, StringView right) noexcept {
     return left.SizeBytes() == right.SizeBytes() && left.Compare(right) == 0;
 }
 
-AERO_NODISCARD inline bool operator!=(StringView left, StringView right) noexcept {
+inline bool operator!=(StringView left, StringView right) noexcept {
     return !(left == right);
 }
 

@@ -27,7 +27,7 @@ enum class ResourceChangeKind : std::uint8_t {
 struct ResourceChangeSubscription final {
     std::uint64_t value = 0U;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != 0U;
     }
 };
@@ -38,7 +38,7 @@ using ResourceChangedCallback = void (*)(
     ResourceChangeKind kind,
     std::uint64_t generation) noexcept;
 
-AERO_NODISCARD inline constexpr Base::StringView
+inline constexpr Base::StringView
 XamlLanguageNamespaceUri() noexcept {
     return Base::StringView(
         "http://schemas.microsoft.com/winfx/2006/xaml");
@@ -54,22 +54,22 @@ public:
     NameScope(const NameScope&) = delete;
     NameScope& operator=(const NameScope&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegister(
+    Base::Result<void> TryRegister(
         Base::StringView name,
         Base::Object& object) noexcept;
-    AERO_NODISCARD Base::Object* Find(
+    Base::Object* Find(
         Base::StringView name) const noexcept;
 
     void Clear() noexcept;
 
-    AERO_NODISCARD std::uint32_t Size() const noexcept {
+    std::uint32_t Size() const noexcept {
         return entries_.Size();
     }
-    AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
+    Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
     }
 
-    AERO_NODISCARD static bool IsValidName(
+    static bool IsValidName(
         Base::StringView name) noexcept;
 
 private:
@@ -95,7 +95,7 @@ struct XamlResourceValue final {
     Core::TypeId type = Core::InvalidTypeId;
     Base::Ref<Base::Object> object;
 
-    AERO_NODISCARD bool IsValid() const noexcept {
+    bool IsValid() const noexcept {
         return type != Core::InvalidTypeId && static_cast<bool>(object);
     }
 };
@@ -111,41 +111,41 @@ public:
     ResourceDictionary(const ResourceDictionary&) = delete;
     ResourceDictionary& operator=(const ResourceDictionary&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryAdd(
+    Base::Result<void> TryAdd(
         Base::StringView key,
         Core::TypeId type,
         const Base::Ref<Base::Object>& object,
         Core::SourceSpan source = {}) noexcept;
     // Adds a missing key or atomically replaces its value. Resource changes
     // notify DynamicResource expressions after the dictionary state commits.
-    AERO_NODISCARD Base::Result<void> TrySet(
+    Base::Result<void> TrySet(
         Base::StringView key,
         Core::TypeId type,
         const Base::Ref<Base::Object>& object,
         Core::SourceSpan source = {}) noexcept;
-    AERO_NODISCARD Base::Result<bool> Remove(
+    Base::Result<bool> Remove(
         Base::StringView key) noexcept;
-    AERO_NODISCARD Base::Result<XamlResourceValue> Lookup(
+    Base::Result<XamlResourceValue> Lookup(
         Base::StringView key) const noexcept;
-    AERO_NODISCARD bool Contains(Base::StringView key) const noexcept;
-    AERO_NODISCARD Core::SourceSpan SourceOf(
+    bool Contains(Base::StringView key) const noexcept;
+    Core::SourceSpan SourceOf(
         Base::StringView key) const noexcept;
 
-    AERO_NODISCARD Base::Result<ResourceChangeSubscription> SubscribeChanged(
+    Base::Result<ResourceChangeSubscription> SubscribeChanged(
         ResourceChangedCallback callback,
         void* context) noexcept;
-    AERO_NODISCARD bool Unsubscribe(
+    bool Unsubscribe(
         ResourceChangeSubscription subscription) noexcept;
 
     void Clear() noexcept;
 
-    AERO_NODISCARD std::uint32_t Size() const noexcept {
+    std::uint32_t Size() const noexcept {
         return entries_.Size();
     }
-    AERO_NODISCARD std::uint64_t Generation() const noexcept {
+    std::uint64_t Generation() const noexcept {
         return generation_;
     }
-    AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
+    Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
     }
 
@@ -172,7 +172,7 @@ private:
         void* context = nullptr;
     };
 
-    AERO_NODISCARD const Entry* FindEntry(
+    const Entry* FindEntry(
         Base::StringView key) const noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
@@ -194,9 +194,9 @@ public:
 
     XamlNamespaceScope() noexcept = default;
 
-    AERO_NODISCARD Base::Result<Base::StringView> Lookup(
+    Base::Result<Base::StringView> Lookup(
         Base::StringView prefix) const noexcept;
-    AERO_NODISCARD bool IsAvailable() const noexcept {
+    bool IsAvailable() const noexcept {
         return lookup_ != nullptr;
     }
 
@@ -220,9 +220,9 @@ public:
 
     XamlResourceResolver() noexcept = default;
 
-    AERO_NODISCARD Base::Result<XamlResourceValue> Lookup(
+    Base::Result<XamlResourceValue> Lookup(
         Base::StringView key) const noexcept;
-    AERO_NODISCARD bool IsAvailable() const noexcept {
+    bool IsAvailable() const noexcept {
         return lookup_ != nullptr;
     }
 

@@ -46,7 +46,7 @@ enum class DispatcherFramePhase : std::uint8_t {
 struct DispatcherTaskHandle final {
     std::uint64_t value = 0U;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != 0U;
     }
 };
@@ -54,28 +54,28 @@ struct DispatcherTaskHandle final {
 struct DispatcherFrameHookHandle final {
     std::uint64_t value = 0U;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != 0U;
     }
 };
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr bool operator==(
     DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
     return left.value == right.value;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     DispatcherTaskHandle left, DispatcherTaskHandle right) noexcept {
     return !(left == right);
 }
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr bool operator==(
     DispatcherFrameHookHandle left,
     DispatcherFrameHookHandle right) noexcept {
     return left.value == right.value;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     DispatcherFrameHookHandle left,
     DispatcherFrameHookHandle right) noexcept {
     return !(left == right);
@@ -110,7 +110,7 @@ public:
     DispatcherReentrancyGuard& operator=(
         const DispatcherReentrancyGuard&) = delete;
 
-    AERO_NODISCARD bool Active() const noexcept {
+    bool Active() const noexcept {
         return dispatcher_ != nullptr;
     }
 
@@ -126,7 +126,7 @@ private:
     Dispatcher* dispatcher_ = nullptr;
 };
 
-AERO_NODISCARD AERO_API DispatcherThreadToken
+AERO_API DispatcherThreadToken
 CurrentDispatcherThreadToken() noexcept;
 
 class AERO_API Dispatcher final {
@@ -140,31 +140,31 @@ public:
     Dispatcher(Dispatcher&&) = delete;
     Dispatcher& operator=(Dispatcher&&) = delete;
 
-    AERO_NODISCARD bool CheckAccess() const noexcept;
-    AERO_NODISCARD Base::Result<void> VerifyAccess() const noexcept;
-    AERO_NODISCARD DispatcherThreadToken OwnerThreadToken() const noexcept {
+    bool CheckAccess() const noexcept;
+    Base::Result<void> VerifyAccess() const noexcept;
+    DispatcherThreadToken OwnerThreadToken() const noexcept {
         return ownerThread_;
     }
 
-    AERO_NODISCARD DispatcherTime NowMicroseconds() const noexcept;
-    AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
+    DispatcherTime NowMicroseconds() const noexcept;
+    Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
     }
 
-    AERO_NODISCARD Base::Result<DispatcherTaskHandle> Post(
+    Base::Result<DispatcherTaskHandle> Post(
         DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<DispatcherTaskHandle> PostDelayed(
+    Base::Result<DispatcherTaskHandle> PostDelayed(
         DispatcherTime delayMicroseconds,
         DispatcherPriority priority,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<DispatcherTaskHandle> PostAt(
+    Base::Result<DispatcherTaskHandle> PostAt(
         DispatcherTime dueTimeMicroseconds,
         DispatcherPriority priority,
         DispatcherCallback callback,
@@ -173,38 +173,38 @@ public:
 
     // Cancel may be called from any thread. If cancellation wins the race with
     // execution, cleanup is invoked exactly once on the cancelling thread.
-    AERO_NODISCARD bool Cancel(
+    bool Cancel(
         DispatcherTaskHandle handle) noexcept;
 
     // Processes ready callbacks from Send through throughPriority. The host
     // controls when this is called; Dispatcher never creates a worker thread.
-    AERO_NODISCARD Base::Result<std::uint32_t> ProcessPending(
+    Base::Result<std::uint32_t> ProcessPending(
         DispatcherPriority throughPriority = DispatcherPriority::Idle,
         std::uint32_t maxCallbacks =
             UnlimitedDispatcherCallbacks) noexcept;
 
-    AERO_NODISCARD Base::Result<DispatcherFrameHookHandle>
+    Base::Result<DispatcherFrameHookHandle>
     RegisterFrameHook(
         DispatcherFramePhase phase,
         DispatcherCallback callback,
         void* context = nullptr,
         DispatcherCleanupCallback cleanup = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<bool> RemoveFrameHook(
+    Base::Result<bool> RemoveFrameHook(
         DispatcherFrameHookHandle handle) noexcept;
 
     // Hooks run in registration order. Hooks added while a phase is running
     // are deferred until the next invocation of that phase.
-    AERO_NODISCARD Base::Result<std::uint32_t> RunFramePhase(
+    Base::Result<std::uint32_t> RunFramePhase(
         DispatcherFramePhase phase) noexcept;
 
-    AERO_NODISCARD Base::Result<DispatcherReentrancyGuard>
+    Base::Result<DispatcherReentrancyGuard>
     EnterReentrancyGuard() noexcept;
 
-    AERO_NODISCARD std::uint32_t PendingTaskCount() const noexcept;
-    AERO_NODISCARD std::uint32_t RegisteredFrameHookCount() const noexcept;
-    AERO_NODISCARD bool IsPumping() const noexcept;
-    AERO_NODISCARD std::uint32_t ReentrancyDepth() const noexcept;
+    std::uint32_t PendingTaskCount() const noexcept;
+    std::uint32_t RegisteredFrameHookCount() const noexcept;
+    bool IsPumping() const noexcept;
+    std::uint32_t ReentrancyDepth() const noexcept;
 
 private:
     friend class DispatcherReentrancyGuard;
@@ -259,7 +259,7 @@ private:
     bool phaseActive_ = false;
     bool shuttingDown_ = false;
 
-    AERO_NODISCARD Base::Result<DispatcherTaskHandle> Enqueue(
+    Base::Result<DispatcherTaskHandle> Enqueue(
         DispatcherTime dueTimeMicroseconds,
         bool delayed,
         DispatcherPriority priority,
@@ -267,11 +267,11 @@ private:
         void* context,
         DispatcherCleanupCallback cleanup) noexcept;
 
-    AERO_NODISCARD Base::Result<void> InsertReadyLocked(
+    Base::Result<void> InsertReadyLocked(
         const TaskRecord& record) noexcept;
-    AERO_NODISCARD Base::Result<void> InsertDelayedLocked(
+    Base::Result<void> InsertDelayedLocked(
         const TaskRecord& record) noexcept;
-    AERO_NODISCARD Base::Result<void> PromoteDueLocked(
+    Base::Result<void> PromoteDueLocked(
         DispatcherTime nowMicroseconds) noexcept;
 
     void CompactReadyLocked(bool force) noexcept;
@@ -282,23 +282,23 @@ private:
     void LeaveReentrancyGuard() noexcept;
     void NotifyWake() const noexcept;
 
-    AERO_NODISCARD static bool IsValidPriority(
+    static bool IsValidPriority(
         DispatcherPriority priority) noexcept;
-    AERO_NODISCARD static bool IsValidFramePhase(
+    static bool IsValidFramePhase(
         DispatcherFramePhase phase) noexcept;
-    AERO_NODISCARD static bool ReadyLess(
+    static bool ReadyLess(
         const TaskRecord& left,
         const TaskRecord& right) noexcept;
-    AERO_NODISCARD static bool DelayedLess(
+    static bool DelayedLess(
         const TaskRecord& left,
         const TaskRecord& right) noexcept;
 };
 
 class AERO_API DispatcherObject : public Base::Object {
 public:
-    AERO_NODISCARD bool CheckAccess() const noexcept;
-    AERO_NODISCARD Base::Result<void> VerifyAccess() const noexcept;
-    AERO_NODISCARD Dispatcher& GetDispatcher() const noexcept;
+    bool CheckAccess() const noexcept;
+    Base::Result<void> VerifyAccess() const noexcept;
+    Dispatcher& GetDispatcher() const noexcept;
 
 protected:
     explicit DispatcherObject(Dispatcher& dispatcher) noexcept;

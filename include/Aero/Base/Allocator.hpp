@@ -28,7 +28,7 @@ struct AllocationRequest final {
 
 class IAllocator {
 public:
-    AERO_NODISCARD virtual void* Allocate(const AllocationRequest& request) noexcept = 0;
+    virtual void* Allocate(const AllocationRequest& request) noexcept = 0;
     virtual void Deallocate(
         void* memory,
         std::size_t size,
@@ -41,7 +41,7 @@ protected:
 
 class MallocAllocator final : public IAllocator {
 public:
-    AERO_NODISCARD void* Allocate(const AllocationRequest& request) noexcept override;
+    void* Allocate(const AllocationRequest& request) noexcept override;
     void Deallocate(
         void* memory,
         std::size_t size,
@@ -54,11 +54,11 @@ using OutOfMemoryHandler = void(*)(
     std::size_t alignment,
     MemoryTag tag) noexcept;
 
-AERO_NODISCARD AERO_API IAllocator& GetSystemAllocator() noexcept;
-AERO_NODISCARD AERO_API IAllocator& GetDefaultAllocator() noexcept;
-AERO_NODISCARD AERO_API IAllocator* SetDefaultAllocator(IAllocator* allocator) noexcept;
+AERO_API IAllocator& GetSystemAllocator() noexcept;
+AERO_API IAllocator& GetDefaultAllocator() noexcept;
+AERO_API IAllocator* SetDefaultAllocator(IAllocator* allocator) noexcept;
 
-AERO_NODISCARD AERO_API OutOfMemoryHandler
+AERO_API OutOfMemoryHandler
 SetOutOfMemoryHandler(OutOfMemoryHandler handler) noexcept;
 
 [[noreturn]] AERO_API void ReportOutOfMemory(
@@ -66,7 +66,7 @@ SetOutOfMemoryHandler(OutOfMemoryHandler handler) noexcept;
     std::size_t alignment,
     MemoryTag tag) noexcept;
 
-AERO_NODISCARD constexpr bool IsValidAlignment(std::size_t alignment) noexcept {
+constexpr bool IsValidAlignment(std::size_t alignment) noexcept {
     return alignment != 0U && (alignment & (alignment - 1U)) == 0U;
 }
 

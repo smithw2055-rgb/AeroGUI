@@ -42,10 +42,10 @@ class RootNode final : public Object {
 public:
     explicit RootNode(IAllocator* allocator) noexcept : children_(allocator) {}
 
-    AERO_NODISCARD Result<void> AddChild(Ref<Object> child) noexcept {
+    Result<void> AddChild(Ref<Object> child) noexcept {
         return children_.TryPushBack(std::move(child));
     }
-    AERO_NODISCARD Span<const Ref<Object>> Children() const noexcept {
+    Span<const Ref<Object>> Children() const noexcept {
         return {children_.Data(), children_.Size()};
     }
 

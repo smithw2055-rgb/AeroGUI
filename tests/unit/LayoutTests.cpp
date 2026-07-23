@@ -253,7 +253,7 @@ bool TestCanvasChildPosition() {
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(root.DesiredSize().width == 20.0 && root.DesiredSize().height == 16.0);
     CHECK(child.LayoutSlot().x == 8.0 && child.LayoutSlot().y == 9.0);
-    CHECK(child.SetValue(Canvas::LeftProperty(), Value::FromDouble(
+    CHECK(child.SetValue(Canvas::LeftProperty, Value::FromDouble(
         MakeTypeId(AeroPresentationNamespaceUri(), StringView("Double")), -3.0)));
     CHECK(!root.IsMeasureValid());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));

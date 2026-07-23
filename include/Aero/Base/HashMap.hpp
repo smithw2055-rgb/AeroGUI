@@ -23,9 +23,9 @@ public:
 
     class Entry final {
     public:
-        AERO_NODISCARD const K& Key() const noexcept { return key_; }
-        AERO_NODISCARD V& Value() noexcept { return value_; }
-        AERO_NODISCARD const V& Value() const noexcept { return value_; }
+        const K& Key() const noexcept { return key_; }
+        V& Value() noexcept { return value_; }
+        const V& Value() const noexcept { return value_; }
 
     private:
         friend class HashMap;
@@ -57,11 +57,11 @@ private:
         BucketState state = BucketState::Empty;
         alignas(Entry) unsigned char storage[sizeof(Entry)];
 
-        AERO_NODISCARD Entry* GetEntry() noexcept {
+        Entry* GetEntry() noexcept {
             return std::launder(reinterpret_cast<Entry*>(storage));
         }
 
-        AERO_NODISCARD const Entry* GetEntry() const noexcept {
+        const Entry* GetEntry() const noexcept {
             return std::launder(reinterpret_cast<const Entry*>(storage));
         }
     };
@@ -78,12 +78,12 @@ public:
     public:
         IteratorBase() noexcept = default;
 
-        AERO_NODISCARD EntryType& operator*() const noexcept {
+        EntryType& operator*() const noexcept {
             AERO_ASSERT(map_ != nullptr && index_ < map_->capacity_);
             return *map_->buckets_[index_].GetEntry();
         }
 
-        AERO_NODISCARD EntryType* operator->() const noexcept {
+        EntryType* operator->() const noexcept {
             return &(**this);
         }
 
@@ -96,11 +96,11 @@ public:
             return *this;
         }
 
-        AERO_NODISCARD bool operator==(const IteratorBase& other) const noexcept {
+        bool operator==(const IteratorBase& other) const noexcept {
             return map_ == other.map_ && index_ == other.index_;
         }
 
-        AERO_NODISCARD bool operator!=(const IteratorBase& other) const noexcept {
+        bool operator!=(const IteratorBase& other) const noexcept {
             return !(*this == other);
         }
 
@@ -216,18 +216,18 @@ public:
         return *this;
     }
 
-    AERO_NODISCARD SizeType Size() const noexcept { return size_; }
-    AERO_NODISCARD SizeType Capacity() const noexcept { return capacity_; }
-    AERO_NODISCARD bool Empty() const noexcept { return size_ == 0U; }
-    AERO_NODISCARD HashCode Seed() const noexcept { return seed_; }
-    AERO_NODISCARD IAllocator& Allocator() const noexcept { return *allocator_; }
+    SizeType Size() const noexcept { return size_; }
+    SizeType Capacity() const noexcept { return capacity_; }
+    bool Empty() const noexcept { return size_ == 0U; }
+    HashCode Seed() const noexcept { return seed_; }
+    IAllocator& Allocator() const noexcept { return *allocator_; }
 
-    AERO_NODISCARD Iterator begin() noexcept { return Iterator(this, 0U); }
-    AERO_NODISCARD Iterator end() noexcept { return Iterator(this, capacity_); }
-    AERO_NODISCARD ConstIterator begin() const noexcept {
+    Iterator begin() noexcept { return Iterator(this, 0U); }
+    Iterator end() noexcept { return Iterator(this, capacity_); }
+    ConstIterator begin() const noexcept {
         return ConstIterator(this, 0U);
     }
-    AERO_NODISCARD ConstIterator end() const noexcept {
+    ConstIterator end() const noexcept {
         return ConstIterator(this, capacity_);
     }
 
@@ -246,7 +246,7 @@ public:
         used_ = 0U;
     }
 
-    AERO_NODISCARD Result<void> TryReserve(SizeType expectedElements) noexcept {
+    Result<void> TryReserve(SizeType expectedElements) noexcept {
         const SizeType requiredCapacity = RequiredCapacityFor(expectedElements);
         if (expectedElements > 0U && requiredCapacity == 0U) {
             return Status::Failure(ErrorCode::OutOfRange,
@@ -258,22 +258,22 @@ public:
         return TryRehash(requiredCapacity);
     }
 
-    AERO_NODISCARD V* Find(const K& key) noexcept {
+    V* Find(const K& key) noexcept {
         Entry* entry = FindEntry(key);
         return entry != nullptr ? &entry->value_ : nullptr;
     }
 
-    AERO_NODISCARD const V* Find(const K& key) const noexcept {
+    const V* Find(const K& key) const noexcept {
         const Entry* entry = FindEntry(key);
         return entry != nullptr ? &entry->value_ : nullptr;
     }
 
-    AERO_NODISCARD Entry* FindEntry(const K& key) noexcept {
+    Entry* FindEntry(const K& key) noexcept {
         return const_cast<Entry*>(
             static_cast<const HashMap*>(this)->FindEntry(key));
     }
 
-    AERO_NODISCARD const Entry* FindEntry(const K& key) const noexcept {
+    const Entry* FindEntry(const K& key) const noexcept {
         if (capacity_ == 0U) {
             return nullptr;
         }
@@ -282,21 +282,21 @@ public:
         return probe.found ? buckets_[probe.index].GetEntry() : nullptr;
     }
 
-    AERO_NODISCARD bool Contains(const K& key) const noexcept {
+    bool Contains(const K& key) const noexcept {
         return FindEntry(key) != nullptr;
     }
 
-    AERO_NODISCARD Result<InsertResult> TryInsert(
+    Result<InsertResult> TryInsert(
         const K& key, const V& value) noexcept {
         return TryInsertImpl(key, value);
     }
 
-    AERO_NODISCARD Result<InsertResult> TryInsert(
+    Result<InsertResult> TryInsert(
         K&& key, V&& value) noexcept {
         return TryInsertImpl(std::move(key), std::move(value));
     }
 
-    AERO_NODISCARD Result<V*> TrySet(
+    Result<V*> TrySet(
         const K& key, const V& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
@@ -310,7 +310,7 @@ public:
         return &inserted.Value().entry->value_;
     }
 
-    AERO_NODISCARD Result<V*> TrySet(K&& key, V&& value) noexcept {
+    Result<V*> TrySet(K&& key, V&& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = std::move(value);
@@ -324,7 +324,7 @@ public:
         return &inserted.Value().entry->value_;
     }
 
-    AERO_NODISCARD bool Erase(const K& key) noexcept {
+    bool Erase(const K& key) noexcept {
         if (capacity_ == 0U) {
             return false;
         }
@@ -368,12 +368,12 @@ private:
     Equal equal_;
     HashCode seed_ = 0U;
 
-    AERO_NODISCARD HashCode ComputeHash(const K& key) const noexcept {
+    HashCode ComputeHash(const K& key) const noexcept {
         return MixHash64(hash_(key) ^ seed_);
     }
 
     template<class KeyArg, class ValueArg>
-    AERO_NODISCARD Result<InsertResult> TryInsertImpl(
+    Result<InsertResult> TryInsertImpl(
         KeyArg&& key, ValueArg&& value) noexcept {
         HashCode hash = ComputeHash(key);
         if (capacity_ != 0U) {
@@ -403,7 +403,7 @@ private:
         return InsertResult{entry, true};
     }
 
-    AERO_NODISCARD Result<void> EnsureInsertCapacity() noexcept {
+    Result<void> EnsureInsertCapacity() noexcept {
         if (capacity_ == 0U) {
             return TryRehash(MinimumCapacity);
         }
@@ -427,7 +427,7 @@ private:
         return TryRehash(capacity_ * 2U);
     }
 
-    AERO_NODISCARD ProbeResult Probe(
+    ProbeResult Probe(
         const K& key, HashCode hash) const noexcept {
         AERO_ASSERT(capacity_ != 0U && (capacity_ & (capacity_ - 1U)) == 0U);
         const SizeType mask = capacity_ - 1U;
@@ -456,7 +456,7 @@ private:
         return {false, firstTombstone};
     }
 
-    AERO_NODISCARD Result<void> TryRehash(SizeType newCapacity) noexcept {
+    Result<void> TryRehash(SizeType newCapacity) noexcept {
         if (newCapacity < MinimumCapacity) {
             newCapacity = MinimumCapacity;
         }
@@ -578,7 +578,7 @@ private:
         other.capacity_ = 0U;
     }
 
-    AERO_NODISCARD static SizeType RequiredCapacityFor(
+    static SizeType RequiredCapacityFor(
         SizeType expectedElements) noexcept {
         if (expectedElements == 0U) {
             return 0U;
@@ -594,7 +594,7 @@ private:
         return capacity;
     }
 
-    AERO_NODISCARD static std::size_t BucketBytesForCapacity(
+    static std::size_t BucketBytesForCapacity(
         SizeType capacity) noexcept {
         if (capacity == 0U) {
             return 0U;

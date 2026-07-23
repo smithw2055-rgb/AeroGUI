@@ -84,14 +84,14 @@ public:
     XamlObjectWriter(const XamlObjectWriter&) = delete;
     XamlObjectWriter& operator=(const XamlObjectWriter&) = delete;
 
-    AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> Load(
+    Base::Result<Base::Ref<Base::Object>> Load(
         XamlNodeReader& reader) noexcept;
     void Reset() noexcept;
 
-    AERO_NODISCARD const NameScope& DocumentNameScope() const noexcept {
+    const NameScope& DocumentNameScope() const noexcept {
         return committedNames_;
     }
-    AERO_NODISCARD const ResourceDictionary& DocumentResources() const noexcept {
+    const ResourceDictionary& DocumentResources() const noexcept {
         return committedResources_;
     }
 
@@ -241,124 +241,124 @@ private:
     bool loading_ = false;
     bool ended_ = false;
 
-    AERO_NODISCARD Base::Result<void> ProcessNode(
+    Base::Result<void> ProcessNode(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> QueueNamespaceDeclaration(
+    Base::Result<void> QueueNamespaceDeclaration(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> StartObject(
+    Base::Result<void> StartObject(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> StartNullObject(
+    Base::Result<void> StartNullObject(
         const XamlNode& node,
         std::uint32_t bindingStart) noexcept;
-    AERO_NODISCARD Base::Result<void> EndObject(
+    Base::Result<void> EndObject(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> StartMember(
+    Base::Result<void> StartMember(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> StartDirective(
+    Base::Result<void> StartDirective(
         const XamlNode& node,
         DirectiveKind directive,
         std::uint32_t targetObjectIndex) noexcept;
-    AERO_NODISCARD Base::Result<void> EndMember(
+    Base::Result<void> EndMember(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteText(
+    Base::Result<void> WriteText(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteDirectiveText(
+    Base::Result<void> WriteDirectiveText(
         Frame& frame,
         const XamlNode& node) noexcept;
 
-    AERO_NODISCARD Base::Result<void> StartPropertyElement(
+    Base::Result<void> StartPropertyElement(
         const XamlNode& node,
         std::uint32_t targetFrameIndex,
         std::uint32_t bindingStart) noexcept;
-    AERO_NODISCARD Base::Result<void> CompleteObject(
+    Base::Result<void> CompleteObject(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> CompleteNullObject(
+    Base::Result<void> CompleteNullObject(
         const XamlNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteObjectToParent(
+    Base::Result<void> WriteObjectToParent(
         std::uint32_t objectIndex,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteObjectToContent(
+    Base::Result<void> WriteObjectToContent(
         std::uint32_t parentObjectIndex,
         std::uint32_t childObjectIndex,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteNullToParent(
+    Base::Result<void> WriteNullToParent(
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteValueToMember(
+    Base::Result<void> WriteValueToMember(
         Frame& memberFrame,
         XamlValue&& value,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<void> WriteValue(
+    Base::Result<void> WriteValue(
         std::uint32_t targetObjectIndex,
         const XamlResolvedMember& member,
         XamlValue&& value,
         Core::SourceSpan source) noexcept;
 
-    AERO_NODISCARD Base::Result<void> RegisterObjectName(
+    Base::Result<void> RegisterObjectName(
         std::uint32_t objectIndex,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<bool> RegisterObjectResource(
+    Base::Result<bool> RegisterObjectResource(
         std::uint32_t objectIndex,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD Base::Result<XamlResourceValue> LookupResource(
+    Base::Result<XamlResourceValue> LookupResource(
         Base::StringView key) const noexcept;
-    AERO_NODISCARD Base::Result<void> CreateScopesForObject(
+    Base::Result<void> CreateScopesForObject(
         std::uint32_t objectIndex,
         Frame& frame,
         Core::SourceSpan source) noexcept;
 
-    AERO_NODISCARD Base::Result<void> ActivatePendingNamespaces(
+    Base::Result<void> ActivatePendingNamespaces(
         std::uint32_t& bindingStart) noexcept;
     void PopNamespaceBindings(std::uint32_t bindingStart) noexcept;
-    AERO_NODISCARD Base::Result<Base::StringView> LookupNamespace(
+    Base::Result<Base::StringView> LookupNamespace(
         Base::StringView prefix) const noexcept;
 
-    AERO_NODISCARD XamlServiceProvider BuildServices(
+    XamlServiceProvider BuildServices(
         std::uint32_t targetObjectIndex,
         const XamlResolvedMember& member,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD const NameScope* FindActiveNameScope() const noexcept;
-    AERO_NODISCARD std::uint32_t FindNameScopeIndexForObject(
+    const NameScope* FindActiveNameScope() const noexcept;
+    std::uint32_t FindNameScopeIndexForObject(
         std::uint32_t objectIndex) const noexcept;
-    AERO_NODISCARD std::uint32_t FindResourceScopeIndexForParent() const noexcept;
-    AERO_NODISCARD std::uint32_t FindObjectFrameIndex(
+    std::uint32_t FindResourceScopeIndexForParent() const noexcept;
+    std::uint32_t FindObjectFrameIndex(
         std::uint32_t objectIndex) const noexcept;
 
-    AERO_NODISCARD MarkupValueKind ParseMarkupValue(
+    MarkupValueKind ParseMarkupValue(
         Base::StringView text,
         Base::StringView& extensionName,
         Base::StringView& argument) const noexcept;
-    AERO_NODISCARD Base::Result<XamlValue> EvaluateMarkupExtension(
+    Base::Result<XamlValue> EvaluateMarkupExtension(
         std::uint32_t targetObjectIndex,
         const XamlResolvedMember& member,
         Base::StringView extensionName,
         Base::StringView arguments,
         Core::SourceSpan source) noexcept;
-    AERO_NODISCARD bool IsXamlDirective(
+    bool IsXamlDirective(
         const XamlQualifiedName& name,
         Base::StringView localName) const noexcept;
-    AERO_NODISCARD bool IsXamlNullObject(
+    bool IsXamlNullObject(
         const XamlQualifiedName& name) const noexcept;
-    AERO_NODISCARD bool HasPropertyElementSyntax(
+    bool HasPropertyElementSyntax(
         const XamlQualifiedName& name) const noexcept;
-    AERO_NODISCARD bool IsWhitespaceOnly(Base::StringView value) const noexcept;
-    AERO_NODISCARD AssignmentRecord* FindAssignment(
+    bool IsWhitespaceOnly(Base::StringView value) const noexcept;
+    AssignmentRecord* FindAssignment(
         std::uint32_t objectIndex,
         Core::MemberId member) noexcept;
 
     void CommitDocumentScopes() noexcept;
     void AbortTransaction() noexcept;
     void ClearTransaction() noexcept;
-    AERO_NODISCARD Base::Status Failure(
+    Base::Status Failure(
         Base::Status status,
         Core::DiagnosticCode diagnostic,
         Base::StringView message,
         Core::SourceSpan source) noexcept;
 
-    AERO_NODISCARD static Base::Result<Base::StringView>
+    static Base::Result<Base::StringView>
     NamespaceLookupCallback(
         void* context,
         Base::StringView prefix) noexcept;
-    AERO_NODISCARD static Base::Result<XamlResourceValue>
+    static Base::Result<XamlResourceValue>
     ResourceLookupCallback(
         void* context,
         Base::StringView key) noexcept;

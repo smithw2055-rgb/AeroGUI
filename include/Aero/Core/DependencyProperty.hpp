@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -20,22 +21,29 @@ namespace Aero::Core {
 class DependencyObject;
 class DependencyProperty;
 class DependencyPropertyRegistry;
+struct MetaRegistrationContext;
 
 struct DependencyPropertyHandle final {
     MemberId value = InvalidMemberId;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != InvalidMemberId;
     }
 };
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(
+    TypeId ownerType,
+    Base::StringView name) noexcept {
+    return {MakeMemberId(ownerType, MemberKind::Property, name)};
+}
+
+constexpr bool operator==(
     DependencyPropertyHandle left,
     DependencyPropertyHandle right) noexcept {
     return left.value == right.value;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     DependencyPropertyHandle left,
     DependencyPropertyHandle right) noexcept {
     return !(left == right);
@@ -68,7 +76,7 @@ enum class UpdateSourceTrigger : std::uint8_t {
     Explicit
 };
 
-AERO_NODISCARD constexpr DependencyPropertyFlags operator|(
+constexpr DependencyPropertyFlags operator|(
     DependencyPropertyFlags left,
     DependencyPropertyFlags right) noexcept {
     return static_cast<DependencyPropertyFlags>(
@@ -76,7 +84,7 @@ AERO_NODISCARD constexpr DependencyPropertyFlags operator|(
         static_cast<std::uint32_t>(right));
 }
 
-AERO_NODISCARD constexpr PropertyMetadataFlags operator|(
+constexpr PropertyMetadataFlags operator|(
     PropertyMetadataFlags left,
     PropertyMetadataFlags right) noexcept {
     return static_cast<PropertyMetadataFlags>(
@@ -84,14 +92,14 @@ AERO_NODISCARD constexpr PropertyMetadataFlags operator|(
         static_cast<std::uint32_t>(right));
 }
 
-AERO_NODISCARD constexpr bool HasFlag(
+constexpr bool HasFlag(
     DependencyPropertyFlags value,
     DependencyPropertyFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-AERO_NODISCARD constexpr bool HasFlag(
+constexpr bool HasFlag(
     PropertyMetadataFlags value,
     PropertyMetadataFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
@@ -114,7 +122,7 @@ enum class PropertyInvalidationFlags : std::uint32_t {
     ParentArrange = 1U << 5U
 };
 
-AERO_NODISCARD constexpr PropertyInvalidationFlags operator|(
+constexpr PropertyInvalidationFlags operator|(
     PropertyInvalidationFlags left,
     PropertyInvalidationFlags right) noexcept {
     return static_cast<PropertyInvalidationFlags>(
@@ -129,7 +137,7 @@ inline PropertyInvalidationFlags& operator|=(
     return left;
 }
 
-AERO_NODISCARD constexpr bool HasFlag(
+constexpr bool HasFlag(
     PropertyInvalidationFlags value,
     PropertyInvalidationFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
@@ -144,27 +152,18 @@ struct DependencyPropertyChangedEventArgs final {
     EffectiveValueSource newSource = EffectiveValueSource::Default;
 };
 
-using ValidateValueCallback = bool (*)(
-    const PropertyValue& value) noexcept;
-using CoerceValueCallback = Base::Result<PropertyValue> (*)(
+using ValidateValueCallback = Base::Delegate<bool(
+    const PropertyValue& value)>;
+using CoerceValueCallback = Base::Delegate<Base::Result<PropertyValue>(
     DependencyObject& object,
     const DependencyProperty& property,
-    const PropertyValue& baseValue) noexcept;
-using PropertyChangedCallback = void (*)(
+    const PropertyValue& baseValue)>;
+using PropertyChangedCallback = Base::Delegate<void(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept;
-using DependencyPropertyChangeHandler = void (*)(
+    const DependencyPropertyChangedEventArgs& args)>;
+using DependencyPropertyChangedEventHandler = Base::Delegate<void(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args,
-    void* context) noexcept;
-
-struct DependencyPropertyChangeSubscription final {
-    std::uint64_t value = 0U;
-
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
-};
+    const DependencyPropertyChangedEventArgs& args)>;
 
 struct PropertyMetadata final {
     PropertyValue defaultValue;
@@ -180,11 +179,11 @@ class AERO_API DependencyPropertyKey final {
 public:
     DependencyPropertyKey() noexcept = default;
 
-    AERO_NODISCARD bool IsValid() const noexcept {
+    bool IsValid() const noexcept {
         return registry_ != nullptr && property_.IsValid() && secret_ != 0U;
     }
 
-    AERO_NODISCARD DependencyPropertyHandle Property() const noexcept {
+    DependencyPropertyHandle Property() const noexcept {
         return property_;
     }
 
@@ -218,31 +217,31 @@ public:
     DependencyProperty(const DependencyProperty&) = delete;
     DependencyProperty& operator=(const DependencyProperty&) = delete;
 
-    AERO_NODISCARD DependencyPropertyHandle Handle() const noexcept {
+    DependencyPropertyHandle Handle() const noexcept {
         return handle_;
     }
-    AERO_NODISCARD Base::StringView Name() const noexcept {
+    Base::StringView Name() const noexcept {
         return name_.View();
     }
-    AERO_NODISCARD TypeId ValueType() const noexcept { return valueType_; }
-    AERO_NODISCARD TypeId RegisteredOwnerType() const noexcept {
+    TypeId ValueType() const noexcept { return valueType_; }
+    TypeId RegisteredOwnerType() const noexcept {
         return registeredOwnerType_;
     }
-    AERO_NODISCARD DependencyPropertyFlags Flags() const noexcept {
+    DependencyPropertyFlags Flags() const noexcept {
         return flags_;
     }
-    AERO_NODISCARD bool IsReadOnly() const noexcept {
+    bool IsReadOnly() const noexcept {
         return HasFlag(flags_, DependencyPropertyFlags::ReadOnly);
     }
-    AERO_NODISCARD bool IsAttached() const noexcept {
+    bool IsAttached() const noexcept {
         return HasFlag(flags_, DependencyPropertyFlags::Attached);
     }
-    AERO_NODISCARD std::uint32_t MetadataCount() const noexcept {
+    std::uint32_t MetadataCount() const noexcept {
         return metadata_.Size();
     }
 
     // Metadata addresses become stable when the owning registry is frozen.
-    AERO_NODISCARD const PropertyMetadata* MetadataFor(
+    const PropertyMetadata* MetadataFor(
         TypeId forType) const noexcept;
 
 private:
@@ -258,7 +257,7 @@ private:
     explicit DependencyProperty(Base::IAllocator* allocator) noexcept
         : name_(allocator), metadata_(allocator) {}
 
-    AERO_NODISCARD const MetadataEntry* FindMetadataExact(
+    const MetadataEntry* FindMetadataExact(
         TypeId forType) const noexcept;
 
     TypeRegistry* typeRegistry_ = nullptr;
@@ -284,43 +283,43 @@ public:
     DependencyPropertyRegistry& operator=(
         DependencyPropertyRegistry&&) = delete;
 
-    AERO_NODISCARD Base::Result<DependencyPropertyRegistrationResult>
+    Base::Result<DependencyPropertyRegistrationResult>
     TryRegister(
         const DependencyPropertyRegistration& registration) noexcept;
 
-    AERO_NODISCARD Base::Result<void> TryAddOwner(
+    Base::Result<void> TryAddOwner(
         DependencyPropertyHandle property,
         TypeId ownerType,
         const PropertyMetadata& metadata) noexcept;
 
     // Override metadata is a complete replacement in the first runtime slice.
-    AERO_NODISCARD Base::Result<void> TryOverrideMetadata(
+    Base::Result<void> TryOverrideMetadata(
         DependencyPropertyHandle property,
         TypeId forType,
         const PropertyMetadata& metadata) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Freeze() noexcept;
+    Base::Result<void> Freeze() noexcept;
 
-    AERO_NODISCARD bool IsFrozen() const noexcept { return frozen_; }
-    AERO_NODISCARD std::uint32_t PropertyCount() const noexcept {
+    bool IsFrozen() const noexcept { return frozen_; }
+    std::uint32_t PropertyCount() const noexcept {
         return properties_.Size();
     }
-    AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
+    Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
     }
-    AERO_NODISCARD TypeRegistry& Types() const noexcept {
+    TypeRegistry& Types() const noexcept {
         return *typeRegistry_;
     }
 
     // Returned addresses are stable after Freeze().
-    AERO_NODISCARD const DependencyProperty* Find(
+    const DependencyProperty* Find(
         DependencyPropertyHandle property) const noexcept;
-    AERO_NODISCARD const DependencyProperty* Find(
+    const DependencyProperty* Find(
         TypeId ownerType,
         Base::StringView name) const noexcept;
     // Validates a provider value without mutating an object. Style/template
     // sealing uses this to reject invalid setter plans before frame execution.
-    AERO_NODISCARD Base::Result<void> ValidateValueFor(
+    Base::Result<void> ValidateValueFor(
         DependencyPropertyHandle property,
         TypeId ownerType,
         const PropertyValue& value) const noexcept;
@@ -335,80 +334,82 @@ private:
     std::uint64_t nextReadOnlySecret_ = 1U;
     bool frozen_ = false;
 
-    AERO_NODISCARD Base::Result<void> ValidateMetadata(
+    Base::Result<void> ValidateMetadata(
         TypeId valueType,
         const PropertyMetadata& metadata) const noexcept;
-    AERO_NODISCARD Base::Result<void> ValidateValue(
+    Base::Result<void> ValidateValue(
         const DependencyProperty& property,
         const PropertyMetadata& metadata,
         const PropertyValue& value) const noexcept;
-    AERO_NODISCARD Base::Result<PropertyValue> EvaluateValue(
+    Base::Result<PropertyValue> EvaluateValue(
         DependencyObject& object,
         const DependencyProperty& property,
         const PropertyMetadata& metadata,
         const PropertyValue& baseValue) const noexcept;
-    AERO_NODISCARD bool ValidateKey(
+    bool ValidateKey(
         DependencyPropertyHandle property,
         const DependencyPropertyKey* key) const noexcept;
-    AERO_NODISCARD std::uint32_t FindIndex(MemberId member) const noexcept;
-    AERO_NODISCARD static PropertyFlags ToTypeRegistryFlags(
+    std::uint32_t FindIndex(MemberId member) const noexcept;
+    static PropertyFlags ToTypeRegistryFlags(
         DependencyPropertyFlags propertyFlags,
         PropertyMetadataFlags metadataFlags) noexcept;
 };
 
 class AERO_API DependencyObject : public DispatcherObject {
+    AERO_DECLARE_METADATA(DependencyObject, Base::Object)
 public:
-    AERO_NODISCARD TypeId RuntimeType() const noexcept { return runtimeType_; }
-    AERO_NODISCARD DependencyPropertyRegistry& PropertyRegistry() const noexcept {
+    TypeId RuntimeType() const noexcept override {
+        return runtimeType_;
+    }
+    DependencyPropertyRegistry& PropertyRegistry() const noexcept {
         return *registry_;
     }
 
-    AERO_NODISCARD Base::Result<PropertyValue> GetValue(
+    Base::Result<PropertyValue> GetValue(
         DependencyPropertyHandle property) const noexcept;
-    AERO_NODISCARD Base::Result<PropertyValue> ReadLocalValue(
+    Base::Result<PropertyValue> ReadLocalValue(
         DependencyPropertyHandle property) const noexcept;
-    AERO_NODISCARD Base::Result<EffectiveValueSource> GetValueSource(
+    Base::Result<EffectiveValueSource> GetValueSource(
         DependencyPropertyHandle property) const noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetValue(
+    Base::Result<void> SetValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> SetValue(
+    Base::Result<void> SetValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
 
-    AERO_NODISCARD Base::Result<void> SetCurrentValue(
+    Base::Result<void> SetCurrentValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
-    AERO_NODISCARD Base::Result<void> SetCurrentValue(
+    Base::Result<void> SetCurrentValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
 
-    AERO_NODISCARD Base::Result<void> ClearValue(
+    Base::Result<void> ClearValue(
         DependencyPropertyHandle property) noexcept;
-    AERO_NODISCARD Base::Result<void> ClearValue(
+    Base::Result<void> ClearValue(
         const DependencyPropertyKey& key) noexcept;
 
-    AERO_NODISCARD Base::Result<void> CoerceValue(
+    Base::Result<void> CoerceValue(
         DependencyPropertyHandle property) noexcept;
 
     // Listeners execute after the effective value has committed and after the
     // property's metadata callback. They are intended to queue later work,
     // not to synchronously mutate the same property.
-    AERO_NODISCARD Base::Result<DependencyPropertyChangeSubscription>
-    AddValueChangedHandler(
+    Base::Result<void> TryAddValueChangedHandler(
         DependencyPropertyHandle property,
-        DependencyPropertyChangeHandler handler,
-        void* context = nullptr) noexcept;
-    AERO_NODISCARD Base::Result<bool> RemoveValueChangedHandler(
-        DependencyPropertyChangeSubscription subscription) noexcept;
+        const DependencyPropertyChangedEventHandler& handler) noexcept;
+    Base::Result<bool> RemoveValueChangedHandler(
+        DependencyPropertyHandle property,
+        const DependencyPropertyChangedEventHandler& handler) noexcept;
 
-    AERO_NODISCARD PropertyInvalidationFlags PendingInvalidations() const noexcept {
+    PropertyInvalidationFlags PendingInvalidations() const noexcept {
         return invalidations_;
     }
-    AERO_NODISCARD Base::Result<PropertyInvalidationFlags>
+    Base::Result<PropertyInvalidationFlags>
     TakeInvalidations() noexcept;
-    AERO_NODISCARD std::uint32_t StoredValueCount() const noexcept {
+    std::uint32_t StoredValueCount() const noexcept {
         return values_.Size();
     }
 
@@ -419,7 +420,7 @@ protected:
         TypeId runtimeType,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~DependencyObject() override = default;
-    AERO_NODISCARD virtual Base::Result<void> OnPropertyInvalidated(
+    virtual Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
 
 private:
@@ -441,10 +442,8 @@ private:
     };
 
     struct ChangeHandlerRecord final {
-        DependencyPropertyChangeSubscription subscription;
         DependencyPropertyHandle property;
-        DependencyPropertyChangeHandler handler = nullptr;
-        void* context = nullptr;
+        DependencyPropertyChangedEventHandler handler;
         bool active = false;
     };
 
@@ -477,17 +476,16 @@ private:
     Base::Vector<MemberId> updateStack_;
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
-    std::uint64_t nextChangeHandler_ = 1U;
     std::uint32_t changeHandlerNotificationDepth_ = 0U;
 
-    AERO_NODISCARD Base::Result<void> VerifyReady() const noexcept;
-    AERO_NODISCARD std::uint32_t FindEntryIndex(
+    Base::Result<void> VerifyReady() const noexcept;
+    std::uint32_t FindEntryIndex(
         DependencyPropertyHandle property) const noexcept;
-    AERO_NODISCARD Base::Result<MutationScope> BeginMutation(
+    Base::Result<MutationScope> BeginMutation(
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
 
-    AERO_NODISCARD Base::Result<void> ApplyChange(
+    Base::Result<void> ApplyChange(
         DependencyPropertyHandle property,
         const DependencyPropertyKey* key,
         ChangeKind kind,
@@ -497,7 +495,7 @@ private:
     void RemoveChangeHandler(std::uint32_t index) noexcept;
     void NotifyValueChanged(
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    AERO_NODISCARD PropertyInvalidationFlags AccumulateInvalidations(
+    PropertyInvalidationFlags AccumulateInvalidations(
         PropertyMetadataFlags metadataFlags) noexcept;
 };
 

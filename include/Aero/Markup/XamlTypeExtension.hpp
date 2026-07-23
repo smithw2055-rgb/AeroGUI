@@ -18,7 +18,7 @@ public:
     XamlTypeExtension(const XamlTypeExtension&) = delete;
     XamlTypeExtension& operator=(const XamlTypeExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Register(
+    Base::Result<void> Register(
         XamlSchemaContext& schema,
         Core::TypeId markupExtensionType) noexcept;
 
@@ -29,7 +29,7 @@ public:
 private:
     Core::TypeId typeReferenceType_ = Core::InvalidTypeId;
 
-    static AERO_NODISCARD Base::Result<XamlValue> ProvideValue(
+    static Base::Result<XamlValue> ProvideValue(
         Base::StringView arguments,
         const XamlServiceProvider& services,
         void* context) noexcept;

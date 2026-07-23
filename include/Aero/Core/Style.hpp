@@ -27,23 +27,23 @@ public:
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryAddSetter(
+    Base::Result<void> TryAddSetter(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
     // Builder configuration is intentionally available only before Seal().
     // XAML object construction supplies TargetType and BasedOn as members,
     // whereas native callers commonly provide both to the constructor.
-    AERO_NODISCARD Base::Result<void> TrySetTargetType(
+    Base::Result<void> TrySetTargetType(
         TypeId targetType) noexcept;
-    AERO_NODISCARD Base::Result<void> TrySetBasedOn(
+    Base::Result<void> TrySetBasedOn(
         const Style* basedOn) noexcept;
-    AERO_NODISCARD Base::Result<void> Seal(
+    Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 
-    AERO_NODISCARD TypeId TargetType() const noexcept { return targetType_; }
-    AERO_NODISCARD const Style* BasedOn() const noexcept { return basedOn_; }
-    AERO_NODISCARD bool IsSealed() const noexcept { return sealed_; }
-    AERO_NODISCARD Base::Span<const StyleSetter> Setters() const noexcept {
+    TypeId TargetType() const noexcept { return targetType_; }
+    const Style* BasedOn() const noexcept { return basedOn_; }
+    bool IsSealed() const noexcept { return sealed_; }
+    Base::Span<const StyleSetter> Setters() const noexcept {
         return {flattened_.Data(), flattened_.Size()};
     }
 
@@ -68,14 +68,14 @@ public:
         : values_(&values), properties_(&properties),
           applications_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
 
-    AERO_NODISCARD Base::Result<void> Apply(
+    Base::Result<void> Apply(
         DependencyObject& object,
         const Style& style) noexcept;
-    AERO_NODISCARD Base::Result<void> Clear(
+    Base::Result<void> Clear(
         DependencyObject& object,
         const Style& style) noexcept;
     // Tree/object ownership code calls this before destroying an object.
-    AERO_NODISCARD Base::Result<bool> DetachObject(
+    Base::Result<bool> DetachObject(
         DependencyObject& object) noexcept;
 
 private:
@@ -87,12 +87,12 @@ private:
     };
     Base::Vector<Application> applications_;
 
-    AERO_NODISCARD Base::Result<void> VerifyTarget(
+    Base::Result<void> VerifyTarget(
         const DependencyObject& object,
         const Style& style) const noexcept;
-    AERO_NODISCARD std::uint32_t FindApplication(
+    std::uint32_t FindApplication(
         const DependencyObject& object) const noexcept;
-    AERO_NODISCARD Base::Result<void> ClearSetters(
+    Base::Result<void> ClearSetters(
         DependencyObject& object,
         const Style& style) noexcept;
 };

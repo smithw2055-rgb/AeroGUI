@@ -38,13 +38,13 @@ struct ResourceHandle final {
     std::uint32_t generation = 0U;
     ResourceType type = ResourceType::Invalid;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return index != UINT32_MAX && generation != 0U &&
             type != ResourceType::Invalid;
     }
 };
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr bool operator==(
     ResourceHandle left,
     ResourceHandle right) noexcept {
     return left.index == right.index &&
@@ -52,7 +52,7 @@ AERO_NODISCARD constexpr bool operator==(
         left.type == right.type;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     ResourceHandle left,
     ResourceHandle right) noexcept {
     return !(left == right);
@@ -115,13 +115,13 @@ public:
     explicit CommandBuffer(Base::IAllocator* allocator = nullptr) noexcept
         : commands_(allocator) {}
 
-    AERO_NODISCARD Base::Span<const RhiCommand> Commands() const noexcept {
+    Base::Span<const RhiCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
-    AERO_NODISCARD std::uint32_t CommandCount() const noexcept {
+    std::uint32_t CommandCount() const noexcept {
         return commands_.Size();
     }
-    AERO_NODISCARD std::uint64_t StableHash() const noexcept;
+    std::uint64_t StableHash() const noexcept;
 
 private:
     friend class Aero::Render::RenderPlanTranslator;
@@ -140,13 +140,13 @@ public:
         std::uint32_t capacityBytes,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize() noexcept;
     void Reset() noexcept { offset_ = 0U; }
-    AERO_NODISCARD Base::Result<UploadSlice> Allocate(
+    Base::Result<UploadSlice> Allocate(
         std::uint32_t size,
         std::uint32_t alignment) noexcept;
-    AERO_NODISCARD std::uint32_t Capacity() const noexcept { return capacity_; }
-    AERO_NODISCARD std::uint32_t Used() const noexcept { return offset_; }
+    std::uint32_t Capacity() const noexcept { return capacity_; }
+    std::uint32_t Used() const noexcept { return offset_; }
 
 private:
     Base::Vector<std::uint8_t> bytes_;
@@ -164,20 +164,20 @@ struct FrameContext final {
 class AERO_API IRhiBackend {
 public:
     virtual ~IRhiBackend() = default;
-    AERO_NODISCARD virtual DeviceCapabilities Capabilities() const noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> CreateResource(
+    virtual DeviceCapabilities Capabilities() const noexcept = 0;
+    virtual Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept = 0;
     virtual void DestroyResource(ResourceHandle handle) noexcept = 0;
-    AERO_NODISCARD virtual Base::Result<void> Submit(
+    virtual Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept = 0;
     // The backend owns the global submission timeline. Every queue facade must
     // allocate its next fence from this value so legacy and graphics submits
     // cannot independently reuse the same fence.
-    AERO_NODISCARD virtual FenceValue LastSubmittedFence() const noexcept = 0;
-    AERO_NODISCARD virtual FenceValue CompletedFence() const noexcept = 0;
-    AERO_NODISCARD virtual bool IsDeviceLost() const noexcept = 0;
+    virtual FenceValue LastSubmittedFence() const noexcept = 0;
+    virtual FenceValue CompletedFence() const noexcept = 0;
+    virtual bool IsDeviceLost() const noexcept = 0;
 };
 
 class AERO_API RhiDevice final {
@@ -190,29 +190,29 @@ public:
     RhiDevice(const RhiDevice&) = delete;
     RhiDevice& operator=(const RhiDevice&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD const DeviceCapabilities& Capabilities() const noexcept {
+    Base::Result<void> Initialize() noexcept;
+    const DeviceCapabilities& Capabilities() const noexcept {
         return capabilities_;
     }
 
-    AERO_NODISCARD Base::Result<ResourceHandle> CreateResource(
+    Base::Result<ResourceHandle> CreateResource(
         const ResourceDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<void> DestroyResource(
+    Base::Result<void> DestroyResource(
         ResourceHandle handle,
         FenceValue retireAfter) noexcept;
-    AERO_NODISCARD bool IsAlive(ResourceHandle handle) const noexcept;
+    bool IsAlive(ResourceHandle handle) const noexcept;
 
-    AERO_NODISCARD Base::Result<FrameContext> BeginFrame() noexcept;
-    AERO_NODISCARD Base::Result<FenceValue> Submit(
+    Base::Result<FrameContext> BeginFrame() noexcept;
+    Base::Result<FenceValue> Submit(
         FrameContext& frame,
         const CommandBuffer& commands) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    Base::Result<std::uint32_t> CollectGarbage() noexcept;
 
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept {
+    FenceValue LastSubmittedFence() const noexcept {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD std::uint32_t LiveResourceCount() const noexcept;
-    AERO_NODISCARD std::uint32_t PendingDestroyCount() const noexcept {
+    std::uint32_t LiveResourceCount() const noexcept;
+    std::uint32_t PendingDestroyCount() const noexcept {
         return deferred_.Size();
     }
 
@@ -238,8 +238,8 @@ private:
     std::uint32_t nextFrameIndex_ = 0U;
     bool initialized_ = false;
 
-    AERO_NODISCARD Base::Result<void> VerifyReady() const noexcept;
-    AERO_NODISCARD Base::Result<void> ValidateDescriptor(
+    Base::Result<void> VerifyReady() const noexcept;
+    Base::Result<void> ValidateDescriptor(
         const ResourceDescriptor& descriptor) const noexcept;
     void ReleaseFrameArenas() noexcept;
 };
@@ -250,34 +250,34 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept
         : resources_(allocator) {}
 
-    AERO_NODISCARD DeviceCapabilities Capabilities() const noexcept override;
-    AERO_NODISCARD Base::Result<void> CreateResource(
+    DeviceCapabilities Capabilities() const noexcept override;
+    Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept override;
     void DestroyResource(ResourceHandle handle) noexcept override;
-    AERO_NODISCARD Base::Result<void> Submit(
+    Base::Result<void> Submit(
         const CommandBuffer& commands,
         FenceValue signalFence) noexcept override;
-    AERO_NODISCARD FenceValue LastSubmittedFence() const noexcept override {
+    FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;
     }
-    AERO_NODISCARD FenceValue CompletedFence() const noexcept override {
+    FenceValue CompletedFence() const noexcept override {
         return completedFence_;
     }
-    AERO_NODISCARD bool IsDeviceLost() const noexcept override {
+    bool IsDeviceLost() const noexcept override {
         return deviceLost_;
     }
 
     void CompleteThrough(FenceValue fence) noexcept;
     void SimulateDeviceLoss() noexcept { deviceLost_ = true; }
 
-    AERO_NODISCARD std::uint32_t SubmissionCount() const noexcept {
+    std::uint32_t SubmissionCount() const noexcept {
         return submissionCount_;
     }
-    AERO_NODISCARD std::uint64_t LastCommandHash() const noexcept {
+    std::uint64_t LastCommandHash() const noexcept {
         return lastCommandHash_;
     }
-    AERO_NODISCARD std::uint32_t LiveBackendResourceCount() const noexcept;
+    std::uint32_t LiveBackendResourceCount() const noexcept;
 
 private:
     struct BackendResource final {

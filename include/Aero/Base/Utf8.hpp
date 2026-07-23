@@ -10,6 +10,6 @@ struct Utf8Validation final {
     std::uint32_t errorOffset = 0;
 };
 
-AERO_NODISCARD AERO_API Utf8Validation ValidateUtf8(StringView text) noexcept;
+AERO_API Utf8Validation ValidateUtf8(StringView text) noexcept;
 
 } // namespace Aero::Base

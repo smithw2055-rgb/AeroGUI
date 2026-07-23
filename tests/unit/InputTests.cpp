@@ -30,24 +30,15 @@ struct Fixture final {
     RoutedEventRegistry events{types};
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
-    RoutedEventHandle moved; RoutedEventHandle pressed; RoutedEventHandle released; RoutedEventHandle gotFocus; RoutedEventHandle lostFocus; RoutedEventHandle keyDown; RoutedEventHandle keyUp; RoutedEventHandle textInput;
     bool Build() {
         Result<CorePresentationMetadata> registered =
-            TryRegisterCorePresentationMetadata(types, properties); CHECK(registered);
+            TryRegisterCorePresentationMetadata(types, properties, &events); CHECK(registered);
         const StringView ns("urn:input");
         objectType=registered.Value().objectType;
         rootType=registered.Value().stackPanelType;
         boxType=MakeTypeId(ns,StringView("Box"));
         CHECK(types.TryRegisterType({ns,StringView("Box"),
             registered.Value().layoutElementType,TypeFlags::None,nullptr}));
-        Result<RoutedEventHandle> move = events.TryRegister({StringView("PointerMove"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(move); moved=move.Value();
-        Result<RoutedEventHandle> down = events.TryRegister({StringView("PointerDown"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(down); pressed=down.Value();
-        Result<RoutedEventHandle> up = events.TryRegister({StringView("PointerUp"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(up); released=up.Value();
-        Result<RoutedEventHandle> got = events.TryRegister({StringView("GotFocus"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(got); gotFocus=got.Value();
-        Result<RoutedEventHandle> lost = events.TryRegister({StringView("LostFocus"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(lost); lostFocus=lost.Value();
-        Result<RoutedEventHandle> downKey = events.TryRegister({StringView("KeyDown"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(downKey); keyDown=downKey.Value();
-        Result<RoutedEventHandle> upKey = events.TryRegister({StringView("KeyUp"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(upKey); keyUp=upKey.Value();
-        Result<RoutedEventHandle> text = events.TryRegister({StringView("TextInput"),rootType,objectType,RoutingStrategy::Bubble}); CHECK(text); textInput=text.Value();
         CHECK(types.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };
@@ -55,12 +46,36 @@ struct Fixture final {
 LayoutElement* CastStack(TreeNode& node, void*) noexcept { return static_cast<LayoutElement*>(&static_cast<StackPanel&>(node)); }
 LayoutElement* CastBox(TreeNode& node, void*) noexcept { return static_cast<LayoutElement*>(&static_cast<Box&>(node)); }
 struct PointerLog final { std::uint32_t count=0; std::uint32_t id=0; double x=0; double y=0; };
-void OnPointer(TreeNode&, RoutedEventArgs& args, void* context) noexcept { auto* log=static_cast<PointerLog*>(context); if (log != nullptr && args.hasPointer) { ++log->count; log->id=args.pointerId; log->x=args.pointerX; log->y=args.pointerY; } }
-void OnFocus(TreeNode&, RoutedEventArgs&, void* context) noexcept { ++*static_cast<std::uint32_t*>(context); }
+struct PointerRecorder final {
+    PointerLog* log = nullptr;
+    void Record(const MouseEventArgs& args) const noexcept {
+        ++log->count; log->id=args.pointerId;
+        log->x=args.position.x; log->y=args.position.y;
+    }
+    void operator()(Aero::Base::Object*, const MouseEventArgs& args) const noexcept { Record(args); }
+    void operator()(Aero::Base::Object*, const MouseButtonEventArgs& args) const noexcept { Record(args); }
+};
+struct FocusRecorder final {
+    std::uint32_t* count = nullptr;
+    void operator()(Aero::Base::Object*,
+        const KeyboardFocusChangedEventArgs&) const noexcept { ++*count; }
+};
 struct KeyboardLog final { std::uint32_t count=0U; std::uint32_t key=0U; std::uint32_t modifiers=0U; bool repeat=false; KeyboardAction action=KeyboardAction::Down; };
-void OnKeyboard(TreeNode&, RoutedEventArgs& args, void* context) noexcept { auto* log=static_cast<KeyboardLog*>(context); if (log != nullptr && args.hasKeyboard) { ++log->count; log->key=args.key; log->modifiers=args.modifiers; log->repeat=args.isRepeat; log->action=args.keyboardAction; } }
+struct KeyboardRecorder final {
+    KeyboardLog* log = nullptr;
+    void operator()(Aero::Base::Object*, const KeyEventArgs& args) const noexcept {
+        ++log->count; log->key=args.key; log->modifiers=args.modifiers;
+        log->repeat=args.isRepeat; log->action=args.action;
+    }
+};
 struct TextLog final { std::uint32_t count=0U; String text; TextLog():text(&GetDefaultAllocator()){} };
-void OnText(TreeNode&, RoutedEventArgs& args, void* context) noexcept { auto* log=static_cast<TextLog*>(context); if (log != nullptr && args.hasTextInput) { ++log->count; (void)log->text.TryAssign(args.text); } }
+struct TextRecorder final {
+    TextLog* log = nullptr;
+    void operator()(Aero::Base::Object*,
+        const TextCompositionEventArgs& args) const noexcept {
+        ++log->count; (void)log->text.TryAssign(args.text);
+    }
+};
 
 bool TestVisualHitTesting() {
     Fixture f; CHECK(f.Build());
@@ -79,8 +94,11 @@ bool TestVisualHitTesting() {
     CHECK(second.SetHitTestVisible(true));
     Result<HitTestResult> miss=hit.HitTest(root,{110,10}); CHECK(miss && !miss.Value().HasTarget());
     Result<HitTestResult> invalid=hit.HitTest(root,{INFINITY,0}); CHECK(!invalid && invalid.GetStatus().code==ErrorCode::InvalidArgument);
-    PointerLog log; CHECK(root.AddHandler(f.moved,&OnPointer,&log)); CHECK(root.AddHandler(f.pressed,&OnPointer,&log)); CHECK(root.AddHandler(f.released,&OnPointer,&log));
-    PointerInputManager pointer(hit,f.events,root,{f.moved,f.pressed,f.released});
+    PointerLog log; PointerRecorder pointerRecorder{&log};
+    CHECK(root.MouseMove().TryAdd(MouseEventHandler(&pointerRecorder)));
+    CHECK(root.MouseDown().TryAdd(MouseButtonEventHandler(&pointerRecorder)));
+    CHECK(root.MouseUp().TryAdd(MouseButtonEventHandler(&pointerRecorder)));
+    PointerInputManager pointer(hit,f.events,root);
     Result<PointerDispatchResult> dispatched=pointer.Dispatch({7U,PointerAction::Down,{10,35}});
     CHECK(dispatched && dispatched.Value().routed && dispatched.Value().hit.target==&second);
     CHECK(log.count==1U && log.id==7U && log.x==10.0 && log.y==5.0);
@@ -104,19 +122,24 @@ bool TestVisualHitTesting() {
     worker.join();
     CHECK(workerCode == ErrorCode::WrongThread);
     std::uint32_t gotCount=0U; std::uint32_t lostCount=0U;
-    CHECK(first.AddHandler(f.gotFocus,&OnFocus,&gotCount)); CHECK(first.AddHandler(f.lostFocus,&OnFocus,&lostCount));
-    FocusManager focus(f.tree,f.events,{f.gotFocus,f.lostFocus});
+    FocusRecorder gotRecorder{&gotCount}; FocusRecorder lostRecorder{&lostCount};
+    CHECK(first.GotKeyboardFocus().TryAdd(KeyboardFocusChangedEventHandler(&gotRecorder)));
+    CHECK(first.LostKeyboardFocus().TryAdd(KeyboardFocusChangedEventHandler(&lostRecorder)));
+    FocusManager focus(f.tree,f.events);
     Result<bool> focused=focus.SetFocus(&first); CHECK(focused && focused.Value() && focus.FocusedNode()==&first && gotCount==1U);
-    KeyboardLog keyboardLog; CHECK(first.AddHandler(f.keyDown,&OnKeyboard,&keyboardLog)); CHECK(first.AddHandler(f.keyUp,&OnKeyboard,&keyboardLog));
-    KeyboardInputManager keyboard(focus,f.events,f.tree,{f.keyDown,f.keyUp});
+    KeyboardLog keyboardLog; KeyboardRecorder keyboardRecorder{&keyboardLog};
+    CHECK(first.KeyDown().TryAdd(KeyEventHandler(&keyboardRecorder)));
+    CHECK(first.KeyUp().TryAdd(KeyEventHandler(&keyboardRecorder)));
+    KeyboardInputManager keyboard(focus,f.events,f.tree);
     Result<KeyboardDispatchResult> keyDown=keyboard.Dispatch({KeyboardAction::Down,65U,3U,true});
     CHECK(keyDown && keyDown.Value().routed && keyDown.Value().target==&first);
     CHECK(keyboardLog.count==1U && keyboardLog.key==65U && keyboardLog.modifiers==3U && keyboardLog.repeat && keyboardLog.action==KeyboardAction::Down);
     Result<KeyboardDispatchResult> keyUp=keyboard.Dispatch({KeyboardAction::Up,65U,0U,false});
     CHECK(keyUp && keyUp.Value().routed && keyboardLog.count==2U && keyboardLog.action==KeyboardAction::Up);
     Result<KeyboardDispatchResult> invalidKey=keyboard.Dispatch({KeyboardAction::Down,0U,0U,false}); CHECK(!invalidKey && invalidKey.GetStatus().code==ErrorCode::InvalidArgument);
-    TextLog textLog; CHECK(first.AddHandler(f.textInput,&OnText,&textLog));
-    TextInputManager textInput(focus,f.events,f.tree,{f.textInput});
+    TextLog textLog; TextRecorder textRecorder{&textLog};
+    CHECK(first.TextInput().TryAdd(TextCompositionEventHandler(&textRecorder)));
+    TextInputManager textInput(focus,f.events,f.tree);
     Result<TextInputDispatchResult> text= textInput.Dispatch({StringView(u8"A中")});
     CHECK(text && text.Value().routed && text.Value().target==&first && textLog.count==1U && textLog.text.View()==StringView(u8"A中"));
     const char malformedBytes[] = {static_cast<char>(0xC0), static_cast<char>(0xAF)};

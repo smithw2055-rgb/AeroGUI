@@ -286,7 +286,8 @@ struct Fixture final {
 
 struct NestedNotificationState final {
     DependencyPropertyHandle height;
-    DependencyPropertyChangeSubscription victim;
+    DependencyPropertyHandle width;
+    DependencyPropertyChangedEventHandler victim;
     TypeId doubleType = InvalidTypeId;
     ErrorCode removeStatus = ErrorCode::InternalError;
     ErrorCode nestedSetStatus = ErrorCode::InternalError;
@@ -294,39 +295,40 @@ struct NestedNotificationState final {
     std::uint32_t count = 0U;
 };
 
-void NestedHeightHandler(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&,
-    void* context) noexcept {
-    auto& state = *static_cast<NestedNotificationState*>(context);
-    state.sequence[state.count++] = 2U;
-}
+struct NestedHeightHandler final {
+    NestedNotificationState* state = nullptr;
+    void operator()(DependencyObject&,
+        const DependencyPropertyChangedEventArgs&) const noexcept {
+        state->sequence[state->count++] = 2U;
+    }
+};
 
-void RemovedWidthHandler(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&,
-    void* context) noexcept {
-    auto& state = *static_cast<NestedNotificationState*>(context);
-    state.sequence[state.count++] = 3U;
-}
+struct RemovedWidthHandler final {
+    NestedNotificationState* state = nullptr;
+    void operator()(DependencyObject&,
+        const DependencyPropertyChangedEventArgs&) const noexcept {
+        state->sequence[state->count++] = 3U;
+    }
+};
 
-void NestedWidthHandler(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&,
-    void* context) noexcept {
-    auto& state = *static_cast<NestedNotificationState*>(context);
-    state.sequence[state.count++] = 1U;
-    Result<bool> removed = object.RemoveValueChangedHandler(state.victim);
-    state.removeStatus = removed
-        ? ErrorCode::Ok
-        : removed.GetStatus().code;
-    Result<void> nested = object.SetValue(
-        state.height,
-        PropertyValue::FromDouble(state.doubleType, 42.0));
-    state.nestedSetStatus = nested
-        ? ErrorCode::Ok
-        : nested.GetStatus().code;
-}
+struct NestedWidthHandler final {
+    NestedNotificationState* state = nullptr;
+    void operator()(DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&) const noexcept {
+        state->sequence[state->count++] = 1U;
+        Result<bool> removed = object.RemoveValueChangedHandler(
+            state->width, state->victim);
+        state->removeStatus = removed
+            ? ErrorCode::Ok
+            : removed.GetStatus().code;
+        Result<void> nested = object.SetValue(
+            state->height,
+            PropertyValue::FromDouble(state->doubleType, 42.0));
+        state->nestedSetStatus = nested
+            ? ErrorCode::Ok
+            : nested.GetStatus().code;
+    }
+};
 
 bool TestRegistrationAndMetadata() {
     Fixture fixture;
@@ -603,18 +605,17 @@ bool TestNestedChangeNotifications() {
 
     NestedNotificationState state;
     state.height = fixture.height;
+    state.width = fixture.width;
     state.doubleType = fixture.doubleType;
-    Result<DependencyPropertyChangeSubscription> driver =
-        element->AddValueChangedHandler(
-            fixture.width, &NestedWidthHandler, &state);
-    CHECK(driver);
-    Result<DependencyPropertyChangeSubscription> victim =
-        element->AddValueChangedHandler(
-            fixture.width, &RemovedWidthHandler, &state);
-    CHECK(victim);
-    state.victim = victim.Value();
-    CHECK(element->AddValueChangedHandler(
-        fixture.height, &NestedHeightHandler, &state));
+    NestedWidthHandler driverTarget{&state};
+    RemovedWidthHandler victimTarget{&state};
+    NestedHeightHandler heightTarget{&state};
+    DependencyPropertyChangedEventHandler driver(&driverTarget);
+    state.victim = DependencyPropertyChangedEventHandler(&victimTarget);
+    DependencyPropertyChangedEventHandler height(&heightTarget);
+    CHECK(element->TryAddValueChangedHandler(fixture.width, driver));
+    CHECK(element->TryAddValueChangedHandler(fixture.width, state.victim));
+    CHECK(element->TryAddValueChangedHandler(fixture.height, height));
 
     CHECK(element->SetValue(
         fixture.width,
@@ -623,7 +624,8 @@ bool TestNestedChangeNotifications() {
     CHECK(state.nestedSetStatus == ErrorCode::Ok);
     CHECK(state.count == 2U);
     CHECK(state.sequence[0] == 1U && state.sequence[1] == 2U);
-    CHECK(!element->RemoveValueChangedHandler(state.victim).Value());
+    CHECK(!element->RemoveValueChangedHandler(
+        fixture.width, state.victim).Value());
     return true;
 }
 

@@ -155,12 +155,31 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
         }
     }
 
-    XamlMemberProviderRegistration provider;
-    provider.handles = &XamlDependencyPropertyBridge::HandlesDependencyProperty;
-    provider.set = &XamlDependencyPropertyBridge::SetDependencyProperty;
-    provider.context = this;
+    if (types_.Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "A DependencyObject base type must be registered before properties");
+    }
+    Core::TypeId providerType = Core::InvalidTypeId;
+    for (const XamlDependencyObjectTypeRegistration& candidate : types_) {
+        bool coversAll = true;
+        for (const XamlDependencyObjectTypeRegistration& current : types_) {
+            if (!schema_->Types().IsDerivedFrom(current.type, candidate.type)) {
+                coversAll = false;
+                break;
+            }
+        }
+        if (coversAll) {
+            providerType = candidate.type;
+            break;
+        }
+    }
+    if (providerType == Core::InvalidTypeId) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "DependencyObject bridge registrations have no common Meta base");
+    }
     Base::Result<void> providerResult =
-        schema_->TryRegisterMemberProvider(provider);
+        Core::TryRegisterDependencyPropertyProvider(
+            schema_->Members(), *properties_, providerType);
     if (!providerResult) {
         return providerResult.GetStatus();
     }

@@ -20,7 +20,8 @@ BindingManager::BindingManager(
     Base::IAllocator* allocator) noexcept
     : dispatcher_(&dispatcher),
       allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      bindings_(allocator_) {}
+      bindings_(allocator_),
+      propertyChangedHandler_(this, &BindingManager::OnPropertyChanged) {}
 
 BindingManager::~BindingManager() noexcept {
     Shutdown();
@@ -85,29 +86,22 @@ Base::Result<BindingHandle> BindingManager::Attach(
         --nextHandle_;
         return appended.GetStatus();
     }
-    BindingRecord& added = bindings_.Back();
-    Base::Result<DependencyPropertyChangeSubscription> sourceSubscription =
-        descriptor.source->AddValueChangedHandler(
-            descriptor.sourceProperty,
-            &BindingManager::OnPropertyChanged,
-            this);
+    Base::Result<void> sourceSubscription =
+        descriptor.source->TryAddValueChangedHandler(
+            descriptor.sourceProperty, propertyChangedHandler_);
     if (!sourceSubscription) {
         RemoveAt(bindings_.Size() - 1U);
         return sourceSubscription.GetStatus();
     }
-    added.sourceSubscription = sourceSubscription.Value();
-    Base::Result<DependencyPropertyChangeSubscription> targetSubscription =
-        descriptor.target->AddValueChangedHandler(
-            descriptor.targetProperty,
-            &BindingManager::OnPropertyChanged,
-            this);
+    Base::Result<void> targetSubscription =
+        descriptor.target->TryAddValueChangedHandler(
+            descriptor.targetProperty, propertyChangedHandler_);
     if (!targetSubscription) {
         (void)descriptor.source->RemoveValueChangedHandler(
-            added.sourceSubscription);
+            descriptor.sourceProperty, propertyChangedHandler_);
         RemoveAt(bindings_.Size() - 1U);
         return targetSubscription.GetStatus();
     }
-    added.targetSubscription = targetSubscription.Value();
     return bindings_.Back().handle;
 }
 
@@ -303,13 +297,8 @@ void BindingManager::DataBindHook(void* context) noexcept {
 
 void BindingManager::OnPropertyChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args,
-    void* context) noexcept {
-    BindingManager* manager = static_cast<BindingManager*>(context);
-    if (manager == nullptr) {
-        return;
-    }
-    for (BindingRecord& record : manager->bindings_) {
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    for (BindingRecord& record : bindings_) {
         if (record.descriptor.source == &object &&
             record.descriptor.sourceProperty == args.property) {
             record.sourceDirty = true;
@@ -350,14 +339,10 @@ Base::Result<void> BindingManager::VerifyDescriptor(
 
 void BindingManager::RemoveAt(std::uint32_t index) noexcept {
     BindingRecord& removed = bindings_[index];
-    if (removed.sourceSubscription.IsValid()) {
-        (void)removed.descriptor.source->RemoveValueChangedHandler(
-            removed.sourceSubscription);
-    }
-    if (removed.targetSubscription.IsValid()) {
-        (void)removed.descriptor.target->RemoveValueChangedHandler(
-            removed.targetSubscription);
-    }
+    (void)removed.descriptor.source->RemoveValueChangedHandler(
+        removed.descriptor.sourceProperty, propertyChangedHandler_);
+    (void)removed.descriptor.target->RemoveValueChangedHandler(
+        removed.descriptor.targetProperty, propertyChangedHandler_);
     for (std::uint32_t current = index + 1U;
          current < bindings_.Size();
          ++current) {

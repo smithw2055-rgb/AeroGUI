@@ -47,7 +47,7 @@ public:
     XamlStyleExtension(const XamlStyleExtension&) = delete;
     XamlStyleExtension& operator=(const XamlStyleExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Register(
+    Base::Result<void> Register(
         XamlSchemaContext& schema,
         XamlActivationProviderRegistry& activation,
         Core::TypeId styleType,
@@ -60,7 +60,7 @@ public:
 
     // Call before a DependencyObject is destroyed. This clears Core::Style
     // providers and releases the retained XAML Style object atomically.
-    AERO_NODISCARD Base::Result<bool> DetachObject(
+    Base::Result<bool> DetachObject(
         Core::DependencyObject& object) noexcept;
 
 private:
@@ -85,53 +85,53 @@ private:
     Core::MemberId setterPropertyMember_ = Core::InvalidMemberId;
     Core::MemberId setterValueMember_ = Core::InvalidMemberId;
 
-    AERO_NODISCARD Base::Result<void> FinalizeStyle(
+    Base::Result<void> FinalizeStyle(
         StyleObject& style) noexcept;
-    AERO_NODISCARD Base::Result<void> ApplyStyle(
+    Base::Result<void> ApplyStyle(
         Core::DependencyObject& object,
         const Base::Ref<Base::Object>& style) noexcept;
-    AERO_NODISCARD std::uint32_t FindApplication(
+    std::uint32_t FindApplication(
         const Core::DependencyObject& object) const noexcept;
     void RemoveApplication(std::uint32_t index) noexcept;
 
-    static AERO_NODISCARD Base::Result<Base::Ref<Base::Object>>
+    static Base::Result<Base::Ref<Base::Object>>
     ActivateStyle(
         Core::TypeId requestedType,
         const XamlActivationContext& activation,
         Base::IAllocator& allocator,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<Base::Ref<Base::Object>>
+    static Base::Result<Base::Ref<Base::Object>>
     ActivateSetter(
         Core::TypeId requestedType,
         const XamlActivationContext& activation,
         Base::IAllocator& allocator,
         void* context) noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetTargetType(
+    static Base::Result<void> SetTargetType(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> SetBasedOn(
+    static Base::Result<void> SetBasedOn(
         Base::Object& object,
         const XamlValue& value,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> AddSetter(
+    static Base::Result<void> AddSetter(
         Base::Object& object,
         const XamlValue& value,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> SetSetterProperty(
+    static Base::Result<void> SetSetterProperty(
         Base::Object& object,
         const XamlValue& value,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> SetSetterValue(
+    static Base::Result<void> SetSetterValue(
         Base::Object& object,
         const XamlValue& value,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> EndStyleInit(
+    static Base::Result<void> EndStyleInit(
         Base::Object& object,
         void* context) noexcept;
-    static AERO_NODISCARD Base::Result<void> SetStyleMember(
+    static Base::Result<void> SetStyleMember(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,

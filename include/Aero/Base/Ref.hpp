@@ -67,21 +67,21 @@ public:
         return *this;
     }
 
-    AERO_NODISCARD T* Get() const noexcept { return value_; }
-    AERO_NODISCARD T& operator*() const noexcept {
+    T* Get() const noexcept { return value_; }
+    T& operator*() const noexcept {
         AERO_ASSERT(value_ != nullptr);
         return *value_;
     }
-    AERO_NODISCARD T* operator->() const noexcept {
+    T* operator->() const noexcept {
         AERO_ASSERT(value_ != nullptr);
         return value_;
     }
-    AERO_NODISCARD explicit operator bool() const noexcept { return value_ != nullptr; }
+    explicit operator bool() const noexcept { return value_ != nullptr; }
 
     // Acquires a strong reference to an already-owned object. This is useful
     // for transactional bookkeeping that must outlive a caller's temporary
     // ownership until the transaction is committed or discarded.
-    AERO_NODISCARD static Ref FromBorrowed(T& value) noexcept {
+    static Ref FromBorrowed(T& value) noexcept {
         value.AddRef();
         return Ref(&value, Detail::AdoptRef);
     }
@@ -100,7 +100,7 @@ public:
         other.value_ = temporary;
     }
 
-    AERO_NODISCARD T* Detach() noexcept {
+    T* Detach() noexcept {
         T* value = value_;
         value_ = nullptr;
         return value;
@@ -198,11 +198,11 @@ public:
         other.control_ = temporary;
     }
 
-    AERO_NODISCARD bool Expired() const noexcept {
+    bool Expired() const noexcept {
         return control_ == nullptr || Detail::GetStrongCount(control_) == 0U;
     }
 
-    AERO_NODISCARD Ref<T> Lock() const noexcept {
+    Ref<T> Lock() const noexcept {
         if (control_ == nullptr || !Detail::TryAddStrong(control_)) {
             return {};
         }
@@ -234,7 +234,7 @@ private:
 };
 
 template<class T, class... Args>
-AERO_NODISCARD Result<Ref<T>> MakeRefWithAllocator(
+Result<Ref<T>> MakeRefWithAllocator(
     IAllocator& allocator, Args&&... args) noexcept {
     static_assert(std::is_base_of<Object, T>::value,
         "MakeRef<T> requires T to derive from Aero::Base::Object");
@@ -280,7 +280,7 @@ AERO_NODISCARD Result<Ref<T>> MakeRefWithAllocator(
 }
 
 template<class T, class... Args>
-AERO_NODISCARD Result<Ref<T>> MakeRef(Args&&... args) noexcept {
+Result<Ref<T>> MakeRef(Args&&... args) noexcept {
     return MakeRefWithAllocator<T>(
         GetDefaultAllocator(), std::forward<Args>(args)...);
 }

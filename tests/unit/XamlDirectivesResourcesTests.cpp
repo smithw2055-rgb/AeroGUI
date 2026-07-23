@@ -50,37 +50,37 @@ public:
         --liveCount_;
     }
 
-    AERO_NODISCARD StringView Title() const noexcept {
+    StringView Title() const noexcept {
         return title_.View();
     }
-    AERO_NODISCARD const Ref<Object>& Reference() const noexcept {
+    const Ref<Object>& Reference() const noexcept {
         return reference_;
     }
-    AERO_NODISCARD const Ref<Object>& Optional() const noexcept {
+    const Ref<Object>& Optional() const noexcept {
         return optional_;
     }
-    AERO_NODISCARD Span<const Ref<Object>> Children() const noexcept {
+    Span<const Ref<Object>> Children() const noexcept {
         return {children_.Data(), children_.Size()};
     }
-    AERO_NODISCARD const NameScope& Names() const noexcept {
+    const NameScope& Names() const noexcept {
         return names_;
     }
-    AERO_NODISCARD const ResourceDictionary& Resources() const noexcept {
+    const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
-    AERO_NODISCARD bool ServiceChecked() const noexcept {
+    bool ServiceChecked() const noexcept {
         return serviceChecked_;
     }
-    AERO_NODISCARD bool IsRoot() const noexcept { return root_; }
+    bool IsRoot() const noexcept { return root_; }
 
     static void ResetCounters() noexcept {
         liveCount_ = 0U;
         abortCount_ = 0U;
     }
-    AERO_NODISCARD static std::uint32_t LiveCount() noexcept {
+    static std::uint32_t LiveCount() noexcept {
         return liveCount_;
     }
-    AERO_NODISCARD static std::uint32_t AbortCount() noexcept {
+    static std::uint32_t AbortCount() noexcept {
         return abortCount_;
     }
 

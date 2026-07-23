@@ -10,6 +10,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MemberAccessor.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 
@@ -64,7 +65,7 @@ struct XamlResolvedMember final {
     Core::EventFlags eventFlags = Core::EventFlags::None;
     bool attached = false;
 
-    AERO_NODISCARD bool IsValid() const noexcept {
+    bool IsValid() const noexcept {
         return id != Core::InvalidMemberId &&
             ownerType != Core::InvalidTypeId &&
             valueType != Core::InvalidTypeId;
@@ -178,86 +179,92 @@ public:
     XamlSchemaContext(const XamlSchemaContext&) = delete;
     XamlSchemaContext& operator=(const XamlSchemaContext&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterScalarType(
+    Base::Result<void> TryRegisterScalarType(
         Core::TypeId type,
         XamlScalarKind kind) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterTextConverter(
+    Base::Result<void> TryRegisterTextConverter(
         const XamlTextConverterRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterMemberAdapter(
+    Base::Result<void> TryRegisterMemberAdapter(
         const XamlMemberAdapterRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterMemberProvider(
+    Base::Result<void> TryRegisterMemberProvider(
         const XamlMemberProviderRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterTypeAdapter(
+    Base::Result<void> TryRegisterTypeAdapter(
         const XamlTypeAdapterRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterMarkupExtension(
+    Base::Result<void> TryRegisterMarkupExtension(
         const XamlMarkupExtensionRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> Freeze() noexcept;
+    Base::Result<void> Freeze() noexcept;
 
-    AERO_NODISCARD bool IsFrozen() const noexcept { return frozen_; }
-    AERO_NODISCARD Core::TypeRegistry& Types() const noexcept { return *types_; }
-    AERO_NODISCARD Base::IAllocator& Allocator() const noexcept {
+    bool IsFrozen() const noexcept { return frozen_; }
+    Core::TypeRegistry& Types() const noexcept { return *types_; }
+    Base::IAllocator& Allocator() const noexcept {
         return *allocator_;
     }
+    Core::MemberAccessor& Members() noexcept {
+        return memberAccessor_;
+    }
+    const Core::MemberAccessor& Members() const noexcept {
+        return memberAccessor_;
+    }
 
-    AERO_NODISCARD Base::Result<const Core::TypeInfo*> ResolveType(
+    Base::Result<const Core::TypeInfo*> ResolveType(
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
-    AERO_NODISCARD Base::Result<XamlResolvedMember> ResolveMember(
+    Base::Result<XamlResolvedMember> ResolveMember(
         Core::TypeId targetType,
         const XamlQualifiedName& name,
         XamlMemberSyntax syntax) const noexcept;
-    AERO_NODISCARD Base::Result<XamlResolvedMember> ResolveContentMember(
+    Base::Result<XamlResolvedMember> ResolveContentMember(
         Core::TypeId targetType) const noexcept;
 
-    AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> CreateObject(
+    Base::Result<Base::Ref<Base::Object>> CreateObject(
         Core::TypeId type) const noexcept;
     // Internal activation seam used by the XAML object-writer translation unit.
     // Direct callers should normally use CreateObject().
-    AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> CreateObjectActivated(
+    Base::Result<Base::Ref<Base::Object>> CreateObjectActivated(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<XamlValue> ConvertText(
+    Base::Result<XamlValue> ConvertText(
         Core::TypeId type,
         Base::StringView text) const noexcept;
-    AERO_NODISCARD Base::Result<void> SetMember(
+    Base::Result<void> SetMember(
         Base::Object& object,
         Core::TypeId objectType,
         const XamlResolvedMember& member,
         const XamlValue& value,
         const XamlServiceProvider* services = nullptr) const noexcept;
-    AERO_NODISCARD Base::Result<XamlValue> ProvideMarkupExtensionValue(
+    Base::Result<XamlValue> ProvideMarkupExtensionValue(
         Core::TypeId type,
         Base::StringView arguments,
         const XamlServiceProvider& services) const noexcept;
 
-    AERO_NODISCARD Base::Result<void> BeginInit(
+    Base::Result<void> BeginInit(
         Core::TypeId type,
         Base::Object& object) const noexcept;
-    AERO_NODISCARD Base::Result<void> EndInit(
+    Base::Result<void> EndInit(
         Core::TypeId type,
         Base::Object& object) const noexcept;
     void AbortInit(Core::TypeId type, Base::Object& object) const noexcept;
 
-    AERO_NODISCARD bool CreatesNameScope(Core::TypeId type) const noexcept;
-    AERO_NODISCARD bool CreatesResourceScope(Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<void> RegisterName(
+    bool CreatesNameScope(Core::TypeId type) const noexcept;
+    bool CreatesResourceScope(Core::TypeId type) const noexcept;
+    Base::Result<void> RegisterName(
         Core::TypeId scopeType,
         Base::Object& scopeOwner,
         Base::StringView name,
         Base::Object& object) const noexcept;
-    AERO_NODISCARD Base::Result<void> AddResource(
+    Base::Result<void> AddResource(
         Core::TypeId scopeType,
         Base::Object& scopeOwner,
         Base::StringView key,
         Core::TypeId valueType,
         const Base::Ref<Base::Object>& value) const noexcept;
 
-    AERO_NODISCARD const XamlMemberAdapterRegistration* FindMemberAdapter(
+    const XamlMemberAdapterRegistration* FindMemberAdapter(
         Core::MemberId member) const noexcept;
-    AERO_NODISCARD XamlMemberWritePolicy ResolveMemberWritePolicy(
+    XamlMemberWritePolicy ResolveMemberWritePolicy(
         const XamlResolvedMember& member) const noexcept;
-    AERO_NODISCARD const XamlTypeAdapterRegistration* FindTypeAdapter(
+    const XamlTypeAdapterRegistration* FindTypeAdapter(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlMarkupExtensionRegistration*
+    const XamlMarkupExtensionRegistration*
     FindMarkupExtension(Core::TypeId type) const noexcept;
 
 private:
@@ -268,6 +275,7 @@ private:
 
     Core::TypeRegistry* types_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
+    Core::MemberAccessor memberAccessor_;
     Base::Vector<ScalarRegistration> scalarTypes_;
     Base::Vector<XamlTextConverterRegistration> textConverters_;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
@@ -276,15 +284,15 @@ private:
     Base::Vector<XamlMarkupExtensionRegistration> markupExtensions_;
     bool frozen_ = false;
 
-    AERO_NODISCARD const ScalarRegistration* FindScalarType(
+    const ScalarRegistration* FindScalarType(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlTextConverterRegistration* FindTextConverter(
+    const XamlTextConverterRegistration* FindTextConverter(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlMemberProviderRegistration* FindMemberProvider(
+    const XamlMemberProviderRegistration* FindMemberProvider(
         const XamlResolvedMember& member) const noexcept;
-    AERO_NODISCARD const XamlTypeAdapterRegistration* FindTypeAdapterExact(
+    const XamlTypeAdapterRegistration* FindTypeAdapterExact(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<XamlResolvedMember> ResolvePropertyOrEvent(
+    Base::Result<XamlResolvedMember> ResolvePropertyOrEvent(
         Core::TypeId targetType,
         Core::TypeId ownerType,
         Base::StringView memberName,

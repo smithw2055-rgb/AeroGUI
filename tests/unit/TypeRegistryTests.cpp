@@ -180,6 +180,16 @@ bool TestStableIds() {
         uiElement, MemberKind::Property, StringView("Loaded")) !=
         MakeMemberId(
             uiElement, MemberKind::Event, StringView("Loaded")));
+    const TypeId firstSignature[] = {object};
+    const TypeId secondSignature[] = {uiElement};
+    CHECK(MakeMethodId(uiElement, StringView("Find"),
+        {firstSignature, 1U}) ==
+        MakeMethodId(uiElement, StringView("Find"),
+            {firstSignature, 1U}));
+    CHECK(MakeMethodId(uiElement, StringView("Find"),
+        {firstSignature, 1U}) !=
+        MakeMethodId(uiElement, StringView("Find"),
+            {secondSignature, 1U}));
     return true;
 }
 
@@ -323,7 +333,7 @@ bool TestDeterministicSnapshot() {
     CHECK(second.BuildSnapshot(secondSnapshot));
     CHECK(firstSnapshot.View() == secondSnapshot.View());
     CHECK(std::strstr(
-        firstSnapshot.CStr(), "AERO-TYPE-REGISTRY|1") != nullptr);
+        firstSnapshot.CStr(), "AERO-TYPE-REGISTRY|2") != nullptr);
     CHECK(std::strstr(firstSnapshot.CStr(), "UIElement") != nullptr);
     CHECK(std::strstr(firstSnapshot.CStr(), "Width") != nullptr);
     CHECK(std::strstr(firstSnapshot.CStr(), "Loaded") != nullptr);

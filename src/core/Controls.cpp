@@ -30,11 +30,6 @@ TypeId PresentationType(const char* name) noexcept {
     return MakeTypeId(AeroPresentationNamespaceUri(),
         Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
 }
-DependencyPropertyHandle PresentationProperty(
-    const char* owner, const char* name) noexcept {
-    return {MakeMemberId(PresentationType(owner), MemberKind::Property,
-        Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))))};
-}
 } // namespace
 
 StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
@@ -46,12 +41,8 @@ StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& regis
     }
 }
 
-DependencyPropertyHandle StackPanel::OrientationProperty() noexcept {
-    return PresentationProperty("StackPanel", "Orientation");
-}
-
 Orientation StackPanel::GetOrientation() const noexcept {
-    Base::Result<Value> value = GetValue(OrientationProperty());
+    Base::Result<Value> value = GetValue(OrientationProperty);
     return value ? static_cast<Orientation>(value.Value().AsUnsignedInteger())
                  : Orientation::Vertical;
 }
@@ -61,7 +52,7 @@ Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "StackPanel orientation is invalid");
     }
-    return SetValue(OrientationProperty(), Value::FromUnsignedInteger(
+    return SetValue(OrientationProperty, Value::FromUnsignedInteger(
         PresentationType("Orientation"), static_cast<std::uint64_t>(value)));
 }
 
@@ -143,13 +134,6 @@ Canvas::Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Base::IAllocator* allocator) noexcept
     : RenderElement(dispatcher, registry, runtimeType, allocator) {}
 
-DependencyPropertyHandle Canvas::LeftProperty() noexcept {
-    return PresentationProperty("Canvas", "Left");
-}
-DependencyPropertyHandle Canvas::TopProperty() noexcept {
-    return PresentationProperty("Canvas", "Top");
-}
-
 Base::Result<void> Canvas::SetChildPosition(
     LayoutElement& child, Point position) noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -164,15 +148,15 @@ Base::Result<void> Canvas::SetChildPosition(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Canvas child must be attached before positioning");
     }
-    Base::Result<void> left = child.SetValue(LeftProperty(),
+    Base::Result<void> left = child.SetValue(LeftProperty,
         Value::FromDouble(PresentationType("Double"), position.x));
-    return left ? child.SetValue(TopProperty(),
+    return left ? child.SetValue(TopProperty,
         Value::FromDouble(PresentationType("Double"), position.y)) : left;
 }
 
 Point Canvas::ChildPosition(const LayoutElement& child) const noexcept {
-    Base::Result<Value> left = child.GetValue(LeftProperty());
-    Base::Result<Value> top = child.GetValue(TopProperty());
+    Base::Result<Value> left = child.GetValue(LeftProperty);
+    Base::Result<Value> top = child.GetValue(TopProperty);
     return {left ? left.Value().AsDouble() : 0.0,
         top ? top.Value().AsDouble() : 0.0};
 }
@@ -210,13 +194,6 @@ Grid::Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
       rows_(allocator_),
       desiredColumns_(allocator_),
       desiredRows_(allocator_) {}
-
-DependencyPropertyHandle Grid::RowProperty() noexcept {
-    return PresentationProperty("Grid", "Row");
-}
-DependencyPropertyHandle Grid::ColumnProperty() noexcept {
-    return PresentationProperty("Grid", "Column");
-}
 
 Base::Result<void> Grid::SetColumnDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
@@ -274,9 +251,9 @@ Base::Result<void> Grid::SetChildCell(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Grid child must be attached before assigning a cell");
     }
-    Base::Result<void> rowResult = child.SetValue(RowProperty(),
+    Base::Result<void> rowResult = child.SetValue(RowProperty,
         Value::FromUnsignedInteger(PresentationType("UInt32"), row));
-    return rowResult ? child.SetValue(ColumnProperty(),
+    return rowResult ? child.SetValue(ColumnProperty,
         Value::FromUnsignedInteger(PresentationType("UInt32"), column)) : rowResult;
 }
 
@@ -395,12 +372,12 @@ Base::Result<void> Grid::ValidateDefinitions(
 }
 
 std::uint32_t Grid::ChildRow(const LayoutElement& child) const noexcept {
-    Base::Result<Value> value = child.GetValue(RowProperty());
+    Base::Result<Value> value = child.GetValue(RowProperty);
     return value ? static_cast<std::uint32_t>(value.Value().AsUnsignedInteger()) : 0U;
 }
 
 std::uint32_t Grid::ChildColumn(const LayoutElement& child) const noexcept {
-    Base::Result<Value> value = child.GetValue(ColumnProperty());
+    Base::Result<Value> value = child.GetValue(ColumnProperty);
     return value ? static_cast<std::uint32_t>(value.Value().AsUnsignedInteger()) : 0U;
 }
 
@@ -449,25 +426,20 @@ Border::Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
     TypeId runtimeType, Base::IAllocator* allocator) noexcept
     : RenderElement(dispatcher, registry, runtimeType, allocator) {}
 
-DependencyPropertyHandle Border::BackgroundProperty() noexcept { return PresentationProperty("Border", "Background"); }
-DependencyPropertyHandle Border::BorderBrushProperty() noexcept { return PresentationProperty("Border", "BorderBrush"); }
-DependencyPropertyHandle Border::BorderThicknessProperty() noexcept { return PresentationProperty("Border", "BorderThickness"); }
-DependencyPropertyHandle Border::PaddingProperty() noexcept { return PresentationProperty("Border", "Padding"); }
-
 Color Border::Background() const noexcept {
-    Base::Result<Value> value = GetValue(BackgroundProperty());
+    Base::Result<Value> value = GetValue(BackgroundProperty);
     return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
 }
 Color Border::BorderBrush() const noexcept {
-    Base::Result<Value> value = GetValue(BorderBrushProperty());
+    Base::Result<Value> value = GetValue(BorderBrushProperty);
     return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
 }
 double Border::BorderThickness() const noexcept {
-    Base::Result<Value> value = GetValue(BorderThicknessProperty());
+    Base::Result<Value> value = GetValue(BorderThicknessProperty);
     return value ? value.Value().AsDouble() : 0.0;
 }
 Thickness Border::Padding() const noexcept {
-    Base::Result<Value> value = GetValue(PaddingProperty());
+    Base::Result<Value> value = GetValue(PaddingProperty);
     return value ? *static_cast<const Thickness*>(value.Value().AsCustom()) : Thickness{};
 }
 
@@ -475,7 +447,7 @@ Base::Result<void> Border::SetBackground(Color value) noexcept {
     if (!IsValidColor(value)) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Border color is invalid");
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Color"), &value);
-    return stored ? SetValue(BackgroundProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(BackgroundProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
@@ -493,7 +465,7 @@ Base::Result<void> Border::SetBorderBrush(Color value) noexcept {
     }
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Color"), &value);
-    return stored ? SetValue(BorderBrushProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(BorderBrushProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> Border::SetBorderThickness(double value) noexcept {
@@ -501,7 +473,7 @@ Base::Result<void> Border::SetBorderThickness(double value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Border thickness is invalid");
     }
-    return SetValue(BorderThicknessProperty(),
+    return SetValue(BorderThicknessProperty,
         Value::FromDouble(PresentationType("Double"), value));
 }
 
@@ -512,7 +484,7 @@ Base::Result<void> Border::SetPadding(Thickness value) noexcept {
     }
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Thickness"), &value);
-    return stored ? SetValue(PaddingProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(PaddingProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
@@ -559,15 +531,12 @@ TextBlock::TextBlock(Dispatcher& dispatcher,
     Base::IAllocator* allocator) noexcept
     : RenderElement(dispatcher, registry, runtimeType, allocator) {}
 
-DependencyPropertyHandle TextBlock::TextProperty() noexcept { return PresentationProperty("TextBlock", "Text"); }
-DependencyPropertyHandle TextBlock::ForegroundProperty() noexcept { return PresentationProperty("TextBlock", "Foreground"); }
-
 Base::StringView TextBlock::Text() const noexcept {
-    Base::Result<Value> value = GetValue(TextProperty());
+    Base::Result<Value> value = GetValue(TextProperty);
     return value ? value.Value().AsString() : Base::StringView();
 }
 Color TextBlock::Foreground() const noexcept {
-    Base::Result<Value> value = GetValue(ForegroundProperty());
+    Base::Result<Value> value = GetValue(ForegroundProperty);
     return value ? *static_cast<const Color*>(value.Value().AsCustom())
                  : Color{0.0F, 0.0F, 0.0F, 1.0F};
 }
@@ -575,7 +544,7 @@ Color TextBlock::Foreground() const noexcept {
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
     Base::Result<Value> stored = Value::TryFromString(
         PresentationType("String"), value, &PropertyRegistry().Allocator());
-    return stored ? SetValue(TextProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(TextProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
@@ -585,7 +554,7 @@ Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
     }
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Color"), &value);
-    return stored ? SetValue(ForegroundProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(ForegroundProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> TextBlock::SetGlyphRun(

@@ -79,23 +79,23 @@ public:
     XamlVisualTreeHost(const XamlVisualTreeHost&) = delete;
     XamlVisualTreeHost& operator=(const XamlVisualTreeHost&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlVisualTreeTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterContentPresenter(
+    Base::Result<void> TryRegisterContentPresenter(
         const XamlContentPresenterRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> TryRegisterCollectionContent(
+    Base::Result<void> TryRegisterCollectionContent(
         const XamlCollectionContentRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> Register(
+    Base::Result<void> Register(
         XamlSchemaContext& schema) noexcept;
 
-    AERO_NODISCARD Base::Result<void> Mount(
+    Base::Result<void> Mount(
         Base::Object& root,
         Core::TypeId rootType,
         Core::Size availableSize) noexcept;
-    AERO_NODISCARD Base::Result<void> Unmount() noexcept;
-    AERO_NODISCARD Base::Result<void> DiscardStaged() noexcept;
-    AERO_NODISCARD bool IsMounted() const noexcept { return mounted_; }
-    AERO_NODISCARD std::uint32_t StagedContentCount() const noexcept {
+    Base::Result<void> Unmount() noexcept;
+    Base::Result<void> DiscardStaged() noexcept;
+    bool IsMounted() const noexcept { return mounted_; }
+    std::uint32_t StagedContentCount() const noexcept {
         return edges_.Size();
     }
 
@@ -131,28 +131,28 @@ private:
     Core::RenderElement* rootRender_ = nullptr;
     bool mounted_ = false;
 
-    AERO_NODISCARD const XamlVisualTreeTypeRegistration* FindType(
+    const XamlVisualTreeTypeRegistration* FindType(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlContentPresenterRegistration* FindPresenter(
+    const XamlContentPresenterRegistration* FindPresenter(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlCollectionContentRegistration* FindCollection(
+    const XamlCollectionContentRegistration* FindCollection(
         Core::TypeId type, Core::MemberId member) const noexcept;
-    AERO_NODISCARD Base::Result<Core::TreeNode*> ResolveTreeNode(
+    Base::Result<Core::TreeNode*> ResolveTreeNode(
         Base::Object& object, Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::LayoutElement*> ResolveLayoutElement(
+    Base::Result<Core::LayoutElement*> ResolveLayoutElement(
         Base::Object& object, Core::TypeId type) const noexcept;
-    AERO_NODISCARD Core::RenderElement* ResolveRenderElement(
+    Core::RenderElement* ResolveRenderElement(
         Base::Object& object, Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<void> StageContent(
+    Base::Result<void> StageContent(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
-    AERO_NODISCARD Base::Result<void> AddNode(
+    Base::Result<void> AddNode(
         Core::TreeNode& node) noexcept;
-    AERO_NODISCARD Base::Result<void> AttachEdge(Edge& edge) noexcept;
+    Base::Result<void> AttachEdge(Edge& edge) noexcept;
     void DetachEdge(Edge& edge) noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetContentMember(
+    static Base::Result<void> SetContentMember(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,
@@ -162,7 +162,7 @@ private:
 // Load through this helper whenever the schema contains XamlVisualTreeHost
 // adapters. It clears any stale staged edges if parsing or object construction
 // fails, leaving the host ready for the next document.
-AERO_NODISCARD AERO_API Base::Result<Base::Ref<Base::Object>>
+AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlVisualTreeWithActivation(
     XamlVisualTreeHost& host,
     XamlObjectWriter& writer,

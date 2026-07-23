@@ -13,7 +13,7 @@ namespace {
 
 std::atomic<DispatcherThreadToken> gNextThreadToken{1U};
 
-AERO_NODISCARD DispatcherThreadToken AllocateThreadToken() noexcept {
+DispatcherThreadToken AllocateThreadToken() noexcept {
     const DispatcherThreadToken token =
         gNextThreadToken.fetch_add(1U, std::memory_order_relaxed);
     if (token == 0U ||
@@ -26,7 +26,7 @@ AERO_NODISCARD DispatcherThreadToken AllocateThreadToken() noexcept {
 thread_local const DispatcherThreadToken gCurrentThreadToken =
     AllocateThreadToken();
 
-AERO_NODISCARD DispatcherTime DefaultNowMicroseconds(
+DispatcherTime DefaultNowMicroseconds(
     void*) noexcept {
     using Clock = std::chrono::steady_clock;
     using Microseconds = std::chrono::microseconds;
@@ -37,49 +37,49 @@ AERO_NODISCARD DispatcherTime DefaultNowMicroseconds(
         : DispatcherTime{0U};
 }
 
-AERO_NODISCARD constexpr Base::Status WrongThreadStatus() noexcept {
+constexpr Base::Status WrongThreadStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::WrongThread,
         "Dispatcher access is restricted to its owner thread");
 }
 
-AERO_NODISCARD constexpr Base::Status InvalidDispatcherStateStatus() noexcept {
+constexpr Base::Status InvalidDispatcherStateStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "Dispatcher cannot perform the operation in its current state");
 }
 
-AERO_NODISCARD constexpr Base::Status DispatcherShuttingDownStatus() noexcept {
+constexpr Base::Status DispatcherShuttingDownStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "Dispatcher is shutting down");
 }
 
-AERO_NODISCARD constexpr Base::Status InvalidPriorityStatus() noexcept {
+constexpr Base::Status InvalidPriorityStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "Dispatcher priority is invalid");
 }
 
-AERO_NODISCARD constexpr Base::Status InvalidPhaseStatus() noexcept {
+constexpr Base::Status InvalidPhaseStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "Dispatcher frame phase is invalid");
 }
 
-AERO_NODISCARD constexpr Base::Status InvalidCallbackStatus() noexcept {
+constexpr Base::Status InvalidCallbackStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "Dispatcher callback must not be null");
 }
 
-AERO_NODISCARD constexpr Base::Status TokenExhaustedStatus() noexcept {
+constexpr Base::Status TokenExhaustedStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfRange,
         "Dispatcher handle or sequence space is exhausted");
 }
 
-AERO_NODISCARD constexpr Base::Status DelayOverflowStatus() noexcept {
+constexpr Base::Status DelayOverflowStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfRange,
         "Dispatcher delayed due time overflows");

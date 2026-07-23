@@ -14,7 +14,7 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept
         : allocator_(allocator) {}
 
-    AERO_NODISCARD Base::Result<Rhi::CommandBuffer> Translate(
+    Base::Result<Rhi::CommandBuffer> Translate(
         const Core::RenderPlan& plan) const noexcept;
 
 private:

@@ -30,9 +30,9 @@ public:
     XamlLayoutExtension(const XamlLayoutExtension&) = delete;
     XamlLayoutExtension& operator=(const XamlLayoutExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlLayoutTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> Register(
+    Base::Result<std::uint32_t> Register(
         XamlSchemaContext& schema) noexcept;
 
     void SetLayoutElementType(Core::TypeId type) noexcept {
@@ -54,13 +54,13 @@ private:
     Core::MemberId horizontalAlignmentMember_ = Core::InvalidMemberId;
     Core::MemberId verticalAlignmentMember_ = Core::InvalidMemberId;
 
-    AERO_NODISCARD const XamlLayoutTypeRegistration* FindTypeRegistration(
+    const XamlLayoutTypeRegistration* FindTypeRegistration(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::LayoutElement*> ResolveElement(
+    Base::Result<Core::LayoutElement*> ResolveElement(
         Base::Object& object,
         const XamlServiceProvider& services) const noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetLayoutMember(
+    static Base::Result<void> SetLayoutMember(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,

@@ -276,6 +276,7 @@ XamlSchemaContext::XamlSchemaContext(
     Base::IAllocator* allocator) noexcept
     : types_(&types),
       allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
+      memberAccessor_(types, allocator_),
       scalarTypes_(allocator_),
       textConverters_(allocator_),
       memberAdapters_(allocator_),
@@ -442,6 +443,8 @@ Base::Result<void> XamlSchemaContext::Freeze() noexcept {
             Base::ErrorCode::InvalidState,
             "TypeRegistry must be frozen before the XAML schema context");
     }
+    Base::Result<void> accessors = memberAccessor_.Freeze();
+    if (!accessors) return accessors.GetStatus();
     frozen_ = true;
     return {};
 }
@@ -546,17 +549,20 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMember(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(targetType);
-    if (adapter == nullptr ||
-        adapter->contentMember == Core::InvalidMemberId) {
+    Core::MemberId contentMember = types_->FindContentMember(targetType);
+    // Deprecated compatibility fallback for one release cycle.
+    if (contentMember == Core::InvalidMemberId) {
+        const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(targetType);
+        if (adapter != nullptr) contentMember = adapter->contentMember;
+    }
+    if (contentMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             MessageContentMemberNotFound);
     }
 
     const Core::PropertyInfo* property =
-        types_->FindProperty(adapter->contentMember);
+        types_->FindProperty(contentMember);
     if (property == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -720,19 +726,21 @@ Base::Result<void> XamlSchemaContext::SetMember(
     }
 
     const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
-    const XamlMemberProviderRegistration* provider = adapter == nullptr
-        ? FindMemberProvider(member)
-        : nullptr;
+    const Core::PropertyInfo* metaProperty = types_->FindProperty(member.id);
+    const bool metaWritable = adapter == nullptr && metaProperty != nullptr &&
+        metaProperty->Access() != Core::PropertyAccessKind::External;
+    const XamlMemberProviderRegistration* provider =
+        adapter == nullptr && !metaWritable ? FindMemberProvider(member) : nullptr;
     if ((adapter == nullptr ||
          (adapter->set == nullptr && adapter->setWithServices == nullptr)) &&
-        provider == nullptr) {
+        !metaWritable && provider == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             MessageMissingMemberAdapter);
     }
     const bool acceptsAnyValue = adapter != nullptr
         ? adapter->acceptsAnyValue
-        : provider->acceptsAnyValue;
+        : (metaWritable ? false : provider->acceptsAnyValue);
     if (!acceptsAnyValue) {
         bool compatible = value.Type() == member.valueType;
         if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
@@ -760,6 +768,9 @@ Base::Result<void> XamlSchemaContext::SetMember(
     }
     if (adapter != nullptr) {
         return adapter->set(object, value, adapter->context);
+    }
+    if (metaWritable) {
+        return memberAccessor_.SetProperty(object, *metaProperty, value);
     }
     if (services == nullptr) {
         return Base::Status::Failure(
@@ -888,6 +899,11 @@ XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicy(
     if (adapter != nullptr &&
         (adapter->set != nullptr || adapter->setWithServices != nullptr)) {
         return {adapter->mode, adapter->acceptsAnyValue, true};
+    }
+    const Core::PropertyInfo* property = types_->FindProperty(member.id);
+    if (property != nullptr &&
+        property->Access() != Core::PropertyAccessKind::External) {
+        return {XamlMemberWriteMode::SetOnce, false, true};
     }
     const XamlMemberProviderRegistration* provider = FindMemberProvider(member);
     if (provider != nullptr) {

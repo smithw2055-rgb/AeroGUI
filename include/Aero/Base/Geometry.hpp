@@ -39,27 +39,27 @@ struct Transform2D final {
 using RenderNodeId = std::uint64_t;
 constexpr RenderNodeId InvalidRenderNodeId = 0U;
 
-AERO_NODISCARD inline bool IsFiniteRect(Rect value) noexcept {
+inline bool IsFiniteRect(Rect value) noexcept {
     return std::isfinite(value.x) && std::isfinite(value.y) &&
         std::isfinite(value.width) && std::isfinite(value.height);
 }
 
-AERO_NODISCARD inline bool IsFiniteColor(Color value) noexcept {
+inline bool IsFiniteColor(Color value) noexcept {
     return std::isfinite(value.red) && std::isfinite(value.green) &&
         std::isfinite(value.blue) && std::isfinite(value.alpha);
 }
 
-AERO_NODISCARD inline bool IsFiniteTransform(Transform2D value) noexcept {
+inline bool IsFiniteTransform(Transform2D value) noexcept {
     return std::isfinite(value.m11) && std::isfinite(value.m12) &&
         std::isfinite(value.m21) && std::isfinite(value.m22) &&
         std::isfinite(value.dx) && std::isfinite(value.dy);
 }
 
-AERO_NODISCARD inline bool IsValidRect(Rect value) noexcept {
+inline bool IsValidRect(Rect value) noexcept {
     return IsFiniteRect(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
-AERO_NODISCARD inline bool IsNormalizedOpacity(double value) noexcept {
+inline bool IsNormalizedOpacity(double value) noexcept {
     return std::isfinite(value) && value >= 0.0 && value <= 1.0;
 }
 

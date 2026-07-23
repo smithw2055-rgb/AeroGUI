@@ -22,18 +22,18 @@ struct RouteLog final {
     bool markHandled = false;
 };
 
-void RecordRoute(
-    TreeNode& sender,
-    RoutedEventArgs& args,
-    void* context) noexcept {
-    RouteLog* log = static_cast<RouteLog*>(context);
-    if (log->count < 32U) {
-        log->nodes[log->count++] = &sender;
+struct RouteRecorder final {
+    RouteLog* log = nullptr;
+    void operator()(Aero::Base::Object* sender,
+        const RoutedEventArgs& args) const noexcept {
+        if (log->count < 32U) {
+            log->nodes[log->count++] = static_cast<TreeNode*>(sender);
+        }
+        if (log->markHandled) {
+            args.handled = true;
+        }
     }
-    if (log->markHandled) {
-        args.handled = true;
-    }
-}
+};
 
 struct LifecycleLog final {
     TreeNode* nodes[64]{};
@@ -193,9 +193,12 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     CHECK(tree.AttachLogical(child, leaf));
 
     RouteLog bubbleLog;
-    CHECK(root.AddHandler(fixture.bubble, &RecordRoute, &bubbleLog));
-    CHECK(child.AddHandler(fixture.bubble, &RecordRoute, &bubbleLog));
-    CHECK(leaf.AddHandler(fixture.bubble, &RecordRoute, &bubbleLog));
+    CHECK(root.TryAddHandler(fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&bubbleLog})));
+    CHECK(child.TryAddHandler(fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&bubbleLog})));
+    CHECK(leaf.TryAddHandler(fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&bubbleLog})));
     CHECK(fixture.events.RaiseEvent(leaf, fixture.bubble));
     CHECK(bubbleLog.count == 3U);
     CHECK(bubbleLog.nodes[0] == &leaf);
@@ -203,9 +206,12 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     CHECK(bubbleLog.nodes[2] == &root);
 
     RouteLog tunnelLog;
-    CHECK(root.AddHandler(fixture.tunnel, &RecordRoute, &tunnelLog));
-    CHECK(child.AddHandler(fixture.tunnel, &RecordRoute, &tunnelLog));
-    CHECK(leaf.AddHandler(fixture.tunnel, &RecordRoute, &tunnelLog));
+    CHECK(root.TryAddHandler(fixture.tunnel,
+        RoutedEventHandler(RouteRecorder{&tunnelLog})));
+    CHECK(child.TryAddHandler(fixture.tunnel,
+        RoutedEventHandler(RouteRecorder{&tunnelLog})));
+    CHECK(leaf.TryAddHandler(fixture.tunnel,
+        RoutedEventHandler(RouteRecorder{&tunnelLog})));
     CHECK(fixture.events.RaiseEvent(leaf, fixture.tunnel));
     CHECK(tunnelLog.count == 3U);
     CHECK(tunnelLog.nodes[0] == &root);
@@ -213,8 +219,10 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     CHECK(tunnelLog.nodes[2] == &leaf);
 
     RouteLog directLog;
-    CHECK(root.AddHandler(fixture.direct, &RecordRoute, &directLog));
-    CHECK(leaf.AddHandler(fixture.direct, &RecordRoute, &directLog));
+    CHECK(root.TryAddHandler(fixture.direct,
+        RoutedEventHandler(RouteRecorder{&directLog})));
+    CHECK(leaf.TryAddHandler(fixture.direct,
+        RoutedEventHandler(RouteRecorder{&directLog})));
     CHECK(fixture.events.RaiseEvent(leaf, fixture.direct));
     CHECK(directLog.count == 1U);
     CHECK(directLog.nodes[0] == &leaf);
@@ -222,9 +230,10 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     RouteLog handled;
     handled.markHandled = true;
     RouteLog observed;
-    CHECK(leaf.AddHandler(fixture.bubble, &RecordRoute, &handled));
-    CHECK(root.AddHandler(
-        fixture.bubble, &RecordRoute, &observed, nullptr, true));
+    CHECK(leaf.TryAddHandler(fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&handled})));
+    CHECK(root.TryAddHandler(fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&observed}), true));
     CHECK(fixture.events.RaiseEvent(leaf, fixture.bubble));
     CHECK(handled.count == 1U);
     CHECK(observed.count == 1U);
@@ -247,8 +256,7 @@ bool TestClassHandlersAndRegistrationRules() {
     CHECK(fixture.events.RegisterClassHandler(
         fixture.bubble,
         fixture.nodeType,
-        &RecordRoute,
-        &classLog));
+        RoutedEventHandler(RouteRecorder{&classLog})));
 
     EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
     CHECK(values.Initialize());

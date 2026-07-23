@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstdint>
+#include <Aero/Base/MetadataId.hpp>
 
 namespace Aero::Core {
 
-using TypeId = std::uint64_t;
-using MemberId = std::uint64_t;
+using TypeId = Base::MetaTypeId;
+using MemberId = Base::MetaMemberId;
 
-inline constexpr TypeId InvalidTypeId = 0U;
-inline constexpr MemberId InvalidMemberId = 0U;
+inline constexpr TypeId InvalidTypeId = Base::InvalidMetaTypeId;
+inline constexpr MemberId InvalidMemberId = Base::InvalidMetaMemberId;
 
 } // namespace Aero::Core

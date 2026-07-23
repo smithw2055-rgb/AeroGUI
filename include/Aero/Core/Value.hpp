@@ -48,7 +48,7 @@ public:
         const ValueTypeRegistration& registration) noexcept
         : registration_(registration) {}
 
-    AERO_NODISCARD const ValueTypeRegistration& Registration() const noexcept {
+    const ValueTypeRegistration& Registration() const noexcept {
         return registration_;
     }
 
@@ -68,50 +68,50 @@ public:
     Value& operator=(Value&&) noexcept = default;
     ~Value() = default;
 
-    AERO_NODISCARD static Value Unset() noexcept;
-    AERO_NODISCARD static Value FromBoolean(
+    static Value Unset() noexcept;
+    static Value FromBoolean(
         TypeId type, bool value, Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Value FromSignedInteger(
+    static Value FromSignedInteger(
         TypeId type, std::int64_t value,
         Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Value FromUnsignedInteger(
+    static Value FromUnsignedInteger(
         TypeId type, std::uint64_t value,
         Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Value FromDouble(
+    static Value FromDouble(
         TypeId type, double value, Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Base::Result<Value> TryFromString(
+    static Base::Result<Value> TryFromString(
         TypeId type, Base::StringView value,
         Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Value FromObject(
+    static Value FromObject(
         TypeId type, Base::Ref<Base::Object> value,
         Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Value NullObject(
+    static Value NullObject(
         TypeId type, Base::IAllocator* allocator = nullptr) noexcept;
-    AERO_NODISCARD static Base::Result<Value> TryFromCustom(
+    static Base::Result<Value> TryFromCustom(
         TypeId type, const void* source,
         const Base::Ref<ValueTypeSemantics>& semantics,
         Base::IAllocator* allocator = nullptr) noexcept;
 
-    AERO_NODISCARD TypeId Type() const noexcept { return type_; }
-    AERO_NODISCARD ValueKind Kind() const noexcept { return kind_; }
-    AERO_NODISCARD bool IsUnset() const noexcept {
+    TypeId Type() const noexcept { return type_; }
+    ValueKind Kind() const noexcept { return kind_; }
+    bool IsUnset() const noexcept {
         return kind_ == ValueKind::Unset;
     }
-    AERO_NODISCARD bool IsNullObject() const noexcept {
+    bool IsNullObject() const noexcept {
         return kind_ == ValueKind::Object && !storage_;
     }
-    AERO_NODISCARD bool IsInlineCustom() const noexcept {
+    bool IsInlineCustom() const noexcept {
         return kind_ == ValueKind::Custom && inlineCustom_;
     }
 
-    AERO_NODISCARD bool AsBoolean() const noexcept;
-    AERO_NODISCARD std::int64_t AsSignedInteger() const noexcept;
-    AERO_NODISCARD std::uint64_t AsUnsignedInteger() const noexcept;
-    AERO_NODISCARD double AsDouble() const noexcept;
-    AERO_NODISCARD Base::StringView AsString() const noexcept;
-    AERO_NODISCARD const Base::Ref<Base::Object>& AsObject() const noexcept;
-    AERO_NODISCARD const void* AsCustom() const noexcept;
-    AERO_NODISCARD bool Equals(const Value& other) const noexcept;
+    bool AsBoolean() const noexcept;
+    std::int64_t AsSignedInteger() const noexcept;
+    std::uint64_t AsUnsignedInteger() const noexcept;
+    double AsDouble() const noexcept;
+    Base::StringView AsString() const noexcept;
+    const Base::Ref<Base::Object>& AsObject() const noexcept;
+    const void* AsCustom() const noexcept;
+    bool Equals(const Value& other) const noexcept;
 
 private:
     alignas(std::max_align_t) unsigned char inlineData_[InlineCapacity]{};
@@ -122,12 +122,12 @@ private:
     Base::Ref<ValueTypeSemantics> semantics_;
 };
 
-AERO_NODISCARD inline bool operator==(
+inline bool operator==(
     const Value& left, const Value& right) noexcept {
     return left.Equals(right);
 }
 
-AERO_NODISCARD inline bool operator!=(
+inline bool operator!=(
     const Value& left, const Value& right) noexcept {
     return !(left == right);
 }

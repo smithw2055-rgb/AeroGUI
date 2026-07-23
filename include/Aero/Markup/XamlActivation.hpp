@@ -31,14 +31,14 @@ struct XamlActivationContext final {
     void* applicationServices = nullptr;
     void* hostContext = nullptr;
 
-    AERO_NODISCARD static XamlActivationContext Create() noexcept {
+    static XamlActivationContext Create() noexcept {
         XamlActivationContext context;
         context.structSize = static_cast<std::uint32_t>(
             sizeof(XamlActivationContext));
         return context;
     }
 
-    AERO_NODISCARD bool IsCompatible() const noexcept {
+    bool IsCompatible() const noexcept {
         return structSize >= static_cast<std::uint32_t>(
             sizeof(XamlActivationContext)) &&
             abiVersion == XamlActivationAbiVersion;
@@ -68,19 +68,19 @@ public:
     XamlActivationProviderRegistry& operator=(
         const XamlActivationProviderRegistry&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegister(
+    Base::Result<void> TryRegister(
         const XamlActivationProviderRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> Freeze() noexcept;
+    Base::Result<void> Freeze() noexcept;
 
-    AERO_NODISCARD bool IsFrozen() const noexcept { return frozen_; }
-    AERO_NODISCARD std::uint32_t ProviderCount() const noexcept {
+    bool IsFrozen() const noexcept { return frozen_; }
+    std::uint32_t ProviderCount() const noexcept {
         return providers_.Size();
     }
-    AERO_NODISCARD XamlSchemaContext& Schema() const noexcept {
+    XamlSchemaContext& Schema() const noexcept {
         return *schema_;
     }
 
-    AERO_NODISCARD Base::Result<Base::Ref<Base::Object>> CreateObject(
+    Base::Result<Base::Ref<Base::Object>> CreateObject(
         Core::TypeId requestedType,
         const XamlActivationContext& activation) const noexcept;
 
@@ -90,13 +90,13 @@ private:
     Base::Vector<XamlActivationProviderRegistration> providers_;
     bool frozen_ = false;
 
-    AERO_NODISCARD const XamlActivationProviderRegistration* FindExact(
+    const XamlActivationProviderRegistration* FindExact(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD const XamlActivationProviderRegistration* Find(
+    const XamlActivationProviderRegistration* Find(
         Core::TypeId type) const noexcept;
 };
 
-AERO_NODISCARD AERO_API Base::Result<Base::Ref<Base::Object>>
+AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlWithActivation(
     XamlObjectWriter& writer,
     XamlNodeReader& reader,

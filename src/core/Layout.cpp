@@ -34,12 +34,6 @@ TypeId PresentationType(const char* name) noexcept {
         Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
 }
 
-DependencyPropertyHandle PresentationProperty(
-    const char* owner, const char* name) noexcept {
-    return {MakeMemberId(PresentationType(owner), MemberKind::Property,
-        Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))))};
-}
-
 double ClampDimension(double value, double minimum, double maximum) noexcept {
     return std::max(minimum, std::min(value, maximum));
 }
@@ -153,80 +147,67 @@ Base::Result<void> LayoutElement::SetLayoutRounding(
     }
     const bool scaleChanged = dpiScale_ != dpiScale;
     dpiScale_ = dpiScale;
-    Base::Result<void> result = SetValue(UseLayoutRoundingProperty(),
+    Base::Result<void> result = SetValue(UseLayoutRoundingProperty,
         Value::FromBoolean(PresentationType("Boolean"), enabled));
     if (!result) return result;
     return scaleChanged && enabled ? InvalidateMeasure() : Base::Result<void>();
 }
 
-DependencyPropertyHandle LayoutElement::WidthProperty() noexcept { return PresentationProperty("LayoutElement", "Width"); }
-DependencyPropertyHandle LayoutElement::HeightProperty() noexcept { return PresentationProperty("LayoutElement", "Height"); }
-DependencyPropertyHandle LayoutElement::MinWidthProperty() noexcept { return PresentationProperty("LayoutElement", "MinWidth"); }
-DependencyPropertyHandle LayoutElement::MaxWidthProperty() noexcept { return PresentationProperty("LayoutElement", "MaxWidth"); }
-DependencyPropertyHandle LayoutElement::MinHeightProperty() noexcept { return PresentationProperty("LayoutElement", "MinHeight"); }
-DependencyPropertyHandle LayoutElement::MaxHeightProperty() noexcept { return PresentationProperty("LayoutElement", "MaxHeight"); }
-DependencyPropertyHandle LayoutElement::MarginProperty() noexcept { return PresentationProperty("LayoutElement", "Margin"); }
-DependencyPropertyHandle LayoutElement::HorizontalAlignmentProperty() noexcept { return PresentationProperty("LayoutElement", "HorizontalAlignment"); }
-DependencyPropertyHandle LayoutElement::VerticalAlignmentProperty() noexcept { return PresentationProperty("LayoutElement", "VerticalAlignment"); }
-DependencyPropertyHandle LayoutElement::ClipToBoundsProperty() noexcept { return PresentationProperty("LayoutElement", "ClipToBounds"); }
-DependencyPropertyHandle LayoutElement::IsHitTestVisibleProperty() noexcept { return PresentationProperty("LayoutElement", "IsHitTestVisible"); }
-DependencyPropertyHandle LayoutElement::UseLayoutRoundingProperty() noexcept { return PresentationProperty("LayoutElement", "UseLayoutRounding"); }
-
 bool LayoutElement::ClipToBounds() const noexcept {
-    Base::Result<Value> value = GetValue(ClipToBoundsProperty());
+    Base::Result<Value> value = GetValue(ClipToBoundsProperty);
     return value ? value.Value().AsBoolean() : false;
 }
 bool LayoutElement::IsHitTestVisible() const noexcept {
-    Base::Result<Value> value = GetValue(IsHitTestVisibleProperty());
+    Base::Result<Value> value = GetValue(IsHitTestVisibleProperty);
     return value ? value.Value().AsBoolean() : true;
 }
 bool LayoutElement::UseLayoutRounding() const noexcept {
-    Base::Result<Value> value = GetValue(UseLayoutRoundingProperty());
+    Base::Result<Value> value = GetValue(UseLayoutRoundingProperty);
     return value ? value.Value().AsBoolean() : false;
 }
 bool LayoutElement::HasWidth() const noexcept {
-    Base::Result<Value> value = GetValue(WidthProperty());
+    Base::Result<Value> value = GetValue(WidthProperty);
     return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
 }
 bool LayoutElement::HasHeight() const noexcept {
-    Base::Result<Value> value = GetValue(HeightProperty());
+    Base::Result<Value> value = GetValue(HeightProperty);
     return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
 }
 double LayoutElement::Width() const noexcept {
-    Base::Result<Value> value = GetValue(WidthProperty());
+    Base::Result<Value> value = GetValue(WidthProperty);
     if (!value) return 0.0;
     const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
     return length.isAuto ? 0.0 : length.value;
 }
 double LayoutElement::Height() const noexcept {
-    Base::Result<Value> value = GetValue(HeightProperty());
+    Base::Result<Value> value = GetValue(HeightProperty);
     if (!value) return 0.0;
     const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
     return length.isAuto ? 0.0 : length.value;
 }
 Size LayoutElement::MinSize() const noexcept {
-    Base::Result<Value> width = GetValue(MinWidthProperty());
-    Base::Result<Value> height = GetValue(MinHeightProperty());
+    Base::Result<Value> width = GetValue(MinWidthProperty);
+    Base::Result<Value> height = GetValue(MinHeightProperty);
     return {width ? width.Value().AsDouble() : 0.0,
         height ? height.Value().AsDouble() : 0.0};
 }
 Size LayoutElement::MaxSize() const noexcept {
-    Base::Result<Value> width = GetValue(MaxWidthProperty());
-    Base::Result<Value> height = GetValue(MaxHeightProperty());
+    Base::Result<Value> width = GetValue(MaxWidthProperty);
+    Base::Result<Value> height = GetValue(MaxHeightProperty);
     return {width ? width.Value().AsDouble() : 1.0e12,
         height ? height.Value().AsDouble() : 1.0e12};
 }
 Thickness LayoutElement::Margin() const noexcept {
-    Base::Result<Value> value = GetValue(MarginProperty());
+    Base::Result<Value> value = GetValue(MarginProperty);
     return value ? *static_cast<const Thickness*>(value.Value().AsCustom()) : Thickness{};
 }
 HorizontalAlignment LayoutElement::GetHorizontalAlignment() const noexcept {
-    Base::Result<Value> value = GetValue(HorizontalAlignmentProperty());
+    Base::Result<Value> value = GetValue(HorizontalAlignmentProperty);
     return value ? static_cast<HorizontalAlignment>(value.Value().AsUnsignedInteger())
                  : HorizontalAlignment::Stretch;
 }
 VerticalAlignment LayoutElement::GetVerticalAlignment() const noexcept {
-    Base::Result<Value> value = GetValue(VerticalAlignmentProperty());
+    Base::Result<Value> value = GetValue(VerticalAlignmentProperty);
     return value ? static_cast<VerticalAlignment>(value.Value().AsUnsignedInteger())
                  : VerticalAlignment::Stretch;
 }
@@ -253,12 +234,12 @@ Base::Result<void> LayoutElement::OnPropertyInvalidated(
 }
 
 Base::Result<void> LayoutElement::SetClipToBounds(bool value) noexcept {
-    return SetValue(ClipToBoundsProperty(),
+    return SetValue(ClipToBoundsProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 
 Base::Result<void> LayoutElement::SetHitTestVisible(bool value) noexcept {
-    return SetValue(IsHitTestVisibleProperty(),
+    return SetValue(IsHitTestVisibleProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 
@@ -269,11 +250,11 @@ Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
     const Length length = Length::Pixels(value);
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Length"), &length);
-    return stored ? SetValue(WidthProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(WidthProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> LayoutElement::ClearWidth() noexcept {
-    return ClearValue(WidthProperty());
+    return ClearValue(WidthProperty);
 }
 
 Base::Result<void> LayoutElement::SetHeight(double value) noexcept {
@@ -283,11 +264,11 @@ Base::Result<void> LayoutElement::SetHeight(double value) noexcept {
     const Length length = Length::Pixels(value);
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Length"), &length);
-    return stored ? SetValue(HeightProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(HeightProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> LayoutElement::ClearHeight() noexcept {
-    return ClearValue(HeightProperty());
+    return ClearValue(HeightProperty);
 }
 
 Base::Result<void> LayoutElement::SetMinSize(Size value) noexcept {
@@ -296,9 +277,9 @@ Base::Result<void> LayoutElement::SetMinSize(Size value) noexcept {
         value.height > maximum.height) {
         return InvalidArgument("Minimum layout size is invalid");
     }
-    Base::Result<void> width = SetValue(MinWidthProperty(),
+    Base::Result<void> width = SetValue(MinWidthProperty,
         Value::FromDouble(PresentationType("Double"), value.width));
-    return width ? SetValue(MinHeightProperty(),
+    return width ? SetValue(MinHeightProperty,
         Value::FromDouble(PresentationType("Double"), value.height)) : width;
 }
 
@@ -308,9 +289,9 @@ Base::Result<void> LayoutElement::SetMaxSize(Size value) noexcept {
         value.height < minimum.height) {
         return InvalidArgument("Maximum layout size is invalid");
     }
-    Base::Result<void> width = SetValue(MaxWidthProperty(),
+    Base::Result<void> width = SetValue(MaxWidthProperty,
         Value::FromDouble(PresentationType("Double"), value.width));
-    return width ? SetValue(MaxHeightProperty(),
+    return width ? SetValue(MaxHeightProperty,
         Value::FromDouble(PresentationType("Double"), value.height)) : width;
 }
 
@@ -320,7 +301,7 @@ Base::Result<void> LayoutElement::SetMargin(Thickness value) noexcept {
     }
     Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
         PresentationType("Thickness"), &value);
-    return stored ? SetValue(MarginProperty(), stored.Value()) : stored.GetStatus();
+    return stored ? SetValue(MarginProperty, stored.Value()) : stored.GetStatus();
 }
 
 Base::Result<void> LayoutElement::SetHorizontalAlignment(
@@ -328,7 +309,7 @@ Base::Result<void> LayoutElement::SetHorizontalAlignment(
     if (value > HorizontalAlignment::Right) {
         return InvalidArgument("Horizontal alignment is invalid");
     }
-    return SetValue(HorizontalAlignmentProperty(), Value::FromUnsignedInteger(
+    return SetValue(HorizontalAlignmentProperty, Value::FromUnsignedInteger(
         PresentationType("HorizontalAlignment"), static_cast<std::uint64_t>(value)));
 }
 
@@ -337,7 +318,7 @@ Base::Result<void> LayoutElement::SetVerticalAlignment(
     if (value > VerticalAlignment::Bottom) {
         return InvalidArgument("Vertical alignment is invalid");
     }
-    return SetValue(VerticalAlignmentProperty(), Value::FromUnsignedInteger(
+    return SetValue(VerticalAlignmentProperty, Value::FromUnsignedInteger(
         PresentationType("VerticalAlignment"), static_cast<std::uint64_t>(value)));
 }
 

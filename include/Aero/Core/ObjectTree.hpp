@@ -2,6 +2,8 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Delegate.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -13,6 +15,8 @@
 
 namespace Aero::Core {
 
+struct MetaRegistrationContext;
+
 class ObjectTree;
 class RoutedEventRegistry;
 class TreeNode;
@@ -21,17 +25,17 @@ using RoutedEventId = MemberId;
 
 struct RoutedEventHandle final {
     RoutedEventId value = InvalidMemberId;
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != InvalidMemberId;
     }
 };
 
-AERO_NODISCARD constexpr bool operator==(
+constexpr bool operator==(
     RoutedEventHandle left, RoutedEventHandle right) noexcept {
     return left.value == right.value;
 }
 
-AERO_NODISCARD constexpr bool operator!=(
+constexpr bool operator!=(
     RoutedEventHandle left, RoutedEventHandle right) noexcept {
     return !(left == right);
 }
@@ -42,8 +46,16 @@ enum class RoutingStrategy : std::uint8_t {
     Bubble
 };
 
+constexpr RoutedEventHandle MakeRoutedEventHandle(
+    TypeId ownerType,
+    Base::StringView name) noexcept {
+    return {MakeMemberId(ownerType, MemberKind::Event, name)};
+}
+
 enum class PointerAction : std::uint8_t { Move = 0U, Down, Up };
 enum class KeyboardAction : std::uint8_t { Down = 0U, Up };
+enum class MouseButton : std::uint8_t { Left = 0U, Right, Middle, XButton1, XButton2 };
+enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
 
 struct RoutedEventRegistration final {
     Base::StringView name;
@@ -52,42 +64,177 @@ struct RoutedEventRegistration final {
     RoutingStrategy strategy = RoutingStrategy::Bubble;
 };
 
-struct RoutedEventArgs final {
-    RoutedEventHandle event;
-    TreeNode* source = nullptr;
-    TreeNode* originalSource = nullptr;
-    bool handled = false;
-    bool hasPointer = false;
-    PointerAction pointerAction = PointerAction::Move;
-    std::uint32_t pointerId = 0U;
-    double pointerX = 0.0;
-    double pointerY = 0.0;
-    bool hasKeyboard = false;
-    KeyboardAction keyboardAction = KeyboardAction::Down;
-    std::uint32_t key = 0U;
+struct EventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "EventArgs");
+    }
+    explicit constexpr EventArgs(TypeId type = StaticTypeId()) noexcept
+        : eventArgsType(type) {}
+    TypeId eventArgsType = StaticTypeId();
+};
+
+struct RoutedEventArgs : EventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "RoutedEventArgs");
+    }
+    explicit constexpr RoutedEventArgs(
+        TypeId type = StaticTypeId()) noexcept : EventArgs(type) {}
+    RoutedEventHandle routedEvent;
+    Base::Object* source = nullptr;
+    Base::Object* originalSource = nullptr;
+    mutable bool handled = false;
+};
+
+struct InputEventArgs : RoutedEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "InputEventArgs");
+    }
+    explicit constexpr InputEventArgs(
+        TypeId type = StaticTypeId()) noexcept : RoutedEventArgs(type) {}
     std::uint32_t modifiers = 0U;
+};
+
+struct MouseEventArgs : InputEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "MouseEventArgs");
+    }
+    explicit constexpr MouseEventArgs(
+        TypeId type = StaticTypeId()) noexcept : InputEventArgs(type) {}
+    std::uint32_t pointerId = 0U;
+    Base::Point position;
+};
+
+struct MouseButtonEventArgs final : MouseEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "MouseButtonEventArgs");
+    }
+    constexpr MouseButtonEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
+    MouseButton changedButton = MouseButton::Left;
+    MouseButtonState buttonState = MouseButtonState::Released;
+};
+
+struct KeyEventArgs final : InputEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "KeyEventArgs");
+    }
+    constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
+    KeyboardAction action = KeyboardAction::Down;
+    std::uint32_t key = 0U;
     bool isRepeat = false;
-    bool hasTextInput = false;
+};
+
+struct TextCompositionEventArgs final : InputEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "TextCompositionEventArgs");
+    }
+    constexpr TextCompositionEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
     Base::StringView text;
 };
 
-using RoutedEventHandler = void (*)(
-    TreeNode& sender,
-    RoutedEventArgs& args,
-    void* context) noexcept;
-using RoutedEventCleanup = void (*)(void* context) noexcept;
-
-struct RoutedEventHandlerToken final {
-    std::uint64_t value = 0U;
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
-        return value != 0U;
+struct KeyboardFocusChangedEventArgs final : RoutedEventArgs {
+    static constexpr TypeId StaticTypeId() noexcept {
+        return MakeTypeId("urn:aero", "KeyboardFocusChangedEventArgs");
     }
+    constexpr KeyboardFocusChangedEventArgs() noexcept
+        : RoutedEventArgs(StaticTypeId()) {}
+    TreeNode* oldFocus = nullptr;
+    TreeNode* newFocus = nullptr;
 };
+
+using EventHandler = Base::Delegate<void(Base::Object*, const EventArgs&)>;
+using RoutedEventHandler =
+    Base::Delegate<void(Base::Object*, const RoutedEventArgs&)>;
+using MouseEventHandler =
+    Base::Delegate<void(Base::Object*, const MouseEventArgs&)>;
+using MouseButtonEventHandler =
+    Base::Delegate<void(Base::Object*, const MouseButtonEventArgs&)>;
+using KeyEventHandler =
+    Base::Delegate<void(Base::Object*, const KeyEventArgs&)>;
+using TextCompositionEventHandler =
+    Base::Delegate<void(Base::Object*, const TextCompositionEventArgs&)>;
+using KeyboardFocusChangedEventHandler =
+    Base::Delegate<void(Base::Object*, const KeyboardFocusChangedEventArgs&)>;
+
+namespace Detail {
+
+class RoutedHandlerStorage final {
+public:
+    RoutedHandlerStorage() noexcept = default;
+
+    template<class TArgs>
+    explicit RoutedHandlerStorage(
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
+        static_assert(std::is_base_of<RoutedEventArgs, TArgs>::value,
+            "Routed event arguments must derive from RoutedEventArgs");
+        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
+        static_assert(sizeof(Handler) <= sizeof(storage_),
+            "Routed handler storage is too small");
+        new (storage_) Handler(handler);
+        operations_ = &OperationsFor<TArgs>();
+        argsType_ = TArgs::StaticTypeId();
+    }
+
+    RoutedHandlerStorage(const RoutedHandlerStorage& other) noexcept;
+    RoutedHandlerStorage(RoutedHandlerStorage&& other) noexcept;
+    RoutedHandlerStorage& operator=(const RoutedHandlerStorage& other) noexcept;
+    RoutedHandlerStorage& operator=(RoutedHandlerStorage&& other) noexcept;
+    ~RoutedHandlerStorage() noexcept;
+
+    bool Empty() const noexcept { return operations_ == nullptr; }
+    TypeId ArgsType() const noexcept { return argsType_; }
+    bool Equals(const RoutedHandlerStorage& other) const noexcept;
+    void Invoke(Base::Object* sender, const RoutedEventArgs& args) const noexcept;
+
+private:
+    struct Operations final {
+        void (*copy)(void*, const void*) noexcept;
+        void (*destroy)(void*) noexcept;
+        bool (*equals)(const void*, const void*) noexcept;
+        void (*invoke)(const void*, Base::Object*, const RoutedEventArgs&) noexcept;
+    };
+
+    template<class TArgs>
+    static const Operations& OperationsFor() noexcept {
+        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
+        static const Operations operations{
+            [](void* destination, const void* source) noexcept {
+                new (destination) Handler(*static_cast<const Handler*>(source));
+            },
+            [](void* value) noexcept { static_cast<Handler*>(value)->~Handler(); },
+            [](const void* left, const void* right) noexcept {
+                return *static_cast<const Handler*>(left) ==
+                    *static_cast<const Handler*>(right);
+            },
+            [](const void* value, Base::Object* sender,
+                const RoutedEventArgs& args) noexcept {
+                static_cast<const Handler*>(value)->Invoke(
+                    sender, static_cast<const TArgs&>(args));
+            }};
+        return operations;
+    }
+
+    void Reset() noexcept;
+
+    alignas(void*) unsigned char storage_[4U * sizeof(void*)]{};
+    const Operations* operations_ = nullptr;
+    TypeId argsType_ = InvalidTypeId;
+};
+
+template<class T>
+struct RoutedHandlerTraits;
+
+template<class TArgs>
+struct RoutedHandlerTraits<
+    Base::Delegate<void(Base::Object*, const TArgs&)>> final {
+    using Args = TArgs;
+};
+
+} // namespace Detail
 
 struct TreeNodeHandle final {
     std::uint32_t index = UINT32_MAX;
     std::uint32_t generation = 0U;
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return index != UINT32_MAX && generation != 0U;
     }
 };
@@ -103,7 +250,71 @@ using TreeLifecycleHandler = void (*)(
     void* context) noexcept;
 
 class AERO_API TreeNode : public DependencyObject {
+    AERO_DECLARE_METADATA(TreeNode, DependencyObject)
 public:
+    template<class THandler>
+    class RoutedEvent_ final {
+    public:
+        RoutedEvent_(TreeNode& node, RoutedEventHandle event) noexcept
+            : node_(&node), event_(event) {}
+
+        Base::Result<void> TryAdd(
+            const THandler& handler,
+            bool handledEventsToo = false) noexcept {
+            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
+            return node_->TryAddHandler(
+                event_, Detail::RoutedHandlerStorage(
+                    static_cast<const Base::Delegate<
+                        void(Base::Object*, const Args&)>&>(handler)),
+                handledEventsToo);
+        }
+
+        void Add(const THandler& handler, bool handledEventsToo = false) noexcept {
+            Base::Result<void> result = TryAdd(handler, handledEventsToo);
+            if (!result) {
+                Base::ReportOutOfMemory(
+                    sizeof(Detail::RoutedHandlerStorage),
+                    alignof(Detail::RoutedHandlerStorage),
+                    Base::MemoryTag::General);
+            }
+        }
+
+        void operator+=(const THandler& handler) noexcept { Add(handler); }
+
+        bool Remove(const THandler& handler) noexcept {
+            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
+            return node_->RemoveHandler(
+                event_, Detail::RoutedHandlerStorage(
+                    static_cast<const Base::Delegate<
+                        void(Base::Object*, const Args&)>&>(handler)));
+        }
+
+        void operator-=(const THandler& handler) noexcept {
+            static_cast<void>(Remove(handler));
+        }
+
+    private:
+        TreeNode* node_ = nullptr;
+        RoutedEventHandle event_;
+    };
+
+    inline static constexpr RoutedEventHandle MouseMoveEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseMove");
+    inline static constexpr RoutedEventHandle MouseDownEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseDown");
+    inline static constexpr RoutedEventHandle MouseUpEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseUp");
+    inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
+    inline static constexpr RoutedEventHandle LostKeyboardFocusEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "LostKeyboardFocus");
+    inline static constexpr RoutedEventHandle KeyDownEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyDown");
+    inline static constexpr RoutedEventHandle KeyUpEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyUp");
+    inline static constexpr RoutedEventHandle TextInputEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "TextInput");
+
     TreeNode(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& registry,
@@ -111,37 +322,72 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     ~TreeNode() override;
 
-    AERO_NODISCARD ObjectTree* OwningTree() const noexcept { return tree_; }
-    AERO_NODISCARD TreeNode* LogicalParent() const noexcept { return logicalParent_; }
-    AERO_NODISCARD TreeNode* VisualParent() const noexcept { return visualParent_; }
-    AERO_NODISCARD Base::Span<TreeNode* const> LogicalChildren() const noexcept {
+    ObjectTree* OwningTree() const noexcept { return tree_; }
+    TreeNode* LogicalParent() const noexcept { return logicalParent_; }
+    TreeNode* VisualParent() const noexcept { return visualParent_; }
+    Base::Span<TreeNode* const> LogicalChildren() const noexcept {
         return {logicalChildren_.Data(), logicalChildren_.Size()};
     }
-    AERO_NODISCARD Base::Span<TreeNode* const> VisualChildren() const noexcept {
+    Base::Span<TreeNode* const> VisualChildren() const noexcept {
         return {visualChildren_.Data(), visualChildren_.Size()};
     }
-    AERO_NODISCARD bool IsLoaded() const noexcept { return loaded_; }
-    AERO_NODISCARD TreeNodeHandle Handle() const noexcept { return handle_; }
+    bool IsLoaded() const noexcept { return loaded_; }
+    TreeNodeHandle Handle() const noexcept { return handle_; }
 
-    AERO_NODISCARD Base::Result<RoutedEventHandlerToken> AddHandler(
+    RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
+        return {*this, MouseMoveEvent};
+    }
+    RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
+        return {*this, MouseDownEvent};
+    }
+    RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
+        return {*this, MouseUpEvent};
+    }
+    RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
+        return {*this, GotKeyboardFocusEvent};
+    }
+    RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
+        return {*this, LostKeyboardFocusEvent};
+    }
+    RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
+        return {*this, KeyDownEvent};
+    }
+    RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
+        return {*this, KeyUpEvent};
+    }
+    RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
+        return {*this, TextInputEvent};
+    }
+
+    Base::Result<void> TryAddHandler(
         RoutedEventHandle event,
-        RoutedEventHandler handler,
-        void* context = nullptr,
-        RoutedEventCleanup cleanup = nullptr,
+        const Detail::RoutedHandlerStorage& handler,
         bool handledEventsToo = false) noexcept;
-    AERO_NODISCARD Base::Result<bool> RemoveHandler(
-        RoutedEventHandlerToken token) noexcept;
+    template<class TArgs>
+    Base::Result<void> TryAddHandler(
+        RoutedEventHandle event,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        bool handledEventsToo = false) noexcept {
+        return TryAddHandler(
+            event, Detail::RoutedHandlerStorage(handler), handledEventsToo);
+    }
+    bool RemoveHandler(
+        RoutedEventHandle event,
+        const Detail::RoutedHandlerStorage& handler) noexcept;
+    template<class TArgs>
+    bool RemoveHandler(
+        RoutedEventHandle event,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
+        return RemoveHandler(event, Detail::RoutedHandlerStorage(handler));
+    }
 
 private:
     friend class ObjectTree;
     friend class RoutedEventRegistry;
 
     struct HandlerRecord final {
-        RoutedEventHandlerToken token;
         RoutedEventHandle event;
-        RoutedEventHandler handler = nullptr;
-        RoutedEventCleanup cleanup = nullptr;
-        void* context = nullptr;
+        Detail::RoutedHandlerStorage handler;
         std::uint64_t sequence = 0U;
         bool handledEventsToo = false;
     };
@@ -152,7 +398,6 @@ private:
     Base::Vector<TreeNode*> logicalChildren_;
     Base::Vector<TreeNode*> visualChildren_;
     Base::Vector<HandlerRecord> handlers_;
-    std::uint64_t nextHandlerToken_ = 1U;
     std::uint64_t nextHandlerSequence_ = 1U;
     bool loaded_ = false;
     TreeNodeHandle handle_;
@@ -171,22 +416,22 @@ public:
     ObjectTree(const ObjectTree&) = delete;
     ObjectTree& operator=(const ObjectTree&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
-    AERO_NODISCARD Base::Result<void> SetRoot(TreeNode* root) noexcept;
-    AERO_NODISCARD TreeNode* Root() const noexcept { return root_; }
-    AERO_NODISCARD Base::Result<TreeNodeHandle> GetHandle(
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<void> SetRoot(TreeNode* root) noexcept;
+    TreeNode* Root() const noexcept { return root_; }
+    Base::Result<TreeNodeHandle> GetHandle(
         const TreeNode& node) const noexcept;
-    AERO_NODISCARD TreeNode* ResolveHandle(TreeNodeHandle handle) const noexcept;
+    TreeNode* ResolveHandle(TreeNodeHandle handle) const noexcept;
 
-    AERO_NODISCARD Base::Result<void> AttachLogical(
+    Base::Result<void> AttachLogical(
         TreeNode& parent, TreeNode& child) noexcept;
-    AERO_NODISCARD Base::Result<void> DetachLogical(
+    Base::Result<void> DetachLogical(
         TreeNode& parent, TreeNode& child) noexcept;
-    AERO_NODISCARD Base::Result<void> AttachVisual(
+    Base::Result<void> AttachVisual(
         TreeNode& parent, TreeNode& child) noexcept;
-    AERO_NODISCARD Base::Result<void> DetachVisual(
+    Base::Result<void> DetachVisual(
         TreeNode& parent, TreeNode& child) noexcept;
-    AERO_NODISCARD Base::Result<void> DetachNode(TreeNode& node) noexcept;
+    Base::Result<void> DetachNode(TreeNode& node) noexcept;
 
     void SetLifecycleHandler(
         TreeLifecycleHandler handler,
@@ -195,9 +440,9 @@ public:
         lifecycleContext_ = context;
     }
 
-    AERO_NODISCARD std::uint64_t Version() const noexcept { return version_; }
-    AERO_NODISCARD bool IsMutating() const noexcept { return mutating_; }
-    AERO_NODISCARD std::uint32_t PendingLifecycleCount() const noexcept {
+    std::uint64_t Version() const noexcept { return version_; }
+    bool IsMutating() const noexcept { return mutating_; }
+    std::uint32_t PendingLifecycleCount() const noexcept {
         return lifecycleQueue_.Size();
     }
 
@@ -226,23 +471,23 @@ private:
     std::uint64_t version_ = 0U;
     bool mutating_ = false;
 
-    AERO_NODISCARD Base::Result<void> VerifyMutation(
+    Base::Result<void> VerifyMutation(
         const TreeNode& first,
         const TreeNode* second = nullptr) const noexcept;
-    AERO_NODISCARD bool IsLogicalAncestor(
+    bool IsLogicalAncestor(
         const TreeNode& possibleAncestor,
         const TreeNode& node) const noexcept;
-    AERO_NODISCARD bool IsVisualAncestor(
+    bool IsVisualAncestor(
         const TreeNode& possibleAncestor,
         const TreeNode& node) const noexcept;
-    AERO_NODISCARD Base::Result<void> QueueLifecycleSubtree(
+    Base::Result<void> QueueLifecycleSubtree(
         TreeNode& node,
         bool loaded) noexcept;
-    AERO_NODISCARD Base::Result<void> SetLoadedSubtree(
+    Base::Result<void> SetLoadedSubtree(
         TreeNode& node,
         bool loaded) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> FlushLifecycle() noexcept;
-    AERO_NODISCARD Base::Result<void> RegisterHandleSubtree(TreeNode& node) noexcept;
+    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
+    Base::Result<void> RegisterHandleSubtree(TreeNode& node) noexcept;
     void InvalidateHandleSubtree(TreeNode& node) noexcept;
     void RemoveChild(Base::Vector<TreeNode*>& children, TreeNode& child) noexcept;
     static void LifecycleHook(void* context) noexcept;
@@ -255,20 +500,19 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RoutedEventRegistry() noexcept;
 
-    AERO_NODISCARD Base::Result<RoutedEventHandle> TryRegister(
+    Base::Result<RoutedEventHandle> TryRegister(
         const RoutedEventRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<void> Freeze() noexcept;
-    AERO_NODISCARD bool IsFrozen() const noexcept { return frozen_; }
+    Base::Result<void> Freeze() noexcept;
+    bool IsFrozen() const noexcept { return frozen_; }
 
-    AERO_NODISCARD Base::Result<void> RegisterClassHandler(
+    template<class TArgs>
+    Base::Result<void> RegisterClassHandler(
         RoutedEventHandle event,
         TypeId classType,
-        RoutedEventHandler handler,
-        void* context = nullptr,
-        RoutedEventCleanup cleanup = nullptr,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
         bool handledEventsToo = false) noexcept;
 
-    AERO_NODISCARD Base::Result<void> RaiseEvent(
+    Base::Result<void> RaiseEvent(
         TreeNode& source,
         RoutedEventHandle event,
         RoutedEventArgs* args = nullptr) noexcept;
@@ -286,9 +530,7 @@ private:
     struct ClassHandlerRecord final {
         RoutedEventHandle event;
         TypeId classType = InvalidTypeId;
-        RoutedEventHandler handler = nullptr;
-        RoutedEventCleanup cleanup = nullptr;
-        void* context = nullptr;
+        Detail::RoutedHandlerStorage handler;
         std::uint64_t sequence = 0U;
         bool handledEventsToo = false;
     };
@@ -301,13 +543,44 @@ private:
     bool frozen_ = false;
     bool raising_ = false;
 
-    AERO_NODISCARD const EventRecord* Find(RoutedEventHandle event) const noexcept;
-    AERO_NODISCARD Base::Result<void> BuildRoute(
+    const EventRecord* Find(RoutedEventHandle event) const noexcept;
+    Base::Result<void> BuildRoute(
         TreeNode& source,
         RoutingStrategy strategy,
         Base::Vector<TreeNode*>& route) noexcept;
     void InvokeNode(TreeNode& node, RoutedEventArgs& args) noexcept;
     void CleanupClassHandlers() noexcept;
 };
+
+template<class TArgs>
+Base::Result<void> RoutedEventRegistry::RegisterClassHandler(
+    RoutedEventHandle event,
+    TypeId classType,
+    const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+    bool handledEventsToo) noexcept {
+    static_assert(std::is_base_of<RoutedEventArgs, TArgs>::value,
+        "Routed event arguments must derive from RoutedEventArgs");
+    if (!frozen_) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "RoutedEventRegistry must be frozen before handlers");
+    }
+    if (raising_) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Cannot mutate class handlers during routed event dispatch");
+    }
+    const EventRecord* record = Find(event);
+    if (record == nullptr || types_->FindType(classType) == nullptr ||
+        handler.Empty() || record->argsType != TArgs::StaticTypeId()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Class handler registration is invalid");
+    }
+    ClassHandlerRecord value;
+    value.event = event;
+    value.classType = classType;
+    value.handler = Detail::RoutedHandlerStorage(handler);
+    value.handledEventsToo = handledEventsToo;
+    value.sequence = nextClassSequence_++;
+    return classHandlers_.TryPushBack(std::move(value));
+}
 
 } // namespace Aero::Core

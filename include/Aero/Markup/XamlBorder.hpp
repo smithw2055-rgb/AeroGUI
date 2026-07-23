@@ -28,9 +28,9 @@ public:
     XamlBorderExtension(const XamlBorderExtension&) = delete;
     XamlBorderExtension& operator=(const XamlBorderExtension&) = delete;
 
-    AERO_NODISCARD Base::Result<void> TryRegisterType(
+    Base::Result<void> TryRegisterType(
         const XamlBorderTypeRegistration& registration) noexcept;
-    AERO_NODISCARD Base::Result<std::uint32_t> Register(
+    Base::Result<std::uint32_t> Register(
         XamlSchemaContext& schema) noexcept;
 
 private:
@@ -39,14 +39,14 @@ private:
     Base::Vector<XamlBorderTypeRegistration> types_;
     Base::Vector<Core::MemberId> backgroundMembers_;
 
-    AERO_NODISCARD const XamlBorderTypeRegistration* FindTypeRegistration(
+    const XamlBorderTypeRegistration* FindTypeRegistration(
         Core::TypeId type) const noexcept;
-    AERO_NODISCARD Base::Result<Core::Border*> ResolveBorder(
+    Base::Result<Core::Border*> ResolveBorder(
         Base::Object& object,
         const XamlServiceProvider& services) const noexcept;
-    AERO_NODISCARD bool IsBackgroundMember(Core::MemberId member) const noexcept;
+    bool IsBackgroundMember(Core::MemberId member) const noexcept;
 
-    static AERO_NODISCARD Base::Result<void> SetBackgroundMember(
+    static Base::Result<void> SetBackgroundMember(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services,

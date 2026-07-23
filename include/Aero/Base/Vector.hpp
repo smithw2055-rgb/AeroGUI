@@ -20,11 +20,11 @@ class InlineBuffer {
 protected:
     using Slot = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
 
-    AERO_NODISCARD T* InlineData() noexcept {
+    T* InlineData() noexcept {
         return reinterpret_cast<T*>(slots_);
     }
 
-    AERO_NODISCARD const T* InlineData() const noexcept {
+    const T* InlineData() const noexcept {
         return reinterpret_cast<const T*>(slots_);
     }
 
@@ -35,8 +35,8 @@ private:
 template<class T>
 class InlineBuffer<T, 0U> {
 protected:
-    AERO_NODISCARD T* InlineData() noexcept { return nullptr; }
-    AERO_NODISCARD const T* InlineData() const noexcept { return nullptr; }
+    T* InlineData() noexcept { return nullptr; }
+    const T* InlineData() const noexcept { return nullptr; }
 };
 
 template<class T, std::uint32_t InlineCount>
@@ -109,50 +109,50 @@ public:
         return *this;
     }
 
-    AERO_NODISCARD T* Data() noexcept { return data_; }
-    AERO_NODISCARD const T* Data() const noexcept { return data_; }
-    AERO_NODISCARD SizeType Size() const noexcept { return size_; }
-    AERO_NODISCARD SizeType Capacity() const noexcept { return capacity_; }
-    AERO_NODISCARD bool Empty() const noexcept { return size_ == 0U; }
-    AERO_NODISCARD IAllocator& Allocator() const noexcept { return *allocator_; }
+    T* Data() noexcept { return data_; }
+    const T* Data() const noexcept { return data_; }
+    SizeType Size() const noexcept { return size_; }
+    SizeType Capacity() const noexcept { return capacity_; }
+    bool Empty() const noexcept { return size_ == 0U; }
+    IAllocator& Allocator() const noexcept { return *allocator_; }
 
-    AERO_NODISCARD Span<T> AsSpan() noexcept { return {data_, size_}; }
-    AERO_NODISCARD Span<const T> AsSpan() const noexcept { return {data_, size_}; }
+    Span<T> AsSpan() noexcept { return {data_, size_}; }
+    Span<const T> AsSpan() const noexcept { return {data_, size_}; }
 
-    AERO_NODISCARD T& operator[](SizeType index) noexcept {
+    T& operator[](SizeType index) noexcept {
         AERO_ASSERT(index < size_);
         return data_[index];
     }
 
-    AERO_NODISCARD const T& operator[](SizeType index) const noexcept {
+    const T& operator[](SizeType index) const noexcept {
         AERO_ASSERT(index < size_);
         return data_[index];
     }
 
-    AERO_NODISCARD T& Front() noexcept {
+    T& Front() noexcept {
         AERO_ASSERT(size_ > 0U);
         return data_[0];
     }
 
-    AERO_NODISCARD const T& Front() const noexcept {
+    const T& Front() const noexcept {
         AERO_ASSERT(size_ > 0U);
         return data_[0];
     }
 
-    AERO_NODISCARD T& Back() noexcept {
+    T& Back() noexcept {
         AERO_ASSERT(size_ > 0U);
         return data_[size_ - 1U];
     }
 
-    AERO_NODISCARD const T& Back() const noexcept {
+    const T& Back() const noexcept {
         AERO_ASSERT(size_ > 0U);
         return data_[size_ - 1U];
     }
 
-    AERO_NODISCARD T* begin() noexcept { return data_; }
-    AERO_NODISCARD const T* begin() const noexcept { return data_; }
-    AERO_NODISCARD T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; }
-    AERO_NODISCARD const T* end() const noexcept {
+    T* begin() noexcept { return data_; }
+    const T* begin() const noexcept { return data_; }
+    T* end() noexcept { return size_ == 0U ? data_ : data_ + size_; }
+    const T* end() const noexcept {
         return size_ == 0U ? data_ : data_ + size_;
     }
 
@@ -167,7 +167,7 @@ public:
         data_[size_].~T();
     }
 
-    AERO_NODISCARD Result<void> TryReserve(SizeType requestedCapacity) noexcept {
+    Result<void> TryReserve(SizeType requestedCapacity) noexcept {
         if (requestedCapacity <= capacity_) {
             return {};
         }
@@ -194,7 +194,7 @@ public:
         return {};
     }
 
-    AERO_NODISCARD Result<void> TryResize(SizeType requestedSize) noexcept {
+    Result<void> TryResize(SizeType requestedSize) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
             size_ = requestedSize;
@@ -217,7 +217,7 @@ public:
         return {};
     }
 
-    AERO_NODISCARD Result<void> TryResize(
+    Result<void> TryResize(
         SizeType requestedSize, const T& value) noexcept {
         if (requestedSize < size_) {
             DestroyRange(data_ + requestedSize, size_ - requestedSize);
@@ -242,7 +242,7 @@ public:
     }
 
     template<class... Args>
-    AERO_NODISCARD Result<T*> TryEmplaceBack(Args&&... args) noexcept {
+    Result<T*> TryEmplaceBack(Args&&... args) noexcept {
         if (size_ == UINT32_MAX) {
             return Status::Failure(ErrorCode::OutOfRange,
                 "Vector size limit reached");
@@ -258,17 +258,17 @@ public:
         return value;
     }
 
-    AERO_NODISCARD Result<void> TryPushBack(const T& value) noexcept {
+    Result<void> TryPushBack(const T& value) noexcept {
         const Result<T*> result = TryEmplaceBack(value);
         return result ? Result<void>() : Result<void>(result.GetStatus());
     }
 
-    AERO_NODISCARD Result<void> TryPushBack(T&& value) noexcept {
+    Result<void> TryPushBack(T&& value) noexcept {
         const Result<T*> result = TryEmplaceBack(std::move(value));
         return result ? Result<void>() : Result<void>(result.GetStatus());
     }
 
-    AERO_NODISCARD Result<void> TryAssign(Span<const T> values) noexcept {
+    Result<void> TryAssign(Span<const T> values) noexcept {
         if (IsAliased(values.Data(), values.Size())) {
             BasicVector temporary(allocator_);
             const Result<void> temporaryResult = temporary.TryAppend(values);
@@ -293,7 +293,7 @@ public:
         return {};
     }
 
-    AERO_NODISCARD Result<void> TryAppend(Span<const T> values) noexcept {
+    Result<void> TryAppend(Span<const T> values) noexcept {
         if (values.Empty()) {
             return {};
         }
@@ -327,7 +327,7 @@ private:
     SizeType size_ = 0U;
     SizeType capacity_ = 0U;
 
-    AERO_NODISCARD bool IsInline() const noexcept {
+    bool IsInline() const noexcept {
         if constexpr (InlineCount == 0U) {
             return false;
         } else {
@@ -335,7 +335,7 @@ private:
         }
     }
 
-    AERO_NODISCARD bool UsesHeap() const noexcept {
+    bool UsesHeap() const noexcept {
         return data_ != nullptr && !IsInline();
     }
 
@@ -358,7 +358,7 @@ private:
             alignof(T), MemoryTag::Container);
     }
 
-    AERO_NODISCARD static std::size_t BytesForCount(SizeType count) noexcept {
+    static std::size_t BytesForCount(SizeType count) noexcept {
         if (count == 0U) {
             return 0U;
         }
@@ -369,7 +369,7 @@ private:
         return static_cast<std::size_t>(count) * sizeof(T);
     }
 
-    AERO_NODISCARD Result<void> EnsureCapacity(SizeType required) noexcept {
+    Result<void> EnsureCapacity(SizeType required) noexcept {
         if (required <= capacity_) {
             return {};
         }
@@ -389,7 +389,7 @@ private:
         return TryReserve(grown);
     }
 
-    AERO_NODISCARD bool IsAliased(
+    bool IsAliased(
         const T* source, SizeType count) const noexcept {
         if (source == nullptr || count == 0U || data_ == nullptr || size_ == 0U) {
             return false;

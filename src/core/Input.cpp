@@ -139,10 +139,8 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
 }
 
 PointerInputManager::PointerInputManager(HitTestManager& hitTests,
-    RoutedEventRegistry& events, TreeNode& root,
-    PointerRouteEvents routedEvents) noexcept
+    RoutedEventRegistry& events, TreeNode& root) noexcept
     : hitTests_(&hitTests), events_(&events), root_(&root),
-      routedEvents_(routedEvents),
       captures_(&Base::GetDefaultAllocator()) {}
 
 std::uint32_t PointerInputManager::FindCapture(
@@ -216,13 +214,9 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     }
     RoutedEventHandle event;
     switch (input.action) {
-    case PointerAction::Move: event = routedEvents_.moved; break;
-    case PointerAction::Down: event = routedEvents_.pressed; break;
-    case PointerAction::Up: event = routedEvents_.released; break;
-    }
-    if (!event.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Pointer action does not have a routed event");
+    case PointerAction::Move: event = TreeNode::MouseMoveEvent; break;
+    case PointerAction::Down: event = TreeNode::MouseDownEvent; break;
+    case PointerAction::Up: event = TreeNode::MouseUpEvent; break;
     }
     TreeNode* captured = CapturedNode(input.pointerId);
     Base::Result<HitTestResult> hit = captured != nullptr
@@ -232,13 +226,21 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     PointerDispatchResult result;
     result.hit = hit.Value();
     if (!result.hit.HasTarget()) return result;
-    RoutedEventArgs args;
-    args.hasPointer = true;
-    args.pointerAction = input.action;
-    args.pointerId = input.pointerId;
-    args.pointerX = result.hit.position.x;
-    args.pointerY = result.hit.position.y;
-    Base::Result<void> raised = events_->RaiseEvent(*result.hit.target, event, &args);
+    Base::Result<void> raised;
+    if (input.action == PointerAction::Move) {
+        MouseEventArgs args;
+        args.pointerId = input.pointerId;
+        args.position = result.hit.position;
+        raised = events_->RaiseEvent(*result.hit.target, event, &args);
+    } else {
+        MouseButtonEventArgs args;
+        args.pointerId = input.pointerId;
+        args.position = result.hit.position;
+        args.changedButton = input.changedButton;
+        args.buttonState = input.action == PointerAction::Down
+            ? MouseButtonState::Pressed : MouseButtonState::Released;
+        raised = events_->RaiseEvent(*result.hit.target, event, &args);
+    }
     if (!raised) return raised.GetStatus();
     result.routed = true;
     if (input.action == PointerAction::Up) {
@@ -248,9 +250,9 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     return result;
 }
 
-FocusManager::FocusManager(ObjectTree& tree, RoutedEventRegistry& events,
-    FocusRouteEvents routedEvents) noexcept
-    : tree_(&tree), events_(&events), routedEvents_(routedEvents) {}
+FocusManager::FocusManager(
+    ObjectTree& tree, RoutedEventRegistry& events) noexcept
+    : tree_(&tree), events_(&events) {}
 
 TreeNode* FocusManager::FocusedNode() noexcept {
     TreeNode* node = tree_->ResolveHandle(focused_);
@@ -268,15 +270,19 @@ Base::Result<bool> FocusManager::SetFocus(TreeNode* node) noexcept {
     }
     TreeNode* previous = FocusedNode();
     if (previous == node) return false;
-    if (!routedEvents_.gotFocus.IsValid() || !routedEvents_.lostFocus.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Focus routed events must be configured");
-    }
     if (previous != nullptr) {
-        Base::Result<void> lost = events_->RaiseEvent(*previous, routedEvents_.lostFocus);
+        KeyboardFocusChangedEventArgs args;
+        args.oldFocus = previous;
+        args.newFocus = node;
+        Base::Result<void> lost = events_->RaiseEvent(
+            *previous, TreeNode::LostKeyboardFocusEvent, &args);
         if (!lost) return lost.GetStatus();
     }
-    Base::Result<void> gained = events_->RaiseEvent(*node, routedEvents_.gotFocus);
+    KeyboardFocusChangedEventArgs args;
+    args.oldFocus = previous;
+    args.newFocus = node;
+    Base::Result<void> gained = events_->RaiseEvent(
+        *node, TreeNode::GotKeyboardFocusEvent, &args);
     if (!gained) return gained.GetStatus();
     focused_ = next.Value();
     return true;
@@ -287,21 +293,18 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
     if (previous == nullptr) return false;
     Base::Result<void> access = previous->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!routedEvents_.lostFocus.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "LostFocus routed event must be configured");
-    }
-    Base::Result<void> lost = events_->RaiseEvent(*previous, routedEvents_.lostFocus);
+    KeyboardFocusChangedEventArgs args;
+    args.oldFocus = previous;
+    Base::Result<void> lost = events_->RaiseEvent(
+        *previous, TreeNode::LostKeyboardFocusEvent, &args);
     if (!lost) return lost.GetStatus();
     focused_ = {};
     return true;
 }
 
 KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
-    RoutedEventRegistry& events, ObjectTree& tree,
-    KeyboardRouteEvents routedEvents) noexcept
-    : focus_(&focus), events_(&events), tree_(&tree),
-      routedEvents_(routedEvents) {}
+    RoutedEventRegistry& events, ObjectTree& tree) noexcept
+    : focus_(&focus), events_(&events), tree_(&tree) {}
 
 Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     const KeyboardInput& input) noexcept {
@@ -318,12 +321,8 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     }
     RoutedEventHandle event;
     switch (input.action) {
-    case KeyboardAction::Down: event = routedEvents_.keyDown; break;
-    case KeyboardAction::Up: event = routedEvents_.keyUp; break;
-    }
-    if (!event.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Keyboard action does not have a routed event");
+    case KeyboardAction::Down: event = TreeNode::KeyDownEvent; break;
+    case KeyboardAction::Up: event = TreeNode::KeyUpEvent; break;
     }
     KeyboardDispatchResult result;
     result.target = focus_->FocusedNode();
@@ -332,9 +331,8 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");
     }
-    RoutedEventArgs args;
-    args.hasKeyboard = true;
-    args.keyboardAction = input.action;
+    KeyEventArgs args;
+    args.action = input.action;
     args.key = input.key;
     args.modifiers = input.modifiers;
     args.isRepeat = input.isRepeat;
@@ -345,10 +343,8 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
 }
 
 TextInputManager::TextInputManager(FocusManager& focus,
-    RoutedEventRegistry& events, ObjectTree& tree,
-    TextInputRouteEvents routedEvents) noexcept
-    : focus_(&focus), events_(&events), tree_(&tree),
-      routedEvents_(routedEvents) {}
+    RoutedEventRegistry& events, ObjectTree& tree) noexcept
+    : focus_(&focus), events_(&events), tree_(&tree) {}
 
 Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
     const TextInput& input) noexcept {
@@ -363,10 +359,6 @@ Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Text input must be non-empty, valid UTF-8");
     }
-    if (!routedEvents_.textInput.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Text input routed event must be configured");
-    }
     TextInputDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
@@ -374,11 +366,10 @@ Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input focus target is not loaded in the input tree");
     }
-    RoutedEventArgs args;
-    args.hasTextInput = true;
+    TextCompositionEventArgs args;
     args.text = input.text;
     Base::Result<void> raised = events_->RaiseEvent(
-        *result.target, routedEvents_.textInput, &args);
+        *result.target, TreeNode::TextInputEvent, &args);
     if (!raised) return raised.GetStatus();
     result.routed = true;
     return result;

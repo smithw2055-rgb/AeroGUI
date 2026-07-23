@@ -21,7 +21,7 @@ enum class BindingMode : std::uint8_t {
 struct BindingHandle final {
     std::uint64_t value = 0U;
 
-    AERO_NODISCARD constexpr bool IsValid() const noexcept {
+    constexpr bool IsValid() const noexcept {
         return value != 0U;
     }
 };
@@ -52,30 +52,30 @@ public:
     BindingManager(const BindingManager&) = delete;
     BindingManager& operator=(const BindingManager&) = delete;
 
-    AERO_NODISCARD Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    AERO_NODISCARD Base::Result<BindingHandle> Attach(
+    Base::Result<BindingHandle> Attach(
         const BindingDescriptor& descriptor) noexcept;
-    AERO_NODISCARD Base::Result<bool> Detach(BindingHandle handle) noexcept;
-    AERO_NODISCARD Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
+    Base::Result<bool> Detach(BindingHandle handle) noexcept;
+    Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
 
     // Removes every binding whose source or target is object. Tree/object
     // ownership code uses this before destroying a DependencyObject.
-    AERO_NODISCARD Base::Result<std::uint32_t> DetachObject(
+    Base::Result<std::uint32_t> DetachObject(
         DependencyObject& object) noexcept;
 
     // Flush is also exposed for deterministic headless tests. Normal hosts run
     // it through the DataBind frame phase registered by Initialize().
-    AERO_NODISCARD Base::Result<std::uint32_t> Flush() noexcept;
+    Base::Result<std::uint32_t> Flush() noexcept;
 
-    AERO_NODISCARD bool IsInitialized() const noexcept {
+    bool IsInitialized() const noexcept {
         return hook_.IsValid();
     }
-    AERO_NODISCARD std::uint32_t BindingCount() const noexcept {
+    std::uint32_t BindingCount() const noexcept {
         return bindings_.Size();
     }
-    AERO_NODISCARD Base::Status LastError() const noexcept {
+    Base::Status LastError() const noexcept {
         return lastError_;
     }
 
@@ -85,8 +85,6 @@ private:
         BindingDescriptor descriptor;
         PropertyValue lastSourceValue;
         PropertyValue lastTargetValue;
-        DependencyPropertyChangeSubscription sourceSubscription;
-        DependencyPropertyChangeSubscription targetSubscription;
         bool applied = false;
         bool sourceDirty = true;
         bool targetDirty = true;
@@ -100,13 +98,13 @@ private:
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
     Base::Status lastError_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
 
     static void DataBindHook(void* context) noexcept;
-    static void OnPropertyChanged(
+    void OnPropertyChanged(
         DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args,
-        void* context) noexcept;
-    AERO_NODISCARD Base::Result<void> VerifyDescriptor(
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    Base::Result<void> VerifyDescriptor(
         const BindingDescriptor& descriptor) const noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
 };

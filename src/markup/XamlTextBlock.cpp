@@ -1,5 +1,10 @@
 #include <Aero/Markup/XamlTextBlock.hpp>
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 namespace Aero::Markup {
 namespace {
 
@@ -117,3 +122,7 @@ Base::Result<void> XamlTextBlockExtension::SetTextMember(
 }
 
 } // namespace Aero::Markup
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
