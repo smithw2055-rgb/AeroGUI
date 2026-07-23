@@ -19,6 +19,14 @@ function(aero_apply_compiler_options target)
         if(AERO_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE /WX)
         endif()
+
+        # AeroD3D11SurfaceTests calls D3D11CreateDevice directly. The native
+        # backend's d3d11 dependency is private and therefore does not propagate
+        # through a shared AeroRhiD3D11 DLL, so the test needs its own explicit
+        # system import library.
+        if("${target}" STREQUAL "AeroD3D11SurfaceTests")
+            target_link_libraries(${target} PRIVATE d3d11)
+        endif()
     else()
         target_compile_options(${target} PRIVATE
             -Wall
