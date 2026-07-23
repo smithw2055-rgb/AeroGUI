@@ -380,6 +380,13 @@ public:
         TypeId type,
         Base::StringView text) const noexcept;
 
+    // Seal-time export surface used to transfer runtime behavior into typed
+    // facets. Returned registrations remain immutable after Freeze().
+    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
+        TypeId type) const noexcept;
+    const TextValueConverterRegistration* FindTextConverter(
+        TypeId type) const noexcept;
+
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -466,6 +473,22 @@ private:
     const MethodInfo* MethodAt(
         const MemberLocation& location) const noexcept;
 };
+
+inline const Base::Ref<ValueTypeSemantics>*
+TypeRegistry::FindValueSemantics(TypeId type) const noexcept {
+    for (const ValueSemanticsEntry& entry : valueSemantics_) {
+        if (entry.type == type) return &entry.semantics;
+    }
+    return nullptr;
+}
+
+inline const TextValueConverterRegistration*
+TypeRegistry::FindTextConverter(TypeId type) const noexcept {
+    for (const TextValueConverterRegistration& entry : textConverters_) {
+        if (entry.type == type) return &entry;
+    }
+    return nullptr;
+}
 
 } // namespace Aero::Core
 
