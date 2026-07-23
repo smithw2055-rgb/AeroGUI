@@ -5,6 +5,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Core/BuiltinTypeIds.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/MetadataRegistrationValues.hpp>
 
 namespace Aero::Core {
 
@@ -54,6 +55,15 @@ struct MetaRegistrationContext final {
         : types(typeRegistry),
           dependencyProperties(properties),
           routedEvents(events) {}
+
+    MetadataRegistrationValues Values() noexcept {
+        return MetadataRegistrationValues(types);
+    }
+
+    MetadataRegistrationValues Values() const noexcept {
+        return MetadataRegistrationValues(
+            static_cast<const TypeRegistry&>(types));
+    }
 };
 
 enum class ContentKind : std::uint8_t {
