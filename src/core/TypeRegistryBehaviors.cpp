@@ -10,10 +10,10 @@ Base::Status BehaviorMaterializationStatus(const char* message) noexcept {
 }
 
 bool HasPropertyBehavior(const PropertyInfo& property) noexcept {
-    return property.access_ != PropertyAccessKind::External ||
-        property.get_ != nullptr || property.set_ != nullptr ||
-        property.provider_ != InvalidPropertyProviderId ||
-        property.context_ != nullptr;
+    return property.Access() != PropertyAccessKind::External ||
+        property.Getter() != nullptr || property.Setter() != nullptr ||
+        property.Provider() != InvalidPropertyProviderId ||
+        property.Context() != nullptr;
 }
 
 } // namespace
