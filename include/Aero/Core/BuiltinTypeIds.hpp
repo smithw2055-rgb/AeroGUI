@@ -1,0 +1,54 @@
+#pragma once
+
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Core/MetadataId.hpp>
+
+namespace Aero::Core::BuiltinTypes {
+
+inline constexpr TypeId Object = MakeTypeId(Base::StringView("Object"));
+inline constexpr TypeId DependencyObject =
+    MakeTypeId(Base::StringView("DependencyObject"));
+inline constexpr TypeId TreeNode = MakeTypeId(Base::StringView("TreeNode"));
+inline constexpr TypeId LayoutElement =
+    MakeTypeId(Base::StringView("LayoutElement"));
+inline constexpr TypeId RenderElement =
+    MakeTypeId(Base::StringView("RenderElement"));
+
+inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
+inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));
+inline constexpr TypeId Grid = MakeTypeId(Base::StringView("Grid"));
+inline constexpr TypeId Border = MakeTypeId(Base::StringView("Border"));
+inline constexpr TypeId TextBlock = MakeTypeId(Base::StringView("TextBlock"));
+inline constexpr TypeId ContentPresenter =
+    MakeTypeId(Base::StringView("ContentPresenter"));
+
+inline constexpr TypeId Boolean = MakeTypeId(Base::StringView("Boolean"));
+inline constexpr TypeId UnsignedInteger = MakeTypeId(Base::StringView("UInt32"));
+inline constexpr TypeId Double = MakeTypeId(Base::StringView("Double"));
+inline constexpr TypeId String = MakeTypeId(Base::StringView("String"));
+inline constexpr TypeId Length = MakeTypeId(Base::StringView("Length"));
+inline constexpr TypeId Thickness = MakeTypeId(Base::StringView("Thickness"));
+inline constexpr TypeId Color = MakeTypeId(Base::StringView("Color"));
+inline constexpr TypeId HorizontalAlignment =
+    MakeTypeId(Base::StringView("HorizontalAlignment"));
+inline constexpr TypeId VerticalAlignment =
+    MakeTypeId(Base::StringView("VerticalAlignment"));
+inline constexpr TypeId Orientation = MakeTypeId(Base::StringView("Orientation"));
+
+inline constexpr TypeId EventArgs = MakeTypeId(Base::StringView("EventArgs"));
+inline constexpr TypeId RoutedEventArgs =
+    MakeTypeId(Base::StringView("RoutedEventArgs"));
+inline constexpr TypeId InputEventArgs =
+    MakeTypeId(Base::StringView("InputEventArgs"));
+inline constexpr TypeId MouseEventArgs =
+    MakeTypeId(Base::StringView("MouseEventArgs"));
+inline constexpr TypeId MouseButtonEventArgs =
+    MakeTypeId(Base::StringView("MouseButtonEventArgs"));
+inline constexpr TypeId KeyEventArgs =
+    MakeTypeId(Base::StringView("KeyEventArgs"));
+inline constexpr TypeId TextCompositionEventArgs =
+    MakeTypeId(Base::StringView("TextCompositionEventArgs"));
+inline constexpr TypeId KeyboardFocusChangedEventArgs =
+    MakeTypeId(Base::StringView("KeyboardFocusChangedEventArgs"));
+
+} // namespace Aero::Core::BuiltinTypes
