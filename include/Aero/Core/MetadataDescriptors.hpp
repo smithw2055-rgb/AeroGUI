@@ -148,6 +148,11 @@ private:
 
 class AERO_API MetadataDescriptorStore final {
 public:
+    struct MemberLocation final {
+        MetadataDescriptorKind kind = MetadataDescriptorKind::Property;
+        std::uint32_t index = 0U;
+    };
+
     MetadataDescriptorStore() noexcept = default;
 
     MetadataDescriptorStore(const MetadataDescriptorStore&) = delete;
@@ -192,11 +197,6 @@ public:
     Base::Result<Base::HashCode> ComputeHash() const noexcept;
 
 private:
-    struct MemberLocation final {
-        MetadataDescriptorKind kind = MetadataDescriptorKind::Property;
-        std::uint32_t index = 0U;
-    };
-
     Base::Vector<MetadataTypeDescriptor> types_;
     Base::Vector<MetadataPropertyDescriptor> properties_;
     Base::Vector<MetadataEventDescriptor> events_;
@@ -284,6 +284,7 @@ public:
     Base::Result<Base::HashCode> ComputeHash() const noexcept;
 
 private:
+    const MetadataDescriptorStore* descriptors_ = nullptr;
     Base::Vector<TypeFactoryFacet> factories_;
     Base::Vector<ContentFacet> contents_;
     Base::Vector<PropertyAccessorFacet> propertyAccessors_;
