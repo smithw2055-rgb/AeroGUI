@@ -1,10 +1,23 @@
 // Compile the standard object writer through the activation-aware schema seam.
 // This keeps the established writer implementation and transaction semantics
-// while allowing LoadXamlWithActivation() to supply host construction services.
+// while routing type/member/value operations through sealed metadata runtime
+// descriptors and facets when the schema was created from MetadataDomain.
 #include <Aero/Markup/XamlObjectWriter.hpp>
 
-// Keep the activation-aware writer on the same member-provider dispatch path
-// as the direct object writer implementation.
+#include "XamlRuntimeSchema.cpp"
+
+#define ResolveType ResolveTypeRuntime
+#define ResolveMember ResolveMemberRuntime
+#define ResolveContentMember ResolveContentMemberRuntime
+#define ResolveMemberWritePolicy ResolveMemberWritePolicyRuntime
+#define ConvertText ConvertTextRuntime
+#define SetMember SetMemberRuntime
 #define CreateObject CreateObjectActivated
 #include "XamlObjectWriter.cpp"
 #undef CreateObject
+#undef SetMember
+#undef ConvertText
+#undef ResolveMemberWritePolicy
+#undef ResolveContentMember
+#undef ResolveMember
+#undef ResolveType
