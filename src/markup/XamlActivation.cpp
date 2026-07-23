@@ -85,7 +85,7 @@ XamlActivationProviderRegistry::CreateObject(
         *activation.dependencyProperties);
 
     if (providers_.Find(requestedType) == nullptr) {
-        return schema_->CreateObject(requestedType);
+        return schema_->CreateObjectRuntime(requestedType);
     }
     return providers_.CreateObject(requestedType, activation);
 }
@@ -93,7 +93,7 @@ XamlActivationProviderRegistry::CreateObject(
 Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectActivated(
     Core::TypeId type) const noexcept {
     if (gActiveActivation.providers == nullptr) {
-        return CreateObject(type);
+        return CreateObjectRuntime(type);
     }
     if (gActiveActivation.context == nullptr ||
         &gActiveActivation.providers->Schema() != this) {
