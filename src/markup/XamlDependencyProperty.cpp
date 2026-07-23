@@ -37,39 +37,82 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Aero presentation activation services are missing");
     }
-#define AERO_ACTIVATE_CONTROL(name, type) \
-    if (requestedType == Core::MakeTypeId(Base::StringView(name))) { \
-        Base::Result<Base::Ref<Core::type>> made = \
-            Base::MakeRef<Core::type>(); \
+#define AERO_ACTIVATE_CONTROL(type) \
+    if (requestedType == Core::type::StaticTypeId()) { \
+        Base::Result<Base::Ref<Core::type>> made = Base::MakeRef<Core::type>(); \
         if (!made) return made.GetStatus(); \
         return Base::Ref<Base::Object>(std::move(made).Value()); \
     }
-    AERO_ACTIVATE_CONTROL("StackPanel", StackPanel)
-    AERO_ACTIVATE_CONTROL("Canvas", Canvas)
-    AERO_ACTIVATE_CONTROL("Grid", Grid)
-    AERO_ACTIVATE_CONTROL("Border", Border)
-    AERO_ACTIVATE_CONTROL("TextBlock", TextBlock)
-    AERO_ACTIVATE_CONTROL("ContentPresenter", ContentPresenter)
+    AERO_ACTIVATE_CONTROL(StackPanel)
+    AERO_ACTIVATE_CONTROL(Canvas)
+    AERO_ACTIVATE_CONTROL(Grid)
+    AERO_ACTIVATE_CONTROL(Border)
+    AERO_ACTIVATE_CONTROL(TextBlock)
+    AERO_ACTIVATE_CONTROL(ContentPresenter)
+    AERO_ACTIVATE_CONTROL(UserControl)
 #undef AERO_ACTIVATE_CONTROL
     return Base::Status::Failure(Base::ErrorCode::NotFound,
-        "Requested type is not an Aero presentation control");
+        "Requested type is not a constructible Aero presentation type");
 }
 
 Core::Visual* AsVisual(Base::Object& object, void*) noexcept {
-    return &static_cast<Core::UIElement&>(object);
+    return static_cast<Core::Visual*>(&object);
 }
-Core::ContentPresenter* AsContentPresenter(
-    Base::Object& object, void*) noexcept {
-    return &static_cast<Core::ContentPresenter&>(object);
+
+Base::Result<void> SetDecoratorContent(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void*) noexcept {
+    return static_cast<Core::Decorator&>(parentObject).SetOwnedChild(
+        childObject, child);
 }
-Core::UIElement* AsBorder(Base::Object& object, void*) noexcept {
-    return &static_cast<Core::Border&>(object);
+
+Base::Result<void> ClearDecoratorContent(
+    Base::Object& parentObject, void*) noexcept {
+    return static_cast<Core::Decorator&>(parentObject).SetChild(nullptr);
 }
-Core::StackPanel* AsStackPanel(Base::Object& object, void*) noexcept {
-    return &static_cast<Core::StackPanel&>(object);
+
+Base::Result<void> SetContentControlContent(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void*) noexcept {
+    return static_cast<Core::ContentControl&>(parentObject).SetOwnedContent(
+        childObject, child);
 }
-Core::UIElement* AsCollectionOwner(Base::Object& object, void*) noexcept {
-    return &static_cast<Core::UIElement&>(object);
+
+Base::Result<void> ClearContentControlContent(
+    Base::Object& parentObject, void*) noexcept {
+    return static_cast<Core::ContentControl&>(parentObject).SetContent(nullptr);
+}
+
+Base::Result<void> SetPresenterContent(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void*) noexcept {
+    return static_cast<Core::ContentPresenter&>(parentObject).SetOwnedContent(
+        childObject, child);
+}
+
+Base::Result<void> ClearPresenterContent(
+    Base::Object& parentObject, void*) noexcept {
+    return static_cast<Core::ContentPresenter&>(parentObject).SetContent(nullptr);
+}
+
+Base::Result<void> AddPanelChild(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void*) noexcept {
+    return static_cast<Core::Panel&>(parentObject).AddOwnedChild(
+        childObject, child);
+}
+
+Base::Result<void> ClearPanelChildren(
+    Base::Object& parentObject, void*) noexcept {
+    return static_cast<Core::Panel&>(parentObject).ClearOwnedChildren();
 }
 
 } // namespace
@@ -77,29 +120,23 @@ Core::UIElement* AsCollectionOwner(Base::Object& object, void*) noexcept {
 XamlDependencyPropertyBridge::XamlDependencyPropertyBridge(
     XamlSchemaContext& schema,
     Core::DependencyPropertyRegistry& properties) noexcept
-    : schema_(&schema),
-      properties_(&properties),
-      types_() {}
+    : schema_(&schema), properties_(&properties), types_() {}
 
 Base::Result<void> XamlDependencyPropertyBridge::TryRegisterType(
     const XamlDependencyObjectTypeRegistration& registration) noexcept {
     if (schema_->IsFrozen()) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageBridgeFrozen);
+            Base::ErrorCode::InvalidState, MessageBridgeFrozen);
     }
     const Core::TypeInfo* type = schema_->Types().FindType(registration.type);
-    if (type == nullptr ||
-        HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType) ||
+    if (type == nullptr || HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType) ||
         registration.cast == nullptr) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidTypeRegistration);
+            Base::ErrorCode::InvalidArgument, MessageInvalidTypeRegistration);
     }
     for (const XamlDependencyObjectTypeRegistration& current : types_) {
         if (current.type == registration.type) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
+            return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
                 "XAML dependency-object type is already registered");
         }
     }
@@ -110,17 +147,14 @@ Base::Result<std::uint32_t>
 XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
     if (schema_->IsFrozen()) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageBridgeFrozen);
+            Base::ErrorCode::InvalidState, MessageBridgeFrozen);
     }
     if (!schema_->Types().IsFrozen() || !properties_->IsFrozen()) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageRegistryNotReady);
+            Base::ErrorCode::InvalidState, MessageRegistryNotReady);
     }
     if (providerRegistered_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
+        return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
             "XAML dependency-property provider is already registered");
     }
 
@@ -128,15 +162,11 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
     for (const Core::TypeInfo& type : schema_->Types().Types()) {
         for (const Core::PropertyInfo& member : type.Properties()) {
             const Core::DependencyProperty* property = properties_->Find(
-                type.Id(),
-                member.Name());
+                type.Id(), member.Name());
             if (property == nullptr ||
-                schema_->FindMemberAdapter(member.Id()) != nullptr) {
-                continue;
-            }
+                schema_->FindMemberAdapter(member.Id()) != nullptr) continue;
             if (registered == UINT32_MAX) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
+                return Base::Status::Failure(Base::ErrorCode::OutOfRange,
                     "XAML dependency-property adapter count overflow");
             }
             ++registered;
@@ -163,14 +193,12 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
     }
     if (providerType == Core::InvalidTypeId) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "DependencyObject bridge registrations have no common Meta base");
+            "DependencyObject bridge registrations have no common metadata base");
     }
     Base::Result<void> providerResult =
         Core::TryRegisterDependencyPropertyProvider(
             schema_->Members(), *properties_, providerType);
-    if (!providerResult) {
-        return providerResult.GetStatus();
-    }
+    if (!providerResult) return providerResult.GetStatus();
     registeredPropertyCount_ = registered;
     providerRegistered_ = true;
     return registered;
@@ -192,14 +220,10 @@ XamlDependencyPropertyBridge::FindTypeRegistration(
     Core::TypeId current = type;
     while (current != Core::InvalidTypeId) {
         for (const XamlDependencyObjectTypeRegistration& registration : types_) {
-            if (registration.type == current) {
-                return &registration;
-            }
+            if (registration.type == current) return &registration;
         }
         const Core::TypeInfo* info = schema_->Types().FindType(current);
-        if (info == nullptr) {
-            break;
-        }
+        if (info == nullptr) break;
         current = info->BaseType();
     }
     return nullptr;
@@ -209,51 +233,38 @@ Base::Result<Core::PropertyValue>
 XamlDependencyPropertyBridge::ConvertValue(
     const XamlValue& value,
     const Core::DependencyProperty& property) const noexcept {
-    if (value.Type() == property.ValueType() && !value.IsUnset()) {
-        return value;
-    }
+    if (value.Type() == property.ValueType() && !value.IsUnset()) return value;
     switch (value.Kind()) {
     case XamlValueKind::Boolean:
         return Core::PropertyValue::FromBoolean(
-            property.ValueType(),
-            value.AsBoolean());
+            property.ValueType(), value.AsBoolean());
     case XamlValueKind::SignedInteger:
         return Core::PropertyValue::FromSignedInteger(
-            property.ValueType(),
-            value.AsSignedInteger());
+            property.ValueType(), value.AsSignedInteger());
     case XamlValueKind::UnsignedInteger:
         return Core::PropertyValue::FromUnsignedInteger(
-            property.ValueType(),
-            value.AsUnsignedInteger());
+            property.ValueType(), value.AsUnsignedInteger());
     case XamlValueKind::Double:
         return Core::PropertyValue::FromDouble(
-            property.ValueType(),
-            value.AsDouble());
+            property.ValueType(), value.AsDouble());
     case XamlValueKind::Object:
-        if (value.IsNullObject()) {
-            return Core::PropertyValue::NullObject(property.ValueType());
-        }
-        return Core::PropertyValue::FromObject(
-            value.Type(),
-            value.AsObject());
+        return value.IsNullObject()
+            ? Core::PropertyValue::NullObject(property.ValueType())
+            : Core::PropertyValue::FromObject(value.Type(), value.AsObject());
     case XamlValueKind::String:
     case XamlValueKind::Custom:
     case XamlValueKind::None:
         return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            MessageUnsupportedValue);
+            Base::ErrorCode::Unsupported, MessageUnsupportedValue);
     }
     return Base::Status::Failure(
-        Base::ErrorCode::InternalError,
-        MessageUnsupportedValue);
+        Base::ErrorCode::InternalError, MessageUnsupportedValue);
 }
 
 Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     XamlDependencyPropertyBridge& bridge) noexcept {
-    const Core::TypeId dependencyObjectType =
-        Core::MakeTypeId(Base::StringView("DependencyObject"));
     Base::Result<void> type = bridge.TryRegisterType({
-        dependencyObjectType, &AsDependencyObject, nullptr});
+        Core::BuiltinTypes::DependencyObject, &AsDependencyObject, nullptr});
     if (!type) return type.GetStatus();
     return bridge.TryRegisterProperties();
 }
@@ -264,51 +275,46 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     XamlVisualTreeHost* visualTree) noexcept {
     Base::Result<std::uint32_t> bridged = TryRegisterAeroPresentationXaml(bridge);
     if (!bridged) return bridged.GetStatus();
-    const Base::StringView controlNames[] = {
-        Base::StringView("StackPanel"), Base::StringView("Canvas"),
-        Base::StringView("Grid"), Base::StringView("Border"),
-        Base::StringView("TextBlock"), Base::StringView("ContentPresenter")
-    };
-    for (Base::StringView name : controlNames) {
+
+    const Core::TypeId activatable[] = {
+        Core::BuiltinTypes::StackPanel, Core::BuiltinTypes::Canvas,
+        Core::BuiltinTypes::Grid, Core::BuiltinTypes::Border,
+        Core::BuiltinTypes::TextBlock, Core::BuiltinTypes::ContentPresenter,
+        Core::BuiltinTypes::UserControl};
+    for (Core::TypeId type : activatable) {
         Base::Result<void> registered = activation.TryRegister({
-            Core::MakeTypeId(name), &ActivateAeroControl, nullptr});
+            type, &ActivateAeroControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
-    std::uint32_t count = bridged.Value() + 6U;
+    std::uint32_t count = bridged.Value() + 7U;
     if (visualTree == nullptr) return count;
 
-    const Core::TypeId stackPanel = Core::MakeTypeId(Base::StringView("StackPanel"));
-    const Core::TypeId canvas = Core::MakeTypeId(Base::StringView("Canvas"));
-    const Core::TypeId grid = Core::MakeTypeId(Base::StringView("Grid"));
-    const Core::TypeId border = Core::MakeTypeId(Base::StringView("Border"));
-    const Core::TypeId presenter = Core::MakeTypeId(
-        Base::StringView("ContentPresenter"));
-    Base::Result<void> visualType = visualTree->TryRegisterType({
-        Core::BuiltinTypes::UIElement, &AsVisual, nullptr});
-    if (!visualType) return visualType.GetStatus();
-    Base::Result<void> structural = visualTree->TryRegisterContentPresenter(
-        {presenter, &AsContentPresenter, nullptr});
-    if (!structural) return structural.GetStatus();
-    structural = visualTree->TryRegisterContentPresenter(
-        {border, nullptr, nullptr, &AsBorder});
-    if (!structural) return structural.GetStatus();
-    structural = visualTree->TryRegisterCollectionContent({stackPanel,
-        Core::MakeMemberId(stackPanel, Core::MemberKind::Property,
-            Base::StringView("Children")), &AsStackPanel, nullptr});
-    if (!structural) return structural.GetStatus();
-    structural = visualTree->TryRegisterCollectionContent({canvas,
-        Core::MakeMemberId(canvas, Core::MemberKind::Property,
-            Base::StringView("Children")), nullptr, nullptr,
-        &AsCollectionOwner, nullptr});
-    if (!structural) return structural.GetStatus();
-    structural = visualTree->TryRegisterCollectionContent({grid,
-        Core::MakeMemberId(grid, Core::MemberKind::Property,
-            Base::StringView("Children")), nullptr, nullptr,
-        &AsCollectionOwner, nullptr});
-    if (!structural) return structural.GetStatus();
-    structural = visualTree->Register(activation.Schema());
-    if (!structural) return structural.GetStatus();
-    return count + 6U;
+    Base::Result<void> registered = visualTree->TryRegisterType({
+        Core::BuiltinTypes::Visual, &AsVisual, nullptr});
+    if (!registered) return registered.GetStatus();
+    registered = visualTree->TryRegisterSingleContent({
+        Core::BuiltinTypes::Decorator,
+        &SetDecoratorContent, &ClearDecoratorContent, nullptr});
+    if (!registered) return registered.GetStatus();
+    registered = visualTree->TryRegisterSingleContent({
+        Core::BuiltinTypes::ContentControl,
+        &SetContentControlContent, &ClearContentControlContent, nullptr});
+    if (!registered) return registered.GetStatus();
+    registered = visualTree->TryRegisterSingleContent({
+        Core::BuiltinTypes::ContentPresenter,
+        &SetPresenterContent, &ClearPresenterContent, nullptr});
+    if (!registered) return registered.GetStatus();
+
+    const Core::MemberId panelChildren = Core::MakeMemberId(
+        Core::BuiltinTypes::Panel, Core::MemberKind::Property,
+        Base::StringView("Children"));
+    registered = visualTree->TryRegisterCollectionContent({
+        Core::BuiltinTypes::Panel, panelChildren,
+        &AddPanelChild, &ClearPanelChildren, nullptr, nullptr});
+    if (!registered) return registered.GetStatus();
+    registered = visualTree->Register(activation.Schema());
+    if (!registered) return registered.GetStatus();
+    return count + 5U;
 }
 
 bool XamlDependencyPropertyBridge::HandlesDependencyProperty(
@@ -327,45 +333,32 @@ Base::Result<void> XamlDependencyPropertyBridge::SetDependencyProperty(
     auto* bridge = static_cast<XamlDependencyPropertyBridge*>(context);
     if (bridge == nullptr || services.targetObject != &object) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageTargetNotDependencyObject);
+            Base::ErrorCode::InvalidArgument, MessageTargetNotDependencyObject);
     }
-
     const Core::DependencyPropertyHandle propertyHandle{services.targetMember};
     const Core::DependencyProperty* property =
         bridge->properties_->Find(propertyHandle);
     if (property == nullptr) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessagePropertyNotBridged);
+            Base::ErrorCode::InvalidState, MessagePropertyNotBridged);
     }
-
     const XamlDependencyObjectTypeRegistration* type =
         bridge->FindTypeRegistration(services.targetObjectType);
     if (type == nullptr || type->cast == nullptr) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageTargetNotDependencyObject);
+            Base::ErrorCode::InvalidArgument, MessageTargetNotDependencyObject);
     }
-    Core::DependencyObject* dependencyObject = type->cast(
-        object,
-        type->context);
+    Core::DependencyObject* dependencyObject = type->cast(object, type->context);
     if (dependencyObject == nullptr ||
         dependencyObject->RuntimeType() != services.targetObjectType ||
         &dependencyObject->PropertyRegistry() != bridge->properties_) {
         return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageRuntimeMismatch);
+            Base::ErrorCode::InvalidArgument, MessageRuntimeMismatch);
     }
-
     Base::Result<Core::PropertyValue> converted =
         bridge->ConvertValue(value, *property);
-    if (!converted) {
-        return converted.GetStatus();
-    }
-    return dependencyObject->SetValue(
-        propertyHandle,
-        converted.Value());
+    if (!converted) return converted.GetStatus();
+    return dependencyObject->SetValue(propertyHandle, converted.Value());
 }
 
 } // namespace Aero::Markup
