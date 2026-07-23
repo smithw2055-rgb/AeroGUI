@@ -14,16 +14,12 @@ Base::Status InvalidVisualTreeState(const char* message) noexcept {
 } // namespace
 
 XamlVisualTreeHost::XamlVisualTreeHost(
-    Core::ObjectTree& tree,
-    Core::LayoutManager& layout,
-    Core::EffectiveValueEngine& values,
-    Core::RenderManager* renderer) noexcept
+    Core::ObjectTree& tree, Core::LayoutManager& layout,
+    Core::EffectiveValueEngine& values, Core::RenderManager* renderer) noexcept
     : tree_(&tree), layout_(&layout), values_(&values), renderer_(renderer),
       types_(), singles_(), collections_(), edges_(), nodes_() {}
 
-XamlVisualTreeHost::~XamlVisualTreeHost() noexcept {
-    AERO_ASSERT(!mounted_);
-}
+XamlVisualTreeHost::~XamlVisualTreeHost() noexcept { AERO_ASSERT(!mounted_); }
 
 Base::Result<void> XamlVisualTreeHost::TryRegisterType(
     const XamlVisualTreeTypeRegistration& registration) noexcept {
@@ -65,46 +61,57 @@ Base::Result<void> XamlVisualTreeHost::TryRegisterCollectionContent(
     return collections_.TryPushBack(registration);
 }
 
-Base::Result<void> XamlVisualTreeHost::Register(
-    XamlSchemaContext& schema) noexcept {
+Base::Result<void> XamlVisualTreeHost::Register(XamlSchemaContext& schema) noexcept {
     if (schema_ != nullptr || schema.IsFrozen() || !schema.Types().IsFrozen() ||
         (singles_.Empty() && collections_.Empty())) {
         return InvalidVisualTreeState("XAML visual-tree registries are not ready");
     }
+
     for (const XamlSingleContentRegistration& registration : singles_) {
-        const Core::MemberId member = schema.Types().FindContentMember(registration.type);
-        const Core::PropertyInfo* content = schema.Types().FindProperty(member);
-        if (content == nullptr || schema.FindMemberAdapter(content->Id()) != nullptr) {
-            return InvalidVisualTree("Single-content metadata is invalid");
+        for (const Core::TypeInfo& type : schema.Types().Types()) {
+            if (!schema.Types().IsDerivedFrom(type.Id(), registration.type)) continue;
+            const Core::MemberId member = schema.Types().FindContentMember(type.Id());
+            const Core::PropertyInfo* content = schema.Types().FindProperty(member);
+            if (content == nullptr) continue;
+            if (schema.FindTypeAdapter(type.Id()) == nullptr) {
+                Base::Result<void> typeAdapter = schema.TryRegisterTypeAdapter({
+                    type.Id(), nullptr, nullptr, nullptr, this, false, false,
+                    nullptr, nullptr});
+                if (!typeAdapter) return typeAdapter.GetStatus();
+            }
+            if (schema.FindMemberAdapter(content->Id()) == nullptr) {
+                Base::Result<void> memberAdapter = schema.TryRegisterMemberAdapter({
+                    content->Id(), XamlMemberWriteMode::SetOnce, nullptr, this,
+                    &SetContentMember, false});
+                if (!memberAdapter) return memberAdapter.GetStatus();
+            }
         }
-        if (schema.FindTypeAdapter(registration.type) == nullptr) {
-            Base::Result<void> typeAdapter = schema.TryRegisterTypeAdapter({
-                registration.type, nullptr, nullptr, nullptr, this, false, false,
-                nullptr, nullptr});
-            if (!typeAdapter) return typeAdapter.GetStatus();
-        }
-        Base::Result<void> memberAdapter = schema.TryRegisterMemberAdapter({
-            content->Id(), XamlMemberWriteMode::SetOnce, nullptr, this,
-            &SetContentMember, false});
-        if (!memberAdapter) return memberAdapter.GetStatus();
     }
+
     for (const XamlCollectionContentRegistration& registration : collections_) {
-        const Core::PropertyInfo* children =
+        const Core::PropertyInfo* baseMember =
             schema.Types().FindProperty(registration.member);
-        if (children == nullptr ||
-            schema.FindMemberAdapter(registration.member) != nullptr) {
+        if (baseMember == nullptr) {
             return InvalidVisualTree("Collection-content metadata is invalid");
         }
-        if (schema.FindTypeAdapter(registration.type) == nullptr) {
-            Base::Result<void> typeAdapter = schema.TryRegisterTypeAdapter({
-                registration.type, nullptr, nullptr, nullptr, this, false,
-                false, nullptr, nullptr});
-            if (!typeAdapter) return typeAdapter.GetStatus();
+        for (const Core::TypeInfo& type : schema.Types().Types()) {
+            if (!schema.Types().IsDerivedFrom(type.Id(), registration.type)) continue;
+            const Core::MemberId member = schema.Types().FindContentMember(type.Id());
+            const Core::PropertyInfo* children = schema.Types().FindProperty(member);
+            if (children == nullptr || children->Name() != baseMember->Name()) continue;
+            if (schema.FindTypeAdapter(type.Id()) == nullptr) {
+                Base::Result<void> typeAdapter = schema.TryRegisterTypeAdapter({
+                    type.Id(), nullptr, nullptr, nullptr, this, false, false,
+                    nullptr, nullptr});
+                if (!typeAdapter) return typeAdapter.GetStatus();
+            }
+            if (schema.FindMemberAdapter(children->Id()) == nullptr) {
+                Base::Result<void> memberAdapter = schema.TryRegisterMemberAdapter({
+                    children->Id(), XamlMemberWriteMode::Collection, nullptr, this,
+                    &SetContentMember, false});
+                if (!memberAdapter) return memberAdapter.GetStatus();
+            }
         }
-        Base::Result<void> memberAdapter = schema.TryRegisterMemberAdapter({
-            registration.member, XamlMemberWriteMode::Collection, nullptr, this,
-            &SetContentMember, false});
-        if (!memberAdapter) return memberAdapter.GetStatus();
     }
     schema_ = &schema;
     return {};
@@ -142,16 +149,19 @@ const XamlSingleContentRegistration* XamlVisualTreeHost::FindSingle(
 
 const XamlCollectionContentRegistration* XamlVisualTreeHost::FindCollection(
     Core::TypeId type, Core::MemberId member) const noexcept {
-    Core::TypeId current = type;
-    while (current != Core::InvalidTypeId) {
-        for (const XamlCollectionContentRegistration& registration : collections_) {
-            if (registration.type == current && registration.member == member)
+    const Core::PropertyInfo* actual = schema_ != nullptr
+        ? schema_->Types().FindProperty(member) : nullptr;
+    for (const XamlCollectionContentRegistration& registration : collections_) {
+        if (schema_ == nullptr) {
+            if (registration.type == type && registration.member == member)
                 return &registration;
+            continue;
         }
-        if (schema_ == nullptr) break;
-        const Core::TypeInfo* info = schema_->Types().FindType(current);
-        if (info == nullptr) break;
-        current = info->BaseType();
+        if (!schema_->Types().IsDerivedFrom(type, registration.type)) continue;
+        const Core::PropertyInfo* base =
+            schema_->Types().FindProperty(registration.member);
+        if (actual != nullptr && base != nullptr && actual->Name() == base->Name())
+            return &registration;
     }
     return nullptr;
 }
@@ -162,9 +172,8 @@ Base::Result<Core::Visual*> XamlVisualTreeHost::ResolveVisual(
     if (registration == nullptr)
         return InvalidVisualTree("XAML object is not a registered Visual");
     Core::Visual* node = registration->asVisual(object, registration->context);
-    if (node == nullptr || node->RuntimeType() != type) {
+    if (node == nullptr || node->RuntimeType() != type)
         return InvalidVisualTree("XAML Visual runtime type does not match metadata");
-    }
     return node;
 }
 
@@ -173,8 +182,7 @@ Base::Result<Core::UIElement*> XamlVisualTreeHost::ResolveUIElement(
     Base::Result<Core::Visual*> visual = ResolveVisual(object, type);
     if (!visual) return visual.GetStatus();
     Core::UIElement* element = visual.Value()->AsUIElement();
-    return element != nullptr
-        ? Base::Result<Core::UIElement*>(element)
+    return element != nullptr ? Base::Result<Core::UIElement*>(element)
         : Base::Result<Core::UIElement*>(
             InvalidVisualTree("XAML object is not a UIElement"));
 }
@@ -186,15 +194,12 @@ Core::FrameworkElement* XamlVisualTreeHost::ResolveFrameworkElement(
 }
 
 Base::Result<void> XamlVisualTreeHost::AddNode(Core::Visual& node) noexcept {
-    for (Core::Visual* existing : nodes_) {
-        if (existing == &node) return {};
-    }
+    for (Core::Visual* existing : nodes_) if (existing == &node) return {};
     return nodes_.TryPushBack(&node);
 }
 
 Base::Result<void> XamlVisualTreeHost::StageContent(
-    Base::Object& object,
-    const XamlValue& value,
+    Base::Object& object, const XamlValue& value,
     const XamlServiceProvider& services) noexcept {
     if (mounted_ || services.targetObject != &object ||
         value.Kind() != XamlValueKind::Object || value.IsNullObject() ||
@@ -214,7 +219,6 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
     XamlClearCollectionCallback clearCollection = nullptr;
     XamlConfigureCollectionChildCallback configure = nullptr;
     void* contentContext = nullptr;
-
     const XamlSingleContentRegistration* single =
         FindSingle(services.targetObjectType);
     if (single != nullptr) {
@@ -226,10 +230,9 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
     } else {
         const XamlCollectionContentRegistration* collection = FindCollection(
             services.targetObjectType, services.targetMember);
-        if (collection == nullptr) {
+        if (collection == nullptr)
             return InvalidVisualTree(
                 "XAML content target is not a registered content host");
-        }
         Base::Result<void> added = collection->addChild(
             object, value.AsObject(), *childResult.Value(), collection->context);
         if (!added) return added.GetStatus();
@@ -251,7 +254,6 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
     if (!childNode) return childNode.GetStatus();
     Base::Result<void> childAdded = AddNode(*childNode.Value());
     if (!childAdded) return childAdded.GetStatus();
-
     return edges_.TryPushBack({std::move(parentOwner), value.AsObject(),
         parentResult.Value(), childResult.Value(), clearSingle, clearCollection,
         configure, contentContext});
@@ -279,8 +281,7 @@ Base::Result<void> XamlVisualTreeHost::AttachEdge(Edge& edge) noexcept {
         Core::FrameworkElement* childRender = ResolveFrameworkElement(
             *edge.childOwner.Get(), edge.child->RuntimeType());
         if (parentRender != nullptr && childRender != nullptr) {
-            Base::Result<void> render = renderer_->Attach(
-                *parentRender, *childRender);
+            Base::Result<void> render = renderer_->Attach(*parentRender, *childRender);
             if (!render) { DetachEdge(edge); return render.GetStatus(); }
             edge.renderAttached = true;
         }
@@ -313,8 +314,7 @@ void XamlVisualTreeHost::DetachEdge(Edge& edge) noexcept {
 }
 
 Base::Result<void> XamlVisualTreeHost::Mount(
-    Base::Object& root,
-    Core::TypeId rootType,
+    Base::Object& root, Core::TypeId rootType,
     Core::Size availableSize) noexcept {
     if (mounted_ || schema_ == nullptr ||
         !Core::IsValidLayoutSize(availableSize)) {
@@ -419,22 +419,17 @@ Base::Result<void> XamlVisualTreeHost::DiscardStaged() noexcept {
 }
 
 Base::Result<void> XamlVisualTreeHost::SetContentMember(
-    Base::Object& object,
-    const XamlValue& value,
-    const XamlServiceProvider& services,
-    void* context) noexcept {
+    Base::Object& object, const XamlValue& value,
+    const XamlServiceProvider& services, void* context) noexcept {
     auto* host = static_cast<XamlVisualTreeHost*>(context);
-    return host != nullptr
-        ? host->StageContent(object, value, services)
+    return host != nullptr ? host->StageContent(object, value, services)
         : Base::Result<void>(InvalidVisualTreeState(
             "XAML visual-tree host is unavailable"));
 }
 
 Base::Result<Base::Ref<Base::Object>> LoadXamlVisualTreeWithActivation(
-    XamlVisualTreeHost& host,
-    XamlObjectWriter& writer,
-    XamlNodeReader& reader,
-    XamlActivationProviderRegistry& providers,
+    XamlVisualTreeHost& host, XamlObjectWriter& writer,
+    XamlNodeReader& reader, XamlActivationProviderRegistry& providers,
     const XamlActivationContext& activation) noexcept {
     Base::Result<void> discarded = host.DiscardStaged();
     if (!discarded) return discarded.GetStatus();
