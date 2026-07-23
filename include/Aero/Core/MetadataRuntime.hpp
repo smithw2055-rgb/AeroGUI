@@ -68,10 +68,11 @@ public:
         if (frozen_) return {};
         if (domain_ == nullptr || !domain_->IsSealed() ||
             !domain_->Descriptors().IsSealed() ||
-            !domain_->Facets().IsSealed()) {
+            !domain_->Facets().IsSealed() ||
+            !domain_->Facets().ValueFacetsSealed()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "MetadataDomain must be sealed before MetadataRuntime");
+                "MetadataDomain and all typed facets must be sealed before MetadataRuntime");
         }
         frozen_ = true;
         return {};
@@ -116,6 +117,46 @@ public:
                 "Metadata factory facet returned the wrong runtime type");
         }
         return created;
+    }
+
+    Base::Result<Value> TryCreateValue(
+        TypeId type,
+        const void* source) const noexcept {
+        if (!frozen_) return RuntimeNotFrozen();
+        const MetadataTypeDescriptor* descriptor = Descriptors().FindType(type);
+        const ValueSemanticsFacet* facet = Facets().FindValueSemantics(type);
+        if (descriptor == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Metadata value type descriptor was not found");
+        }
+        if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
+            facet == nullptr || facet->source == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Metadata type has no value semantics facet");
+        }
+        return facet->source->TryCreateValue(type, source);
+    }
+
+    Base::Result<Value> TryConvertText(
+        TypeId type,
+        Base::StringView text) const noexcept {
+        if (!frozen_) return RuntimeNotFrozen();
+        const MetadataTypeDescriptor* descriptor = Descriptors().FindType(type);
+        const TextConverterFacet* facet = Facets().FindTextConverter(type);
+        if (descriptor == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Metadata text target descriptor was not found");
+        }
+        if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
+            facet == nullptr || facet->source == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Metadata type has no text converter facet");
+        }
+        return facet->source->TryConvertText(type, text);
     }
 
     Base::Result<Value> GetProperty(
