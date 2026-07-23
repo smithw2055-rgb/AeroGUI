@@ -39,13 +39,14 @@ struct MetadataModuleRegistration final {
 // A MetadataDomain has two explicit phases:
 //
 // 1. Registration phase: deterministic module callbacks populate mutable
-//    TypeRegistry, DependencyPropertyRegistry and RoutedEventRegistry instances.
+//    TypeRegistry, dependency/routed registries, and registration value services.
 // 2. Runtime phase: Seal() freezes those registration sources and materializes
 //    immutable MetadataDescriptorStore and MetadataFacetStore instances.
 //
-// Runtime lookup should use Descriptors() and Facets(). Registry references and
-// pointers obtained before the next module transaction are provisional because
-// a successful transaction replaces the complete candidate storage.
+// Runtime lookup should use Descriptors(), Facets(), and MetadataRuntime. Registry
+// references and registration-value views obtained before the next module
+// transaction are provisional because a successful transaction replaces the
+// complete candidate storage.
 class AERO_API MetadataDomain final {
 public:
     MetadataDomain() noexcept;
@@ -69,6 +70,12 @@ public:
     // stores are the canonical runtime query surface.
     TypeRegistry& Types() noexcept;
     const TypeRegistry& Types() const noexcept;
+    MetadataRegistrationValues RegistrationValues() noexcept {
+        return MetadataRegistrationValues(Types());
+    }
+    MetadataRegistrationValues RegistrationValues() const noexcept {
+        return MetadataRegistrationValues(Types());
+    }
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     const DependencyPropertyRegistry& DependencyProperties() const noexcept;
     RoutedEventRegistry& RoutedEvents() noexcept;
