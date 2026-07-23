@@ -159,6 +159,13 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             delete candidate;
             return frozen.GetStatus();
         }
+        frozen = candidate->facets.BuildValueFacets(
+            candidate->types,
+            candidate->descriptors);
+        if (!frozen) {
+            delete candidate;
+            return frozen.GetStatus();
+        }
         candidate->sealed = true;
     }
 
