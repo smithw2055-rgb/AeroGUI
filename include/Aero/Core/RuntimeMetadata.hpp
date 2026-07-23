@@ -23,9 +23,9 @@ inline constexpr Base::StringView AeroPresentationMetadataModuleName() noexcept 
 
 inline Base::Result<void> TryRegisterAeroPresentationMetadata(
     MetadataDomain& domain) noexcept {
-    // Version 7 writes factories, property accessors and method invokers
-    // directly into stable-ID behavior records. Structural Info records are
-    // callback-free throughout registration and sealed runtime use.
+    // Version 7 writes type factories, property accessors and method invokers
+    // directly into stable-ID behavior records; structural Info records remain
+    // callback-free throughout registration and runtime.
     constexpr std::uint32_t SchemaVersion = 7U;
     const Base::StringView name = AeroPresentationMetadataModuleName();
     return domain.TryRegisterModule({
