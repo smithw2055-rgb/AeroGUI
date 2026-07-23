@@ -106,7 +106,7 @@ private:
         Base::Vector<double>& resolved) const noexcept;
 };
 
-class AERO_API Border final : public Decorator {
+class AERO_API Border : public Decorator {
     AERO_DECLARE_METADATA(Border, Decorator)
 public:
     Border() noexcept;
@@ -126,6 +126,7 @@ public:
     AERO_DECLARE_DEPENDENCY_PROPERTY(Padding);
 
 protected:
+    explicit Border(TypeId runtimeType) noexcept;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
     Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
