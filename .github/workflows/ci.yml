@@ -6,34 +6,9 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  migrate-value-api:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/unified-metadata-control-extensibility
-          fetch-depth: 0
-      - name: Apply verified migration
-        shell: bash
-        run: python3 .github/migrate_value_api.py
-      - name: Commit source migration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          if rg -n 'TypeRegistry::Try(CreateValue|ConvertText)' include src tests; then
-            echo 'TypeRegistry value execution API remains' >&2
-            exit 1
-          fi
-          git config user.name "AeroGUI Metadata Agent"
-          git config user.email "actions@users.noreply.github.com"
-          git add include src tests
-          git commit -m "Remove TypeRegistry value execution API"
-          git push origin HEAD:agent/unified-metadata-control-extensibility
-
   linux:
     name: Linux (${{ matrix.compiler }}, ${{ matrix.build_type }}, shared=${{ matrix.shared }})
     runs-on: ubuntu-latest
