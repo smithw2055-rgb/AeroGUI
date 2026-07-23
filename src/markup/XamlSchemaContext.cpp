@@ -1,5 +1,7 @@
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
+#include <Aero/Core/MetadataRegistrationValues.hpp>
+
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -590,7 +592,8 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    Base::Result<Core::Value> reflected = types_->TryConvertText(type, text);
+    Base::Result<Core::Value> reflected =
+        Core::MetadataRegistrationValues(*types_).TryConvertText(type, text);
     if (reflected) return reflected;
     if (reflected.GetStatus().code != Base::ErrorCode::NotFound) {
         return reflected.GetStatus();

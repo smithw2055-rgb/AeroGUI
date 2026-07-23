@@ -294,7 +294,7 @@ Base::Result<void> FrameworkElement::SetWidth(double value) noexcept {
         return InvalidArgument("Width must be finite and nonnegative");
     }
     const Length length = Length::Pixels(value);
-    Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
+    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
         PresentationType("Length"), &length);
     return stored ? SetValue(WidthProperty, stored.Value()) : stored.GetStatus();
 }
@@ -308,7 +308,7 @@ Base::Result<void> FrameworkElement::SetHeight(double value) noexcept {
         return InvalidArgument("Height must be finite and nonnegative");
     }
     const Length length = Length::Pixels(value);
-    Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
+    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
         PresentationType("Length"), &length);
     return stored ? SetValue(HeightProperty, stored.Value()) : stored.GetStatus();
 }
@@ -345,7 +345,7 @@ Base::Result<void> FrameworkElement::SetMargin(Thickness value) noexcept {
     if (!IsValidMargin(value)) {
         return InvalidArgument("Margin must be finite, nonnegative, and non-overflowing");
     }
-    Base::Result<Value> stored = PropertyRegistry().Types().TryCreateValue(
+    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
         PresentationType("Thickness"), &value);
     return stored ? SetValue(MarginProperty, stored.Value()) : stored.GetStatus();
 }

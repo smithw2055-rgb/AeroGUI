@@ -674,35 +674,6 @@ Base::Result<void> TypeRegistry::TryRegisterTextConverter(
     return textConverters_.TryPushBack(registration);
 }
 
-Base::Result<Value> TypeRegistry::TryCreateValue(
-    TypeId type,
-    const void* source) const noexcept {
-    const Base::Ref<ValueTypeSemantics>* semantics = FindValueSemantics(type);
-    return semantics != nullptr
-        ? Value::TryFromCustom(type, source, *semantics)
-        : Base::Result<Value>(Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Value type semantics are not registered"));
-}
-
-Base::Result<Value> TypeRegistry::TryConvertText(
-    TypeId type,
-    Base::StringView text) const noexcept {
-    const TextValueConverterRegistration* entry = FindTextConverter(type);
-    if (entry == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Text value converter is not registered");
-    }
-    Base::Result<Value> converted = entry->convert(type, text, entry->context);
-    if (converted && converted.Value().Type() != type) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text converter returned a value with the wrong type");
-    }
-    return converted;
-}
-
 const TypeFactoryRegistration* TypeRegistry::FindTypeFactory(
     TypeId type) const noexcept {
     for (const TypeFactoryRegistration& registration : typeFactories_) {

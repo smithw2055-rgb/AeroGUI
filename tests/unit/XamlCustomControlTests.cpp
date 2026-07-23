@@ -2,6 +2,7 @@
 #include <Aero/Core/ControlPrimitives.hpp>
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/MetadataRegistrationValues.hpp>
 #include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
@@ -99,7 +100,7 @@ Result<Value> ConvertCornerRadius(
         radius.bottomRight = radius.topLeft;
         radius.bottomLeft = radius.topRight;
     }
-    return types->TryCreateValue(type, &radius);
+    return MetadataRegistrationValues(*types).TryCreateValue(type, &radius);
 }
 
 class Badge final : public Control {
@@ -151,7 +152,7 @@ AERO_IMPLEMENT_METADATA(Badge, TypeFlags::None) {
     const TypeId cornerRadiusType = MakeTypeId(
         CustomNamespace, StringView("CornerRadius"));
     const CornerRadius zero{};
-    Result<Value> defaultValue = context.types.TryCreateValue(
+    Result<Value> defaultValue = context.Values().TryCreateValue(
         cornerRadiusType, &zero);
     if (!defaultValue) {
         helper.Fail(defaultValue.GetStatus());
@@ -201,12 +202,13 @@ Result<void> RegisterBadgeMetadata(
             "CornerRadius stable type id mismatch");
     }
 
-    Result<void> status = context.types.TryRegisterValueSemantics(
+    MetadataRegistrationValues values = context.Values();
+    Result<void> status = values.TryRegisterValueSemantics(
         cornerRadiusType,
         {sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr,
          &EqualCornerRadius, nullptr, true});
     if (!status) return status.GetStatus();
-    status = context.types.TryRegisterTextConverter(
+    status = values.TryRegisterTextConverter(
         {cornerRadiusType, &ConvertCornerRadius, &context.types});
     if (!status) return status.GetStatus();
     return Badge::TryRegisterMetadata(context);

@@ -20,6 +20,7 @@ namespace Aero::Core {
 
 struct MetaRegistrationContext;
 class MetaRegistrationBuilder;
+class MetadataRegistrationValues;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 2U;
@@ -372,31 +373,12 @@ public:
     Base::Result<void> TrySetContentMember(
         TypeId type,
         MemberId member) noexcept;
-    Base::Result<void> TryRegisterValueSemantics(
-        TypeId type,
-        const ValueTypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterTextConverter(
-        const TextValueConverterRegistration& registration) noexcept;
-    Base::Result<Value> TryCreateValue(
-        TypeId type,
-        const void* source) const noexcept;
-    Base::Result<Value> TryConvertText(
-        TypeId type,
-        Base::StringView text) const noexcept;
-
     const TypeFactoryRegistration* FindTypeFactory(
         TypeId type) const noexcept;
     const PropertyAccessorRegistration* FindPropertyAccessor(
         MemberId member) const noexcept;
     const MethodInvokerRegistration* FindMethodInvoker(
         MemberId member) const noexcept;
-
-    // Seal-time export surface used to transfer value behavior into owned
-    // facets. Returned registrations remain immutable after Freeze().
-    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
-        TypeId type) const noexcept;
-    const TextValueConverterRegistration* FindTextConverter(
-        TypeId type) const noexcept;
 
     Base::Result<void> Freeze() noexcept;
 
@@ -458,6 +440,19 @@ public:
         const noexcept;
 
 private:
+    friend class MetadataRegistrationValues;
+
+    // Storage backend for the explicit registration-domain value service.
+    Base::Result<void> TryRegisterValueSemantics(
+        TypeId type,
+        const ValueTypeRegistration& registration) noexcept;
+    Base::Result<void> TryRegisterTextConverter(
+        const TextValueConverterRegistration& registration) noexcept;
+    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
+        TypeId type) const noexcept;
+    const TextValueConverterRegistration* FindTextConverter(
+        TypeId type) const noexcept;
+
     struct MemberLocation final {
         std::uint32_t typeIndex = 0U;
         std::uint32_t memberIndex = 0U;

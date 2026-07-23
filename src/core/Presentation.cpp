@@ -123,7 +123,7 @@ Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
         }
         length = Length::Pixels(parsed.Value());
     }
-    return types->TryCreateValue(type, &length);
+    return MetadataRegistrationValues(*types).TryCreateValue(type, &length);
 }
 
 Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
@@ -179,8 +179,9 @@ Base::Result<Value> ConvertThickness(TypeId type, Base::StringView text,
     void* context) noexcept {
     Base::Result<Thickness> parsed = ParseThickness(text);
     if (!parsed) return parsed.GetStatus();
-    return static_cast<TypeRegistry*>(context)->TryCreateValue(
-        type, &parsed.Value());
+    return MetadataRegistrationValues(
+        *static_cast<TypeRegistry*>(context)).TryCreateValue(
+            type, &parsed.Value());
 }
 
 int Hex(char value) noexcept {
@@ -212,8 +213,8 @@ Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
         ? Color{bytes[0] / 255.0F, bytes[1] / 255.0F, bytes[2] / 255.0F, 1.0F}
         : Color{bytes[1] / 255.0F, bytes[2] / 255.0F,
             bytes[3] / 255.0F, bytes[0] / 255.0F};
-    return static_cast<TypeRegistry*>(context)->TryCreateValue(
-        type, &color);
+    return MetadataRegistrationValues(
+        *static_cast<TypeRegistry*>(context)).TryCreateValue(type, &color);
 }
 
 bool EqualLength(const void* left, const void* right, void*) noexcept {
@@ -399,14 +400,14 @@ AERO_IMPLEMENT_METADATA(UIElement, TypeFlags::Abstract) {
 AERO_IMPLEMENT_METADATA(FrameworkElement, TypeFlags::Abstract) {
     MetaRegistrationContext& context = helper.Context();
     const Length autoSource = Length::Auto();
-    Base::Result<Value> automatic = context.types.TryCreateValue(
+    Base::Result<Value> automatic = context.Values().TryCreateValue(
         BuiltinTypes::Length, &autoSource);
     if (!automatic) {
         helper.Fail(automatic.GetStatus());
         return;
     }
     const Thickness zero{};
-    Base::Result<Value> margin = context.types.TryCreateValue(
+    Base::Result<Value> margin = context.Values().TryCreateValue(
         BuiltinTypes::Thickness, &zero);
     if (!margin) {
         helper.Fail(margin.GetStatus());
@@ -473,14 +474,14 @@ AERO_IMPLEMENT_METADATA(Grid, TypeFlags::None) {
 AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
     const Color transparent{};
-    Base::Result<Value> color = context.types.TryCreateValue(
+    Base::Result<Value> color = context.Values().TryCreateValue(
         BuiltinTypes::Color, &transparent);
     if (!color) {
         helper.Fail(color.GetStatus());
         return;
     }
     const Thickness zero{};
-    Base::Result<Value> padding = context.types.TryCreateValue(
+    Base::Result<Value> padding = context.Values().TryCreateValue(
         BuiltinTypes::Thickness, &zero);
     if (!padding) {
         helper.Fail(padding.GetStatus());
@@ -507,7 +508,7 @@ AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
         return;
     }
     const Color black{0.0F, 0.0F, 0.0F, 1.0F};
-    Base::Result<Value> foreground = context.types.TryCreateValue(
+    Base::Result<Value> foreground = context.Values().TryCreateValue(
         BuiltinTypes::Color, &black);
     if (!foreground) {
         helper.Fail(foreground.GetStatus());
@@ -597,15 +598,16 @@ Base::Result<void> TryRegisterPresentationMetadata(
         if (!status) return status.GetStatus();
     }
 
-    status = types.TryRegisterValueSemantics(BuiltinTypes::Length,
+    MetadataRegistrationValues values(types);
+    status = values.TryRegisterValueSemantics(BuiltinTypes::Length,
         {sizeof(Length), alignof(Length), nullptr, nullptr,
          &EqualLength, nullptr, true});
     if (!status) return status.GetStatus();
-    status = types.TryRegisterValueSemantics(BuiltinTypes::Thickness,
+    status = values.TryRegisterValueSemantics(BuiltinTypes::Thickness,
         {sizeof(Thickness), alignof(Thickness), nullptr, nullptr,
          &EqualThickness, nullptr, true});
     if (!status) return status.GetStatus();
-    status = types.TryRegisterValueSemantics(BuiltinTypes::Color,
+    status = values.TryRegisterValueSemantics(BuiltinTypes::Color,
         {sizeof(Color), alignof(Color), nullptr, nullptr,
          &EqualColor, nullptr, true});
     if (!status) return status.GetStatus();
@@ -623,7 +625,7 @@ Base::Result<void> TryRegisterPresentationMetadata(
         {BuiltinTypes::Orientation, &ConvertOrientation, nullptr}
     };
     for (const TextValueConverterRegistration& converter : converters) {
-        status = types.TryRegisterTextConverter(converter);
+        status = values.TryRegisterTextConverter(converter);
         if (!status) return status.GetStatus();
     }
 
