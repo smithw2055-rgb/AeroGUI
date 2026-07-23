@@ -221,11 +221,14 @@ private:
     }
 };
 
-class AERO_API UserControl final : public ContentControl {
+class AERO_API UserControl : public ContentControl {
     AERO_DECLARE_METADATA(UserControl, ContentControl)
 public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
+protected:
+    explicit UserControl(TypeId runtimeType) noexcept
+        : ContentControl(runtimeType) {}
 };
 
 #define AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(classType, typeFlags, body) \
