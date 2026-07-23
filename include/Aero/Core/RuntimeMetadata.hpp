@@ -23,7 +23,9 @@ inline constexpr Base::StringView AeroPresentationMetadataModuleName() noexcept 
 
 inline Base::Result<void> TryRegisterAeroPresentationMetadata(
     MetadataDomain& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 2U;
+    // Version 3 materializes the registered presentation model into immutable
+    // descriptor and typed facet stores during MetadataDomain::Seal().
+    constexpr std::uint32_t SchemaVersion = 3U;
     const Base::StringView name = AeroPresentationMetadataModuleName();
     return domain.TryRegisterModule({
         MakeMetadataModuleId(name),
