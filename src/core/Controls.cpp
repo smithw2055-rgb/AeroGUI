@@ -35,7 +35,7 @@ TypeId PresentationType(const char* name) noexcept {
 StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
 
 StackPanel::StackPanel(Orientation orientation) noexcept
-    : RenderElement(StaticTypeId()), ownedChildren_() {
+    : Panel(StaticTypeId()), ownedChildren_() {
     if (orientation != Orientation::Vertical) {
         static_cast<void>(SetOrientation(orientation));
     }
@@ -56,7 +56,7 @@ Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
         PresentationType("Orientation"), static_cast<std::uint64_t>(value)));
 }
 
-bool StackPanel::IsOwnedChild(const LayoutElement& child) const noexcept {
+bool StackPanel::IsOwnedChild(const UIElement& child) const noexcept {
     for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
         if (owned.Get() == &child) return true;
     }
@@ -65,7 +65,7 @@ bool StackPanel::IsOwnedChild(const LayoutElement& child) const noexcept {
 
 Base::Result<void> StackPanel::AddOwnedChild(
     const Base::Ref<Base::Object>& childObject,
-    LayoutElement& child) noexcept {
+    UIElement& child) noexcept {
     if (!childObject || childObject.Get() != &child) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "StackPanel owned child does not match its layout object");
@@ -95,7 +95,7 @@ Base::Result<void> StackPanel::ClearOwnedChildren() noexcept {
 Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
     Size desired;
     const Orientation orientation = GetOrientation();
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Size childAvailable = availableSize;
         if (orientation == Orientation::Vertical) childAvailable.height = 1.0e12;
@@ -117,7 +117,7 @@ Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
 Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     double offset = 0.0;
     const Orientation orientation = GetOrientation();
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size desired = child->DesiredSize();
         const Rect slot = orientation == Orientation::Vertical
@@ -130,10 +130,10 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Canvas::Canvas() noexcept : RenderElement(StaticTypeId()) {}
+Canvas::Canvas() noexcept : Panel(StaticTypeId()) {}
 
 Base::Result<void> Canvas::SetChildPosition(
-    LayoutElement& child, Point position) noexcept {
+    UIElement& child, Point position) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access;
     if (!IsFinite(position)) {
@@ -141,7 +141,7 @@ Base::Result<void> Canvas::SetChildPosition(
             "Canvas child position must be finite");
     }
     bool attached = false;
-    for (LayoutElement* current : LayoutChildren()) attached = attached || current == &child;
+    for (UIElement* current : LayoutChildren()) attached = attached || current == &child;
     if (!attached) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Canvas child must be attached before positioning");
@@ -152,7 +152,7 @@ Base::Result<void> Canvas::SetChildPosition(
         Value::FromDouble(PresentationType("Double"), position.y)) : left;
 }
 
-Point Canvas::ChildPosition(const LayoutElement& child) const noexcept {
+Point Canvas::ChildPosition(const UIElement& child) const noexcept {
     Base::Result<Value> left = child.GetValue(LeftProperty);
     Base::Result<Value> top = child.GetValue(TopProperty);
     return {left ? left.Value().AsDouble() : 0.0,
@@ -161,7 +161,7 @@ Point Canvas::ChildPosition(const LayoutElement& child) const noexcept {
 
 Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
     Size desired;
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, {1.0e12, 1.0e12});
         if (!measured) return measured.GetStatus();
@@ -173,7 +173,7 @@ Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
 }
 
 Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Point position = ChildPosition(*child);
         const Size desired = child->DesiredSize();
@@ -185,7 +185,7 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
 }
 
 Grid::Grid() noexcept
-    : RenderElement(StaticTypeId()),
+    : Panel(StaticTypeId()),
       columns_(), rows_(), desiredColumns_(), desiredRows_() {}
 
 Base::Result<void> Grid::SetColumnDefinitions(
@@ -195,7 +195,7 @@ Base::Result<void> Grid::SetColumnDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return valid;
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child != nullptr && ChildColumn(*child) >= count) {
             return Base::Status::Failure(Base::ErrorCode::OutOfRange,
                 "Grid column definition removal would orphan a child cell");
@@ -215,7 +215,7 @@ Base::Result<void> Grid::SetRowDefinitions(
     Base::Result<void> valid = ValidateDefinitions(definitions);
     if (!valid) return valid;
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child != nullptr && ChildRow(*child) >= count) {
             return Base::Status::Failure(Base::ErrorCode::OutOfRange,
                 "Grid row definition removal would orphan a child cell");
@@ -229,7 +229,7 @@ Base::Result<void> Grid::SetRowDefinitions(
 }
 
 Base::Result<void> Grid::SetChildCell(
-    LayoutElement& child, std::uint32_t row, std::uint32_t column) noexcept {
+    UIElement& child, std::uint32_t row, std::uint32_t column) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access;
     if (row >= RowCount() || column >= ColumnCount()) {
@@ -237,7 +237,7 @@ Base::Result<void> Grid::SetChildCell(
             "Grid child cell is outside the declared track range");
     }
     bool attached = false;
-    for (LayoutElement* current : LayoutChildren()) {
+    for (UIElement* current : LayoutChildren()) {
         attached = attached || current == &child;
     }
     if (!attached) {
@@ -270,7 +270,7 @@ Base::Result<Size> Grid::MeasureOverride(Size) noexcept {
     }
 
     constexpr double Unconstrained = 1.0e12;
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const std::uint32_t row = ChildRow(*child);
         const std::uint32_t column = ChildColumn(*child);
@@ -317,7 +317,7 @@ Base::Result<Size> Grid::ArrangeOverride(Size finalSize) noexcept {
         {desiredRows_.Data(), desiredRows_.Size()}, finalSize.height, rows);
     if (!resolved) return resolved.GetStatus();
 
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const std::uint32_t row = ChildRow(*child);
         const std::uint32_t column = ChildColumn(*child);
@@ -364,12 +364,12 @@ Base::Result<void> Grid::ValidateDefinitions(
     return {};
 }
 
-std::uint32_t Grid::ChildRow(const LayoutElement& child) const noexcept {
+std::uint32_t Grid::ChildRow(const UIElement& child) const noexcept {
     Base::Result<Value> value = child.GetValue(RowProperty);
     return value ? static_cast<std::uint32_t>(value.Value().AsUnsignedInteger()) : 0U;
 }
 
-std::uint32_t Grid::ChildColumn(const LayoutElement& child) const noexcept {
+std::uint32_t Grid::ChildColumn(const UIElement& child) const noexcept {
     Base::Result<Value> value = child.GetValue(ColumnProperty);
     return value ? static_cast<std::uint32_t>(value.Value().AsUnsignedInteger()) : 0U;
 }
@@ -417,7 +417,7 @@ Base::Result<void> Grid::ResolveTracks(
 
 Border::Border() noexcept : Border(StaticTypeId()) {}
 
-Border::Border(TypeId runtimeType) noexcept : RenderElement(runtimeType) {}
+Border::Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
 
 Color Border::Background() const noexcept {
     Base::Result<Value> value = GetValue(BackgroundProperty);
@@ -484,7 +484,7 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
     const Thickness padding = Padding();
     const Size childAvailable = Deflate(availableSize, padding);
     Size desired;
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
@@ -497,7 +497,7 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
 Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
     const Thickness padding = Padding();
     const Size childSize = Deflate(finalSize, padding);
-    for (LayoutElement* child : LayoutChildren()) {
+    for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         Base::Result<void> arranged = ArrangeChild(*child,
             {padding.left, padding.top, childSize.width, childSize.height});
@@ -518,7 +518,7 @@ Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcep
     return {};
 }
 
-TextBlock::TextBlock() noexcept : RenderElement(StaticTypeId()) {}
+TextBlock::TextBlock() noexcept : FrameworkElement(StaticTypeId()) {}
 
 Base::StringView TextBlock::Text() const noexcept {
     Base::Result<Value> value = GetValue(TextProperty);
@@ -580,16 +580,16 @@ Base::Result<void> TextBlock::BuildDisplayList(
 }
 
 ContentPresenter::ContentPresenter() noexcept
-    : RenderElement(StaticTypeId()) {}
+    : FrameworkElement(StaticTypeId()) {}
 
 bool ContentPresenter::IsOnlyAttachedContent(
-    const LayoutElement& content) const noexcept {
-    const Base::Span<LayoutElement* const> children = LayoutChildren();
+    const UIElement& content) const noexcept {
+    const UIElementChildRange children = LayoutChildren();
     return children.Size() == 1U && children[0] == &content;
 }
 
 Base::Result<void> ContentPresenter::SetContent(
-    LayoutElement* content) noexcept {
+    UIElement* content) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
     Base::Result<void> validated = ValidateContent(content);
@@ -602,7 +602,7 @@ Base::Result<void> ContentPresenter::SetContent(
 
 Base::Result<void> ContentPresenter::SetOwnedContent(
     const Base::Ref<Base::Object>& contentObject,
-    LayoutElement& content) noexcept {
+    UIElement& content) noexcept {
     if (!contentObject || contentObject.Get() != &content) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "ContentPresenter owned content does not match its layout object");
@@ -617,7 +617,7 @@ Base::Result<void> ContentPresenter::SetOwnedContent(
 }
 
 Base::Result<void> ContentPresenter::ValidateContent(
-    LayoutElement* content) const noexcept {
+    UIElement* content) const noexcept {
     if (content == nullptr) {
         if (!LayoutChildren().Empty()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,

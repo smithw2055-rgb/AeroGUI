@@ -100,7 +100,7 @@ struct Fixture final {
           effectiveValues(dispatcher, properties),
           bindings(dispatcher),
           schema(types),
-          extension_({&bindings, &AsDependencyObject, nullptr}),
+          extension_({&bindings, &AsDependencyObject, nullptr, {}}),
           dynamicResource_({&effectiveValues, &resources, &AsDependencyObject, nullptr}) {}
 
     bool Build() {
@@ -177,8 +177,10 @@ struct Fixture final {
 
         Result<MemberId> children = types.TryRegisterProperty(
             rootType,
-            {StringView("Children"), elementType, PropertyFlags::None});
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
         CHECK(children);
+        CHECK(types.TrySetContentMember(rootType, children.Value()));
 
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
@@ -196,7 +198,7 @@ struct Fixture final {
         CHECK(schema.TryRegisterMemberAdapter({
             children.Value(), XamlMemberWriteMode::Collection, &AddChild, nullptr}));
         CHECK(schema.TryRegisterTypeAdapter({
-            rootType, children.Value(), nullptr, nullptr, nullptr, nullptr, true}));
+            rootType, nullptr, nullptr, nullptr, nullptr, true}));
         extension_.SetDataContextProperty(dataContext);
         CHECK(extension_.Register(schema, bindingExtensionType));
         CHECK(dynamicResource_.Register(schema, dynamicResourceExtensionType));

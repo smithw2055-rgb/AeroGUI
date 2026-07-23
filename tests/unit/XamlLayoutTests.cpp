@@ -5,6 +5,7 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Layout.hpp>
+#include <Aero/Core/Rendering.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -26,10 +27,10 @@ using namespace Aero::Markup;
     std::fprintf(stderr, "CHECK failed at %s:%d: %s\n", __FILE__, __LINE__, #expression); \
     return false; } } while (false)
 
-class TestElement final : public LayoutElement {
+class TestElement final : public FrameworkElement {
 public:
     explicit TestElement(TypeId type) noexcept
-        : LayoutElement(type) {}
+        : FrameworkElement(type) {}
 };
 
 struct Fixture final {
@@ -58,26 +59,24 @@ struct Fixture final {
         return Ref<Object>(std::move(typed));
     }
 
-    static LayoutElement* Cast(Object& object, void*) noexcept {
+    static UIElement* Cast(Object& object, void*) noexcept {
         return &static_cast<TestElement&>(object);
     }
 
     bool Build() {
         const StringView ns("urn:xaml-layout");
-        Result<CorePresentationMetadata> metadata =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(metadata);
-        objectType = metadata.Value().objectType;
-        doubleType = metadata.Value().doubleType;
-        stringType = metadata.Value().stringType;
-        layoutType = metadata.Value().layoutElementType;
+        CHECK(TryRegisterPresentationMetadata(types, properties));
+        objectType = BuiltinTypes::Object;
+        doubleType = BuiltinTypes::Double;
+        stringType = BuiltinTypes::String;
+        layoutType = BuiltinTypes::FrameworkElement;
         testType = MakeTypeId(ns, StringView("TestElement"));
         CHECK(types.TryRegisterType({ns, StringView("TestElement"), layoutType,
             TypeFlags::Sealed, nullptr}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         CHECK(activation.TryRegister({testType, &Activate, this}));
-        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
+        CHECK(TryRegisterAeroPresentationXaml(dependencyProperties));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;

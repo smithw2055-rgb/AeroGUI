@@ -227,7 +227,7 @@ void MetaRegistrationBuilder::Content(
         flags = flags | PropertyFlags::Collection;
     }
     Base::Result<MemberId> member = context_->types.TryRegisterProperty(
-        ownerType_, {name, context_->core.layoutElementType, flags});
+        ownerType_, {name, BuiltinTypes::UIElement, flags});
     if (!member) {
         status_ = member.GetStatus();
         return;

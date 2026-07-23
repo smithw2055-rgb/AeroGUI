@@ -20,10 +20,10 @@ using namespace Aero::Render;
         } \
     } while (false)
 
-class RenderBox final : public RenderElement {
+class RenderBox final : public FrameworkElement {
 public:
     explicit RenderBox(TypeId type) noexcept
-        : RenderElement(type) {}
+        : FrameworkElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -57,10 +57,10 @@ struct Fixture final {
     bool Build() {
         const StringView ns("urn:aero");
         objectType = MakeTypeId(ns, StringView("Object"));
-        elementType = MakeTypeId(ns, StringView("RenderElement"));
+        elementType = MakeTypeId(ns, StringView("FrameworkElement"));
         CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("RenderElement"), objectType,
+        CHECK(types.TryRegisterType({ns, StringView("FrameworkElement"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());

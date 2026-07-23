@@ -152,7 +152,6 @@ struct XamlMemberWritePolicy final {
 
 struct XamlTypeAdapterRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
-    Core::MemberId contentMember = Core::InvalidMemberId;
     XamlInitializationCallback beginInit = nullptr;
     XamlInitializationCallback endInit = nullptr;
     XamlAbortInitializationCallback abortInit = nullptr;

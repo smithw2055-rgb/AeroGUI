@@ -343,9 +343,11 @@ struct Fixture final {
 
         Result<MemberId> childrenResult = types.TryRegisterProperty(
             elementType,
-            {StringView("Children"), elementType, PropertyFlags::None});
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
         CHECK(childrenResult);
         children = childrenResult.Value();
+        CHECK(types.TrySetContentMember(elementType, children));
 
         Result<MemberId> rowResult = types.TryRegisterProperty(
             gridType,
@@ -378,7 +380,6 @@ struct Fixture final {
 
         CHECK(schema.TryRegisterTypeAdapter({
             elementType,
-            children,
             &BeginElement,
             &EndElement,
             &AbortElement,

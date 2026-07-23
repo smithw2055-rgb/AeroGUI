@@ -44,12 +44,157 @@ AERO_API Rect Intersect(Rect left, Rect right) noexcept;
 AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
 class LayoutManager;
+class UIElement;
 
-class AERO_API LayoutElement : public TreeNode {
-    AERO_DECLARE_METADATA(LayoutElement, TreeNode)
+class UIElementChildRange final {
 public:
-    explicit LayoutElement(TypeId runtimeType) noexcept;
-    ~LayoutElement() override;
+    class Iterator final {
+    public:
+        Iterator(Base::Span<Visual* const> children,
+            std::uint32_t index) noexcept
+            : children_(children), index_(index) { Advance(); }
+        UIElement* operator*() const noexcept {
+            return index_ < children_.Size()
+                ? children_[index_]->AsUIElement() : nullptr;
+        }
+        Iterator& operator++() noexcept {
+            if (index_ < children_.Size()) ++index_;
+            Advance();
+            return *this;
+        }
+        bool operator!=(const Iterator& other) const noexcept {
+            return index_ != other.index_ ||
+                children_.Data() != other.children_.Data();
+        }
+    private:
+        Base::Span<Visual* const> children_;
+        std::uint32_t index_ = 0U;
+        void Advance() noexcept {
+            while (index_ < children_.Size() &&
+                children_[index_]->AsUIElement() == nullptr) {
+                ++index_;
+            }
+        }
+    };
+
+    explicit UIElementChildRange(Base::Span<Visual* const> children) noexcept
+        : children_(children) {}
+    Iterator begin() const noexcept { return Iterator(children_, 0U); }
+    Iterator end() const noexcept {
+        return Iterator(children_, children_.Size());
+    }
+    bool Empty() const noexcept { return !(begin() != end()); }
+    std::uint32_t Size() const noexcept {
+        std::uint32_t count = 0U;
+        for (UIElement* child : *this) {
+            (void)child;
+            ++count;
+        }
+        return count;
+    }
+    UIElement* operator[](std::uint32_t index) const noexcept {
+        std::uint32_t current = 0U;
+        for (UIElement* child : *this) {
+            if (current++ == index) return child;
+        }
+        return nullptr;
+    }
+private:
+    Base::Span<Visual* const> children_;
+};
+
+class AERO_API UIElement : public Visual {
+    AERO_DECLARE_METADATA(UIElement, Visual)
+public:
+    template<class THandler>
+    class RoutedEvent_ final {
+    public:
+        RoutedEvent_(UIElement& element, RoutedEventHandle event) noexcept
+            : element_(&element), event_(event) {}
+
+        Base::Result<void> TryAdd(
+            const THandler& handler,
+            bool handledEventsToo = false) noexcept {
+            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
+            return element_->TryAddHandler(
+                event_, Detail::RoutedHandlerStorage(
+                    static_cast<const Base::Delegate<
+                        void(Base::Object*, const Args&)>&>(handler)),
+                handledEventsToo);
+        }
+
+        void Add(const THandler& handler,
+            bool handledEventsToo = false) noexcept {
+            Base::Result<void> result = TryAdd(handler, handledEventsToo);
+            if (!result) {
+                Base::ReportOutOfMemory(
+                    sizeof(Detail::RoutedHandlerStorage),
+                    alignof(Detail::RoutedHandlerStorage),
+                    Base::MemoryTag::General);
+            }
+        }
+
+        void operator+=(const THandler& handler) noexcept { Add(handler); }
+
+        bool Remove(const THandler& handler) noexcept {
+            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
+            return element_->RemoveHandler(
+                event_, Detail::RoutedHandlerStorage(
+                    static_cast<const Base::Delegate<
+                        void(Base::Object*, const Args&)>&>(handler)));
+        }
+
+        void operator-=(const THandler& handler) noexcept {
+            static_cast<void>(Remove(handler));
+        }
+
+    private:
+        UIElement* element_ = nullptr;
+        RoutedEventHandle event_;
+    };
+
+    AERO_DECLARE_ROUTED_EVENT(MouseMove, MouseEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(MouseDown, MouseButtonEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(MouseUp, MouseButtonEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(
+        GotKeyboardFocus, KeyboardFocusChangedEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(
+        LostKeyboardFocus, KeyboardFocusChangedEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(KeyDown, KeyEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(KeyUp, KeyEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(TextInput, TextCompositionEventHandler);
+
+    explicit UIElement(TypeId runtimeType) noexcept;
+    ~UIElement() override;
+
+    UIElement* AsUIElement() noexcept override { return this; }
+    const UIElement* AsUIElement() const noexcept override { return this; }
+    UIElement* LayoutParent() const noexcept {
+        Visual* parent = VisualParent();
+        return parent != nullptr ? parent->AsUIElement() : nullptr;
+    }
+
+    Base::Result<void> TryAddHandler(
+        RoutedEventHandle event,
+        const Detail::RoutedHandlerStorage& handler,
+        bool handledEventsToo = false) noexcept;
+    template<class TArgs>
+    Base::Result<void> TryAddHandler(
+        RoutedEventHandle event,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        bool handledEventsToo = false) noexcept {
+        return TryAddHandler(
+            event, Detail::RoutedHandlerStorage(handler), handledEventsToo);
+    }
+    bool RemoveHandler(
+        RoutedEventHandle event,
+        const Detail::RoutedHandlerStorage& handler) noexcept;
+    template<class TArgs>
+    bool RemoveHandler(
+        RoutedEventHandle event,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
+        return RemoveHandler(event, Detail::RoutedHandlerStorage(handler));
+    }
 
     Base::Result<void> InvalidateMeasure() noexcept;
     Base::Result<void> InvalidateArrange() noexcept;
@@ -61,49 +206,15 @@ public:
     bool IsArrangeValid() const noexcept { return arrangeValid_; }
     bool ClipToBounds() const noexcept;
     bool IsHitTestVisible() const noexcept;
-    bool UseLayoutRounding() const noexcept;
-    double DpiScale() const noexcept { return dpiScale_; }
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
-    bool HasWidth() const noexcept;
-    bool HasHeight() const noexcept;
-    double Width() const noexcept;
-    double Height() const noexcept;
-    Size MinSize() const noexcept;
-    Size MaxSize() const noexcept;
-    Thickness Margin() const noexcept;
-    HorizontalAlignment GetHorizontalAlignment() const noexcept;
-    VerticalAlignment GetVerticalAlignment() const noexcept;
 
     // Dependency properties
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Width);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Height);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MinWidth);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxWidth);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MinHeight);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxHeight);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Margin);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(HorizontalAlignment);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(VerticalAlignment);
     AERO_DECLARE_DEPENDENCY_PROPERTY(ClipToBounds);
     AERO_DECLARE_DEPENDENCY_PROPERTY(IsHitTestVisible);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(UseLayoutRounding);
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
-    Base::Result<void> SetLayoutRounding(
-        bool enabled, double dpiScale = 1.0) noexcept;
-    Base::Result<void> SetWidth(double value) noexcept;
-    Base::Result<void> ClearWidth() noexcept;
-    Base::Result<void> SetHeight(double value) noexcept;
-    Base::Result<void> ClearHeight() noexcept;
-    Base::Result<void> SetMinSize(Size value) noexcept;
-    Base::Result<void> SetMaxSize(Size value) noexcept;
-    Base::Result<void> SetMargin(Thickness value) noexcept;
-    Base::Result<void> SetHorizontalAlignment(
-        HorizontalAlignment value) noexcept;
-    Base::Result<void> SetVerticalAlignment(
-        VerticalAlignment value) noexcept;
 
 protected:
     Base::Result<void> OnPropertyInvalidated(
@@ -111,31 +222,42 @@ protected:
     virtual Base::Result<Size> MeasureOverride(Size availableSize) noexcept;
     virtual Base::Result<Size> ArrangeOverride(Size finalSize) noexcept;
     Base::Result<void> MeasureChild(
-        LayoutElement& child, Size availableSize) noexcept;
+        UIElement& child, Size availableSize) noexcept;
     Base::Result<void> ArrangeChild(
-        LayoutElement& child, Rect finalRect) noexcept;
-    Base::Span<LayoutElement* const> LayoutChildren() const noexcept {
-        return {layoutChildren_.Data(), layoutChildren_.Size()};
+        UIElement& child, Rect finalRect) noexcept;
+    UIElementChildRange LayoutChildren() const noexcept {
+        return UIElementChildRange(VisualChildren());
     }
 
 private:
     friend class LayoutManager;
+    friend class RoutedEventRegistry;
+
+    struct HandlerRecord final {
+        RoutedEventHandle event;
+        Detail::RoutedHandlerStorage handler;
+        std::uint64_t sequence = 0U;
+        bool handledEventsToo = false;
+    };
+
     LayoutManager* manager_ = nullptr;
-    LayoutElement* layoutParent_ = nullptr;
-    Base::Vector<LayoutElement*> layoutChildren_;
+    Base::Vector<HandlerRecord> handlers_;
+    std::uint64_t nextHandlerSequence_ = 1U;
     Size desiredSize_;
     Size renderSize_;
     Size previousMeasureConstraint_;
     Rect layoutSlot_;
     Rect layoutClip_;
     std::uint64_t layoutRevision_ = 0U;
+    bool layoutAttached_ = false;
     bool measureValid_ = false;
     bool arrangeValid_ = false;
     bool measureQueued_ = false;
     bool arrangeQueued_ = false;
     bool measuring_ = false;
     bool arranging_ = false;
-    double dpiScale_ = 1.0;
+
+    void CleanupHandlers() noexcept;
 };
 
 struct LayoutDiagnostics final {
@@ -154,34 +276,33 @@ public:
     LayoutManager& operator=(const LayoutManager&) = delete;
 
     Base::Result<void> Initialize() noexcept;
-    Base::Result<void> Attach(LayoutElement& parent, LayoutElement& child) noexcept;
-    Base::Result<void> Detach(LayoutElement& parent, LayoutElement& child) noexcept;
-    Base::Result<void> SetRoot(LayoutElement* root, Size availableSize) noexcept;
-    Base::Result<void> InvalidateMeasure(LayoutElement& element) noexcept;
-    Base::Result<void> InvalidateArrange(LayoutElement& element) noexcept;
+    Base::Result<void> Attach(UIElement& parent, UIElement& child) noexcept;
+    Base::Result<void> Detach(UIElement& parent, UIElement& child) noexcept;
+    Base::Result<void> SetRoot(UIElement* root, Size availableSize) noexcept;
+    Base::Result<void> InvalidateMeasure(UIElement& element) noexcept;
+    Base::Result<void> InvalidateArrange(UIElement& element) noexcept;
     Base::Result<std::uint32_t> Flush() noexcept;
     LayoutDiagnostics Diagnostics() const noexcept;
     std::uint64_t PassVersion() const noexcept { return passVersion_; }
 
 private:
-    friend class LayoutElement;
+    friend class UIElement;
     Dispatcher* dispatcher_ = nullptr;
-    LayoutElement* root_ = nullptr;
+    UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<LayoutElement*> measureQueue_;
-    Base::Vector<LayoutElement*> arrangeQueue_;
+    Base::Vector<UIElement*> measureQueue_;
+    Base::Vector<UIElement*> arrangeQueue_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
     std::uint32_t arrangedCount_ = 0U;
     bool flushing_ = false;
 
-    Base::Result<void> VerifyElement(const LayoutElement& element) const noexcept;
-    Base::Result<void> QueueMeasure(LayoutElement& element) noexcept;
-    Base::Result<void> QueueArrange(LayoutElement& element) noexcept;
-    Base::Result<void> MeasureElement(LayoutElement& element, Size constraint) noexcept;
-    Base::Result<void> ArrangeElement(LayoutElement& element, Rect slot) noexcept;
-    void RemoveChild(Base::Vector<LayoutElement*>& children, LayoutElement& child) noexcept;
+    Base::Result<void> VerifyElement(const UIElement& element) const noexcept;
+    Base::Result<void> QueueMeasure(UIElement& element) noexcept;
+    Base::Result<void> QueueArrange(UIElement& element) noexcept;
+    Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
+    Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
     static void LayoutHook(void* context) noexcept;
 };
 

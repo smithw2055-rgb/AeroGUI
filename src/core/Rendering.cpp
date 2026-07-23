@@ -306,18 +306,17 @@ Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
     return std::move(list_);
 }
 
-RenderElement::RenderElement(TypeId runtimeType) noexcept
-    : LayoutElement(runtimeType), renderChildren_() {}
+FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
+    : UIElement(runtimeType) {}
 
-RenderElement::~RenderElement() {
+FrameworkElement::~FrameworkElement() {
     AERO_ASSERT(renderManager_ == nullptr);
-    AERO_ASSERT(renderParent_ == nullptr);
-    AERO_ASSERT(renderChildren_.Empty());
+    AERO_ASSERT(!renderAttached_);
 }
 
-Base::Result<void> RenderElement::OnPropertyInvalidated(
+Base::Result<void> FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    Base::Result<void> layout = LayoutElement::OnPropertyInvalidated(flags);
+    Base::Result<void> layout = UIElement::OnPropertyInvalidated(flags);
     if (!layout) return layout;
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         return InvalidateRender();
@@ -325,7 +324,7 @@ Base::Result<void> RenderElement::OnPropertyInvalidated(
     return {};
 }
 
-Base::Result<void> RenderElement::InvalidateRender() noexcept {
+Base::Result<void> FrameworkElement::InvalidateRender() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return access;
@@ -337,7 +336,7 @@ Base::Result<void> RenderElement::InvalidateRender() noexcept {
     return renderManager_->Invalidate(*this);
 }
 
-Base::Result<void> RenderElement::BuildDisplayList(
+Base::Result<void> FrameworkElement::BuildDisplayList(
     DisplayListBuilder&) noexcept {
     return {};
 }
@@ -489,12 +488,11 @@ RenderManager::~RenderManager() noexcept {
         (void)dispatcher_->RemoveFrameHook(phaseHook_);
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
-        auto clear = [&](auto&& self, RenderElement& element) noexcept -> void {
-            for (RenderElement* child : element.renderChildren_) {
+        auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
+            for (FrameworkElement* child : element.RenderChildren()) {
                 self(self, *child);
             }
-            element.renderChildren_.Clear();
-            element.renderParent_ = nullptr;
+            element.renderAttached_ = false;
             element.renderManager_ = nullptr;
             element.renderQueued_ = false;
             element.renderValid_ = false;
@@ -525,7 +523,7 @@ Base::Result<void> RenderManager::Initialize() noexcept {
 }
 
 Base::Result<void> RenderManager::VerifyElement(
-    const RenderElement& element) const noexcept {
+    const FrameworkElement& element) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
@@ -536,7 +534,7 @@ Base::Result<void> RenderManager::VerifyElement(
     if (&element.GetDispatcher() != dispatcher_) {
         return Base::Status::Failure(
             Base::ErrorCode::WrongThread,
-            "RenderElement belongs to another Dispatcher");
+            "FrameworkElement belongs to another Dispatcher");
     }
     if (committing_) {
         return InvalidState("Render tree mutation during commit is not allowed");
@@ -544,7 +542,7 @@ Base::Result<void> RenderManager::VerifyElement(
     return {};
 }
 
-Base::Result<void> RenderManager::SetRoot(RenderElement* root) noexcept {
+Base::Result<void> RenderManager::SetRoot(FrameworkElement* root) noexcept {
     if (root == nullptr) {
         Base::Result<void> access = dispatcher_->VerifyAccess();
         if (!access) {
@@ -554,12 +552,11 @@ Base::Result<void> RenderManager::SetRoot(RenderElement* root) noexcept {
             return InvalidState("Render root cannot change during commit");
         }
         if (root_ != nullptr) {
-            auto clear = [&](auto&& self, RenderElement& element) noexcept -> void {
-                for (RenderElement* child : element.renderChildren_) {
+            auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
+                for (FrameworkElement* child : element.RenderChildren()) {
                     self(self, *child);
                 }
-                element.renderChildren_.Clear();
-                element.renderParent_ = nullptr;
+                element.renderAttached_ = false;
                 element.renderManager_ = nullptr;
                 element.renderQueued_ = false;
                 element.renderValid_ = false;
@@ -580,7 +577,7 @@ Base::Result<void> RenderManager::SetRoot(RenderElement* root) noexcept {
         return {};
     }
     if (root_ != nullptr || root->renderManager_ != nullptr ||
-        root->renderParent_ != nullptr || root->VisualParent() != nullptr) {
+        root->renderAttached_ || root->VisualParent() != nullptr) {
         return InvalidState("Render root must be detached and unique");
     }
     if (nextNodeId_ == InvalidRenderNodeId) {
@@ -596,8 +593,8 @@ Base::Result<void> RenderManager::SetRoot(RenderElement* root) noexcept {
 }
 
 Base::Result<void> RenderManager::Attach(
-    RenderElement& parent,
-    RenderElement& child) noexcept {
+    FrameworkElement& parent,
+    FrameworkElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) {
         return verified;
@@ -607,7 +604,7 @@ Base::Result<void> RenderManager::Attach(
         return verified;
     }
     if (parent.renderManager_ != this || child.renderManager_ != nullptr ||
-        child.renderParent_ != nullptr || child.VisualParent() != &parent) {
+        child.renderAttached_ || child.RenderParent() != &parent) {
         return InvalidState("Render attachment must match the visual-tree parent");
     }
     if (nextNodeId_ == InvalidRenderNodeId) {
@@ -615,21 +612,13 @@ Base::Result<void> RenderManager::Attach(
             Base::ErrorCode::OutOfRange,
             "Render node ID space exhausted");
     }
-    Base::Result<void> reserve = parent.renderChildren_.TryReserve(
-        parent.renderChildren_.Size() + 1U);
-    if (!reserve) {
-        return reserve;
-    }
-    Base::Result<void> appended = parent.renderChildren_.TryPushBack(&child);
-    AERO_ASSERT(appended);
-    child.renderParent_ = &parent;
+    child.renderAttached_ = true;
     child.renderManager_ = this;
     child.nodeId_ = nextNodeId_++;
     child.renderValid_ = false;
     Base::Result<void> queued = QueueDirty(child);
     if (!queued) {
-        parent.renderChildren_.PopBack();
-        child.renderParent_ = nullptr;
+        child.renderAttached_ = false;
         child.renderManager_ = nullptr;
         child.nodeId_ = InvalidRenderNodeId;
         return queued;
@@ -637,39 +626,22 @@ Base::Result<void> RenderManager::Attach(
     return Invalidate(parent);
 }
 
-void RenderManager::RemoveChild(
-    Base::Vector<RenderElement*>& children,
-    RenderElement& child) noexcept {
-    for (std::uint32_t index = 0U; index < children.Size(); ++index) {
-        if (children[index] == &child) {
-            for (std::uint32_t current = index + 1U;
-                 current < children.Size(); ++current) {
-                children[current - 1U] = children[current];
-            }
-            children.PopBack();
-            return;
-        }
-    }
-}
-
 Base::Result<void> RenderManager::Detach(
-    RenderElement& parent,
-    RenderElement& child) noexcept {
+    FrameworkElement& parent,
+    FrameworkElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) {
         return verified;
     }
-    if (parent.renderManager_ != this || child.renderParent_ != &parent ||
-        child.renderManager_ != this) {
+    if (parent.renderManager_ != this || !child.renderAttached_ ||
+        child.RenderParent() != &parent || child.renderManager_ != this) {
         return NotFound("Render parent-child relationship was not found");
     }
-    RemoveChild(parent.renderChildren_, child);
-    auto clear = [&](auto&& self, RenderElement& element) noexcept -> void {
-        for (RenderElement* descendant : element.renderChildren_) {
+    auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
+        for (FrameworkElement* descendant : element.RenderChildren()) {
             self(self, *descendant);
         }
-        element.renderChildren_.Clear();
-        element.renderParent_ = nullptr;
+        element.renderAttached_ = false;
         element.renderManager_ = nullptr;
         element.renderQueued_ = false;
         element.renderValid_ = false;
@@ -691,7 +663,7 @@ Base::Result<void> RenderManager::Detach(
 }
 
 Base::Result<void> RenderManager::QueueDirty(
-    RenderElement& element) noexcept {
+    FrameworkElement& element) noexcept {
     if (element.renderQueued_) {
         return {};
     }
@@ -704,32 +676,32 @@ Base::Result<void> RenderManager::QueueDirty(
 }
 
 Base::Result<void> RenderManager::Invalidate(
-    RenderElement& element) noexcept {
+    FrameworkElement& element) noexcept {
     Base::Result<void> verified = VerifyElement(element);
     if (!verified) {
         return verified;
     }
     if (element.renderManager_ != this) {
-        return InvalidState("RenderElement is not attached to this RenderManager");
+        return InvalidState("FrameworkElement is not attached to this RenderManager");
     }
-    RenderElement* current = &element;
+    FrameworkElement* current = &element;
     while (current != nullptr) {
         current->renderValid_ = false;
         Base::Result<void> queued = QueueDirty(*current);
         if (!queued) {
             return queued;
         }
-        current = current->renderParent_;
+        current = current->renderAttached_ ? current->RenderParent() : nullptr;
     }
     return {};
 }
 
 Base::Result<void> RenderManager::BuildSubtree(
-    RenderElement& element,
+    FrameworkElement& element,
     RenderNodeId parentId,
     RenderPlan& plan) noexcept {
     if (!element.IsArrangeValid() || element.buildingDisplayList_) {
-        return InvalidState("RenderElement must be arranged and non-reentrant");
+        return InvalidState("FrameworkElement must be arranged and non-reentrant");
     }
     element.buildingDisplayList_ = true;
     DisplayListBuilder builder;
@@ -773,7 +745,7 @@ Base::Result<void> RenderManager::BuildSubtree(
     element.renderRevision_ = snapshot.elementRevision;
     element.renderValid_ = true;
     element.renderQueued_ = false;
-    for (RenderElement* child : element.renderChildren_) {
+    for (FrameworkElement* child : element.RenderChildren()) {
         Base::Result<void> childResult = BuildSubtree(*child, element.nodeId_, plan);
         if (!childResult) {
             return childResult;

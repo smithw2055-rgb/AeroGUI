@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/Rendering.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -104,16 +105,65 @@ double RoundLayoutValue(double value, double dpiScale) noexcept {
     return std::round(value * dpiScale) / dpiScale;
 }
 
-LayoutElement::LayoutElement(TypeId runtimeType) noexcept
-    : TreeNode(runtimeType), layoutChildren_() {}
+UIElement::UIElement(TypeId runtimeType) noexcept
+    : Visual(runtimeType), handlers_() {}
 
-LayoutElement::~LayoutElement() {
+UIElement::~UIElement() {
     AERO_ASSERT(manager_ == nullptr);
-    AERO_ASSERT(layoutParent_ == nullptr);
-    AERO_ASSERT(layoutChildren_.Empty());
+    AERO_ASSERT(!layoutAttached_);
+    CleanupHandlers();
 }
 
-Base::Result<void> LayoutElement::InvalidateMeasure() noexcept {
+Base::Result<void> UIElement::TryAddHandler(
+    RoutedEventHandle event,
+    const Detail::RoutedHandlerStorage& handler,
+    bool handledEventsToo) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!event.IsValid() || handler.Empty()) {
+        return InvalidArgument(
+            "Routed event handler requires a valid event and callback");
+    }
+    if (nextHandlerSequence_ == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Routed event handler sequence space exhausted");
+    }
+    HandlerRecord record;
+    record.event = event;
+    record.handler = handler;
+    record.sequence = nextHandlerSequence_;
+    record.handledEventsToo = handledEventsToo;
+    Base::Result<void> appended = handlers_.TryPushBack(record);
+    if (!appended) return appended.GetStatus();
+    ++nextHandlerSequence_;
+    return {};
+}
+
+bool UIElement::RemoveHandler(
+    RoutedEventHandle event,
+    const Detail::RoutedHandlerStorage& handler) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access || !event.IsValid() || handler.Empty()) return false;
+    for (std::uint32_t index = 0U; index < handlers_.Size(); ++index) {
+        if (handlers_[index].event == event &&
+            handlers_[index].handler.Equals(handler)) {
+            for (std::uint32_t current = index + 1U;
+                 current < handlers_.Size(); ++current) {
+                handlers_[current - 1U] = std::move(handlers_[current]);
+            }
+            handlers_.PopBack();
+            return true;
+        }
+    }
+    return false;
+}
+
+void UIElement::CleanupHandlers() noexcept {
+    handlers_.Clear();
+}
+
+Base::Result<void> UIElement::InvalidateMeasure() noexcept {
     if (manager_ == nullptr) {
         measureValid_ = false;
         arrangeValid_ = false;
@@ -122,7 +172,7 @@ Base::Result<void> LayoutElement::InvalidateMeasure() noexcept {
     return manager_->InvalidateMeasure(*this);
 }
 
-Base::Result<void> LayoutElement::InvalidateArrange() noexcept {
+Base::Result<void> UIElement::InvalidateArrange() noexcept {
     if (manager_ == nullptr) {
         arrangeValid_ = false;
         return {};
@@ -130,7 +180,7 @@ Base::Result<void> LayoutElement::InvalidateArrange() noexcept {
     return manager_->InvalidateArrange(*this);
 }
 
-Base::Result<void> LayoutElement::SetLayoutRounding(
+Base::Result<void> FrameworkElement::SetLayoutRounding(
     bool enabled,
     double dpiScale) noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -148,66 +198,66 @@ Base::Result<void> LayoutElement::SetLayoutRounding(
     return scaleChanged && enabled ? InvalidateMeasure() : Base::Result<void>();
 }
 
-bool LayoutElement::ClipToBounds() const noexcept {
+bool UIElement::ClipToBounds() const noexcept {
     Base::Result<Value> value = GetValue(ClipToBoundsProperty);
     return value ? value.Value().AsBoolean() : false;
 }
-bool LayoutElement::IsHitTestVisible() const noexcept {
+bool UIElement::IsHitTestVisible() const noexcept {
     Base::Result<Value> value = GetValue(IsHitTestVisibleProperty);
     return value ? value.Value().AsBoolean() : true;
 }
-bool LayoutElement::UseLayoutRounding() const noexcept {
+bool FrameworkElement::UseLayoutRounding() const noexcept {
     Base::Result<Value> value = GetValue(UseLayoutRoundingProperty);
     return value ? value.Value().AsBoolean() : false;
 }
-bool LayoutElement::HasWidth() const noexcept {
+bool FrameworkElement::HasWidth() const noexcept {
     Base::Result<Value> value = GetValue(WidthProperty);
     return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
 }
-bool LayoutElement::HasHeight() const noexcept {
+bool FrameworkElement::HasHeight() const noexcept {
     Base::Result<Value> value = GetValue(HeightProperty);
     return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
 }
-double LayoutElement::Width() const noexcept {
+double FrameworkElement::Width() const noexcept {
     Base::Result<Value> value = GetValue(WidthProperty);
     if (!value) return 0.0;
     const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
     return length.isAuto ? 0.0 : length.value;
 }
-double LayoutElement::Height() const noexcept {
+double FrameworkElement::Height() const noexcept {
     Base::Result<Value> value = GetValue(HeightProperty);
     if (!value) return 0.0;
     const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
     return length.isAuto ? 0.0 : length.value;
 }
-Size LayoutElement::MinSize() const noexcept {
+Size FrameworkElement::MinSize() const noexcept {
     Base::Result<Value> width = GetValue(MinWidthProperty);
     Base::Result<Value> height = GetValue(MinHeightProperty);
     return {width ? width.Value().AsDouble() : 0.0,
         height ? height.Value().AsDouble() : 0.0};
 }
-Size LayoutElement::MaxSize() const noexcept {
+Size FrameworkElement::MaxSize() const noexcept {
     Base::Result<Value> width = GetValue(MaxWidthProperty);
     Base::Result<Value> height = GetValue(MaxHeightProperty);
     return {width ? width.Value().AsDouble() : 1.0e12,
         height ? height.Value().AsDouble() : 1.0e12};
 }
-Thickness LayoutElement::Margin() const noexcept {
+Thickness FrameworkElement::Margin() const noexcept {
     Base::Result<Value> value = GetValue(MarginProperty);
     return value ? *static_cast<const Thickness*>(value.Value().AsCustom()) : Thickness{};
 }
-HorizontalAlignment LayoutElement::GetHorizontalAlignment() const noexcept {
+HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
     Base::Result<Value> value = GetValue(HorizontalAlignmentProperty);
     return value ? static_cast<HorizontalAlignment>(value.Value().AsUnsignedInteger())
                  : HorizontalAlignment::Stretch;
 }
-VerticalAlignment LayoutElement::GetVerticalAlignment() const noexcept {
+VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
     Base::Result<Value> value = GetValue(VerticalAlignmentProperty);
     return value ? static_cast<VerticalAlignment>(value.Value().AsUnsignedInteger())
                  : VerticalAlignment::Stretch;
 }
 
-Base::Result<void> LayoutElement::OnPropertyInvalidated(
+Base::Result<void> UIElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
         Base::Result<void> result = InvalidateMeasure();
@@ -216,29 +266,30 @@ Base::Result<void> LayoutElement::OnPropertyInvalidated(
         Base::Result<void> result = InvalidateArrange();
         if (!result) return result;
     }
-    if (layoutParent_ != nullptr &&
+    UIElement* parent = layoutAttached_ ? LayoutParent() : nullptr;
+    if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
-        Base::Result<void> result = layoutParent_->InvalidateMeasure();
+        Base::Result<void> result = parent->InvalidateMeasure();
         if (!result) return result;
-    } else if (layoutParent_ != nullptr &&
+    } else if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentArrange)) {
-        Base::Result<void> result = layoutParent_->InvalidateArrange();
+        Base::Result<void> result = parent->InvalidateArrange();
         if (!result) return result;
     }
     return DependencyObject::OnPropertyInvalidated(flags);
 }
 
-Base::Result<void> LayoutElement::SetClipToBounds(bool value) noexcept {
+Base::Result<void> UIElement::SetClipToBounds(bool value) noexcept {
     return SetValue(ClipToBoundsProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 
-Base::Result<void> LayoutElement::SetHitTestVisible(bool value) noexcept {
+Base::Result<void> UIElement::SetHitTestVisible(bool value) noexcept {
     return SetValue(IsHitTestVisibleProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 
-Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
+Base::Result<void> FrameworkElement::SetWidth(double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return InvalidArgument("Width must be finite and nonnegative");
     }
@@ -248,11 +299,11 @@ Base::Result<void> LayoutElement::SetWidth(double value) noexcept {
     return stored ? SetValue(WidthProperty, stored.Value()) : stored.GetStatus();
 }
 
-Base::Result<void> LayoutElement::ClearWidth() noexcept {
+Base::Result<void> FrameworkElement::ClearWidth() noexcept {
     return ClearValue(WidthProperty);
 }
 
-Base::Result<void> LayoutElement::SetHeight(double value) noexcept {
+Base::Result<void> FrameworkElement::SetHeight(double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return InvalidArgument("Height must be finite and nonnegative");
     }
@@ -262,11 +313,11 @@ Base::Result<void> LayoutElement::SetHeight(double value) noexcept {
     return stored ? SetValue(HeightProperty, stored.Value()) : stored.GetStatus();
 }
 
-Base::Result<void> LayoutElement::ClearHeight() noexcept {
+Base::Result<void> FrameworkElement::ClearHeight() noexcept {
     return ClearValue(HeightProperty);
 }
 
-Base::Result<void> LayoutElement::SetMinSize(Size value) noexcept {
+Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
     const Size maximum = MaxSize();
     if (!IsValidLayoutSize(value) || value.width > maximum.width ||
         value.height > maximum.height) {
@@ -278,7 +329,7 @@ Base::Result<void> LayoutElement::SetMinSize(Size value) noexcept {
         Value::FromDouble(PresentationType("Double"), value.height)) : width;
 }
 
-Base::Result<void> LayoutElement::SetMaxSize(Size value) noexcept {
+Base::Result<void> FrameworkElement::SetMaxSize(Size value) noexcept {
     const Size minimum = MinSize();
     if (!IsValidLayoutSize(value) || value.width < minimum.width ||
         value.height < minimum.height) {
@@ -290,7 +341,7 @@ Base::Result<void> LayoutElement::SetMaxSize(Size value) noexcept {
         Value::FromDouble(PresentationType("Double"), value.height)) : width;
 }
 
-Base::Result<void> LayoutElement::SetMargin(Thickness value) noexcept {
+Base::Result<void> FrameworkElement::SetMargin(Thickness value) noexcept {
     if (!IsValidMargin(value)) {
         return InvalidArgument("Margin must be finite, nonnegative, and non-overflowing");
     }
@@ -299,7 +350,7 @@ Base::Result<void> LayoutElement::SetMargin(Thickness value) noexcept {
     return stored ? SetValue(MarginProperty, stored.Value()) : stored.GetStatus();
 }
 
-Base::Result<void> LayoutElement::SetHorizontalAlignment(
+Base::Result<void> FrameworkElement::SetHorizontalAlignment(
     HorizontalAlignment value) noexcept {
     if (value > HorizontalAlignment::Right) {
         return InvalidArgument("Horizontal alignment is invalid");
@@ -308,7 +359,7 @@ Base::Result<void> LayoutElement::SetHorizontalAlignment(
         PresentationType("HorizontalAlignment"), static_cast<std::uint64_t>(value)));
 }
 
-Base::Result<void> LayoutElement::SetVerticalAlignment(
+Base::Result<void> FrameworkElement::SetVerticalAlignment(
     VerticalAlignment value) noexcept {
     if (value > VerticalAlignment::Bottom) {
         return InvalidArgument("Vertical alignment is invalid");
@@ -317,27 +368,29 @@ Base::Result<void> LayoutElement::SetVerticalAlignment(
         PresentationType("VerticalAlignment"), static_cast<std::uint64_t>(value)));
 }
 
-Base::Result<Size> LayoutElement::MeasureOverride(Size availableSize) noexcept {
+Base::Result<Size> UIElement::MeasureOverride(Size availableSize) noexcept {
     return availableSize;
 }
 
-Base::Result<Size> LayoutElement::ArrangeOverride(Size finalSize) noexcept {
+Base::Result<Size> UIElement::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Base::Result<void> LayoutElement::MeasureChild(
-    LayoutElement& child,
+Base::Result<void> UIElement::MeasureChild(
+    UIElement& child,
     Size availableSize) noexcept {
-    if (manager_ == nullptr || child.layoutParent_ != this) {
+    if (manager_ == nullptr || !child.layoutAttached_ ||
+        child.LayoutParent() != this) {
         return InvalidState("Layout child is not attached to this element");
     }
     return manager_->MeasureElement(child, availableSize);
 }
 
-Base::Result<void> LayoutElement::ArrangeChild(
-    LayoutElement& child,
+Base::Result<void> UIElement::ArrangeChild(
+    UIElement& child,
     Rect finalRect) noexcept {
-    if (manager_ == nullptr || child.layoutParent_ != this) {
+    if (manager_ == nullptr || !child.layoutAttached_ ||
+        child.LayoutParent() != this) {
         return InvalidState("Layout child is not attached to this element");
     }
     return manager_->ArrangeElement(child, finalRect);
@@ -378,7 +431,7 @@ Base::Result<void> LayoutManager::Initialize() noexcept {
 }
 
 Base::Result<void> LayoutManager::VerifyElement(
-    const LayoutElement& element) const noexcept {
+    const UIElement& element) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
@@ -398,8 +451,8 @@ Base::Result<void> LayoutManager::VerifyElement(
 }
 
 Base::Result<void> LayoutManager::Attach(
-    LayoutElement& parent,
-    LayoutElement& child) noexcept {
+    UIElement& parent,
+    UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) {
         return verified;
@@ -408,59 +461,32 @@ Base::Result<void> LayoutManager::Attach(
     if (!verified) {
         return verified;
     }
-    if (&parent == &child || child.layoutParent_ != nullptr) {
+    if (&parent == &child || child.layoutAttached_) {
         return InvalidState("Layout child is already attached or self-referential");
     }
-    if (child.VisualParent() != &parent) {
+    if (child.LayoutParent() != &parent) {
         return InvalidState("Layout attachment must match the visual tree parent");
-    }
-    for (LayoutElement* current = &parent; current != nullptr;
-         current = current->layoutParent_) {
-        if (current == &child) {
-            return Base::Status::Failure(
-                Base::ErrorCode::CycleDetected,
-                "Layout attachment would create a cycle");
-        }
-    }
-    Base::Result<void> appended = parent.layoutChildren_.TryPushBack(&child);
-    if (!appended) {
-        return appended;
     }
     parent.manager_ = this;
     child.manager_ = this;
-    child.layoutParent_ = &parent;
+    child.layoutAttached_ = true;
     return InvalidateMeasure(parent);
 }
 
-void LayoutManager::RemoveChild(
-    Base::Vector<LayoutElement*>& children,
-    LayoutElement& child) noexcept {
-    for (std::uint32_t index = 0U; index < children.Size(); ++index) {
-        if (children[index] == &child) {
-            for (std::uint32_t current = index + 1U;
-                 current < children.Size(); ++current) {
-                children[current - 1U] = children[current];
-            }
-            children.PopBack();
-            return;
-        }
-    }
-}
-
 Base::Result<void> LayoutManager::Detach(
-    LayoutElement& parent,
-    LayoutElement& child) noexcept {
+    UIElement& parent,
+    UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) {
         return verified;
     }
-    if (child.layoutParent_ != &parent) {
+    if (!child.layoutAttached_ || child.LayoutParent() != &parent ||
+        child.manager_ != this) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Layout parent-child relationship was not found");
     }
-    RemoveChild(parent.layoutChildren_, child);
-    child.layoutParent_ = nullptr;
+    child.layoutAttached_ = false;
     child.manager_ = nullptr;
     child.measureValid_ = false;
     child.arrangeValid_ = false;
@@ -468,7 +494,7 @@ Base::Result<void> LayoutManager::Detach(
 }
 
 Base::Result<void> LayoutManager::SetRoot(
-    LayoutElement* root,
+    UIElement* root,
     Size availableSize) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
@@ -482,8 +508,8 @@ Base::Result<void> LayoutManager::SetRoot(
         if (!verified) {
             return verified;
         }
-        if (root->layoutParent_ != nullptr) {
-            return InvalidState("Layout root cannot have a layout parent");
+        if (root->layoutAttached_ || root->VisualParent() != nullptr) {
+            return InvalidState("Layout root cannot have a visual or layout parent");
         }
     }
     if (root_ != nullptr && root_ != root) {
@@ -498,7 +524,7 @@ Base::Result<void> LayoutManager::SetRoot(
     return InvalidateMeasure(*root_);
 }
 
-Base::Result<void> LayoutManager::QueueMeasure(LayoutElement& element) noexcept {
+Base::Result<void> LayoutManager::QueueMeasure(UIElement& element) noexcept {
     if (element.measureQueued_) {
         return {};
     }
@@ -510,7 +536,7 @@ Base::Result<void> LayoutManager::QueueMeasure(LayoutElement& element) noexcept 
     return {};
 }
 
-Base::Result<void> LayoutManager::QueueArrange(LayoutElement& element) noexcept {
+Base::Result<void> LayoutManager::QueueArrange(UIElement& element) noexcept {
     if (element.arrangeQueued_) {
         return {};
     }
@@ -522,7 +548,7 @@ Base::Result<void> LayoutManager::QueueArrange(LayoutElement& element) noexcept 
     return {};
 }
 
-Base::Result<void> LayoutManager::InvalidateMeasure(LayoutElement& element) noexcept {
+Base::Result<void> LayoutManager::InvalidateMeasure(UIElement& element) noexcept {
     Base::Result<void> verified = VerifyElement(element);
     if (!verified) {
         return verified;
@@ -533,13 +559,14 @@ Base::Result<void> LayoutManager::InvalidateMeasure(LayoutElement& element) noex
     if (!queued) {
         return queued;
     }
-    if (element.layoutParent_ != nullptr) {
-        return InvalidateMeasure(*element.layoutParent_);
+    UIElement* parent = element.layoutAttached_ ? element.LayoutParent() : nullptr;
+    if (parent != nullptr) {
+        return InvalidateMeasure(*parent);
     }
     return {};
 }
 
-Base::Result<void> LayoutManager::InvalidateArrange(LayoutElement& element) noexcept {
+Base::Result<void> LayoutManager::InvalidateArrange(UIElement& element) noexcept {
     Base::Result<void> verified = VerifyElement(element);
     if (!verified) {
         return verified;
@@ -549,14 +576,15 @@ Base::Result<void> LayoutManager::InvalidateArrange(LayoutElement& element) noex
     if (!queued) {
         return queued;
     }
-    if (element.layoutParent_ != nullptr) {
-        return InvalidateArrange(*element.layoutParent_);
+    UIElement* parent = element.layoutAttached_ ? element.LayoutParent() : nullptr;
+    if (parent != nullptr) {
+        return InvalidateArrange(*parent);
     }
     return {};
 }
 
 Base::Result<void> LayoutManager::MeasureElement(
-    LayoutElement& element,
+    UIElement& element,
     Size constraint) noexcept {
     if (!IsValidLayoutSize(constraint)) {
         return InvalidArgument("Measure constraint must be finite and nonnegative");
@@ -567,20 +595,24 @@ Base::Result<void> LayoutManager::MeasureElement(
     if (element.measureValid_ && SameSize(element.previousMeasureConstraint_, constraint)) {
         return {};
     }
-    const Thickness margin = element.Margin();
-    const Size minimum = element.MinSize();
-    const Size maximum = element.MaxSize();
-    const bool hasWidth = element.HasWidth();
-    const bool hasHeight = element.HasHeight();
+    const FrameworkElement* framework = element.AsFrameworkElement();
+    const Thickness margin = framework != nullptr
+        ? framework->Margin() : Thickness{};
+    const Size minimum = framework != nullptr
+        ? framework->MinSize() : Size{};
+    const Size maximum = framework != nullptr
+        ? framework->MaxSize() : Size{1.0e12, 1.0e12};
+    const bool hasWidth = framework != nullptr && framework->HasWidth();
+    const bool hasHeight = framework != nullptr && framework->HasHeight();
     Size available = Deflate(constraint, margin);
     available = ClampSize(available, minimum, maximum);
     if (hasWidth) {
         available.width = ClampDimension(
-            element.Width(), minimum.width, maximum.width);
+            framework->Width(), minimum.width, maximum.width);
     }
     if (hasHeight) {
         available.height = ClampDimension(
-            element.Height(), minimum.height, maximum.height);
+            framework->Height(), minimum.height, maximum.height);
     }
 
     element.measuring_ = true;
@@ -600,9 +632,9 @@ Base::Result<void> LayoutManager::MeasureElement(
     if (!IsValidLayoutSize(desired)) {
         return InvalidArgument("Layout constraints produced an invalid desired size");
     }
-    if (element.UseLayoutRounding()) {
-        desired.width = RoundLayoutValue(desired.width, element.dpiScale_);
-        desired.height = RoundLayoutValue(desired.height, element.dpiScale_);
+    if (framework != nullptr && framework->UseLayoutRounding()) {
+        desired.width = RoundLayoutValue(desired.width, framework->DpiScale());
+        desired.height = RoundLayoutValue(desired.height, framework->DpiScale());
     }
     element.previousMeasureConstraint_ = constraint;
     element.desiredSize_ = desired;
@@ -615,7 +647,7 @@ Base::Result<void> LayoutManager::MeasureElement(
 }
 
 Base::Result<void> LayoutManager::ArrangeElement(
-    LayoutElement& element,
+    UIElement& element,
     Rect slot) noexcept {
     if (!IsValidLayoutRect(slot)) {
         return InvalidArgument("Arrange slot must be finite and nonnegative");
@@ -630,19 +662,25 @@ Base::Result<void> LayoutManager::ArrangeElement(
     if (element.measuring_ || element.arranging_) {
         return InvalidState("Recursive layout operation is not allowed");
     }
-    if (element.UseLayoutRounding()) {
-        slot.x = RoundLayoutValue(slot.x, element.dpiScale_);
-        slot.y = RoundLayoutValue(slot.y, element.dpiScale_);
-        slot.width = RoundLayoutValue(slot.width, element.dpiScale_);
-        slot.height = RoundLayoutValue(slot.height, element.dpiScale_);
+    const FrameworkElement* framework = element.AsFrameworkElement();
+    if (framework != nullptr && framework->UseLayoutRounding()) {
+        slot.x = RoundLayoutValue(slot.x, framework->DpiScale());
+        slot.y = RoundLayoutValue(slot.y, framework->DpiScale());
+        slot.width = RoundLayoutValue(slot.width, framework->DpiScale());
+        slot.height = RoundLayoutValue(slot.height, framework->DpiScale());
     }
-    const Thickness margin = element.Margin();
-    const Size minimum = element.MinSize();
-    const Size maximum = element.MaxSize();
-    const bool hasWidth = element.HasWidth();
-    const bool hasHeight = element.HasHeight();
-    const HorizontalAlignment horizontal = element.GetHorizontalAlignment();
-    const VerticalAlignment vertical = element.GetVerticalAlignment();
+    const Thickness margin = framework != nullptr
+        ? framework->Margin() : Thickness{};
+    const Size minimum = framework != nullptr
+        ? framework->MinSize() : Size{};
+    const Size maximum = framework != nullptr
+        ? framework->MaxSize() : Size{1.0e12, 1.0e12};
+    const bool hasWidth = framework != nullptr && framework->HasWidth();
+    const bool hasHeight = framework != nullptr && framework->HasHeight();
+    const HorizontalAlignment horizontal = framework != nullptr
+        ? framework->GetHorizontalAlignment() : HorizontalAlignment::Stretch;
+    const VerticalAlignment vertical = framework != nullptr
+        ? framework->GetVerticalAlignment() : VerticalAlignment::Stretch;
     const Size contentAvailable = Deflate({slot.width, slot.height}, margin);
     const Size desiredContent = Deflate(element.desiredSize_, margin);
     const Size constrainedDesired = ClampSize(
@@ -651,7 +689,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     Size finalSize;
     if (hasWidth) {
         finalSize.width = ClampDimension(
-            element.Width(), minimum.width, maximum.width);
+            framework->Width(), minimum.width, maximum.width);
     } else if (horizontal == HorizontalAlignment::Stretch) {
         finalSize.width = ClampDimension(
             contentAvailable.width, minimum.width, maximum.width);
@@ -662,7 +700,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     }
     if (hasHeight) {
         finalSize.height = ClampDimension(
-            element.Height(), minimum.height, maximum.height);
+            framework->Height(), minimum.height, maximum.height);
     } else if (vertical == VerticalAlignment::Stretch) {
         finalSize.height = ClampDimension(
             contentAvailable.height, minimum.height, maximum.height);
@@ -729,11 +767,12 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
         }
     }
 
-    for (LayoutElement* element : measureQueue_) {
+    for (UIElement* element : measureQueue_) {
         if (element != nullptr && element != root_ && !element->measureValid_) {
-            const Size constraint = element->layoutParent_ != nullptr
-                ? element->layoutParent_->renderSize_
-                : rootAvailableSize_;
+            UIElement* parent = element->layoutAttached_
+                ? element->LayoutParent() : nullptr;
+            const Size constraint = parent != nullptr
+                ? parent->renderSize_ : rootAvailableSize_;
             Base::Result<void> measured = MeasureElement(*element, constraint);
             if (!measured) {
                 flushing_ = false;
@@ -741,7 +780,7 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
             }
         }
     }
-    for (LayoutElement* element : arrangeQueue_) {
+    for (UIElement* element : arrangeQueue_) {
         if (element != nullptr && element != root_ && !element->arrangeValid_) {
             Rect slot = element->layoutSlot_;
             if (slot.width == 0.0 && slot.height == 0.0) {

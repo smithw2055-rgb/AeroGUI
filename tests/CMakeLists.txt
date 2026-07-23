@@ -289,7 +289,7 @@ if(WIN32 AND TARGET AeroRhiD3D11)
 
     add_executable(AeroD3D11SurfaceTests unit/D3D11SurfaceTests.cpp)
     target_link_libraries(
-        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 user32)
+        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 d3d11 user32)
     target_compile_features(AeroD3D11SurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11SurfaceTests PROPERTIES
         CXX_STANDARD 17

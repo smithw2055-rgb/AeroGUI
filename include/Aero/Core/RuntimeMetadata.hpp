@@ -9,15 +9,10 @@ namespace Detail {
 inline Base::Result<void> RegisterAeroPresentationMetadataModule(
     MetaRegistrationContext& context,
     void*) noexcept {
-    Base::Result<CorePresentationMetadata> registered =
-        TryRegisterCorePresentationMetadata(
-            context.types,
-            context.dependencyProperties,
-            context.routedEvents);
-    if (!registered) {
-        return registered.GetStatus();
-    }
-    return TryRegisterControlPrimitiveMetadata(context);
+    return TryRegisterPresentationMetadata(
+        context.types,
+        context.dependencyProperties,
+        context.routedEvents);
 }
 
 } // namespace Detail

@@ -13,31 +13,25 @@
 
 namespace Aero::Markup {
 
-using XamlAsTreeNodeCallback = Core::TreeNode* (*)(
-    Base::Object& object, void* context) noexcept;
-using XamlAsLayoutElementCallback = Core::LayoutElement* (*)(
-    Base::Object& object, void* context) noexcept;
-using XamlAsRenderElementCallback = Core::RenderElement* (*)(
+using XamlAsVisualCallback = Core::Visual* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlAsContentPresenterCallback = Core::ContentPresenter* (*)(
     Base::Object& object, void* context) noexcept;
-using XamlAsContentOwnerCallback = Core::LayoutElement* (*)(
+using XamlAsContentOwnerCallback = Core::UIElement* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlAsStackPanelCallback = Core::StackPanel* (*)(
     Base::Object& object, void* context) noexcept;
-using XamlAsCollectionOwnerCallback = Core::LayoutElement* (*)(
+using XamlAsCollectionOwnerCallback = Core::UIElement* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlConfigureCollectionChildCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
-    Core::LayoutElement& parent,
-    Core::LayoutElement& child,
+    Core::UIElement& parent,
+    Core::UIElement& child,
     void* context) noexcept;
 
 struct XamlVisualTreeTypeRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
-    XamlAsTreeNodeCallback asTreeNode = nullptr;
-    XamlAsLayoutElementCallback asLayoutElement = nullptr;
-    XamlAsRenderElementCallback asRenderElement = nullptr;
+    XamlAsVisualCallback asVisual = nullptr;
     void* context = nullptr;
 };
 
@@ -102,8 +96,8 @@ private:
     struct Edge final {
         Base::Ref<Base::Object> parentOwner;
         Base::Ref<Base::Object> childOwner;
-        Core::LayoutElement* parent = nullptr;
-        Core::LayoutElement* child = nullptr;
+        Core::UIElement* parent = nullptr;
+        Core::UIElement* child = nullptr;
         Core::ContentPresenter* presenter = nullptr;
         Core::StackPanel* stackPanel = nullptr;
         XamlConfigureCollectionChildCallback configureCollectionChild = nullptr;
@@ -123,10 +117,10 @@ private:
     Base::Vector<XamlContentPresenterRegistration> presenters_;
     Base::Vector<XamlCollectionContentRegistration> collections_;
     Base::Vector<Edge> edges_;
-    Base::Vector<Core::TreeNode*> nodes_;
-    Core::TreeNode* rootNode_ = nullptr;
-    Core::LayoutElement* rootLayout_ = nullptr;
-    Core::RenderElement* rootRender_ = nullptr;
+    Base::Vector<Core::Visual*> nodes_;
+    Core::Visual* rootNode_ = nullptr;
+    Core::UIElement* rootLayout_ = nullptr;
+    Core::FrameworkElement* rootRender_ = nullptr;
     bool mounted_ = false;
 
     const XamlVisualTreeTypeRegistration* FindType(
@@ -135,18 +129,18 @@ private:
         Core::TypeId type) const noexcept;
     const XamlCollectionContentRegistration* FindCollection(
         Core::TypeId type, Core::MemberId member) const noexcept;
-    Base::Result<Core::TreeNode*> ResolveTreeNode(
+    Base::Result<Core::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) const noexcept;
-    Base::Result<Core::LayoutElement*> ResolveLayoutElement(
+    Base::Result<Core::UIElement*> ResolveUIElement(
         Base::Object& object, Core::TypeId type) const noexcept;
-    Core::RenderElement* ResolveRenderElement(
+    Core::FrameworkElement* ResolveFrameworkElement(
         Base::Object& object, Core::TypeId type) const noexcept;
     Base::Result<void> StageContent(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
     Base::Result<void> AddNode(
-        Core::TreeNode& node) noexcept;
+        Core::Visual& node) noexcept;
     Base::Result<void> AttachEdge(Edge& edge) noexcept;
     void DetachEdge(Edge& edge) noexcept;
 

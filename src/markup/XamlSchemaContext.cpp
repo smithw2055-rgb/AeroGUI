@@ -393,19 +393,6 @@ Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
             Base::ErrorCode::AlreadyExists,
             "XAML type adapter is already registered");
     }
-    if (registration.contentMember != Core::InvalidMemberId) {
-        const Core::PropertyInfo* content =
-            types_->FindProperty(registration.contentMember);
-        if (content == nullptr ||
-            (!HasPropertyFlag(content->Flags(), Core::PropertyFlags::Attached) &&
-             !types_->IsDerivedFrom(
-                 registration.type,
-                 content->OwnerType()))) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageInvalidContentMember);
-        }
-    }
     return typeAdapters_.TryPushBack(registration);
 }
 
@@ -546,12 +533,8 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMember(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    Core::MemberId contentMember = types_->FindContentMember(targetType);
-    // Deprecated compatibility fallback for one release cycle.
-    if (contentMember == Core::InvalidMemberId) {
-        const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(targetType);
-        if (adapter != nullptr) contentMember = adapter->contentMember;
-    }
+    const Core::MemberId contentMember =
+        types_->FindContentMember(targetType);
     if (contentMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,

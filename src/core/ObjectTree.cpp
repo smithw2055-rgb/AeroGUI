@@ -1,4 +1,5 @@
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/Layout.hpp>
 
 #include <Aero/Base/Assert.hpp>
 
@@ -74,72 +75,17 @@ void Detail::RoutedHandlerStorage::Invoke(
     operations_->invoke(storage_, sender, args);
 }
 
-TreeNode::TreeNode(TypeId runtimeType) noexcept
+Visual::Visual(TypeId runtimeType) noexcept
     : DependencyObject(runtimeType),
       logicalChildren_(),
-      visualChildren_(),
-      handlers_() {}
+      visualChildren_() {}
 
-TreeNode::~TreeNode() {
+Visual::~Visual() {
     AERO_ASSERT(tree_ == nullptr);
     AERO_ASSERT(logicalParent_ == nullptr);
     AERO_ASSERT(visualParent_ == nullptr);
     AERO_ASSERT(logicalChildren_.Empty());
     AERO_ASSERT(visualChildren_.Empty());
-    CleanupHandlers();
-}
-
-Base::Result<void> TreeNode::TryAddHandler(
-    RoutedEventHandle event,
-    const Detail::RoutedHandlerStorage& handler,
-    bool handledEventsToo) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return access.GetStatus();
-    }
-    if (!event.IsValid() || handler.Empty()) {
-        return InvalidArgument("Routed event handler requires a valid event and callback");
-    }
-    if (nextHandlerSequence_ == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Routed event handler sequence space exhausted");
-    }
-
-    HandlerRecord record;
-    record.event = event;
-    record.handler = handler;
-    record.sequence = nextHandlerSequence_;
-    record.handledEventsToo = handledEventsToo;
-    Base::Result<void> appended = handlers_.TryPushBack(record);
-    if (!appended) {
-        return appended.GetStatus();
-    }
-    ++nextHandlerSequence_;
-    return {};
-}
-
-bool TreeNode::RemoveHandler(
-    RoutedEventHandle event,
-    const Detail::RoutedHandlerStorage& handler) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access || !event.IsValid() || handler.Empty()) return false;
-    for (std::uint32_t index = 0U; index < handlers_.Size(); ++index) {
-        if (handlers_[index].event == event &&
-            handlers_[index].handler.Equals(handler)) {
-            for (std::uint32_t current = index + 1U;
-                 current < handlers_.Size(); ++current) {
-                handlers_[current - 1U] = std::move(handlers_[current]);
-            }
-            handlers_.PopBack();
-            return true;
-        }
-    }
-    return false;
-}
-
-void TreeNode::CleanupHandlers() noexcept {
-    handlers_.Clear();
 }
 
 ObjectTree::ObjectTree(
@@ -178,8 +124,8 @@ Base::Result<void> ObjectTree::Initialize() noexcept {
     return {};
 }
 
-Base::Result<TreeNodeHandle> ObjectTree::GetHandle(
-    const TreeNode& node) const noexcept {
+Base::Result<VisualHandle> ObjectTree::GetHandle(
+    const Visual& node) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
     if (node.tree_ != this || !node.handle_.IsValid() ||
@@ -193,13 +139,13 @@ Base::Result<TreeNodeHandle> ObjectTree::GetHandle(
     return node.handle_;
 }
 
-TreeNode* ObjectTree::ResolveHandle(TreeNodeHandle handle) const noexcept {
+Visual* ObjectTree::ResolveHandle(VisualHandle handle) const noexcept {
     if (!handle.IsValid() || handle.index >= handles_.Size()) return nullptr;
     const HandleEntry& entry = handles_[handle.index];
     return entry.generation == handle.generation ? entry.node : nullptr;
 }
 
-Base::Result<void> ObjectTree::RegisterHandleSubtree(TreeNode& node) noexcept {
+Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
     if (!node.handle_.IsValid()) {
         HandleEntry entry;
         entry.node = &node;
@@ -207,7 +153,7 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(TreeNode& node) noexcept {
         if (!appended) return appended.GetStatus();
         node.handle_ = {handles_.Size() - 1U, entry.generation};
     }
-    for (TreeNode* child : node.logicalChildren_) {
+    for (Visual* child : node.logicalChildren_) {
         if (child != nullptr) {
             Base::Result<void> registered = RegisterHandleSubtree(*child);
             if (!registered) return registered;
@@ -216,8 +162,8 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(TreeNode& node) noexcept {
     return {};
 }
 
-void ObjectTree::InvalidateHandleSubtree(TreeNode& node) noexcept {
-    for (TreeNode* child : node.logicalChildren_) {
+void ObjectTree::InvalidateHandleSubtree(Visual& node) noexcept {
+    for (Visual* child : node.logicalChildren_) {
         if (child != nullptr) InvalidateHandleSubtree(*child);
     }
     if (node.handle_.IsValid() && node.handle_.index < handles_.Size()) {
@@ -232,8 +178,8 @@ void ObjectTree::InvalidateHandleSubtree(TreeNode& node) noexcept {
 }
 
 Base::Result<void> ObjectTree::VerifyMutation(
-    const TreeNode& first,
-    const TreeNode* second) const noexcept {
+    const Visual& first,
+    const Visual* second) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
@@ -254,9 +200,9 @@ Base::Result<void> ObjectTree::VerifyMutation(
 }
 
 bool ObjectTree::IsLogicalAncestor(
-    const TreeNode& possibleAncestor,
-    const TreeNode& node) const noexcept {
-    const TreeNode* current = node.logicalParent_;
+    const Visual& possibleAncestor,
+    const Visual& node) const noexcept {
+    const Visual* current = node.logicalParent_;
     while (current != nullptr) {
         if (current == &possibleAncestor) {
             return true;
@@ -267,9 +213,9 @@ bool ObjectTree::IsLogicalAncestor(
 }
 
 bool ObjectTree::IsVisualAncestor(
-    const TreeNode& possibleAncestor,
-    const TreeNode& node) const noexcept {
-    const TreeNode* current = node.visualParent_;
+    const Visual& possibleAncestor,
+    const Visual& node) const noexcept {
+    const Visual* current = node.visualParent_;
     while (current != nullptr) {
         if (current == &possibleAncestor) {
             return true;
@@ -280,7 +226,7 @@ bool ObjectTree::IsVisualAncestor(
 }
 
 Base::Result<void> ObjectTree::QueueLifecycleSubtree(
-    TreeNode& node,
+    Visual& node,
     bool loaded) noexcept {
     LifecycleRecord record;
     record.node = &node;
@@ -291,7 +237,7 @@ Base::Result<void> ObjectTree::QueueLifecycleSubtree(
     if (!appended) {
         return appended;
     }
-    for (TreeNode* child : node.logicalChildren_) {
+    for (Visual* child : node.logicalChildren_) {
         Base::Result<void> childResult = QueueLifecycleSubtree(*child, loaded);
         if (!childResult) {
             return childResult;
@@ -301,7 +247,7 @@ Base::Result<void> ObjectTree::QueueLifecycleSubtree(
 }
 
 Base::Result<void> ObjectTree::SetLoadedSubtree(
-    TreeNode& node,
+    Visual& node,
     bool loaded) noexcept {
     if (node.loaded_ == loaded) {
         return {};
@@ -318,7 +264,7 @@ Base::Result<void> ObjectTree::SetLoadedSubtree(
     }
 
     node.loaded_ = loaded;
-    for (TreeNode* child : node.logicalChildren_) {
+    for (Visual* child : node.logicalChildren_) {
         Base::Result<void> childResult = SetLoadedSubtree(*child, loaded);
         if (!childResult) {
             return childResult;
@@ -327,7 +273,7 @@ Base::Result<void> ObjectTree::SetLoadedSubtree(
     return {};
 }
 
-Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
+Base::Result<void> ObjectTree::SetRoot(Visual* root) noexcept {
     if (root == root_) {
         return {};
     }
@@ -335,7 +281,7 @@ Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
         return {};
     }
 
-    TreeNode& verificationNode = root != nullptr ? *root : *root_;
+    Visual& verificationNode = root != nullptr ? *root : *root_;
     Base::Result<void> verified = VerifyMutation(verificationNode, root_);
     if (!verified) {
         return verified;
@@ -346,7 +292,7 @@ Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
     }
 
     mutating_ = true;
-    TreeNode* oldRoot = root_;
+    Visual* oldRoot = root_;
     if (oldRoot != nullptr) {
         Base::Result<void> unloaded = SetLoadedSubtree(*oldRoot, false);
         if (!unloaded) {
@@ -385,8 +331,8 @@ Base::Result<void> ObjectTree::SetRoot(TreeNode* root) noexcept {
 }
 
 Base::Result<void> ObjectTree::AttachLogical(
-    TreeNode& parent,
-    TreeNode& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;
@@ -419,7 +365,12 @@ Base::Result<void> ObjectTree::AttachLogical(
         return inherited;
     }
     Base::Result<void> appended = parent.logicalChildren_.TryPushBack(&child);
-    AERO_ASSERT(appended);
+    if (!appended) {
+        (void)values_->SetInheritanceParent(child, nullptr);
+        InvalidateHandleSubtree(child);
+        mutating_ = false;
+        return appended.GetStatus();
+    }
     child.logicalParent_ = &parent;
     child.tree_ = this;
     ++version_;
@@ -440,8 +391,8 @@ Base::Result<void> ObjectTree::AttachLogical(
 }
 
 void ObjectTree::RemoveChild(
-    Base::Vector<TreeNode*>& children,
-    TreeNode& child) noexcept {
+    Base::Vector<Visual*>& children,
+    Visual& child) noexcept {
     for (std::uint32_t index = 0U; index < children.Size(); ++index) {
         if (children[index] == &child) {
             for (std::uint32_t current = index + 1U;
@@ -455,8 +406,8 @@ void ObjectTree::RemoveChild(
 }
 
 Base::Result<void> ObjectTree::DetachLogical(
-    TreeNode& parent,
-    TreeNode& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;
@@ -484,8 +435,8 @@ Base::Result<void> ObjectTree::DetachLogical(
 }
 
 Base::Result<void> ObjectTree::AttachVisual(
-    TreeNode& parent,
-    TreeNode& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;
@@ -509,8 +460,8 @@ Base::Result<void> ObjectTree::AttachVisual(
 }
 
 Base::Result<void> ObjectTree::DetachVisual(
-    TreeNode& parent,
-    TreeNode& child) noexcept {
+    Visual& parent,
+    Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) {
         return verified;
@@ -524,7 +475,7 @@ Base::Result<void> ObjectTree::DetachVisual(
     return {};
 }
 
-Base::Result<void> ObjectTree::DetachNode(TreeNode& node) noexcept {
+Base::Result<void> ObjectTree::DetachNode(Visual& node) noexcept {
     Base::Result<void> verified = VerifyMutation(node);
     if (!verified) {
         return verified;
@@ -577,7 +528,7 @@ Base::Result<std::uint32_t> ObjectTree::FlushLifecycle() noexcept {
             continue;
         }
         if (lifecycleHandler_ != nullptr) {
-            const TreeLifecycleEvent event{
+            const ObjectTreeLifecycleEvent event{
                 record.node,
                 record.loaded,
                 record.treeVersion};
@@ -658,26 +609,26 @@ const RoutedEventRegistry::EventRecord* RoutedEventRegistry::Find(
 }
 
 Base::Result<void> RoutedEventRegistry::BuildRoute(
-    TreeNode& source,
+    Visual& source,
     RoutingStrategy strategy,
-    Base::Vector<TreeNode*>& route) noexcept {
+    Base::Vector<Visual*>& route) noexcept {
     if (strategy == RoutingStrategy::Direct) {
         return route.TryPushBack(&source);
     }
-    TreeNode* current = &source;
+    Visual* current = &source;
     while (current != nullptr) {
         Base::Result<void> appended = route.TryPushBack(current);
         if (!appended) {
             return appended;
         }
-        current = current->logicalParent_ != nullptr
-            ? current->logicalParent_
-            : current->visualParent_;
+        current = current->LogicalParent() != nullptr
+            ? current->LogicalParent()
+            : current->VisualParent();
     }
     if (strategy == RoutingStrategy::Tunnel) {
         for (std::uint32_t left = 0U, right = route.Size() - 1U;
              left < right; ++left, --right) {
-            TreeNode* temporary = route[left];
+            Visual* temporary = route[left];
             route[left] = route[right];
             route[right] = temporary;
         }
@@ -686,28 +637,30 @@ Base::Result<void> RoutedEventRegistry::BuildRoute(
 }
 
 void RoutedEventRegistry::InvokeNode(
-    TreeNode& node,
+    Visual& node,
     RoutedEventArgs& args) noexcept {
+    UIElement* element = node.AsUIElement();
+    if (element == nullptr) return;
     for (const ClassHandlerRecord& record : classHandlers_) {
         if (record.event == args.routedEvent &&
-            types_->IsDerivedFrom(node.RuntimeType(), record.classType) &&
+            types_->IsDerivedFrom(element->RuntimeType(), record.classType) &&
             (!args.handled || record.handledEventsToo)) {
-            record.handler.Invoke(&node, args);
+            record.handler.Invoke(element, args);
         }
     }
 
-    const std::uint32_t count = node.handlers_.Size();
+    const std::uint32_t count = element->handlers_.Size();
     for (std::uint32_t index = 0U; index < count; ++index) {
-        const TreeNode::HandlerRecord record = node.handlers_[index];
+        const UIElement::HandlerRecord record = element->handlers_[index];
         if (record.event == args.routedEvent &&
             (!args.handled || record.handledEventsToo)) {
-            record.handler.Invoke(&node, args);
+            record.handler.Invoke(element, args);
         }
     }
 }
 
 Base::Result<void> RoutedEventRegistry::RaiseEvent(
-    TreeNode& source,
+    UIElement& source,
     RoutedEventHandle event,
     RoutedEventArgs* suppliedArgs) noexcept {
     Base::Result<void> access = source.VerifyAccess();
@@ -725,7 +678,7 @@ Base::Result<void> RoutedEventRegistry::RaiseEvent(
         return NotFound("Routed event was not found");
     }
 
-    Base::Vector<TreeNode*> route;
+    Base::Vector<Visual*> route;
     Base::Result<void> built = BuildRoute(source, record->strategy, route);
     if (!built) {
         return built;
@@ -743,7 +696,7 @@ Base::Result<void> RoutedEventRegistry::RaiseEvent(
     }
 
     raising_ = true;
-    for (TreeNode* node : route) {
+    for (Visual* node : route) {
         InvokeNode(*node, args);
     }
     raising_ = false;

@@ -75,13 +75,13 @@ private:
 // dependency-property member provider. Custom derived controls require no
 // additional DP bridge registration.
 AERO_API Base::Result<std::uint32_t>
-TryRegisterCorePresentationXaml(
+TryRegisterAeroPresentationXaml(
     XamlDependencyPropertyBridge& bridge) noexcept;
 
-// Registers core control activation factories and, when supplied, the exact
+// Registers Aero control activation factories and, when supplied, the exact
 // structural adapters for Content/Children ownership transactions.
 AERO_API Base::Result<std::uint32_t>
-TryRegisterCorePresentationXaml(
+TryRegisterAeroPresentationXaml(
     XamlDependencyPropertyBridge& bridge,
     XamlActivationProviderRegistry& activation,
     XamlVisualTreeHost* visualTree = nullptr) noexcept;

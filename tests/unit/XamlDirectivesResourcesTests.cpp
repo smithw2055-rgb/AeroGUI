@@ -312,9 +312,10 @@ struct Fixture final {
 
         Result<MemberId> titleResult = types.TryRegisterProperty(
             nodeType,
-            {StringView("Title"), stringType, PropertyFlags::None});
+            {StringView("Title"), stringType, PropertyFlags::Structural});
         CHECK(titleResult);
         title = titleResult.Value();
+        CHECK(types.TrySetContentMember(nodeType, title));
 
         Result<MemberId> referenceResult = types.TryRegisterProperty(
             nodeType,
@@ -336,9 +337,11 @@ struct Fixture final {
 
         Result<MemberId> childrenResult = types.TryRegisterProperty(
             rootType,
-            {StringView("Children"), nodeType, PropertyFlags::None});
+            {StringView("Children"), nodeType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
         CHECK(childrenResult);
         children = childrenResult.Value();
+        CHECK(types.TrySetContentMember(rootType, children));
 
         CHECK(types.Freeze());
         CHECK(schema.TryRegisterScalarType(
@@ -356,7 +359,6 @@ struct Fixture final {
             children, XamlMemberWriteMode::Collection, &AddChild, nullptr}));
         CHECK(schema.TryRegisterTypeAdapter({
             rootType,
-            children,
             &BeginNode,
             &EndNode,
             &AbortNode,
@@ -367,7 +369,6 @@ struct Fixture final {
             &AddResource}));
         CHECK(schema.TryRegisterTypeAdapter({
             leafType,
-            title,
             &BeginNode,
             &EndNode,
             &AbortNode,

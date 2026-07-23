@@ -113,9 +113,7 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
-    src/markup/XamlBorder.cpp
     src/markup/XamlDynamicResource.cpp
-    src/markup/XamlLayout.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTypeExtension.cpp
     src/markup/XmlTokenizer.cpp
@@ -124,9 +122,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlObjectWriterCompiled.cpp
-    src/markup/XamlPanelLayout.cpp
     src/markup/XamlSchemaContext.cpp
-    src/markup/XamlTextBlock.cpp
     src/markup/XamlVisualTree.cpp)
 
 add_library(Aero::Markup ALIAS AeroMarkup)

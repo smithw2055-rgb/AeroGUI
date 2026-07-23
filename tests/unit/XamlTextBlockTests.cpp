@@ -56,16 +56,14 @@ struct Fixture final {
     }
 
     bool Build() {
-        Result<CorePresentationMetadata> metadata =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(metadata);
-        objectType = metadata.Value().objectType;
-        stringType = metadata.Value().stringType;
-        textBlockType = metadata.Value().textBlockType;
+        CHECK(TryRegisterPresentationMetadata(types, properties));
+        objectType = BuiltinTypes::Object;
+        stringType = BuiltinTypes::String;
+        textBlockType = BuiltinTypes::TextBlock;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         CHECK(activation.TryRegister({textBlockType, &Activate, nullptr}));
-        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
+        CHECK(TryRegisterAeroPresentationXaml(dependencyProperties));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
         return true;

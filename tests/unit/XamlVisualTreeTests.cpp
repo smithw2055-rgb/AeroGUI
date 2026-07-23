@@ -28,10 +28,10 @@ using namespace Aero::Markup;
     std::fprintf(stderr, "CHECK failed at %s:%d: %s\n", __FILE__, __LINE__, #expression); \
     return false; } } while (false)
 
-class TestLeaf final : public RenderElement {
+class TestLeaf final : public FrameworkElement {
 public:
     explicit TestLeaf(TypeId type) noexcept
-        : RenderElement(type) {}
+        : FrameworkElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -86,31 +86,20 @@ struct Fixture final {
         return Ref<Object>(std::move(leaf));
     }
 
-    static TreeNode* AsTreeNode(Object& object, void*) noexcept {
-        return &static_cast<LayoutElement&>(object);
-    }
-    static LayoutElement* AsLayout(Object& object, void*) noexcept {
-        return &static_cast<LayoutElement&>(object);
-    }
-    static RenderElement* AsRender(Object& object, void*) noexcept {
-        return &static_cast<RenderElement&>(object);
-    }
     bool Build() {
         const StringView ns("urn:xaml-visual");
-        Result<CorePresentationMetadata> metadata =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(metadata);
-        objectType = metadata.Value().objectType;
-        doubleType = metadata.Value().doubleType;
-        unsignedType = metadata.Value().unsignedIntegerType;
-        layoutType = metadata.Value().layoutElementType;
-        presenterType = metadata.Value().contentPresenterType;
-        borderType = metadata.Value().borderType;
-        stackPanelType = metadata.Value().stackPanelType;
-        canvasType = metadata.Value().canvasType;
-        gridType = metadata.Value().gridType;
+        CHECK(TryRegisterPresentationMetadata(types, properties));
+        objectType = BuiltinTypes::Object;
+        doubleType = BuiltinTypes::Double;
+        unsignedType = BuiltinTypes::UnsignedInteger;
+        layoutType = BuiltinTypes::UIElement;
+        presenterType = BuiltinTypes::ContentPresenter;
+        borderType = BuiltinTypes::Border;
+        stackPanelType = BuiltinTypes::StackPanel;
+        canvasType = BuiltinTypes::Canvas;
+        gridType = BuiltinTypes::Grid;
         leafType = MakeTypeId(ns, StringView("Leaf"));
-        CHECK(types.TryRegisterType({ns, StringView("Leaf"), metadata.Value().renderElementType,
+        CHECK(types.TryRegisterType({ns, StringView("Leaf"), BuiltinTypes::FrameworkElement,
             TypeFlags::None, nullptr}));
         stackPanelChildren = MakeMemberId(stackPanelType, MemberKind::Property,
             StringView("Children"));
@@ -124,8 +113,7 @@ struct Fixture final {
         CHECK(tree.Initialize());
         CHECK(layout.Initialize());
         CHECK(renderer.Initialize());
-        CHECK(visual.TryRegisterType({leafType, &AsTreeNode, &AsLayout, &AsRender, nullptr}));
-        CHECK(TryRegisterCorePresentationXaml(
+        CHECK(TryRegisterAeroPresentationXaml(
             dependencyProperties, activation, &visual));
         CHECK(activation.TryRegister({leafType, &Activate, nullptr}));
         CHECK(schema.Freeze());
@@ -258,7 +246,7 @@ bool TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount() {
     CHECK(fixture.visual.Mount(*root, fixture.canvasType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 1U && root->VisualChildren().Size() == 1U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
-    const Rect childSlot = static_cast<LayoutElement*>(root->VisualChildren()[0])->
+    const Rect childSlot = static_cast<UIElement*>(root->VisualChildren()[0])->
         LayoutSlot();
     CHECK(childSlot.x == 8.0 && childSlot.y == 9.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
@@ -291,7 +279,7 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
     CHECK(fixture.visual.Mount(*root, fixture.gridType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 1U && root->VisualChildren().Size() == 1U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
-    const Rect childSlot = static_cast<LayoutElement*>(root->VisualChildren()[0])->
+    const Rect childSlot = static_cast<UIElement*>(root->VisualChildren()[0])->
         LayoutSlot();
     CHECK(childSlot.x == 40.0 && childSlot.y == 20.0 &&
         childSlot.width == 40.0 && childSlot.height == 20.0);

@@ -18,10 +18,10 @@ using namespace Aero::Core;
         } \
     } while (false)
 
-class FixedElement final : public LayoutElement {
+class FixedElement final : public FrameworkElement {
 public:
     FixedElement(TypeId type, Size desired) noexcept
-        : LayoutElement(type), desired_(desired) {}
+        : FrameworkElement(type), desired_(desired) {}
 
     void SetDesired(Size value) noexcept { desired_ = value; }
     std::uint32_t MeasureCount() const noexcept { return measureCount_; }
@@ -45,15 +45,15 @@ private:
     std::uint32_t arrangeCount_ = 0U;
 };
 
-class VerticalPanel final : public LayoutElement {
+class VerticalPanel final : public FrameworkElement {
 public:
-    explicit VerticalPanel(TypeId type) noexcept : LayoutElement(type) {}
+    explicit VerticalPanel(TypeId type) noexcept : FrameworkElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
         double width = 0.0;
         double height = 0.0;
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             Result<void> measured = MeasureChild(*child, available);
             if (!measured) {
                 return measured.GetStatus();
@@ -68,7 +68,7 @@ protected:
 
     Result<Size> ArrangeOverride(Size finalSize) noexcept override {
         double y = 0.0;
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             const double height = child->DesiredSize().height;
             Result<void> arranged = ArrangeChild(
                 *child, {0.0, y, finalSize.width, height});
@@ -95,17 +95,14 @@ struct Fixture final {
     TypeId presenterType = InvalidTypeId;
 
     bool Build() {
-        Result<CorePresentationMetadata> registered =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(registered);
-        const CorePresentationMetadata& metadata = registered.Value();
-        objectType = metadata.objectType;
-        elementType = metadata.layoutElementType;
-        stackPanelType = metadata.stackPanelType;
-        canvasType = metadata.canvasType;
-        gridType = metadata.gridType;
-        borderType = metadata.borderType;
-        presenterType = metadata.contentPresenterType;
+        CHECK(TryRegisterPresentationMetadata(types, properties));
+        objectType = BuiltinTypes::Object;
+        elementType = BuiltinTypes::FrameworkElement;
+        stackPanelType = BuiltinTypes::StackPanel;
+        canvasType = BuiltinTypes::Canvas;
+        gridType = BuiltinTypes::Grid;
+        borderType = BuiltinTypes::Border;
+        presenterType = BuiltinTypes::ContentPresenter;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         return true;
@@ -350,7 +347,7 @@ bool TestBorderPaddingDecoratorLayout() {
 }
 
 bool TestContentPresenterLayout() {
-    // ContentPresenter is a RenderElement too; pure-layout use stays valid.
+    // ContentPresenter is a FrameworkElement too; pure-layout use stays valid.
     Fixture fixture;
     CHECK(fixture.Build());
     EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
@@ -474,9 +471,9 @@ bool TestGridFixedAutoAndStarTracks() {
     FixedElement automatic(fixture.elementType, {30.0, 8.0});
     FixedElement star(fixture.elementType, {16.0, 25.0});
     CHECK(tree.SetRoot(&root));
-    for (LayoutElement* child : {static_cast<LayoutElement*>(&fixed),
-            static_cast<LayoutElement*>(&automatic),
-            static_cast<LayoutElement*>(&star)}) {
+    for (UIElement* child : {static_cast<UIElement*>(&fixed),
+            static_cast<UIElement*>(&automatic),
+            static_cast<UIElement*>(&star)}) {
         CHECK(tree.AttachLogical(root, *child));
         CHECK(tree.AttachVisual(root, *child));
         CHECK(layout.Attach(root, *child));
@@ -503,9 +500,9 @@ bool TestGridFixedAutoAndStarTracks() {
     CHECK(std::fabs(star.LayoutSlot().width - (50.0 / 3.0)) < 0.000001);
 
     CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
-    for (LayoutElement* child : {static_cast<LayoutElement*>(&star),
-            static_cast<LayoutElement*>(&automatic),
-            static_cast<LayoutElement*>(&fixed)}) {
+    for (UIElement* child : {static_cast<UIElement*>(&star),
+            static_cast<UIElement*>(&automatic),
+            static_cast<UIElement*>(&fixed)}) {
         CHECK(layout.Detach(root, *child));
         CHECK(tree.DetachVisual(root, *child));
         CHECK(tree.DetachLogical(root, *child));

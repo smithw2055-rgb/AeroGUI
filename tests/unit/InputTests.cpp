@@ -12,10 +12,10 @@ using namespace Aero::Base;
 using namespace Aero::Core;
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "CHECK failed %d: %s\n", __LINE__, #x); return false; } } while (false)
 
-class Box final : public LayoutElement {
+class Box final : public UIElement {
 public:
     Box(TypeId type, Size desired) noexcept
-        : LayoutElement(type), desired_(desired) {}
+        : UIElement(type), desired_(desired) {}
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
         return Size{std::min(desired_.width, available.width),
@@ -34,20 +34,17 @@ struct Fixture final {
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
     bool Build() {
-        Result<CorePresentationMetadata> registered =
-            TryRegisterCorePresentationMetadata(types, properties, &events); CHECK(registered);
+        CHECK(TryRegisterPresentationMetadata(types, properties, &events));
         const StringView ns("urn:input");
-        objectType=registered.Value().objectType;
-        rootType=registered.Value().stackPanelType;
+        objectType=BuiltinTypes::Object;
+        rootType=BuiltinTypes::StackPanel;
         boxType=MakeTypeId(ns,StringView("Box"));
         CHECK(types.TryRegisterType({ns,StringView("Box"),
-            registered.Value().layoutElementType,TypeFlags::None,nullptr}));
+            BuiltinTypes::UIElement,TypeFlags::None,nullptr}));
         CHECK(types.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };
 
-LayoutElement* CastStack(TreeNode& node, void*) noexcept { return static_cast<LayoutElement*>(&static_cast<StackPanel&>(node)); }
-LayoutElement* CastBox(TreeNode& node, void*) noexcept { return static_cast<LayoutElement*>(&static_cast<Box&>(node)); }
 struct PointerLog final { std::uint32_t count=0; std::uint32_t id=0; double x=0; double y=0; };
 struct PointerRecorder final {
     PointerLog* log = nullptr;
@@ -86,10 +83,10 @@ bool TestVisualHitTesting() {
     Box first(f.boxType,{100,30});
     Box second(f.boxType,{100,20});
     CHECK(f.tree.SetRoot(&root));
-    for (LayoutElement* child : {static_cast<LayoutElement*>(&first),static_cast<LayoutElement*>(&second)}) {
+    for (UIElement* child : {static_cast<UIElement*>(&first),static_cast<UIElement*>(&second)}) {
         CHECK(f.tree.AttachLogical(root,*child)); CHECK(f.tree.AttachVisual(root,*child)); CHECK(f.layout.Attach(root,*child)); }
     CHECK(f.layout.SetRoot(&root,{100,80})); CHECK(f.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
-    HitTestManager hit(f.types); CHECK(hit.TryRegisterType({f.rootType,&CastStack,nullptr})); CHECK(hit.TryRegisterType({f.boxType,&CastBox,nullptr}));
+    HitTestManager hit;
     Result<HitTestResult> firstHit=hit.HitTest(root,{10,10}); CHECK(firstHit && firstHit.Value().target==&first);
     Result<HitTestResult> secondHit=hit.HitTest(root,{10,35}); CHECK(secondHit && secondHit.Value().target==&second);
     CHECK(second.SetHitTestVisible(false));
@@ -151,7 +148,7 @@ bool TestVisualHitTesting() {
     Result<bool> cleared=focus.ClearFocus(); CHECK(cleared && cleared.Value() && focus.FocusedNode()==nullptr && lostCount==1U);
     Result<KeyboardDispatchResult> unfocused=keyboard.Dispatch({KeyboardAction::Down,65U,0U,false}); CHECK(unfocused && !unfocused.Value().routed && unfocused.Value().target==nullptr);
     Result<TextInputDispatchResult> unfocusedText=textInput.Dispatch({StringView("text")}); CHECK(unfocusedText && !unfocusedText.Value().routed && unfocusedText.Value().target==nullptr);
-    CHECK(f.layout.SetRoot(nullptr,{0,0})); for (LayoutElement* child : {static_cast<LayoutElement*>(&second),static_cast<LayoutElement*>(&first)}) { CHECK(f.layout.Detach(root,*child)); CHECK(f.tree.DetachVisual(root,*child)); CHECK(f.tree.DetachLogical(root,*child)); CHECK(f.values.DetachObject(*child)); } CHECK(f.tree.SetRoot(nullptr)); CHECK(f.values.DetachObject(root)); return true;
+    CHECK(f.layout.SetRoot(nullptr,{0,0})); for (UIElement* child : {static_cast<UIElement*>(&second),static_cast<UIElement*>(&first)}) { CHECK(f.layout.Detach(root,*child)); CHECK(f.tree.DetachVisual(root,*child)); CHECK(f.tree.DetachLogical(root,*child)); CHECK(f.values.DetachObject(*child)); } CHECK(f.tree.SetRoot(nullptr)); CHECK(f.values.DetachObject(root)); return true;
 }
 }
 int main(){ if(!TestVisualHitTesting()) return 1; std::puts("Aero input tests passed"); return 0; }

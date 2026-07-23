@@ -469,12 +469,13 @@ private:
 
 } // namespace Aero::Core
 
-#define AERO_DETAIL_DECLARE_METADATA(classType, parentType, xamlNamespace, typeName) \
+#define AERO_DECLARE_METADATA_NAMED( \
+    classType, parentType, metadataNamespace, metadataName) \
 private: \
     inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
         Aero::Core::MakeTypeId( \
-            Aero::Base::StringView(xamlNamespace), \
-            Aero::Base::StringView(typeName)); \
+            Aero::Base::StringView(metadataNamespace), \
+            Aero::Base::StringView(metadataName)); \
 public: \
     static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
         return StaticTypeIdValue_; \
@@ -485,17 +486,15 @@ private: \
     using SelfClass = classType; \
     using ParentClass = parentType; \
     static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { \
-        return Aero::Base::StringView(xamlNamespace); \
+        return Aero::Base::StringView(metadataNamespace); \
     } \
     static constexpr Aero::Base::StringView StaticMetadataName() noexcept { \
-        return Aero::Base::StringView(typeName); \
+        return Aero::Base::StringView(metadataName); \
     } \
     static void StaticFillMetadata( \
         Aero::Core::MetaRegistrationBuilder& helper) noexcept;
 
-#define AERO_DETAIL_DECLARE_METADATA_2(classType, parentType) \
-    AERO_DETAIL_DECLARE_METADATA_DEFAULT(classType, parentType)
-#define AERO_DETAIL_DECLARE_METADATA_DEFAULT(classType, parentType) \
+#define AERO_DECLARE_METADATA(classType, parentType) \
 private: \
     inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
         Aero::Core::MakeTypeId(Aero::Base::StringView(#classType)); \
@@ -516,18 +515,6 @@ private: \
     } \
     static void StaticFillMetadata( \
         Aero::Core::MetaRegistrationBuilder& helper) noexcept;
-#define AERO_DETAIL_DECLARE_METADATA_4( \
-    classType, parentType, xamlNamespace, typeName) \
-    AERO_DETAIL_DECLARE_METADATA( \
-        classType, parentType, xamlNamespace, typeName)
-#define AERO_DETAIL_DECLARE_METADATA_SELECT(_1, _2, _3, _4, selected, ...) \
-    selected
-#define AERO_DECLARE_METADATA(...) \
-    AERO_DETAIL_DECLARE_METADATA_SELECT( \
-        __VA_ARGS__, \
-        AERO_DETAIL_DECLARE_METADATA_4, \
-        AERO_DETAIL_DECLARE_METADATA_INVALID_3, \
-        AERO_DETAIL_DECLARE_METADATA_2)(__VA_ARGS__)
 
 #define AERO_DECLARE_TYPE_ID(typeName) \
     inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \

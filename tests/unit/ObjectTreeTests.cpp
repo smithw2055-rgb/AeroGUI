@@ -1,3 +1,4 @@
+#include <Aero/Core/Layout.hpp>
 #include <Aero/Core/ObjectTree.hpp>
 #include <Aero/Core/Presentation.hpp>
 
@@ -18,7 +19,7 @@ using namespace Aero::Core;
     } while (false)
 
 struct RouteLog final {
-    TreeNode* nodes[32]{};
+    Visual* nodes[32]{};
     std::uint32_t count = 0U;
     bool markHandled = false;
 };
@@ -28,7 +29,7 @@ struct RouteRecorder final {
     void operator()(Aero::Base::Object* sender,
         const RoutedEventArgs& args) const noexcept {
         if (log->count < 32U) {
-            log->nodes[log->count++] = static_cast<TreeNode*>(sender);
+            log->nodes[log->count++] = static_cast<Visual*>(sender);
         }
         if (log->markHandled) {
             args.handled = true;
@@ -37,13 +38,13 @@ struct RouteRecorder final {
 };
 
 struct LifecycleLog final {
-    TreeNode* nodes[64]{};
+    Visual* nodes[64]{};
     bool loaded[64]{};
     std::uint32_t count = 0U;
 };
 
 void RecordLifecycle(
-    const TreeLifecycleEvent& event,
+    const ObjectTreeLifecycleEvent& event,
     void* context) noexcept {
     LifecycleLog* log = static_cast<LifecycleLog*>(context);
     if (log->count < 64U) {
@@ -62,7 +63,8 @@ struct Fixture final {
 
     TypeId objectType = InvalidTypeId;
     TypeId eventArgsType = InvalidTypeId;
-    TypeId nodeType = InvalidTypeId;
+    TypeId visualType = InvalidTypeId;
+    TypeId elementType = InvalidTypeId;
     TypeId controlType = InvalidTypeId;
     RoutedEventHandle bubble;
     RoutedEventHandle tunnel;
@@ -72,7 +74,8 @@ struct Fixture final {
         const StringView ns("urn:aero");
         objectType = MakeTypeId(ns, StringView("Object"));
         eventArgsType = MakeTypeId(ns, StringView("RoutedEventArgs"));
-        nodeType = MakeTypeId(ns, StringView("TreeNode"));
+        visualType = MakeTypeId(ns, StringView("Visual"));
+        elementType = MakeTypeId(ns, StringView("UIElement"));
         controlType = MakeTypeId(ns, StringView("Control"));
 
         CHECK(types.TryRegisterType({
@@ -82,26 +85,29 @@ struct Fixture final {
             ns, StringView("RoutedEventArgs"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({
-            ns, StringView("TreeNode"), objectType,
+            ns, StringView("Visual"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.TryRegisterType({
-            ns, StringView("Control"), nodeType,
+            ns, StringView("UIElement"), visualType,
+            TypeFlags::None, nullptr}));
+        CHECK(types.TryRegisterType({
+            ns, StringView("Control"), elementType,
             TypeFlags::None, nullptr}));
 
         Result<RoutedEventHandle> bubbleResult = events.TryRegister({
-            StringView("Click"), nodeType, eventArgsType,
+            StringView("Click"), elementType, eventArgsType,
             RoutingStrategy::Bubble});
         CHECK(bubbleResult);
         bubble = bubbleResult.Value();
 
         Result<RoutedEventHandle> tunnelResult = events.TryRegister({
-            StringView("PreviewClick"), nodeType, eventArgsType,
+            StringView("PreviewClick"), elementType, eventArgsType,
             RoutingStrategy::Tunnel});
         CHECK(tunnelResult);
         tunnel = tunnelResult.Value();
 
         Result<RoutedEventHandle> directResult = events.TryRegister({
-            StringView("Activated"), nodeType, eventArgsType,
+            StringView("Activated"), elementType, eventArgsType,
             RoutingStrategy::Direct});
         CHECK(directResult);
         direct = directResult.Value();
@@ -122,19 +128,19 @@ bool TestLogicalVisualTreeAndLifecycle() {
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
 
-    TreeNode root(fixture.nodeType);
-    TreeNode child(fixture.controlType);
-    TreeNode leaf(fixture.controlType);
+    Visual root(fixture.visualType);
+    Visual child(fixture.controlType);
+    Visual leaf(fixture.controlType);
 
     LifecycleLog lifecycle;
     tree.SetLifecycleHandler(&RecordLifecycle, &lifecycle);
 
     CHECK(tree.SetRoot(&root));
-    Result<TreeNodeHandle> rootHandle = tree.GetHandle(root);
+    Result<VisualHandle> rootHandle = tree.GetHandle(root);
     CHECK(rootHandle && tree.ResolveHandle(rootHandle.Value()) == &root);
     CHECK(root.IsLoaded());
     CHECK(tree.AttachLogical(root, child));
-    Result<TreeNodeHandle> childHandle = tree.GetHandle(child);
+    Result<VisualHandle> childHandle = tree.GetHandle(child);
     CHECK(childHandle && tree.ResolveHandle(childHandle.Value()) == &child);
     CHECK(tree.AttachLogical(child, leaf));
     CHECK(child.LogicalParent() == &root);
@@ -187,9 +193,9 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
 
-    TreeNode root(fixture.nodeType);
-    TreeNode child(fixture.controlType);
-    TreeNode leaf(fixture.controlType);
+    UIElement root(fixture.elementType);
+    UIElement child(fixture.controlType);
+    UIElement leaf(fixture.controlType);
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
     CHECK(tree.AttachLogical(child, leaf));
@@ -257,15 +263,15 @@ bool TestClassHandlersAndRegistrationRules() {
     RouteLog classLog;
     CHECK(fixture.events.RegisterClassHandler(
         fixture.bubble,
-        fixture.nodeType,
+        fixture.elementType,
         RoutedEventHandler(RouteRecorder{&classLog})));
 
     EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
     CHECK(values.Initialize());
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
-    TreeNode root(fixture.nodeType);
-    TreeNode child(fixture.controlType);
+    UIElement root(fixture.elementType);
+    UIElement child(fixture.controlType);
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
 
@@ -275,7 +281,7 @@ bool TestClassHandlersAndRegistrationRules() {
     CHECK(classLog.nodes[1] == &root);
 
     Result<RoutedEventHandle> late = fixture.events.TryRegister({
-        StringView("Late"), fixture.nodeType, fixture.eventArgsType,
+        StringView("Late"), fixture.elementType, fixture.eventArgsType,
         RoutingStrategy::Bubble});
     CHECK(!late);
     CHECK(late.GetStatus().code == ErrorCode::InvalidState);

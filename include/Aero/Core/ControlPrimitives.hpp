@@ -5,32 +5,24 @@
 
 namespace Aero::Core {
 
-// Transitional semantic names for the current compact presentation hierarchy.
-// They provide stable vocabulary to external code while Visual/UIElement/
-// FrameworkElement responsibilities are separated internally in later runtime
-// work without forcing custom controls to inherit concrete built-in controls.
-using Visual = TreeNode;
-using UIElement = LayoutElement;
-using FrameworkElement = RenderElement;
-
-class AERO_API Panel : public RenderElement {
-    AERO_DECLARE_METADATA(Panel, RenderElement)
+class AERO_API Panel : public FrameworkElement {
+    AERO_DECLARE_METADATA(Panel, FrameworkElement)
 protected:
-    explicit Panel(TypeId runtimeType) noexcept : RenderElement(runtimeType) {}
+    explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Panel() override = default;
 };
 
-class AERO_API Decorator : public RenderElement {
-    AERO_DECLARE_METADATA(Decorator, RenderElement)
+class AERO_API Decorator : public FrameworkElement {
+    AERO_DECLARE_METADATA(Decorator, FrameworkElement)
 protected:
-    explicit Decorator(TypeId runtimeType) noexcept : RenderElement(runtimeType) {}
+    explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Decorator() override = default;
 };
 
-class AERO_API Control : public RenderElement {
-    AERO_DECLARE_METADATA(Control, RenderElement)
+class AERO_API Control : public FrameworkElement {
+    AERO_DECLARE_METADATA(Control, FrameworkElement)
 protected:
-    explicit Control(TypeId runtimeType) noexcept : RenderElement(runtimeType) {}
+    explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
 };
 

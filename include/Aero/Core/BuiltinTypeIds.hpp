@@ -8,11 +8,11 @@ namespace Aero::Core::BuiltinTypes {
 inline constexpr TypeId Object = MakeTypeId(Base::StringView("Object"));
 inline constexpr TypeId DependencyObject =
     MakeTypeId(Base::StringView("DependencyObject"));
-inline constexpr TypeId TreeNode = MakeTypeId(Base::StringView("TreeNode"));
-inline constexpr TypeId LayoutElement =
-    MakeTypeId(Base::StringView("LayoutElement"));
-inline constexpr TypeId RenderElement =
-    MakeTypeId(Base::StringView("RenderElement"));
+inline constexpr TypeId Visual = MakeTypeId(Base::StringView("Visual"));
+inline constexpr TypeId UIElement =
+    MakeTypeId(Base::StringView("UIElement"));
+inline constexpr TypeId FrameworkElement =
+    MakeTypeId(Base::StringView("FrameworkElement"));
 
 inline constexpr TypeId Panel = MakeTypeId(Base::StringView("Panel"));
 inline constexpr TypeId Decorator = MakeTypeId(Base::StringView("Decorator"));

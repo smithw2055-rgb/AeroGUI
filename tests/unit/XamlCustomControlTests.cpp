@@ -102,7 +102,7 @@ Result<Value> ConvertCornerRadius(
 }
 
 class Badge final : public Control {
-    AERO_DECLARE_METADATA(Badge, Control, "urn:aero-custom", "Badge")
+    AERO_DECLARE_METADATA_NAMED(Badge, Control, "urn:aero-custom", "Badge")
 public:
     Badge() noexcept : Control(StaticTypeId()) {}
 
@@ -286,14 +286,37 @@ struct Fixture final {
         CHECK(metadata.Seal());
         CHECK(metadata.IsSealed());
         CHECK(metadata.ComputeSchemaHash());
-        CHECK(metadata.Types().IsDerivedFrom(
-            badgeType, Control::StaticTypeId()));
+        const TypeRegistry& types = metadata.Types();
+        CHECK(types.FindType(BuiltinTypes::Visual)->BaseType() ==
+            BuiltinTypes::DependencyObject);
+        CHECK(types.FindType(BuiltinTypes::UIElement)->BaseType() ==
+            BuiltinTypes::Visual);
+        CHECK(types.FindType(BuiltinTypes::FrameworkElement)->BaseType() ==
+            BuiltinTypes::UIElement);
+        CHECK(types.FindType(BuiltinTypes::Panel)->BaseType() ==
+            BuiltinTypes::FrameworkElement);
+        CHECK(types.FindType(BuiltinTypes::Decorator)->BaseType() ==
+            BuiltinTypes::FrameworkElement);
+        CHECK(types.FindType(BuiltinTypes::Control)->BaseType() ==
+            BuiltinTypes::FrameworkElement);
+        CHECK(types.FindType(BuiltinTypes::ContentControl)->BaseType() ==
+            BuiltinTypes::Control);
+        CHECK(types.FindType(BuiltinTypes::UserControl)->BaseType() ==
+            BuiltinTypes::ContentControl);
+        CHECK(types.FindType(BuiltinTypes::StackPanel)->BaseType() ==
+            BuiltinTypes::Panel);
+        CHECK(types.FindType(BuiltinTypes::Border)->BaseType() ==
+            BuiltinTypes::Decorator);
+        CHECK(types.FindType(BuiltinTypes::TextBlock)->BaseType() ==
+            BuiltinTypes::FrameworkElement);
+        CHECK(types.FindType(badgeType)->BaseType() ==
+            BuiltinTypes::Control);
 
         schema = std::make_unique<XamlSchemaContext>(metadata.Types());
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
         dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
             *schema, metadata.DependencyProperties());
-        CHECK(TryRegisterCorePresentationXaml(*dependencyProperties));
+        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
         CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());

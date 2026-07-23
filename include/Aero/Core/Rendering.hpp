@@ -115,12 +115,112 @@ private:
 };
 
 class RenderManager;
+class FrameworkElement;
 
-class AERO_API RenderElement : public LayoutElement {
-    AERO_DECLARE_METADATA(RenderElement, LayoutElement)
+class FrameworkElementChildRange final {
 public:
-    explicit RenderElement(TypeId runtimeType) noexcept;
-    ~RenderElement() override;
+    class Iterator final {
+    public:
+        Iterator(Base::Span<Visual* const> children,
+            std::uint32_t index) noexcept
+            : children_(children), index_(index) { Advance(); }
+        FrameworkElement* operator*() const noexcept {
+            return index_ < children_.Size()
+                ? children_[index_]->AsFrameworkElement() : nullptr;
+        }
+        Iterator& operator++() noexcept {
+            if (index_ < children_.Size()) ++index_;
+            Advance();
+            return *this;
+        }
+        bool operator!=(const Iterator& other) const noexcept {
+            return index_ != other.index_ ||
+                children_.Data() != other.children_.Data();
+        }
+    private:
+        Base::Span<Visual* const> children_;
+        std::uint32_t index_ = 0U;
+        void Advance() noexcept {
+            while (index_ < children_.Size() &&
+                children_[index_]->AsFrameworkElement() == nullptr) {
+                ++index_;
+            }
+        }
+    };
+
+    explicit FrameworkElementChildRange(
+        Base::Span<Visual* const> children) noexcept : children_(children) {}
+    Iterator begin() const noexcept { return Iterator(children_, 0U); }
+    Iterator end() const noexcept {
+        return Iterator(children_, children_.Size());
+    }
+    bool Empty() const noexcept { return !(begin() != end()); }
+    std::uint32_t Size() const noexcept {
+        std::uint32_t count = 0U;
+        for (FrameworkElement* child : *this) {
+            (void)child;
+            ++count;
+        }
+        return count;
+    }
+private:
+    Base::Span<Visual* const> children_;
+};
+
+class AERO_API FrameworkElement : public UIElement {
+    AERO_DECLARE_METADATA(FrameworkElement, UIElement)
+public:
+    explicit FrameworkElement(TypeId runtimeType) noexcept;
+    ~FrameworkElement() override;
+
+    FrameworkElement* AsFrameworkElement() noexcept override { return this; }
+    const FrameworkElement* AsFrameworkElement() const noexcept override {
+        return this;
+    }
+    FrameworkElement* RenderParent() const noexcept {
+        Visual* parent = VisualParent();
+        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
+    }
+    FrameworkElementChildRange RenderChildren() const noexcept {
+        return FrameworkElementChildRange(VisualChildren());
+    }
+
+    bool UseLayoutRounding() const noexcept;
+    double DpiScale() const noexcept { return dpiScale_; }
+    bool HasWidth() const noexcept;
+    bool HasHeight() const noexcept;
+    double Width() const noexcept;
+    double Height() const noexcept;
+    Size MinSize() const noexcept;
+    Size MaxSize() const noexcept;
+    Thickness Margin() const noexcept;
+    HorizontalAlignment GetHorizontalAlignment() const noexcept;
+    VerticalAlignment GetVerticalAlignment() const noexcept;
+
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Width);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Height);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MinWidth);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxWidth);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MinHeight);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxHeight);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Margin);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(HorizontalAlignment);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(VerticalAlignment);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(UseLayoutRounding);
+
+    Base::Result<void> SetLayoutRounding(
+        bool enabled, double dpiScale = 1.0) noexcept;
+    Base::Result<void> SetWidth(double value) noexcept;
+    Base::Result<void> ClearWidth() noexcept;
+    Base::Result<void> SetHeight(double value) noexcept;
+    Base::Result<void> ClearHeight() noexcept;
+    Base::Result<void> SetMinSize(Size value) noexcept;
+    Base::Result<void> SetMaxSize(Size value) noexcept;
+    Base::Result<void> SetMargin(Thickness value) noexcept;
+    Base::Result<void> SetHorizontalAlignment(
+        HorizontalAlignment value) noexcept;
+    Base::Result<void> SetVerticalAlignment(
+        VerticalAlignment value) noexcept;
 
     RenderNodeId NodeId() const noexcept { return nodeId_; }
     bool IsRenderValid() const noexcept { return renderValid_; }
@@ -138,10 +238,10 @@ protected:
 private:
     friend class RenderManager;
     RenderManager* renderManager_ = nullptr;
-    RenderElement* renderParent_ = nullptr;
-    Base::Vector<RenderElement*> renderChildren_;
+    double dpiScale_ = 1.0;
     RenderNodeId nodeId_ = InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
+    bool renderAttached_ = false;
     bool renderValid_ = false;
     bool renderQueued_ = false;
     bool buildingDisplayList_ = false;
@@ -223,15 +323,15 @@ public:
     RenderManager& operator=(const RenderManager&) = delete;
 
     Base::Result<void> Initialize() noexcept;
-    Base::Result<void> SetRoot(RenderElement* root) noexcept;
+    Base::Result<void> SetRoot(FrameworkElement* root) noexcept;
     Base::Result<void> Attach(
-        RenderElement& parent,
-        RenderElement& child) noexcept;
+        FrameworkElement& parent,
+        FrameworkElement& child) noexcept;
     Base::Result<void> Detach(
-        RenderElement& parent,
-        RenderElement& child) noexcept;
+        FrameworkElement& parent,
+        FrameworkElement& child) noexcept;
     Base::Result<void> Invalidate(
-        RenderElement& element) noexcept;
+        FrameworkElement& element) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
     const RenderPlan& CurrentPlan() const noexcept {
@@ -242,8 +342,8 @@ public:
 private:
     Dispatcher* dispatcher_ = nullptr;
     IRenderBackend* backend_ = nullptr;
-    RenderElement* root_ = nullptr;
-    Base::Vector<RenderElement*> dirty_;
+    FrameworkElement* root_ = nullptr;
+    Base::Vector<FrameworkElement*> dirty_;
     RenderPlan currentPlan_;
     DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
@@ -251,16 +351,13 @@ private:
     bool committing_ = false;
 
     Base::Result<void> VerifyElement(
-        const RenderElement& element) const noexcept;
+        const FrameworkElement& element) const noexcept;
     Base::Result<void> QueueDirty(
-        RenderElement& element) noexcept;
+        FrameworkElement& element) noexcept;
     Base::Result<void> BuildSubtree(
-        RenderElement& element,
+        FrameworkElement& element,
         RenderNodeId parentId,
         RenderPlan& plan) noexcept;
-    void RemoveChild(
-        Base::Vector<RenderElement*>& children,
-        RenderElement& child) noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 

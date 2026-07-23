@@ -22,9 +22,9 @@ using XamlActivateObjectCallback = Core::ObjectActivateCallback;
 using XamlActivationProviderRegistration =
     Core::ObjectActivationProviderRegistration;
 
-// XAML keeps a schema-bound façade for compatibility, while provider storage,
-// inherited lookup and activation validation are owned by the shared Core
-// ActivationProviderRegistry.
+// Schema-bound XAML integration over the shared Core activation registry.
+// Provider storage, inheritance lookup and runtime-type validation remain
+// single-sourced in Core::ActivationProviderRegistry.
 class AERO_API XamlActivationProviderRegistry final {
 public:
     explicit XamlActivationProviderRegistry(

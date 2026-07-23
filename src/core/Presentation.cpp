@@ -23,8 +23,8 @@ struct DefaultPresentationRuntime final {
     bool ready = false;
 
     DefaultPresentationRuntime() noexcept {
-        Base::Result<CorePresentationMetadata> registered =
-            TryRegisterCorePresentationMetadata(
+        Base::Result<void> registered =
+            TryRegisterPresentationMetadata(
                 types, properties, &routedEvents);
         if (!registered || !types.Freeze() || !properties.Freeze() ||
             !routedEvents.Freeze()) {
@@ -333,13 +333,13 @@ Base::Result<Value> CheckMaximum(DependencyObject& object,
     return value;
 }
 Base::Result<Value> CoerceMinWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxWidthProperty); }
+    const Value& v) noexcept { return CheckMinimum(o, v, FrameworkElement::MaxWidthProperty); }
 Base::Result<Value> CoerceMaxWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinWidthProperty); }
+    const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinWidthProperty); }
 Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, LayoutElement::MaxHeightProperty); }
+    const Value& v) noexcept { return CheckMinimum(o, v, FrameworkElement::MaxHeightProperty); }
 Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, LayoutElement::MinHeightProperty); }
+    const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinHeightProperty); }
 
 Base::Result<TypeId> RegisterType(TypeRegistry& types, Base::StringView name,
     TypeId base, TypeFlags flags = TypeFlags::None) noexcept {
@@ -347,10 +347,6 @@ Base::Result<TypeId> RegisterType(TypeRegistry& types, Base::StringView name,
 }
 
 } // namespace
-
-Base::StringView AeroPresentationNamespaceUri() noexcept {
-    return AeroNamespaceUri();
-}
 
 PresentationContext GetCurrentPresentationContext() noexcept {
     if (CurrentPresentationContext != nullptr) {
@@ -376,99 +372,100 @@ PresentationContextScope::~PresentationContextScope() {
 }
 
 AERO_IMPLEMENT_EMPTY_METADATA(DependencyObject, TypeFlags::Abstract)
-AERO_IMPLEMENT_METADATA(TreeNode, TypeFlags::Abstract) {
-    if (helper.Context().routedEvents == nullptr) return;
-    const CorePresentationMetadata& m = helper.Context().core;
-    AeroEvent(MouseMove, m.mouseEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(MouseDown, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(MouseUp, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(GotKeyboardFocus, m.keyboardFocusChangedEventArgsType,
-        RoutingStrategy::Bubble);
-    AeroEvent(LostKeyboardFocus, m.keyboardFocusChangedEventArgsType,
-        RoutingStrategy::Bubble);
-    AeroEvent(KeyDown, m.keyEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(KeyUp, m.keyEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(TextInput, m.textCompositionEventArgsType,
-        RoutingStrategy::Bubble);
+AERO_IMPLEMENT_EMPTY_METADATA(Visual, TypeFlags::Abstract)
+
+AERO_IMPLEMENT_METADATA(UIElement, TypeFlags::Abstract) {
+    if (helper.Context().routedEvents != nullptr) {
+        AeroEvent(MouseMove, BuiltinTypes::MouseEventArgs, RoutingStrategy::Bubble);
+        AeroEvent(MouseDown, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
+        AeroEvent(MouseUp, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
+        AeroEvent(GotKeyboardFocus, BuiltinTypes::KeyboardFocusChangedEventArgs,
+            RoutingStrategy::Bubble);
+        AeroEvent(LostKeyboardFocus, BuiltinTypes::KeyboardFocusChangedEventArgs,
+            RoutingStrategy::Bubble);
+        AeroEvent(KeyDown, BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble);
+        AeroEvent(KeyUp, BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble);
+        AeroEvent(TextInput, BuiltinTypes::TextCompositionEventArgs,
+            RoutingStrategy::Bubble);
+    }
+    const auto arrange = PropertyMetadataFlags::AffectsArrange;
+    AeroDP(ClipToBounds, BuiltinTypes::Boolean,
+        Value::FromBoolean(BuiltinTypes::Boolean, false), arrange);
+    AeroDP(IsHitTestVisible, BuiltinTypes::Boolean,
+        Value::FromBoolean(BuiltinTypes::Boolean, true),
+        PropertyMetadataFlags::None);
 }
 
-AERO_IMPLEMENT_METADATA(LayoutElement, TypeFlags::Abstract) {
+AERO_IMPLEMENT_METADATA(FrameworkElement, TypeFlags::Abstract) {
     MetaRegistrationContext& context = helper.Context();
-    const CorePresentationMetadata& m = context.core;
     const Length autoSource = Length::Auto();
     Base::Result<Value> automatic = context.types.TryCreateValue(
-        m.lengthType, &autoSource);
+        BuiltinTypes::Length, &autoSource);
     if (!automatic) {
         helper.Fail(automatic.GetStatus());
         return;
     }
     const Thickness zero{};
     Base::Result<Value> margin = context.types.TryCreateValue(
-        m.thicknessType, &zero);
+        BuiltinTypes::Thickness, &zero);
     if (!margin) {
         helper.Fail(margin.GetStatus());
         return;
     }
     const auto measure = PropertyMetadataFlags::AffectsMeasure;
     const auto arrange = PropertyMetadataFlags::AffectsArrange;
-    AeroDP(Width, m.lengthType, automatic.Value(), measure, &ValidateLength);
-    AeroDP(Height, m.lengthType, automatic.Value(), measure, &ValidateLength);
-    AeroDP(MinWidth, m.doubleType,
-        Value::FromDouble(m.doubleType, 0.0), measure,
+    AeroDP(Width, BuiltinTypes::Length, automatic.Value(), measure,
+        &ValidateLength);
+    AeroDP(Height, BuiltinTypes::Length, automatic.Value(), measure,
+        &ValidateLength);
+    AeroDP(MinWidth, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, 0.0), measure,
         &ValidateNonnegativeDouble, &CoerceMinWidth);
-    AeroDP(MaxWidth, m.doubleType,
-        Value::FromDouble(m.doubleType, DefaultMaximum), measure,
+    AeroDP(MaxWidth, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, DefaultMaximum), measure,
         &ValidateNonnegativeDouble, &CoerceMaxWidth);
-    AeroDP(MinHeight, m.doubleType,
-        Value::FromDouble(m.doubleType, 0.0), measure,
+    AeroDP(MinHeight, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, 0.0), measure,
         &ValidateNonnegativeDouble, &CoerceMinHeight);
-    AeroDP(MaxHeight, m.doubleType,
-        Value::FromDouble(m.doubleType, DefaultMaximum), measure,
+    AeroDP(MaxHeight, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, DefaultMaximum), measure,
         &ValidateNonnegativeDouble, &CoerceMaxHeight);
-    AeroDP(Margin, m.thicknessType, margin.Value(), measure,
+    AeroDP(Margin, BuiltinTypes::Thickness, margin.Value(), measure,
         &ValidateThicknessValue);
-    AeroDP(HorizontalAlignment, m.horizontalAlignmentType,
-        Value::FromUnsignedInteger(m.horizontalAlignmentType, 0U), arrange,
-        &ValidateHorizontalValue);
-    AeroDP(VerticalAlignment, m.verticalAlignmentType,
-        Value::FromUnsignedInteger(m.verticalAlignmentType, 0U), arrange,
-        &ValidateVerticalValue);
-    AeroDP(ClipToBounds, m.booleanType,
-        Value::FromBoolean(m.booleanType, false), arrange);
-    AeroDP(IsHitTestVisible, m.booleanType,
-        Value::FromBoolean(m.booleanType, true), PropertyMetadataFlags::None);
-    AeroDP(UseLayoutRounding, m.booleanType,
-        Value::FromBoolean(m.booleanType, false), measure);
+    AeroDP(HorizontalAlignment, BuiltinTypes::HorizontalAlignment,
+        Value::FromUnsignedInteger(BuiltinTypes::HorizontalAlignment, 0U),
+        arrange, &ValidateHorizontalValue);
+    AeroDP(VerticalAlignment, BuiltinTypes::VerticalAlignment,
+        Value::FromUnsignedInteger(BuiltinTypes::VerticalAlignment, 0U),
+        arrange, &ValidateVerticalValue);
+    AeroDP(UseLayoutRounding, BuiltinTypes::Boolean,
+        Value::FromBoolean(BuiltinTypes::Boolean, false), measure);
 }
 
-AERO_IMPLEMENT_EMPTY_METADATA(RenderElement, TypeFlags::Abstract)
 
 AERO_IMPLEMENT_METADATA(StackPanel, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
-    AeroDP(Orientation, context.core.orientationType,
-        Value::FromUnsignedInteger(context.core.orientationType, 1U),
+    AeroDP(Orientation, BuiltinTypes::Orientation,
+        Value::FromUnsignedInteger(BuiltinTypes::Orientation, 1U),
         PropertyMetadataFlags::AffectsMeasure, &ValidateOrientationValue);
     AeroContent("Children", ContentKind::Collection);
 }
 
 AERO_IMPLEMENT_METADATA(Canvas, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
-    AeroAttachedDP(Left, context.core.doubleType,
-        Value::FromDouble(context.core.doubleType, 0.0),
+    AeroAttachedDP(Left, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, 0.0),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
-    AeroAttachedDP(Top, context.core.doubleType,
-        Value::FromDouble(context.core.doubleType, 0.0),
+    AeroAttachedDP(Top, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, 0.0),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
     AeroContent("Children", ContentKind::Collection);
 }
 
 AERO_IMPLEMENT_METADATA(Grid, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
-    AeroAttachedDP(Row, context.core.unsignedIntegerType,
-        Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
+    AeroAttachedDP(Row, BuiltinTypes::UnsignedInteger,
+        Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
-    AeroAttachedDP(Column, context.core.unsignedIntegerType,
-        Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
+    AeroAttachedDP(Column, BuiltinTypes::UnsignedInteger,
+        Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
     AeroContent("Children", ContentKind::Collection);
 }
@@ -477,26 +474,26 @@ AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
     const Color transparent{};
     Base::Result<Value> color = context.types.TryCreateValue(
-        context.core.colorType, &transparent);
+        BuiltinTypes::Color, &transparent);
     if (!color) {
         helper.Fail(color.GetStatus());
         return;
     }
     const Thickness zero{};
     Base::Result<Value> padding = context.types.TryCreateValue(
-        context.core.thicknessType, &zero);
+        BuiltinTypes::Thickness, &zero);
     if (!padding) {
         helper.Fail(padding.GetStatus());
         return;
     }
-    AeroDP(Background, context.core.colorType, color.Value(),
+    AeroDP(Background, BuiltinTypes::Color, color.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderBrush, context.core.colorType, color.Value(),
+    AeroDP(BorderBrush, BuiltinTypes::Color, color.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderThickness, context.core.doubleType,
-        Value::FromDouble(context.core.doubleType, 0.0),
+    AeroDP(BorderThickness, BuiltinTypes::Double,
+        Value::FromDouble(BuiltinTypes::Double, 0.0),
         PropertyMetadataFlags::AffectsRender, &ValidateNonnegativeDouble);
-    AeroDP(Padding, context.core.thicknessType, padding.Value(),
+    AeroDP(Padding, BuiltinTypes::Thickness, padding.Value(),
         PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue);
     AeroContent("Content", ContentKind::Single);
 }
@@ -504,21 +501,21 @@ AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
 AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
     Base::Result<Value> text = Value::TryFromString(
-        context.core.stringType, {});
+        BuiltinTypes::String, {});
     if (!text) {
         helper.Fail(text.GetStatus());
         return;
     }
     const Color black{0.0F, 0.0F, 0.0F, 1.0F};
     Base::Result<Value> foreground = context.types.TryCreateValue(
-        context.core.colorType, &black);
+        BuiltinTypes::Color, &black);
     if (!foreground) {
         helper.Fail(foreground.GetStatus());
         return;
     }
-    AeroDP(Text, context.core.stringType, text.Value(),
+    AeroDP(Text, BuiltinTypes::String, text.Value(),
         PropertyMetadataFlags::AffectsMeasure);
-    AeroDP(Foreground, context.core.colorType, foreground.Value(),
+    AeroDP(Foreground, BuiltinTypes::Color, foreground.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
 }
 
@@ -526,87 +523,127 @@ AERO_IMPLEMENT_METADATA(ContentPresenter, TypeFlags::None) {
     AeroContent("Content", ContentKind::Single);
 }
 
-Base::Result<CorePresentationMetadata> TryRegisterCorePresentationMetadata(
+Base::Result<void> TryRegisterPresentationMetadata(
     TypeRegistry& types,
     DependencyPropertyRegistry& properties,
     RoutedEventRegistry* routedEvents) noexcept {
-    CorePresentationMetadata m;
-#define AERO_REGISTER_TYPE(field, name, base, flags) \
-    do { auto r = RegisterType(types, Base::StringView(name), base, flags); \
-         if (!r) return r.GetStatus(); m.field = r.Value(); } while (false)
-    AERO_REGISTER_TYPE(objectType, "Object", InvalidTypeId, TypeFlags::None);
-    AERO_REGISTER_TYPE(eventArgsType, "EventArgs", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(routedEventArgsType, "RoutedEventArgs",
-        m.eventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(inputEventArgsType, "InputEventArgs",
-        m.routedEventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(mouseEventArgsType, "MouseEventArgs",
-        m.inputEventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(mouseButtonEventArgsType, "MouseButtonEventArgs",
-        m.mouseEventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(keyEventArgsType, "KeyEventArgs",
-        m.inputEventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(textCompositionEventArgsType, "TextCompositionEventArgs",
-        m.inputEventArgsType, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(keyboardFocusChangedEventArgsType,
-        "KeyboardFocusChangedEventArgs", m.routedEventArgsType,
-        TypeFlags::ValueType);
-    m.dependencyObjectType = DependencyObject::StaticTypeId();
-    m.treeNodeType = TreeNode::StaticTypeId();
-    m.layoutElementType = LayoutElement::StaticTypeId();
-    m.renderElementType = RenderElement::StaticTypeId();
-    m.stackPanelType = StackPanel::StaticTypeId();
-    m.canvasType = Canvas::StaticTypeId();
-    m.gridType = Grid::StaticTypeId();
-    m.borderType = Border::StaticTypeId();
-    m.textBlockType = TextBlock::StaticTypeId();
-    m.contentPresenterType = ContentPresenter::StaticTypeId();
-    AERO_REGISTER_TYPE(booleanType, "Boolean", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(unsignedIntegerType, "UInt32", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(doubleType, "Double", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(stringType, "String", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(lengthType, "Length", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(thicknessType, "Thickness", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(colorType, "Color", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(horizontalAlignmentType, "HorizontalAlignment", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(verticalAlignmentType, "VerticalAlignment", InvalidTypeId, TypeFlags::ValueType);
-    AERO_REGISTER_TYPE(orientationType, "Orientation", InvalidTypeId, TypeFlags::ValueType);
-#undef AERO_REGISTER_TYPE
+    auto registerType = [&types](Base::StringView name, TypeId base,
+        TypeFlags flags, TypeId expected) noexcept -> Base::Result<void> {
+        Base::Result<TypeId> registered = RegisterType(types, name, base, flags);
+        if (!registered) return registered.GetStatus();
+        if (registered.Value() != expected) {
+            return Base::Status::Failure(Base::ErrorCode::InternalError,
+                "Built-in metadata type ID does not match its canonical ID");
+        }
+        return {};
+    };
 
-    Base::Result<void> status = types.TryRegisterValueSemantics(m.lengthType,
-        {sizeof(Length), alignof(Length), nullptr, nullptr, &EqualLength, nullptr, true});
+    Base::Result<void> status = registerType(
+        Base::StringView("Object"), InvalidTypeId, TypeFlags::None,
+        BuiltinTypes::Object);
     if (!status) return status.GetStatus();
-    status = types.TryRegisterValueSemantics(m.thicknessType,
-        {sizeof(Thickness), alignof(Thickness), nullptr, nullptr, &EqualThickness, nullptr, true});
+    status = registerType(Base::StringView("EventArgs"), InvalidTypeId,
+        TypeFlags::ValueType, BuiltinTypes::EventArgs);
     if (!status) return status.GetStatus();
-    status = types.TryRegisterValueSemantics(m.colorType,
-        {sizeof(Color), alignof(Color), nullptr, nullptr, &EqualColor, nullptr, true});
+    status = registerType(Base::StringView("RoutedEventArgs"),
+        BuiltinTypes::EventArgs, TypeFlags::ValueType,
+        BuiltinTypes::RoutedEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("InputEventArgs"),
+        BuiltinTypes::RoutedEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::InputEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("MouseEventArgs"),
+        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::MouseEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("MouseButtonEventArgs"),
+        BuiltinTypes::MouseEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::MouseButtonEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("KeyEventArgs"),
+        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::KeyEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("TextCompositionEventArgs"),
+        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::TextCompositionEventArgs);
+    if (!status) return status.GetStatus();
+    status = registerType(Base::StringView("KeyboardFocusChangedEventArgs"),
+        BuiltinTypes::RoutedEventArgs, TypeFlags::ValueType,
+        BuiltinTypes::KeyboardFocusChangedEventArgs);
+    if (!status) return status.GetStatus();
+
+    const struct BuiltinValueType final {
+        Base::StringView name;
+        TypeId id;
+    } valueTypes[] = {
+        {Base::StringView("Boolean"), BuiltinTypes::Boolean},
+        {Base::StringView("UInt32"), BuiltinTypes::UnsignedInteger},
+        {Base::StringView("Double"), BuiltinTypes::Double},
+        {Base::StringView("String"), BuiltinTypes::String},
+        {Base::StringView("Length"), BuiltinTypes::Length},
+        {Base::StringView("Thickness"), BuiltinTypes::Thickness},
+        {Base::StringView("Color"), BuiltinTypes::Color},
+        {Base::StringView("HorizontalAlignment"),
+            BuiltinTypes::HorizontalAlignment},
+        {Base::StringView("VerticalAlignment"),
+            BuiltinTypes::VerticalAlignment},
+        {Base::StringView("Orientation"), BuiltinTypes::Orientation}
+    };
+    for (const BuiltinValueType& valueType : valueTypes) {
+        status = registerType(valueType.name, InvalidTypeId,
+            TypeFlags::ValueType, valueType.id);
+        if (!status) return status.GetStatus();
+    }
+
+    status = types.TryRegisterValueSemantics(BuiltinTypes::Length,
+        {sizeof(Length), alignof(Length), nullptr, nullptr,
+         &EqualLength, nullptr, true});
+    if (!status) return status.GetStatus();
+    status = types.TryRegisterValueSemantics(BuiltinTypes::Thickness,
+        {sizeof(Thickness), alignof(Thickness), nullptr, nullptr,
+         &EqualThickness, nullptr, true});
+    if (!status) return status.GetStatus();
+    status = types.TryRegisterValueSemantics(BuiltinTypes::Color,
+        {sizeof(Color), alignof(Color), nullptr, nullptr,
+         &EqualColor, nullptr, true});
     if (!status) return status.GetStatus();
 
     const TextValueConverterRegistration converters[] = {
-        {m.booleanType, &ConvertBoolean, nullptr},
-        {m.unsignedIntegerType, &ConvertUnsigned, nullptr},
-        {m.doubleType, &ConvertDoubleValue, nullptr},
-        {m.stringType, &ConvertString, nullptr},
-        {m.lengthType, &ConvertLength, &types},
-        {m.thicknessType, &ConvertThickness, &types},
-        {m.colorType, &ConvertColor, &types},
-        {m.horizontalAlignmentType, &ConvertHorizontal, nullptr},
-        {m.verticalAlignmentType, &ConvertVertical, nullptr},
-        {m.orientationType, &ConvertOrientation, nullptr}
+        {BuiltinTypes::Boolean, &ConvertBoolean, nullptr},
+        {BuiltinTypes::UnsignedInteger, &ConvertUnsigned, nullptr},
+        {BuiltinTypes::Double, &ConvertDoubleValue, nullptr},
+        {BuiltinTypes::String, &ConvertString, nullptr},
+        {BuiltinTypes::Length, &ConvertLength, &types},
+        {BuiltinTypes::Thickness, &ConvertThickness, &types},
+        {BuiltinTypes::Color, &ConvertColor, &types},
+        {BuiltinTypes::HorizontalAlignment, &ConvertHorizontal, nullptr},
+        {BuiltinTypes::VerticalAlignment, &ConvertVertical, nullptr},
+        {BuiltinTypes::Orientation, &ConvertOrientation, nullptr}
     };
     for (const TextValueConverterRegistration& converter : converters) {
         status = types.TryRegisterTextConverter(converter);
         if (!status) return status.GetStatus();
     }
 
-    MetaRegistrationContext registrationContext{types, properties, m, routedEvents};
+    MetaRegistrationContext registrationContext{
+        types, properties, routedEvents};
     using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
-    const Registrar registrars[] = {
+    const Registrar presentationRegistrars[] = {
         &DependencyObject::TryRegisterMetadata,
-        &TreeNode::TryRegisterMetadata,
-        &LayoutElement::TryRegisterMetadata,
-        &RenderElement::TryRegisterMetadata,
+        &Visual::TryRegisterMetadata,
+        &UIElement::TryRegisterMetadata,
+        &FrameworkElement::TryRegisterMetadata
+    };
+    for (Registrar registrar : presentationRegistrars) {
+        status = registrar(registrationContext);
+        if (!status) return status.GetStatus();
+    }
+    status = TryRegisterControlPrimitiveMetadata(registrationContext);
+    if (!status) return status.GetStatus();
+
+    const Registrar controlRegistrars[] = {
         &StackPanel::TryRegisterMetadata,
         &Canvas::TryRegisterMetadata,
         &Grid::TryRegisterMetadata,
@@ -614,12 +651,11 @@ Base::Result<CorePresentationMetadata> TryRegisterCorePresentationMetadata(
         &TextBlock::TryRegisterMetadata,
         &ContentPresenter::TryRegisterMetadata
     };
-    for (Registrar registrar : registrars) {
+    for (Registrar registrar : controlRegistrars) {
         status = registrar(registrationContext);
         if (!status) return status.GetStatus();
     }
-
-    return m;
+    return {};
 }
 
 } // namespace Aero::Core

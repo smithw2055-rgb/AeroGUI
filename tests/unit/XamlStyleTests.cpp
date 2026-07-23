@@ -135,14 +135,20 @@ struct Fixture final {
             objectType, TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}));
 
         CHECK(types.TryRegisterProperty(rootType,
-            {StringView("Children"), elementType, PropertyFlags::None}));
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection}));
         children = types.FindProperty(rootType, StringView("Children"))->Id();
+        CHECK(types.TrySetContentMember(rootType, children));
         CHECK(types.TryRegisterProperty(styleType,
             {StringView("TargetType"), stringType, PropertyFlags::None}));
         CHECK(types.TryRegisterProperty(styleType,
             {StringView("BasedOn"), styleType, PropertyFlags::None}));
         CHECK(types.TryRegisterProperty(styleType,
-            {StringView("Setters"), setterType, PropertyFlags::None}));
+            {StringView("Setters"), setterType,
+             PropertyFlags::Structural | PropertyFlags::Collection}));
+        const MemberId settersMember = types.FindProperty(
+            styleType, StringView("Setters"))->Id();
+        CHECK(types.TrySetContentMember(styleType, settersMember));
         CHECK(types.TryRegisterProperty(setterType,
             {StringView("Property"), stringType, PropertyFlags::None}));
         CHECK(types.TryRegisterProperty(setterType,
@@ -189,7 +195,7 @@ struct Fixture final {
         CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
         CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
         CHECK(schema.TryRegisterTypeAdapter({
-            rootType, children, nullptr, nullptr, nullptr, nullptr, false, true}));
+            rootType, nullptr, nullptr, nullptr, nullptr, false, true}));
         CHECK(schema.TryRegisterMemberAdapter({
             children, XamlMemberWriteMode::Collection, &AddChild, nullptr, nullptr}));
         typeExtension.SetTypeReferenceType(typeReferenceType);

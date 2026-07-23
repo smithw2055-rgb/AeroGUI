@@ -18,10 +18,10 @@ using namespace Aero::Core;
         } \
     } while (false)
 
-class RenderBox final : public RenderElement {
+class RenderBox final : public FrameworkElement {
 public:
     RenderBox(TypeId type, Size desired, Color color) noexcept
-        : RenderElement(type), desired_(desired), color_(color) {}
+        : FrameworkElement(type), desired_(desired), color_(color) {}
 
     void SetColor(Color value) noexcept { color_ = value; }
 
@@ -51,15 +51,15 @@ private:
     Color color_;
 };
 
-class RenderPanel final : public RenderElement {
+class RenderPanel final : public FrameworkElement {
 public:
-    explicit RenderPanel(TypeId type) noexcept : RenderElement(type) {}
+    explicit RenderPanel(TypeId type) noexcept : FrameworkElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
         double width = 0.0;
         double height = 0.0;
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             Result<void> measured = MeasureChild(*child, available);
             if (!measured) return measured.GetStatus();
             width = std::max(width, child->DesiredSize().width);
@@ -70,7 +70,7 @@ protected:
     }
     Result<Size> ArrangeOverride(Size finalSize) noexcept override {
         double y = 0.0;
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             const double height = child->DesiredSize().height;
             Result<void> arranged = ArrangeChild(
                 *child, {0.0, y, finalSize.width, height});
@@ -104,15 +104,13 @@ struct Fixture final {
     TypeId borderType = InvalidTypeId;
 
     bool Build() {
-        Result<CorePresentationMetadata> registered =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(registered);
+        CHECK(TryRegisterPresentationMetadata(types, properties));
         const StringView ns("urn:render-tests");
-        objectType = registered.Value().objectType;
-        elementType = registered.Value().renderElementType;
+        objectType = BuiltinTypes::Object;
+        elementType = BuiltinTypes::FrameworkElement;
         panelType = MakeTypeId(ns, StringView("RenderPanel"));
-        textBlockType = registered.Value().textBlockType;
-        borderType = registered.Value().borderType;
+        textBlockType = BuiltinTypes::TextBlock;
+        borderType = BuiltinTypes::Border;
         CHECK(types.TryRegisterType({ns, StringView("RenderPanel"), elementType,
             TypeFlags::None, nullptr}));
         CHECK(types.Freeze());

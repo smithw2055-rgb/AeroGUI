@@ -162,14 +162,7 @@ public:
                 "Activation provider returned a null object");
         }
 
-        // Presentation and custom-control objects report a runtime metadata
-        // type and are checked strictly. Some established XAML helper objects,
-        // such as Style and Setter construction records, intentionally derive
-        // directly from Base::Object and let the explicit provider own their
-        // metadata identity. Preserve that compatibility only when the object
-        // reports no runtime type at all.
-        const TypeId runtimeType = created.Value()->RuntimeType();
-        if (runtimeType != InvalidTypeId && runtimeType != requestedType) {
+        if (created.Value()->RuntimeType() != requestedType) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Activation provider returned an object with the wrong runtime type");

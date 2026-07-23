@@ -42,56 +42,9 @@ private:
     DispatcherThreadToken ownerThread_ = 0U;
 };
 
-AERO_API Base::StringView
-AeroPresentationNamespaceUri() noexcept;
-
-// Compatibility catalog for code written before canonical BuiltinTypes IDs were
-// exposed. It is no longer the source of metadata identity: every field is a
-// stable constexpr ID and MetaRegistrationContext supplies this catalog by
-// default. New code should use BuiltinTypes directly.
-struct CorePresentationMetadata final {
-    TypeId objectType = BuiltinTypes::Object;
-    TypeId dependencyObjectType = BuiltinTypes::DependencyObject;
-    TypeId treeNodeType = BuiltinTypes::TreeNode;
-    TypeId layoutElementType = BuiltinTypes::LayoutElement;
-    TypeId renderElementType = BuiltinTypes::RenderElement;
-    TypeId stackPanelType = BuiltinTypes::StackPanel;
-    TypeId canvasType = BuiltinTypes::Canvas;
-    TypeId gridType = BuiltinTypes::Grid;
-    TypeId borderType = BuiltinTypes::Border;
-    TypeId textBlockType = BuiltinTypes::TextBlock;
-    TypeId contentPresenterType = BuiltinTypes::ContentPresenter;
-    TypeId booleanType = BuiltinTypes::Boolean;
-    TypeId unsignedIntegerType = BuiltinTypes::UnsignedInteger;
-    TypeId doubleType = BuiltinTypes::Double;
-    TypeId stringType = BuiltinTypes::String;
-    TypeId lengthType = BuiltinTypes::Length;
-    TypeId thicknessType = BuiltinTypes::Thickness;
-    TypeId colorType = BuiltinTypes::Color;
-    TypeId horizontalAlignmentType = BuiltinTypes::HorizontalAlignment;
-    TypeId verticalAlignmentType = BuiltinTypes::VerticalAlignment;
-    TypeId orientationType = BuiltinTypes::Orientation;
-    TypeId eventArgsType = BuiltinTypes::EventArgs;
-    TypeId routedEventArgsType = BuiltinTypes::RoutedEventArgs;
-    TypeId inputEventArgsType = BuiltinTypes::InputEventArgs;
-    TypeId mouseEventArgsType = BuiltinTypes::MouseEventArgs;
-    TypeId mouseButtonEventArgsType = BuiltinTypes::MouseButtonEventArgs;
-    TypeId keyEventArgsType = BuiltinTypes::KeyEventArgs;
-    TypeId textCompositionEventArgsType = BuiltinTypes::TextCompositionEventArgs;
-    TypeId keyboardFocusChangedEventArgsType =
-        BuiltinTypes::KeyboardFocusChangedEventArgs;
-};
-
-inline const CorePresentationMetadata&
-BuiltinCorePresentationMetadata() noexcept {
-    static constexpr CorePresentationMetadata metadata{};
-    return metadata;
-}
-
 struct MetaRegistrationContext final {
     TypeRegistry& types;
     DependencyPropertyRegistry& dependencyProperties;
-    const CorePresentationMetadata& core;
     RoutedEventRegistry* routedEvents = nullptr;
 
     MetaRegistrationContext(
@@ -100,17 +53,6 @@ struct MetaRegistrationContext final {
         RoutedEventRegistry* events = nullptr) noexcept
         : types(typeRegistry),
           dependencyProperties(properties),
-          core(BuiltinCorePresentationMetadata()),
-          routedEvents(events) {}
-
-    MetaRegistrationContext(
-        TypeRegistry& typeRegistry,
-        DependencyPropertyRegistry& properties,
-        const CorePresentationMetadata& compatibilityCatalog,
-        RoutedEventRegistry* events = nullptr) noexcept
-        : types(typeRegistry),
-          dependencyProperties(properties),
-          core(compatibilityCatalog),
           routedEvents(events) {}
 };
 
@@ -187,10 +129,8 @@ private:
 
 // Registers built-in type/value/property metadata without freezing either
 // registry. Applications register custom controls and properties afterwards.
-// The returned catalog is retained for source compatibility; its IDs are the
-// same canonical values exposed by BuiltinTypes.
-AERO_API Base::Result<CorePresentationMetadata>
-TryRegisterCorePresentationMetadata(
+AERO_API Base::Result<void>
+TryRegisterPresentationMetadata(
     TypeRegistry& types,
     DependencyPropertyRegistry& properties,
     RoutedEventRegistry* routedEvents = nullptr) noexcept;

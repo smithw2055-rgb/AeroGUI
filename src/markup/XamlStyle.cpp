@@ -19,58 +19,26 @@ bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
 }
 
 Base::Result<XamlValue> CloneValue(const XamlValue& value) noexcept {
-    switch (value.Kind()) {
-    case XamlValueKind::Boolean:
-        return XamlValue::FromBoolean(value.Type(), value.AsBoolean());
-    case XamlValueKind::SignedInteger:
-        return XamlValue::FromSignedInteger(
-            value.Type(), value.AsSignedInteger());
-    case XamlValueKind::UnsignedInteger:
-        return XamlValue::FromUnsignedInteger(
-            value.Type(), value.AsUnsignedInteger());
-    case XamlValueKind::Double:
-        return XamlValue::FromDouble(value.Type(), value.AsDouble());
-    case XamlValueKind::String:
-        return XamlValue::TryFromString(value.Type(), value.AsString());
-    case XamlValueKind::Object:
-        if (value.IsNullObject()) {
-            return XamlValue::NullObject(value.Type());
-        }
-        return XamlValue::FromObject(value.Type(), value.AsObject());
-    case XamlValueKind::None:
-        break;
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML setter value is empty");
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidArgument,
-        "XAML setter value is empty");
+    return value;
 }
 
 Base::Result<Core::PropertyValue> ToPropertyValue(
     const XamlValue& value,
     Core::TypeId expectedType) noexcept {
-    switch (value.Kind()) {
-    case XamlValueKind::Boolean:
-        return Core::PropertyValue::FromBoolean(value.Type(), value.AsBoolean());
-    case XamlValueKind::SignedInteger:
-        return Core::PropertyValue::FromSignedInteger(
-            value.Type(), value.AsSignedInteger());
-    case XamlValueKind::UnsignedInteger:
-        return Core::PropertyValue::FromUnsignedInteger(
-            value.Type(), value.AsUnsignedInteger());
-    case XamlValueKind::Double:
-        return Core::PropertyValue::FromDouble(value.Type(), value.AsDouble());
-    case XamlValueKind::Object:
-        if (value.IsNullObject()) {
-            return Core::PropertyValue::NullObject(expectedType);
-        }
-        return Core::PropertyValue::FromObject(value.Type(), value.AsObject());
-    case XamlValueKind::String:
-    case XamlValueKind::None:
-        break;
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML setter value cannot be represented as a dependency-property value");
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "XAML setter value cannot be represented as a dependency-property value");
+    if (value.IsNullObject() && value.Type() != expectedType) {
+        return Core::PropertyValue::NullObject(expectedType);
+    }
+    return value;
 }
 
 Base::Result<void> ResolveQualifiedType(
@@ -120,7 +88,12 @@ Base::Result<void> ResolveQualifiedType(
 
 class XamlStyleExtension::SetterObject final : public Base::Object {
 public:
-    SetterObject() noexcept = default;
+    explicit SetterObject(Core::TypeId runtimeType) noexcept
+        : runtimeType_(runtimeType) {}
+
+    Base::MetaTypeId RuntimeType() const noexcept override {
+        return runtimeType_;
+    }
 
     Base::Result<void> SetProperty(
         Base::StringView property) noexcept {
@@ -151,6 +124,7 @@ public:
     }
 
 private:
+    Core::TypeId runtimeType_ = Core::InvalidTypeId;
     Base::String property_;
     XamlValue value_;
     bool propertySet_ = false;
@@ -159,8 +133,14 @@ private:
 
 class XamlStyleExtension::StyleObject final : public Base::Object {
 public:
-    StyleObject() noexcept
-        : plan_(Core::InvalidTypeId), setters_() {}
+    explicit StyleObject(Core::TypeId runtimeType) noexcept
+        : runtimeType_(runtimeType),
+          plan_(Core::InvalidTypeId),
+          setters_() {}
+
+    Base::MetaTypeId RuntimeType() const noexcept override {
+        return runtimeType_;
+    }
 
     Core::Style& Plan() noexcept { return plan_; }
     const Core::Style& Plan() const noexcept { return plan_; }
@@ -182,6 +162,7 @@ public:
     }
 
 private:
+    Core::TypeId runtimeType_ = Core::InvalidTypeId;
     Core::Style plan_;
     Base::Ref<Base::Object> basedOn_;
     Base::Vector<Base::Ref<Base::Object>> setters_;
@@ -240,7 +221,8 @@ Base::Result<void> XamlStyleExtension::Register(
         setterType, Base::StringView("Value"), false);
     if (targetType == nullptr || basedOn == nullptr || setters == nullptr ||
         property == nullptr || value == nullptr ||
-        basedOn->ValueType() != styleType || setters->ValueType() != setterType) {
+        basedOn->ValueType() != styleType || setters->ValueType() != setterType ||
+        schema.Types().FindContentMember(styleType) != setters->Id()) {
         return InvalidStyleXaml("XAML Style metadata members are invalid");
     }
     const Core::DependencyProperty* styleDependency = options_.properties->Find(
@@ -274,12 +256,12 @@ Base::Result<void> XamlStyleExtension::Register(
         }
     }
     Base::Result<void> styleAdapter = schema.TryRegisterTypeAdapter({
-        styleType_, settersMember_, nullptr, &EndStyleInit, nullptr, this});
+        styleType_, nullptr, &EndStyleInit, nullptr, this});
     if (!styleAdapter) {
         return styleAdapter.GetStatus();
     }
     Base::Result<void> setterAdapter = schema.TryRegisterTypeAdapter({
-        setterType_, Core::InvalidMemberId, nullptr, nullptr, nullptr, this});
+        setterType_, nullptr, nullptr, nullptr, this});
     if (!setterAdapter) {
         return setterAdapter.GetStatus();
     }
@@ -465,7 +447,7 @@ Base::Result<Base::Ref<Base::Object>> XamlStyleExtension::ActivateStyle(
     if (extension == nullptr || requestedType != extension->styleType_) {
         return InvalidStyleXaml("XAML Style activation type is invalid");
     }
-    Base::Result<Base::Ref<StyleObject>> created = Base::MakeRef<StyleObject>();
+    Base::Result<Base::Ref<StyleObject>> created = Base::MakeRef<StyleObject>(requestedType);
     if (!created) {
         return created.GetStatus();
     }
@@ -480,7 +462,7 @@ Base::Result<Base::Ref<Base::Object>> XamlStyleExtension::ActivateSetter(
     if (extension == nullptr || requestedType != extension->setterType_) {
         return InvalidStyleXaml("XAML Setter activation type is invalid");
     }
-    Base::Result<Base::Ref<SetterObject>> created = Base::MakeRef<SetterObject>();
+    Base::Result<Base::Ref<SetterObject>> created = Base::MakeRef<SetterObject>(requestedType);
     if (!created) {
         return created.GetStatus();
     }

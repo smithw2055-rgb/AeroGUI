@@ -34,26 +34,12 @@ Base::StringView TrimAscii(Base::StringView value) noexcept {
 
 Base::Result<XamlValue> ToXamlValue(
     const Core::PropertyValue& value) noexcept {
-    switch (value.Kind()) {
-    case Core::PropertyValueKind::Boolean:
-        return XamlValue::FromBoolean(value.Type(), value.AsBoolean());
-    case Core::PropertyValueKind::SignedInteger:
-        return XamlValue::FromSignedInteger(value.Type(), value.AsSignedInteger());
-    case Core::PropertyValueKind::UnsignedInteger:
-        return XamlValue::FromUnsignedInteger(value.Type(), value.AsUnsignedInteger());
-    case Core::PropertyValueKind::Double:
-        return XamlValue::FromDouble(value.Type(), value.AsDouble());
-    case Core::PropertyValueKind::Object:
-        if (value.AsObject()) {
-            return XamlValue::FromObject(value.Type(), value.AsObject());
-        }
-        return XamlValue::NullObject(value.Type());
-    case Core::PropertyValueKind::Unset:
-        break;
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding target has no representable initial value");
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "Binding target has no representable initial value");
+    return value;
 }
 
 Base::Result<void> ParseArguments(

@@ -127,17 +127,17 @@ private:
     HWND window_ = nullptr;
 };
 
-class PlanPanel final : public RenderElement {
+class PlanPanel final : public FrameworkElement {
 public:
     PlanPanel(
         TypeId type,
         bool requestInstancedStroke = false) noexcept
-        : RenderElement(type),
+        : FrameworkElement(type),
           requestInstancedStroke_(requestInstancedStroke) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             Result<void> measured = MeasureChild(*child, available);
             if (!measured) return measured.GetStatus();
         }
@@ -145,7 +145,7 @@ protected:
     }
 
     Result<Size> ArrangeOverride(Size finalSize) noexcept override {
-        for (LayoutElement* child : LayoutChildren()) {
+        for (UIElement* child : LayoutChildren()) {
             Result<void> arranged = ArrangeChild(*child, {8.0, 6.0, 24.0, 16.0});
             if (!arranged) return arranged.GetStatus();
         }
@@ -180,7 +180,7 @@ private:
     bool requestInstancedStroke_ = false;
 };
 
-class PlanElement final : public RenderElement {
+class PlanElement final : public FrameworkElement {
 public:
     PlanElement(
         TypeId type,
@@ -194,7 +194,7 @@ public:
         std::uint32_t meshCount = 1U,
         RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId,
         std::uint32_t glyphRunCount = 1U) noexcept
-        : RenderElement(type),
+        : FrameworkElement(type),
           requestNonAxisAlignedClip_(requestNonAxisAlignedClip),
           requestFillBatch_(requestFillBatch),
           requestSplitFillBatch_(requestSplitFillBatch),
@@ -343,24 +343,22 @@ struct XamlControlFixture final {
     TypeId borderType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
     bool Initialize() {
-        Result<CorePresentationMetadata> metadata =
-            TryRegisterCorePresentationMetadata(types, properties);
-        CHECK(metadata);
-        objectType = metadata.Value().objectType;
-        doubleType = metadata.Value().doubleType;
-        stringType = metadata.Value().stringType;
-        layoutType = metadata.Value().layoutElementType;
-        renderType = metadata.Value().renderElementType;
-        stackPanelType = metadata.Value().stackPanelType;
-        borderType = metadata.Value().borderType;
-        textBlockType = metadata.Value().textBlockType;
+        CHECK(TryRegisterPresentationMetadata(types, properties));
+        objectType = BuiltinTypes::Object;
+        doubleType = BuiltinTypes::Double;
+        stringType = BuiltinTypes::String;
+        layoutType = BuiltinTypes::UIElement;
+        renderType = BuiltinTypes::FrameworkElement;
+        stackPanelType = BuiltinTypes::StackPanel;
+        borderType = BuiltinTypes::Border;
+        textBlockType = BuiltinTypes::TextBlock;
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         CHECK(values.Initialize());
         CHECK(tree.Initialize());
         CHECK(layout.Initialize());
         CHECK(renderer.Initialize());
-        CHECK(TryRegisterCorePresentationXaml(
+        CHECK(TryRegisterAeroPresentationXaml(
             dependencyProperties, activation, &visual));
         CHECK(schema.Freeze());
         CHECK(activation.Freeze());
@@ -853,7 +851,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
     CHECK(root != nullptr);
     CHECK(fixture.visual.Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
-    const Span<TreeNode* const> children = root->VisualChildren();
+    const Span<Visual* const> children = root->VisualChildren();
     CHECK(children.Size() == 2U);
     Border* border = static_cast<Border*>(children[0]);
     TextBlock* text = static_cast<TextBlock*>(children[1]);

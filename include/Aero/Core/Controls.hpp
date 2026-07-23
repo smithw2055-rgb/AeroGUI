@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/String.hpp>
-#include <Aero/Core/Rendering.hpp>
+#include <Aero/Core/ControlPrimitives.hpp>
 
 namespace Aero::Core {
 
@@ -13,8 +13,8 @@ enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 // single axis. Manual use keeps ownership outside the panel; XAML collection
 // content uses AddOwnedChild() and must be released after its tree edges have
 // been detached by XamlVisualTreeHost.
-class AERO_API StackPanel final : public RenderElement {
-    AERO_DECLARE_METADATA(StackPanel, RenderElement)
+class AERO_API StackPanel final : public Panel {
+    AERO_DECLARE_METADATA(StackPanel, Panel)
 public:
     StackPanel() noexcept;
     explicit StackPanel(Orientation orientation) noexcept;
@@ -26,7 +26,7 @@ public:
     }
     Base::Result<void> AddOwnedChild(
         const Base::Ref<Base::Object>& childObject,
-        LayoutElement& child) noexcept;
+        UIElement& child) noexcept;
     Base::Result<void> ClearOwnedChildren() noexcept;
 
     // Dependency properties
@@ -39,19 +39,19 @@ protected:
 private:
     Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
 
-    bool IsOwnedChild(const LayoutElement& child) const noexcept;
+    bool IsOwnedChild(const UIElement& child) const noexcept;
 };
 
-// Canvas has no visual of its own, but remains a RenderElement so a child
+// Canvas has no visual of its own, but remains a FrameworkElement so a child
 // loaded through XAML stays connected to the render tree.
-class AERO_API Canvas final : public RenderElement {
-    AERO_DECLARE_METADATA(Canvas, RenderElement)
+class AERO_API Canvas final : public Panel {
+    AERO_DECLARE_METADATA(Canvas, Panel)
 public:
     Canvas() noexcept;
 
     Base::Result<void> SetChildPosition(
-        LayoutElement& child, Point position) noexcept;
-    Point ChildPosition(const LayoutElement& child) const noexcept;
+        UIElement& child, Point position) noexcept;
+    Point ChildPosition(const UIElement& child) const noexcept;
 
     // Dependency properties
     AERO_DECLARE_DEPENDENCY_PROPERTY(Left);
@@ -86,8 +86,8 @@ struct GridLength final {
 // weight. Row/column spans are deliberately deferred until the base track
 // contract has conformance coverage.
 // Grid likewise acts as a transparent render-tree container for its children.
-class AERO_API Grid final : public RenderElement {
-    AERO_DECLARE_METADATA(Grid, RenderElement)
+class AERO_API Grid final : public Panel {
+    AERO_DECLARE_METADATA(Grid, Panel)
 public:
     Grid() noexcept;
 
@@ -96,7 +96,7 @@ public:
     Base::Result<void> SetRowDefinitions(
         Base::Span<const GridLength> definitions) noexcept;
     Base::Result<void> SetChildCell(
-        LayoutElement& child, std::uint32_t row, std::uint32_t column) noexcept;
+        UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;
 
     Base::Span<const GridLength> ColumnDefinitions() const noexcept {
         return {columns_.Data(), columns_.Size()};
@@ -125,8 +125,8 @@ private:
     GridLength RowAt(std::uint32_t index) const noexcept;
     Base::Result<void> ValidateDefinitions(
         Base::Span<const GridLength> definitions) const noexcept;
-    std::uint32_t ChildRow(const LayoutElement& child) const noexcept;
-    std::uint32_t ChildColumn(const LayoutElement& child) const noexcept;
+    std::uint32_t ChildRow(const UIElement& child) const noexcept;
+    std::uint32_t ChildColumn(const UIElement& child) const noexcept;
     Base::Result<void> ResolveTracks(
         Base::Span<const GridLength> definitions,
         Base::Span<const double> desired,
@@ -134,8 +134,8 @@ private:
         Base::Vector<double>& resolved) const noexcept;
 };
 
-class AERO_API Border : public RenderElement {
-    AERO_DECLARE_METADATA(Border, RenderElement)
+class AERO_API Border : public Decorator {
+    AERO_DECLARE_METADATA(Border, Decorator)
 public:
     Border() noexcept;
     Base::Result<void> SetBackground(Color value) noexcept;
@@ -166,8 +166,8 @@ protected:
 // responsibilities; once a provider has registered an immutable glyph run
 // with the active render backend, TextBlock keeps the logical UTF-8 content,
 // participates in layout, and emits that run with its foreground tint.
-class AERO_API TextBlock final : public RenderElement {
-    AERO_DECLARE_METADATA(TextBlock, RenderElement)
+class AERO_API TextBlock final : public FrameworkElement {
+    AERO_DECLARE_METADATA(TextBlock, FrameworkElement)
 public:
     TextBlock() noexcept;
 
@@ -203,33 +203,33 @@ private:
 // RenderManager. XAML loaders may retain the content object with
 // SetOwnedContent(), but the host must still Unmount() before releasing the
 // root object.
-class AERO_API ContentPresenter final : public RenderElement {
-    AERO_DECLARE_METADATA(ContentPresenter, RenderElement)
+class AERO_API ContentPresenter final : public FrameworkElement {
+    AERO_DECLARE_METADATA(ContentPresenter, FrameworkElement)
 public:
     ContentPresenter() noexcept;
 
-    LayoutElement* Content() const noexcept { return content_; }
+    UIElement* Content() const noexcept { return content_; }
     const Base::Ref<Base::Object>& OwnedContent() const noexcept {
         return ownedContent_;
     }
     Base::Result<void> SetContent(
-        LayoutElement* content) noexcept;
+        UIElement* content) noexcept;
     Base::Result<void> SetOwnedContent(
         const Base::Ref<Base::Object>& contentObject,
-        LayoutElement& content) noexcept;
+        UIElement& content) noexcept;
 
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    LayoutElement* content_ = nullptr;
+    UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
 
     bool IsOnlyAttachedContent(
-        const LayoutElement& content) const noexcept;
+        const UIElement& content) const noexcept;
     Base::Result<void> ValidateContent(
-        LayoutElement* content) const noexcept;
+        UIElement* content) const noexcept;
 };
 
 } // namespace Aero::Core
