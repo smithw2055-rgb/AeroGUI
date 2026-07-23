@@ -19,14 +19,10 @@ jobs:
       - name: Apply verified migration
         shell: bash
         run: python3 .github/migrate_value_api.py
-      - name: Restore workflows and commit
+      - name: Commit source migration
         shell: bash
         run: |
           set -euo pipefail
-          git show bc5966eed8e050a3a9280ef2087b15e48015b788:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm -f .github/workflows/source-export.yml
-          rm -f .github/source-export-trigger
-          rm -f .github/migrate_value_api.py
           git diff --check
           if rg -n 'TypeRegistry::Try(CreateValue|ConvertText)' include src tests; then
             echo 'TypeRegistry value execution API remains' >&2
@@ -34,7 +30,7 @@ jobs:
           fi
           git config user.name "AeroGUI Metadata Agent"
           git config user.email "actions@users.noreply.github.com"
-          git add -A
+          git add include src tests
           git commit -m "Remove TypeRegistry value execution API"
           git push origin HEAD:agent/unified-metadata-control-extensibility
 
