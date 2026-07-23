@@ -250,7 +250,6 @@ void MetaRegistrationBuilder::Fail(Base::Status status) noexcept {
 
 // Metadata runtime storage is compiled into the metadata translation unit so
 // registration and sealed lookup evolve as one ABI surface.
-#include "TypeRegistryBehaviors.cpp"
 #include "MetadataDescriptors.cpp"
 #include "MetadataValueFacets.cpp"
 #include "MetadataDomain.cpp"
