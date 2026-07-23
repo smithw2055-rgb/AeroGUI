@@ -10,11 +10,11 @@ permissions:
 
 jobs:
   migrate-value-api:
-    if: github.ref == 'refs/heads/agent/unified-metadata-control-extensibility'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/unified-metadata-control-extensibility
           fetch-depth: 0
       - name: Apply verified migration
         shell: bash
