@@ -1,5 +1,7 @@
+#include <Aero/Core/BuiltinTypeIds.hpp>
+#include <Aero/Core/ControlPrimitives.hpp>
 #include <Aero/Core/Controls.hpp>
-#include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -8,6 +10,8 @@
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
+#include <memory>
+#include <utility>
 
 namespace {
 
@@ -25,6 +29,8 @@ using namespace Aero::Markup;
     } while (false)
 
 constexpr StringView CustomNamespace("urn:aero-custom");
+constexpr StringView CustomModuleName("Aero.Tests.Badge");
+constexpr StringView FailingModuleName("Aero.Tests.FailingMetadata");
 
 struct CornerRadius final {
     double topLeft = 0.0;
@@ -78,11 +84,16 @@ Result<Value> ConvertCornerRadius(
     radius.bottomLeft = radius.topLeft;
     if (offset < text.SizeBytes()) {
         if (text[offset] != ',') {
-            return Status::Failure(ErrorCode::InvalidArgument, "Invalid CornerRadius separator");
+            return Status::Failure(
+                ErrorCode::InvalidArgument,
+                "Invalid CornerRadius separator");
         }
         ++offset;
-        if (!ParseNumber(text, offset, radius.topRight) || offset != text.SizeBytes()) {
-            return Status::Failure(ErrorCode::InvalidArgument, "Invalid CornerRadius pair");
+        if (!ParseNumber(text, offset, radius.topRight) ||
+            offset != text.SizeBytes()) {
+            return Status::Failure(
+                ErrorCode::InvalidArgument,
+                "Invalid CornerRadius pair");
         }
         radius.bottomRight = radius.topLeft;
         radius.bottomLeft = radius.topRight;
@@ -90,15 +101,12 @@ Result<Value> ConvertCornerRadius(
     return types->TryCreateValue(type, &radius);
 }
 
-class Badge final : public Border {
-    AERO_DECLARE_METADATA(Badge, Border, "urn:aero-custom", "Badge")
+class Badge final : public Control {
+    AERO_DECLARE_METADATA(Badge, Control, "urn:aero-custom", "Badge")
 public:
-    Badge() noexcept : Border(StaticTypeId()) {}
+    Badge() noexcept : Control(StaticTypeId()) {}
 
-    // Dependency properties
     AERO_DECLARE_DEPENDENCY_PROPERTY(CornerRadius);
-
-    // Routed events
     AERO_DECLARE_ROUTED_EVENT(Activated, RoutedEventHandler);
 
     Result<CornerRadius> GetCornerRadius() const noexcept {
@@ -117,7 +125,7 @@ private:
 Result<Value> GetBadgeCode(const Object& object, void*) noexcept {
     const auto& badge = static_cast<const Badge&>(object);
     return Value::FromUnsignedInteger(
-        MakeTypeId("UInt32"), badge.Code());
+        BuiltinTypes::UnsignedInteger, badge.Code());
 }
 
 Result<void> SetBadgeCode(Object& object, const Value& value, void*) noexcept {
@@ -126,70 +134,121 @@ Result<void> SetBadgeCode(Object& object, const Value& value, void*) noexcept {
     return {};
 }
 
-Result<Value> IncrementBadgeCode(Object& object, Span<const Value> arguments,
+Result<Value> IncrementBadgeCode(
+    Object& object,
+    Span<const Value> arguments,
     void*) noexcept {
     auto& badge = static_cast<Badge&>(object);
     badge.SetCode(badge.Code() +
         static_cast<std::uint32_t>(arguments[0].AsUnsignedInteger()));
     return Value::FromUnsignedInteger(
-        MakeTypeId("UInt32"), badge.Code());
+        BuiltinTypes::UnsignedInteger, badge.Code());
 }
 
 AERO_IMPLEMENT_METADATA(Badge, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
+    const TypeId cornerRadiusType = MakeTypeId(
+        CustomNamespace, StringView("CornerRadius"));
     const CornerRadius zero{};
     Result<Value> defaultValue = context.types.TryCreateValue(
-        MakeTypeId("urn:aero-custom", "CornerRadius"), &zero);
+        cornerRadiusType, &zero);
     if (!defaultValue) {
         helper.Fail(defaultValue.GetStatus());
         return;
     }
     AeroDP(CornerRadius,
-        MakeTypeId("urn:aero-custom", "CornerRadius"),
+        cornerRadiusType,
         std::move(defaultValue).Value(),
         PropertyMetadataFlags::AffectsRender);
 
     PropertyRegistration codeProperty;
     codeProperty.name = StringView("Code");
-    codeProperty.valueType = context.core.unsignedIntegerType;
+    codeProperty.valueType = BuiltinTypes::UnsignedInteger;
     codeProperty.access = PropertyAccessKind::Ordinary;
     codeProperty.get = &GetBadgeCode;
     codeProperty.set = &SetBadgeCode;
     AeroProp(codeProperty);
 
     const MethodParameterRegistration incrementParameters[] = {
-        {StringView("amount"), context.core.unsignedIntegerType}
+        {StringView("amount"), BuiltinTypes::UnsignedInteger}
     };
     MethodRegistration increment;
     increment.name = StringView("Increment");
-    increment.returnType = context.core.unsignedIntegerType;
+    increment.returnType = BuiltinTypes::UnsignedInteger;
     increment.parameters = {incrementParameters, 1U};
     increment.invoke = &IncrementBadgeCode;
     AeroMethod(increment);
-    AeroEvent(Activated, context.core.routedEventArgsType,
+    AeroEvent(Activated, BuiltinTypes::RoutedEventArgs,
         RoutingStrategy::Bubble);
+}
+
+Result<void> RegisterBadgeMetadata(
+    MetaRegistrationContext& context,
+    void*) noexcept {
+    const TypeId cornerRadiusType = MakeTypeId(
+        CustomNamespace, StringView("CornerRadius"));
+    Result<TypeId> type = context.types.TryRegisterType({
+        CustomNamespace,
+        StringView("CornerRadius"),
+        InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed,
+        nullptr});
+    if (!type) return type.GetStatus();
+    if (type.Value() != cornerRadiusType) {
+        return Status::Failure(
+            ErrorCode::IdCollision,
+            "CornerRadius stable type id mismatch");
+    }
+
+    Result<void> status = context.types.TryRegisterValueSemantics(
+        cornerRadiusType,
+        {sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr,
+         &EqualCornerRadius, nullptr, true});
+    if (!status) return status.GetStatus();
+    status = context.types.TryRegisterTextConverter(
+        {cornerRadiusType, &ConvertCornerRadius, &context.types});
+    if (!status) return status.GetStatus();
+    return Badge::TryRegisterMetadata(context);
+}
+
+Result<void> RegisterFailingMetadata(
+    MetaRegistrationContext& context,
+    void*) noexcept {
+    Result<TypeId> transient = context.types.TryRegisterType({
+        CustomNamespace,
+        StringView("MustNotLeak"),
+        InvalidTypeId,
+        TypeFlags::None,
+        nullptr});
+    if (!transient) return transient.GetStatus();
+    return Status::Failure(
+        ErrorCode::ValidationFailed,
+        "Intentional metadata transaction failure");
 }
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    PresentationContextScope presentation{dispatcher, properties};
-    RoutedEventRegistry routedEvents{types};
-    XamlSchemaContext schema{types};
-    XamlActivationProviderRegistry activation{schema};
-    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
-    TypeId badgeType = InvalidTypeId;
-    TypeId cornerRadiusType = InvalidTypeId;
-    TypeId unsignedIntegerType = InvalidTypeId;
+    MetadataDomain metadata;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
+    TypeId badgeType = Badge::StaticTypeId();
+    TypeId cornerRadiusType = MakeTypeId(
+        CustomNamespace, StringView("CornerRadius"));
 
-    static Result<Ref<Object>> Activate(TypeId type,
-        const XamlActivationContext& context, void*) noexcept {
-        if (context.dispatcher == nullptr || context.dependencyProperties == nullptr) {
-            return Status::Failure(ErrorCode::InvalidArgument, "Activation services are missing");
+    static Result<Ref<Object>> Activate(
+        TypeId type,
+        const XamlActivationContext& context,
+        void*) noexcept {
+        if (context.dispatcher == nullptr ||
+            context.dependencyProperties == nullptr) {
+            return Status::Failure(
+                ErrorCode::InvalidArgument,
+                "Activation services are missing");
         }
         if (type != Badge::StaticTypeId()) {
-            return Status::Failure(ErrorCode::InvalidArgument,
+            return Status::Failure(
+                ErrorCode::InvalidArgument,
                 "Activation type is not Badge");
         }
         Result<Ref<Badge>> made = MakeRef<Badge>();
@@ -198,42 +257,58 @@ struct Fixture final {
     }
 
     bool Build() {
-        Result<CorePresentationMetadata> core =
-            TryRegisterCorePresentationMetadata(types, properties, &routedEvents);
-        CHECK(core);
-        unsignedIntegerType = core.Value().unsignedIntegerType;
-        badgeType = MakeTypeId(CustomNamespace, StringView("Badge"));
-        cornerRadiusType = MakeTypeId(CustomNamespace, StringView("CornerRadius"));
-        CHECK(types.TryRegisterType({CustomNamespace, StringView("CornerRadius"),
-            InvalidTypeId, TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterValueSemantics(cornerRadiusType,
-            {sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr,
-             &EqualCornerRadius, nullptr, true}));
-        CHECK(types.TryRegisterTextConverter(
-            {cornerRadiusType, &ConvertCornerRadius, &types}));
-        MetaRegistrationContext registrationContext{
-            types, properties, core.Value(), &routedEvents};
-        CHECK(Badge::TryRegisterMetadata(registrationContext));
+        CHECK(metadata.IsValid());
+        CHECK(TryRegisterAeroPresentationMetadata(metadata));
 
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(routedEvents.Freeze());
-        CHECK(TryRegisterCorePresentationXaml(dependencyProperties));
-        CHECK(activation.TryRegister({badgeType, &Activate, nullptr}));
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+        const std::uint32_t typeCountBeforeFailure =
+            metadata.Types().TypeCount();
+        const StringView failingName = FailingModuleName;
+        Result<void> failed = metadata.TryRegisterModule({
+            MakeMetadataModuleId(failingName),
+            failingName,
+            1U,
+            &RegisterFailingMetadata,
+            nullptr});
+        CHECK(!failed &&
+            failed.GetStatus().code == ErrorCode::ValidationFailed);
+        CHECK(metadata.Types().TypeCount() == typeCountBeforeFailure);
+        CHECK(metadata.Types().FindType(
+            CustomNamespace, StringView("MustNotLeak")) == nullptr);
+
+        const StringView customName = CustomModuleName;
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(customName),
+            customName,
+            1U,
+            &RegisterBadgeMetadata,
+            nullptr}));
+        CHECK(metadata.ModuleCount() == 2U);
+        CHECK(metadata.Seal());
+        CHECK(metadata.IsSealed());
+        CHECK(metadata.ComputeSchemaHash());
+        CHECK(metadata.Types().IsDerivedFrom(
+            badgeType, Control::StaticTypeId()));
+
+        schema = std::make_unique<XamlSchemaContext>(metadata.Types());
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        CHECK(TryRegisterCorePresentationXaml(*dependencyProperties));
+        CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 
     XamlActivationContext Activation() noexcept {
         XamlActivationContext context = XamlActivationContext::Create();
         context.dispatcher = &dispatcher;
-        context.dependencyProperties = &properties;
+        context.dependencyProperties = &metadata.DependencyProperties();
         return context;
     }
 };
 
-bool TestCustomControlUsesGenericReflectionChannel() {
+bool TestCustomControlUsesUnifiedMetadataAndActivation() {
     Fixture fixture;
     CHECK(fixture.Build());
     DiagnosticBag diagnostics;
@@ -244,15 +319,15 @@ bool TestCustomControlUsesGenericReflectionChannel() {
         "aero:Grid.Row=\"1\"/>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlWithActivation(
-        writer, reader, fixture.activation, fixture.Activation());
+        writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     Badge* badge = static_cast<Badge*>(loaded.Value().Get());
     CHECK(badge != nullptr && badge->HasWidth() && badge->Width() == 40.0);
     CHECK(badge->Code() == 7U);
-    CHECK(fixture.types.IsInstanceOf(*badge, fixture.badgeType));
-    CHECK(fixture.types.TryCast<Badge>(*badge) == badge);
+    CHECK(fixture.metadata.Types().IsInstanceOf(*badge, fixture.badgeType));
+    CHECK(fixture.metadata.Types().TryCast<Badge>(*badge) == badge);
     CHECK(badge->Margin().left == 2.0 && badge->Margin().top == 2.0 &&
         badge->Margin().right == 2.0 && badge->Margin().bottom == 2.0);
     Result<CornerRadius> radius = badge->GetCornerRadius();
@@ -262,35 +337,37 @@ bool TestCustomControlUsesGenericReflectionChannel() {
     Result<Value> row = badge->GetValue(Grid::RowProperty);
     CHECK(row && row.Value().AsUnsignedInteger() == 1U);
 
-    const TypeId parameterTypes[] = {
-        MakeTypeId(StringView("UInt32"))
-    };
-    const MethodInfo* increment = fixture.types.FindMethod(
-        fixture.badgeType, StringView("Increment"), {parameterTypes, 1U});
+    const TypeId parameterTypes[] = {BuiltinTypes::UnsignedInteger};
+    const MethodInfo* increment = fixture.metadata.Types().FindMethod(
+        fixture.badgeType,
+        StringView("Increment"),
+        {parameterTypes, 1U});
     CHECK(increment != nullptr);
     const Value arguments[] = {
         Value::FromUnsignedInteger(parameterTypes[0], 5U)
     };
-    Result<Value> invoked = fixture.schema.Members().InvokeMethod(
+    Result<Value> invoked = fixture.schema->Members().InvokeMethod(
         *badge, *increment, {arguments, 1U});
     CHECK(invoked && invoked.Value().AsUnsignedInteger() == 12U &&
         badge->Code() == 12U);
-    Result<Value> wrongCount = fixture.schema.Members().InvokeMethod(
+    Result<Value> wrongCount = fixture.schema->Members().InvokeMethod(
         *badge, *increment, {});
-    CHECK(!wrongCount && wrongCount.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(!wrongCount &&
+        wrongCount.GetStatus().code == ErrorCode::InvalidArgument);
     const Value wrongArguments[] = {
-        Value::FromDouble(MakeTypeId(StringView("Double")), 1.0)
+        Value::FromDouble(BuiltinTypes::Double, 1.0)
     };
-    Result<Value> wrongType = fixture.schema.Members().InvokeMethod(
+    Result<Value> wrongType = fixture.schema->Members().InvokeMethod(
         *badge, *increment, {wrongArguments, 1U});
-    CHECK(!wrongType && wrongType.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(!wrongType &&
+        wrongType.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
 }
 
 } // namespace
 
 int main() {
-    if (!TestCustomControlUsesGenericReflectionChannel()) return 1;
-    std::puts("Aero custom-control XAML tests passed");
+    if (!TestCustomControlUsesUnifiedMetadataAndActivation()) return 1;
+    std::puts("Aero custom-control metadata tests passed");
     return 0;
 }
