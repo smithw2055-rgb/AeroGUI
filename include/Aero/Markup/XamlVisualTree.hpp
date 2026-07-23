@@ -15,14 +15,22 @@ namespace Aero::Markup {
 
 using XamlAsVisualCallback = Core::Visual* (*)(
     Base::Object& object, void* context) noexcept;
-using XamlAsContentPresenterCallback = Core::ContentPresenter* (*)(
-    Base::Object& object, void* context) noexcept;
-using XamlAsContentOwnerCallback = Core::UIElement* (*)(
-    Base::Object& object, void* context) noexcept;
-using XamlAsStackPanelCallback = Core::StackPanel* (*)(
-    Base::Object& object, void* context) noexcept;
-using XamlAsCollectionOwnerCallback = Core::UIElement* (*)(
-    Base::Object& object, void* context) noexcept;
+using XamlSetSingleContentCallback = Base::Result<void> (*)(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void* context) noexcept;
+using XamlClearContentCallback = Base::Result<void> (*)(
+    Base::Object& parentObject,
+    void* context) noexcept;
+using XamlAddCollectionChildCallback = Base::Result<void> (*)(
+    Base::Object& parentObject,
+    const Base::Ref<Base::Object>& childObject,
+    Core::UIElement& child,
+    void* context) noexcept;
+using XamlClearCollectionCallback = Base::Result<void> (*)(
+    Base::Object& parentObject,
+    void* context) noexcept;
 using XamlConfigureCollectionChildCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
     Core::UIElement& parent,
@@ -35,31 +43,22 @@ struct XamlVisualTreeTypeRegistration final {
     void* context = nullptr;
 };
 
-struct XamlContentPresenterRegistration final {
+struct XamlSingleContentRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
-    XamlAsContentPresenterCallback asPresenter = nullptr;
+    XamlSetSingleContentCallback setContent = nullptr;
+    XamlClearContentCallback clearContent = nullptr;
     void* context = nullptr;
-    // Generic single-content controls (for example Border) keep their child
-    // alive through XamlVisualTreeHost until Unmount(). ContentPresenter uses
-    // its stronger control-owned reference through asPresenter instead.
-    XamlAsContentOwnerCallback asContentOwner = nullptr;
 };
 
 struct XamlCollectionContentRegistration final {
     Core::TypeId type = Core::InvalidTypeId;
     Core::MemberId member = Core::InvalidMemberId;
-    XamlAsStackPanelCallback asStackPanel = nullptr;
-    void* context = nullptr;
-    // Non-StackPanel collection containers need no additional child owner:
-    // XamlVisualTreeHost keeps staged child references until Unmount().
-    XamlAsCollectionOwnerCallback asCollectionOwner = nullptr;
+    XamlAddCollectionChildCallback addChild = nullptr;
+    XamlClearCollectionCallback clearChildren = nullptr;
     XamlConfigureCollectionChildCallback configureChild = nullptr;
+    void* context = nullptr;
 };
 
-// Commits XAML ContentPresenter relationships as one UI-tree transaction.
-// Content member writes only stage edges while the object writer is running;
-// Mount() performs the tree/layout/render mutations after the XAML document
-// was built successfully. Call Unmount() before releasing the XAML root.
 class AERO_API XamlVisualTreeHost final {
 public:
     XamlVisualTreeHost(
@@ -74,12 +73,11 @@ public:
 
     Base::Result<void> TryRegisterType(
         const XamlVisualTreeTypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterContentPresenter(
-        const XamlContentPresenterRegistration& registration) noexcept;
+    Base::Result<void> TryRegisterSingleContent(
+        const XamlSingleContentRegistration& registration) noexcept;
     Base::Result<void> TryRegisterCollectionContent(
         const XamlCollectionContentRegistration& registration) noexcept;
-    Base::Result<void> Register(
-        XamlSchemaContext& schema) noexcept;
+    Base::Result<void> Register(XamlSchemaContext& schema) noexcept;
 
     Base::Result<void> Mount(
         Base::Object& root,
@@ -88,9 +86,7 @@ public:
     Base::Result<void> Unmount() noexcept;
     Base::Result<void> DiscardStaged() noexcept;
     bool IsMounted() const noexcept { return mounted_; }
-    std::uint32_t StagedContentCount() const noexcept {
-        return edges_.Size();
-    }
+    std::uint32_t StagedContentCount() const noexcept { return edges_.Size(); }
 
 private:
     struct Edge final {
@@ -98,10 +94,10 @@ private:
         Base::Ref<Base::Object> childOwner;
         Core::UIElement* parent = nullptr;
         Core::UIElement* child = nullptr;
-        Core::ContentPresenter* presenter = nullptr;
-        Core::StackPanel* stackPanel = nullptr;
+        XamlClearContentCallback clearSingle = nullptr;
+        XamlClearCollectionCallback clearCollection = nullptr;
         XamlConfigureCollectionChildCallback configureCollectionChild = nullptr;
-        void* collectionContext = nullptr;
+        void* contentContext = nullptr;
         bool logicalAttached = false;
         bool visualAttached = false;
         bool layoutAttached = false;
@@ -114,7 +110,7 @@ private:
     Core::RenderManager* renderer_ = nullptr;
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<XamlVisualTreeTypeRegistration> types_;
-    Base::Vector<XamlContentPresenterRegistration> presenters_;
+    Base::Vector<XamlSingleContentRegistration> singles_;
     Base::Vector<XamlCollectionContentRegistration> collections_;
     Base::Vector<Edge> edges_;
     Base::Vector<Core::Visual*> nodes_;
@@ -123,10 +119,8 @@ private:
     Core::FrameworkElement* rootRender_ = nullptr;
     bool mounted_ = false;
 
-    const XamlVisualTreeTypeRegistration* FindType(
-        Core::TypeId type) const noexcept;
-    const XamlContentPresenterRegistration* FindPresenter(
-        Core::TypeId type) const noexcept;
+    const XamlVisualTreeTypeRegistration* FindType(Core::TypeId type) const noexcept;
+    const XamlSingleContentRegistration* FindSingle(Core::TypeId type) const noexcept;
     const XamlCollectionContentRegistration* FindCollection(
         Core::TypeId type, Core::MemberId member) const noexcept;
     Base::Result<Core::Visual*> ResolveVisual(
@@ -139,10 +133,10 @@ private:
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
-    Base::Result<void> AddNode(
-        Core::Visual& node) noexcept;
+    Base::Result<void> AddNode(Core::Visual& node) noexcept;
     Base::Result<void> AttachEdge(Edge& edge) noexcept;
     void DetachEdge(Edge& edge) noexcept;
+    void ReleaseStagedContent() noexcept;
 
     static Base::Result<void> SetContentMember(
         Base::Object& object,
@@ -151,9 +145,6 @@ private:
         void* context) noexcept;
 };
 
-// Load through this helper whenever the schema contains XamlVisualTreeHost
-// adapters. It clears any stale staged edges if parsing or object construction
-// fails, leaving the host ready for the next document.
 AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlVisualTreeWithActivation(
     XamlVisualTreeHost& host,
