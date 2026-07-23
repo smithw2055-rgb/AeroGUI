@@ -20,6 +20,7 @@ namespace Aero::Core {
 
 struct MetaRegistrationContext;
 class MetaRegistrationBuilder;
+class TypeRegistry;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 2U;
@@ -149,6 +150,29 @@ struct MethodRegistration final {
     void* context = nullptr;
 };
 
+// Executable registration data is materialized into these records after the
+// structural registry has been validated and frozen. TypeInfo, PropertyInfo and
+// MethodInfo then expose behavior only as a view over these records.
+struct TypeFactoryRegistration final {
+    TypeId type = InvalidTypeId;
+    ObjectFactory factory = nullptr;
+};
+
+struct PropertyAccessorRegistration final {
+    MemberId member = InvalidMemberId;
+    PropertyAccessKind access = PropertyAccessKind::External;
+    PropertyGetCallback get = nullptr;
+    PropertySetCallback set = nullptr;
+    PropertyProviderId provider = InvalidPropertyProviderId;
+    void* context = nullptr;
+};
+
+struct MethodInvokerRegistration final {
+    MemberId member = InvalidMemberId;
+    MethodInvokeCallback invoke = nullptr;
+    void* context = nullptr;
+};
+
 class PropertyInfo final {
 public:
     PropertyInfo(PropertyInfo&&) noexcept = default;
@@ -161,13 +185,11 @@ public:
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId ValueType() const noexcept { return valueType_; }
     PropertyFlags Flags() const noexcept { return flags_; }
-    PropertyAccessKind Access() const noexcept { return access_; }
-    PropertyGetCallback Getter() const noexcept { return get_; }
-    PropertySetCallback Setter() const noexcept { return set_; }
-    PropertyProviderId Provider() const noexcept {
-        return provider_;
-    }
-    void* Context() const noexcept { return context_; }
+    PropertyAccessKind Access() const noexcept;
+    PropertyGetCallback Getter() const noexcept;
+    PropertySetCallback Setter() const noexcept;
+    PropertyProviderId Provider() const noexcept;
+    void* Context() const noexcept;
     Base::StringView Name() const noexcept { return name_.View(); }
 
 private:
@@ -179,11 +201,15 @@ private:
     TypeId ownerType_ = InvalidTypeId;
     TypeId valueType_ = InvalidTypeId;
     PropertyFlags flags_ = PropertyFlags::None;
+
+    // Registration-only staging. MaterializeBehaviorRecords() moves the active
+    // data into PropertyAccessorRegistration storage and clears these fields.
     PropertyAccessKind access_ = PropertyAccessKind::External;
     PropertyGetCallback get_ = nullptr;
     PropertySetCallback set_ = nullptr;
     PropertyProviderId provider_ = InvalidPropertyProviderId;
     void* context_ = nullptr;
+    const TypeRegistry* registry_ = nullptr;
     Base::String name_;
 };
 
@@ -219,8 +245,8 @@ public:
     Base::Span<const MethodParameterInfo> Parameters() const noexcept {
         return {parameters_.Data(), parameters_.Size()};
     }
-    MethodInvokeCallback Invoker() const noexcept { return invoke_; }
-    void* Context() const noexcept { return context_; }
+    MethodInvokeCallback Invoker() const noexcept;
+    void* Context() const noexcept;
 
 private:
     friend class TypeRegistry;
@@ -229,8 +255,11 @@ private:
     TypeId ownerType_ = InvalidTypeId;
     TypeId returnType_ = InvalidTypeId;
     MethodFlags flags_ = MethodFlags::None;
+
+    // Registration-only staging. Cleared after behavior materialization.
     MethodInvokeCallback invoke_ = nullptr;
     void* context_ = nullptr;
+    const TypeRegistry* registry_ = nullptr;
     Base::String name_;
     Base::Vector<MethodParameterInfo> parameters_;
 };
@@ -272,7 +301,7 @@ public:
     TypeId Id() const noexcept { return id_; }
     TypeId BaseType() const noexcept { return baseType_; }
     TypeFlags Flags() const noexcept { return flags_; }
-    ObjectFactory Factory() const noexcept { return factory_; }
+    ObjectFactory Factory() const noexcept;
     Base::StringView XamlNamespace() const noexcept {
         return xamlNamespace_.View();
     }
@@ -300,7 +329,10 @@ private:
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
     TypeFlags flags_ = TypeFlags::None;
+
+    // Registration-only staging. Cleared after behavior materialization.
     ObjectFactory factory_ = nullptr;
+    const TypeRegistry* registry_ = nullptr;
     Base::String xamlNamespace_;
     Base::String name_;
     Base::Vector<PropertyInfo> properties_;
@@ -380,7 +412,20 @@ public:
         TypeId type,
         Base::StringView text) const noexcept;
 
-    // Seal-time export surface used to transfer runtime behavior into typed
+    // Seal-time transition from callback-bearing staging fields to dedicated
+    // immutable registration records. The operation is idempotent.
+    Base::Result<void> MaterializeBehaviorRecords() noexcept;
+    bool BehaviorRecordsMaterialized() const noexcept {
+        return behaviorRecordsMaterialized_;
+    }
+    const TypeFactoryRegistration* FindTypeFactory(
+        TypeId type) const noexcept;
+    const PropertyAccessorRegistration* FindPropertyAccessor(
+        MemberId member) const noexcept;
+    const MethodInvokerRegistration* FindMethodInvoker(
+        MemberId member) const noexcept;
+
+    // Seal-time export surface used to transfer value behavior into owned
     // facets. Returned registrations remain immutable after Freeze().
     const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
         TypeId type) const noexcept;
@@ -456,12 +501,18 @@ private:
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
+
+    Base::Vector<TypeFactoryRegistration> typeFactories_;
+    Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
+    Base::Vector<MethodInvokerRegistration> methodInvokers_;
+
     struct ValueSemanticsEntry final {
         TypeId type = InvalidTypeId;
         Base::Ref<ValueTypeSemantics> semantics;
     };
     Base::Vector<ValueSemanticsEntry> valueSemantics_;
     Base::Vector<TextValueConverterRegistration> textConverters_;
+    bool behaviorRecordsMaterialized_ = false;
     bool frozen_ = false;
 
     TypeInfo* MutableType(TypeId id) noexcept;
