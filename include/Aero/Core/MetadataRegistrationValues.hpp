@@ -47,15 +47,35 @@ public:
     Base::Result<Value> TryCreateValue(
         TypeId type,
         const void* source) const noexcept {
-        AERO_ASSERT(types_ != nullptr);
-        return types_->TryCreateValue(type, source);
+        const Base::Ref<ValueTypeSemantics>* semantics =
+            FindValueSemantics(type);
+        if (semantics == nullptr || !*semantics) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Value type semantics are not registered");
+        }
+        return Value::TryFromCustom(type, source, *semantics);
     }
 
     Base::Result<Value> TryConvertText(
         TypeId type,
         Base::StringView text) const noexcept {
-        AERO_ASSERT(types_ != nullptr);
-        return types_->TryConvertText(type, text);
+        const TextValueConverterRegistration* converter =
+            FindTextConverter(type);
+        if (converter == nullptr || converter->convert == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Text value converter is not registered");
+        }
+        Base::Result<Value> converted = converter->convert(
+            type, text, converter->context);
+        if (!converted) return converted.GetStatus();
+        if (converted.Value().IsUnset() || converted.Value().Type() != type) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Text converter returned an incompatible value");
+        }
+        return converted;
     }
 
     const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
