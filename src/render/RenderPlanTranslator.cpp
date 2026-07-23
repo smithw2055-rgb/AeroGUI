@@ -4,17 +4,17 @@ namespace Aero::Render {
 
 Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
     const Core::RenderPlan& plan) const noexcept {
+    const Base::Span<const Core::RenderCommand> commands = plan.Commands();
+    const Base::Span<const Core::RenderNodeSnapshot> nodes = plan.Nodes();
     Rhi::CommandBuffer output(allocator_);
     Base::Result<void> reserved = output.commands_.TryReserve(
-        plan.Commands().Size() + (plan.Nodes().Size() * 2U));
-    if (!reserved) {
-        return reserved.GetStatus();
-    }
+        commands.Size() + (nodes.Size() * 2U));
+    if (!reserved) return reserved.GetStatus();
 
-    for (const Core::RenderNodeSnapshot& node : plan.Nodes()) {
+    for (const Core::RenderNodeSnapshot& node : nodes) {
         if (node.id == Core::InvalidRenderNodeId ||
-            node.commandOffset > plan.Commands().Size() ||
-            node.commandCount > plan.Commands().Size() - node.commandOffset) {
+            node.commandOffset > commands.Size() ||
+            node.commandCount > commands.Size() - node.commandOffset) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "RenderPlan contains an invalid node command range");
@@ -25,13 +25,11 @@ Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
         begin.rect = node.clip;
         begin.nodeId = node.id;
         Base::Result<void> appended = output.commands_.TryPushBack(begin);
-        if (!appended) {
-            return appended.GetStatus();
-        }
+        if (!appended) return appended.GetStatus();
 
         for (std::uint32_t index = 0U; index < node.commandCount; ++index) {
             const Core::RenderCommand& source =
-                plan.Commands()[node.commandOffset + index];
+                commands[node.commandOffset + index];
             Rhi::RhiCommand translated;
             translated.rect = source.rect;
             translated.transform = source.transform;
@@ -62,39 +60,31 @@ Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
                 translated.kind = Rhi::RhiCommandKind::DrawFilledRect;
                 break;
             case Core::RenderCommandKind::FillRoundedRect:
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
+                return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support rounded rectangle commands");
             case Core::RenderCommandKind::StrokeRect:
                 translated.kind = Rhi::RhiCommandKind::DrawStrokedRect;
                 break;
             case Core::RenderCommandKind::DrawImage:
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
+                return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support image commands");
             case Core::RenderCommandKind::DrawMesh:
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
+                return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support mesh commands");
             case Core::RenderCommandKind::DrawGlyphRun:
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
+                return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support glyph-run commands");
             }
 
             appended = output.commands_.TryPushBack(translated);
-            if (!appended) {
-                return appended.GetStatus();
-            }
+            if (!appended) return appended.GetStatus();
         }
 
         Rhi::RhiCommand end;
         end.kind = Rhi::RhiCommandKind::EndPass;
         end.nodeId = node.id;
         appended = output.commands_.TryPushBack(end);
-        if (!appended) {
-            return appended.GetStatus();
-        }
+        if (!appended) return appended.GetStatus();
     }
 
     return output;
