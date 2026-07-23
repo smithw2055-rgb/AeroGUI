@@ -1,10 +1,12 @@
 #pragma once
 
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Core/MetadataDescriptors.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 
 #include <cstdint>
@@ -43,19 +45,31 @@ using ObjectActivateCallback = Base::Result<Base::Ref<Base::Object>> (*)(
     const ObjectActivationContext& activation,
     void* context) noexcept;
 
-struct ObjectActivationProviderRegistration final {
+// Host activation is a runtime facet rather than static schema metadata. It is
+// deliberately excluded from MetadataDomain schema hashes because callbacks and
+// host contexts differ between applications even when the XAML schema matches.
+struct ActivationFacet final {
     TypeId type = InvalidTypeId;
     ObjectActivateCallback activate = nullptr;
     void* context = nullptr;
 };
 
-// Shared activation registry for XAML, templates, compiled markup and direct
-// host construction. A provider registered for a base metadata type may create
-// any requested derived type and receives the exact requested TypeId.
+// Source compatibility for registration sites. The registry immediately stores
+// the supplied value as an ActivationFacet.
+using ObjectActivationProviderRegistration = ActivationFacet;
+
+// Shared activation-facet registry for XAML, templates, compiled markup and
+// direct host construction. When a sealed descriptor store is supplied it is
+// the authoritative type/inheritance source; TypeRegistry remains available for
+// legacy schemas that have not migrated to MetadataDomain.
 class AERO_API ActivationProviderRegistry final {
 public:
-    explicit ActivationProviderRegistry(TypeRegistry& types) noexcept
-        : types_(&types), providers_() {}
+    explicit ActivationProviderRegistry(
+        TypeRegistry& types,
+        const MetadataDescriptorStore* descriptors = nullptr) noexcept
+        : types_(&types),
+          descriptors_(descriptors),
+          facets_() {}
 
     ActivationProviderRegistry(const ActivationProviderRegistry&) = delete;
     ActivationProviderRegistry& operator=(
@@ -66,21 +80,22 @@ public:
         if (frozen_) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "Activation provider registry is frozen");
+                "Activation facet registry is frozen");
         }
-        const TypeInfo* type = types_->FindType(registration.type);
-        if (type == nullptr || registration.activate == nullptr ||
-            HasTypeFlag(type->Flags(), TypeFlags::ValueType)) {
+        TypeFlags flags = TypeFlags::None;
+        if (!TryGetTypeFlags(registration.type, flags) ||
+            registration.activate == nullptr ||
+            HasTypeFlag(flags, TypeFlags::ValueType)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Activation provider registration is invalid");
+                "Activation facet registration is invalid");
         }
         if (FindExact(registration.type) != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
-                "Activation provider is already registered");
+                "Activation facet is already registered");
         }
-        return providers_.TryPushBack(registration);
+        return facets_.TryPushBack(registration);
     }
 
     Base::Result<void> Freeze() noexcept {
@@ -90,34 +105,40 @@ public:
         if (!types_->IsFrozen()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "TypeRegistry must be frozen before activation providers");
+                "TypeRegistry must be frozen before activation facets");
+        }
+        if (descriptors_ != nullptr && !descriptors_->IsSealed()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Metadata descriptors must be sealed before activation facets");
         }
         frozen_ = true;
         return {};
     }
 
     bool IsFrozen() const noexcept { return frozen_; }
+    bool UsesDescriptors() const noexcept { return descriptors_ != nullptr; }
     std::uint32_t ProviderCount() const noexcept {
-        return providers_.Size();
+        return facets_.Size();
     }
-    TypeRegistry& Types() const noexcept { return *types_; }
+    TypeRegistry& Types() const noexcept {
+        AERO_ASSERT(types_ != nullptr);
+        return *types_;
+    }
+    const MetadataDescriptorStore* Descriptors() const noexcept {
+        return descriptors_;
+    }
 
-    const ObjectActivationProviderRegistration* Find(
-        TypeId requestedType) const noexcept {
+    const ActivationFacet* Find(TypeId requestedType) const noexcept {
         TypeId current = requestedType;
         for (std::uint32_t depth = 0U;
-             current != InvalidTypeId && depth <= types_->TypeCount();
+             current != InvalidTypeId && depth <= TypeCount();
              ++depth) {
-            const ObjectActivationProviderRegistration* provider =
-                FindExact(current);
-            if (provider != nullptr) {
-                return provider;
+            const ActivationFacet* facet = FindExact(current);
+            if (facet != nullptr) {
+                return facet;
             }
-            const TypeInfo* type = types_->FindType(current);
-            if (type == nullptr) {
-                return nullptr;
-            }
-            current = type->BaseType();
+            current = BaseTypeOf(current);
         }
         return nullptr;
     }
@@ -128,44 +149,45 @@ public:
         if (!frozen_) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "Activation provider registry is not frozen");
+                "Activation facet registry is not frozen");
         }
         if (!activation.IsCompatible()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Object activation context is incompatible");
         }
-        if (types_->FindType(requestedType) == nullptr) {
+        TypeFlags flags = TypeFlags::None;
+        if (!TryGetTypeFlags(requestedType, flags)) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Requested activation type is not registered");
         }
 
-        const ObjectActivationProviderRegistration* provider =
-            Find(requestedType);
-        if (provider == nullptr) {
+        const ActivationFacet* facet = Find(requestedType);
+        if (facet == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
-                "No activation provider applies to the requested type");
+                "No activation facet applies to the requested type");
         }
 
-        Base::Result<Base::Ref<Base::Object>> created = provider->activate(
+        Base::Result<Base::Ref<Base::Object>> created = facet->activate(
             requestedType,
             activation,
-            provider->context);
+            facet->context);
         if (!created) {
             return created.GetStatus();
         }
         if (!created.Value()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InternalError,
-                "Activation provider returned a null object");
+                "Activation facet returned a null object");
         }
 
-        if (created.Value()->RuntimeType() != requestedType) {
+        const TypeId runtimeType = created.Value()->RuntimeType();
+        if (runtimeType != InvalidTypeId && runtimeType != requestedType) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "Activation provider returned an object with the wrong runtime type");
+                "Activation facet returned an object with the wrong runtime type");
         }
         return created;
     }
@@ -178,18 +200,50 @@ private:
             static_cast<std::uint32_t>(flag)) != 0U;
     }
 
-    const ObjectActivationProviderRegistration* FindExact(
-        TypeId type) const noexcept {
-        for (const ObjectActivationProviderRegistration& provider : providers_) {
-            if (provider.type == type) {
-                return &provider;
+    bool TryGetTypeFlags(TypeId type, TypeFlags& flags) const noexcept {
+        if (descriptors_ != nullptr) {
+            const MetadataTypeDescriptor* descriptor =
+                descriptors_->FindType(type);
+            if (descriptor == nullptr) return false;
+            flags = descriptor->Flags();
+            return true;
+        }
+        const TypeInfo* info = types_->FindType(type);
+        if (info == nullptr) return false;
+        flags = info->Flags();
+        return true;
+    }
+
+    std::uint32_t TypeCount() const noexcept {
+        return descriptors_ != nullptr
+            ? descriptors_->TypeCount()
+            : types_->TypeCount();
+    }
+
+    TypeId BaseTypeOf(TypeId type) const noexcept {
+        if (descriptors_ != nullptr) {
+            const MetadataTypeDescriptor* descriptor =
+                descriptors_->FindType(type);
+            return descriptor != nullptr
+                ? descriptor->BaseType()
+                : InvalidTypeId;
+        }
+        const TypeInfo* info = types_->FindType(type);
+        return info != nullptr ? info->BaseType() : InvalidTypeId;
+    }
+
+    const ActivationFacet* FindExact(TypeId type) const noexcept {
+        for (const ActivationFacet& facet : facets_) {
+            if (facet.type == type) {
+                return &facet;
             }
         }
         return nullptr;
     }
 
     TypeRegistry* types_ = nullptr;
-    Base::Vector<ObjectActivationProviderRegistration> providers_;
+    const MetadataDescriptorStore* descriptors_ = nullptr;
+    Base::Vector<ActivationFacet> facets_;
     bool frozen_ = false;
 };
 
