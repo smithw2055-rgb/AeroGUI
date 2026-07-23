@@ -1,4 +1,5 @@
 #include <Aero/Core/MetadataValueFacets.hpp>
+#include <Aero/Core/MetadataRegistrationValues.hpp>
 
 #include <utility>
 
@@ -41,7 +42,8 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
                 ? "Metadata value facets are already sealed"
                 : "Core metadata facets must be built before value facets");
     }
-    if (!source.IsFrozen() || !descriptors.IsSealed() ||
+    const MetadataRegistrationValues values(source);
+    if (!values.IsFrozen() || !descriptors.IsSealed() ||
         descriptors_ != &descriptors) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -65,7 +67,7 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
         if (!IsValueType(type)) continue;
 
         const Base::Ref<ValueTypeSemantics>* semantics =
-            source.FindValueSemantics(type.Id());
+            values.FindValueSemantics(type.Id());
         if (semantics != nullptr && semantics->Get() != nullptr) {
             ValueSemanticsFacet facet;
             facet.type = type.Id();
@@ -82,7 +84,7 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
         }
 
         const TextValueConverterRegistration* converter =
-            source.FindTextConverter(type.Id());
+            values.FindTextConverter(type.Id());
         if (converter != nullptr && converter->convert != nullptr) {
             TextConverterFacet facet;
             facet.type = type.Id();
