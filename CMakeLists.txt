@@ -82,6 +82,9 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/Layout.cpp
     src/core/MemberAccessor.cpp
     src/core/Metadata.cpp
+    src/core/MetadataDescriptors.cpp
+    src/core/MetadataDomain.cpp
+    src/core/MetadataValueFacets.cpp
     src/core/ObjectTree.cpp
     src/core/Presentation.cpp
     src/core/Rendering.cpp
