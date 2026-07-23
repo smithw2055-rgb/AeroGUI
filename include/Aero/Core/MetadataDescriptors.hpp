@@ -19,7 +19,7 @@ class DependencyPropertyRegistry;
 class RoutedEventRegistry;
 
 inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 1U;
-inline constexpr std::uint32_t MetadataFacetFormatVersion = 1U;
+inline constexpr std::uint32_t MetadataFacetFormatVersion = 2U;
 
 enum class MetadataDescriptorKind : std::uint8_t {
     Type = 0U,
@@ -35,6 +35,8 @@ enum class MetadataFacetKind : std::uint8_t {
     MethodInvoker,
     DependencyProperty,
     RoutedEvent,
+    ValueSemantics,
+    TextConverter,
     Activation
 };
 
@@ -248,6 +250,19 @@ struct RoutedEventFacet final {
     const RoutedEventRegistry* registry = nullptr;
 };
 
+// These facets expose immutable runtime service endpoints for registered value
+// types. The TypeRegistry remains the registration owner for this slice; all
+// runtime callers reach the service only through the sealed facet store.
+struct ValueSemanticsFacet final {
+    TypeId type = InvalidTypeId;
+    const TypeRegistry* source = nullptr;
+};
+
+struct TextConverterFacet final {
+    TypeId type = InvalidTypeId;
+    const TypeRegistry* source = nullptr;
+};
+
 class AERO_API MetadataFacetStore final {
 public:
     MetadataFacetStore() noexcept = default;
@@ -262,8 +277,12 @@ public:
         const MetadataDescriptorStore& descriptors,
         const DependencyPropertyRegistry& dependencyProperties,
         const RoutedEventRegistry& routedEvents) noexcept;
+    Base::Result<void> BuildValueFacets(
+        const TypeRegistry& source,
+        const MetadataDescriptorStore& descriptors) noexcept;
 
     bool IsSealed() const noexcept { return sealed_; }
+    bool ValueFacetsSealed() const noexcept { return valueFacetsSealed_; }
     MetadataFacetMask TypeFacets(TypeId type) const noexcept;
     MetadataFacetMask MemberFacets(MemberId member) const noexcept;
     bool HasTypeFacet(TypeId type, MetadataFacetKind kind) const noexcept {
@@ -280,6 +299,8 @@ public:
     const MethodInvokerFacet* FindMethodInvoker(MemberId member) const noexcept;
     const DependencyPropertyFacet* FindDependencyProperty(MemberId member) const noexcept;
     const RoutedEventFacet* FindRoutedEvent(MemberId member) const noexcept;
+    const ValueSemanticsFacet* FindValueSemantics(TypeId type) const noexcept;
+    const TextConverterFacet* FindTextConverter(TypeId type) const noexcept;
 
     Base::Result<Base::HashCode> ComputeHash() const noexcept;
 
@@ -291,6 +312,8 @@ private:
     Base::Vector<MethodInvokerFacet> methodInvokers_;
     Base::Vector<DependencyPropertyFacet> dependencyProperties_;
     Base::Vector<RoutedEventFacet> routedEvents_;
+    Base::Vector<ValueSemanticsFacet> valueSemantics_;
+    Base::Vector<TextConverterFacet> textConverters_;
 
     Base::HashMap<TypeId, std::uint32_t> factoryIndex_;
     Base::HashMap<TypeId, std::uint32_t> contentIndex_;
@@ -298,9 +321,12 @@ private:
     Base::HashMap<MemberId, std::uint32_t> methodInvokerIndex_;
     Base::HashMap<MemberId, std::uint32_t> dependencyPropertyIndex_;
     Base::HashMap<MemberId, std::uint32_t> routedEventIndex_;
+    Base::HashMap<TypeId, std::uint32_t> valueSemanticsIndex_;
+    Base::HashMap<TypeId, std::uint32_t> textConverterIndex_;
     Base::HashMap<TypeId, MetadataFacetMask> typeMasks_;
     Base::HashMap<MemberId, MetadataFacetMask> memberMasks_;
     bool sealed_ = false;
+    bool valueFacetsSealed_ = false;
 
     Base::Result<void> AddTypeMask(
         TypeId type,
