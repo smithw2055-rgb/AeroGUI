@@ -1,5 +1,6 @@
 #include <Aero/Core/MemberAccessor.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 
 #include <utility>
 
@@ -46,9 +47,7 @@ Base::Result<void> SetDependencyProperty(
 Base::Result<Value> ValidateGetterResult(
     Base::Result<Value> result,
     TypeId expectedType) noexcept {
-    if (!result) {
-        return result.GetStatus();
-    }
+    if (!result) return result.GetStatus();
     if (result.Value().IsUnset() || result.Value().Type() != expectedType) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Property getter returned a value with the wrong type");
@@ -60,7 +59,24 @@ Base::Result<Value> ValidateGetterResult(
 
 MemberAccessor::MemberAccessor(TypeRegistry& types) noexcept
     : types_(&types),
+      runtime_(nullptr),
       providers_() {}
+
+Base::Result<void> MemberAccessor::UseRuntime(
+    MetadataRuntime& runtime) noexcept {
+    if (frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MemberAccessor is frozen");
+    }
+    if (!runtime.IsFrozen() || &runtime.Domain().Types() != types_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "MetadataRuntime does not match the MemberAccessor TypeRegistry");
+    }
+    runtime_ = &runtime;
+    return {};
+}
 
 Base::Result<void> MemberAccessor::TryRegisterProvider(
     const PropertyProviderRegistration& registration) noexcept {
@@ -89,6 +105,14 @@ Base::Result<void> MemberAccessor::Freeze() noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "TypeRegistry must be frozen before MemberAccessor");
     }
+    if (runtime_ != nullptr) {
+        if (!runtime_->IsFrozen()) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "MetadataRuntime must be frozen before MemberAccessor");
+        }
+        frozen_ = true;
+        return {};
+    }
     for (const TypeInfo& type : types_->Types()) {
         for (const PropertyInfo& property : type.Properties()) {
             if (property.Access() == PropertyAccessKind::Provider &&
@@ -111,6 +135,14 @@ Base::Result<void> MemberAccessor::Freeze() noexcept {
 Base::Result<Value> MemberAccessor::GetProperty(
     const Base::Object& object,
     const PropertyInfo& property) const noexcept {
+    if (runtime_ != nullptr) {
+        if (!frozen_) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "MemberAccessor must be frozen before use");
+        }
+        return runtime_->GetProperty(object, property.Id());
+    }
+
     Base::Result<void> target = HasPropertyFlag(
         property.Flags(), PropertyFlags::Attached)
         ? (object.RuntimeType() != InvalidTypeId &&
@@ -127,14 +159,11 @@ Base::Result<Value> MemberAccessor::GetProperty(
     }
 
     if (property.Access() == PropertyAccessKind::Ordinary) {
-        if (property.Getter() == nullptr) {
-            return UnsupportedPropertyStatus();
-        }
+        if (property.Getter() == nullptr) return UnsupportedPropertyStatus();
         return ValidateGetterResult(
             property.Getter()(object, property.Context()),
             property.ValueType());
     }
-
     if (property.Access() == PropertyAccessKind::Provider) {
         const PropertyProviderRegistration* provider =
             FindProvider(property.Provider());
@@ -147,7 +176,6 @@ Base::Result<Value> MemberAccessor::GetProperty(
             provider->get(object, property, provider->context),
             property.ValueType());
     }
-
     return UnsupportedPropertyStatus();
 }
 
@@ -155,6 +183,14 @@ Base::Result<void> MemberAccessor::SetProperty(
     Base::Object& object,
     const PropertyInfo& property,
     const Value& value) const noexcept {
+    if (runtime_ != nullptr) {
+        if (!frozen_) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "MemberAccessor must be frozen before use");
+        }
+        return runtime_->SetProperty(object, property.Id(), value);
+    }
+
     Base::Result<void> target = HasPropertyFlag(
         property.Flags(), PropertyFlags::Attached)
         ? (object.RuntimeType() != InvalidTypeId &&
@@ -200,6 +236,14 @@ Base::Result<Value> MemberAccessor::InvokeMethod(
     Base::Object& object,
     const MethodInfo& method,
     Base::Span<const Value> arguments) const noexcept {
+    if (runtime_ != nullptr) {
+        if (!frozen_) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "MemberAccessor must be frozen before use");
+        }
+        return runtime_->InvokeMethod(object, method.Id(), arguments);
+    }
+
     Base::Result<void> target = ValidateTarget(object, method.OwnerType());
     if (!target) return target.GetStatus();
     if (arguments.Size() != method.Parameters().Size()) {
