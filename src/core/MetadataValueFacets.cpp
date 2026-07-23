@@ -1,5 +1,7 @@
 #include <Aero/Core/MetadataDescriptors.hpp>
 
+#include <utility>
+
 namespace Aero::Core {
 namespace {
 
@@ -58,25 +60,40 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
     for (const MetadataTypeDescriptor& type : descriptors.Types()) {
         if (!IsValueType(type)) continue;
 
-        std::uint32_t index = valueSemantics_.Size();
-        result = valueSemantics_.TryPushBack({type.Id(), &source});
-        if (!result) return result.GetStatus();
-        result = InsertValueFacetIndex(
-            valueSemanticsIndex_, type.Id(), index,
-            "Value semantics facet collision");
-        if (!result) return result.GetStatus();
-        result = AddTypeMask(type.Id(), MetadataFacetKind::ValueSemantics);
-        if (!result) return result.GetStatus();
+        const Base::Ref<ValueTypeSemantics>* semantics =
+            source.FindValueSemantics(type.Id());
+        if (semantics != nullptr && semantics->Get() != nullptr) {
+            ValueSemanticsFacet facet;
+            facet.type = type.Id();
+            facet.semantics = *semantics;
+            const std::uint32_t index = valueSemantics_.Size();
+            result = valueSemantics_.TryPushBack(std::move(facet));
+            if (!result) return result.GetStatus();
+            result = InsertValueFacetIndex(
+                valueSemanticsIndex_, type.Id(), index,
+                "Value semantics facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(type.Id(), MetadataFacetKind::ValueSemantics);
+            if (!result) return result.GetStatus();
+        }
 
-        index = textConverters_.Size();
-        result = textConverters_.TryPushBack({type.Id(), &source});
-        if (!result) return result.GetStatus();
-        result = InsertValueFacetIndex(
-            textConverterIndex_, type.Id(), index,
-            "Text converter facet collision");
-        if (!result) return result.GetStatus();
-        result = AddTypeMask(type.Id(), MetadataFacetKind::TextConverter);
-        if (!result) return result.GetStatus();
+        const TextValueConverterRegistration* converter =
+            source.FindTextConverter(type.Id());
+        if (converter != nullptr && converter->convert != nullptr) {
+            TextConverterFacet facet;
+            facet.type = type.Id();
+            facet.convert = converter->convert;
+            facet.context = converter->context;
+            const std::uint32_t index = textConverters_.Size();
+            result = textConverters_.TryPushBack(facet);
+            if (!result) return result.GetStatus();
+            result = InsertValueFacetIndex(
+                textConverterIndex_, type.Id(), index,
+                "Text converter facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(type.Id(), MetadataFacetKind::TextConverter);
+            if (!result) return result.GetStatus();
+        }
     }
 
     valueFacetsSealed_ = true;
