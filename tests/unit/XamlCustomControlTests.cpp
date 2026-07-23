@@ -1,6 +1,7 @@
 #include <Aero/Core/BuiltinTypeIds.hpp>
 #include <Aero/Core/ControlPrimitives.hpp>
 #include <Aero/Core/Controls.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
@@ -229,6 +230,7 @@ Result<void> RegisterFailingMetadata(
 struct Fixture final {
     Dispatcher dispatcher;
     MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
     std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
@@ -285,32 +287,71 @@ struct Fixture final {
         CHECK(metadata.ModuleCount() == 2U);
         CHECK(metadata.Seal());
         CHECK(metadata.IsSealed());
+        CHECK(metadata.Descriptors().IsSealed());
+        CHECK(metadata.Facets().IsSealed());
         CHECK(metadata.ComputeSchemaHash());
-        const TypeRegistry& types = metadata.Types();
-        CHECK(types.FindType(BuiltinTypes::Visual)->BaseType() ==
+
+        const MetadataDescriptorStore& descriptors = metadata.Descriptors();
+        const MetadataFacetStore& facets = metadata.Facets();
+        CHECK(descriptors.FindType(BuiltinTypes::Visual)->BaseType() ==
             BuiltinTypes::DependencyObject);
-        CHECK(types.FindType(BuiltinTypes::UIElement)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::UIElement)->BaseType() ==
             BuiltinTypes::Visual);
-        CHECK(types.FindType(BuiltinTypes::FrameworkElement)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::FrameworkElement)->BaseType() ==
             BuiltinTypes::UIElement);
-        CHECK(types.FindType(BuiltinTypes::Panel)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::Panel)->BaseType() ==
             BuiltinTypes::FrameworkElement);
-        CHECK(types.FindType(BuiltinTypes::Decorator)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::Decorator)->BaseType() ==
             BuiltinTypes::FrameworkElement);
-        CHECK(types.FindType(BuiltinTypes::Control)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::Control)->BaseType() ==
             BuiltinTypes::FrameworkElement);
-        CHECK(types.FindType(BuiltinTypes::ContentControl)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::ContentControl)->BaseType() ==
             BuiltinTypes::Control);
-        CHECK(types.FindType(BuiltinTypes::UserControl)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::UserControl)->BaseType() ==
             BuiltinTypes::ContentControl);
-        CHECK(types.FindType(BuiltinTypes::StackPanel)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::StackPanel)->BaseType() ==
             BuiltinTypes::Panel);
-        CHECK(types.FindType(BuiltinTypes::Border)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::Border)->BaseType() ==
             BuiltinTypes::Decorator);
-        CHECK(types.FindType(BuiltinTypes::TextBlock)->BaseType() ==
+        CHECK(descriptors.FindType(BuiltinTypes::TextBlock)->BaseType() ==
             BuiltinTypes::FrameworkElement);
-        CHECK(types.FindType(badgeType)->BaseType() ==
+        CHECK(descriptors.FindType(badgeType)->BaseType() ==
             BuiltinTypes::Control);
+        CHECK(descriptors.IsDerivedFrom(badgeType, BuiltinTypes::DependencyObject));
+        CHECK(facets.FindContentMember(BuiltinTypes::StackPanel) !=
+            InvalidMemberId);
+
+        const MetadataPropertyDescriptor* code = descriptors.FindProperty(
+            badgeType, StringView("Code"), false);
+        const MetadataPropertyDescriptor* corner = descriptors.FindProperty(
+            badgeType, StringView("CornerRadius"), false);
+        const MetadataEventDescriptor* activated = descriptors.FindEvent(
+            badgeType, StringView("Activated"), false);
+        const TypeId parameterTypes[] = {BuiltinTypes::UnsignedInteger};
+        const MetadataMethodDescriptor* increment = descriptors.FindMethod(
+            badgeType, StringView("Increment"), {parameterTypes, 1U}, false);
+        CHECK(code != nullptr && corner != nullptr && activated != nullptr &&
+            increment != nullptr);
+        CHECK(facets.HasMemberFacet(
+            code->Id(), MetadataFacetKind::PropertyAccessor));
+        CHECK(facets.HasMemberFacet(
+            corner->Id(), MetadataFacetKind::DependencyProperty));
+        CHECK(facets.HasMemberFacet(
+            activated->Id(), MetadataFacetKind::RoutedEvent));
+        CHECK(facets.HasMemberFacet(
+            increment->Id(), MetadataFacetKind::MethodInvoker));
+        CHECK(facets.FindPropertyAccessor(code->Id())->access ==
+            PropertyAccessKind::Ordinary);
+        CHECK(facets.FindDependencyProperty(corner->Id())->property != nullptr);
+        CHECK(facets.FindRoutedEvent(activated->Id())->registry ==
+            &metadata.RoutedEvents());
+
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        CHECK(TryRegisterDependencyPropertyRuntimeProvider(
+            *runtime,
+            metadata.DependencyProperties(),
+            BuiltinTypes::DependencyObject));
+        CHECK(runtime->Freeze());
 
         schema = std::make_unique<XamlSchemaContext>(metadata.Types());
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
@@ -349,8 +390,8 @@ bool TestCustomControlUsesUnifiedMetadataAndActivation() {
     Badge* badge = static_cast<Badge*>(loaded.Value().Get());
     CHECK(badge != nullptr && badge->HasWidth() && badge->Width() == 40.0);
     CHECK(badge->Code() == 7U);
-    CHECK(fixture.metadata.Types().IsInstanceOf(*badge, fixture.badgeType));
-    CHECK(fixture.metadata.Types().TryCast<Badge>(*badge) == badge);
+    CHECK(fixture.metadata.Descriptors().IsDerivedFrom(
+        badge->RuntimeType(), fixture.badgeType));
     CHECK(badge->Margin().left == 2.0 && badge->Margin().top == 2.0 &&
         badge->Margin().right == 2.0 && badge->Margin().bottom == 2.0);
     Result<CornerRadius> radius = badge->GetCornerRadius();
@@ -360,28 +401,48 @@ bool TestCustomControlUsesUnifiedMetadataAndActivation() {
     Result<Value> row = badge->GetValue(Grid::RowProperty);
     CHECK(row && row.Value().AsUnsignedInteger() == 1U);
 
+    const MetadataPropertyDescriptor* code =
+        fixture.metadata.Descriptors().FindProperty(
+            fixture.badgeType, StringView("Code"), false);
+    const MetadataPropertyDescriptor* corner =
+        fixture.metadata.Descriptors().FindProperty(
+            fixture.badgeType, StringView("CornerRadius"), false);
     const TypeId parameterTypes[] = {BuiltinTypes::UnsignedInteger};
-    const MethodInfo* increment = fixture.metadata.Types().FindMethod(
-        fixture.badgeType,
-        StringView("Increment"),
-        {parameterTypes, 1U});
-    CHECK(increment != nullptr);
+    const MetadataMethodDescriptor* increment =
+        fixture.metadata.Descriptors().FindMethod(
+            fixture.badgeType,
+            StringView("Increment"),
+            {parameterTypes, 1U},
+            false);
+    CHECK(code != nullptr && corner != nullptr && increment != nullptr);
+
+    Result<Value> reflectedCode = fixture.runtime->GetProperty(*badge, code->Id());
+    CHECK(reflectedCode && reflectedCode.Value().AsUnsignedInteger() == 7U);
+    CHECK(fixture.runtime->SetProperty(
+        *badge,
+        code->Id(),
+        Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 9U)));
+    CHECK(badge->Code() == 9U);
+    Result<Value> reflectedCorner = fixture.runtime->GetProperty(
+        *badge, corner->Id());
+    CHECK(reflectedCorner && reflectedCorner.Value().Kind() == ValueKind::Custom);
+
     const Value arguments[] = {
         Value::FromUnsignedInteger(parameterTypes[0], 5U)
     };
-    Result<Value> invoked = fixture.schema->Members().InvokeMethod(
-        *badge, *increment, {arguments, 1U});
-    CHECK(invoked && invoked.Value().AsUnsignedInteger() == 12U &&
-        badge->Code() == 12U);
-    Result<Value> wrongCount = fixture.schema->Members().InvokeMethod(
-        *badge, *increment, {});
+    Result<Value> invoked = fixture.runtime->InvokeMethod(
+        *badge, increment->Id(), {arguments, 1U});
+    CHECK(invoked && invoked.Value().AsUnsignedInteger() == 14U &&
+        badge->Code() == 14U);
+    Result<Value> wrongCount = fixture.runtime->InvokeMethod(
+        *badge, increment->Id(), {});
     CHECK(!wrongCount &&
         wrongCount.GetStatus().code == ErrorCode::InvalidArgument);
     const Value wrongArguments[] = {
         Value::FromDouble(BuiltinTypes::Double, 1.0)
     };
-    Result<Value> wrongType = fixture.schema->Members().InvokeMethod(
-        *badge, *increment, {wrongArguments, 1U});
+    Result<Value> wrongType = fixture.runtime->InvokeMethod(
+        *badge, increment->Id(), {wrongArguments, 1U});
     CHECK(!wrongType &&
         wrongType.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
