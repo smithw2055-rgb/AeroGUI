@@ -136,11 +136,6 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             delete candidate;
             return frozen.GetStatus();
         }
-        frozen = candidate->types.MaterializeBehaviorRecords();
-        if (!frozen) {
-            delete candidate;
-            return frozen.GetStatus();
-        }
         frozen = candidate->dependencyProperties.Freeze();
         if (!frozen) {
             delete candidate;
