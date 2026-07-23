@@ -27,20 +27,6 @@ function(aero_apply_compiler_options target)
             -Wconversion
             -Wsign-conversion)
 
-        # The existing C++17 two-or-four-argument AERO_DECLARE_METADATA
-        # selector intentionally invokes a variadic selector with an empty
-        # trailing pack. GCC and newer Clang releases diagnose that otherwise
-        # valid compatibility macro through their pedantic extension channel.
-        # Keep the warning visible but non-fatal until the generated metadata
-        # declaration form replaces the selector in all public headers.
-        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(${target} PRIVATE -Wno-error=pedantic)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-            target_compile_options(${target} PRIVATE
-                -Wno-error=variadic-macro-arguments-omitted
-                -Wno-error=gnu-zero-variadic-macro-arguments)
-        endif()
-
         if(NOT AERO_ENABLE_EXCEPTIONS)
             target_compile_options(${target} PRIVATE -fno-exceptions)
         endif()
@@ -51,6 +37,19 @@ function(aero_apply_compiler_options target)
 
         if(AERO_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE -Werror)
+        endif()
+
+        # The existing C++17 two-or-four-argument AERO_DECLARE_METADATA
+        # selector intentionally invokes a variadic selector with an empty
+        # trailing pack. New compiler releases diagnose that compatibility
+        # form through their extension/pedantic channel. Keep all ordinary
+        # warnings fatal while excluding only that legacy macro channel until
+        # generated declarations replace it throughout the public headers.
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            target_compile_options(${target} PRIVATE -Wno-pedantic)
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(${target} PRIVATE
+                -Wno-error=gnu-zero-variadic-macro-arguments)
         endif()
     endif()
 endfunction()
