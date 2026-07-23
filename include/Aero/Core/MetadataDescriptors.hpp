@@ -19,7 +19,7 @@ class DependencyPropertyRegistry;
 class RoutedEventRegistry;
 
 inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 1U;
-inline constexpr std::uint32_t MetadataFacetFormatVersion = 2U;
+inline constexpr std::uint32_t MetadataFacetFormatVersion = 3U;
 
 enum class MetadataDescriptorKind : std::uint8_t {
     Type = 0U,
@@ -250,17 +250,17 @@ struct RoutedEventFacet final {
     const RoutedEventRegistry* registry = nullptr;
 };
 
-// These facets expose immutable runtime service endpoints for registered value
-// types. The TypeRegistry remains the registration owner for this slice; all
-// runtime callers reach the service only through the sealed facet store.
+// Sealed value facets own their runtime registrations. No runtime lookup is
+// routed back through TypeRegistry after MetadataDomain::Seal().
 struct ValueSemanticsFacet final {
     TypeId type = InvalidTypeId;
-    const TypeRegistry* source = nullptr;
+    Base::Ref<ValueTypeSemantics> semantics;
 };
 
 struct TextConverterFacet final {
     TypeId type = InvalidTypeId;
-    const TypeRegistry* source = nullptr;
+    TextValueConverterCallback convert = nullptr;
+    void* context = nullptr;
 };
 
 class AERO_API MetadataFacetStore final {
