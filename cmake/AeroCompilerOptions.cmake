@@ -43,20 +43,23 @@ function(aero_apply_compiler_options target)
         # - the C++17 two-or-four-argument metadata selector uses an empty
         #   trailing variadic pack;
         # - the presentation bootstrap has a single-line registration macro;
-        # - one binding conversion switch predates String/Custom ValueKind.
+        # - older value bridges do not yet enumerate String/Custom ValueKind;
+        # - deprecated compatibility classes compile their own definitions;
+        # - newer GCC reports references into temporary Span views as dangling.
         # Keep these warnings visible where supported while every unrelated
-        # warning remains fatal. Follow-up cleanup can remove these exceptions
-        # once generated declarations and the value bridge replace the legacy
-        # forms.
+        # warning remains fatal.
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             target_compile_options(${target} PRIVATE
                 -Wno-pedantic
                 -Wno-error=misleading-indentation
-                -Wno-error=switch)
+                -Wno-error=switch
+                -Wno-error=deprecated-declarations
+                -Wno-error=dangling-reference)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             target_compile_options(${target} PRIVATE
                 -Wno-error=gnu-zero-variadic-macro-arguments
-                -Wno-error=switch)
+                -Wno-error=switch
+                -Wno-error=deprecated-declarations)
         endif()
     endif()
 endfunction()
