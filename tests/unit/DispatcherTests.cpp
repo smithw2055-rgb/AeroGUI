@@ -1,6 +1,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include "TestAllocatorScope.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -200,7 +201,6 @@ bool TestPriorityFifoAndBudget() {
     ManualClock clock;
     WakeCounter wake;
     Dispatcher dispatcher({
-        nullptr,
         &ManualClock::Read,
         &clock,
         &WakeCounter::Wake,
@@ -264,7 +264,6 @@ bool TestDelayedOrderingAndOverflow() {
     ManualClock clock;
     clock.now.store(100U, std::memory_order_release);
     Dispatcher dispatcher({
-        nullptr,
         &ManualClock::Read,
         &clock,
         nullptr,
@@ -333,8 +332,8 @@ bool TestCancellationCleanupAndOom() {
     TrackingAllocator allocator;
     RecordContext cancelled;
     {
-        Dispatcher dispatcher({
-            &allocator, nullptr, nullptr, nullptr, nullptr});
+        Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
+        Dispatcher dispatcher;
 
         auto posted = dispatcher.Post(
             DispatcherPriority::Normal,
@@ -358,8 +357,8 @@ bool TestCancellationCleanupAndOom() {
     failingAllocator.FailAfter(0U);
     RecordContext rejected;
     {
-        Dispatcher dispatcher({
-            &failingAllocator, nullptr, nullptr, nullptr, nullptr});
+        Aero::Tests::ScopedDefaultAllocator allocatorScope(failingAllocator);
+        Dispatcher dispatcher;
         auto failed = dispatcher.Post(
             DispatcherPriority::Normal,
             &RecordContext::Run,

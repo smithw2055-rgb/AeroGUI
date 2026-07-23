@@ -38,9 +38,7 @@ bool IsNameContinue(unsigned char value) noexcept {
 
 } // namespace
 
-NameScope::NameScope(Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      entries_(allocator_) {}
+NameScope::NameScope() noexcept = default;
 
 Base::Result<void> NameScope::TryRegister(
     Base::StringView name,
@@ -56,7 +54,7 @@ Base::Result<void> NameScope::TryRegister(
             MessageDuplicateName);
     }
 
-    Entry entry(allocator_);
+    Entry entry;
     Base::Result<void> assignResult = entry.name.TryAssign(name);
     if (!assignResult) {
         return assignResult.GetStatus();
@@ -95,11 +93,7 @@ bool NameScope::IsValidName(Base::StringView name) noexcept {
     return true;
 }
 
-ResourceDictionary::ResourceDictionary(
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      entries_(allocator_),
-      listeners_(allocator_) {}
+ResourceDictionary::ResourceDictionary() noexcept = default;
 
 Base::Result<void> ResourceDictionary::TryAdd(
     Base::StringView key,
@@ -118,7 +112,7 @@ Base::Result<void> ResourceDictionary::TryAdd(
             MessageDuplicateResource);
     }
 
-    Entry entry(allocator_);
+    Entry entry;
     Base::Result<void> assignResult = entry.key.TryAssign(key);
     if (!assignResult) {
         return assignResult.GetStatus();
@@ -157,7 +151,7 @@ Base::Result<void> ResourceDictionary::TrySet(
         return {};
     }
 
-    Entry entry(allocator_);
+    Entry entry;
     Base::Result<void> assignResult = entry.key.TryAssign(key);
     if (!assignResult) {
         return assignResult.GetStatus();
@@ -184,7 +178,7 @@ Base::Result<bool> ResourceDictionary::Remove(
         if (entries_[index].key.View() != key) {
             continue;
         }
-        Base::String removedKey(allocator_);
+        Base::String removedKey;
         Base::Result<void> copied = removedKey.TryAssign(entries_[index].key.View());
         if (!copied) {
             return copied.GetStatus();

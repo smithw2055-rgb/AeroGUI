@@ -5,6 +5,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Binding.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlBinding.hpp>
 #include <Aero/Markup/XamlDynamicResource.hpp>
@@ -37,13 +38,8 @@ Fixture* gFixture = nullptr;
 
 class BindableNode final : public DependencyObject {
 public:
-    BindableNode(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& properties,
-        TypeId type,
-        IAllocator* allocator) noexcept
-        : DependencyObject(dispatcher, properties, type, allocator),
-          children_(allocator) {}
+    explicit BindableNode(TypeId type) noexcept
+        : DependencyObject(type), children_() {}
 
     Result<void> AddChild(Ref<Object> child) noexcept {
         return children_.TryPushBack(std::move(child));
@@ -56,8 +52,8 @@ private:
     Vector<Ref<Object>> children_;
 };
 
-Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept;
-Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept;
+Result<Ref<Object>> MakeRoot() noexcept;
+Result<Ref<Object>> MakeElement() noexcept;
 Result<void> SetNumber(
     Object& object,
     const XamlValue& value,
@@ -82,6 +78,7 @@ struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties;
+    PresentationContextScope presentation{dispatcher, properties};
     ResourceDictionary resources;
     EffectiveValueEngine effectiveValues;
     BindingManager bindings;
@@ -213,16 +210,12 @@ struct Fixture final {
     XamlDynamicResourceExtension dynamicResource_;
 };
 
-Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
+Result<Ref<Object>> MakeRoot() noexcept {
     if (gFixture == nullptr) {
         return Status::Failure(ErrorCode::InvalidState, "Binding fixture is absent");
     }
-    Result<Ref<BindableNode>> created = MakeRefWithAllocator<BindableNode>(
-        allocator,
-        gFixture->dispatcher,
-        gFixture->properties,
-        gFixture->rootType,
-        &allocator);
+    Result<Ref<BindableNode>> created =
+        MakeRef<BindableNode>(gFixture->rootType);
     if (!created) {
         return created.GetStatus();
     }
@@ -230,16 +223,12 @@ Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
     return Ref<Object>(std::move(typed));
 }
 
-Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept {
+Result<Ref<Object>> MakeElement() noexcept {
     if (gFixture == nullptr) {
         return Status::Failure(ErrorCode::InvalidState, "Binding fixture is absent");
     }
-    Result<Ref<BindableNode>> created = MakeRefWithAllocator<BindableNode>(
-        allocator,
-        gFixture->dispatcher,
-        gFixture->properties,
-        gFixture->elementType,
-        &allocator);
+    Result<Ref<BindableNode>> created =
+        MakeRef<BindableNode>(gFixture->elementType);
     if (!created) {
         return created.GetStatus();
     }
@@ -405,12 +394,11 @@ bool TestDataContextBinding() {
 bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
     Fixture fixture;
     CHECK(fixture.Build());
-    IAllocator& allocator = GetDefaultAllocator();
-    Result<Ref<BindableNode>> first = MakeRefWithAllocator<BindableNode>(
-        allocator, fixture.dispatcher, fixture.properties, fixture.brushType, &allocator);
+    Result<Ref<BindableNode>> first =
+        MakeRef<BindableNode>(fixture.brushType);
     CHECK(first);
-    Result<Ref<BindableNode>> second = MakeRefWithAllocator<BindableNode>(
-        allocator, fixture.dispatcher, fixture.properties, fixture.brushType, &allocator);
+    Result<Ref<BindableNode>> second =
+        MakeRef<BindableNode>(fixture.brushType);
     CHECK(second);
     Ref<Object> firstObject(std::move(first).Value());
     Ref<Object> secondObject(std::move(second).Value());

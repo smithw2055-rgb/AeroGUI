@@ -81,10 +81,8 @@ Base::Result<Core::Thickness> ParseMargin(Base::StringView input) noexcept {
 } // namespace
 
 XamlLayoutExtension::XamlLayoutExtension(
-    Core::TypeId layoutElementType,
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
+    Core::TypeId layoutElementType) noexcept
+    : types_(),
       layoutElementType_(layoutElementType) {}
 
 Base::Result<void> XamlLayoutExtension::TryRegisterType(

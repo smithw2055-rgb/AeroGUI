@@ -2,6 +2,7 @@
 
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 namespace Aero::Markup {
 namespace {
@@ -42,11 +43,9 @@ private:
 } // namespace
 
 XamlActivationProviderRegistry::XamlActivationProviderRegistry(
-    XamlSchemaContext& schema,
-    Base::IAllocator* allocator) noexcept
+    XamlSchemaContext& schema) noexcept
     : schema_(&schema),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      providers_(allocator_) {}
+      providers_() {}
 
 Base::Result<void> XamlActivationProviderRegistry::TryRegister(
     const XamlActivationProviderRegistration& registration) noexcept {
@@ -98,6 +97,15 @@ XamlActivationProviderRegistry::CreateObject(
             Base::ErrorCode::InvalidArgument,
             "XAML activation context is incompatible");
     }
+    if (activation.dispatcher == nullptr ||
+        activation.dependencyProperties == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML activation context has no presentation services");
+    }
+
+    Core::PresentationContextScope presentationScope(
+        *activation.dispatcher, *activation.dependencyProperties);
 
     const XamlActivationProviderRegistration* provider = Find(requestedType);
     if (provider == nullptr) {
@@ -107,7 +115,6 @@ XamlActivationProviderRegistry::CreateObject(
     Base::Result<Base::Ref<Base::Object>> created = provider->activate(
         requestedType,
         activation,
-        *allocator_,
         provider->context);
     if (!created) {
         return created.GetStatus();

@@ -39,19 +39,17 @@ struct Fixture final {
     static Result<Ref<Object>> Activate(
         TypeId type,
         const XamlActivationContext& context,
-        IAllocator& allocator,
         void*) noexcept {
         if (context.dispatcher == nullptr ||
             context.dependencyProperties == nullptr) {
             return Status::Failure(ErrorCode::InvalidArgument,
                 "TextBlock activation services are missing");
         }
-        Result<Ref<TextBlock>> made = MakeRefWithAllocator<TextBlock>(
-            allocator,
-            *context.dispatcher,
-            *context.dependencyProperties,
-            type,
-            &allocator);
+        if (type != TextBlock::StaticTypeId()) {
+            return Status::Failure(ErrorCode::InvalidArgument,
+                "Activation type is not TextBlock");
+        }
+        Result<Ref<TextBlock>> made = MakeRef<TextBlock>();
         if (!made) return made.GetStatus();
         Ref<TextBlock> text = std::move(made).Value();
         return Ref<Object>(std::move(text));

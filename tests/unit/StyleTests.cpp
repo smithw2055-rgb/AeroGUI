@@ -1,4 +1,5 @@
 #include <Aero/Core/Style.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <cstdio>
 
@@ -18,9 +19,8 @@ using namespace Aero::Core;
 
 class TestElement final : public DependencyObject {
 public:
-    TestElement(Dispatcher& dispatcher, DependencyPropertyRegistry& properties,
-        TypeId type) noexcept
-        : DependencyObject(dispatcher, properties, type) {}
+    explicit TestElement(TypeId type) noexcept
+        : DependencyObject(type) {}
 };
 
 struct Fixture final {
@@ -71,7 +71,8 @@ bool TestBasedOnFlatteningAndPrecedence() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
-    TestElement button(dispatcher, fixture.properties, fixture.buttonType);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement button(fixture.buttonType);
     EffectiveValueEngine values(dispatcher, fixture.properties);
     CHECK(values.Initialize());
     Style base(fixture.elementType);

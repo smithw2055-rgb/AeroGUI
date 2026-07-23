@@ -15,12 +15,9 @@ Base::Status InvalidArgument(const char* message) noexcept {
 
 } // namespace
 
-BindingManager::BindingManager(
-    Dispatcher& dispatcher,
-    Base::IAllocator* allocator) noexcept
+BindingManager::BindingManager(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
-      allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      bindings_(allocator_),
+      bindings_(),
       propertyChangedHandler_(this, &BindingManager::OnPropertyChanged) {}
 
 BindingManager::~BindingManager() noexcept {

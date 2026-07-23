@@ -49,6 +49,12 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
+#define AERO_DECLARE_DEPENDENCY_PROPERTY(propertyName) \
+    inline static constexpr Aero::Core::DependencyPropertyHandle \
+        propertyName##Property = \
+            Aero::Core::MakeDependencyPropertyHandle( \
+                StaticTypeIdValue_, #propertyName)
+
 using PropertyValueKind = ValueKind;
 using PropertyValue = Value;
 
@@ -254,8 +260,7 @@ private:
         PropertyMetadata metadata;
     };
 
-    explicit DependencyProperty(Base::IAllocator* allocator) noexcept
-        : name_(allocator), metadata_(allocator) {}
+    DependencyProperty() noexcept : name_(), metadata_() {}
 
     const MetadataEntry* FindMetadataExact(
         TypeId forType) const noexcept;
@@ -272,9 +277,7 @@ private:
 
 class AERO_API DependencyPropertyRegistry final {
 public:
-    explicit DependencyPropertyRegistry(
-        TypeRegistry& typeRegistry,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit DependencyPropertyRegistry(TypeRegistry& typeRegistry) noexcept;
 
     DependencyPropertyRegistry(const DependencyPropertyRegistry&) = delete;
     DependencyPropertyRegistry& operator=(
@@ -304,9 +307,6 @@ public:
     std::uint32_t PropertyCount() const noexcept {
         return properties_.Size();
     }
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
-    }
     TypeRegistry& Types() const noexcept {
         return *typeRegistry_;
     }
@@ -328,7 +328,6 @@ private:
     friend class DependencyObject;
 
     TypeRegistry* typeRegistry_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<DependencyProperty> properties_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
     std::uint64_t nextReadOnlySecret_ = 1U;
@@ -414,11 +413,7 @@ public:
     }
 
 protected:
-    DependencyObject(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId runtimeType,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit DependencyObject(TypeId runtimeType) noexcept;
     ~DependencyObject() override = default;
     virtual Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;

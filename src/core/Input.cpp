@@ -22,10 +22,9 @@ bool IsVisualDescendantOrSelf(
 
 } // namespace
 
-HitTestManager::HitTestManager(TypeRegistry& types, Base::IAllocator* allocator) noexcept
+HitTestManager::HitTestManager(TypeRegistry& types) noexcept
     : types_(&types),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      typesByRuntimeType_(allocator_) {}
+      typesByRuntimeType_() {}
 
 Base::Result<void> HitTestManager::TryRegisterType(
     const HitTestTypeRegistration& registration) noexcept {

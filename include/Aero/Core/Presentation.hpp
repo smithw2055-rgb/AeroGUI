@@ -11,6 +11,36 @@ class RoutedEventRegistry;
 struct RoutedEventHandle;
 enum class RoutingStrategy : std::uint8_t;
 
+struct PresentationContext final {
+    Dispatcher* dispatcher = nullptr;
+    DependencyPropertyRegistry* dependencyProperties = nullptr;
+
+    bool IsValid() const noexcept {
+        return dispatcher != nullptr && dependencyProperties != nullptr;
+    }
+};
+
+AERO_API PresentationContext
+GetCurrentPresentationContext() noexcept;
+
+class AERO_API PresentationContextScope final {
+public:
+    PresentationContextScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties) noexcept;
+    ~PresentationContextScope();
+
+    PresentationContextScope(const PresentationContextScope&) = delete;
+    PresentationContextScope& operator=(const PresentationContextScope&) = delete;
+    PresentationContextScope(PresentationContextScope&&) = delete;
+    PresentationContextScope& operator=(PresentationContextScope&&) = delete;
+
+private:
+    PresentationContext context_;
+    PresentationContext* previous_ = nullptr;
+    DispatcherThreadToken ownerThread_ = 0U;
+};
+
 AERO_API Base::StringView
 AeroPresentationNamespaceUri() noexcept;
 
@@ -153,15 +183,18 @@ TryRegisterCorePresentationMetadata(
 
 #define AeroDP(property, ...) \
     helper.DependencyProperty( \
-        SelfClass::property, Aero::Base::StringView(#property), __VA_ARGS__)
+        SelfClass::property##Property, \
+        Aero::Base::StringView(#property "Property"), __VA_ARGS__)
 #define AeroAttachedDP(property, ...) \
     helper.AttachedDependencyProperty( \
-        SelfClass::property, Aero::Base::StringView(#property), __VA_ARGS__)
+        SelfClass::property##Property, \
+        Aero::Base::StringView(#property "Property"), __VA_ARGS__)
 #define AeroProp(...) helper.Property(__VA_ARGS__)
 #define AeroMethod(...) helper.Method(__VA_ARGS__)
 #define AeroEvent(event, ...) \
     helper.RoutedEvent( \
-        SelfClass::event, Aero::Base::StringView(#event), __VA_ARGS__)
+        SelfClass::event##Event, \
+        Aero::Base::StringView(#event "Event"), __VA_ARGS__)
 #define AeroMetaEvent(...) helper.Event(__VA_ARGS__)
 #define AeroContent(...) helper.Content(__VA_ARGS__)
 #define AeroFactory(...) helper.Factory(__VA_ARGS__)

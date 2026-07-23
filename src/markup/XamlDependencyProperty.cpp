@@ -31,29 +31,25 @@ bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
 Base::Result<Base::Ref<Base::Object>> ActivateCoreControl(
     Core::TypeId requestedType,
     const XamlActivationContext& activation,
-    Base::IAllocator& allocator,
     void*) noexcept {
     if (!activation.IsCompatible() || activation.dispatcher == nullptr ||
         activation.dependencyProperties == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Core presentation activation services are missing");
     }
-    const Base::StringView ns = Core::AeroPresentationNamespaceUri();
-#define AERO_ACTIVATE_CONTROL(name, type, ...) \
-    if (requestedType == Core::MakeTypeId(ns, Base::StringView(name))) { \
+#define AERO_ACTIVATE_CONTROL(name, type) \
+    if (requestedType == Core::MakeTypeId(Base::StringView(name))) { \
         Base::Result<Base::Ref<Core::type>> made = \
-            Base::MakeRefWithAllocator<Core::type>(allocator, \
-                *activation.dispatcher, *activation.dependencyProperties, \
-                requestedType, __VA_ARGS__ &allocator); \
+            Base::MakeRef<Core::type>(); \
         if (!made) return made.GetStatus(); \
         return Base::Ref<Base::Object>(std::move(made).Value()); \
     }
-    AERO_ACTIVATE_CONTROL("StackPanel", StackPanel, Core::Orientation::Vertical, )
-    AERO_ACTIVATE_CONTROL("Canvas", Canvas, )
-    AERO_ACTIVATE_CONTROL("Grid", Grid, )
-    AERO_ACTIVATE_CONTROL("Border", Border, )
-    AERO_ACTIVATE_CONTROL("TextBlock", TextBlock, )
-    AERO_ACTIVATE_CONTROL("ContentPresenter", ContentPresenter, )
+    AERO_ACTIVATE_CONTROL("StackPanel", StackPanel)
+    AERO_ACTIVATE_CONTROL("Canvas", Canvas)
+    AERO_ACTIVATE_CONTROL("Grid", Grid)
+    AERO_ACTIVATE_CONTROL("Border", Border)
+    AERO_ACTIVATE_CONTROL("TextBlock", TextBlock)
+    AERO_ACTIVATE_CONTROL("ContentPresenter", ContentPresenter)
 #undef AERO_ACTIVATE_CONTROL
     return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Requested type is not a core presentation control");
@@ -86,12 +82,10 @@ Core::LayoutElement* AsCoreCollectionOwner(Base::Object& object, void*) noexcept
 
 XamlDependencyPropertyBridge::XamlDependencyPropertyBridge(
     XamlSchemaContext& schema,
-    Core::DependencyPropertyRegistry& properties,
-    Base::IAllocator* allocator) noexcept
+    Core::DependencyPropertyRegistry& properties) noexcept
     : schema_(&schema),
       properties_(&properties),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_) {}
+      types_() {}
 
 Base::Result<void> XamlDependencyPropertyBridge::TryRegisterType(
     const XamlDependencyObjectTypeRegistration& registration) noexcept {
@@ -262,8 +256,8 @@ XamlDependencyPropertyBridge::ConvertValue(
 
 Base::Result<std::uint32_t> TryRegisterCorePresentationXaml(
     XamlDependencyPropertyBridge& bridge) noexcept {
-    const Core::TypeId dependencyObjectType = Core::MakeTypeId(
-        Core::AeroPresentationNamespaceUri(), Base::StringView("DependencyObject"));
+    const Core::TypeId dependencyObjectType =
+        Core::MakeTypeId(Base::StringView("DependencyObject"));
     Base::Result<void> type = bridge.TryRegisterType({
         dependencyObjectType, &AsDependencyObject, nullptr});
     if (!type) return type.GetStatus();
@@ -276,7 +270,6 @@ Base::Result<std::uint32_t> TryRegisterCorePresentationXaml(
     XamlVisualTreeHost* visualTree) noexcept {
     Base::Result<std::uint32_t> bridged = TryRegisterCorePresentationXaml(bridge);
     if (!bridged) return bridged.GetStatus();
-    const Base::StringView ns = Core::AeroPresentationNamespaceUri();
     const Base::StringView controlNames[] = {
         Base::StringView("StackPanel"), Base::StringView("Canvas"),
         Base::StringView("Grid"), Base::StringView("Border"),
@@ -284,18 +277,19 @@ Base::Result<std::uint32_t> TryRegisterCorePresentationXaml(
     };
     for (Base::StringView name : controlNames) {
         Base::Result<void> registered = activation.TryRegister({
-            Core::MakeTypeId(ns, name), &ActivateCoreControl, nullptr});
+            Core::MakeTypeId(name), &ActivateCoreControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
     std::uint32_t count = bridged.Value() + 6U;
     if (visualTree == nullptr) return count;
 
-    const Core::TypeId stackPanel = Core::MakeTypeId(ns, Base::StringView("StackPanel"));
-    const Core::TypeId canvas = Core::MakeTypeId(ns, Base::StringView("Canvas"));
-    const Core::TypeId grid = Core::MakeTypeId(ns, Base::StringView("Grid"));
-    const Core::TypeId border = Core::MakeTypeId(ns, Base::StringView("Border"));
-    const Core::TypeId textBlock = Core::MakeTypeId(ns, Base::StringView("TextBlock"));
-    const Core::TypeId presenter = Core::MakeTypeId(ns, Base::StringView("ContentPresenter"));
+    const Core::TypeId stackPanel = Core::MakeTypeId(Base::StringView("StackPanel"));
+    const Core::TypeId canvas = Core::MakeTypeId(Base::StringView("Canvas"));
+    const Core::TypeId grid = Core::MakeTypeId(Base::StringView("Grid"));
+    const Core::TypeId border = Core::MakeTypeId(Base::StringView("Border"));
+    const Core::TypeId textBlock = Core::MakeTypeId(Base::StringView("TextBlock"));
+    const Core::TypeId presenter = Core::MakeTypeId(
+        Base::StringView("ContentPresenter"));
     const Core::TypeId visualTypes[] = {
         stackPanel, canvas, grid, border, textBlock, presenter
     };

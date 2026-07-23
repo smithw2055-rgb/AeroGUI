@@ -20,9 +20,8 @@ using namespace Aero::Core;
 
 class FixedElement final : public LayoutElement {
 public:
-    FixedElement(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId type, Size desired) noexcept
-        : LayoutElement(dispatcher, registry, type), desired_(desired) {}
+    FixedElement(TypeId type, Size desired) noexcept
+        : LayoutElement(type), desired_(desired) {}
 
     void SetDesired(Size value) noexcept { desired_ = value; }
     std::uint32_t MeasureCount() const noexcept { return measureCount_; }
@@ -48,8 +47,7 @@ private:
 
 class VerticalPanel final : public LayoutElement {
 public:
-    VerticalPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId type) noexcept : LayoutElement(dispatcher, registry, type) {}
+    explicit VerticalPanel(TypeId type) noexcept : LayoutElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -87,6 +85,7 @@ struct Fixture final {
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
     Dispatcher dispatcher;
+    PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
     TypeId stackPanelType = InvalidTypeId;
@@ -141,11 +140,9 @@ bool TestNestedLayoutAndInvalidation() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    StackPanel root(fixture.dispatcher, fixture.properties, fixture.stackPanelType);
-    FixedElement first(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {30.0, 10.0});
-    FixedElement second(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {40.0, 15.0});
+    StackPanel root;
+    FixedElement first(fixture.elementType, {30.0, 10.0});
+    FixedElement second(fixture.elementType, {40.0, 15.0});
 
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, first));
@@ -207,8 +204,7 @@ bool TestRoundingClippingAndValidation() {
     CHECK(fixture.Build());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    FixedElement element(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {10.26, 9.74});
+    FixedElement element(fixture.elementType, {10.26, 9.74});
     CHECK(element.SetClipToBounds(true));
     CHECK(element.SetLayoutRounding(true, 2.0));
     CHECK(layout.SetRoot(&element, {10.26, 9.74}));
@@ -241,9 +237,8 @@ bool TestCanvasChildPosition() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    Canvas root(fixture.dispatcher, fixture.properties, fixture.canvasType);
-    FixedElement child(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {12.0, 7.0});
+    Canvas root;
+    FixedElement child(fixture.elementType, {12.0, 7.0});
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
     CHECK(tree.AttachVisual(root, child));
@@ -254,7 +249,7 @@ bool TestCanvasChildPosition() {
     CHECK(root.DesiredSize().width == 20.0 && root.DesiredSize().height == 16.0);
     CHECK(child.LayoutSlot().x == 8.0 && child.LayoutSlot().y == 9.0);
     CHECK(child.SetValue(Canvas::LeftProperty, Value::FromDouble(
-        MakeTypeId(AeroPresentationNamespaceUri(), StringView("Double")), -3.0)));
+        MakeTypeId(StringView("Double")), -3.0)));
     CHECK(!root.IsMeasureValid());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(child.LayoutSlot().x == -3.0 && child.LayoutSlot().y == 9.0);
@@ -268,6 +263,59 @@ bool TestCanvasChildPosition() {
     return true;
 }
 
+bool TestControlsSupportDefaultConstruction() {
+    StackPanel stack;
+    StackPanel horizontal(Orientation::Horizontal);
+    Canvas canvas;
+    Grid grid;
+    Border border;
+    TextBlock text;
+    ContentPresenter presenter;
+
+    CHECK(stack.RuntimeType() == StackPanel::StaticTypeId());
+    CHECK(canvas.RuntimeType() == Canvas::StaticTypeId());
+    CHECK(grid.RuntimeType() == Grid::StaticTypeId());
+    CHECK(border.RuntimeType() == Border::StaticTypeId());
+    CHECK(text.RuntimeType() == TextBlock::StaticTypeId());
+    CHECK(presenter.RuntimeType() == ContentPresenter::StaticTypeId());
+    CHECK(&stack.GetDispatcher() == &canvas.GetDispatcher());
+    CHECK(&stack.PropertyRegistry() == &grid.PropertyRegistry());
+    Dispatcher* defaultDispatcher = &stack.GetDispatcher();
+    DependencyPropertyRegistry* defaultProperties = &stack.PropertyRegistry();
+    CHECK(stack.GetOrientation() == Orientation::Vertical);
+    CHECK(horizontal.GetOrientation() == Orientation::Horizontal);
+    CHECK(stack.SetOrientation(Orientation::Horizontal));
+    CHECK(stack.GetOrientation() == Orientation::Horizontal);
+    CHECK(text.SetText("default constructed"));
+    CHECK(text.Text() == StringView("default constructed"));
+
+    Dispatcher outerDispatcher;
+    TypeRegistry outerTypes;
+    DependencyPropertyRegistry outerProperties(outerTypes);
+    Dispatcher innerDispatcher;
+    TypeRegistry innerTypes;
+    DependencyPropertyRegistry innerProperties(innerTypes);
+    {
+        PresentationContextScope outer(outerDispatcher, outerProperties);
+        Border outerBorder;
+        CHECK(&outerBorder.GetDispatcher() == &outerDispatcher);
+        CHECK(&outerBorder.PropertyRegistry() == &outerProperties);
+        {
+            PresentationContextScope inner(innerDispatcher, innerProperties);
+            TextBlock innerText;
+            CHECK(&innerText.GetDispatcher() == &innerDispatcher);
+            CHECK(&innerText.PropertyRegistry() == &innerProperties);
+        }
+        Grid restoredOuter;
+        CHECK(&restoredOuter.GetDispatcher() == &outerDispatcher);
+        CHECK(&restoredOuter.PropertyRegistry() == &outerProperties);
+    }
+    ContentPresenter restoredDefault;
+    CHECK(&restoredDefault.GetDispatcher() == defaultDispatcher);
+    CHECK(&restoredDefault.PropertyRegistry() == defaultProperties);
+    return true;
+}
+
 bool TestBorderPaddingDecoratorLayout() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -277,9 +325,8 @@ bool TestBorderPaddingDecoratorLayout() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    Border root(fixture.dispatcher, fixture.properties, fixture.borderType);
-    FixedElement child(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {30.0, 12.0});
+    Border root;
+    FixedElement child(fixture.elementType, {30.0, 12.0});
     CHECK(root.SetPadding({4.0, 3.0, 6.0, 5.0}));
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
@@ -312,11 +359,9 @@ bool TestContentPresenterLayout() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    ContentPresenter root(fixture.dispatcher, fixture.properties, fixture.presenterType);
-    FixedElement child(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {30.0, 12.0});
-    FixedElement extra(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {8.0, 8.0});
+    ContentPresenter root;
+    FixedElement child(fixture.elementType, {30.0, 12.0});
+    FixedElement extra(fixture.elementType, {8.0, 8.0});
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
     CHECK(tree.AttachVisual(root, child));
@@ -355,8 +400,7 @@ bool TestFrameworkLayoutConstraints() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    FixedElement element(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {12.0, 8.0});
+    FixedElement element(fixture.elementType, {12.0, 8.0});
     CHECK(element.SetMinSize({30.0, 20.0}));
     CHECK(element.SetMaxSize({60.0, 30.0}));
     CHECK(element.SetWidth(40.0));
@@ -416,7 +460,7 @@ bool TestGridFixedAutoAndStarTracks() {
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
 
-    Grid root(fixture.dispatcher, fixture.properties, fixture.gridType);
+    Grid root;
     const GridLength columns[] = {
         GridLength::Pixel(20.0), GridLength::Auto(), GridLength::Star(1.0)};
     const GridLength rows[] = {
@@ -426,12 +470,9 @@ bool TestGridFixedAutoAndStarTracks() {
     CHECK(root.SetColumnDefinitions({columns, 3U}));
     CHECK(root.SetRowDefinitions({rows, 2U}));
 
-    FixedElement fixed(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {5.0, 4.0});
-    FixedElement automatic(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {30.0, 8.0});
-    FixedElement star(fixture.dispatcher, fixture.properties,
-        fixture.elementType, {16.0, 25.0});
+    FixedElement fixed(fixture.elementType, {5.0, 4.0});
+    FixedElement automatic(fixture.elementType, {30.0, 8.0});
+    FixedElement star(fixture.elementType, {16.0, 25.0});
     CHECK(tree.SetRoot(&root));
     for (LayoutElement* child : {static_cast<LayoutElement*>(&fixed),
             static_cast<LayoutElement*>(&automatic),
@@ -479,6 +520,7 @@ bool TestGridFixedAutoAndStarTracks() {
 
 int main() {
     if (!TestGeometry()) return 1;
+    if (!TestControlsSupportDefaultConstruction()) return 1;
     if (!TestNestedLayoutAndInvalidation()) return 1;
     if (!TestRoundingClippingAndValidation()) return 1;
     if (!TestFrameworkLayoutConstraints()) return 1;

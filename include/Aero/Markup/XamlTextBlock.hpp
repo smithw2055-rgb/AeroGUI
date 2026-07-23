@@ -23,8 +23,7 @@ struct XamlTextBlockTypeRegistration final {
 // registers the glyph run consumed by TextBlock::SetGlyphRun().
 class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlTextBlockExtension final {
 public:
-    explicit XamlTextBlockExtension(
-        Base::IAllocator* allocator = nullptr) noexcept;
+    XamlTextBlockExtension() noexcept;
 
     XamlTextBlockExtension(const XamlTextBlockExtension&) = delete;
     XamlTextBlockExtension& operator=(const XamlTextBlockExtension&) = delete;
@@ -36,7 +35,6 @@ public:
 
 private:
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlTextBlockTypeRegistration> types_;
     Base::Vector<Core::MemberId> textMembers_;
 

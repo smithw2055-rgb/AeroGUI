@@ -52,6 +52,13 @@ constexpr RoutedEventHandle MakeRoutedEventHandle(
     return {MakeMemberId(ownerType, MemberKind::Event, name)};
 }
 
+#define AERO_DECLARE_ROUTED_EVENT(eventName, handlerType) \
+    inline static constexpr Aero::Core::RoutedEventHandle eventName##Event = \
+        Aero::Core::MakeRoutedEventHandle(StaticTypeIdValue_, #eventName); \
+    RoutedEvent_<handlerType> eventName() noexcept { \
+        return {*this, eventName##Event}; \
+    }
+
 enum class PointerAction : std::uint8_t { Move = 0U, Down, Up };
 enum class KeyboardAction : std::uint8_t { Down = 0U, Up };
 enum class MouseButton : std::uint8_t { Left = 0U, Right, Middle, XButton1, XButton2 };
@@ -65,18 +72,14 @@ struct RoutedEventRegistration final {
 };
 
 struct EventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "EventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(EventArgs);
     explicit constexpr EventArgs(TypeId type = StaticTypeId()) noexcept
         : eventArgsType(type) {}
     TypeId eventArgsType = StaticTypeId();
 };
 
 struct RoutedEventArgs : EventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "RoutedEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(RoutedEventArgs);
     explicit constexpr RoutedEventArgs(
         TypeId type = StaticTypeId()) noexcept : EventArgs(type) {}
     RoutedEventHandle routedEvent;
@@ -86,18 +89,14 @@ struct RoutedEventArgs : EventArgs {
 };
 
 struct InputEventArgs : RoutedEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "InputEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(InputEventArgs);
     explicit constexpr InputEventArgs(
         TypeId type = StaticTypeId()) noexcept : RoutedEventArgs(type) {}
     std::uint32_t modifiers = 0U;
 };
 
 struct MouseEventArgs : InputEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "MouseEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(MouseEventArgs);
     explicit constexpr MouseEventArgs(
         TypeId type = StaticTypeId()) noexcept : InputEventArgs(type) {}
     std::uint32_t pointerId = 0U;
@@ -105,18 +104,14 @@ struct MouseEventArgs : InputEventArgs {
 };
 
 struct MouseButtonEventArgs final : MouseEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "MouseButtonEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(MouseButtonEventArgs);
     constexpr MouseButtonEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
     MouseButton changedButton = MouseButton::Left;
     MouseButtonState buttonState = MouseButtonState::Released;
 };
 
 struct KeyEventArgs final : InputEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "KeyEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(KeyEventArgs);
     constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
     KeyboardAction action = KeyboardAction::Down;
     std::uint32_t key = 0U;
@@ -124,17 +119,13 @@ struct KeyEventArgs final : InputEventArgs {
 };
 
 struct TextCompositionEventArgs final : InputEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "TextCompositionEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(TextCompositionEventArgs);
     constexpr TextCompositionEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
     Base::StringView text;
 };
 
 struct KeyboardFocusChangedEventArgs final : RoutedEventArgs {
-    static constexpr TypeId StaticTypeId() noexcept {
-        return MakeTypeId("urn:aero", "KeyboardFocusChangedEventArgs");
-    }
+    AERO_DECLARE_TYPE_ID(KeyboardFocusChangedEventArgs);
     constexpr KeyboardFocusChangedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
     TreeNode* oldFocus = nullptr;
@@ -298,28 +289,20 @@ public:
         RoutedEventHandle event_;
     };
 
-    inline static constexpr RoutedEventHandle MouseMoveEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseMove");
-    inline static constexpr RoutedEventHandle MouseDownEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseDown");
-    inline static constexpr RoutedEventHandle MouseUpEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseUp");
-    inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
-    inline static constexpr RoutedEventHandle LostKeyboardFocusEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "LostKeyboardFocus");
-    inline static constexpr RoutedEventHandle KeyDownEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyDown");
-    inline static constexpr RoutedEventHandle KeyUpEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyUp");
-    inline static constexpr RoutedEventHandle TextInputEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "TextInput");
+    // Routed events
+    AERO_DECLARE_ROUTED_EVENT(MouseMove, MouseEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(MouseDown, MouseButtonEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(MouseUp, MouseButtonEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(
+        GotKeyboardFocus, KeyboardFocusChangedEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(
+        LostKeyboardFocus, KeyboardFocusChangedEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(KeyDown, KeyEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(KeyUp, KeyEventHandler);
+    AERO_DECLARE_ROUTED_EVENT(TextInput, TextCompositionEventHandler);
 
-    TreeNode(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId runtimeType,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    // Construction and tree operations
+    explicit TreeNode(TypeId runtimeType) noexcept;
     ~TreeNode() override;
 
     ObjectTree* OwningTree() const noexcept { return tree_; }
@@ -333,31 +316,6 @@ public:
     }
     bool IsLoaded() const noexcept { return loaded_; }
     TreeNodeHandle Handle() const noexcept { return handle_; }
-
-    RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
-        return {*this, MouseMoveEvent};
-    }
-    RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
-        return {*this, MouseDownEvent};
-    }
-    RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
-        return {*this, MouseUpEvent};
-    }
-    RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
-        return {*this, GotKeyboardFocusEvent};
-    }
-    RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
-        return {*this, LostKeyboardFocusEvent};
-    }
-    RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
-        return {*this, KeyDownEvent};
-    }
-    RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
-        return {*this, KeyUpEvent};
-    }
-    RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
-        return {*this, TextInputEvent};
-    }
 
     Base::Result<void> TryAddHandler(
         RoutedEventHandle event,
@@ -409,8 +367,7 @@ class AERO_API ObjectTree final {
 public:
     ObjectTree(
         Dispatcher& dispatcher,
-        EffectiveValueEngine& values,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        EffectiveValueEngine& values) noexcept;
     ~ObjectTree() noexcept;
 
     ObjectTree(const ObjectTree&) = delete;
@@ -460,7 +417,6 @@ private:
 
     Dispatcher* dispatcher_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     TreeNode* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
@@ -495,9 +451,7 @@ private:
 
 class AERO_API RoutedEventRegistry final {
 public:
-    RoutedEventRegistry(
-        TypeRegistry& types,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit RoutedEventRegistry(TypeRegistry& types) noexcept;
     ~RoutedEventRegistry() noexcept;
 
     Base::Result<RoutedEventHandle> TryRegister(
@@ -524,7 +478,7 @@ private:
         TypeId argsType = InvalidTypeId;
         RoutingStrategy strategy = RoutingStrategy::Bubble;
         Base::String name;
-        explicit EventRecord(Base::IAllocator* allocator) noexcept : name(allocator) {}
+        EventRecord() noexcept : name() {}
     };
 
     struct ClassHandlerRecord final {
@@ -536,7 +490,6 @@ private:
     };
 
     TypeRegistry* types_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<EventRecord> events_;
     Base::Vector<ClassHandlerRecord> classHandlers_;
     std::uint64_t nextClassSequence_ = 1U;

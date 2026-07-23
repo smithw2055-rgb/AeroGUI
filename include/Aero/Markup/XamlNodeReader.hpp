@@ -38,8 +38,7 @@ inline constexpr Core::DiagnosticCode InvalidNodeStreamState =
 
 class AERO_API XamlQualifiedName final {
 public:
-    explicit XamlQualifiedName(Base::IAllocator* allocator = nullptr) noexcept
-        : prefix_(allocator), localName_(allocator), namespaceUri_(allocator) {}
+    XamlQualifiedName() noexcept = default;
 
     XamlQualifiedName(XamlQualifiedName&&) noexcept = default;
     XamlQualifiedName& operator=(XamlQualifiedName&&) noexcept = default;
@@ -73,9 +72,7 @@ private:
 
 class AERO_API XamlNode final {
 public:
-    explicit XamlNode(Base::IAllocator* allocator = nullptr) noexcept
-        : name_(allocator), namespacePrefix_(allocator),
-          namespaceUri_(allocator), value_(allocator) {}
+    XamlNode() noexcept = default;
 
     XamlNode(XamlNode&&) noexcept = default;
     XamlNode& operator=(XamlNode&&) noexcept = default;
@@ -121,8 +118,7 @@ class AERO_API XamlNodeReader final {
 public:
     explicit XamlNodeReader(
         IXmlTokenizer& tokenizer,
-        Core::IDiagnosticSink* diagnostics = nullptr,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     void Reset() noexcept;
 
@@ -134,8 +130,7 @@ public:
 
 private:
     struct NamespaceBinding final {
-        explicit NamespaceBinding(Base::IAllocator* allocator) noexcept
-            : prefix(allocator), uri(allocator) {}
+        NamespaceBinding() noexcept = default;
 
         NamespaceBinding(NamespaceBinding&&) noexcept = default;
         NamespaceBinding& operator=(NamespaceBinding&&) noexcept = default;
@@ -148,8 +143,7 @@ private:
     };
 
     struct ScopeFrame final {
-        explicit ScopeFrame(Base::IAllocator* allocator) noexcept
-            : objectName(allocator) {}
+        ScopeFrame() noexcept = default;
 
         ScopeFrame(ScopeFrame&&) noexcept = default;
         ScopeFrame& operator=(ScopeFrame&&) noexcept = default;
@@ -163,7 +157,6 @@ private:
 
     IXmlTokenizer* tokenizer_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     XmlToken xmlToken_;
     Base::Vector<XamlNode> pending_;
     Base::Vector<NamespaceBinding> bindings_;

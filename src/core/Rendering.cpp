@@ -306,13 +306,8 @@ Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
     return std::move(list_);
 }
 
-RenderElement::RenderElement(
-    Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : LayoutElement(dispatcher, registry, runtimeType, allocator),
-      renderChildren_(allocator) {}
+RenderElement::RenderElement(TypeId runtimeType) noexcept
+    : LayoutElement(runtimeType), renderChildren_() {}
 
 RenderElement::~RenderElement() {
     AERO_ASSERT(renderManager_ == nullptr);
@@ -483,13 +478,11 @@ Base::Result<void> NullRenderBackend::Submit(
 
 RenderManager::RenderManager(
     Dispatcher& dispatcher,
-    IRenderBackend& backend,
-    Base::IAllocator* allocator) noexcept
+    IRenderBackend& backend) noexcept
     : dispatcher_(&dispatcher),
       backend_(&backend),
-      allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      dirty_(allocator_),
-      currentPlan_(allocator_) {}
+      dirty_(),
+      currentPlan_() {}
 
 RenderManager::~RenderManager() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
@@ -739,7 +732,7 @@ Base::Result<void> RenderManager::BuildSubtree(
         return InvalidState("RenderElement must be arranged and non-reentrant");
     }
     element.buildingDisplayList_ = true;
-    DisplayListBuilder builder(allocator_);
+    DisplayListBuilder builder;
     Base::Result<void> built = element.BuildDisplayList(builder);
     if (!built) {
         element.buildingDisplayList_ = false;
@@ -809,7 +802,7 @@ Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
     }
 
     committing_ = true;
-    RenderPlan next(allocator_);
+    RenderPlan next;
     next.version_ = commitVersion_ + 1U;
     Base::Result<void> built = BuildSubtree(
         *root_, InvalidRenderNodeId, next);

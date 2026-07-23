@@ -46,7 +46,7 @@ XamlLanguageNamespaceUri() noexcept {
 
 class AERO_API NameScope final {
 public:
-    explicit NameScope(Base::IAllocator* allocator = nullptr) noexcept;
+    NameScope() noexcept;
 
     NameScope(NameScope&&) noexcept = default;
     NameScope& operator=(NameScope&&) noexcept = default;
@@ -65,17 +65,12 @@ public:
     std::uint32_t Size() const noexcept {
         return entries_.Size();
     }
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
-    }
-
     static bool IsValidName(
         Base::StringView name) noexcept;
 
 private:
     struct Entry final {
-        explicit Entry(Base::IAllocator* allocator) noexcept
-            : name(allocator) {}
+        Entry() noexcept = default;
 
         Entry(Entry&&) noexcept = default;
         Entry& operator=(Entry&&) noexcept = default;
@@ -87,7 +82,6 @@ private:
         Base::Object* object = nullptr;
     };
 
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Entry> entries_;
 };
 
@@ -102,8 +96,7 @@ struct XamlResourceValue final {
 
 class AERO_API ResourceDictionary final {
 public:
-    explicit ResourceDictionary(
-        Base::IAllocator* allocator = nullptr) noexcept;
+    ResourceDictionary() noexcept;
 
     ResourceDictionary(ResourceDictionary&&) noexcept = default;
     ResourceDictionary& operator=(ResourceDictionary&&) noexcept = default;
@@ -145,14 +138,9 @@ public:
     std::uint64_t Generation() const noexcept {
         return generation_;
     }
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
-    }
-
 private:
     struct Entry final {
-        explicit Entry(Base::IAllocator* allocator) noexcept
-            : key(allocator) {}
+        Entry() noexcept = default;
 
         Entry(Entry&&) noexcept = default;
         Entry& operator=(Entry&&) noexcept = default;
@@ -175,7 +163,6 @@ private:
     const Entry* FindEntry(
         Base::StringView key) const noexcept;
 
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Entry> entries_;
     Base::Vector<Listener> listeners_;
     std::uint64_t generation_ = 0U;

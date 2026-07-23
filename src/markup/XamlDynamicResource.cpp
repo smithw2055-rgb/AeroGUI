@@ -10,14 +10,13 @@ struct DynamicResourceState final {
         Core::EffectiveValueEngine& effectiveValues,
         ResourceDictionary& dictionary,
         Core::DependencyObject& dependencyObject,
-        Core::DependencyPropertyHandle dependencyProperty,
-        Base::IAllocator& stateAllocator) noexcept
+        Core::DependencyPropertyHandle dependencyProperty) noexcept
         : engine(&effectiveValues),
           resources(&dictionary),
           target(&dependencyObject),
           property(dependencyProperty),
-          key(&stateAllocator),
-          allocator(&stateAllocator) {}
+          key(),
+          allocator(&Base::GetDefaultAllocator()) {}
 
     Core::EffectiveValueEngine* engine = nullptr;
     ResourceDictionary* resources = nullptr;
@@ -113,8 +112,7 @@ Base::Result<void> DynamicResource::Attach(
     ResourceDictionary& resources,
     Core::DependencyObject& target,
     Core::DependencyPropertyHandle property,
-    Base::StringView key,
-    Base::IAllocator* allocator) noexcept {
+    Base::StringView key) noexcept {
     const Base::StringView normalizedKey = TrimAscii(key);
     if (!property.IsValid() || normalizedKey.Empty()) {
         return Base::Status::Failure(
@@ -126,9 +124,7 @@ Base::Result<void> DynamicResource::Attach(
         return existing.GetStatus();
     }
 
-    Base::IAllocator* stateAllocator = allocator != nullptr
-        ? allocator
-        : &resources.Allocator();
+    Base::IAllocator* stateAllocator = &Base::GetDefaultAllocator();
     void* memory = stateAllocator->Allocate({
         sizeof(DynamicResourceState),
         alignof(DynamicResourceState),
@@ -139,7 +135,7 @@ Base::Result<void> DynamicResource::Attach(
             "DynamicResource expression allocation failed");
     }
     DynamicResourceState* state = new (memory) DynamicResourceState(
-        effectiveValues, resources, target, property, *stateAllocator);
+        effectiveValues, resources, target, property);
     Base::Result<void> assigned = state->key.TryAssign(normalizedKey);
     if (!assigned) {
         state->~DynamicResourceState();

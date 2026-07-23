@@ -5,10 +5,6 @@
 namespace Aero::Core {
 namespace {
 
-Base::IAllocator* ResolveAllocator(Base::IAllocator* allocator) noexcept {
-    return allocator != nullptr ? allocator : &Base::GetDefaultAllocator();
-}
-
 bool IsValidSeverity(DiagnosticSeverity severity) noexcept {
     return static_cast<std::uint8_t>(severity) <=
         static_cast<std::uint8_t>(DiagnosticSeverity::Fatal);
@@ -116,10 +112,8 @@ Base::Result<void> TryFormatDiagnosticCode(
     return result ? Base::Result<void>() : Base::Result<void>(result.GetStatus());
 }
 
-Diagnostic::Diagnostic(Base::IAllocator* allocator) noexcept
-    : allocator_(ResolveAllocator(allocator)),
-      message_(allocator_),
-      notes_(allocator_) {}
+Diagnostic::Diagnostic() noexcept
+    : message_(), notes_() {}
 
 Base::Result<Diagnostic> Diagnostic::TryCreate(
     DiagnosticCode code,
@@ -127,8 +121,7 @@ Base::Result<Diagnostic> Diagnostic::TryCreate(
     Base::StringView message,
     SourceSpan source,
     DiagnosticObjectId object,
-    MemberId member,
-    Base::IAllocator* allocator) noexcept {
+    MemberId member) noexcept {
     if (!code.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -150,7 +143,7 @@ Base::Result<Diagnostic> Diagnostic::TryCreate(
             "Diagnostic source span is invalid");
     }
 
-    Diagnostic diagnostic(allocator);
+    Diagnostic diagnostic;
     Base::Result<void> assignResult = diagnostic.message_.TryAssign(message);
     if (!assignResult) {
         return assignResult.GetStatus();
@@ -178,7 +171,7 @@ Base::Result<void> Diagnostic::TryAddNote(
             "Diagnostic note source span is invalid");
     }
 
-    DiagnosticNote note(allocator_);
+    DiagnosticNote note;
     note.source_ = source;
     Base::Result<void> assignResult = note.message_.TryAssign(message);
     if (!assignResult) {
@@ -188,11 +181,8 @@ Base::Result<void> Diagnostic::TryAddNote(
     return notes_.TryPushBack(std::move(note));
 }
 
-DiagnosticBag::DiagnosticBag(
-    std::uint32_t maxDiagnostics,
-    Base::IAllocator* allocator) noexcept
-    : allocator_(ResolveAllocator(allocator)),
-      items_(allocator_),
+DiagnosticBag::DiagnosticBag(std::uint32_t maxDiagnostics) noexcept
+    : items_(),
       maxDiagnostics_(maxDiagnostics) {}
 
 Base::Result<void> DiagnosticBag::Report(Diagnostic&& diagnostic) noexcept {
@@ -240,8 +230,7 @@ Base::Result<void> DiagnosticBag::TryReport(
         message,
         source,
         object,
-        member,
-        allocator_);
+        member);
     if (!diagnostic) {
         return diagnostic.GetStatus();
     }

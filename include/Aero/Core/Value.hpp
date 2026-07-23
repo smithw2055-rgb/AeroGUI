@@ -61,7 +61,6 @@ public:
     static constexpr std::uint32_t InlineCapacity = 32U;
 
     Value() noexcept = default;
-    explicit Value(Base::IAllocator*) noexcept {}
     Value(const Value&) noexcept = default;
     Value(Value&&) noexcept = default;
     Value& operator=(const Value&) noexcept = default;
@@ -69,28 +68,20 @@ public:
     ~Value() = default;
 
     static Value Unset() noexcept;
-    static Value FromBoolean(
-        TypeId type, bool value, Base::IAllocator* allocator = nullptr) noexcept;
+    static Value FromBoolean(TypeId type, bool value) noexcept;
     static Value FromSignedInteger(
-        TypeId type, std::int64_t value,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        TypeId type, std::int64_t value) noexcept;
     static Value FromUnsignedInteger(
-        TypeId type, std::uint64_t value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    static Value FromDouble(
-        TypeId type, double value, Base::IAllocator* allocator = nullptr) noexcept;
+        TypeId type, std::uint64_t value) noexcept;
+    static Value FromDouble(TypeId type, double value) noexcept;
     static Base::Result<Value> TryFromString(
-        TypeId type, Base::StringView value,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        TypeId type, Base::StringView value) noexcept;
     static Value FromObject(
-        TypeId type, Base::Ref<Base::Object> value,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    static Value NullObject(
-        TypeId type, Base::IAllocator* allocator = nullptr) noexcept;
+        TypeId type, Base::Ref<Base::Object> value) noexcept;
+    static Value NullObject(TypeId type) noexcept;
     static Base::Result<Value> TryFromCustom(
         TypeId type, const void* source,
-        const Base::Ref<ValueTypeSemantics>& semantics,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        const Base::Ref<ValueTypeSemantics>& semantics) noexcept;
 
     TypeId Type() const noexcept { return type_; }
     ValueKind Kind() const noexcept { return kind_; }
@@ -134,7 +125,7 @@ inline bool operator!=(
 
 using TextValueConverterCallback = Base::Result<Value> (*)(
     TypeId targetType, Base::StringView text,
-    Base::IAllocator& allocator, void* context) noexcept;
+    void* context) noexcept;
 
 struct TextValueConverterRegistration final {
     TypeId type = InvalidTypeId;

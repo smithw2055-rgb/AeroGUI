@@ -20,8 +20,7 @@ public:
         ResourceDictionary& resources,
         Core::DependencyObject& target,
         Core::DependencyPropertyHandle property,
-        Base::StringView key,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Base::StringView key) noexcept;
 };
 
 struct XamlDynamicResourceExtensionOptions final {

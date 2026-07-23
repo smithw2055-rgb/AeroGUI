@@ -12,7 +12,6 @@ class DependencyPropertyRegistry;
 using PropertyProviderGetCallback = Base::Result<Value> (*)(
     const Base::Object& object,
     const PropertyInfo& property,
-    Base::IAllocator& allocator,
     void* context) noexcept;
 using PropertyProviderSetCallback = Base::Result<void> (*)(
     Base::Object& object,
@@ -30,9 +29,7 @@ struct PropertyProviderRegistration final {
 
 class AERO_API MemberAccessor final {
 public:
-    explicit MemberAccessor(
-        TypeRegistry& types,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit MemberAccessor(TypeRegistry& types) noexcept;
 
     Base::Result<void> TryRegisterProvider(
         const PropertyProviderRegistration& registration) noexcept;
@@ -40,8 +37,7 @@ public:
 
     Base::Result<Value> GetProperty(
         const Base::Object& object,
-        const PropertyInfo& property,
-        Base::IAllocator* allocator = nullptr) const noexcept;
+        const PropertyInfo& property) const noexcept;
     Base::Result<void> SetProperty(
         Base::Object& object,
         const PropertyInfo& property,
@@ -49,15 +45,13 @@ public:
     Base::Result<Value> InvokeMethod(
         Base::Object& object,
         const MethodInfo& method,
-        Base::Span<const Value> arguments,
-        Base::IAllocator* allocator = nullptr) const noexcept;
+        Base::Span<const Value> arguments) const noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
     TypeRegistry& Types() const noexcept { return *types_; }
 
 private:
     TypeRegistry* types_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<PropertyProviderRegistration> providers_;
     bool frozen_ = false;
 

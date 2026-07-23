@@ -54,7 +54,7 @@ T LoadScalar(const unsigned char* source) noexcept {
 
 Value Value::Unset() noexcept { return {}; }
 
-Value Value::FromBoolean(TypeId type, bool value, Base::IAllocator*) noexcept {
+Value Value::FromBoolean(TypeId type, bool value) noexcept {
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::Boolean;
@@ -63,7 +63,7 @@ Value Value::FromBoolean(TypeId type, bool value, Base::IAllocator*) noexcept {
 }
 
 Value Value::FromSignedInteger(
-    TypeId type, std::int64_t value, Base::IAllocator*) noexcept {
+    TypeId type, std::int64_t value) noexcept {
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::SignedInteger;
@@ -72,7 +72,7 @@ Value Value::FromSignedInteger(
 }
 
 Value Value::FromUnsignedInteger(
-    TypeId type, std::uint64_t value, Base::IAllocator*) noexcept {
+    TypeId type, std::uint64_t value) noexcept {
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::UnsignedInteger;
@@ -80,7 +80,7 @@ Value Value::FromUnsignedInteger(
     return result;
 }
 
-Value Value::FromDouble(TypeId type, double value, Base::IAllocator*) noexcept {
+Value Value::FromDouble(TypeId type, double value) noexcept {
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::Double;
@@ -89,9 +89,8 @@ Value Value::FromDouble(TypeId type, double value, Base::IAllocator*) noexcept {
 }
 
 Base::Result<Value> Value::TryFromString(
-    TypeId type, Base::StringView value, Base::IAllocator* allocator) noexcept {
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator : Base::GetDefaultAllocator();
+    TypeId type, Base::StringView value) noexcept {
+    Base::IAllocator& selected = Base::GetDefaultAllocator();
     Base::String text(&selected);
     Base::Result<void> assigned = text.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
@@ -106,7 +105,7 @@ Base::Result<Value> Value::TryFromString(
 }
 
 Value Value::FromObject(
-    TypeId type, Base::Ref<Base::Object> value, Base::IAllocator*) noexcept {
+    TypeId type, Base::Ref<Base::Object> value) noexcept {
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::Object;
@@ -114,14 +113,13 @@ Value Value::FromObject(
     return result;
 }
 
-Value Value::NullObject(TypeId type, Base::IAllocator*) noexcept {
+Value Value::NullObject(TypeId type) noexcept {
     return FromObject(type, {});
 }
 
 Base::Result<Value> Value::TryFromCustom(
     TypeId type, const void* source,
-    const Base::Ref<ValueTypeSemantics>& semantics,
-    Base::IAllocator* allocator) noexcept {
+    const Base::Ref<ValueTypeSemantics>& semantics) noexcept {
     if (type == InvalidTypeId || source == nullptr || !semantics) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Custom Value construction is incomplete");
@@ -145,8 +143,7 @@ Base::Result<Value> Value::TryFromCustom(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Boxed custom Value requires a copy callback");
     }
-    Base::IAllocator& selected = allocator != nullptr
-        ? *allocator : Base::GetDefaultAllocator();
+    Base::IAllocator& selected = Base::GetDefaultAllocator();
     void* memory = selected.Allocate({registration.size, registration.alignment,
         Base::MemoryTag::Presentation});
     if (memory == nullptr) {

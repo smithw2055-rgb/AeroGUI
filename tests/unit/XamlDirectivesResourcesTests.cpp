@@ -37,12 +37,8 @@ struct Fixture;
 
 class DirectiveNode final : public Object {
 public:
-    DirectiveNode(IAllocator* allocator, bool root) noexcept
-        : title_(allocator),
-          children_(allocator),
-          names_(allocator),
-          resources_(allocator),
-          root_(root) {
+    explicit DirectiveNode(bool root) noexcept
+        : root_(root) {
         ++liveCount_;
     }
 
@@ -138,9 +134,8 @@ Result<XamlValue> ProvideEcho(
     const XamlServiceProvider& services,
     void* context) noexcept;
 
-Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
-    Result<Ref<DirectiveNode>> created =
-        MakeRefWithAllocator<DirectiveNode>(allocator, &allocator, true);
+Result<Ref<Object>> MakeRoot() noexcept {
+    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(true);
     if (!created) {
         return created.GetStatus();
     }
@@ -149,9 +144,8 @@ Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
     return result;
 }
 
-Result<Ref<Object>> MakeLeaf(IAllocator& allocator) noexcept {
-    Result<Ref<DirectiveNode>> created =
-        MakeRefWithAllocator<DirectiveNode>(allocator, &allocator, false);
+Result<Ref<Object>> MakeLeaf() noexcept {
+    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(false);
     if (!created) {
         return created.GetStatus();
     }
@@ -477,10 +471,7 @@ Result<XamlValue> ProvideEcho(
             ErrorCode::ValidationFailed,
             "Echo extension failure requested by test");
     }
-    return XamlValue::TryFromString(
-        fixture->stringType,
-        arguments,
-        &fixture->schema.Allocator());
+    return XamlValue::TryFromString(fixture->stringType, arguments);
 }
 
 Result<Ref<Object>> LoadDocument(

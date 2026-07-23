@@ -17,18 +17,16 @@ XamlVisualTreeHost::XamlVisualTreeHost(
     Core::ObjectTree& tree,
     Core::LayoutManager& layout,
     Core::EffectiveValueEngine& values,
-    Core::RenderManager* renderer,
-    Base::IAllocator* allocator) noexcept
+    Core::RenderManager* renderer) noexcept
     : tree_(&tree),
       layout_(&layout),
       values_(&values),
       renderer_(renderer),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
-      presenters_(allocator_),
-      collections_(allocator_),
-      edges_(allocator_),
-      nodes_(allocator_) {}
+      types_(),
+      presenters_(),
+      collections_(),
+      edges_(),
+      nodes_() {}
 
 XamlVisualTreeHost::~XamlVisualTreeHost() noexcept {
     AERO_ASSERT(!mounted_);

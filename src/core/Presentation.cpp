@@ -11,8 +11,34 @@
 namespace Aero::Core {
 namespace {
 
-constexpr Base::StringView PresentationNamespace("urn:aero");
+constexpr Base::StringView PresentationNamespace = AeroNamespaceUri();
 constexpr double DefaultMaximum = 1.0e12;
+thread_local PresentationContext* CurrentPresentationContext = nullptr;
+
+struct DefaultPresentationRuntime final {
+    Dispatcher dispatcher;
+    TypeRegistry types;
+    DependencyPropertyRegistry properties{types};
+    RoutedEventRegistry routedEvents{types};
+    bool ready = false;
+
+    DefaultPresentationRuntime() noexcept {
+        Base::Result<CorePresentationMetadata> registered =
+            TryRegisterCorePresentationMetadata(
+                types, properties, &routedEvents);
+        if (!registered || !types.Freeze() || !properties.Freeze() ||
+            !routedEvents.Freeze()) {
+            return;
+        }
+        ready = true;
+    }
+};
+
+DefaultPresentationRuntime& GetDefaultPresentationRuntime() noexcept {
+    thread_local DefaultPresentationRuntime runtime;
+    AERO_ASSERT(runtime.ready);
+    return runtime;
+}
 
 bool EqualsAsciiInsensitive(Base::StringView value, const char* literal) noexcept {
     std::uint32_t size = 0U;
@@ -33,9 +59,8 @@ Base::StringView Trim(Base::StringView value) noexcept {
     return value.Substr(begin, end - begin);
 }
 
-Base::Result<double> ParseDouble(
-    Base::StringView text, Base::IAllocator& allocator) noexcept {
-    Base::String buffer(&allocator);
+Base::Result<double> ParseDouble(Base::StringView text) noexcept {
+    Base::String buffer;
     Base::Result<void> assigned = buffer.TryAssign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
@@ -48,7 +73,7 @@ Base::Result<double> ParseDouble(
 }
 
 Base::Result<Value> ConvertBoolean(TypeId type, Base::StringView text,
-    Base::IAllocator&, void*) noexcept {
+    void*) noexcept {
     const Base::StringView value = Trim(text);
     if (EqualsAsciiInsensitive(value, "true")) return Value::FromBoolean(type, true);
     if (EqualsAsciiInsensitive(value, "false")) return Value::FromBoolean(type, false);
@@ -57,8 +82,8 @@ Base::Result<Value> ConvertBoolean(TypeId type, Base::StringView text,
 }
 
 Base::Result<Value> ConvertUnsigned(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void*) noexcept {
-    Base::String buffer(&allocator);
+    void*) noexcept {
+    Base::String buffer;
     Base::Result<void> assigned = buffer.TryAssign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
@@ -74,36 +99,35 @@ Base::Result<Value> ConvertUnsigned(TypeId type, Base::StringView text,
 }
 
 Base::Result<Value> ConvertDoubleValue(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void*) noexcept {
-    Base::Result<double> value = ParseDouble(text, allocator);
+    void*) noexcept {
+    Base::Result<double> value = ParseDouble(text);
     return value ? Base::Result<Value>(Value::FromDouble(type, value.Value()))
                  : Base::Result<Value>(value.GetStatus());
 }
 
 Base::Result<Value> ConvertString(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void*) noexcept {
-    return Value::TryFromString(type, text, &allocator);
+    void*) noexcept {
+    return Value::TryFromString(type, text);
 }
 
 Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void* context) noexcept {
+    void* context) noexcept {
     auto* types = static_cast<TypeRegistry*>(context);
     const Base::StringView value = Trim(text);
     Length length = Length::Auto();
     if (!EqualsAsciiInsensitive(value, "auto")) {
-        Base::Result<double> parsed = ParseDouble(value, allocator);
+        Base::Result<double> parsed = ParseDouble(value);
         if (!parsed || parsed.Value() < 0.0) {
             return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
                 "Length must be Auto or a nonnegative number");
         }
         length = Length::Pixels(parsed.Value());
     }
-    return types->TryCreateValue(type, &length, &allocator);
+    return types->TryCreateValue(type, &length);
 }
 
-Base::Result<Thickness> ParseThickness(
-    Base::StringView input, Base::IAllocator& allocator) noexcept {
-    Base::String text(&allocator);
+Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
+    Base::String text;
     Base::Result<void> assigned = text.TryAssign(input);
     if (!assigned) return assigned.GetStatus();
     const char* cursor = text.CStr();
@@ -152,11 +176,11 @@ Base::Result<Thickness> ParseThickness(
 }
 
 Base::Result<Value> ConvertThickness(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void* context) noexcept {
-    Base::Result<Thickness> parsed = ParseThickness(text, allocator);
+    void* context) noexcept {
+    Base::Result<Thickness> parsed = ParseThickness(text);
     if (!parsed) return parsed.GetStatus();
     return static_cast<TypeRegistry*>(context)->TryCreateValue(
-        type, &parsed.Value(), &allocator);
+        type, &parsed.Value());
 }
 
 int Hex(char value) noexcept {
@@ -167,7 +191,7 @@ int Hex(char value) noexcept {
 }
 
 Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
-    Base::IAllocator& allocator, void* context) noexcept {
+    void* context) noexcept {
     const Base::StringView value = Trim(text);
     if ((value.SizeBytes() != 7U && value.SizeBytes() != 9U) || value[0] != '#') {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
@@ -189,7 +213,7 @@ Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
         : Color{bytes[1] / 255.0F, bytes[2] / 255.0F,
             bytes[3] / 255.0F, bytes[0] / 255.0F};
     return static_cast<TypeRegistry*>(context)->TryCreateValue(
-        type, &color, &allocator);
+        type, &color);
 }
 
 bool EqualLength(const void* left, const void* right, void*) noexcept {
@@ -211,7 +235,7 @@ bool EqualColor(const void* left, const void* right, void*) noexcept {
 }
 
 Base::Result<Value> ConvertHorizontal(TypeId type, Base::StringView text,
-    Base::IAllocator&, void*) noexcept {
+    void*) noexcept {
     const Base::StringView value = Trim(text);
     HorizontalAlignment result;
     if (EqualsAsciiInsensitive(value, "stretch")) result = HorizontalAlignment::Stretch;
@@ -223,7 +247,7 @@ Base::Result<Value> ConvertHorizontal(TypeId type, Base::StringView text,
     return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
 }
 Base::Result<Value> ConvertVertical(TypeId type, Base::StringView text,
-    Base::IAllocator&, void*) noexcept {
+    void*) noexcept {
     const Base::StringView value = Trim(text);
     VerticalAlignment result;
     if (EqualsAsciiInsensitive(value, "stretch")) result = VerticalAlignment::Stretch;
@@ -235,7 +259,7 @@ Base::Result<Value> ConvertVertical(TypeId type, Base::StringView text,
     return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
 }
 Base::Result<Value> ConvertOrientation(TypeId type, Base::StringView text,
-    Base::IAllocator&, void*) noexcept {
+    void*) noexcept {
     const Base::StringView value = Trim(text);
     if (EqualsAsciiInsensitive(value, "horizontal"))
         return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(Orientation::Horizontal));
@@ -325,23 +349,46 @@ Base::Result<TypeId> RegisterType(TypeRegistry& types, Base::StringView name,
 } // namespace
 
 Base::StringView AeroPresentationNamespaceUri() noexcept {
-    return PresentationNamespace;
+    return AeroNamespaceUri();
+}
+
+PresentationContext GetCurrentPresentationContext() noexcept {
+    if (CurrentPresentationContext != nullptr) {
+        return *CurrentPresentationContext;
+    }
+    DefaultPresentationRuntime& runtime = GetDefaultPresentationRuntime();
+    return {&runtime.dispatcher, &runtime.properties};
+}
+
+PresentationContextScope::PresentationContextScope(
+    Dispatcher& dispatcher,
+    DependencyPropertyRegistry& properties) noexcept
+    : context_{&dispatcher, &properties},
+      previous_(CurrentPresentationContext),
+      ownerThread_(CurrentDispatcherThreadToken()) {
+    CurrentPresentationContext = &context_;
+}
+
+PresentationContextScope::~PresentationContextScope() {
+    AERO_ASSERT(ownerThread_ == CurrentDispatcherThreadToken());
+    AERO_ASSERT(CurrentPresentationContext == &context_);
+    CurrentPresentationContext = previous_;
 }
 
 AERO_IMPLEMENT_EMPTY_METADATA(DependencyObject, TypeFlags::Abstract)
 AERO_IMPLEMENT_METADATA(TreeNode, TypeFlags::Abstract) {
     if (helper.Context().routedEvents == nullptr) return;
     const CorePresentationMetadata& m = helper.Context().core;
-    AeroEvent(MouseMoveEvent, m.mouseEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(MouseDownEvent, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(MouseUpEvent, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(GotKeyboardFocusEvent, m.keyboardFocusChangedEventArgsType,
+    AeroEvent(MouseMove, m.mouseEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(MouseDown, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(MouseUp, m.mouseButtonEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(GotKeyboardFocus, m.keyboardFocusChangedEventArgsType,
         RoutingStrategy::Bubble);
-    AeroEvent(LostKeyboardFocusEvent, m.keyboardFocusChangedEventArgsType,
+    AeroEvent(LostKeyboardFocus, m.keyboardFocusChangedEventArgsType,
         RoutingStrategy::Bubble);
-    AeroEvent(KeyDownEvent, m.keyEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(KeyUpEvent, m.keyEventArgsType, RoutingStrategy::Bubble);
-    AeroEvent(TextInputEvent, m.textCompositionEventArgsType,
+    AeroEvent(KeyDown, m.keyEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(KeyUp, m.keyEventArgsType, RoutingStrategy::Bubble);
+    AeroEvent(TextInput, m.textCompositionEventArgsType,
         RoutingStrategy::Bubble);
 }
 
@@ -364,33 +411,33 @@ AERO_IMPLEMENT_METADATA(LayoutElement, TypeFlags::Abstract) {
     }
     const auto measure = PropertyMetadataFlags::AffectsMeasure;
     const auto arrange = PropertyMetadataFlags::AffectsArrange;
-    AeroDP(WidthProperty, m.lengthType, automatic.Value(), measure, &ValidateLength);
-    AeroDP(HeightProperty, m.lengthType, automatic.Value(), measure, &ValidateLength);
-    AeroDP(MinWidthProperty, m.doubleType,
+    AeroDP(Width, m.lengthType, automatic.Value(), measure, &ValidateLength);
+    AeroDP(Height, m.lengthType, automatic.Value(), measure, &ValidateLength);
+    AeroDP(MinWidth, m.doubleType,
         Value::FromDouble(m.doubleType, 0.0), measure,
         &ValidateNonnegativeDouble, &CoerceMinWidth);
-    AeroDP(MaxWidthProperty, m.doubleType,
+    AeroDP(MaxWidth, m.doubleType,
         Value::FromDouble(m.doubleType, DefaultMaximum), measure,
         &ValidateNonnegativeDouble, &CoerceMaxWidth);
-    AeroDP(MinHeightProperty, m.doubleType,
+    AeroDP(MinHeight, m.doubleType,
         Value::FromDouble(m.doubleType, 0.0), measure,
         &ValidateNonnegativeDouble, &CoerceMinHeight);
-    AeroDP(MaxHeightProperty, m.doubleType,
+    AeroDP(MaxHeight, m.doubleType,
         Value::FromDouble(m.doubleType, DefaultMaximum), measure,
         &ValidateNonnegativeDouble, &CoerceMaxHeight);
-    AeroDP(MarginProperty, m.thicknessType, margin.Value(), measure,
+    AeroDP(Margin, m.thicknessType, margin.Value(), measure,
         &ValidateThicknessValue);
-    AeroDP(HorizontalAlignmentProperty, m.horizontalAlignmentType,
+    AeroDP(HorizontalAlignment, m.horizontalAlignmentType,
         Value::FromUnsignedInteger(m.horizontalAlignmentType, 0U), arrange,
         &ValidateHorizontalValue);
-    AeroDP(VerticalAlignmentProperty, m.verticalAlignmentType,
+    AeroDP(VerticalAlignment, m.verticalAlignmentType,
         Value::FromUnsignedInteger(m.verticalAlignmentType, 0U), arrange,
         &ValidateVerticalValue);
-    AeroDP(ClipToBoundsProperty, m.booleanType,
+    AeroDP(ClipToBounds, m.booleanType,
         Value::FromBoolean(m.booleanType, false), arrange);
-    AeroDP(IsHitTestVisibleProperty, m.booleanType,
+    AeroDP(IsHitTestVisible, m.booleanType,
         Value::FromBoolean(m.booleanType, true), PropertyMetadataFlags::None);
-    AeroDP(UseLayoutRoundingProperty, m.booleanType,
+    AeroDP(UseLayoutRounding, m.booleanType,
         Value::FromBoolean(m.booleanType, false), measure);
 }
 
@@ -398,7 +445,7 @@ AERO_IMPLEMENT_EMPTY_METADATA(RenderElement, TypeFlags::Abstract)
 
 AERO_IMPLEMENT_METADATA(StackPanel, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
-    AeroDP(OrientationProperty, context.core.orientationType,
+    AeroDP(Orientation, context.core.orientationType,
         Value::FromUnsignedInteger(context.core.orientationType, 1U),
         PropertyMetadataFlags::AffectsMeasure, &ValidateOrientationValue);
     AeroContent("Children", ContentKind::Collection);
@@ -406,10 +453,10 @@ AERO_IMPLEMENT_METADATA(StackPanel, TypeFlags::None) {
 
 AERO_IMPLEMENT_METADATA(Canvas, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
-    AeroAttachedDP(LeftProperty, context.core.doubleType,
+    AeroAttachedDP(Left, context.core.doubleType,
         Value::FromDouble(context.core.doubleType, 0.0),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
-    AeroAttachedDP(TopProperty, context.core.doubleType,
+    AeroAttachedDP(Top, context.core.doubleType,
         Value::FromDouble(context.core.doubleType, 0.0),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
     AeroContent("Children", ContentKind::Collection);
@@ -417,10 +464,10 @@ AERO_IMPLEMENT_METADATA(Canvas, TypeFlags::None) {
 
 AERO_IMPLEMENT_METADATA(Grid, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
-    AeroAttachedDP(RowProperty, context.core.unsignedIntegerType,
+    AeroAttachedDP(Row, context.core.unsignedIntegerType,
         Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
-    AeroAttachedDP(ColumnProperty, context.core.unsignedIntegerType,
+    AeroAttachedDP(Column, context.core.unsignedIntegerType,
         Value::FromUnsignedInteger(context.core.unsignedIntegerType, 0U),
         PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
     AeroContent("Children", ContentKind::Collection);
@@ -442,14 +489,14 @@ AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
         helper.Fail(padding.GetStatus());
         return;
     }
-    AeroDP(BackgroundProperty, context.core.colorType, color.Value(),
+    AeroDP(Background, context.core.colorType, color.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderBrushProperty, context.core.colorType, color.Value(),
+    AeroDP(BorderBrush, context.core.colorType, color.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderThicknessProperty, context.core.doubleType,
+    AeroDP(BorderThickness, context.core.doubleType,
         Value::FromDouble(context.core.doubleType, 0.0),
         PropertyMetadataFlags::AffectsRender, &ValidateNonnegativeDouble);
-    AeroDP(PaddingProperty, context.core.thicknessType, padding.Value(),
+    AeroDP(Padding, context.core.thicknessType, padding.Value(),
         PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue);
     AeroContent("Content", ContentKind::Single);
 }
@@ -457,7 +504,7 @@ AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
 AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
     MetaRegistrationContext& context = helper.Context();
     Base::Result<Value> text = Value::TryFromString(
-        context.core.stringType, {}, &context.types.Allocator());
+        context.core.stringType, {});
     if (!text) {
         helper.Fail(text.GetStatus());
         return;
@@ -469,9 +516,9 @@ AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
         helper.Fail(foreground.GetStatus());
         return;
     }
-    AeroDP(TextProperty, context.core.stringType, text.Value(),
+    AeroDP(Text, context.core.stringType, text.Value(),
         PropertyMetadataFlags::AffectsMeasure);
-    AeroDP(ForegroundProperty, context.core.colorType, foreground.Value(),
+    AeroDP(Foreground, context.core.colorType, foreground.Value(),
         PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
 }
 

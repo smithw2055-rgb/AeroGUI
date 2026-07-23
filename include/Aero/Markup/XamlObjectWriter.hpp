@@ -77,8 +77,7 @@ class AERO_API XamlObjectWriter final {
 public:
     explicit XamlObjectWriter(
         XamlSchemaContext& schema,
-        Core::IDiagnosticSink* diagnostics = nullptr,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     ~XamlObjectWriter() noexcept;
 
     XamlObjectWriter(const XamlObjectWriter&) = delete;
@@ -135,9 +134,7 @@ private:
     };
 
     struct CreatedObjectRecord final {
-        explicit CreatedObjectRecord(
-            Base::IAllocator* allocator = nullptr) noexcept
-            : name(allocator), key(allocator) {}
+        CreatedObjectRecord() noexcept = default;
 
         CreatedObjectRecord(CreatedObjectRecord&&) noexcept = default;
         CreatedObjectRecord& operator=(CreatedObjectRecord&&) noexcept = default;
@@ -162,9 +159,7 @@ private:
     };
 
     struct NameScopeRecord final {
-        explicit NameScopeRecord(
-            Base::IAllocator* allocator = nullptr) noexcept
-            : names(allocator) {}
+        NameScopeRecord() noexcept = default;
 
         NameScopeRecord(NameScopeRecord&&) noexcept = default;
         NameScopeRecord& operator=(NameScopeRecord&&) noexcept = default;
@@ -177,9 +172,7 @@ private:
     };
 
     struct ResourceScopeRecord final {
-        explicit ResourceScopeRecord(
-            Base::IAllocator* allocator = nullptr) noexcept
-            : resources(allocator) {}
+        ResourceScopeRecord() noexcept = default;
 
         ResourceScopeRecord(ResourceScopeRecord&&) noexcept = default;
         ResourceScopeRecord& operator=(ResourceScopeRecord&&) noexcept = default;
@@ -192,9 +185,7 @@ private:
     };
 
     struct NamespaceBindingRecord final {
-        explicit NamespaceBindingRecord(
-            Base::IAllocator* allocator = nullptr) noexcept
-            : prefix(allocator), uri(allocator) {}
+        NamespaceBindingRecord() noexcept = default;
 
         NamespaceBindingRecord(NamespaceBindingRecord&&) noexcept = default;
         NamespaceBindingRecord& operator=(NamespaceBindingRecord&&) noexcept = default;
@@ -207,9 +198,7 @@ private:
     };
 
     struct PendingNamespaceRecord final {
-        explicit PendingNamespaceRecord(
-            Base::IAllocator* allocator = nullptr) noexcept
-            : prefix(allocator), uri(allocator) {}
+        PendingNamespaceRecord() noexcept = default;
 
         PendingNamespaceRecord(PendingNamespaceRecord&&) noexcept = default;
         PendingNamespaceRecord& operator=(PendingNamespaceRecord&&) noexcept = default;
@@ -224,7 +213,6 @@ private:
 
     XamlSchemaContext* schema_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Frame> frames_;
     Base::Vector<CreatedObjectRecord> created_;
     Base::Vector<AssignmentRecord> assignments_;

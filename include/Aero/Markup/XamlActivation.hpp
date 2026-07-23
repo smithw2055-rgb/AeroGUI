@@ -21,7 +21,7 @@ class XamlNodeReader;
 class XamlObjectWriter;
 class XamlSchemaContext;
 
-inline constexpr std::uint32_t XamlActivationAbiVersion = 1U;
+inline constexpr std::uint32_t XamlActivationAbiVersion = 2U;
 
 struct XamlActivationContext final {
     std::uint32_t structSize = 0U;
@@ -48,7 +48,6 @@ struct XamlActivationContext final {
 using XamlActivateObjectCallback = Base::Result<Base::Ref<Base::Object>> (*)(
     Core::TypeId requestedType,
     const XamlActivationContext& activation,
-    Base::IAllocator& allocator,
     void* context) noexcept;
 
 struct XamlActivationProviderRegistration final {
@@ -60,8 +59,7 @@ struct XamlActivationProviderRegistration final {
 class AERO_API XamlActivationProviderRegistry final {
 public:
     explicit XamlActivationProviderRegistry(
-        XamlSchemaContext& schema,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        XamlSchemaContext& schema) noexcept;
 
     XamlActivationProviderRegistry(
         const XamlActivationProviderRegistry&) = delete;
@@ -86,7 +84,6 @@ public:
 
 private:
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlActivationProviderRegistration> providers_;
     bool frozen_ = false;
 

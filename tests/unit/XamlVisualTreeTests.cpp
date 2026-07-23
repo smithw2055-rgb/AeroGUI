@@ -30,9 +30,8 @@ using namespace Aero::Markup;
 
 class TestLeaf final : public RenderElement {
 public:
-    TestLeaf(Dispatcher& dispatcher, DependencyPropertyRegistry& properties,
-        TypeId type, IAllocator* allocator) noexcept
-        : RenderElement(dispatcher, properties, type, allocator) {}
+    explicit TestLeaf(TypeId type) noexcept
+        : RenderElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -49,6 +48,7 @@ struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     EffectiveValueEngine values{dispatcher, properties};
     ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher};
@@ -74,15 +74,13 @@ struct Fixture final {
 
     static Result<Ref<Object>> Activate(TypeId requestedType,
         const XamlActivationContext& activationContext,
-        IAllocator& allocator, void*) noexcept {
+        void*) noexcept {
         if (activationContext.dispatcher == nullptr ||
             activationContext.dependencyProperties == nullptr) {
             return Status::Failure(ErrorCode::InvalidArgument,
                 "XAML visual-tree activation services are missing");
         }
-        Result<Ref<TestLeaf>> made = MakeRefWithAllocator<TestLeaf>(allocator,
-            *activationContext.dispatcher, *activationContext.dependencyProperties,
-            requestedType, &allocator);
+        Result<Ref<TestLeaf>> made = MakeRef<TestLeaf>(requestedType);
         if (!made) return made.GetStatus();
         Ref<TestLeaf> leaf = std::move(made).Value();
         return Ref<Object>(std::move(leaf));

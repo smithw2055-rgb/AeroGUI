@@ -334,7 +334,7 @@ MemberId MakeMethodId(
     Base::StringView name,
     Base::Span<const TypeId> parameterTypes) noexcept {
     static constexpr char Domain[] = "AERO.METHOD.V1";
-    Detail::StableIdBuilder builder;
+    Base::Detail::StableMetadataIdBuilder builder;
     builder.AddText(
         Domain, static_cast<std::uint32_t>(sizeof(Domain) - 1U));
     builder.AddU64(ownerType);
@@ -346,13 +346,12 @@ MemberId MakeMethodId(
     return builder.Finish();
 }
 
-TypeRegistry::TypeRegistry(Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
-      typeIndex_(allocator_),
-      memberIndex_(allocator_),
-      valueSemantics_(allocator_),
-      textConverters_(allocator_) {}
+TypeRegistry::TypeRegistry() noexcept
+    : types_(),
+      typeIndex_(),
+      memberIndex_(),
+      valueSemantics_(),
+      textConverters_() {}
 
 Base::Result<TypeId> TypeRegistry::TryRegisterType(
     const TypeRegistration& registration) noexcept {
@@ -375,7 +374,7 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
         return IdCollisionStatus();
     }
 
-    TypeInfo info(allocator_);
+    TypeInfo info;
     info.id_ = id;
     info.baseType_ = registration.baseType;
     info.flags_ = registration.flags;
@@ -444,7 +443,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
     }
 
     TypeInfo& owner = types_[*ownerIndex];
-    PropertyInfo property(allocator_);
+    PropertyInfo property;
     property.id_ = id;
     property.ownerType_ = ownerType;
     property.valueType_ = registration.valueType;
@@ -514,7 +513,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterEvent(
     }
 
     TypeInfo& owner = types_[*ownerIndex];
-    EventInfo eventInfo(allocator_);
+    EventInfo eventInfo;
     eventInfo.id_ = id;
     eventInfo.ownerType_ = ownerType;
     eventInfo.eventArgsType_ = registration.eventArgsType;
@@ -556,7 +555,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
     std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
     if (ownerIndex == nullptr) return MissingOwnerStatus();
 
-    Base::Vector<TypeId> signature(allocator_);
+    Base::Vector<TypeId> signature;
     Base::Result<void> result = signature.TryReserve(
         registration.parameters.Size());
     if (!result) return result.GetStatus();
@@ -574,7 +573,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
     if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
 
     TypeInfo& owner = types_[*ownerIndex];
-    MethodInfo method(allocator_);
+    MethodInfo method;
     method.id_ = id;
     method.ownerType_ = ownerType;
     method.returnType_ = registration.returnType;
@@ -587,7 +586,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
     if (!result) return result.GetStatus();
     for (const MethodParameterRegistration& source :
          registration.parameters) {
-        MethodParameterInfo parameter(allocator_);
+        MethodParameterInfo parameter;
         parameter.type_ = source.type;
         result = parameter.name_.TryAssign(source.name);
         if (!result) return result.GetStatus();
@@ -682,8 +681,7 @@ Base::Result<void> TypeRegistry::TryRegisterValueSemantics(
         }
     }
     Base::Result<Base::Ref<ValueTypeSemantics>> created =
-        Base::MakeRefWithAllocator<ValueTypeSemantics>(
-            *allocator_, registration);
+        Base::MakeRef<ValueTypeSemantics>(registration);
     if (!created) return created.GetStatus();
     return valueSemantics_.TryPushBack({type, std::move(created).Value()});
 }
@@ -707,13 +705,10 @@ Base::Result<void> TypeRegistry::TryRegisterTextConverter(
 
 Base::Result<Value> TypeRegistry::TryCreateValue(
     TypeId type,
-    const void* source,
-    Base::IAllocator* allocator) const noexcept {
+    const void* source) const noexcept {
     for (const ValueSemanticsEntry& entry : valueSemantics_) {
         if (entry.type == type) {
-            return Value::TryFromCustom(
-                type, source, entry.semantics,
-                allocator != nullptr ? allocator : allocator_);
+            return Value::TryFromCustom(type, source, entry.semantics);
         }
     }
     return Base::Status::Failure(Base::ErrorCode::NotFound,
@@ -722,14 +717,11 @@ Base::Result<Value> TypeRegistry::TryCreateValue(
 
 Base::Result<Value> TypeRegistry::TryConvertText(
     TypeId type,
-    Base::StringView text,
-    Base::IAllocator* allocator) const noexcept {
+    Base::StringView text) const noexcept {
     for (const TextValueConverterRegistration& entry : textConverters_) {
         if (entry.type == type) {
-            Base::IAllocator& selected = allocator != nullptr
-                ? *allocator : *allocator_;
             Base::Result<Value> converted = entry.convert(
-                type, text, selected, entry.context);
+                type, text, entry.context);
             if (converted && converted.Value().Type() != type) {
                 return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                     "Text converter returned a value with the wrong type");
@@ -793,13 +785,13 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         }
     }
 
-    Base::Vector<std::uint8_t> state(allocator_);
+    Base::Vector<std::uint8_t> state;
     Base::Result<void> result = state.TryResize(types_.Size(), std::uint8_t{0U});
     if (!result) {
         return result.GetStatus();
     }
 
-    Base::Vector<std::uint32_t> path(allocator_);
+    Base::Vector<std::uint32_t> path;
     result = path.TryReserve(types_.Size());
     if (!result) {
         return result.GetStatus();
@@ -1004,7 +996,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
         return result.GetStatus();
     }
 
-    Base::Vector<std::uint32_t> typeOrder(allocator_);
+    Base::Vector<std::uint32_t> typeOrder;
     result = BuildOrder(
         types_.Size(),
         typeOrder,
@@ -1022,7 +1014,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
             return result.GetStatus();
         }
 
-        Base::Vector<std::uint32_t> propertyOrder(allocator_);
+        Base::Vector<std::uint32_t> propertyOrder;
         const Base::Span<const PropertyInfo> properties = type.Properties();
         result = BuildOrder(
             properties.Size(),
@@ -1040,7 +1032,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
             }
         }
 
-        Base::Vector<std::uint32_t> eventOrder(allocator_);
+        Base::Vector<std::uint32_t> eventOrder;
         const Base::Span<const EventInfo> events = type.Events();
         result = BuildOrder(
             events.Size(),
@@ -1058,7 +1050,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
             }
         }
 
-        Base::Vector<std::uint32_t> methodOrder(allocator_);
+        Base::Vector<std::uint32_t> methodOrder;
         const Base::Span<const MethodInfo> methods = type.Methods();
         result = BuildOrder(methods.Size(), methodOrder,
             [&methods](std::uint32_t left, std::uint32_t right) noexcept {
@@ -1076,7 +1068,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
 }
 
 Base::Result<Base::HashCode> TypeRegistry::ComputeSnapshotHash() const noexcept {
-    Base::String snapshot(allocator_);
+    Base::String snapshot;
     Base::Result<void> result = BuildSnapshot(snapshot);
     if (!result) {
         return result.GetStatus();

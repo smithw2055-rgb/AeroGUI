@@ -48,8 +48,7 @@ class LayoutManager;
 class AERO_API LayoutElement : public TreeNode {
     AERO_DECLARE_METADATA(LayoutElement, TreeNode)
 public:
-    LayoutElement(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    explicit LayoutElement(TypeId runtimeType) noexcept;
     ~LayoutElement() override;
 
     Base::Result<void> InvalidateMeasure() noexcept;
@@ -75,31 +74,21 @@ public:
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
 
-    inline static constexpr DependencyPropertyHandle WidthProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Width");
-    inline static constexpr DependencyPropertyHandle HeightProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Height");
-    inline static constexpr DependencyPropertyHandle MinWidthProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "MinWidth");
-    inline static constexpr DependencyPropertyHandle MaxWidthProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "MaxWidth");
-    inline static constexpr DependencyPropertyHandle MinHeightProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "MinHeight");
-    inline static constexpr DependencyPropertyHandle MaxHeightProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "MaxHeight");
-    inline static constexpr DependencyPropertyHandle MarginProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Margin");
-    inline static constexpr DependencyPropertyHandle HorizontalAlignmentProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "HorizontalAlignment");
-    inline static constexpr DependencyPropertyHandle VerticalAlignmentProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "VerticalAlignment");
-    inline static constexpr DependencyPropertyHandle ClipToBoundsProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "ClipToBounds");
-    inline static constexpr DependencyPropertyHandle IsHitTestVisibleProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "IsHitTestVisible");
-    inline static constexpr DependencyPropertyHandle UseLayoutRoundingProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "UseLayoutRounding");
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Width);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Height);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MinWidth);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxWidth);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MinHeight);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxHeight);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Margin);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(HorizontalAlignment);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(VerticalAlignment);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(ClipToBounds);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(IsHitTestVisible);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(UseLayoutRounding);
 
+    // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
     Base::Result<void> SetLayoutRounding(
@@ -159,8 +148,7 @@ struct LayoutDiagnostics final {
 
 class AERO_API LayoutManager final {
 public:
-    explicit LayoutManager(Dispatcher& dispatcher,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit LayoutManager(Dispatcher& dispatcher) noexcept;
     ~LayoutManager() noexcept;
     LayoutManager(const LayoutManager&) = delete;
     LayoutManager& operator=(const LayoutManager&) = delete;
@@ -178,7 +166,6 @@ public:
 private:
     friend class LayoutElement;
     Dispatcher* dispatcher_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     LayoutElement* root_ = nullptr;
     Size rootAvailableSize_;
     Base::Vector<LayoutElement*> measureQueue_;

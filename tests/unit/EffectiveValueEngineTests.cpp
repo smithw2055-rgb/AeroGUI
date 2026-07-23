@@ -1,4 +1,5 @@
 #include <Aero/Core/EffectiveValueEngine.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -19,11 +20,8 @@ using namespace Aero::Core;
 
 class TestElement final : public DependencyObject {
 public:
-    TestElement(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId type) noexcept
-        : DependencyObject(dispatcher, registry, type) {}
+    explicit TestElement(TypeId type) noexcept
+        : DependencyObject(type) {}
 
     ~TestElement() override = default;
 };
@@ -123,7 +121,8 @@ bool TestProviderPrecedenceAndBatching() {
     CHECK(fixture.Build());
 
     Dispatcher dispatcher;
-    TestElement element(dispatcher, fixture.properties, fixture.elementType);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement element(fixture.elementType);
     EffectiveValueEngine engine(dispatcher, fixture.properties);
     CHECK(engine.Initialize());
 
@@ -204,7 +203,8 @@ bool TestExpressionReplacementAndDiagnostics() {
     CHECK(fixture.Build());
 
     Dispatcher dispatcher;
-    TestElement element(dispatcher, fixture.properties, fixture.elementType);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement element(fixture.elementType);
     EffectiveValueEngine engine(dispatcher, fixture.properties);
     CHECK(engine.Initialize());
 
@@ -256,9 +256,10 @@ bool TestInheritanceAndCycleDetection() {
     CHECK(fixture.Build());
 
     Dispatcher dispatcher;
-    TestElement parent(dispatcher, fixture.properties, fixture.elementType);
-    TestElement child(dispatcher, fixture.properties, fixture.elementType);
-    TestElement grandchild(dispatcher, fixture.properties, fixture.elementType);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement parent(fixture.elementType);
+    TestElement child(fixture.elementType);
+    TestElement grandchild(fixture.elementType);
     EffectiveValueEngine engine(dispatcher, fixture.properties);
     CHECK(engine.Initialize());
 
@@ -309,7 +310,8 @@ bool TestInitializationAndValidation() {
     CHECK(fixture.Build());
 
     Dispatcher dispatcher;
-    TestElement element(dispatcher, fixture.properties, fixture.elementType);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement element(fixture.elementType);
     EffectiveValueEngine engine(dispatcher, fixture.properties);
 
     Result<void> beforeInit = engine.Invalidate(element, fixture.width);

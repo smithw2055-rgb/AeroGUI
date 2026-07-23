@@ -57,8 +57,7 @@ class AERO_API EffectiveValueEngine final {
 public:
     EffectiveValueEngine(
         Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        DependencyPropertyRegistry& registry) noexcept;
     ~EffectiveValueEngine() noexcept;
 
     EffectiveValueEngine(const EffectiveValueEngine&) = delete;
@@ -170,7 +169,6 @@ private:
 
     Dispatcher* dispatcher_ = nullptr;
     DependencyPropertyRegistry* registry_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Entry> entries_;
     Base::Vector<ParentLink> parents_;
     DispatcherFrameHookHandle phaseHook_;

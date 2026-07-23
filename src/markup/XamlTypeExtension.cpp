@@ -89,8 +89,7 @@ Base::Result<XamlValue> XamlTypeExtension::ProvideValue(
         return type.GetStatus();
     }
     return XamlValue::FromUnsignedInteger(
-        extension->typeReferenceType_, type.Value(),
-        services.schema != nullptr ? &services.schema->Allocator() : nullptr);
+        extension->typeReferenceType_, type.Value());
 }
 
 } // namespace Aero::Markup

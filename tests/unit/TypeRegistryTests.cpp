@@ -1,6 +1,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/ObjectTree.hpp>
+#include "TestAllocatorScope.hpp"
 
 #include <cstdint>
 #include <cstdio>
@@ -166,6 +168,10 @@ bool TestStableIds() {
 
     CHECK(object == UINT64_C(0x6563B5703AEB39E0));
     CHECK(uiElement == UINT64_C(0x0376178515911073));
+    CHECK(AeroNamespaceUri() == ns);
+    CHECK(MakeTypeId(StringView("Object")) == object);
+    CHECK(Aero::Base::Object::StaticTypeId() == object);
+    CHECK(EventArgs::StaticTypeId() == MakeTypeId(StringView("EventArgs")));
     CHECK(MakeTypeId(ns, StringView("Object")) == object);
     CHECK(MakeTypeId(StringView("urn:other"), StringView("Object")) != object);
     CHECK(MakeTypeId(ns, StringView("object")) != object);
@@ -349,8 +355,9 @@ bool TestDeterministicSnapshot() {
 
 bool TestRegistrationRollbackOnOom() {
     TrackingAllocator allocator;
+    Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
     {
-        TypeRegistry registry(&allocator);
+        TypeRegistry registry;
         const TypeId expected = MakeTypeId(
             StringView("urn:oom"), StringView("Object"));
 
@@ -431,8 +438,8 @@ bool EqualLarge(const void* left, const void* right, void*) noexcept {
     return std::memcmp(left, right, sizeof(LargeValue)) == 0;
 }
 
-Result<Value> ConvertSmall(TypeId type, StringView text,
-    IAllocator&, void* context) noexcept {
+Result<Value> ConvertSmall(
+    TypeId type, StringView text, void* context) noexcept {
     auto* registry = static_cast<TypeRegistry*>(context);
     if (text != StringView("7,9")) {
         return Status::Failure(ErrorCode::InvalidArgument, "Invalid SmallValue");
@@ -448,7 +455,8 @@ bool TestUnifiedValueAndRegistrySemantics() {
         "Value moves must remain noexcept");
 
     TrackingAllocator allocator;
-    TypeRegistry registry(&allocator);
+    Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
+    TypeRegistry registry;
     const StringView ns("urn:value-tests");
     const TypeId smallType = MakeTypeId(ns, StringView("Small"));
     const TypeId managedType = MakeTypeId(ns, StringView("Managed"));
@@ -501,9 +509,9 @@ bool TestUnifiedValueAndRegistrySemantics() {
     CHECK(!failedConversion &&
         failedConversion.GetStatus().code == ErrorCode::InvalidArgument);
 
-    Result<Value> empty = Value::TryFromString(smallType, StringView(), &allocator);
-    Result<Value> text = Value::TryFromString(smallType, StringView("aero"), &allocator);
-    Result<Value> sameText = Value::TryFromString(smallType, StringView("aero"), &allocator);
+    Result<Value> empty = Value::TryFromString(smallType, StringView());
+    Result<Value> text = Value::TryFromString(smallType, StringView("aero"));
+    Result<Value> sameText = Value::TryFromString(smallType, StringView("aero"));
     CHECK(empty && empty.Value().AsString().Empty());
     CHECK(text && sameText && text.Value() == sameText.Value());
 
@@ -547,12 +555,12 @@ bool TestUnifiedValueAndRegistrySemantics() {
 
     allocator.FailAfter(0U);
     Result<Value> stringOom = Value::TryFromString(
-        smallType, StringView("allocation"), &allocator);
+        smallType, StringView("allocation"));
     CHECK(!stringOom && stringOom.GetStatus().code == ErrorCode::OutOfMemory);
     int failedActive = 0;
     ManagedValue failedSource(failedActive, 5);
     Result<Value> boxedOom = registry.TryCreateValue(
-        managedType, &failedSource, &allocator);
+        managedType, &failedSource);
     CHECK(!boxedOom && boxedOom.GetStatus().code == ErrorCode::OutOfMemory);
     allocator.DisableFailures();
 

@@ -29,8 +29,7 @@ class AERO_API XamlDependencyPropertyBridge final {
 public:
     XamlDependencyPropertyBridge(
         XamlSchemaContext& schema,
-        Core::DependencyPropertyRegistry& properties,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Core::DependencyPropertyRegistry& properties) noexcept;
 
     XamlDependencyPropertyBridge(const XamlDependencyPropertyBridge&) = delete;
     XamlDependencyPropertyBridge& operator=(
@@ -51,7 +50,6 @@ public:
 private:
     XamlSchemaContext* schema_ = nullptr;
     Core::DependencyPropertyRegistry* properties_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlDependencyObjectTypeRegistration> types_;
     std::uint32_t registeredPropertyCount_ = 0U;
     bool providerRegistered_ = false;

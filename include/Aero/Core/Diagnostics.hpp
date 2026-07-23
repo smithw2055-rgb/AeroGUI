@@ -126,8 +126,8 @@ public:
 private:
     friend class Diagnostic;
 
-    explicit DiagnosticNote(Base::IAllocator* allocator) noexcept
-        : message_(allocator) {}
+    DiagnosticNote() noexcept
+        : message_(&Base::GetDefaultAllocator()) {}
 
     SourceSpan source_;
     Base::String message_;
@@ -147,8 +147,7 @@ public:
         Base::StringView message,
         SourceSpan source = {},
         DiagnosticObjectId object = InvalidDiagnosticObjectId,
-        MemberId member = InvalidMemberId,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        MemberId member = InvalidMemberId) noexcept;
 
     Base::Result<void> TryAddNote(
         Base::StringView message,
@@ -173,9 +172,8 @@ public:
     }
 
 private:
-    explicit Diagnostic(Base::IAllocator* allocator) noexcept;
+    Diagnostic() noexcept;
 
-    Base::IAllocator* allocator_ = nullptr;
     DiagnosticCode code_;
     DiagnosticSeverity severity_ = DiagnosticSeverity::Info;
     SourceSpan source_;
@@ -196,8 +194,7 @@ public:
 class AERO_API DiagnosticBag final : public IDiagnosticSink {
 public:
     explicit DiagnosticBag(
-        std::uint32_t maxDiagnostics = 1024U,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        std::uint32_t maxDiagnostics = 1024U) noexcept;
 
     Base::Result<void> Report(
         Diagnostic&& diagnostic) noexcept override;
@@ -231,7 +228,6 @@ public:
     bool HasErrors() const noexcept { return errorCount_ != 0U; }
 
 private:
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Diagnostic> items_;
     std::uint32_t maxDiagnostics_ = 0U;
     std::uint32_t warningCount_ = 0U;

@@ -74,15 +74,11 @@ void Detail::RoutedHandlerStorage::Invoke(
     operations_->invoke(storage_, sender, args);
 }
 
-TreeNode::TreeNode(
-    Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : DependencyObject(dispatcher, registry, runtimeType, allocator),
-      logicalChildren_(allocator),
-      visualChildren_(allocator),
-      handlers_(allocator) {}
+TreeNode::TreeNode(TypeId runtimeType) noexcept
+    : DependencyObject(runtimeType),
+      logicalChildren_(),
+      visualChildren_(),
+      handlers_() {}
 
 TreeNode::~TreeNode() {
     AERO_ASSERT(tree_ == nullptr);
@@ -148,13 +144,11 @@ void TreeNode::CleanupHandlers() noexcept {
 
 ObjectTree::ObjectTree(
     Dispatcher& dispatcher,
-    EffectiveValueEngine& values,
-    Base::IAllocator* allocator) noexcept
+    EffectiveValueEngine& values) noexcept
     : dispatcher_(&dispatcher),
       values_(&values),
-      allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      lifecycleQueue_(allocator_),
-      handles_(allocator_) {}
+      lifecycleQueue_(),
+      handles_() {}
 
 ObjectTree::~ObjectTree() noexcept {
     if (lifecycleHook_.IsValid() && dispatcher_->CheckAccess()) {
@@ -569,7 +563,7 @@ Base::Result<std::uint32_t> ObjectTree::FlushLifecycle() noexcept {
     if (!access) {
         return access.GetStatus();
     }
-    Base::Vector<LifecycleRecord> snapshot(allocator_);
+    Base::Vector<LifecycleRecord> snapshot;
     Base::Result<void> assigned = snapshot.TryAssign(
         Base::Span<const LifecycleRecord>(
             lifecycleQueue_.Data(), lifecycleQueue_.Size()));
@@ -599,13 +593,10 @@ void ObjectTree::LifecycleHook(void* context) noexcept {
     (void)tree->FlushLifecycle();
 }
 
-RoutedEventRegistry::RoutedEventRegistry(
-    TypeRegistry& types,
-    Base::IAllocator* allocator) noexcept
+RoutedEventRegistry::RoutedEventRegistry(TypeRegistry& types) noexcept
     : types_(&types),
-      allocator_(allocator != nullptr ? allocator : &types.Allocator()),
-      events_(allocator_),
-      classHandlers_(allocator_) {}
+      events_(),
+      classHandlers_() {}
 
 RoutedEventRegistry::~RoutedEventRegistry() noexcept {
     CleanupClassHandlers();
@@ -629,7 +620,7 @@ Base::Result<RoutedEventHandle> RoutedEventRegistry::TryRegister(
         return member.GetStatus();
     }
 
-    EventRecord record(allocator_);
+    EventRecord record;
     record.handle.value = member.Value();
     record.ownerType = registration.ownerType;
     record.argsType = registration.eventArgsType;
@@ -734,7 +725,7 @@ Base::Result<void> RoutedEventRegistry::RaiseEvent(
         return NotFound("Routed event was not found");
     }
 
-    Base::Vector<TreeNode*> route(allocator_);
+    Base::Vector<TreeNode*> route;
     Base::Result<void> built = BuildRoute(source, record->strategy, route);
     if (!built) {
         return built;

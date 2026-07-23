@@ -1,5 +1,6 @@
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
+#include "TestAllocatorScope.hpp"
 
 #include <cstdio>
 
@@ -325,9 +326,10 @@ bool TestInvalidUtf8AndOutOfMemory() {
     CHECK(diagnostics.Items()[0].Code() == XmlDiagnosticCodes::InvalidUtf8);
 
     RejectAllocator reject;
-    Utf8XmlTokenizer rejecting({}, &reject);
+    Aero::Tests::ScopedDefaultAllocator allocatorScope(reject);
+    Utf8XmlTokenizer rejecting;
     CHECK(rejecting.Reset(StringView("<ElementNameLongerThanInlineStorage/>")));
-    XmlToken token(&reject);
+    XmlToken token;
     Result<XmlTokenKind> allocation = rejecting.Read(token);
     CHECK(!allocation);
     CHECK(allocation.GetStatus().code == ErrorCode::OutOfMemory);
@@ -337,14 +339,13 @@ bool TestInvalidUtf8AndOutOfMemory() {
 Result<XamlValue> ConvertCustomLength(
     TypeId targetType,
     StringView text,
-    IAllocator& allocator,
     void*) noexcept {
     if (text != StringView("Auto")) {
         return Status::Failure(
             ErrorCode::ValidationFailed,
             "CustomLength expects Auto");
     }
-    return XamlValue::FromDouble(targetType, -1.0, &allocator);
+    return XamlValue::FromDouble(targetType, -1.0);
 }
 
 bool TestCustomTextConverter() {

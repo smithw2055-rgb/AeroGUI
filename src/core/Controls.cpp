@@ -27,15 +27,15 @@ bool IsValidTextSize(Size value) noexcept {
 }
 
 TypeId PresentationType(const char* name) noexcept {
-    return MakeTypeId(AeroPresentationNamespaceUri(),
+    return MakeTypeId(
         Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
 }
 } // namespace
 
-StackPanel::StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-    TypeId runtimeType, Orientation orientation, Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator),
-      ownedChildren_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {
+StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
+
+StackPanel::StackPanel(Orientation orientation) noexcept
+    : RenderElement(StaticTypeId()), ownedChildren_() {
     if (orientation != Orientation::Vertical) {
         static_cast<void>(SetOrientation(orientation));
     }
@@ -130,9 +130,7 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Canvas::Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-    TypeId runtimeType, Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
+Canvas::Canvas() noexcept : RenderElement(StaticTypeId()) {}
 
 Base::Result<void> Canvas::SetChildPosition(
     LayoutElement& child, Point position) noexcept {
@@ -186,14 +184,9 @@ Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Grid::Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-    TypeId runtimeType, Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      columns_(allocator_),
-      rows_(allocator_),
-      desiredColumns_(allocator_),
-      desiredRows_(allocator_) {}
+Grid::Grid() noexcept
+    : RenderElement(StaticTypeId()),
+      columns_(), rows_(), desiredColumns_(), desiredRows_() {}
 
 Base::Result<void> Grid::SetColumnDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
@@ -208,7 +201,7 @@ Base::Result<void> Grid::SetColumnDefinitions(
                 "Grid column definition removal would orphan a child cell");
         }
     }
-    Base::Vector<GridLength> next(allocator_);
+    Base::Vector<GridLength> next;
     Base::Result<void> copied = next.TryAssign(definitions);
     if (!copied) return copied.GetStatus();
     columns_ = std::move(next);
@@ -228,7 +221,7 @@ Base::Result<void> Grid::SetRowDefinitions(
                 "Grid row definition removal would orphan a child cell");
         }
     }
-    Base::Vector<GridLength> next(allocator_);
+    Base::Vector<GridLength> next;
     Base::Result<void> copied = next.TryAssign(definitions);
     if (!copied) return copied.GetStatus();
     rows_ = std::move(next);
@@ -260,8 +253,8 @@ Base::Result<void> Grid::SetChildCell(
 Base::Result<Size> Grid::MeasureOverride(Size) noexcept {
     const std::uint32_t columns = ColumnCount();
     const std::uint32_t rows = RowCount();
-    Base::Vector<double> desiredColumns(allocator_);
-    Base::Vector<double> desiredRows(allocator_);
+    Base::Vector<double> desiredColumns;
+    Base::Vector<double> desiredRows;
     Base::Result<void> resized = desiredColumns.TryResize(columns, 0.0);
     if (!resized) return resized.GetStatus();
     resized = desiredRows.TryResize(rows, 0.0);
@@ -313,8 +306,8 @@ Base::Result<Size> Grid::MeasureOverride(Size) noexcept {
 }
 
 Base::Result<Size> Grid::ArrangeOverride(Size finalSize) noexcept {
-    Base::Vector<double> columns(allocator_);
-    Base::Vector<double> rows(allocator_);
+    Base::Vector<double> columns;
+    Base::Vector<double> rows;
     Base::Result<void> resolved = ResolveTracks(
         {columns_.Data(), columns_.Size()},
         {desiredColumns_.Data(), desiredColumns_.Size()}, finalSize.width, columns);
@@ -422,9 +415,9 @@ Base::Result<void> Grid::ResolveTracks(
     return {};
 }
 
-Border::Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-    TypeId runtimeType, Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
+Border::Border() noexcept : Border(StaticTypeId()) {}
+
+Border::Border(TypeId runtimeType) noexcept : RenderElement(runtimeType) {}
 
 Color Border::Background() const noexcept {
     Base::Result<Value> value = GetValue(BackgroundProperty);
@@ -525,11 +518,7 @@ Base::Result<void> Border::BuildDisplayList(DisplayListBuilder& builder) noexcep
     return {};
 }
 
-TextBlock::TextBlock(Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
+TextBlock::TextBlock() noexcept : RenderElement(StaticTypeId()) {}
 
 Base::StringView TextBlock::Text() const noexcept {
     Base::Result<Value> value = GetValue(TextProperty);
@@ -543,7 +532,7 @@ Color TextBlock::Foreground() const noexcept {
 
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
     Base::Result<Value> stored = Value::TryFromString(
-        PresentationType("String"), value, &PropertyRegistry().Allocator());
+        PresentationType("String"), value);
     return stored ? SetValue(TextProperty, stored.Value()) : stored.GetStatus();
 }
 
@@ -590,10 +579,8 @@ Base::Result<void> TextBlock::BuildDisplayList(
         : builder.DrawGlyphRun(glyphRun_, Foreground());
 }
 
-ContentPresenter::ContentPresenter(Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry, TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : RenderElement(dispatcher, registry, runtimeType, allocator) {}
+ContentPresenter::ContentPresenter() noexcept
+    : RenderElement(StaticTypeId()) {}
 
 bool ContentPresenter::IsOnlyAttachedContent(
     const LayoutElement& content) const noexcept {

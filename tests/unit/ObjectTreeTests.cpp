@@ -1,4 +1,5 @@
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -57,6 +58,7 @@ struct Fixture final {
     DependencyPropertyRegistry properties{types};
     RoutedEventRegistry events{types};
     Dispatcher dispatcher;
+    PresentationContextScope presentation{dispatcher, properties};
 
     TypeId objectType = InvalidTypeId;
     TypeId eventArgsType = InvalidTypeId;
@@ -120,9 +122,9 @@ bool TestLogicalVisualTreeAndLifecycle() {
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
 
-    TreeNode root(fixture.dispatcher, fixture.properties, fixture.nodeType);
-    TreeNode child(fixture.dispatcher, fixture.properties, fixture.controlType);
-    TreeNode leaf(fixture.dispatcher, fixture.properties, fixture.controlType);
+    TreeNode root(fixture.nodeType);
+    TreeNode child(fixture.controlType);
+    TreeNode leaf(fixture.controlType);
 
     LifecycleLog lifecycle;
     tree.SetLifecycleHandler(&RecordLifecycle, &lifecycle);
@@ -185,9 +187,9 @@ bool TestBubbleTunnelDirectAndHandledEventsToo() {
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
 
-    TreeNode root(fixture.dispatcher, fixture.properties, fixture.nodeType);
-    TreeNode child(fixture.dispatcher, fixture.properties, fixture.controlType);
-    TreeNode leaf(fixture.dispatcher, fixture.properties, fixture.controlType);
+    TreeNode root(fixture.nodeType);
+    TreeNode child(fixture.controlType);
+    TreeNode leaf(fixture.controlType);
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
     CHECK(tree.AttachLogical(child, leaf));
@@ -262,8 +264,8 @@ bool TestClassHandlersAndRegistrationRules() {
     CHECK(values.Initialize());
     ObjectTree tree(fixture.dispatcher, values);
     CHECK(tree.Initialize());
-    TreeNode root(fixture.dispatcher, fixture.properties, fixture.nodeType);
-    TreeNode child(fixture.dispatcher, fixture.properties, fixture.controlType);
+    TreeNode root(fixture.nodeType);
+    TreeNode child(fixture.controlType);
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, child));
 

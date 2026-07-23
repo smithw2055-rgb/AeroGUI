@@ -30,7 +30,7 @@ bool IsValidMargin(Thickness value) noexcept {
 }
 
 TypeId PresentationType(const char* name) noexcept {
-    return MakeTypeId(AeroPresentationNamespaceUri(),
+    return MakeTypeId(
         Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
 }
 
@@ -104,13 +104,8 @@ double RoundLayoutValue(double value, double dpiScale) noexcept {
     return std::round(value * dpiScale) / dpiScale;
 }
 
-LayoutElement::LayoutElement(
-    Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : TreeNode(dispatcher, registry, runtimeType, allocator),
-      layoutChildren_(allocator) {}
+LayoutElement::LayoutElement(TypeId runtimeType) noexcept
+    : TreeNode(runtimeType), layoutChildren_() {}
 
 LayoutElement::~LayoutElement() {
     AERO_ASSERT(manager_ == nullptr);
@@ -348,13 +343,10 @@ Base::Result<void> LayoutElement::ArrangeChild(
     return manager_->ArrangeElement(child, finalRect);
 }
 
-LayoutManager::LayoutManager(
-    Dispatcher& dispatcher,
-    Base::IAllocator* allocator) noexcept
+LayoutManager::LayoutManager(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
-      allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      measureQueue_(allocator_),
-      arrangeQueue_(allocator_) {}
+      measureQueue_(),
+      arrangeQueue_() {}
 
 LayoutManager::~LayoutManager() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {

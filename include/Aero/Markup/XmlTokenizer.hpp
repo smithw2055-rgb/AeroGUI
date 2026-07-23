@@ -62,8 +62,7 @@ inline constexpr Core::DiagnosticCode DuplicateAttribute =
 
 class AERO_API XmlAttribute final {
 public:
-    explicit XmlAttribute(Base::IAllocator* allocator = nullptr) noexcept
-        : name_(allocator), value_(allocator) {}
+    XmlAttribute() noexcept = default;
 
     XmlAttribute(XmlAttribute&&) noexcept = default;
     XmlAttribute& operator=(XmlAttribute&&) noexcept = default;
@@ -99,8 +98,7 @@ private:
 
 class AERO_API XmlToken final {
 public:
-    explicit XmlToken(Base::IAllocator* allocator = nullptr) noexcept
-        : name_(allocator), text_(allocator), attributes_(allocator) {}
+    XmlToken() noexcept = default;
 
     XmlToken(XmlToken&&) noexcept = default;
     XmlToken& operator=(XmlToken&&) noexcept = default;
@@ -157,8 +155,7 @@ public:
 class AERO_API Utf8XmlTokenizer final : public IXmlTokenizer {
 public:
     explicit Utf8XmlTokenizer(
-        XmlTokenizerLimits limits = {},
-        Base::IAllocator* allocator = nullptr) noexcept;
+        XmlTokenizerLimits limits = {}) noexcept;
 
     Base::Result<void> Reset(
         Base::StringView utf8,
@@ -177,7 +174,6 @@ public:
     }
 
 private:
-    Base::IAllocator* allocator_ = nullptr;
     XmlTokenizerLimits limits_;
     Base::StringView input_;
     Base::Vector<Base::String> openElements_;

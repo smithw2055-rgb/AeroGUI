@@ -59,8 +59,7 @@ struct RenderCommand final {
 
 class AERO_API DisplayList final {
 public:
-    explicit DisplayList(Base::IAllocator* allocator = nullptr) noexcept
-        : commands_(allocator) {}
+    DisplayList() noexcept : commands_() {}
 
     Base::Span<const RenderCommand> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
@@ -78,8 +77,7 @@ private:
 
 class AERO_API DisplayListBuilder final {
 public:
-    explicit DisplayListBuilder(Base::IAllocator* allocator = nullptr) noexcept
-        : list_(allocator) {}
+    DisplayListBuilder() noexcept : list_() {}
 
     Base::Result<void> PushClip(Rect clip) noexcept;
     Base::Result<void> PopClip() noexcept;
@@ -121,11 +119,7 @@ class RenderManager;
 class AERO_API RenderElement : public LayoutElement {
     AERO_DECLARE_METADATA(RenderElement, LayoutElement)
 public:
-    RenderElement(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId runtimeType,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit RenderElement(TypeId runtimeType) noexcept;
     ~RenderElement() override;
 
     RenderNodeId NodeId() const noexcept { return nodeId_; }
@@ -166,8 +160,7 @@ struct RenderNodeSnapshot final {
 
 class AERO_API RenderPlan final {
 public:
-    explicit RenderPlan(Base::IAllocator* allocator = nullptr) noexcept
-        : nodes_(allocator), commands_(allocator) {}
+    RenderPlan() noexcept : nodes_(), commands_() {}
 
     Base::Span<const RenderNodeSnapshot> Nodes() const noexcept {
         return {nodes_.Data(), nodes_.Size()};
@@ -223,8 +216,7 @@ class AERO_API RenderManager final {
 public:
     RenderManager(
         Dispatcher& dispatcher,
-        IRenderBackend& backend,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        IRenderBackend& backend) noexcept;
     ~RenderManager() noexcept;
 
     RenderManager(const RenderManager&) = delete;
@@ -250,7 +242,6 @@ public:
 private:
     Dispatcher* dispatcher_ = nullptr;
     IRenderBackend* backend_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     RenderElement* root_ = nullptr;
     Base::Vector<RenderElement*> dirty_;
     RenderPlan currentPlan_;

@@ -14,11 +14,7 @@ Base::Status InvalidTextBlockXaml(const char* message) noexcept {
 
 } // namespace
 
-XamlTextBlockExtension::XamlTextBlockExtension(
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
-      textMembers_(allocator_) {}
+XamlTextBlockExtension::XamlTextBlockExtension() noexcept = default;
 
 Base::Result<void> XamlTextBlockExtension::TryRegisterType(
     const XamlTextBlockTypeRegistration& registration) noexcept {

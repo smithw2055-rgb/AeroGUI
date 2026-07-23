@@ -1,4 +1,5 @@
 #include <Aero/Core/Diagnostics.hpp>
+#include "TestAllocatorScope.hpp"
 
 #include <cstdio>
 #include <utility>
@@ -148,14 +149,15 @@ bool TestValidationAndOutOfMemory() {
     CHECK(!emptyMessage &&
         emptyMessage.GetStatus().code == ErrorCode::InvalidArgument);
 
-    RejectAllocator reject;
-    DiagnosticBag bag(1U, &reject);
     Result<Diagnostic> diagnostic = Diagnostic::TryCreate(
         MakeDiagnosticCode(DiagnosticDomain::Base, 2U),
         DiagnosticSeverity::Warning,
         StringView("Inline message"));
     CHECK(diagnostic);
 
+    RejectAllocator reject;
+    Aero::Tests::ScopedDefaultAllocator allocatorScope(reject);
+    DiagnosticBag bag(1U);
     Result<void> report = bag.Report(std::move(diagnostic).Value());
     CHECK(!report && report.GetStatus().code == ErrorCode::OutOfMemory);
     CHECK(bag.Size() == 0U);

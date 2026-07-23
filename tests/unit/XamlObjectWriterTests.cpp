@@ -34,8 +34,8 @@ using namespace Aero::Markup;
 
 class TestElement final : public Object {
 public:
-    TestElement(IAllocator* allocator, bool leaf) noexcept
-        : title_(allocator), children_(allocator), leaf_(leaf) {
+    explicit TestElement(bool leaf) noexcept
+        : leaf_(leaf) {
         ++liveCount_;
     }
 
@@ -112,9 +112,8 @@ std::uint32_t TestElement::beginCount_ = 0U;
 std::uint32_t TestElement::endCount_ = 0U;
 std::uint32_t TestElement::abortCount_ = 0U;
 
-Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept {
-    Result<Ref<TestElement>> created =
-        MakeRefWithAllocator<TestElement>(allocator, &allocator, false);
+Result<Ref<Object>> MakeElement() noexcept {
+    Result<Ref<TestElement>> created = MakeRef<TestElement>(false);
     if (!created) {
         return created.GetStatus();
     }
@@ -123,9 +122,8 @@ Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept {
     return result;
 }
 
-Result<Ref<Object>> MakeLeaf(IAllocator& allocator) noexcept {
-    Result<Ref<TestElement>> created =
-        MakeRefWithAllocator<TestElement>(allocator, &allocator, true);
+Result<Ref<Object>> MakeLeaf() noexcept {
+    Result<Ref<TestElement>> created = MakeRef<TestElement>(true);
     if (!created) {
         return created.GetStatus();
     }

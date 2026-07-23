@@ -21,8 +21,7 @@ class AERO_API Style final {
 public:
     explicit Style(
         TypeId targetType,
-        const Style* basedOn = nullptr,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        const Style* basedOn = nullptr) noexcept;
 
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
@@ -50,7 +49,6 @@ public:
 private:
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<StyleSetter> authored_;
     Base::Vector<StyleSetter> flattened_;
     bool sealed_ = false;
@@ -63,10 +61,9 @@ class AERO_API StyleManager final {
 public:
     explicit StyleManager(
         EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties,
-        Base::IAllocator* allocator = nullptr) noexcept
+        DependencyPropertyRegistry& properties) noexcept
         : values_(&values), properties_(&properties),
-          applications_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
+          applications_() {}
 
     Base::Result<void> Apply(
         DependencyObject& object,

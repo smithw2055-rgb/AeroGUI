@@ -20,9 +20,8 @@ using namespace Aero::Core;
 
 class RenderBox final : public RenderElement {
 public:
-    RenderBox(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId type, Size desired, Color color) noexcept
-        : RenderElement(dispatcher, registry, type), desired_(desired), color_(color) {}
+    RenderBox(TypeId type, Size desired, Color color) noexcept
+        : RenderElement(type), desired_(desired), color_(color) {}
 
     void SetColor(Color value) noexcept { color_ = value; }
 
@@ -54,8 +53,7 @@ private:
 
 class RenderPanel final : public RenderElement {
 public:
-    RenderPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId type) noexcept : RenderElement(dispatcher, registry, type) {}
+    explicit RenderPanel(TypeId type) noexcept : RenderElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -90,8 +88,7 @@ protected:
 
 class TestBorder final : public Border {
 public:
-    TestBorder(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId type) noexcept : Border(dispatcher, registry, type) {}
+    explicit TestBorder(TypeId type) noexcept : Border(type) {}
     using Border::BuildDisplayList;
 };
 
@@ -99,6 +96,7 @@ struct Fixture final {
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
     Dispatcher dispatcher;
+    PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
     TypeId panelType = InvalidTypeId;
@@ -178,7 +176,7 @@ bool TestBorderDisplayList() {
     CHECK(fixture.Build());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    TestBorder border(fixture.dispatcher, fixture.properties, fixture.borderType);
+    TestBorder border(fixture.borderType);
     CHECK(border.SetBackground({0.1F, 0.2F, 0.3F, 1.0F}));
     CHECK(border.SetStroke({1.0F, 1.0F, 1.0F, 1.0F}, 2.0));
     CHECK(!border.SetBackground({2.0F, 0.0F, 0.0F, 1.0F}));
@@ -208,10 +206,10 @@ bool TestRenderCommitAndInvalidation() {
     RenderManager renderer(fixture.dispatcher, backend);
     CHECK(renderer.Initialize());
 
-    RenderPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
-    RenderBox first(fixture.dispatcher, fixture.properties, fixture.elementType,
+    RenderPanel root(fixture.panelType);
+    RenderBox first(fixture.elementType,
         {30.0, 10.0}, {1.0F, 0.0F, 0.0F, 1.0F});
-    RenderBox second(fixture.dispatcher, fixture.properties, fixture.elementType,
+    RenderBox second(fixture.elementType,
         {40.0, 15.0}, {0.0F, 0.0F, 1.0F, 1.0F});
 
     CHECK(tree.SetRoot(&root));
@@ -265,7 +263,7 @@ bool TestRenderRequiresArrange() {
     NullRenderBackend backend;
     RenderManager renderer(fixture.dispatcher, backend);
     CHECK(renderer.Initialize());
-    RenderPanel root(fixture.dispatcher, fixture.properties, fixture.panelType);
+    RenderPanel root(fixture.panelType);
     CHECK(renderer.SetRoot(&root));
     Result<std::uint32_t> commit = renderer.Commit();
     CHECK(!commit && commit.GetStatus().code == ErrorCode::InvalidState);
@@ -285,7 +283,7 @@ bool TestTextBlockGlyphRunRendering() {
     NullRenderBackend backend;
     RenderManager renderer(fixture.dispatcher, backend);
     CHECK(renderer.Initialize());
-    TextBlock text(fixture.dispatcher, fixture.properties, fixture.textBlockType);
+    TextBlock text;
     CHECK(text.SetText(StringView("Hello")));
     CHECK(text.Text() == StringView("Hello"));
     CHECK(!text.SetGlyphRun(InvalidRenderGlyphRunId, {12.0, 8.0}));

@@ -36,12 +36,15 @@ struct Fixture final {
     TypeId borderType = InvalidTypeId;
 
     static Result<Ref<Object>> Activate(TypeId type,
-        const XamlActivationContext& context, IAllocator& allocator, void*) noexcept {
+        const XamlActivationContext& context, void*) noexcept {
         if (context.dispatcher == nullptr || context.dependencyProperties == nullptr) {
             return Status::Failure(ErrorCode::InvalidArgument, "Activation services are missing");
         }
-        Result<Ref<Border>> made = MakeRefWithAllocator<Border>(allocator,
-            *context.dispatcher, *context.dependencyProperties, type, &allocator);
+        if (type != Border::StaticTypeId()) {
+            return Status::Failure(ErrorCode::InvalidArgument,
+                "Activation type is not Border");
+        }
+        Result<Ref<Border>> made = MakeRef<Border>();
         if (!made) return made.GetStatus();
         return Ref<Object>(std::move(made).Value());
     }

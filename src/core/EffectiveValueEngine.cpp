@@ -37,13 +37,11 @@ private:
 
 EffectiveValueEngine::EffectiveValueEngine(
     Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    Base::IAllocator* allocator) noexcept
+    DependencyPropertyRegistry& registry) noexcept
     : dispatcher_(&dispatcher),
       registry_(&registry),
-      allocator_(allocator != nullptr ? allocator : &dispatcher.Allocator()),
-      entries_(allocator_),
-      parents_(allocator_) {}
+      entries_(),
+      parents_() {}
 
 EffectiveValueEngine::~EffectiveValueEngine() noexcept {
     if (phaseHook_.IsValid() && dispatcher_ != nullptr &&
@@ -448,7 +446,7 @@ Base::Result<void> EffectiveValueEngine::QueueEntry(
 Base::Result<void> EffectiveValueEngine::QueueDescendants(
     DependencyObject& parent,
     DependencyPropertyHandle property) noexcept {
-    Base::Vector<DependencyObject*> frontier(allocator_);
+    Base::Vector<DependencyObject*> frontier;
     Base::Result<void> root = frontier.TryPushBack(&parent);
     if (!root) {
         return root.GetStatus();

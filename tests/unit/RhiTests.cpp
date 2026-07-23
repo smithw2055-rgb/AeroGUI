@@ -1,5 +1,6 @@
 #include <Aero/Rhi/Graphics.hpp>
 #include <Aero/Render/RenderPlanTranslator.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -21,11 +22,8 @@ using namespace Aero::Render;
 
 class RenderBox final : public RenderElement {
 public:
-    RenderBox(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId type) noexcept
-        : RenderElement(dispatcher, registry, type) {}
+    explicit RenderBox(TypeId type) noexcept
+        : RenderElement(type) {}
 
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
@@ -52,6 +50,7 @@ struct Fixture final {
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
     Dispatcher dispatcher;
+    PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
 
@@ -82,7 +81,7 @@ bool BuildPlan(RenderPlan& destination) {
     RenderManager renderer(fixture.dispatcher, renderBackend);
     CHECK(renderer.Initialize());
 
-    RenderBox root(fixture.dispatcher, fixture.properties, fixture.elementType);
+    RenderBox root(fixture.elementType);
     CHECK(tree.SetRoot(&root));
     CHECK(layout.SetRoot(&root, {64.0, 48.0}));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));

@@ -130,11 +130,9 @@ private:
 class PlanPanel final : public RenderElement {
 public:
     PlanPanel(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
         TypeId type,
         bool requestInstancedStroke = false) noexcept
-        : RenderElement(dispatcher, registry, type),
+        : RenderElement(type),
           requestInstancedStroke_(requestInstancedStroke) {}
 
 protected:
@@ -185,8 +183,6 @@ private:
 class PlanElement final : public RenderElement {
 public:
     PlanElement(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
         TypeId type,
         bool requestNonAxisAlignedClip = false,
         bool requestFillBatch = false,
@@ -198,7 +194,7 @@ public:
         std::uint32_t meshCount = 1U,
         RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId,
         std::uint32_t glyphRunCount = 1U) noexcept
-        : RenderElement(dispatcher, registry, type),
+        : RenderElement(type),
           requestNonAxisAlignedClip_(requestNonAxisAlignedClip),
           requestFillBatch_(requestFillBatch),
           requestSplitFillBatch_(requestSplitFillBatch),
@@ -316,6 +312,7 @@ private:
 struct XamlControlFixture final {
     explicit XamlControlFixture(D3D11RenderPlanBackend& renderBackend) noexcept
         : properties(types),
+          presentation(dispatcher, properties),
           values(dispatcher, properties),
           tree(dispatcher, values),
           layout(dispatcher),
@@ -328,6 +325,7 @@ struct XamlControlFixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties;
+    PresentationContextScope presentation;
     EffectiveValueEngine values;
     ObjectTree tree;
     LayoutManager layout;
@@ -395,6 +393,7 @@ bool BuildPlan(
     TypeRegistry types;
     DependencyPropertyRegistry properties(types);
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, properties);
     const StringView ns("urn:aero-d3d11-test");
     const TypeId objectType = MakeTypeId(ns, StringView("Object"));
     const TypeId panelType = MakeTypeId(ns, StringView("PlanPanel"));
@@ -417,10 +416,9 @@ bool BuildPlan(
     NullRenderBackend verifier;
     RenderManager renderer(dispatcher, verifier);
     CHECK(renderer.Initialize());
-    PlanPanel root(
-        dispatcher, properties, panelType, requestInstancedStroke);
+    PlanPanel root(panelType, requestInstancedStroke);
     PlanElement child(
-        dispatcher, properties, elementType, requestNonAxisAlignedClip,
+        elementType, requestNonAxisAlignedClip,
         requestFillBatch, requestSplitFillBatch, requestRoundedFill, image,
         imageCount, mesh, meshCount, glyphRun, glyphRunCount);
     CHECK(tree.SetRoot(&root));

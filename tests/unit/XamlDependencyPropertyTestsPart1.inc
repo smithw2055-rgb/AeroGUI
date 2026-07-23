@@ -6,6 +6,7 @@
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
@@ -35,12 +36,8 @@ using namespace Aero::Markup;
 
 class TestElement final : public DependencyObject {
 public:
-    TestElement(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& properties,
-        TypeId runtimeType,
-        IAllocator* allocator) noexcept
-        : DependencyObject(dispatcher, properties, runtimeType, allocator) {
+    explicit TestElement(TypeId runtimeType) noexcept
+        : DependencyObject(runtimeType) {
         ++liveCount_;
     }
 
@@ -124,12 +121,13 @@ Result<PropertyValue> CoerceWidth(
 }
 
 struct Fixture final {
+    Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activations{schema};
     XamlDependencyPropertyBridge bridge{schema, properties};
-    Dispatcher dispatcher;
 
     TypeId objectType = InvalidTypeId;
     TypeId booleanType = InvalidTypeId;
@@ -158,7 +156,6 @@ struct Fixture final {
     static Result<Ref<Object>> Activate(
         TypeId requestedType,
         const XamlActivationContext& activation,
-        IAllocator& allocator,
         void* context) noexcept {
         auto* fixture = static_cast<Fixture*>(context);
         if (fixture == nullptr ||
@@ -178,12 +175,7 @@ struct Fixture final {
 
         ++fixture->activationCount;
         fixture->lastRequestedType = requestedType;
-        Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-            allocator,
-            *activation.dispatcher,
-            *activation.dependencyProperties,
-            requestedType,
-            &allocator);
+        Result<Ref<TestElement>> made = MakeRef<TestElement>(requestedType);
         if (!made) {
             return made.GetStatus();
         }

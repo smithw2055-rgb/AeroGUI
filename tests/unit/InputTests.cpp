@@ -14,8 +14,8 @@ using namespace Aero::Core;
 
 class Box final : public LayoutElement {
 public:
-    Box(Dispatcher& d, DependencyPropertyRegistry& p, TypeId t, Size desired) noexcept
-        : LayoutElement(d, p, t), desired_(desired) {}
+    Box(TypeId type, Size desired) noexcept
+        : LayoutElement(type), desired_(desired) {}
 protected:
     Result<Size> MeasureOverride(Size available) noexcept override {
         return Size{std::min(desired_.width, available.width),
@@ -26,7 +26,10 @@ private: Size desired_;
 };
 
 struct Fixture final {
-    Dispatcher dispatcher; TypeRegistry types; DependencyPropertyRegistry properties{types};
+    Dispatcher dispatcher;
+    TypeRegistry types;
+    DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     RoutedEventRegistry events{types};
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
@@ -79,9 +82,9 @@ struct TextRecorder final {
 
 bool TestVisualHitTesting() {
     Fixture f; CHECK(f.Build());
-    StackPanel root(f.dispatcher,f.properties,f.rootType,Orientation::Vertical);
-    Box first(f.dispatcher,f.properties,f.boxType,{100,30});
-    Box second(f.dispatcher,f.properties,f.boxType,{100,20});
+    StackPanel root(Orientation::Vertical);
+    Box first(f.boxType,{100,30});
+    Box second(f.boxType,{100,20});
     CHECK(f.tree.SetRoot(&root));
     for (LayoutElement* child : {static_cast<LayoutElement*>(&first),static_cast<LayoutElement*>(&second)}) {
         CHECK(f.tree.AttachLogical(root,*child)); CHECK(f.tree.AttachVisual(root,*child)); CHECK(f.layout.Attach(root,*child)); }

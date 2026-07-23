@@ -1,6 +1,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/Presentation.hpp>
+#include "TestAllocatorScope.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -135,12 +137,8 @@ PropertyMetadata WidthMetadata(
 
 class TestElement : public DependencyObject {
 public:
-    TestElement(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& registry,
-        TypeId runtimeType,
-        IAllocator* allocator = nullptr) noexcept
-        : DependencyObject(dispatcher, registry, runtimeType, allocator) {}
+    explicit TestElement(TypeId runtimeType) noexcept
+        : DependencyObject(runtimeType) {}
 
     ~TestElement() override = default;
 
@@ -161,8 +159,9 @@ private:
 
 struct Fixture final {
     TrackingAllocator allocator;
-    TypeRegistry types{&allocator};
-    DependencyPropertyRegistry properties{types, &allocator};
+    Aero::Tests::ScopedDefaultAllocator allocatorScope{allocator};
+    TypeRegistry types;
+    DependencyPropertyRegistry properties{types};
 
     TypeId object = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -393,13 +392,9 @@ bool TestEffectiveValuesAndInvalidation() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, fixture.properties);
 
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -474,13 +469,9 @@ bool TestReadOnlyAndInheritance() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, fixture.properties);
 
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -536,13 +527,9 @@ bool TestValidationCoercionAndReentrancy() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, fixture.properties);
 
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -594,12 +581,8 @@ bool TestNestedChangeNotifications() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -633,13 +616,9 @@ bool TestWrongThread() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, fixture.properties);
 
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -666,13 +645,9 @@ bool TestOomAndSparseStorage() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
+    PresentationContextScope presentation(dispatcher, fixture.properties);
 
-    Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(
-        fixture.allocator,
-        dispatcher,
-        fixture.properties,
-        fixture.button,
-        &fixture.allocator);
+    Result<Ref<TestElement>> made = MakeRef<TestElement>(fixture.button);
     CHECK(made);
     Ref<TestElement> element = std::move(made).Value();
 
@@ -701,8 +676,9 @@ bool TestRegistrationIsTransactionalOnOom() {
     bool observedSuccess = false;
     for (std::uint32_t allowance = 0U; allowance < 24U; ++allowance) {
         TrackingAllocator allocator;
-        TypeRegistry types(&allocator);
-        DependencyPropertyRegistry properties(types, &allocator);
+        Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
+        TypeRegistry types;
+        DependencyPropertyRegistry properties(types);
         const StringView ns("urn:transaction");
         const TypeId owner = MakeTypeId(ns, StringView("Owner"));
         const TypeId valueType = MakeTypeId(ns, StringView("Double"));
@@ -739,8 +715,9 @@ bool TestRegistrationIsTransactionalOnOom() {
 
 bool TestRegistrationErrors() {
     TrackingAllocator allocator;
-    TypeRegistry types(&allocator);
-    DependencyPropertyRegistry properties(types, &allocator);
+    Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
+    TypeRegistry types;
+    DependencyPropertyRegistry properties(types);
     const StringView ns("urn:test");
 
     const TypeId object = MakeTypeId(ns, StringView("Object"));
@@ -819,7 +796,8 @@ bool TestCommittedValueSurvivesInvalidationFailure() {
     Fixture fixture;
     CHECK(fixture.Build());
     Dispatcher dispatcher;
-    TestElement element(dispatcher, fixture.properties, fixture.uiElement);
+    PresentationContextScope presentation(dispatcher, fixture.properties);
+    TestElement element(fixture.uiElement);
     element.RejectInvalidation(true);
     Result<void> set = element.SetValue(fixture.width,
         PropertyValue::FromDouble(fixture.doubleType, 37.0));

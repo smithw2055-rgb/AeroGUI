@@ -72,8 +72,7 @@ public:
         Core::ObjectTree& tree,
         Core::LayoutManager& layout,
         Core::EffectiveValueEngine& values,
-        Core::RenderManager* renderer = nullptr,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Core::RenderManager* renderer = nullptr) noexcept;
     ~XamlVisualTreeHost() noexcept;
 
     XamlVisualTreeHost(const XamlVisualTreeHost&) = delete;
@@ -119,7 +118,6 @@ private:
     Core::LayoutManager* layout_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
     Core::RenderManager* renderer_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<XamlVisualTreeTypeRegistration> types_;
     Base::Vector<XamlContentPresenterRegistration> presenters_;

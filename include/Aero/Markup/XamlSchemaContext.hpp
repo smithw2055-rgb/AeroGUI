@@ -26,7 +26,6 @@ using XamlValue = Core::Value;
 using XamlConvertTextCallback = Base::Result<XamlValue> (*)(
     Core::TypeId targetType,
     Base::StringView text,
-    Base::IAllocator& allocator,
     void* context) noexcept;
 
 // Registers attribute-text conversion once for a value type. Controls and
@@ -172,9 +171,7 @@ struct XamlMarkupExtensionRegistration final {
 
 class AERO_API XamlSchemaContext final {
 public:
-    explicit XamlSchemaContext(
-        Core::TypeRegistry& types,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit XamlSchemaContext(Core::TypeRegistry& types) noexcept;
 
     XamlSchemaContext(const XamlSchemaContext&) = delete;
     XamlSchemaContext& operator=(const XamlSchemaContext&) = delete;
@@ -196,9 +193,6 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
     Core::TypeRegistry& Types() const noexcept { return *types_; }
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
-    }
     Core::MemberAccessor& Members() noexcept {
         return memberAccessor_;
     }
@@ -274,7 +268,6 @@ private:
     };
 
     Core::TypeRegistry* types_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Core::MemberAccessor memberAccessor_;
     Base::Vector<ScalarRegistration> scalarTypes_;
     Base::Vector<XamlTextConverterRegistration> textConverters_;

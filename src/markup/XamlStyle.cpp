@@ -18,27 +18,25 @@ bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Base::Result<XamlValue> CloneValue(
-    const XamlValue& value,
-    Base::IAllocator* allocator) noexcept {
+Base::Result<XamlValue> CloneValue(const XamlValue& value) noexcept {
     switch (value.Kind()) {
     case XamlValueKind::Boolean:
-        return XamlValue::FromBoolean(value.Type(), value.AsBoolean(), allocator);
+        return XamlValue::FromBoolean(value.Type(), value.AsBoolean());
     case XamlValueKind::SignedInteger:
         return XamlValue::FromSignedInteger(
-            value.Type(), value.AsSignedInteger(), allocator);
+            value.Type(), value.AsSignedInteger());
     case XamlValueKind::UnsignedInteger:
         return XamlValue::FromUnsignedInteger(
-            value.Type(), value.AsUnsignedInteger(), allocator);
+            value.Type(), value.AsUnsignedInteger());
     case XamlValueKind::Double:
-        return XamlValue::FromDouble(value.Type(), value.AsDouble(), allocator);
+        return XamlValue::FromDouble(value.Type(), value.AsDouble());
     case XamlValueKind::String:
-        return XamlValue::TryFromString(value.Type(), value.AsString(), allocator);
+        return XamlValue::TryFromString(value.Type(), value.AsString());
     case XamlValueKind::Object:
         if (value.IsNullObject()) {
-            return XamlValue::NullObject(value.Type(), allocator);
+            return XamlValue::NullObject(value.Type());
         }
-        return XamlValue::FromObject(value.Type(), value.AsObject(), allocator);
+        return XamlValue::FromObject(value.Type(), value.AsObject());
     case XamlValueKind::None:
         break;
     }
@@ -122,8 +120,7 @@ Base::Result<void> ResolveQualifiedType(
 
 class XamlStyleExtension::SetterObject final : public Base::Object {
 public:
-    explicit SetterObject(Base::IAllocator* allocator) noexcept
-        : allocator_(allocator), property_(allocator), value_(allocator) {}
+    SetterObject() noexcept = default;
 
     Base::Result<void> SetProperty(
         Base::StringView property) noexcept {
@@ -136,7 +133,7 @@ public:
 
     Base::Result<void> SetValue(
         const XamlValue& value) noexcept {
-        Base::Result<XamlValue> copied = CloneValue(value, allocator_);
+        Base::Result<XamlValue> copied = CloneValue(value);
         if (!copied) {
             return copied.GetStatus();
         }
@@ -154,7 +151,6 @@ public:
     }
 
 private:
-    Base::IAllocator* allocator_ = nullptr;
     Base::String property_;
     XamlValue value_;
     bool propertySet_ = false;
@@ -163,9 +159,8 @@ private:
 
 class XamlStyleExtension::StyleObject final : public Base::Object {
 public:
-    explicit StyleObject(Base::IAllocator* allocator) noexcept
-        : plan_(Core::InvalidTypeId, nullptr, allocator),
-          setters_(allocator) {}
+    StyleObject() noexcept
+        : plan_(Core::InvalidTypeId), setters_() {}
 
     Core::Style& Plan() noexcept { return plan_; }
     const Core::Style& Plan() const noexcept { return plan_; }
@@ -193,11 +188,8 @@ private:
 };
 
 XamlStyleExtension::XamlStyleExtension(
-    const XamlStyleExtensionOptions& options,
-    Base::IAllocator* allocator) noexcept
-    : options_(options),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      applications_(allocator_) {}
+    const XamlStyleExtensionOptions& options) noexcept
+    : options_(options), applications_() {}
 
 XamlStyleExtension::~XamlStyleExtension() noexcept {
     for (Application& application : applications_) {
@@ -468,14 +460,12 @@ void XamlStyleExtension::RemoveApplication(std::uint32_t index) noexcept {
 Base::Result<Base::Ref<Base::Object>> XamlStyleExtension::ActivateStyle(
     Core::TypeId requestedType,
     const XamlActivationContext&,
-    Base::IAllocator& allocator,
     void* context) noexcept {
     XamlStyleExtension* extension = static_cast<XamlStyleExtension*>(context);
     if (extension == nullptr || requestedType != extension->styleType_) {
         return InvalidStyleXaml("XAML Style activation type is invalid");
     }
-    Base::Result<Base::Ref<StyleObject>> created =
-        Base::MakeRefWithAllocator<StyleObject>(allocator, &allocator);
+    Base::Result<Base::Ref<StyleObject>> created = Base::MakeRef<StyleObject>();
     if (!created) {
         return created.GetStatus();
     }
@@ -485,14 +475,12 @@ Base::Result<Base::Ref<Base::Object>> XamlStyleExtension::ActivateStyle(
 Base::Result<Base::Ref<Base::Object>> XamlStyleExtension::ActivateSetter(
     Core::TypeId requestedType,
     const XamlActivationContext&,
-    Base::IAllocator& allocator,
     void* context) noexcept {
     XamlStyleExtension* extension = static_cast<XamlStyleExtension*>(context);
     if (extension == nullptr || requestedType != extension->setterType_) {
         return InvalidStyleXaml("XAML Setter activation type is invalid");
     }
-    Base::Result<Base::Ref<SetterObject>> created =
-        Base::MakeRefWithAllocator<SetterObject>(allocator, &allocator);
+    Base::Result<Base::Ref<SetterObject>> created = Base::MakeRef<SetterObject>();
     if (!created) {
         return created.GetStatus();
     }

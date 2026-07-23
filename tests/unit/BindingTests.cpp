@@ -2,6 +2,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Core/Binding.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 
 #include <cstdio>
@@ -22,17 +23,15 @@ using namespace Aero::Core;
 
 class TestObject final : public DependencyObject {
 public:
-    TestObject(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& properties,
-        TypeId type) noexcept
-        : DependencyObject(dispatcher, properties, type) {}
+    explicit TestObject(TypeId type) noexcept
+        : DependencyObject(type) {}
 };
 
 struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
@@ -93,8 +92,8 @@ struct Fixture final {
 bool TestOneWayBindsAtDataBindPhase() {
     Fixture fixture;
     CHECK(fixture.Build());
-    TestObject source(fixture.dispatcher, fixture.properties, fixture.elementType);
-    TestObject target(fixture.dispatcher, fixture.properties, fixture.elementType);
+    TestObject source(fixture.elementType);
+    TestObject target(fixture.elementType);
     BindingManager bindings(fixture.dispatcher);
     CHECK(bindings.Initialize());
     CHECK(source.SetValue(
@@ -123,8 +122,8 @@ bool TestOneWayBindsAtDataBindPhase() {
 bool TestOneTimeAndValidation() {
     Fixture fixture;
     CHECK(fixture.Build());
-    TestObject source(fixture.dispatcher, fixture.properties, fixture.elementType);
-    TestObject target(fixture.dispatcher, fixture.properties, fixture.elementType);
+    TestObject source(fixture.elementType);
+    TestObject target(fixture.elementType);
     BindingManager bindings(fixture.dispatcher);
     CHECK(bindings.Initialize());
     CHECK(source.SetValue(
@@ -150,8 +149,8 @@ bool TestOneTimeAndValidation() {
 bool TestTwoWayAndOneWayToSource() {
     Fixture fixture;
     CHECK(fixture.Build());
-    TestObject source(fixture.dispatcher, fixture.properties, fixture.elementType);
-    TestObject target(fixture.dispatcher, fixture.properties, fixture.elementType);
+    TestObject source(fixture.elementType);
+    TestObject target(fixture.elementType);
     BindingManager bindings(fixture.dispatcher);
     CHECK(bindings.Initialize());
     CHECK(source.SetValue(
@@ -187,8 +186,8 @@ bool TestTwoWayAndOneWayToSource() {
 bool TestExplicitUpdateSourceTrigger() {
     Fixture fixture;
     CHECK(fixture.Build());
-    TestObject source(fixture.dispatcher, fixture.properties, fixture.elementType);
-    TestObject target(fixture.dispatcher, fixture.properties, fixture.elementType);
+    TestObject source(fixture.elementType);
+    TestObject target(fixture.elementType);
     BindingManager bindings(fixture.dispatcher);
     CHECK(bindings.Initialize());
     CHECK(source.SetValue(

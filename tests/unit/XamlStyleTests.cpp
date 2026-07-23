@@ -5,6 +5,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/EffectiveValueEngine.hpp>
+#include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Style.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -40,7 +41,7 @@ Fixture* gFixture = nullptr;
 
 class RootNode final : public Object {
 public:
-    explicit RootNode(IAllocator* allocator) noexcept : children_(allocator) {}
+    RootNode() noexcept = default;
 
     Result<void> AddChild(Ref<Object> child) noexcept {
         return children_.TryPushBack(std::move(child));
@@ -55,17 +56,15 @@ private:
 
 class ElementNode final : public DependencyObject {
 public:
-    ElementNode(Dispatcher& dispatcher,
-        DependencyPropertyRegistry& properties,
-        TypeId type) noexcept
-        : DependencyObject(dispatcher, properties, type) {}
+    explicit ElementNode(TypeId type) noexcept
+        : DependencyObject(type) {}
 };
 
 class BrushNode final : public Object {};
 
-Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept;
-Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept;
-Result<Ref<Object>> MakeBrush(IAllocator& allocator) noexcept;
+Result<Ref<Object>> MakeRoot() noexcept;
+Result<Ref<Object>> MakeElement() noexcept;
+Result<Ref<Object>> MakeBrush() noexcept;
 Result<void> AddChild(Object& object, const XamlValue& value, void*) noexcept;
 DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
 
@@ -73,6 +72,7 @@ struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     EffectiveValueEngine effectiveValues{dispatcher, properties};
     StyleManager styles{effectiveValues, properties};
     XamlSchemaContext schema{types};
@@ -162,7 +162,7 @@ struct Fixture final {
         fillRegistration.name = StringView("Fill");
         fillRegistration.ownerType = elementType;
         fillRegistration.valueType = brushType;
-        Result<Ref<Object>> createdDefaultBrush = MakeBrush(GetDefaultAllocator());
+        Result<Ref<Object>> createdDefaultBrush = MakeBrush();
         CHECK(createdDefaultBrush);
         defaultBrush = std::move(createdDefaultBrush).Value();
         fillRegistration.metadata.defaultValue = PropertyValue::FromObject(
@@ -204,29 +204,28 @@ struct Fixture final {
     }
 };
 
-Result<Ref<Object>> MakeRoot(IAllocator& allocator) noexcept {
-    Result<Ref<RootNode>> created = MakeRefWithAllocator<RootNode>(
-        allocator, &allocator);
+Result<Ref<Object>> MakeRoot() noexcept {
+    Result<Ref<RootNode>> created = MakeRef<RootNode>();
     if (!created) {
         return created.GetStatus();
     }
     return Ref<Object>(std::move(created).Value());
 }
 
-Result<Ref<Object>> MakeElement(IAllocator& allocator) noexcept {
+Result<Ref<Object>> MakeElement() noexcept {
     if (gFixture == nullptr) {
         return Status::Failure(ErrorCode::InvalidState, "XAML Style fixture is absent");
     }
-    Result<Ref<ElementNode>> created = MakeRefWithAllocator<ElementNode>(
-        allocator, gFixture->dispatcher, gFixture->properties, gFixture->elementType);
+    Result<Ref<ElementNode>> created =
+        MakeRef<ElementNode>(gFixture->elementType);
     if (!created) {
         return created.GetStatus();
     }
     return Ref<Object>(std::move(created).Value());
 }
 
-Result<Ref<Object>> MakeBrush(IAllocator& allocator) noexcept {
-    Result<Ref<BrushNode>> created = MakeRefWithAllocator<BrushNode>(allocator);
+Result<Ref<Object>> MakeBrush() noexcept {
+    Result<Ref<BrushNode>> created = MakeRef<BrushNode>();
     if (!created) {
         return created.GetStatus();
     }
@@ -254,6 +253,8 @@ Result<Ref<Object>> Load(Fixture& fixture, const char* xaml) noexcept {
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(fixture.schema);
     XamlActivationContext context = XamlActivationContext::Create();
+    context.dispatcher = &fixture.dispatcher;
+    context.dependencyProperties = &fixture.properties;
     return LoadXamlWithActivation(writer, reader, fixture.activation, context);
 }
 

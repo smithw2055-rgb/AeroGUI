@@ -17,7 +17,6 @@ bool HasPropertyFlag(PropertyFlags value, PropertyFlags flag) noexcept {
 Base::Result<Value> GetDependencyProperty(
     const Base::Object& object,
     const PropertyInfo& property,
-    Base::IAllocator&,
     void* context) noexcept {
     auto* registry = static_cast<DependencyPropertyRegistry*>(context);
     const auto& dependencyObject = static_cast<const DependencyObject&>(object);
@@ -44,12 +43,9 @@ Base::Result<void> SetDependencyProperty(
 
 } // namespace
 
-MemberAccessor::MemberAccessor(
-    TypeRegistry& types,
-    Base::IAllocator* allocator) noexcept
+MemberAccessor::MemberAccessor(TypeRegistry& types) noexcept
     : types_(&types),
-      allocator_(allocator != nullptr ? allocator : &types.Allocator()),
-      providers_(allocator_) {}
+      providers_() {}
 
 Base::Result<void> MemberAccessor::TryRegisterProvider(
     const PropertyProviderRegistration& registration) noexcept {
@@ -99,8 +95,7 @@ Base::Result<void> MemberAccessor::Freeze() noexcept {
 
 Base::Result<Value> MemberAccessor::GetProperty(
     const Base::Object& object,
-    const PropertyInfo& property,
-    Base::IAllocator* allocator) const noexcept {
+    const PropertyInfo& property) const noexcept {
     Base::Result<void> target = HasPropertyFlag(
         property.Flags(), PropertyFlags::Attached)
         ? (object.RuntimeType() != InvalidTypeId &&
@@ -115,11 +110,10 @@ Base::Result<Value> MemberAccessor::GetProperty(
         return Base::Status::Failure(Base::ErrorCode::Unsupported,
             "Write-only property cannot be read");
     }
-    Base::IAllocator& selected = allocator != nullptr ? *allocator : *allocator_;
     Base::Result<Value> result = UnsupportedPropertyStatus();
     if (property.Access() == PropertyAccessKind::Ordinary) {
         if (property.Getter() == nullptr) return UnsupportedPropertyStatus();
-        result = property.Getter()(object, selected, property.Context());
+        result = property.Getter()(object, property.Context());
     } else if (property.Access() == PropertyAccessKind::Provider) {
         const PropertyProviderRegistration* provider =
             FindProvider(property.Provider());
@@ -128,7 +122,7 @@ Base::Result<Value> MemberAccessor::GetProperty(
             return Base::Status::Failure(Base::ErrorCode::NotFound,
                 "Readable property provider is not registered for the object");
         }
-        result = provider->get(object, property, selected, provider->context);
+        result = provider->get(object, property, provider->context);
     }
     if (result && (result.Value().IsUnset() ||
                    result.Value().Type() != property.ValueType())) {
@@ -186,8 +180,7 @@ Base::Result<void> MemberAccessor::SetProperty(
 Base::Result<Value> MemberAccessor::InvokeMethod(
     Base::Object& object,
     const MethodInfo& method,
-    Base::Span<const Value> arguments,
-    Base::IAllocator* allocator) const noexcept {
+    Base::Span<const Value> arguments) const noexcept {
     Base::Result<void> target = ValidateTarget(object, method.OwnerType());
     if (!target) return target.GetStatus();
     if (arguments.Size() != method.Parameters().Size()) {
@@ -201,9 +194,8 @@ Base::Result<Value> MemberAccessor::InvokeMethod(
                 "Method argument type does not match metadata");
         }
     }
-    Base::IAllocator& selected = allocator != nullptr ? *allocator : *allocator_;
     Base::Result<Value> result = method.Invoker()(
-        object, arguments, selected, method.Context());
+        object, arguments, method.Context());
     if (!result) return result.GetStatus();
     if ((method.ReturnType() == InvalidTypeId && !result.Value().IsUnset()) ||
         (method.ReturnType() != InvalidTypeId &&

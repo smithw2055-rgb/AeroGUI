@@ -125,12 +125,9 @@ void DispatcherReentrancyGuard::Release() noexcept {
 }
 
 Dispatcher::Dispatcher(const DispatcherOptions& options) noexcept
-    : allocator_(options.allocator != nullptr
-          ? options.allocator
-          : &Base::GetDefaultAllocator()),
-      ready_(allocator_),
-      delayed_(allocator_),
-      hooks_(allocator_),
+    : ready_(),
+      delayed_(),
+      hooks_(),
       ownerThread_(CurrentDispatcherThreadToken()),
       now_(options.now != nullptr
           ? options.now

@@ -40,8 +40,7 @@ struct XamlStyleExtensionOptions final {
 class AERO_API XamlStyleExtension final {
 public:
     explicit XamlStyleExtension(
-        const XamlStyleExtensionOptions& options,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        const XamlStyleExtensionOptions& options) noexcept;
     ~XamlStyleExtension() noexcept;
 
     XamlStyleExtension(const XamlStyleExtension&) = delete;
@@ -74,7 +73,6 @@ private:
 
     XamlStyleExtensionOptions options_;
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Application> applications_;
     Core::TypeId styleType_ = Core::InvalidTypeId;
     Core::TypeId setterType_ = Core::InvalidTypeId;
@@ -98,13 +96,11 @@ private:
     ActivateStyle(
         Core::TypeId requestedType,
         const XamlActivationContext& activation,
-        Base::IAllocator& allocator,
         void* context) noexcept;
     static Base::Result<Base::Ref<Base::Object>>
     ActivateSetter(
         Core::TypeId requestedType,
         const XamlActivationContext& activation,
-        Base::IAllocator& allocator,
         void* context) noexcept;
 
     static Base::Result<void> SetTargetType(

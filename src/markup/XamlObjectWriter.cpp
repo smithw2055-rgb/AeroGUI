@@ -110,20 +110,18 @@ bool IsValueType(
 
 XamlObjectWriter::XamlObjectWriter(
     XamlSchemaContext& schema,
-    Core::IDiagnosticSink* diagnostics,
-    Base::IAllocator* allocator) noexcept
+    Core::IDiagnosticSink* diagnostics) noexcept
     : schema_(&schema),
       diagnostics_(diagnostics),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      frames_(allocator_),
-      created_(allocator_),
-      assignments_(allocator_),
-      nameScopes_(allocator_),
-      resourceScopes_(allocator_),
-      namespaceBindings_(allocator_),
-      pendingNamespaces_(allocator_),
-      committedNames_(allocator_),
-      committedResources_(allocator_) {}
+      frames_(),
+      created_(),
+      assignments_(),
+      nameScopes_(),
+      resourceScopes_(),
+      namespaceBindings_(),
+      pendingNamespaces_(),
+      committedNames_(),
+      committedResources_() {}
 
 XamlObjectWriter::~XamlObjectWriter() noexcept {
     AbortTransaction();
@@ -151,7 +149,7 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     }
 
     loading_ = true;
-    XamlNode node(allocator_);
+    XamlNode node;
     while (!ended_) {
         Base::Result<XamlNodeKind> readResult = reader.Read(node);
         if (!readResult) {
@@ -245,7 +243,7 @@ Base::Result<void> XamlObjectWriter::QueueNamespaceDeclaration(
             node.Source());
     }
 
-    PendingNamespaceRecord record(allocator_);
+    PendingNamespaceRecord record;
     Base::Result<void> prefixResult = record.prefix.TryAssignUnchecked(
         node.NamespacePrefix());
     if (!prefixResult) {
@@ -324,7 +322,7 @@ Base::Result<void> XamlObjectWriter::StartObject(
             node.Source());
     }
 
-    CreatedObjectRecord record(allocator_);
+    CreatedObjectRecord record;
     record.object = std::move(createResult).Value();
     record.type = type->Id();
     const std::uint32_t objectIndex = created_.Size();
@@ -673,9 +671,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
                     MessageNullNotAllowed,
                     node.Source());
             }
-            XamlValue value = XamlValue::NullObject(
-                frame.member.valueType,
-                allocator_);
+            XamlValue value = XamlValue::NullObject(frame.member.valueType);
             return WriteValueToMember(frame, std::move(value), node.Source());
         }
         if (markup == MarkupValueKind::StaticResource) {
@@ -689,8 +685,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
             }
             XamlValue value = XamlValue::FromObject(
                 resource.Value().type,
-                resource.Value().object,
-                allocator_);
+                resource.Value().object);
             return WriteValueToMember(frame, std::move(value), node.Source());
         }
 
@@ -777,8 +772,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
                 node.Source());
         }
         XamlValue value = XamlValue::NullObject(
-            contentResult.Value().valueType,
-            allocator_);
+            contentResult.Value().valueType);
         return WriteValue(
             frame.objectIndex,
             contentResult.Value(),
@@ -796,8 +790,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
         }
         XamlValue value = XamlValue::FromObject(
             resource.Value().type,
-            resource.Value().object,
-            allocator_);
+            resource.Value().object);
         return WriteValue(
             frame.objectIndex,
             contentResult.Value(),
@@ -1074,8 +1067,7 @@ Base::Result<void> XamlObjectWriter::WriteObjectToParent(
     if (parent.kind == FrameKind::Member) {
         XamlValue value = XamlValue::FromObject(
             created_[objectIndex].type,
-            created_[objectIndex].object,
-            allocator_);
+            created_[objectIndex].object);
         return WriteValueToMember(parent, std::move(value), source);
     }
     if (parent.kind != FrameKind::Object) {
@@ -1117,8 +1109,7 @@ Base::Result<void> XamlObjectWriter::WriteObjectToContent(
 
     XamlValue value = XamlValue::FromObject(
         created_[childObjectIndex].type,
-        created_[childObjectIndex].object,
-        allocator_);
+        created_[childObjectIndex].object);
     return WriteValue(
         parentObjectIndex,
         contentResult.Value(),
@@ -1153,9 +1144,7 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
                 MessageNullNotAllowed,
                 source);
         }
-        XamlValue value = XamlValue::NullObject(
-            parent.member.valueType,
-            allocator_);
+        XamlValue value = XamlValue::NullObject(parent.member.valueType);
         return WriteValueToMember(parent, std::move(value), source);
     }
     if (parent.kind != FrameKind::Object ||
@@ -1181,8 +1170,7 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
     }
 
     XamlValue value = XamlValue::NullObject(
-        contentResult.Value().valueType,
-        allocator_);
+        contentResult.Value().valueType);
     return WriteValue(
         parent.objectIndex,
         contentResult.Value(),
@@ -1494,7 +1482,7 @@ Base::Result<void> XamlObjectWriter::CreateScopesForObject(
 
     const bool documentRoot = objectIndex == rootObjectIndex_;
     if (documentRoot || schema_->CreatesNameScope(created_[objectIndex].type)) {
-        NameScopeRecord scope(allocator_);
+        NameScopeRecord scope;
         scope.ownerObjectIndex = objectIndex;
         const std::uint32_t index = nameScopes_.Size();
         Base::Result<void> appendResult =
@@ -1510,7 +1498,7 @@ Base::Result<void> XamlObjectWriter::CreateScopesForObject(
 
     if (documentRoot ||
         schema_->CreatesResourceScope(created_[objectIndex].type)) {
-        ResourceScopeRecord scope(allocator_);
+        ResourceScopeRecord scope;
         scope.ownerObjectIndex = objectIndex;
         const std::uint32_t index = resourceScopes_.Size();
         Base::Result<void> appendResult =
@@ -1530,7 +1518,7 @@ Base::Result<void> XamlObjectWriter::ActivatePendingNamespaces(
     std::uint32_t& bindingStart) noexcept {
     bindingStart = namespaceBindings_.Size();
     for (PendingNamespaceRecord& pending : pendingNamespaces_) {
-        NamespaceBindingRecord binding(allocator_);
+        NamespaceBindingRecord binding;
         Base::Result<void> prefixResult = binding.prefix.TryAssignUnchecked(
             pending.prefix.View());
         if (!prefixResult) {
@@ -1895,8 +1883,7 @@ Base::Status XamlObjectWriter::Failure(
             message,
             source,
             Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId,
-            allocator_);
+            Core::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }

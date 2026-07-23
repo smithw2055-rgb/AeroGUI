@@ -53,15 +53,13 @@ void XamlNode::Clear() noexcept {
 
 XamlNodeReader::XamlNodeReader(
     IXmlTokenizer& tokenizer,
-    Core::IDiagnosticSink* diagnostics,
-    Base::IAllocator* allocator) noexcept
+    Core::IDiagnosticSink* diagnostics) noexcept
     : tokenizer_(&tokenizer),
       diagnostics_(diagnostics),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      xmlToken_(allocator_),
-      pending_(allocator_),
-      bindings_(allocator_),
-      scopes_(allocator_) {}
+      xmlToken_(),
+      pending_(),
+      bindings_(),
+      scopes_() {}
 
 void XamlNodeReader::Reset() noexcept {
     xmlToken_.Clear();
@@ -173,7 +171,7 @@ Base::Result<void> XamlNodeReader::QueueStartElement(
         }
     }
 
-    ScopeFrame frame(allocator_);
+    ScopeFrame frame;
     frame.bindingStart = bindingStart;
     Base::Result<void> resolveObject = ResolveQualifiedName(
         token.Name(),
@@ -247,7 +245,7 @@ Base::Result<void> XamlNodeReader::QueueEndElement(
 
 Base::Result<void> XamlNodeReader::QueueText(
     const XmlToken& token) noexcept {
-    XamlNode node(allocator_);
+    XamlNode node;
     node.kind_ = XamlNodeKind::Value;
     node.source_ = token.Source();
     node.fromAttribute_ = false;
@@ -268,7 +266,7 @@ Base::Result<void> XamlNodeReader::QueueEndOfDocument(
             token.Source());
     }
 
-    XamlNode node(allocator_);
+    XamlNode node;
     node.kind_ = XamlNodeKind::EndOfDocument;
     node.source_ = token.Source();
     return AppendPending(std::move(node));
@@ -278,7 +276,7 @@ Base::Result<void> XamlNodeReader::QueueNamespaceDeclaration(
     Base::StringView prefix,
     Base::StringView uri,
     Core::SourceSpan source) noexcept {
-    XamlNode node(allocator_);
+    XamlNode node;
     node.kind_ = XamlNodeKind::NamespaceDeclaration;
     node.source_ = source;
 
@@ -297,7 +295,7 @@ Base::Result<void> XamlNodeReader::QueueObjectNode(
     XamlNodeKind kind,
     const XamlQualifiedName& name,
     Core::SourceSpan source) noexcept {
-    XamlNode node(allocator_);
+    XamlNode node;
     node.kind_ = kind;
     node.source_ = source;
     Base::Result<void> copyResult = CopyQualifiedName(name, node.name_);
@@ -309,7 +307,7 @@ Base::Result<void> XamlNodeReader::QueueObjectNode(
 
 Base::Result<void> XamlNodeReader::QueueMemberNodes(
     const XmlAttribute& attribute) noexcept {
-    XamlQualifiedName memberName(allocator_);
+    XamlQualifiedName memberName;
     Base::Result<void> resolveResult = ResolveQualifiedName(
         attribute.Name(),
         false,
@@ -319,7 +317,7 @@ Base::Result<void> XamlNodeReader::QueueMemberNodes(
         return resolveResult.GetStatus();
     }
 
-    XamlNode start(allocator_);
+    XamlNode start;
     start.kind_ = XamlNodeKind::StartMember;
     start.source_ = attribute.NameSource();
     start.fromAttribute_ = true;
@@ -332,7 +330,7 @@ Base::Result<void> XamlNodeReader::QueueMemberNodes(
         return appendStart.GetStatus();
     }
 
-    XamlNode value(allocator_);
+    XamlNode value;
     value.kind_ = XamlNodeKind::Value;
     value.source_ = attribute.ValueSource();
     value.fromAttribute_ = true;
@@ -345,7 +343,7 @@ Base::Result<void> XamlNodeReader::QueueMemberNodes(
         return appendValue.GetStatus();
     }
 
-    XamlNode end(allocator_);
+    XamlNode end;
     end.kind_ = XamlNodeKind::EndMember;
     end.source_ = attribute.NameSource();
     end.fromAttribute_ = true;
@@ -386,7 +384,7 @@ Base::Result<void> XamlNodeReader::AddNamespaceBinding(
         }
     }
 
-    NamespaceBinding binding(allocator_);
+    NamespaceBinding binding;
     Base::Result<void> prefixResult = binding.prefix.TryAssignUnchecked(prefix);
     if (!prefixResult) {
         return prefixResult.GetStatus();
@@ -543,8 +541,7 @@ Base::Status XamlNodeReader::Failure(
             message,
             source,
             Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId,
-            allocator_);
+            Core::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }

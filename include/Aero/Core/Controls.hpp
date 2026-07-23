@@ -16,14 +16,11 @@ enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 class AERO_API StackPanel final : public RenderElement {
     AERO_DECLARE_METADATA(StackPanel, RenderElement)
 public:
-    StackPanel(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Orientation orientation = Orientation::Vertical,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    StackPanel() noexcept;
+    explicit StackPanel(Orientation orientation) noexcept;
 
     Orientation GetOrientation() const noexcept;
     Base::Result<void> SetOrientation(Orientation value) noexcept;
-    inline static constexpr DependencyPropertyHandle OrientationProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Orientation");
     std::uint32_t OwnedChildCount() const noexcept {
         return ownedChildren_.Size();
     }
@@ -31,6 +28,9 @@ public:
         const Base::Ref<Base::Object>& childObject,
         LayoutElement& child) noexcept;
     Base::Result<void> ClearOwnedChildren() noexcept;
+
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Orientation);
 
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -47,16 +47,15 @@ private:
 class AERO_API Canvas final : public RenderElement {
     AERO_DECLARE_METADATA(Canvas, RenderElement)
 public:
-    Canvas(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    Canvas() noexcept;
 
     Base::Result<void> SetChildPosition(
         LayoutElement& child, Point position) noexcept;
     Point ChildPosition(const LayoutElement& child) const noexcept;
-    inline static constexpr DependencyPropertyHandle LeftProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Left");
-    inline static constexpr DependencyPropertyHandle TopProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Top");
+
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Left);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Top);
 
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -90,8 +89,7 @@ struct GridLength final {
 class AERO_API Grid final : public RenderElement {
     AERO_DECLARE_METADATA(Grid, RenderElement)
 public:
-    Grid(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    Grid() noexcept;
 
     Base::Result<void> SetColumnDefinitions(
         Base::Span<const GridLength> definitions) noexcept;
@@ -99,10 +97,6 @@ public:
         Base::Span<const GridLength> definitions) noexcept;
     Base::Result<void> SetChildCell(
         LayoutElement& child, std::uint32_t row, std::uint32_t column) noexcept;
-    inline static constexpr DependencyPropertyHandle RowProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Row");
-    inline static constexpr DependencyPropertyHandle ColumnProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Column");
 
     Base::Span<const GridLength> ColumnDefinitions() const noexcept {
         return {columns_.Data(), columns_.Size()};
@@ -111,12 +105,15 @@ public:
         return {rows_.Data(), rows_.Size()};
     }
 
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Row);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Column);
+
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<GridLength> columns_;
     Base::Vector<GridLength> rows_;
     Base::Vector<double> desiredColumns_;
@@ -140,8 +137,7 @@ private:
 class AERO_API Border : public RenderElement {
     AERO_DECLARE_METADATA(Border, RenderElement)
 public:
-    Border(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    Border() noexcept;
     Base::Result<void> SetBackground(Color value) noexcept;
     Base::Result<void> SetStroke(Color value, double thickness) noexcept;
     Base::Result<void> SetBorderBrush(Color value) noexcept;
@@ -151,16 +147,15 @@ public:
     Color BorderBrush() const noexcept;
     double BorderThickness() const noexcept;
     Thickness Padding() const noexcept;
-    inline static constexpr DependencyPropertyHandle BackgroundProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Background");
-    inline static constexpr DependencyPropertyHandle BorderBrushProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "BorderBrush");
-    inline static constexpr DependencyPropertyHandle BorderThicknessProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "BorderThickness");
-    inline static constexpr DependencyPropertyHandle PaddingProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Padding");
+
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Background);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(BorderBrush);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(BorderThickness);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Padding);
 
 protected:
+    explicit Border(TypeId runtimeType) noexcept;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
     Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
@@ -174,8 +169,7 @@ protected:
 class AERO_API TextBlock final : public RenderElement {
     AERO_DECLARE_METADATA(TextBlock, RenderElement)
 public:
-    TextBlock(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    TextBlock() noexcept;
 
     Base::StringView Text() const noexcept;
     Color Foreground() const noexcept;
@@ -183,10 +177,11 @@ public:
     Size GlyphRunSize() const noexcept { return glyphRunSize_; }
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
-    inline static constexpr DependencyPropertyHandle TextProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Text");
-    inline static constexpr DependencyPropertyHandle ForegroundProperty =
-        MakeDependencyPropertyHandle(StaticTypeIdValue_, "Foreground");
+
+    // Dependency properties
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Text);
+    AERO_DECLARE_DEPENDENCY_PROPERTY(Foreground);
+
     // A run id of InvalidRenderGlyphRunId clears the shaped presentation and
     // requires a zero size. The id must be registered with the render backend
     // before a frame containing this TextBlock is submitted.
@@ -211,8 +206,7 @@ private:
 class AERO_API ContentPresenter final : public RenderElement {
     AERO_DECLARE_METADATA(ContentPresenter, RenderElement)
 public:
-    ContentPresenter(Dispatcher& dispatcher, DependencyPropertyRegistry& registry,
-        TypeId runtimeType, Base::IAllocator* allocator = nullptr) noexcept;
+    ContentPresenter() noexcept;
 
     LayoutElement* Content() const noexcept { return content_; }
     const Base::Ref<Base::Object>& OwnedContent() const noexcept {

@@ -24,8 +24,8 @@ struct XamlPanelLayoutTypeRegistration final {
 // child to its parent container.
 class [[deprecated("Use attached dependency properties")]] AERO_API XamlPanelLayoutExtension final {
 public:
-    XamlPanelLayoutExtension(Core::TypeId canvasType, Core::TypeId gridType,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    XamlPanelLayoutExtension(
+        Core::TypeId canvasType, Core::TypeId gridType) noexcept;
 
     Base::Result<void> TryRegisterType(
         const XamlPanelLayoutTypeRegistration& registration) noexcept;
@@ -53,7 +53,6 @@ private:
     };
 
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlPanelLayoutTypeRegistration> types_;
     Base::Vector<Values> values_;
     Core::TypeId canvasType_ = Core::InvalidTypeId;

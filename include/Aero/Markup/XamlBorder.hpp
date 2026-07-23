@@ -22,8 +22,7 @@ struct XamlBorderTypeRegistration final {
 // color text. Stroke and brush/resource indirection remain later M2 work.
 class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlBorderExtension final {
 public:
-    explicit XamlBorderExtension(
-        Base::IAllocator* allocator = nullptr) noexcept;
+    XamlBorderExtension() noexcept;
 
     XamlBorderExtension(const XamlBorderExtension&) = delete;
     XamlBorderExtension& operator=(const XamlBorderExtension&) = delete;
@@ -35,7 +34,6 @@ public:
 
 private:
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlBorderTypeRegistration> types_;
     Base::Vector<Core::MemberId> backgroundMembers_;
 

@@ -54,10 +54,10 @@ public:
     virtual MetaTypeId RuntimeType() const noexcept {
         return InvalidMetaTypeId;
     }
-    // Canonical urn:aero Object token. This accessor has no mutable state and
-    // intentionally does not make plain Object instances report a runtime type.
+    // This accessor has no mutable state and intentionally does not make plain
+    // Object instances report a runtime type.
     static constexpr MetaTypeId StaticTypeId() noexcept {
-        return UINT64_C(0x6563B5703AEB39E0);
+        return MakeMetaTypeId("Object");
     }
 
 protected:

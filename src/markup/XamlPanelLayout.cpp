@@ -36,10 +36,8 @@ Base::Result<double> Number(const XamlValue& value) noexcept {
 } // namespace
 
 XamlPanelLayoutExtension::XamlPanelLayoutExtension(
-    Core::TypeId canvasType, Core::TypeId gridType,
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_), values_(allocator_), canvasType_(canvasType), gridType_(gridType) {}
+    Core::TypeId canvasType, Core::TypeId gridType) noexcept
+    : types_(), values_(), canvasType_(canvasType), gridType_(gridType) {}
 
 Base::Result<void> XamlPanelLayoutExtension::TryRegisterType(
     const XamlPanelLayoutTypeRegistration& registration) noexcept {

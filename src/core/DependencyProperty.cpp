@@ -1,4 +1,5 @@
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/Presentation.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -82,12 +83,10 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
 }
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
-    TypeRegistry& typeRegistry,
-    Base::IAllocator* allocator) noexcept
+    TypeRegistry& typeRegistry) noexcept
     : typeRegistry_(&typeRegistry),
-      allocator_(allocator != nullptr ? allocator : &typeRegistry.Allocator()),
-      properties_(allocator_),
-      memberIndex_(allocator_) {}
+      properties_(),
+      memberIndex_() {}
 
 Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
     TypeId valueType,
@@ -103,7 +102,7 @@ Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
             "Dependency property metadata has an invalid update trigger");
     }
 
-    DependencyProperty temporary(allocator_);
+    DependencyProperty temporary;
     temporary.typeRegistry_ = typeRegistry_;
     temporary.valueType_ = valueType;
     return ValidateValue(temporary, metadata, metadata.defaultValue);
@@ -247,7 +246,7 @@ DependencyPropertyRegistry::TryRegister(
             "Dependency property registry capacity limit reached");
     }
 
-    DependencyProperty property(allocator_);
+    DependencyProperty property;
     Base::Result<void> nameResult = property.name_.TryAssign(registration.name);
     if (!nameResult) {
         return nameResult.GetStatus();
@@ -617,17 +616,13 @@ void DependencyObject::MutationScope::Release() noexcept {
     dispatcherGuard_.Release();
 }
 
-DependencyObject::DependencyObject(
-    Dispatcher& dispatcher,
-    DependencyPropertyRegistry& registry,
-    TypeId runtimeType,
-    Base::IAllocator* allocator) noexcept
-    : DispatcherObject(dispatcher),
-      registry_(&registry),
+DependencyObject::DependencyObject(TypeId runtimeType) noexcept
+    : DispatcherObject(*GetCurrentPresentationContext().dispatcher),
+      registry_(GetCurrentPresentationContext().dependencyProperties),
       runtimeType_(runtimeType),
-      values_(allocator != nullptr ? allocator : &registry.Allocator()),
-      updateStack_(allocator != nullptr ? allocator : &registry.Allocator()),
-      changeHandlers_(allocator != nullptr ? allocator : &registry.Allocator()) {}
+      values_(),
+      updateStack_(),
+      changeHandlers_() {}
 
 Base::Result<void> DependencyObject::VerifyReady() const noexcept {
     Base::Result<void> access = VerifyAccess();

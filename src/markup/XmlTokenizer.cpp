@@ -93,12 +93,9 @@ void XmlToken::Clear() noexcept {
     emptyElement_ = false;
 }
 
-Utf8XmlTokenizer::Utf8XmlTokenizer(
-    XmlTokenizerLimits limits,
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      limits_(limits),
-      openElements_(allocator_) {}
+Utf8XmlTokenizer::Utf8XmlTokenizer(XmlTokenizerLimits limits) noexcept
+    : limits_(limits),
+      openElements_() {}
 
 Base::Result<void> Utf8XmlTokenizer::Reset(
     Base::StringView utf8,
@@ -445,7 +442,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
                 SpanFrom(begin));
         }
 
-        XmlAttribute attribute(allocator_);
+        XmlAttribute attribute;
         const Core::SourcePosition attributeBegin = Position();
         Base::Result<void> attributeNameResult = ParseName(
             attribute.name_, attribute.nameSource_);
@@ -511,7 +508,7 @@ Base::Result<XmlTokenKind> Utf8XmlTokenizer::ParseStartElement(
         return token.kind_;
     }
 
-    Base::String openName(allocator_);
+    Base::String openName;
     Base::Result<void> copyResult = openName.TryAssignUnchecked(token.Name());
     if (!copyResult) {
         return copyResult.GetStatus();
@@ -981,8 +978,7 @@ Base::Status Utf8XmlTokenizer::Failure(
             message,
             source,
             Core::InvalidDiagnosticObjectId,
-            Core::InvalidMemberId,
-            allocator_);
+            Core::InvalidMemberId);
         if (!item) {
             return item.GetStatus();
         }

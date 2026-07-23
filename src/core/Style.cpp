@@ -18,13 +18,11 @@ bool IsTargetCompatible(
 
 Style::Style(
     TypeId targetType,
-    const Style* basedOn,
-    Base::IAllocator* allocator) noexcept
+    const Style* basedOn) noexcept
     : targetType_(targetType),
       basedOn_(basedOn),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      authored_(allocator_),
-      flattened_(allocator_) {}
+      authored_(),
+      flattened_() {}
 
 Base::Result<void> Style::TrySetTargetType(TypeId targetType) noexcept {
     if (sealed_) {
@@ -102,7 +100,7 @@ Base::Result<void> Style::Seal(
         ancestor = ancestor->basedOn_;
     }
 
-    Base::Vector<StyleSetter> next(allocator_);
+    Base::Vector<StyleSetter> next;
     if (basedOn_ != nullptr) {
         Base::Result<void> inherited = next.TryAppend(basedOn_->Setters());
         if (!inherited) {

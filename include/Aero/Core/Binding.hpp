@@ -44,9 +44,7 @@ struct BindingDescriptor final {
 // Shutdown() before either source or target object is destroyed.
 class AERO_API BindingManager final {
 public:
-    explicit BindingManager(
-        Dispatcher& dispatcher,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit BindingManager(Dispatcher& dispatcher) noexcept;
     ~BindingManager() noexcept;
 
     BindingManager(const BindingManager&) = delete;
@@ -92,7 +90,6 @@ private:
     };
 
     Dispatcher* dispatcher_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
     DispatcherFrameHookHandle hook_;
     std::uint64_t nextHandle_ = 1U;

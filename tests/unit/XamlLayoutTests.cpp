@@ -28,15 +28,15 @@ using namespace Aero::Markup;
 
 class TestElement final : public LayoutElement {
 public:
-    TestElement(Dispatcher& dispatcher, DependencyPropertyRegistry& properties,
-        TypeId type, IAllocator* allocator) noexcept
-        : LayoutElement(dispatcher, properties, type, allocator) {}
+    explicit TestElement(TypeId type) noexcept
+        : LayoutElement(type) {}
 };
 
 struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
     DependencyPropertyRegistry properties{types};
+    PresentationContextScope presentation{dispatcher, properties};
     XamlSchemaContext schema{types};
     XamlActivationProviderRegistry activation{schema};
     XamlDependencyPropertyBridge dependencyProperties{schema, properties};
@@ -48,12 +48,11 @@ struct Fixture final {
 
     static Result<Ref<Object>> Activate(TypeId type,
         const XamlActivationContext& activation,
-        IAllocator& allocator, void*) noexcept {
+        void*) noexcept {
         if (activation.dispatcher == nullptr || activation.dependencyProperties == nullptr) {
             return Status::Failure(ErrorCode::InvalidArgument, "Activation services are missing");
         }
-        Result<Ref<TestElement>> made = MakeRefWithAllocator<TestElement>(allocator,
-            *activation.dispatcher, *activation.dependencyProperties, type, &allocator);
+        Result<Ref<TestElement>> made = MakeRef<TestElement>(type);
         if (!made) return made.GetStatus();
         Ref<TestElement> typed = std::move(made).Value();
         return Ref<Object>(std::move(typed));

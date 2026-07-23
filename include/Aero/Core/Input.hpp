@@ -29,9 +29,7 @@ struct HitTestResult final {
 // RTTI and keeps the Core runtime usable with /GR- builds.
 class AERO_API HitTestManager final {
 public:
-    explicit HitTestManager(
-        TypeRegistry& types,
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit HitTestManager(TypeRegistry& types) noexcept;
 
     Base::Result<void> TryRegisterType(
         const HitTestTypeRegistration& registration) noexcept;
@@ -45,7 +43,6 @@ public:
 
 private:
     TypeRegistry* types_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<HitTestTypeRegistration> typesByRuntimeType_;
 
     const HitTestTypeRegistration* FindRegistration(

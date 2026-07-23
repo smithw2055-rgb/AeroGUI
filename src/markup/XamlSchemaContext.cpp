@@ -271,18 +271,15 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
 
 } // namespace
 
-XamlSchemaContext::XamlSchemaContext(
-    Core::TypeRegistry& types,
-    Base::IAllocator* allocator) noexcept
+XamlSchemaContext::XamlSchemaContext(Core::TypeRegistry& types) noexcept
     : types_(&types),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      memberAccessor_(types, allocator_),
-      scalarTypes_(allocator_),
-      textConverters_(allocator_),
-      memberAdapters_(allocator_),
-      memberProviders_(allocator_),
-      typeAdapters_(allocator_),
-      markupExtensions_(allocator_) {}
+      memberAccessor_(types),
+      scalarTypes_(),
+      textConverters_(),
+      memberAdapters_(),
+      memberProviders_(),
+      typeAdapters_(),
+      markupExtensions_() {}
 
 Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
     Core::TypeId type,
@@ -602,8 +599,7 @@ Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObject(
             MessageTypeNotConstructible);
     }
 
-    Base::Result<Base::Ref<Base::Object>> created =
-        info->Factory()(*allocator_);
+    Base::Result<Base::Ref<Base::Object>> created = info->Factory()();
     if (!created) {
         return created.GetStatus();
     }
@@ -623,8 +619,7 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    Base::Result<Core::Value> reflected = types_->TryConvertText(
-        type, text, allocator_);
+    Base::Result<Core::Value> reflected = types_->TryConvertText(type, text);
     if (reflected) {
         return reflected;
     }
@@ -634,7 +629,7 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
     const XamlTextConverterRegistration* converter = FindTextConverter(type);
     if (converter != nullptr) {
         Base::Result<XamlValue> converted = converter->convert(
-            type, text, *allocator_, converter->context);
+            type, text, converter->context);
         if (!converted) {
             return converted.GetStatus();
         }
@@ -655,14 +650,14 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
 
     switch (scalar->kind) {
     case XamlScalarKind::String:
-        return XamlValue::TryFromString(type, text, allocator_);
+        return XamlValue::TryFromString(type, text);
     case XamlScalarKind::Boolean: {
         const Base::StringView value = TrimAscii(text);
         if (EqualsAsciiInsensitive(value, "true", 4U)) {
-            return XamlValue::FromBoolean(type, true, allocator_);
+            return XamlValue::FromBoolean(type, true);
         }
         if (EqualsAsciiInsensitive(value, "false", 5U)) {
-            return XamlValue::FromBoolean(type, false, allocator_);
+            return XamlValue::FromBoolean(type, false);
         }
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -673,27 +668,21 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
         if (!parsed) {
             return parsed.GetStatus();
         }
-        return XamlValue::FromSignedInteger(
-            type,
-            parsed.Value(),
-            allocator_);
+        return XamlValue::FromSignedInteger(type, parsed.Value());
     }
     case XamlScalarKind::UnsignedInteger: {
         Base::Result<std::uint64_t> parsed = ParseUnsignedInteger(text);
         if (!parsed) {
             return parsed.GetStatus();
         }
-        return XamlValue::FromUnsignedInteger(
-            type,
-            parsed.Value(),
-            allocator_);
+        return XamlValue::FromUnsignedInteger(type, parsed.Value());
     }
     case XamlScalarKind::Double: {
         Base::Result<double> parsed = ParseDouble(text);
         if (!parsed) {
             return parsed.GetStatus();
         }
-        return XamlValue::FromDouble(type, parsed.Value(), allocator_);
+        return XamlValue::FromDouble(type, parsed.Value());
     }
     }
 

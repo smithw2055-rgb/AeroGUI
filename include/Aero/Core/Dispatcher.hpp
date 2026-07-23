@@ -87,7 +87,6 @@ using DispatcherNowCallback = DispatcherTime (*)(void* context) noexcept;
 using DispatcherWakeCallback = void (*)(void* context) noexcept;
 
 struct DispatcherOptions final {
-    Base::IAllocator* allocator = nullptr;
     DispatcherNowCallback now = nullptr;
     void* clockContext = nullptr;
     DispatcherWakeCallback wake = nullptr;
@@ -147,10 +146,6 @@ public:
     }
 
     DispatcherTime NowMicroseconds() const noexcept;
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
-    }
-
     Base::Result<DispatcherTaskHandle> Post(
         DispatcherPriority priority,
         DispatcherCallback callback,
@@ -236,7 +231,6 @@ private:
         RecordState state = RecordState::Pending;
     };
 
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TaskRecord> ready_;
     Base::Vector<TaskRecord> delayed_;
     Base::Vector<FrameHookRecord> hooks_;

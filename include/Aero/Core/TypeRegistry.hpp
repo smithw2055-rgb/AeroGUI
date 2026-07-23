@@ -24,56 +24,6 @@ class MetaRegistrationBuilder;
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 2U;
 
-namespace Detail {
-
-inline constexpr Base::HashCode StableIdOffsetBasis =
-    UINT64_C(14695981039346656037);
-inline constexpr Base::HashCode StableIdPrime = UINT64_C(1099511628211);
-inline constexpr Base::HashCode StableIdNonZeroFallback =
-    UINT64_C(0x9E3779B97F4A7C15);
-
-class StableIdBuilder final {
-public:
-    constexpr void AddByte(std::uint8_t value) noexcept {
-        value_ ^= static_cast<Base::HashCode>(value);
-        value_ *= StableIdPrime;
-    }
-
-    constexpr void AddText(const char* data, std::uint32_t size) noexcept {
-        for (std::uint32_t index = 0U; index < size; ++index) {
-            AddByte(static_cast<std::uint8_t>(
-                static_cast<unsigned char>(data[index])));
-        }
-    }
-
-    constexpr void AddU32(std::uint32_t value) noexcept {
-        for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
-            AddByte(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
-    }
-
-    constexpr void AddU64(std::uint64_t value) noexcept {
-        for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
-            AddByte(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
-        }
-    }
-
-    constexpr void AddString(Base::StringView value) noexcept {
-        AddU32(value.SizeBytes());
-        AddText(value.Data(), value.SizeBytes());
-    }
-
-    constexpr std::uint64_t Finish() const noexcept {
-        const std::uint64_t result = Base::MixHash64(value_);
-        return result != 0U ? result : StableIdNonZeroFallback;
-    }
-
-private:
-    Base::HashCode value_ = StableIdOffsetBasis;
-};
-
-} // namespace Detail
-
 enum class MemberKind : std::uint8_t {
     Property = 1U,
     Event = 2U,
@@ -147,11 +97,9 @@ constexpr EventFlags operator|(
         static_cast<std::uint32_t>(right));
 }
 
-using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
-    Base::IAllocator& allocator) noexcept;
+using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
 using PropertyGetCallback = Base::Result<Value> (*)(
     const Base::Object& object,
-    Base::IAllocator& allocator,
     void* context) noexcept;
 using PropertySetCallback = Base::Result<void> (*)(
     Base::Object& object,
@@ -160,7 +108,6 @@ using PropertySetCallback = Base::Result<void> (*)(
 using MethodInvokeCallback = Base::Result<Value> (*)(
     Base::Object& object,
     Base::Span<const Value> arguments,
-    Base::IAllocator& allocator,
     void* context) noexcept;
 
 struct TypeRegistration final {
@@ -226,8 +173,7 @@ public:
 private:
     friend class TypeRegistry;
 
-    explicit PropertyInfo(Base::IAllocator* allocator) noexcept
-        : name_(allocator) {}
+    PropertyInfo() noexcept = default;
 
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -253,8 +199,7 @@ public:
 
 private:
     friend class TypeRegistry;
-    explicit MethodParameterInfo(Base::IAllocator* allocator) noexcept
-        : name_(allocator) {}
+    MethodParameterInfo() noexcept = default;
     TypeId type_ = InvalidTypeId;
     Base::String name_;
 };
@@ -279,8 +224,7 @@ public:
 
 private:
     friend class TypeRegistry;
-    explicit MethodInfo(Base::IAllocator* allocator) noexcept
-        : name_(allocator), parameters_(allocator) {}
+    MethodInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
     TypeId returnType_ = InvalidTypeId;
@@ -308,8 +252,7 @@ public:
 private:
     friend class TypeRegistry;
 
-    explicit EventInfo(Base::IAllocator* allocator) noexcept
-        : name_(allocator) {}
+    EventInfo() noexcept = default;
 
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -352,12 +295,7 @@ public:
 private:
     friend class TypeRegistry;
 
-    explicit TypeInfo(Base::IAllocator* allocator) noexcept
-        : xamlNamespace_(allocator),
-          name_(allocator),
-          properties_(allocator),
-          events_(allocator),
-          methods_(allocator) {}
+    TypeInfo() noexcept = default;
 
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
@@ -374,12 +312,15 @@ private:
 constexpr TypeId MakeTypeId(
     Base::StringView xamlNamespace,
     Base::StringView name) noexcept {
-    constexpr char domain[] = "AERO.TYPE.V1";
-    Detail::StableIdBuilder builder;
-    builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
-    builder.AddString(xamlNamespace);
-    builder.AddString(name);
-    return builder.Finish();
+    return Base::MakeMetaTypeId(xamlNamespace, name);
+}
+
+constexpr Base::StringView AeroNamespaceUri() noexcept {
+    return Base::DefaultMetadataNamespaceUri();
+}
+
+constexpr TypeId MakeTypeId(Base::StringView name) noexcept {
+    return Base::MakeMetaTypeId(name);
 }
 
 constexpr MemberId MakeMemberId(
@@ -387,7 +328,7 @@ constexpr MemberId MakeMemberId(
     MemberKind kind,
     Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
-    Detail::StableIdBuilder builder;
+    Base::Detail::StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU64(ownerType);
     builder.AddByte(static_cast<std::uint8_t>(kind));
@@ -402,7 +343,7 @@ AERO_API MemberId MakeMethodId(
 
 class AERO_API TypeRegistry final {
 public:
-    explicit TypeRegistry(Base::IAllocator* allocator = nullptr) noexcept;
+    TypeRegistry() noexcept;
     ~TypeRegistry() = default;
 
     TypeRegistry(const TypeRegistry&) = delete;
@@ -434,21 +375,16 @@ public:
         const TextValueConverterRegistration& registration) noexcept;
     Base::Result<Value> TryCreateValue(
         TypeId type,
-        const void* source,
-        Base::IAllocator* allocator = nullptr) const noexcept;
+        const void* source) const noexcept;
     Base::Result<Value> TryConvertText(
         TypeId type,
-        Base::StringView text,
-        Base::IAllocator* allocator = nullptr) const noexcept;
+        Base::StringView text) const noexcept;
 
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
     std::uint32_t TypeCount() const noexcept {
         return types_.Size();
-    }
-    Base::IAllocator& Allocator() const noexcept {
-        return *allocator_;
     }
     Base::Span<const TypeInfo> Types() const noexcept {
         return {types_.Data(), types_.Size()};
@@ -510,7 +446,6 @@ private:
         MemberKind kind = MemberKind::Property;
     };
 
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
@@ -559,7 +494,28 @@ private: \
         Aero::Core::MetaRegistrationBuilder& helper) noexcept;
 
 #define AERO_DETAIL_DECLARE_METADATA_2(classType, parentType) \
-    AERO_DETAIL_DECLARE_METADATA(classType, parentType, "urn:aero", #classType)
+    AERO_DETAIL_DECLARE_METADATA_DEFAULT(classType, parentType)
+#define AERO_DETAIL_DECLARE_METADATA_DEFAULT(classType, parentType) \
+private: \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
+        Aero::Core::MakeTypeId(Aero::Base::StringView(#classType)); \
+public: \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
+        return StaticTypeIdValue_; \
+    } \
+    static Aero::Base::Result<void> TryRegisterMetadata( \
+        Aero::Core::MetaRegistrationContext& context) noexcept; \
+private: \
+    using SelfClass = classType; \
+    using ParentClass = parentType; \
+    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { \
+        return Aero::Core::AeroNamespaceUri(); \
+    } \
+    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { \
+        return Aero::Base::StringView(#classType); \
+    } \
+    static void StaticFillMetadata( \
+        Aero::Core::MetaRegistrationBuilder& helper) noexcept;
 #define AERO_DETAIL_DECLARE_METADATA_4( \
     classType, parentType, xamlNamespace, typeName) \
     AERO_DETAIL_DECLARE_METADATA( \
@@ -572,3 +528,10 @@ private: \
         AERO_DETAIL_DECLARE_METADATA_4, \
         AERO_DETAIL_DECLARE_METADATA_INVALID_3, \
         AERO_DETAIL_DECLARE_METADATA_2)(__VA_ARGS__)
+
+#define AERO_DECLARE_TYPE_ID(typeName) \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
+        Aero::Core::MakeTypeId(Aero::Base::StringView(#typeName)); \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
+        return StaticTypeIdValue_; \
+    }

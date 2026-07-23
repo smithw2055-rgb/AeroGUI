@@ -24,8 +24,7 @@ struct XamlLayoutTypeRegistration final {
 class [[deprecated("Use XamlDependencyPropertyBridge")]] AERO_API XamlLayoutExtension final {
 public:
     explicit XamlLayoutExtension(
-        Core::TypeId layoutElementType,
-        Base::IAllocator* allocator = nullptr) noexcept;
+        Core::TypeId layoutElementType) noexcept;
 
     XamlLayoutExtension(const XamlLayoutExtension&) = delete;
     XamlLayoutExtension& operator=(const XamlLayoutExtension&) = delete;
@@ -41,7 +40,6 @@ public:
 
 private:
     XamlSchemaContext* schema_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     Base::Vector<XamlLayoutTypeRegistration> types_;
     Core::TypeId layoutElementType_ = Core::InvalidTypeId;
     Core::MemberId widthMember_ = Core::InvalidMemberId;

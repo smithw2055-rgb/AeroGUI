@@ -47,10 +47,7 @@ Base::Result<Core::Color> ParseColor(Base::StringView text) noexcept {
 
 } // namespace
 
-XamlBorderExtension::XamlBorderExtension(Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()),
-      types_(allocator_),
-      backgroundMembers_(allocator_) {}
+XamlBorderExtension::XamlBorderExtension() noexcept = default;
 
 Base::Result<void> XamlBorderExtension::TryRegisterType(
     const XamlBorderTypeRegistration& registration) noexcept {
