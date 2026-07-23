@@ -131,12 +131,12 @@ public:
                 "Metadata value type descriptor was not found");
         }
         if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
-            facet == nullptr || facet->source == nullptr) {
+            facet == nullptr || !facet->semantics) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Metadata type has no value semantics facet");
         }
-        return facet->source->TryCreateValue(type, source);
+        return Value::TryFromCustom(type, source, facet->semantics);
     }
 
     Base::Result<Value> TryConvertText(
@@ -151,12 +151,20 @@ public:
                 "Metadata text target descriptor was not found");
         }
         if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
-            facet == nullptr || facet->source == nullptr) {
+            facet == nullptr || facet->convert == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Metadata type has no text converter facet");
         }
-        return facet->source->TryConvertText(type, text);
+        Base::Result<Value> converted = facet->convert(
+            type, text, facet->context);
+        if (!converted) return converted.GetStatus();
+        if (converted.Value().IsUnset() || converted.Value().Type() != type) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Metadata text converter facet returned an incompatible value");
+        }
+        return converted;
     }
 
     Base::Result<Value> GetProperty(
