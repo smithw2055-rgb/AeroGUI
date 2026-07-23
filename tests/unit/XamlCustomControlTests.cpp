@@ -289,6 +289,7 @@ struct Fixture final {
         CHECK(metadata.IsSealed());
         CHECK(metadata.Descriptors().IsSealed());
         CHECK(metadata.Facets().IsSealed());
+        CHECK(metadata.Facets().ValueFacetsSealed());
         CHECK(metadata.ComputeSchemaHash());
 
         const MetadataDescriptorStore& descriptors = metadata.Descriptors();
@@ -320,6 +321,12 @@ struct Fixture final {
         CHECK(descriptors.IsDerivedFrom(badgeType, BuiltinTypes::DependencyObject));
         CHECK(facets.FindContentMember(BuiltinTypes::StackPanel) !=
             InvalidMemberId);
+        CHECK(facets.HasTypeFacet(
+            cornerRadiusType, MetadataFacetKind::ValueSemantics));
+        CHECK(facets.HasTypeFacet(
+            cornerRadiusType, MetadataFacetKind::TextConverter));
+        CHECK(facets.FindValueSemantics(cornerRadiusType) != nullptr);
+        CHECK(facets.FindTextConverter(cornerRadiusType) != nullptr);
 
         const MetadataPropertyDescriptor* code = descriptors.FindProperty(
             badgeType, StringView("Code"), false);
@@ -353,7 +360,20 @@ struct Fixture final {
             BuiltinTypes::DependencyObject));
         CHECK(runtime->Freeze());
 
-        schema = std::make_unique<XamlSchemaContext>(metadata.Types());
+        const CornerRadius source{1.0, 2.0, 3.0, 4.0};
+        Result<Value> created = runtime->TryCreateValue(cornerRadiusType, &source);
+        CHECK(created && created.Value().Kind() == ValueKind::Custom);
+        Result<Value> converted = runtime->TryConvertText(
+            cornerRadiusType, StringView("3,6"));
+        CHECK(converted && converted.Value().Kind() == ValueKind::Custom);
+        const auto& convertedRadius = *static_cast<const CornerRadius*>(
+            converted.Value().AsCustom());
+        CHECK(convertedRadius.topLeft == 3.0 &&
+            convertedRadius.topRight == 6.0);
+
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        CHECK(schema->UsesRuntime());
+        CHECK(schema->Members().UsesRuntime());
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
         dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
             *schema, metadata.DependencyProperties());
@@ -361,6 +381,10 @@ struct Fixture final {
         CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());
+        Result<XamlValue> schemaConverted = schema->ConvertTextRuntime(
+            cornerRadiusType, StringView("2,5"));
+        CHECK(schemaConverted &&
+            schemaConverted.Value().Kind() == XamlValueKind::Custom);
         return true;
     }
 
