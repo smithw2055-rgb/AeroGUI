@@ -45,6 +45,7 @@ function(aero_apply_compiler_options target)
         # - the presentation bootstrap has a single-line registration macro;
         # - older value bridges do not yet enumerate String/Custom ValueKind;
         # - deprecated compatibility classes compile their own definitions;
+        # - older tests omit newly appended aggregate option fields;
         # - newer GCC reports references into temporary Span views as dangling.
         # Keep these warnings visible where supported while every unrelated
         # warning remains fatal.
@@ -54,12 +55,14 @@ function(aero_apply_compiler_options target)
                 -Wno-error=misleading-indentation
                 -Wno-error=switch
                 -Wno-error=deprecated-declarations
+                -Wno-error=missing-field-initializers
                 -Wno-error=dangling-reference)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             target_compile_options(${target} PRIVATE
                 -Wno-error=gnu-zero-variadic-macro-arguments
                 -Wno-error=switch
-                -Wno-error=deprecated-declarations)
+                -Wno-error=deprecated-declarations
+                -Wno-error=missing-field-initializers)
         endif()
     endif()
 endfunction()
