@@ -3,7 +3,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MetadataValueRegistrationStore.hpp>
 
 namespace Aero::Core {
 
@@ -14,34 +14,39 @@ namespace Aero::Core {
 // and the owned ValueSemanticsFacet/TextConverterFacet instances instead.
 //
 // The view is intentionally non-owning so MetadataDomain transactions continue
-// to replace their complete candidate TypeRegistry atomically.
+// to replace their complete candidate storage atomically.
 class MetadataRegistrationValues final {
 public:
-    explicit MetadataRegistrationValues(TypeRegistry& types) noexcept
-        : types_(&types), mutableTypes_(&types) {}
+    explicit MetadataRegistrationValues(
+        MetadataValueRegistrationStore& registrations) noexcept
+        : registrations_(&registrations),
+          mutableRegistrations_(&registrations) {}
 
-    explicit MetadataRegistrationValues(const TypeRegistry& types) noexcept
-        : types_(&types), mutableTypes_(nullptr) {}
+    explicit MetadataRegistrationValues(
+        const MetadataValueRegistrationStore& registrations) noexcept
+        : registrations_(&registrations),
+          mutableRegistrations_(nullptr) {}
 
     Base::Result<void> TryRegisterValueSemantics(
         TypeId type,
         const ValueTypeRegistration& registration) const noexcept {
-        if (mutableTypes_ == nullptr) {
+        if (mutableRegistrations_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Metadata registration values are read-only");
         }
-        return mutableTypes_->TryRegisterValueSemantics(type, registration);
+        return mutableRegistrations_->TryRegisterValueSemantics(
+            type, registration);
     }
 
     Base::Result<void> TryRegisterTextConverter(
         const TextValueConverterRegistration& registration) const noexcept {
-        if (mutableTypes_ == nullptr) {
+        if (mutableRegistrations_ == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Metadata registration values are read-only");
         }
-        return mutableTypes_->TryRegisterTextConverter(registration);
+        return mutableRegistrations_->TryRegisterTextConverter(registration);
     }
 
     Base::Result<Value> TryCreateValue(
@@ -80,28 +85,28 @@ public:
 
     const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
         TypeId type) const noexcept {
-        AERO_ASSERT(types_ != nullptr);
-        return types_->FindValueSemantics(type);
+        AERO_ASSERT(registrations_ != nullptr);
+        return registrations_->FindValueSemantics(type);
     }
 
     const TextValueConverterRegistration* FindTextConverter(
         TypeId type) const noexcept {
-        AERO_ASSERT(types_ != nullptr);
-        return types_->FindTextConverter(type);
+        AERO_ASSERT(registrations_ != nullptr);
+        return registrations_->FindTextConverter(type);
     }
 
     bool IsFrozen() const noexcept {
-        return types_ != nullptr && types_->IsFrozen();
+        return registrations_ != nullptr && registrations_->IsFrozen();
     }
 
     const TypeRegistry& Types() const noexcept {
-        AERO_ASSERT(types_ != nullptr);
-        return *types_;
+        AERO_ASSERT(registrations_ != nullptr);
+        return registrations_->Types();
     }
 
 private:
-    const TypeRegistry* types_ = nullptr;
-    TypeRegistry* mutableTypes_ = nullptr;
+    const MetadataValueRegistrationStore* registrations_ = nullptr;
+    MetadataValueRegistrationStore* mutableRegistrations_ = nullptr;
 };
 
 } // namespace Aero::Core

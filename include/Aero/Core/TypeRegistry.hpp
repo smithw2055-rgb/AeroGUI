@@ -20,7 +20,6 @@ namespace Aero::Core {
 
 struct MetaRegistrationContext;
 class MetaRegistrationBuilder;
-class MetadataRegistrationValues;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 2U;
@@ -440,19 +439,6 @@ public:
         const noexcept;
 
 private:
-    friend class MetadataRegistrationValues;
-
-    // Storage backend for the explicit registration-domain value service.
-    Base::Result<void> TryRegisterValueSemantics(
-        TypeId type,
-        const ValueTypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterTextConverter(
-        const TextValueConverterRegistration& registration) noexcept;
-    const Base::Ref<ValueTypeSemantics>* FindValueSemantics(
-        TypeId type) const noexcept;
-    const TextValueConverterRegistration* FindTextConverter(
-        TypeId type) const noexcept;
-
     struct MemberLocation final {
         std::uint32_t typeIndex = 0U;
         std::uint32_t memberIndex = 0U;
@@ -467,12 +453,6 @@ private:
     Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
     Base::Vector<MethodInvokerRegistration> methodInvokers_;
 
-    struct ValueSemanticsEntry final {
-        TypeId type = InvalidTypeId;
-        Base::Ref<ValueTypeSemantics> semantics;
-    };
-    Base::Vector<ValueSemanticsEntry> valueSemantics_;
-    Base::Vector<TextValueConverterRegistration> textConverters_;
     bool frozen_ = false;
 
     TypeInfo* MutableType(TypeId id) noexcept;
@@ -484,22 +464,6 @@ private:
     const MethodInfo* MethodAt(
         const MemberLocation& location) const noexcept;
 };
-
-inline const Base::Ref<ValueTypeSemantics>*
-TypeRegistry::FindValueSemantics(TypeId type) const noexcept {
-    for (const ValueSemanticsEntry& entry : valueSemantics_) {
-        if (entry.type == type) return &entry.semantics;
-    }
-    return nullptr;
-}
-
-inline const TextValueConverterRegistration*
-TypeRegistry::FindTextConverter(TypeId type) const noexcept {
-    for (const TextValueConverterRegistration& entry : textConverters_) {
-        if (entry.type == type) return &entry;
-    }
-    return nullptr;
-}
 
 } // namespace Aero::Core
 

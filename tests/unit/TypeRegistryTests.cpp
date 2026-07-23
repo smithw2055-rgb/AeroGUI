@@ -441,12 +441,14 @@ bool EqualLarge(const void* left, const void* right, void*) noexcept {
 
 Result<Value> ConvertSmall(
     TypeId type, StringView text, void* context) noexcept {
-    auto* registry = static_cast<TypeRegistry*>(context);
+    auto* registrations =
+        static_cast<MetadataValueRegistrationStore*>(context);
     if (text != StringView("7,9")) {
         return Status::Failure(ErrorCode::InvalidArgument, "Invalid SmallValue");
     }
     const SmallValue value{7U, 9U};
-    return MetadataRegistrationValues(*registry).TryCreateValue(type, &value);
+    return MetadataRegistrationValues(
+        *registrations).TryCreateValue(type, &value);
 }
 
 bool TestUnifiedValueAndRegistrySemantics() {
@@ -458,6 +460,7 @@ bool TestUnifiedValueAndRegistrySemantics() {
     TrackingAllocator allocator;
     Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
     TypeRegistry registry;
+    MetadataValueRegistrationStore registrationStore(registry);
     const StringView ns("urn:value-tests");
     const TypeId smallType = MakeTypeId(ns, StringView("Small"));
     const TypeId managedType = MakeTypeId(ns, StringView("Managed"));
@@ -471,7 +474,7 @@ bool TestUnifiedValueAndRegistrySemantics() {
         TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
     CHECK(registry.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
         TypeFlags::None, nullptr}));
-    MetadataRegistrationValues values(registry);
+    MetadataRegistrationValues values(registrationStore);
     CHECK(values.TryRegisterValueSemantics(smallType,
         {sizeof(SmallValue), alignof(SmallValue), nullptr, nullptr,
          &EqualSmall, nullptr, true}));
@@ -489,9 +492,9 @@ bool TestUnifiedValueAndRegistrySemantics() {
         {sizeof(ManagedValue), 3U, &CopyManaged, &DestroyManaged,
          &EqualManaged, nullptr, false});
     CHECK(!invalid && invalid.GetStatus().code == ErrorCode::InvalidArgument);
-    CHECK(values.TryRegisterTextConverter({smallType, &ConvertSmall, &registry}));
+    CHECK(values.TryRegisterTextConverter({smallType, &ConvertSmall, &registrationStore}));
     Result<void> duplicateConverter = values.TryRegisterTextConverter(
-        {smallType, &ConvertSmall, &registry});
+        {smallType, &ConvertSmall, &registrationStore});
     CHECK(!duplicateConverter &&
         duplicateConverter.GetStatus().code == ErrorCode::AlreadyExists);
 
@@ -567,8 +570,9 @@ bool TestUnifiedValueAndRegistrySemantics() {
     allocator.DisableFailures();
 
     CHECK(registry.Freeze());
+    CHECK(registrationStore.Freeze());
     Result<void> late = values.TryRegisterTextConverter(
-        {managedType, &ConvertSmall, &registry});
+        {managedType, &ConvertSmall, &registrationStore});
     CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);
     return true;
 }

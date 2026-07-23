@@ -83,9 +83,10 @@ protected:
 
 struct Fixture final {
     TypeRegistry types;
+    MetadataValueRegistrationStore valueRegistrations{types};
     DependencyPropertyRegistry properties{types};
     Dispatcher dispatcher;
-    PresentationContextScope presentation{dispatcher, properties};
+    PresentationContextScope presentation{dispatcher, properties, valueRegistrations};
     TypeId objectType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
     TypeId stackPanelType = InvalidTypeId;
@@ -95,7 +96,7 @@ struct Fixture final {
     TypeId presenterType = InvalidTypeId;
 
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, properties));
+        CHECK(TryRegisterPresentationMetadata(types, valueRegistrations, properties));
         objectType = BuiltinTypes::Object;
         elementType = BuiltinTypes::FrameworkElement;
         stackPanelType = BuiltinTypes::StackPanel;
@@ -103,7 +104,7 @@ struct Fixture final {
         gridType = BuiltinTypes::Grid;
         borderType = BuiltinTypes::Border;
         presenterType = BuiltinTypes::ContentPresenter;
-        CHECK(types.Freeze());
+        CHECK(types.Freeze()); CHECK(valueRegistrations.Freeze());
         CHECK(properties.Freeze());
         return true;
     }

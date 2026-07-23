@@ -28,20 +28,21 @@ private: Size desired_;
 struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
+    MetadataValueRegistrationStore valueRegistrations{types};
     DependencyPropertyRegistry properties{types};
-    PresentationContextScope presentation{dispatcher, properties};
+    PresentationContextScope presentation{dispatcher, properties, valueRegistrations};
     RoutedEventRegistry events{types};
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, properties, &events));
+        CHECK(TryRegisterPresentationMetadata(types, valueRegistrations, properties, &events));
         const StringView ns("urn:input");
         objectType=BuiltinTypes::Object;
         rootType=BuiltinTypes::StackPanel;
         boxType=MakeTypeId(ns,StringView("Box"));
         CHECK(types.TryRegisterType({ns,StringView("Box"),
             BuiltinTypes::UIElement,TypeFlags::None,nullptr}));
-        CHECK(types.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
+        CHECK(types.Freeze()); CHECK(valueRegistrations.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };
 

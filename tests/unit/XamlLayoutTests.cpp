@@ -6,8 +6,9 @@
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Layout.hpp>
 #include <Aero/Core/Rendering.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Core/Presentation.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -16,6 +17,7 @@
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -35,23 +37,25 @@ public:
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    PresentationContextScope presentation{dispatcher, properties};
-    XamlSchemaContext schema{types};
-    XamlActivationProviderRegistry activation{schema};
-    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId layoutType = InvalidTypeId;
     TypeId testType = InvalidTypeId;
 
-    static Result<Ref<Object>> Activate(TypeId type,
-        const XamlActivationContext& activation,
+    static Result<Ref<Object>> Activate(
+        TypeId type,
+        const XamlActivationContext& activationContext,
         void*) noexcept {
-        if (activation.dispatcher == nullptr || activation.dependencyProperties == nullptr) {
-            return Status::Failure(ErrorCode::InvalidArgument, "Activation services are missing");
+        if (activationContext.dispatcher == nullptr ||
+            activationContext.dependencyProperties == nullptr) {
+            return Status::Failure(ErrorCode::InvalidArgument,
+                "Activation services are missing");
         }
         Result<Ref<TestElement>> made = MakeRef<TestElement>(type);
         if (!made) return made.GetStatus();
@@ -59,33 +63,51 @@ struct Fixture final {
         return Ref<Object>(std::move(typed));
     }
 
-    static UIElement* Cast(Object& object, void*) noexcept {
-        return &static_cast<TestElement&>(object);
+    static Result<void> RegisterTestModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        auto* fixture = static_cast<Fixture*>(userContext);
+        const StringView ns("urn:xaml-layout");
+        Result<TypeId> registered = context.types.TryRegisterType({
+            ns, StringView("TestElement"), BuiltinTypes::FrameworkElement,
+            TypeFlags::Sealed, nullptr});
+        if (!registered) return registered.GetStatus();
+        return registered.Value() == fixture->testType
+            ? Result<void>()
+            : Result<void>(Status::Failure(
+                ErrorCode::IdCollision, "Unexpected TestElement TypeId"));
     }
 
     bool Build() {
         const StringView ns("urn:xaml-layout");
-        CHECK(TryRegisterPresentationMetadata(types, properties));
         objectType = BuiltinTypes::Object;
         doubleType = BuiltinTypes::Double;
         stringType = BuiltinTypes::String;
         layoutType = BuiltinTypes::FrameworkElement;
         testType = MakeTypeId(ns, StringView("TestElement"));
-        CHECK(types.TryRegisterType({ns, StringView("TestElement"), layoutType,
-            TypeFlags::Sealed, nullptr}));
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(activation.TryRegister({testType, &Activate, this}));
-        CHECK(TryRegisterAeroPresentationXaml(dependencyProperties));
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+        CHECK(TryRegisterAeroPresentationMetadata(metadata));
+        const StringView moduleName("Tests.XamlLayout");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterTestModule, this}));
+        CHECK(metadata.Seal());
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        CHECK(activation->TryRegister({testType, &Activate, this}));
+        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 
     XamlActivationContext Activation() noexcept {
         XamlActivationContext context = XamlActivationContext::Create();
         context.dispatcher = &dispatcher;
-        context.dependencyProperties = &properties;
+        context.dependencyProperties = &metadata.DependencyProperties();
         return context;
     }
 };
@@ -95,8 +117,8 @@ Result<Ref<Object>> Load(Fixture& fixture, StringView xaml, DiagnosticBag& diagn
     Result<void> reset = tokenizer.Reset(xaml, &diagnostics);
     if (!reset) return reset.GetStatus();
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
-    return LoadXamlWithActivation(writer, reader, fixture.activation, fixture.Activation());
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
+    return LoadXamlWithActivation(writer, reader, *fixture.activation, fixture.Activation());
 }
 
 bool TestLayoutAttributes() {

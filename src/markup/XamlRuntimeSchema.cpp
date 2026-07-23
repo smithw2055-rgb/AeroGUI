@@ -43,23 +43,23 @@ XamlSchemaContext::XamlSchemaContext(
     : types_(&domain.Types()),
       domain_(&domain),
       runtime_(&runtime),
-      memberAccessor_(domain.Types()),
+      memberAccessor_(runtime),
       scalarTypes_(),
       textConverters_(),
       memberAdapters_(),
       memberProviders_(),
       typeAdapters_(),
       markupExtensions_() {
-    Base::Result<void> bound = memberAccessor_.UseRuntime(runtime);
-    AERO_ASSERT(bound);
-    static_cast<void>(bound);
+    AERO_ASSERT(domain.IsSealed());
+    AERO_ASSERT(&runtime.Domain() == &domain);
 }
 
 Base::Result<const Core::TypeInfo*> XamlSchemaContext::ResolveTypeRuntime(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
-    if (runtime_ == nullptr) return ResolveType(xamlNamespace, localName);
-    if (!frozen_ || !runtime_->IsFrozen()) return RuntimeSchemaNotReady();
+    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+        return RuntimeSchemaNotReady();
+    }
 
     const Core::MetadataTypeDescriptor* descriptor =
         runtime_->Descriptors().FindType(xamlNamespace, localName);
@@ -77,8 +77,9 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMemberRuntime(
     Core::TypeId targetType,
     const XamlQualifiedName& name,
     XamlMemberSyntax syntax) const noexcept {
-    if (runtime_ == nullptr) return ResolveMember(targetType, name, syntax);
-    if (!frozen_ || !runtime_->IsFrozen()) return RuntimeSchemaNotReady();
+    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+        return RuntimeSchemaNotReady();
+    }
 
     const Core::MetadataTypeDescriptor* target =
         runtime_->Descriptors().FindType(targetType);
@@ -198,8 +199,9 @@ XamlSchemaContext::ResolvePropertyOrEventRuntime(
 
 Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMemberRuntime(
     Core::TypeId targetType) const noexcept {
-    if (runtime_ == nullptr) return ResolveContentMember(targetType);
-    if (!frozen_ || !runtime_->IsFrozen()) return RuntimeSchemaNotReady();
+    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+        return RuntimeSchemaNotReady();
+    }
 
     const Core::MemberId contentMember =
         runtime_->Facets().FindContentMember(targetType);
@@ -230,25 +232,15 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMemberRuntime(
 
 Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectRuntime(
     Core::TypeId type) const noexcept {
-    if (runtime_ == nullptr) return CreateObject(type);
-    if (!frozen_ || !runtime_->IsFrozen()) return RuntimeSchemaNotReady();
+    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+        return RuntimeSchemaNotReady();
+    }
     return runtime_->CreateObject(type);
 }
 
 Base::Result<XamlValue> XamlSchemaContext::ConvertTextRuntime(
     Core::TypeId type,
     Base::StringView text) const noexcept {
-    if (runtime_ == nullptr) return ConvertText(type, text);
-    if (!frozen_ || !runtime_->IsFrozen()) return RuntimeSchemaNotReady();
-
-    Base::Result<Core::Value> converted = runtime_->TryConvertText(type, text);
-    if (converted) return converted;
-    if (converted.GetStatus().code != Base::ErrorCode::NotFound &&
-        converted.GetStatus().code != Base::ErrorCode::Unsupported) {
-        return converted.GetStatus();
-    }
-    // XAML-local scalar and markup converters remain schema facets. The legacy
-    // method is used only after the sealed Core text facet reports no converter.
     return ConvertText(type, text);
 }
 
@@ -258,10 +250,8 @@ Base::Result<void> XamlSchemaContext::SetMemberRuntime(
     const XamlResolvedMember& member,
     const XamlValue& value,
     const XamlServiceProvider* services) const noexcept {
-    if (runtime_ == nullptr) {
-        return SetMember(object, objectType, member, value, services);
-    }
-    if (!frozen_ || !runtime_->IsFrozen() || !member.IsValid()) {
+    if (!frozen_ || runtime_ == nullptr ||
+        !runtime_->IsFrozen() || !member.IsValid()) {
         return RuntimeSchemaNotReady();
     }
     if (member.kind != Core::MemberKind::Property) {
@@ -331,7 +321,7 @@ Base::Result<void> XamlSchemaContext::SetMemberRuntime(
 
 XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicyRuntime(
     const XamlResolvedMember& member) const noexcept {
-    if (runtime_ == nullptr) return ResolveMemberWritePolicy(member);
+    if (runtime_ == nullptr || !runtime_->IsFrozen()) return {};
     const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
     if (adapter != nullptr &&
         (adapter->set != nullptr || adapter->setWithServices != nullptr)) {

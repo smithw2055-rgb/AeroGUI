@@ -75,7 +75,8 @@ bool ParseNumber(StringView text, std::uint32_t& offset, double& output) noexcep
 
 Result<Value> ConvertCornerRadius(
     TypeId type, StringView text, void* context) noexcept {
-    auto* types = static_cast<TypeRegistry*>(context);
+    auto* registrations =
+        static_cast<MetadataValueRegistrationStore*>(context);
     std::uint32_t offset = 0U;
     CornerRadius radius;
     if (!ParseNumber(text, offset, radius.topLeft)) {
@@ -100,7 +101,8 @@ Result<Value> ConvertCornerRadius(
         radius.bottomRight = radius.topLeft;
         radius.bottomLeft = radius.topRight;
     }
-    return MetadataRegistrationValues(*types).TryCreateValue(type, &radius);
+    return MetadataRegistrationValues(*registrations).TryCreateValue(
+        type, &radius);
 }
 
 class Badge final : public Control {
@@ -209,7 +211,7 @@ Result<void> RegisterBadgeMetadata(
          &EqualCornerRadius, nullptr, true});
     if (!status) return status.GetStatus();
     status = values.TryRegisterTextConverter(
-        {cornerRadiusType, &ConvertCornerRadius, &context.types});
+        {cornerRadiusType, &ConvertCornerRadius, &context.valueRegistrations});
     if (!status) return status.GetStatus();
     return Badge::TryRegisterMetadata(context);
 }
@@ -356,10 +358,14 @@ struct Fixture final {
             &metadata.RoutedEvents());
 
         runtime = std::make_unique<MetadataRuntime>(metadata);
-        CHECK(TryRegisterDependencyPropertyRuntimeProvider(
-            *runtime,
-            metadata.DependencyProperties(),
-            BuiltinTypes::DependencyObject));
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        CHECK(schema->UsesRuntime());
+        CHECK(schema->Members().UsesRuntime());
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
+        CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
         CHECK(runtime->Freeze());
 
         const CornerRadius source{1.0, 2.0, 3.0, 4.0};
@@ -373,14 +379,6 @@ struct Fixture final {
         CHECK(convertedRadius.topLeft == 3.0 &&
             convertedRadius.topRight == 6.0);
 
-        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
-        CHECK(schema->UsesRuntime());
-        CHECK(schema->Members().UsesRuntime());
-        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
-        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
-        CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());
         Result<XamlValue> schemaConverted = schema->ConvertTextRuntime(

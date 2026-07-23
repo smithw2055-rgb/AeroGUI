@@ -417,7 +417,7 @@ Base::Result<void> Border::SetBackground(Color value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Border color is invalid");
     }
-    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
+    Base::Result<Value> stored = TryCreatePresentationValue(
         PresentationType("Color"), &value);
     return stored ? SetValue(BackgroundProperty, stored.Value())
                   : stored.GetStatus();
@@ -437,7 +437,7 @@ Base::Result<void> Border::SetBorderBrush(Color value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Border brush is invalid");
     }
-    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
+    Base::Result<Value> stored = TryCreatePresentationValue(
         PresentationType("Color"), &value);
     return stored ? SetValue(BorderBrushProperty, stored.Value())
                   : stored.GetStatus();
@@ -457,7 +457,7 @@ Base::Result<void> Border::SetPadding(Thickness value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Border padding must be finite, nonnegative, and non-overflowing");
     }
-    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
+    Base::Result<Value> stored = TryCreatePresentationValue(
         PresentationType("Thickness"), &value);
     return stored ? SetValue(PaddingProperty, stored.Value())
                   : stored.GetStatus();
@@ -522,7 +522,7 @@ Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "TextBlock foreground color is invalid");
     }
-    Base::Result<Value> stored = MetadataRegistrationValues(PropertyRegistry().Types()).TryCreateValue(
+    Base::Result<Value> stored = TryCreatePresentationValue(
         PresentationType("Color"), &value);
     return stored ? SetValue(ForegroundProperty, stored.Value())
                   : stored.GetStatus();

@@ -14,6 +14,7 @@
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <cstdio>
 #include <utility>
 
@@ -34,8 +35,8 @@ using namespace Aero::Markup;
 
 class TestElement final : public Object {
 public:
-    explicit TestElement(bool leaf) noexcept
-        : leaf_(leaf) {
+    TestElement(TypeId type, bool leaf) noexcept
+        : type_(type), leaf_(leaf) {
         ++liveCount_;
     }
 
@@ -43,6 +44,7 @@ public:
         --liveCount_;
     }
 
+    TypeId RuntimeType() const noexcept override { return type_; }
     StringView Title() const noexcept { return title_.View(); }
     bool Enabled() const noexcept { return enabled_; }
     std::int64_t Count() const noexcept { return count_; }
@@ -89,6 +91,7 @@ private:
     friend Result<void> EndElement(Object&, void*) noexcept;
     friend void AbortElement(Object&, void*) noexcept;
 
+    TypeId type_ = InvalidTypeId;
     String title_;
     Ref<Object> child_;
     Vector<Ref<Object>> children_;
@@ -113,7 +116,8 @@ std::uint32_t TestElement::endCount_ = 0U;
 std::uint32_t TestElement::abortCount_ = 0U;
 
 Result<Ref<Object>> MakeElement() noexcept {
-    Result<Ref<TestElement>> created = MakeRef<TestElement>(false);
+    Result<Ref<TestElement>> created = MakeRef<TestElement>(
+        MakeTypeId(StringView("urn:test"), StringView("Element")), false);
     if (!created) {
         return created.GetStatus();
     }
@@ -123,7 +127,8 @@ Result<Ref<Object>> MakeElement() noexcept {
 }
 
 Result<Ref<Object>> MakeLeaf() noexcept {
-    Result<Ref<TestElement>> created = MakeRef<TestElement>(true);
+    Result<Ref<TestElement>> created = MakeRef<TestElement>(
+        MakeTypeId(StringView("urn:test"), StringView("Leaf")), true);
     if (!created) {
         return created.GetStatus();
     }
@@ -255,8 +260,9 @@ void AbortElement(Object& object, void*) noexcept {
 }
 
 struct Fixture final {
-    TypeRegistry types;
-    XamlSchemaContext schema{types};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<XamlSchemaContext> schema;
 
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -275,6 +281,89 @@ struct Fixture final {
     MemberId children = InvalidMemberId;
     MemberId row = InvalidMemberId;
 
+    static Result<void> RegisterModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        return static_cast<Fixture*>(userContext)->RegisterMetadata(context);
+    }
+
+    Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
+        TypeRegistry& types = context.types;
+        const StringView ns("urn:test");
+        Result<TypeId> type = types.TryRegisterType({
+            ns, StringView("Object"), InvalidTypeId,
+            TypeFlags::None, nullptr});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("String"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Boolean"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Int64"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Double"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Element"), objectType,
+            TypeFlags::None, &MakeElement});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Leaf"), elementType,
+            TypeFlags::Sealed, &MakeLeaf});
+        if (!type) return type.GetStatus();
+        type = types.TryRegisterType({
+            ns, StringView("Grid"), objectType,
+            TypeFlags::None, nullptr});
+        if (!type) return type.GetStatus();
+
+        Result<MemberId> member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Title"), stringType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        title = member.Value();
+        member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Enabled"), booleanType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        enabled = member.Value();
+        member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Count"), integerType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        count = member.Value();
+        member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Ratio"), doubleType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        ratio = member.Value();
+        member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Child"), elementType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        child = member.Value();
+        member = types.TryRegisterProperty(
+            elementType,
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
+        if (!member) return member.GetStatus();
+        children = member.Value();
+        Result<void> status = types.TrySetContentMember(elementType, children);
+        if (!status) return status.GetStatus();
+        member = types.TryRegisterProperty(
+            gridType,
+            {StringView("Row"), integerType, PropertyFlags::Attached});
+        if (!member) return member.GetStatus();
+        row = member.Value();
+        return {};
+    }
+
     bool Build() {
         const StringView ns("urn:test");
         objectType = MakeTypeId(ns, StringView("Object"));
@@ -286,109 +375,45 @@ struct Fixture final {
         leafType = MakeTypeId(ns, StringView("Leaf"));
         gridType = MakeTypeId(ns, StringView("Grid"));
 
-        CHECK(types.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Boolean"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Int64"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Element"), objectType,
-            TypeFlags::None, &MakeElement}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Leaf"), elementType,
-            TypeFlags::Sealed, &MakeLeaf}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Grid"), objectType,
-            TypeFlags::None, nullptr}));
+        const StringView moduleName("Tests.XamlObjectWriter");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterModule, this}));
+        CHECK(metadata.Seal());
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        CHECK(runtime->Freeze());
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
 
-        Result<MemberId> titleResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Title"), stringType, PropertyFlags::None});
-        CHECK(titleResult);
-        title = titleResult.Value();
-
-        Result<MemberId> enabledResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Enabled"), booleanType, PropertyFlags::None});
-        CHECK(enabledResult);
-        enabled = enabledResult.Value();
-
-        Result<MemberId> countResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Count"), integerType, PropertyFlags::None});
-        CHECK(countResult);
-        count = countResult.Value();
-
-        Result<MemberId> ratioResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Ratio"), doubleType, PropertyFlags::None});
-        CHECK(ratioResult);
-        ratio = ratioResult.Value();
-
-        Result<MemberId> childResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Child"), elementType, PropertyFlags::None});
-        CHECK(childResult);
-        child = childResult.Value();
-
-        Result<MemberId> childrenResult = types.TryRegisterProperty(
-            elementType,
-            {StringView("Children"), elementType,
-             PropertyFlags::Structural | PropertyFlags::Collection});
-        CHECK(childrenResult);
-        children = childrenResult.Value();
-        CHECK(types.TrySetContentMember(elementType, children));
-
-        Result<MemberId> rowResult = types.TryRegisterProperty(
-            gridType,
-            {StringView("Row"), integerType, PropertyFlags::Attached});
-        CHECK(rowResult);
-        row = rowResult.Value();
-
-        CHECK(types.Freeze());
-
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
-        CHECK(schema.TryRegisterScalarType(booleanType, XamlScalarKind::Boolean));
-        CHECK(schema.TryRegisterScalarType(
+        CHECK(schema->TryRegisterScalarType(stringType, XamlScalarKind::String));
+        CHECK(schema->TryRegisterScalarType(booleanType, XamlScalarKind::Boolean));
+        CHECK(schema->TryRegisterScalarType(
             integerType, XamlScalarKind::SignedInteger));
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
+        CHECK(schema->TryRegisterScalarType(doubleType, XamlScalarKind::Double));
 
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             title, XamlMemberWriteMode::SetOnce, &SetTitle, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             enabled, XamlMemberWriteMode::SetOnce, &SetEnabled, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             count, XamlMemberWriteMode::SetOnce, &SetCount, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             ratio, XamlMemberWriteMode::SetOnce, &SetRatio, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             child, XamlMemberWriteMode::SetOnce, &SetChild, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             children, XamlMemberWriteMode::Collection, &AddChild, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             row, XamlMemberWriteMode::SetOnce, &SetRow, nullptr}));
-
-        CHECK(schema.TryRegisterTypeAdapter({
+        CHECK(schema->TryRegisterTypeAdapter({
             elementType,
             &BeginElement,
             &EndElement,
             &AbortElement,
             nullptr}));
-        CHECK(schema.Freeze());
+        CHECK(schema->Freeze());
         return true;
     }
 };
-
 Result<Ref<Object>> LoadDocument(
     Fixture& fixture,
     StringView xaml,
@@ -400,7 +425,7 @@ Result<Ref<Object>> LoadDocument(
     }
 
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     return writer.Load(reader);
 }
 

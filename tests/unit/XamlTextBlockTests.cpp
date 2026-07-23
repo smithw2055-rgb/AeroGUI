@@ -4,8 +4,9 @@
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Core/Presentation.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -14,6 +15,7 @@
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -27,11 +29,11 @@ using namespace Aero::Markup;
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    XamlSchemaContext schema{types};
-    XamlActivationProviderRegistry activation{schema};
-    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
@@ -51,28 +53,33 @@ struct Fixture final {
         }
         Result<Ref<TextBlock>> made = MakeRef<TextBlock>();
         if (!made) return made.GetStatus();
-        Ref<TextBlock> text = std::move(made).Value();
-        return Ref<Object>(std::move(text));
+        Ref<TextBlock> typed = std::move(made).Value();
+        return Ref<Object>(std::move(typed));
     }
 
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, properties));
+        CHECK(TryRegisterAeroPresentationMetadata(metadata));
+        CHECK(metadata.Seal());
         objectType = BuiltinTypes::Object;
         stringType = BuiltinTypes::String;
         textBlockType = BuiltinTypes::TextBlock;
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(activation.TryRegister({textBlockType, &Activate, nullptr}));
-        CHECK(TryRegisterAeroPresentationXaml(dependencyProperties));
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        CHECK(activation->TryRegister({textBlockType, &Activate, nullptr}));
+        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 
     XamlActivationContext Activation() noexcept {
         XamlActivationContext context = XamlActivationContext::Create();
         context.dispatcher = &dispatcher;
-        context.dependencyProperties = &properties;
+        context.dependencyProperties = &metadata.DependencyProperties();
         return context;
     }
 };
@@ -86,9 +93,9 @@ bool TestTextAttributeActivatesCoreTextBlock() {
         "<TextBlock xmlns=\"urn:aero\" Text=\"Hello, 世界\"/>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlWithActivation(
-        writer, reader, fixture.activation, fixture.Activation());
+        writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     TextBlock* text = static_cast<TextBlock*>(loaded.Value().Get());
     CHECK(text != nullptr && text->Text() == StringView("Hello, 世界"));

@@ -70,12 +70,8 @@ public:
     // stores are the canonical runtime query surface.
     TypeRegistry& Types() noexcept;
     const TypeRegistry& Types() const noexcept;
-    MetadataRegistrationValues RegistrationValues() noexcept {
-        return MetadataRegistrationValues(Types());
-    }
-    MetadataRegistrationValues RegistrationValues() const noexcept {
-        return MetadataRegistrationValues(Types());
-    }
+    MetadataRegistrationValues RegistrationValues() noexcept;
+    MetadataRegistrationValues RegistrationValues() const noexcept;
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     const DependencyPropertyRegistry& DependencyProperties() const noexcept;
     RoutedEventRegistry& RoutedEvents() noexcept;

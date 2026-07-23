@@ -1,6 +1,7 @@
 #include <Aero/Core/Presentation.hpp>
 
 #include <Aero/Core/Controls.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 
 #include <cctype>
 #include <cerrno>
@@ -18,6 +19,7 @@ thread_local PresentationContext* CurrentPresentationContext = nullptr;
 struct DefaultPresentationRuntime final {
     Dispatcher dispatcher;
     TypeRegistry types;
+    MetadataValueRegistrationStore values{types};
     DependencyPropertyRegistry properties{types};
     RoutedEventRegistry routedEvents{types};
     bool ready = false;
@@ -25,9 +27,9 @@ struct DefaultPresentationRuntime final {
     DefaultPresentationRuntime() noexcept {
         Base::Result<void> registered =
             TryRegisterPresentationMetadata(
-                types, properties, &routedEvents);
-        if (!registered || !types.Freeze() || !properties.Freeze() ||
-            !routedEvents.Freeze()) {
+                types, values, properties, &routedEvents);
+        if (!registered || !types.Freeze() || !values.Freeze() ||
+            !properties.Freeze() || !routedEvents.Freeze()) {
             return;
         }
         ready = true;
@@ -112,7 +114,7 @@ Base::Result<Value> ConvertString(TypeId type, Base::StringView text,
 
 Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
     void* context) noexcept {
-    auto* types = static_cast<TypeRegistry*>(context);
+    auto* values = static_cast<MetadataValueRegistrationStore*>(context);
     const Base::StringView value = Trim(text);
     Length length = Length::Auto();
     if (!EqualsAsciiInsensitive(value, "auto")) {
@@ -123,7 +125,7 @@ Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
         }
         length = Length::Pixels(parsed.Value());
     }
-    return MetadataRegistrationValues(*types).TryCreateValue(type, &length);
+    return MetadataRegistrationValues(*values).TryCreateValue(type, &length);
 }
 
 Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
@@ -180,7 +182,7 @@ Base::Result<Value> ConvertThickness(TypeId type, Base::StringView text,
     Base::Result<Thickness> parsed = ParseThickness(text);
     if (!parsed) return parsed.GetStatus();
     return MetadataRegistrationValues(
-        *static_cast<TypeRegistry*>(context)).TryCreateValue(
+        *static_cast<MetadataValueRegistrationStore*>(context)).TryCreateValue(
             type, &parsed.Value());
 }
 
@@ -214,7 +216,8 @@ Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
         : Color{bytes[1] / 255.0F, bytes[2] / 255.0F,
             bytes[3] / 255.0F, bytes[0] / 255.0F};
     return MetadataRegistrationValues(
-        *static_cast<TypeRegistry*>(context)).TryCreateValue(type, &color);
+        *static_cast<MetadataValueRegistrationStore*>(context)).TryCreateValue(
+            type, &color);
 }
 
 bool EqualLength(const void* left, const void* right, void*) noexcept {
@@ -354,13 +357,59 @@ PresentationContext GetCurrentPresentationContext() noexcept {
         return *CurrentPresentationContext;
     }
     DefaultPresentationRuntime& runtime = GetDefaultPresentationRuntime();
-    return {&runtime.dispatcher, &runtime.properties};
+    return {&runtime.dispatcher, &runtime.properties, &runtime.values, nullptr};
+}
+
+Base::Result<Value> TryCreatePresentationValue(
+    TypeId type,
+    const void* source) noexcept {
+    PresentationContext context = GetCurrentPresentationContext();
+    if (context.metadataRuntime != nullptr) {
+        return context.metadataRuntime->TryCreateValue(type, source);
+    }
+    if (context.valueRegistrations != nullptr) {
+        return MetadataRegistrationValues(
+            *context.valueRegistrations).TryCreateValue(type, source);
+    }
+    DefaultPresentationRuntime& fallback = GetDefaultPresentationRuntime();
+    return MetadataRegistrationValues(fallback.values).TryCreateValue(
+        type, source);
 }
 
 PresentationContextScope::PresentationContextScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties) noexcept
-    : context_{&dispatcher, &properties},
+    : context_{&dispatcher, &properties, nullptr, nullptr},
+      previous_(CurrentPresentationContext),
+      ownerThread_(CurrentDispatcherThreadToken()) {
+    CurrentPresentationContext = &context_;
+}
+
+PresentationContextScope::PresentationContextScope(
+    Dispatcher& dispatcher,
+    DependencyPropertyRegistry& properties,
+    MetadataValueRegistrationStore& values) noexcept
+    : context_{&dispatcher, &properties, &values, nullptr},
+      previous_(CurrentPresentationContext),
+      ownerThread_(CurrentDispatcherThreadToken()) {
+    CurrentPresentationContext = &context_;
+}
+
+PresentationContextScope::PresentationContextScope(
+    Dispatcher& dispatcher,
+    DependencyPropertyRegistry& properties,
+    MetadataRuntime& runtime) noexcept
+    : context_{&dispatcher, &properties, nullptr, &runtime},
+      previous_(CurrentPresentationContext),
+      ownerThread_(CurrentDispatcherThreadToken()) {
+    CurrentPresentationContext = &context_;
+}
+
+PresentationContextScope::PresentationContextScope(
+    Dispatcher& dispatcher,
+    DependencyPropertyRegistry& properties,
+    MetadataRuntime* runtime) noexcept
+    : context_{&dispatcher, &properties, nullptr, runtime},
       previous_(CurrentPresentationContext),
       ownerThread_(CurrentDispatcherThreadToken()) {
     CurrentPresentationContext = &context_;
@@ -526,6 +575,7 @@ AERO_IMPLEMENT_METADATA(ContentPresenter, TypeFlags::None) {
 
 Base::Result<void> TryRegisterPresentationMetadata(
     TypeRegistry& types,
+    MetadataValueRegistrationStore& values,
     DependencyPropertyRegistry& properties,
     RoutedEventRegistry* routedEvents) noexcept {
     auto registerType = [&types](Base::StringView name, TypeId base,
@@ -598,16 +648,16 @@ Base::Result<void> TryRegisterPresentationMetadata(
         if (!status) return status.GetStatus();
     }
 
-    MetadataRegistrationValues values(types);
-    status = values.TryRegisterValueSemantics(BuiltinTypes::Length,
+    MetadataRegistrationValues registrationValues(values);
+    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Length,
         {sizeof(Length), alignof(Length), nullptr, nullptr,
          &EqualLength, nullptr, true});
     if (!status) return status.GetStatus();
-    status = values.TryRegisterValueSemantics(BuiltinTypes::Thickness,
+    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Thickness,
         {sizeof(Thickness), alignof(Thickness), nullptr, nullptr,
          &EqualThickness, nullptr, true});
     if (!status) return status.GetStatus();
-    status = values.TryRegisterValueSemantics(BuiltinTypes::Color,
+    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Color,
         {sizeof(Color), alignof(Color), nullptr, nullptr,
          &EqualColor, nullptr, true});
     if (!status) return status.GetStatus();
@@ -617,20 +667,20 @@ Base::Result<void> TryRegisterPresentationMetadata(
         {BuiltinTypes::UnsignedInteger, &ConvertUnsigned, nullptr},
         {BuiltinTypes::Double, &ConvertDoubleValue, nullptr},
         {BuiltinTypes::String, &ConvertString, nullptr},
-        {BuiltinTypes::Length, &ConvertLength, &types},
-        {BuiltinTypes::Thickness, &ConvertThickness, &types},
-        {BuiltinTypes::Color, &ConvertColor, &types},
+        {BuiltinTypes::Length, &ConvertLength, &values},
+        {BuiltinTypes::Thickness, &ConvertThickness, &values},
+        {BuiltinTypes::Color, &ConvertColor, &values},
         {BuiltinTypes::HorizontalAlignment, &ConvertHorizontal, nullptr},
         {BuiltinTypes::VerticalAlignment, &ConvertVertical, nullptr},
         {BuiltinTypes::Orientation, &ConvertOrientation, nullptr}
     };
     for (const TextValueConverterRegistration& converter : converters) {
-        status = values.TryRegisterTextConverter(converter);
+        status = registrationValues.TryRegisterTextConverter(converter);
         if (!status) return status.GetStatus();
     }
 
     MetaRegistrationContext registrationContext{
-        types, properties, routedEvents};
+        types, values, properties, routedEvents};
     using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
     const Registrar presentationRegistrars[] = {
         &DependencyObject::TryRegisterMetadata,

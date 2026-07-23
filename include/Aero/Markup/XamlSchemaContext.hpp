@@ -175,7 +175,6 @@ struct XamlMarkupExtensionRegistration final {
 
 class AERO_API XamlSchemaContext final {
 public:
-    explicit XamlSchemaContext(Core::TypeRegistry& types) noexcept;
     XamlSchemaContext(
         Core::MetadataDomain& domain,
         Core::MetadataRuntime& runtime) noexcept;
@@ -320,12 +319,6 @@ private:
         const XamlResolvedMember& member) const noexcept;
     const XamlTypeAdapterRegistration* FindTypeAdapterExact(
         Core::TypeId type) const noexcept;
-    Base::Result<XamlResolvedMember> ResolvePropertyOrEvent(
-        Core::TypeId targetType,
-        Core::TypeId ownerType,
-        Base::StringView memberName,
-        XamlMemberSyntax syntax,
-        bool ownerWasExplicit) const noexcept;
     Base::Result<XamlResolvedMember> ResolvePropertyOrEventRuntime(
         Core::TypeId targetType,
         Core::TypeId ownerType,

@@ -14,6 +14,8 @@
 
 namespace Aero::Core {
 
+class MetadataValueRegistrationStore;
+
 class DependencyProperty;
 class DependencyPropertyRegistry;
 class RoutedEventRegistry;
@@ -278,7 +280,7 @@ public:
         const DependencyPropertyRegistry& dependencyProperties,
         const RoutedEventRegistry& routedEvents) noexcept;
     Base::Result<void> BuildValueFacets(
-        const TypeRegistry& source,
+        const MetadataValueRegistrationStore& source,
         const MetadataDescriptorStore& descriptors) noexcept;
 
     bool IsSealed() const noexcept { return sealed_; }

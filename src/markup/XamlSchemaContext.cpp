@@ -1,7 +1,5 @@
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
-#include <Aero/Core/MetadataRegistrationValues.hpp>
-
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -14,52 +12,18 @@ constexpr const char* MessageSchemaNotFrozen =
     "XAML schema context must be frozen before use";
 constexpr const char* MessageSchemaAlreadyFrozen =
     "XAML schema context is frozen";
-constexpr const char* MessageTypeNotFound =
-    "XAML type is not registered";
-constexpr const char* MessageMemberNotFound =
-    "XAML member is not registered for the target type";
-constexpr const char* MessageInvalidAttachedMember =
-    "Qualified XAML attribute does not resolve to an attached member";
-constexpr const char* MessageInvalidPropertyElement =
-    "XAML property element owner is not compatible with the target type";
-constexpr const char* MessageTypeNotConstructible =
-    "XAML type is not constructible";
 constexpr const char* MessageInvalidScalarType =
     "XAML scalar registration requires a registered value type";
 constexpr const char* MessageInvalidScalarValue =
     "XAML text cannot be converted to the requested scalar type";
 constexpr const char* MessageMissingScalarConverter =
     "XAML value type has no registered scalar converter";
-constexpr const char* MessageMissingMemberAdapter =
-    "XAML member has no registered write adapter";
-constexpr const char* MessageMemberTypeMismatch =
-    "XAML value is not compatible with the member value type";
-constexpr const char* MessageUnsupportedEvent =
-    "XAML event assignment is not implemented in this object-writer slice";
-constexpr const char* MessageInvalidContentMember =
-    "XAML type adapter content member is invalid";
-constexpr const char* MessageContentMemberNotFound =
-    "XAML type has no content member";
-constexpr const char* MessageServicesRequired =
-    "XAML member adapter requires a service-provider context";
 constexpr const char* MessageInvalidMarkupExtension =
     "XAML markup-extension registration requires a flagged type and provider";
 constexpr const char* MessageMissingMarkupExtension =
     "XAML markup-extension type has no registered value provider";
 
 bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
-
-bool HasPropertyFlag(
-    Core::PropertyFlags value,
-    Core::PropertyFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
-
-bool HasEventFlag(Core::EventFlags value, Core::EventFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
@@ -265,16 +229,6 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
 
 } // namespace
 
-XamlSchemaContext::XamlSchemaContext(Core::TypeRegistry& types) noexcept
-    : types_(&types),
-      memberAccessor_(types),
-      scalarTypes_(),
-      textConverters_(),
-      memberAdapters_(),
-      memberProviders_(),
-      typeAdapters_(),
-      markupExtensions_() {}
-
 Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
     Core::TypeId type,
     XamlScalarKind kind) noexcept {
@@ -283,7 +237,8 @@ Base::Result<void> XamlSchemaContext::TryRegisterScalarType(
             Base::ErrorCode::InvalidState,
             MessageSchemaAlreadyFrozen);
     }
-    const Core::TypeInfo* info = types_->FindType(type);
+    const Core::MetadataTypeDescriptor* info =
+        runtime_->Descriptors().FindType(type);
     if (info == nullptr ||
         !HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType) ||
         static_cast<std::uint8_t>(kind) >
@@ -307,7 +262,8 @@ Base::Result<void> XamlSchemaContext::TryRegisterTextConverter(
             Base::ErrorCode::InvalidState,
             MessageSchemaAlreadyFrozen);
     }
-    const Core::TypeInfo* info = types_->FindType(registration.type);
+    const Core::MetadataTypeDescriptor* info =
+        runtime_->Descriptors().FindType(registration.type);
     if (info == nullptr || registration.convert == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -331,7 +287,7 @@ Base::Result<void> XamlSchemaContext::TryRegisterMemberAdapter(
     }
     if (registration.member == Core::InvalidMemberId ||
         (registration.set == nullptr && registration.setWithServices == nullptr) ||
-        types_->FindProperty(registration.member) == nullptr) {
+        runtime_->Descriptors().FindProperty(registration.member) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML member adapter registration is invalid");
@@ -375,7 +331,8 @@ Base::Result<void> XamlSchemaContext::TryRegisterTypeAdapter(
             Base::ErrorCode::InvalidState,
             MessageSchemaAlreadyFrozen);
     }
-    const Core::TypeInfo* type = types_->FindType(registration.type);
+    const Core::MetadataTypeDescriptor* type =
+        runtime_->Descriptors().FindType(registration.type);
     if (type == nullptr ||
         HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType)) {
         return Base::Status::Failure(
@@ -397,7 +354,8 @@ Base::Result<void> XamlSchemaContext::TryRegisterMarkupExtension(
             Base::ErrorCode::InvalidState,
             MessageSchemaAlreadyFrozen);
     }
-    const Core::TypeInfo* type = types_->FindType(registration.type);
+    const Core::MetadataTypeDescriptor* type =
+        runtime_->Descriptors().FindType(registration.type);
     if (type == nullptr || registration.provideValue == nullptr ||
         !HasTypeFlag(type->Flags(), Core::TypeFlags::MarkupExtension)) {
         return Base::Status::Failure(
@@ -414,10 +372,11 @@ Base::Result<void> XamlSchemaContext::TryRegisterMarkupExtension(
 
 Base::Result<void> XamlSchemaContext::Freeze() noexcept {
     if (frozen_) return {};
-    if (!types_->IsFrozen()) {
+    if (domain_ == nullptr || runtime_ == nullptr ||
+        !domain_->IsSealed() || !runtime_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "TypeRegistry must be frozen before the XAML schema context");
+            "MetadataDomain and MetadataRuntime must be sealed before XAML schema freeze");
     }
     Base::Result<void> accessors = memberAccessor_.Freeze();
     if (!accessors) return accessors.GetStatus();
@@ -428,174 +387,38 @@ Base::Result<void> XamlSchemaContext::Freeze() noexcept {
 Base::Result<const Core::TypeInfo*> XamlSchemaContext::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
-    if (!frozen_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageSchemaNotFrozen);
-    }
-    const Core::TypeInfo* type =
-        types_->FindType(xamlNamespace, localName);
-    if (type == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessageTypeNotFound);
-    }
-    return type;
+    return ResolveTypeRuntime(xamlNamespace, localName);
 }
 
 Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMember(
     Core::TypeId targetType,
     const XamlQualifiedName& name,
     XamlMemberSyntax syntax) const noexcept {
-    if (!frozen_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageSchemaNotFrozen);
-    }
-    const Core::TypeInfo* target = types_->FindType(targetType);
-    if (target == nullptr || name.LocalName().Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageMemberNotFound);
-    }
-
-    const Base::StringView localName = name.LocalName();
-    std::uint32_t dot = localName.SizeBytes();
-    for (std::uint32_t index = 0U;
-         index < localName.SizeBytes();
-         ++index) {
-        if (localName[index] != '.') continue;
-        if (dot != localName.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageMemberNotFound);
-        }
-        dot = index;
-    }
-
-    if (dot == localName.SizeBytes()) {
-        if (!name.NamespaceUri().Empty() &&
-            name.NamespaceUri() != target->XamlNamespace()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                MessageMemberNotFound);
-        }
-        return ResolvePropertyOrEvent(
-            targetType,
-            targetType,
-            localName,
-            syntax,
-            false);
-    }
-
-    if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageMemberNotFound);
-    }
-
-    const Base::StringView ownerName = localName.Substr(0U, dot);
-    const Base::StringView memberName = localName.Substr(
-        dot + 1U,
-        localName.SizeBytes() - dot - 1U);
-    const Base::StringView ownerNamespace = name.NamespaceUri().Empty()
-        ? target->XamlNamespace()
-        : name.NamespaceUri();
-    const Core::TypeInfo* owner =
-        types_->FindType(ownerNamespace, ownerName);
-    if (owner == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessageMemberNotFound);
-    }
-    return ResolvePropertyOrEvent(
-        targetType,
-        owner->Id(),
-        memberName,
-        syntax,
-        true);
+    return ResolveMemberRuntime(targetType, name, syntax);
 }
 
 Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMember(
     Core::TypeId targetType) const noexcept {
-    if (!frozen_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageSchemaNotFrozen);
-    }
-    const Core::MemberId contentMember =
-        types_->FindContentMember(targetType);
-    if (contentMember == Core::InvalidMemberId) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessageContentMemberNotFound);
-    }
-
-    const Core::PropertyInfo* property =
-        types_->FindProperty(contentMember);
-    if (property == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageInvalidContentMember);
-    }
-
-    XamlResolvedMember resolved;
-    resolved.id = property->Id();
-    resolved.kind = Core::MemberKind::Property;
-    resolved.ownerType = property->OwnerType();
-    resolved.valueType = property->ValueType();
-    resolved.propertyFlags = property->Flags();
-    resolved.attached = HasPropertyFlag(
-        property->Flags(),
-        Core::PropertyFlags::Attached);
-    return resolved;
+    return ResolveContentMemberRuntime(targetType);
 }
 
 Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObject(
     Core::TypeId type) const noexcept {
-    if (!frozen_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageSchemaNotFrozen);
-    }
-    const Core::TypeInfo* info = types_->FindType(type);
-    if (info == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            MessageTypeNotFound);
-    }
-    const Core::TypeFactoryRegistration* factory =
-        types_->FindTypeFactory(type);
-    if (HasTypeFlag(info->Flags(), Core::TypeFlags::Abstract) ||
-        HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType) ||
-        factory == nullptr || factory->factory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            MessageTypeNotConstructible);
-    }
-
-    Base::Result<Base::Ref<Base::Object>> created = factory->factory();
-    if (!created) return created.GetStatus();
-    if (!created.Value()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "XAML object factory returned a null object");
-    }
-    return created;
+    return CreateObjectRuntime(type);
 }
 
 Base::Result<XamlValue> XamlSchemaContext::ConvertText(
     Core::TypeId type,
     Base::StringView text) const noexcept {
-    if (!frozen_) {
+    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    Base::Result<Core::Value> reflected =
-        Core::MetadataRegistrationValues(*types_).TryConvertText(type, text);
+    Base::Result<Core::Value> reflected = runtime_->TryConvertText(type, text);
     if (reflected) return reflected;
-    if (reflected.GetStatus().code != Base::ErrorCode::NotFound) {
+    if (reflected.GetStatus().code != Base::ErrorCode::NotFound &&
+        reflected.GetStatus().code != Base::ErrorCode::Unsupported) {
         return reflected.GetStatus();
     }
     const XamlTextConverterRegistration* converter = FindTextConverter(type);
@@ -603,8 +426,7 @@ Base::Result<XamlValue> XamlSchemaContext::ConvertText(
         Base::Result<XamlValue> converted = converter->convert(
             type, text, converter->context);
         if (!converted) return converted.GetStatus();
-        if (converted.Value().Type() != type ||
-            converted.Value().Kind() == XamlValueKind::None) {
+        if (converted.Value().Type() != type || converted.Value().IsUnset()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "XAML text converter returned an incompatible value");
@@ -661,79 +483,7 @@ Base::Result<void> XamlSchemaContext::SetMember(
     const XamlResolvedMember& member,
     const XamlValue& value,
     const XamlServiceProvider* services) const noexcept {
-    if (!frozen_ || !member.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageSchemaNotFrozen);
-    }
-    if (member.kind != Core::MemberKind::Property) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            MessageUnsupportedEvent);
-    }
-    if (!member.attached &&
-        !types_->IsDerivedFrom(objectType, member.ownerType)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageMemberTypeMismatch);
-    }
-
-    const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
-    const Core::PropertyInfo* metaProperty = types_->FindProperty(member.id);
-    const Core::PropertyAccessorRegistration* metaAccessor =
-        metaProperty != nullptr
-            ? types_->FindPropertyAccessor(member.id) : nullptr;
-    const bool metaWritable = adapter == nullptr && metaProperty != nullptr &&
-        metaAccessor != nullptr &&
-        metaAccessor->access != Core::PropertyAccessKind::External;
-    const XamlMemberProviderRegistration* provider =
-        adapter == nullptr && !metaWritable ? FindMemberProvider(member) : nullptr;
-    if ((adapter == nullptr ||
-         (adapter->set == nullptr && adapter->setWithServices == nullptr)) &&
-        !metaWritable && provider == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            MessageMissingMemberAdapter);
-    }
-    const bool acceptsAnyValue = adapter != nullptr
-        ? adapter->acceptsAnyValue
-        : (metaWritable ? false : provider->acceptsAnyValue);
-    if (!acceptsAnyValue) {
-        bool compatible = value.Type() == member.valueType;
-        if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
-            compatible = types_->IsDerivedFrom(
-                value.Type(), member.valueType);
-        }
-        if (!compatible) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageMemberTypeMismatch);
-        }
-    }
-    if (adapter != nullptr && adapter->setWithServices != nullptr) {
-        if (services == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                MessageServicesRequired);
-        }
-        return adapter->setWithServices(
-            object,
-            value,
-            *services,
-            adapter->context);
-    }
-    if (adapter != nullptr) {
-        return adapter->set(object, value, adapter->context);
-    }
-    if (metaWritable) {
-        return memberAccessor_.SetProperty(object, *metaProperty, value);
-    }
-    if (services == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            MessageServicesRequired);
-    }
-    return provider->set(object, value, *services, provider->context);
+    return SetMemberRuntime(object, objectType, member, value, services);
 }
 
 Base::Result<XamlValue> XamlSchemaContext::ProvideMarkupExtensionValue(
@@ -745,7 +495,8 @@ Base::Result<XamlValue> XamlSchemaContext::ProvideMarkupExtensionValue(
             Base::ErrorCode::InvalidState,
             MessageSchemaNotFrozen);
     }
-    const Core::TypeInfo* info = types_->FindType(type);
+    const Core::MetadataTypeDescriptor* info =
+        runtime_->Descriptors().FindType(type);
     const XamlMarkupExtensionRegistration* registration =
         FindMarkupExtension(type);
     if (info == nullptr ||
@@ -841,24 +592,7 @@ const XamlMemberAdapterRegistration* XamlSchemaContext::FindMemberAdapter(
 
 XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicy(
     const XamlResolvedMember& member) const noexcept {
-    const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
-    if (adapter != nullptr &&
-        (adapter->set != nullptr || adapter->setWithServices != nullptr)) {
-        return {adapter->mode, adapter->acceptsAnyValue, true};
-    }
-    const Core::PropertyInfo* property = types_->FindProperty(member.id);
-    const Core::PropertyAccessorRegistration* accessor =
-        property != nullptr
-            ? types_->FindPropertyAccessor(member.id) : nullptr;
-    if (property != nullptr && accessor != nullptr &&
-        accessor->access != Core::PropertyAccessKind::External) {
-        return {XamlMemberWriteMode::SetOnce, false, true};
-    }
-    const XamlMemberProviderRegistration* provider = FindMemberProvider(member);
-    if (provider != nullptr) {
-        return {provider->mode, provider->acceptsAnyValue, true};
-    }
-    return {};
+    return ResolveMemberWritePolicyRuntime(member);
 }
 
 const XamlTypeAdapterRegistration* XamlSchemaContext::FindTypeAdapter(
@@ -868,7 +602,8 @@ const XamlTypeAdapterRegistration* XamlSchemaContext::FindTypeAdapter(
         const XamlTypeAdapterRegistration* adapter =
             FindTypeAdapterExact(current);
         if (adapter != nullptr) return adapter;
-        const Core::TypeInfo* info = types_->FindType(current);
+        const Core::MetadataTypeDescriptor* info =
+            runtime_->Descriptors().FindType(current);
         if (info == nullptr) break;
         current = info->BaseType();
     }
@@ -920,82 +655,5 @@ XamlSchemaContext::FindTypeAdapterExact(Core::TypeId type) const noexcept {
     return nullptr;
 }
 
-Base::Result<XamlResolvedMember>
-XamlSchemaContext::ResolvePropertyOrEvent(
-    Core::TypeId targetType,
-    Core::TypeId ownerType,
-    Base::StringView memberName,
-    XamlMemberSyntax syntax,
-    bool ownerWasExplicit) const noexcept {
-    const Core::PropertyInfo* property = types_->FindProperty(
-        ownerType,
-        memberName,
-        true);
-    if (property != nullptr) {
-        const bool attached = HasPropertyFlag(
-            property->Flags(),
-            Core::PropertyFlags::Attached);
-        if (ownerWasExplicit && syntax == XamlMemberSyntax::Attribute &&
-            !attached) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageInvalidAttachedMember);
-        }
-        if (ownerWasExplicit &&
-            syntax == XamlMemberSyntax::PropertyElement &&
-            !attached &&
-            !types_->IsDerivedFrom(targetType, property->OwnerType())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageInvalidPropertyElement);
-        }
-
-        XamlResolvedMember resolved;
-        resolved.id = property->Id();
-        resolved.kind = Core::MemberKind::Property;
-        resolved.ownerType = property->OwnerType();
-        resolved.valueType = property->ValueType();
-        resolved.propertyFlags = property->Flags();
-        resolved.attached = attached;
-        return resolved;
-    }
-
-    const Core::EventInfo* event = types_->FindEvent(
-        ownerType,
-        memberName,
-        true);
-    if (event != nullptr) {
-        const bool attached = HasEventFlag(
-            event->Flags(),
-            Core::EventFlags::Attached);
-        if (ownerWasExplicit && syntax == XamlMemberSyntax::Attribute &&
-            !attached) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageInvalidAttachedMember);
-        }
-        if (ownerWasExplicit &&
-            syntax == XamlMemberSyntax::PropertyElement &&
-            !attached &&
-            !types_->IsDerivedFrom(targetType, event->OwnerType())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                MessageInvalidPropertyElement);
-        }
-
-        XamlResolvedMember resolved;
-        resolved.id = event->Id();
-        resolved.kind = Core::MemberKind::Event;
-        resolved.ownerType = event->OwnerType();
-        resolved.valueType = event->EventArgsType();
-        resolved.eventFlags = event->Flags();
-        resolved.attached = attached;
-        return resolved;
-    }
-
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        MessageMemberNotFound);
-}
 
 } // namespace Aero::Markup

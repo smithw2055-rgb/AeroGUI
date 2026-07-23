@@ -5,9 +5,10 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/EffectiveValueEngine.hpp>
+#include <Aero/Core/MetadataDomain.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Style.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -19,6 +20,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -41,7 +43,8 @@ Fixture* gFixture = nullptr;
 
 class RootNode final : public Object {
 public:
-    RootNode() noexcept = default;
+    explicit RootNode(TypeId type) noexcept : type_(type) {}
+    TypeId RuntimeType() const noexcept override { return type_; }
 
     Result<void> AddChild(Ref<Object> child) noexcept {
         return children_.TryPushBack(std::move(child));
@@ -51,6 +54,7 @@ public:
     }
 
 private:
+    TypeId type_ = InvalidTypeId;
     Vector<Ref<Object>> children_;
 };
 
@@ -60,7 +64,13 @@ public:
         : DependencyObject(type) {}
 };
 
-class BrushNode final : public Object {};
+class BrushNode final : public Object {
+public:
+    explicit BrushNode(TypeId type) noexcept : type_(type) {}
+    TypeId RuntimeType() const noexcept override { return type_; }
+private:
+    TypeId type_ = InvalidTypeId;
+};
 
 Result<Ref<Object>> MakeRoot() noexcept;
 Result<Ref<Object>> MakeElement() noexcept;
@@ -70,17 +80,15 @@ DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    PresentationContextScope presentation{dispatcher, properties};
-    EffectiveValueEngine effectiveValues{dispatcher, properties};
-    StyleManager styles{effectiveValues, properties};
-    XamlSchemaContext schema{types};
-    XamlActivationProviderRegistry activation{schema};
-    XamlDependencyPropertyBridge dpBridge{schema, properties};
-    XamlStyleExtension styleExtension{{
-        &styles, &properties, InvalidTypeId, &AsDependencyObject, nullptr}};
-    XamlTypeExtension typeExtension{InvalidTypeId};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<EffectiveValueEngine> effectiveValues;
+    std::unique_ptr<StyleManager> styles;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dpBridge;
+    std::unique_ptr<XamlStyleExtension> styleExtension;
+    std::unique_ptr<XamlTypeExtension> typeExtension;
 
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -98,6 +106,105 @@ struct Fixture final {
     MemberId children = InvalidMemberId;
     Ref<Object> defaultBrush;
 
+    static Result<void> RegisterModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        return static_cast<Fixture*>(userContext)->RegisterMetadata(context);
+    }
+
+    Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
+        TypeRegistry& types = context.types;
+        DependencyPropertyRegistry& properties = context.dependencyProperties;
+        const StringView ns("urn:xaml-style-tests");
+
+        const TypeRegistration registrations[] = {
+            {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
+            {ns, StringView("String"), InvalidTypeId,
+             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
+            {ns, StringView("Double"), InvalidTypeId,
+             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
+            {ns, StringView("TypeReference"), InvalidTypeId,
+             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
+            {ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot},
+            {ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement},
+            {ns, StringView("Brush"), objectType, TypeFlags::None, &MakeBrush},
+            {ns, StringView("Style"), objectType, TypeFlags::None, nullptr},
+            {ns, StringView("Setter"), objectType, TypeFlags::None, nullptr},
+            {XamlLanguageNamespaceUri(), StringView("Type"), objectType,
+             TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}
+        };
+        for (const TypeRegistration& registration : registrations) {
+            Result<TypeId> registered = types.TryRegisterType(registration);
+            if (!registered) return registered.GetStatus();
+        }
+
+        Result<MemberId> member = types.TryRegisterProperty(
+            rootType,
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
+        if (!member) return member.GetStatus();
+        children = member.Value();
+        Result<void> status = types.TrySetContentMember(rootType, children);
+        if (!status) return status.GetStatus();
+
+        member = types.TryRegisterProperty(
+            styleType, {StringView("TargetType"), stringType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        member = types.TryRegisterProperty(
+            styleType, {StringView("BasedOn"), styleType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        member = types.TryRegisterProperty(
+            styleType,
+            {StringView("Setters"), setterType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
+        if (!member) return member.GetStatus();
+        status = types.TrySetContentMember(styleType, member.Value());
+        if (!status) return status.GetStatus();
+        member = types.TryRegisterProperty(
+            setterType, {StringView("Property"), stringType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        member = types.TryRegisterProperty(
+            setterType, {StringView("Value"), stringType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+
+        DependencyPropertyRegistration widthRegistration;
+        widthRegistration.name = StringView("Width");
+        widthRegistration.ownerType = elementType;
+        widthRegistration.valueType = doubleType;
+        widthRegistration.metadata.defaultValue =
+            PropertyValue::FromDouble(doubleType, 1.0);
+        Result<DependencyPropertyRegistrationResult> widthResult =
+            properties.TryRegister(widthRegistration);
+        if (!widthResult) return widthResult.GetStatus();
+        width = widthResult.Value().property;
+
+        DependencyPropertyRegistration fillRegistration;
+        fillRegistration.name = StringView("Fill");
+        fillRegistration.ownerType = elementType;
+        fillRegistration.valueType = brushType;
+        Result<Ref<Object>> createdDefaultBrush = MakeBrush();
+        if (!createdDefaultBrush) return createdDefaultBrush.GetStatus();
+        defaultBrush = std::move(createdDefaultBrush).Value();
+        fillRegistration.metadata.defaultValue = PropertyValue::FromObject(
+            brushType, defaultBrush);
+        Result<DependencyPropertyRegistrationResult> fillResult =
+            properties.TryRegister(fillRegistration);
+        if (!fillResult) return fillResult.GetStatus();
+        fill = fillResult.Value().property;
+
+        DependencyPropertyRegistration styleRegistration;
+        styleRegistration.name = StringView("Style");
+        styleRegistration.ownerType = elementType;
+        styleRegistration.valueType = styleType;
+        styleRegistration.metadata.defaultValue =
+            PropertyValue::NullObject(styleType);
+        Result<DependencyPropertyRegistrationResult> styleResult =
+            properties.TryRegister(styleRegistration);
+        if (!styleResult) return styleResult.GetStatus();
+        style = styleResult.Value().property;
+        return {};
+    }
+
     bool Build() {
         gFixture = this;
         const StringView ns("urn:xaml-style-tests");
@@ -113,105 +220,52 @@ struct Fixture final {
         typeExtensionType = MakeTypeId(
             XamlLanguageNamespaceUri(), StringView("Type"));
 
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("TypeReference"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Root"), objectType,
-            TypeFlags::None, &MakeRoot}));
-        CHECK(types.TryRegisterType({ns, StringView("Element"), objectType,
-            TypeFlags::None, &MakeElement}));
-        CHECK(types.TryRegisterType({ns, StringView("Brush"), objectType,
-            TypeFlags::None, &MakeBrush}));
-        CHECK(types.TryRegisterType({ns, StringView("Style"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Setter"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({XamlLanguageNamespaceUri(), StringView("Type"),
-            objectType, TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}));
+        const StringView moduleName("Tests.XamlStyle");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterModule, this}));
+        CHECK(metadata.Seal());
 
-        CHECK(types.TryRegisterProperty(rootType,
-            {StringView("Children"), elementType,
-             PropertyFlags::Structural | PropertyFlags::Collection}));
-        children = types.FindProperty(rootType, StringView("Children"))->Id();
-        CHECK(types.TrySetContentMember(rootType, children));
-        CHECK(types.TryRegisterProperty(styleType,
-            {StringView("TargetType"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(styleType,
-            {StringView("BasedOn"), styleType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(styleType,
-            {StringView("Setters"), setterType,
-             PropertyFlags::Structural | PropertyFlags::Collection}));
-        const MemberId settersMember = types.FindProperty(
-            styleType, StringView("Setters"))->Id();
-        CHECK(types.TrySetContentMember(styleType, settersMember));
-        CHECK(types.TryRegisterProperty(setterType,
-            {StringView("Property"), stringType, PropertyFlags::None}));
-        CHECK(types.TryRegisterProperty(setterType,
-            {StringView("Value"), stringType, PropertyFlags::None}));
-        DependencyPropertyRegistration widthRegistration;
-        widthRegistration.name = StringView("Width");
-        widthRegistration.ownerType = elementType;
-        widthRegistration.valueType = doubleType;
-        widthRegistration.metadata.defaultValue =
-            PropertyValue::FromDouble(doubleType, 1.0);
-        Result<DependencyPropertyRegistrationResult> widthResult =
-            properties.TryRegister(widthRegistration);
-        CHECK(widthResult);
-        width = widthResult.Value().property;
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        effectiveValues = std::make_unique<EffectiveValueEngine>(
+            dispatcher, metadata.DependencyProperties());
+        styles = std::make_unique<StyleManager>(
+            *effectiveValues, metadata.DependencyProperties());
+        CHECK(effectiveValues->Initialize());
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dpBridge = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        styleExtension = std::make_unique<XamlStyleExtension>(
+            XamlStyleExtensionOptions{
+                styles.get(), &metadata.DependencyProperties(), InvalidTypeId,
+                &AsDependencyObject, nullptr});
+        typeExtension = std::make_unique<XamlTypeExtension>(InvalidTypeId);
 
-        DependencyPropertyRegistration fillRegistration;
-        fillRegistration.name = StringView("Fill");
-        fillRegistration.ownerType = elementType;
-        fillRegistration.valueType = brushType;
-        Result<Ref<Object>> createdDefaultBrush = MakeBrush();
-        CHECK(createdDefaultBrush);
-        defaultBrush = std::move(createdDefaultBrush).Value();
-        fillRegistration.metadata.defaultValue = PropertyValue::FromObject(
-            brushType, defaultBrush);
-        Result<DependencyPropertyRegistrationResult> fillResult =
-            properties.TryRegister(fillRegistration);
-        CHECK(fillResult);
-        fill = fillResult.Value().property;
-
-        DependencyPropertyRegistration styleRegistration;
-        styleRegistration.name = StringView("Style");
-        styleRegistration.ownerType = elementType;
-        styleRegistration.valueType = styleType;
-        styleRegistration.metadata.defaultValue =
-            PropertyValue::NullObject(styleType);
-        Result<DependencyPropertyRegistrationResult> styleResult =
-            properties.TryRegister(styleRegistration);
-        CHECK(styleResult);
-        style = styleResult.Value().property;
-
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(effectiveValues.Initialize());
-        CHECK(schema.TryRegisterScalarType(stringType, XamlScalarKind::String));
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
-        CHECK(schema.TryRegisterTypeAdapter({
+        CHECK(schema->TryRegisterScalarType(stringType, XamlScalarKind::String));
+        CHECK(schema->TryRegisterScalarType(doubleType, XamlScalarKind::Double));
+        CHECK(schema->TryRegisterTypeAdapter({
             rootType, nullptr, nullptr, nullptr, nullptr, false, true}));
-        CHECK(schema.TryRegisterMemberAdapter({
-            children, XamlMemberWriteMode::Collection, &AddChild, nullptr, nullptr}));
-        typeExtension.SetTypeReferenceType(typeReferenceType);
-        styleExtension.SetTypeReferenceType(typeReferenceType);
-        CHECK(typeExtension.Register(schema, typeExtensionType));
-        CHECK(styleExtension.Register(schema, activation, styleType, setterType, style));
-        CHECK(dpBridge.TryRegisterType({elementType, &AsDependencyObject, nullptr}));
-        CHECK(dpBridge.TryRegisterProperties());
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+        CHECK(schema->TryRegisterMemberAdapter({
+            children, XamlMemberWriteMode::Collection,
+            &AddChild, nullptr, nullptr}));
+        typeExtension->SetTypeReferenceType(typeReferenceType);
+        styleExtension->SetTypeReferenceType(typeReferenceType);
+        CHECK(typeExtension->Register(*schema, typeExtensionType));
+        CHECK(styleExtension->Register(
+            *schema, *activation, styleType, setterType, style));
+        CHECK(dpBridge->TryRegisterType({
+            elementType, &AsDependencyObject, nullptr}));
+        CHECK(dpBridge->TryRegisterProperties());
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 };
 
 Result<Ref<Object>> MakeRoot() noexcept {
-    Result<Ref<RootNode>> created = MakeRef<RootNode>();
+    Result<Ref<RootNode>> created = MakeRef<RootNode>(gFixture->rootType);
     if (!created) {
         return created.GetStatus();
     }
@@ -231,7 +285,7 @@ Result<Ref<Object>> MakeElement() noexcept {
 }
 
 Result<Ref<Object>> MakeBrush() noexcept {
-    Result<Ref<BrushNode>> created = MakeRef<BrushNode>();
+    Result<Ref<BrushNode>> created = MakeRef<BrushNode>(gFixture->brushType);
     if (!created) {
         return created.GetStatus();
     }
@@ -257,11 +311,11 @@ Result<Ref<Object>> Load(Fixture& fixture, const char* xaml) noexcept {
         return reset.GetStatus();
     }
     XamlNodeReader reader(tokenizer);
-    XamlObjectWriter writer(fixture.schema);
+    XamlObjectWriter writer(*fixture.schema);
     XamlActivationContext context = XamlActivationContext::Create();
     context.dispatcher = &fixture.dispatcher;
-    context.dependencyProperties = &fixture.properties;
-    return LoadXamlWithActivation(writer, reader, fixture.activation, context);
+    context.dependencyProperties = &fixture.metadata.DependencyProperties();
+    return LoadXamlWithActivation(writer, reader, *fixture.activation, context);
 }
 
 bool TestXamlStyleResourceBasedOnAndDetach() {
@@ -295,7 +349,7 @@ bool TestXamlStyleResourceBasedOnAndDetach() {
     CHECK(fill && !fill.Value().IsNullObject());
     CHECK(fill.Value().Type() == fixture.brushType);
     CHECK(fill.Value().AsObject().Get() != fixture.defaultBrush.Get());
-    CHECK(fixture.styleExtension.DetachObject(element).Value());
+    CHECK(fixture.styleExtension->DetachObject(element).Value());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     Result<PropertyValue> clearedStyle = element.GetValue(fixture.style);
     CHECK(clearedStyle && clearedStyle.Value().IsNullObject());

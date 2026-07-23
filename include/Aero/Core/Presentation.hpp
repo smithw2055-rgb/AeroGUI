@@ -10,12 +10,15 @@
 namespace Aero::Core {
 
 class RoutedEventRegistry;
+class MetadataRuntime;
 struct RoutedEventHandle;
 enum class RoutingStrategy : std::uint8_t;
 
 struct PresentationContext final {
     Dispatcher* dispatcher = nullptr;
     DependencyPropertyRegistry* dependencyProperties = nullptr;
+    MetadataValueRegistrationStore* valueRegistrations = nullptr;
+    MetadataRuntime* metadataRuntime = nullptr;
 
     bool IsValid() const noexcept {
         return dispatcher != nullptr && dependencyProperties != nullptr;
@@ -25,11 +28,27 @@ struct PresentationContext final {
 AERO_API PresentationContext
 GetCurrentPresentationContext() noexcept;
 
+AERO_API Base::Result<Value> TryCreatePresentationValue(
+    TypeId type,
+    const void* source) noexcept;
+
 class AERO_API PresentationContextScope final {
 public:
     PresentationContextScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties) noexcept;
+    PresentationContextScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties,
+        MetadataValueRegistrationStore& values) noexcept;
+    PresentationContextScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties,
+        MetadataRuntime& runtime) noexcept;
+    PresentationContextScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties,
+        MetadataRuntime* runtime) noexcept;
     ~PresentationContextScope();
 
     PresentationContextScope(const PresentationContextScope&) = delete;
@@ -45,24 +64,28 @@ private:
 
 struct MetaRegistrationContext final {
     TypeRegistry& types;
+    MetadataValueRegistrationStore& valueRegistrations;
     DependencyPropertyRegistry& dependencyProperties;
     RoutedEventRegistry* routedEvents = nullptr;
 
     MetaRegistrationContext(
         TypeRegistry& typeRegistry,
+        MetadataValueRegistrationStore& values,
         DependencyPropertyRegistry& properties,
         RoutedEventRegistry* events = nullptr) noexcept
         : types(typeRegistry),
+          valueRegistrations(values),
           dependencyProperties(properties),
           routedEvents(events) {}
 
     MetadataRegistrationValues Values() noexcept {
-        return MetadataRegistrationValues(types);
+        return MetadataRegistrationValues(valueRegistrations);
     }
 
     MetadataRegistrationValues Values() const noexcept {
         return MetadataRegistrationValues(
-            static_cast<const TypeRegistry&>(types));
+            static_cast<const MetadataValueRegistrationStore&>(
+                valueRegistrations));
     }
 };
 
@@ -142,6 +165,7 @@ private:
 AERO_API Base::Result<void>
 TryRegisterPresentationMetadata(
     TypeRegistry& types,
+    MetadataValueRegistrationStore& values,
     DependencyPropertyRegistry& properties,
     RoutedEventRegistry* routedEvents = nullptr) noexcept;
 

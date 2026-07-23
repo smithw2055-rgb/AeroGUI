@@ -5,8 +5,9 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Binding.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/MetadataDomain.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Core/Presentation.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlBinding.hpp>
 #include <Aero/Markup/XamlDynamicResource.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -16,6 +17,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -76,13 +78,15 @@ DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties;
-    PresentationContextScope presentation{dispatcher, properties};
+    MetadataDomain metadata;
     ResourceDictionary resources;
-    EffectiveValueEngine effectiveValues;
-    BindingManager bindings;
-    XamlSchemaContext schema;
+    BindingManager bindings{dispatcher};
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<EffectiveValueEngine> effectiveValues;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<PresentationContextScope> presentation;
+    std::unique_ptr<XamlBindingExtension> extension;
+    std::unique_ptr<XamlDynamicResourceExtension> dynamicResource;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId rootType = InvalidTypeId;
@@ -95,13 +99,93 @@ struct Fixture final {
     DependencyPropertyHandle dataContext;
     DependencyPropertyHandle resource;
 
-    Fixture() noexcept
-        : properties(types),
-          effectiveValues(dispatcher, properties),
-          bindings(dispatcher),
-          schema(types),
-          extension_({&bindings, &AsDependencyObject, nullptr, {}}),
-          dynamicResource_({&effectiveValues, &resources, &AsDependencyObject, nullptr}) {}
+    static Result<void> RegisterModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        return static_cast<Fixture*>(userContext)->RegisterMetadata(context);
+    }
+
+    Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
+        TypeRegistry& types = context.types;
+        DependencyPropertyRegistry& properties = context.dependencyProperties;
+        const StringView ns("urn:xaml-binding-tests");
+
+        Result<TypeId> registered = types.TryRegisterType({
+            ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("Double"), InvalidTypeId,
+            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("Brush"), objectType, TypeFlags::None, nullptr});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("Binding"), objectType,
+            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr});
+        if (!registered) return registered.GetStatus();
+        registered = types.TryRegisterType({
+            ns, StringView("DynamicResource"), objectType,
+            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr});
+        if (!registered) return registered.GetStatus();
+
+        DependencyPropertyRegistration sourceRegistration;
+        sourceRegistration.name = StringView("Source");
+        sourceRegistration.ownerType = elementType;
+        sourceRegistration.valueType = doubleType;
+        sourceRegistration.metadata.defaultValue =
+            PropertyValue::FromDouble(doubleType, 0.0);
+        Result<DependencyPropertyRegistrationResult> sourceResult =
+            properties.TryRegister(sourceRegistration);
+        if (!sourceResult) return sourceResult.GetStatus();
+        source = sourceResult.Value().property;
+
+        DependencyPropertyRegistration targetRegistration;
+        targetRegistration.name = StringView("Target");
+        targetRegistration.ownerType = elementType;
+        targetRegistration.valueType = doubleType;
+        targetRegistration.metadata.defaultValue =
+            PropertyValue::FromDouble(doubleType, -1.0);
+        Result<DependencyPropertyRegistrationResult> targetResult =
+            properties.TryRegister(targetRegistration);
+        if (!targetResult) return targetResult.GetStatus();
+        target = targetResult.Value().property;
+
+        DependencyPropertyRegistration dataContextRegistration;
+        dataContextRegistration.name = StringView("DataContext");
+        dataContextRegistration.ownerType = elementType;
+        dataContextRegistration.valueType = objectType;
+        dataContextRegistration.metadata.defaultValue =
+            PropertyValue::NullObject(objectType);
+        Result<DependencyPropertyRegistrationResult> dataContextResult =
+            properties.TryRegister(dataContextRegistration);
+        if (!dataContextResult) return dataContextResult.GetStatus();
+        dataContext = dataContextResult.Value().property;
+
+        DependencyPropertyRegistration resourceRegistration;
+        resourceRegistration.name = StringView("Resource");
+        resourceRegistration.ownerType = elementType;
+        resourceRegistration.valueType = objectType;
+        resourceRegistration.metadata.defaultValue =
+            PropertyValue::NullObject(objectType);
+        Result<DependencyPropertyRegistrationResult> resourceResult =
+            properties.TryRegister(resourceRegistration);
+        if (!resourceResult) return resourceResult.GetStatus();
+        resource = resourceResult.Value().property;
+
+        Result<MemberId> children = types.TryRegisterProperty(
+            rootType,
+            {StringView("Children"), elementType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
+        if (!children) return children.GetStatus();
+        return types.TrySetContentMember(rootType, children.Value());
+    }
 
     bool Build() {
         gFixture = this;
@@ -114,102 +198,52 @@ struct Fixture final {
         bindingExtensionType = MakeTypeId(ns, StringView("Binding"));
         dynamicResourceExtensionType = MakeTypeId(ns, StringView("DynamicResource"));
 
-        CHECK(types.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Brush"), objectType, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Binding"), objectType,
-            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("DynamicResource"), objectType,
-            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}));
+        const StringView moduleName("Tests.XamlBinding");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterModule, this}));
+        CHECK(metadata.Seal());
 
-        DependencyPropertyRegistration sourceRegistration;
-        sourceRegistration.name = StringView("Source");
-        sourceRegistration.ownerType = elementType;
-        sourceRegistration.valueType = doubleType;
-        sourceRegistration.metadata.defaultValue =
-            PropertyValue::FromDouble(doubleType, 0.0);
-        Result<DependencyPropertyRegistrationResult> sourceResult =
-            properties.TryRegister(sourceRegistration);
-        CHECK(sourceResult);
-        source = sourceResult.Value().property;
-
-        DependencyPropertyRegistration targetRegistration;
-        targetRegistration.name = StringView("Target");
-        targetRegistration.ownerType = elementType;
-        targetRegistration.valueType = doubleType;
-        targetRegistration.metadata.defaultValue =
-            PropertyValue::FromDouble(doubleType, -1.0);
-        Result<DependencyPropertyRegistrationResult> targetResult =
-            properties.TryRegister(targetRegistration);
-        CHECK(targetResult);
-        target = targetResult.Value().property;
-
-        DependencyPropertyRegistration dataContextRegistration;
-        dataContextRegistration.name = StringView("DataContext");
-        dataContextRegistration.ownerType = elementType;
-        dataContextRegistration.valueType = objectType;
-        dataContextRegistration.metadata.defaultValue =
-            PropertyValue::NullObject(objectType);
-        Result<DependencyPropertyRegistrationResult> dataContextResult =
-            properties.TryRegister(dataContextRegistration);
-        CHECK(dataContextResult);
-        dataContext = dataContextResult.Value().property;
-
-        DependencyPropertyRegistration resourceRegistration;
-        resourceRegistration.name = StringView("Resource");
-        resourceRegistration.ownerType = elementType;
-        resourceRegistration.valueType = objectType;
-        resourceRegistration.metadata.defaultValue = PropertyValue::NullObject(objectType);
-        Result<DependencyPropertyRegistrationResult> resourceResult =
-            properties.TryRegister(resourceRegistration);
-        CHECK(resourceResult);
-        resource = resourceResult.Value().property;
-
-        Result<MemberId> children = types.TryRegisterProperty(
-            rootType,
-            {StringView("Children"), elementType,
-             PropertyFlags::Structural | PropertyFlags::Collection});
-        CHECK(children);
-        CHECK(types.TrySetContentMember(rootType, children.Value()));
-
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(effectiveValues.Initialize());
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        effectiveValues = std::make_unique<EffectiveValueEngine>(
+            dispatcher, metadata.DependencyProperties());
+        CHECK(effectiveValues->Initialize());
         CHECK(bindings.Initialize());
-        CHECK(schema.TryRegisterScalarType(doubleType, XamlScalarKind::Double));
-        CHECK(schema.TryRegisterMemberAdapter({
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+
+        CHECK(schema->TryRegisterScalarType(doubleType, XamlScalarKind::Double));
+        CHECK(schema->TryRegisterMemberAdapter({
             source.value, XamlMemberWriteMode::SetOnce, nullptr, nullptr, &SetNumber}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             target.value, XamlMemberWriteMode::SetOnce, nullptr, nullptr, &SetNumber}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             dataContext.value, XamlMemberWriteMode::SetOnce, &SetObject, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             resource.value, XamlMemberWriteMode::SetOnce, nullptr, nullptr, &SetResource}));
-        CHECK(schema.TryRegisterMemberAdapter({
-            children.Value(), XamlMemberWriteMode::Collection, &AddChild, nullptr}));
-        CHECK(schema.TryRegisterTypeAdapter({
+        const MemberId children = MakeMemberId(
+            rootType, MemberKind::Property, StringView("Children"));
+        CHECK(schema->TryRegisterMemberAdapter({
+            children, XamlMemberWriteMode::Collection, &AddChild, nullptr}));
+        CHECK(schema->TryRegisterTypeAdapter({
             rootType, nullptr, nullptr, nullptr, nullptr, true}));
-        extension_.SetDataContextProperty(dataContext);
-        CHECK(extension_.Register(schema, bindingExtensionType));
-        CHECK(dynamicResource_.Register(schema, dynamicResourceExtensionType));
-        CHECK(TryRegisterDependencyPropertyProvider(
-            schema.Members(), properties, objectType));
-        CHECK(schema.Freeze());
+
+        extension = std::make_unique<XamlBindingExtension>(
+            XamlBindingExtensionOptions{
+                &bindings, &AsDependencyObject, nullptr, {}});
+        extension->SetDataContextProperty(dataContext);
+        CHECK(extension->Register(*schema, bindingExtensionType));
+        dynamicResource = std::make_unique<XamlDynamicResourceExtension>(
+            XamlDynamicResourceExtensionOptions{
+                effectiveValues.get(), &resources, &AsDependencyObject, nullptr});
+        CHECK(dynamicResource->Register(*schema, dynamicResourceExtensionType));
+        CHECK(TryRegisterDependencyPropertyRuntimeProvider(
+            *runtime, metadata.DependencyProperties(), objectType));
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        presentation = std::make_unique<PresentationContextScope>(
+            dispatcher, metadata.DependencyProperties(), *runtime);
         return true;
     }
-
-    XamlBindingExtension extension_;
-    XamlDynamicResourceExtension dynamicResource_;
 };
 
 Result<Ref<Object>> MakeRoot() noexcept {
@@ -311,7 +345,7 @@ bool TestElementNameOneWayBinding() {
         xaml,
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
-    XamlObjectWriter writer(fixture.schema);
+    XamlObjectWriter writer(*fixture.schema);
     Result<Ref<Object>> loaded = writer.Load(reader);
     CHECK(loaded);
 
@@ -350,7 +384,7 @@ bool TestBindingArgumentsAreValidated() {
         xaml,
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
-    XamlObjectWriter writer(fixture.schema);
+    XamlObjectWriter writer(*fixture.schema);
     Result<Ref<Object>> loaded = writer.Load(reader);
     CHECK(!loaded);
     CHECK(loaded.GetStatus().code == ErrorCode::ValidationFailed);
@@ -372,7 +406,7 @@ bool TestDataContextBinding() {
         xaml,
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
-    XamlObjectWriter writer(fixture.schema);
+    XamlObjectWriter writer(*fixture.schema);
     Result<Ref<Object>> loaded = writer.Load(reader);
     CHECK(loaded);
 
@@ -414,7 +448,7 @@ bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
     CHECK(tokenizer.Reset(StringView(
         xaml, static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
-    XamlObjectWriter writer(fixture.schema);
+    XamlObjectWriter writer(*fixture.schema);
     Result<Ref<Object>> loaded = writer.Load(reader);
     CHECK(loaded);
     BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
@@ -424,7 +458,7 @@ bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(target.GetValue(fixture.resource).Value().AsObject().Get() == firstObject.Get());
     Result<EffectiveValueDiagnostics> initial =
-        fixture.effectiveValues.Diagnostics(target, fixture.resource);
+        fixture.effectiveValues->Diagnostics(target, fixture.resource);
     CHECK(initial);
     CHECK(initial.Value().provider == EffectiveValueProvider::LocalExpression);
     CHECK(initial.Value().expressionKind == PropertyExpressionKind::DynamicResource);
@@ -434,10 +468,10 @@ bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(target.GetValue(fixture.resource).Value().AsObject().Get() == secondObject.Get());
 
-    CHECK(fixture.effectiveValues.ClearLocalExpression(target, fixture.resource));
+    CHECK(fixture.effectiveValues->ClearLocalExpression(target, fixture.resource));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(fixture.resources.TrySet(StringView("Accent"), fixture.brushType, firstObject));
-    CHECK(fixture.effectiveValues.PendingPropertyCount() == 0U);
+    CHECK(fixture.effectiveValues->PendingPropertyCount() == 0U);
     fixture.bindings.Shutdown();
     return true;
 }

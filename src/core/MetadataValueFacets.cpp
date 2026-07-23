@@ -33,7 +33,7 @@ Base::Status ValueFacetStateError(const char* message) noexcept {
 } // namespace
 
 Base::Result<void> MetadataFacetStore::BuildValueFacets(
-    const TypeRegistry& source,
+    const MetadataValueRegistrationStore& source,
     const MetadataDescriptorStore& descriptors) noexcept {
     if (!sealed_ || valueFacetsSealed_) {
         return Base::Status::Failure(

@@ -20,6 +20,7 @@ struct MetadataDomain::Storage final {
     };
 
     TypeRegistry types;
+    MetadataValueRegistrationStore valueRegistrations;
     DependencyPropertyRegistry dependencyProperties;
     RoutedEventRegistry routedEvents;
     MetadataDescriptorStore descriptors;
@@ -29,6 +30,7 @@ struct MetadataDomain::Storage final {
 
     Storage() noexcept
         : types(),
+          valueRegistrations(types),
           dependencyProperties(types),
           routedEvents(types),
           descriptors(),
@@ -92,6 +94,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
         -> Base::Result<void> {
         MetaRegistrationContext context(
             candidate->types,
+            candidate->valueRegistrations,
             candidate->dependencyProperties,
             &candidate->routedEvents);
         Base::Result<void> applied = registration.registerModule(
@@ -136,6 +139,11 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             delete candidate;
             return frozen.GetStatus();
         }
+        frozen = candidate->valueRegistrations.Freeze();
+        if (!frozen) {
+            delete candidate;
+            return frozen.GetStatus();
+        }
         frozen = candidate->dependencyProperties.Freeze();
         if (!frozen) {
             delete candidate;
@@ -161,7 +169,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             return frozen.GetStatus();
         }
         frozen = candidate->facets.BuildValueFacets(
-            candidate->types,
+            candidate->valueRegistrations,
             candidate->descriptors);
         if (!frozen) {
             delete candidate;
@@ -216,6 +224,18 @@ TypeRegistry& MetadataDomain::Types() noexcept {
 const TypeRegistry& MetadataDomain::Types() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->types;
+}
+
+MetadataRegistrationValues MetadataDomain::RegistrationValues() noexcept {
+    AERO_ASSERT(storage_ != nullptr);
+    return MetadataRegistrationValues(storage_->valueRegistrations);
+}
+
+MetadataRegistrationValues MetadataDomain::RegistrationValues() const noexcept {
+    AERO_ASSERT(storage_ != nullptr);
+    return MetadataRegistrationValues(
+        static_cast<const MetadataValueRegistrationStore&>(
+            storage_->valueRegistrations));
 }
 
 DependencyPropertyRegistry& MetadataDomain::DependencyProperties() noexcept {

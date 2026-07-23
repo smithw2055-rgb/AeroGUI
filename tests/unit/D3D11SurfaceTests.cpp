@@ -1,6 +1,8 @@
 #include <Aero/Rhi/D3D11Backend.hpp>
 
 #include <Aero/Base/Ref.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
@@ -25,6 +27,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 namespace {
 
@@ -310,30 +313,21 @@ private:
 // D3D11 RenderPlan backend, making the test a single XAML -> layout -> GPU
 // frame path instead of joining independent unit-test results.
 struct XamlControlFixture final {
-    explicit XamlControlFixture(D3D11RenderPlanBackend& renderBackend) noexcept
-        : properties(types),
-          presentation(dispatcher, properties),
-          values(dispatcher, properties),
-          tree(dispatcher, values),
-          layout(dispatcher),
-          renderer(dispatcher, renderBackend),
-          schema(types),
-          activation(schema),
-          dependencyProperties(schema, properties),
-          visual(tree, layout, values, &renderer) {}
+    explicit XamlControlFixture(
+        D3D11RenderPlanBackend& renderBackend) noexcept
+        : renderBackend_(&renderBackend) {}
 
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties;
-    PresentationContextScope presentation;
-    EffectiveValueEngine values;
-    ObjectTree tree;
-    LayoutManager layout;
-    RenderManager renderer;
-    XamlSchemaContext schema;
-    XamlActivationProviderRegistry activation;
-    XamlDependencyPropertyBridge dependencyProperties;
-    XamlVisualTreeHost visual;
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<EffectiveValueEngine> values;
+    std::unique_ptr<ObjectTree> tree;
+    std::unique_ptr<LayoutManager> layout;
+    std::unique_ptr<RenderManager> renderer;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
+    std::unique_ptr<XamlVisualTreeHost> visual;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -342,8 +336,11 @@ struct XamlControlFixture final {
     TypeId stackPanelType = InvalidTypeId;
     TypeId borderType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
+
     bool Initialize() {
-        CHECK(TryRegisterPresentationMetadata(types, properties));
+        CHECK(renderBackend_ != nullptr);
+        CHECK(TryRegisterAeroPresentationMetadata(metadata));
+        CHECK(metadata.Seal());
         objectType = BuiltinTypes::Object;
         doubleType = BuiltinTypes::Double;
         stringType = BuiltinTypes::String;
@@ -352,25 +349,42 @@ struct XamlControlFixture final {
         stackPanelType = BuiltinTypes::StackPanel;
         borderType = BuiltinTypes::Border;
         textBlockType = BuiltinTypes::TextBlock;
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(values.Initialize());
-        CHECK(tree.Initialize());
-        CHECK(layout.Initialize());
-        CHECK(renderer.Initialize());
+
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        values = std::make_unique<EffectiveValueEngine>(
+            dispatcher, metadata.DependencyProperties());
+        tree = std::make_unique<ObjectTree>(dispatcher, *values);
+        layout = std::make_unique<LayoutManager>(dispatcher);
+        renderer = std::make_unique<RenderManager>(
+            dispatcher, *renderBackend_);
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        visual = std::make_unique<XamlVisualTreeHost>(
+            *tree, *layout, *values, renderer.get());
+
+        CHECK(values->Initialize());
+        CHECK(tree->Initialize());
+        CHECK(layout->Initialize());
+        CHECK(renderer->Initialize());
         CHECK(TryRegisterAeroPresentationXaml(
-            dependencyProperties, activation, &visual));
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+            *dependencyProperties, *activation, visual.get()));
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 
     XamlActivationContext Activation() noexcept {
         XamlActivationContext context = XamlActivationContext::Create();
         context.dispatcher = &dispatcher;
-        context.dependencyProperties = &properties;
+        context.dependencyProperties = &metadata.DependencyProperties();
         return context;
     }
+
+private:
+    D3D11RenderPlanBackend* renderBackend_ = nullptr;
 };
 
 bool BuildPlan(
@@ -840,17 +854,17 @@ bool TestXamlStackPanelBorderD3D11Presentation(
         "</StackPanel>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual,
+        *fixture.visual,
         writer,
         reader,
-        fixture.activation,
+        *fixture.activation,
         fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
     CHECK(root != nullptr);
-    CHECK(fixture.visual.Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
+    CHECK(fixture.visual->Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
     const Span<Visual* const> children = root->VisualChildren();
     CHECK(children.Size() == 2U);
     Border* border = static_cast<Border*>(children[0]);
@@ -865,7 +879,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     CHECK(text->SetForeground({0.0F, 0.0F, 1.0F, 1.0F}));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 3U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 3U);
     const D3D11RenderPlanSubmitStatistics statistics =
         renderBackend.LastSubmitStatistics();
     CHECK(statistics.renderPassCount == 1U);
@@ -888,7 +902,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     CHECK(surface.DiscardFrame(frame));
     CHECK(device.DestroyResource(
         target.Value(), renderBackend.LastSubmittedFence()));
-    CHECK(fixture.visual.Unmount());
+    CHECK(fixture.visual->Unmount());
     return true;
 }
 

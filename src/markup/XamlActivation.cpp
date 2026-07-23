@@ -86,7 +86,8 @@ XamlActivationProviderRegistry::CreateObject(
 
     Core::PresentationContextScope presentationScope(
         *activation.dispatcher,
-        *activation.dependencyProperties);
+        *activation.dependencyProperties,
+        schema_->Runtime());
 
     if (providers_.Find(requestedType) == nullptr) {
         return schema_->CreateObjectRuntime(requestedType);

@@ -336,6 +336,23 @@ bool TestInvalidUtf8AndOutOfMemory() {
     return true;
 }
 
+
+Result<void> RegisterCustomTextMetadata(
+    MetaRegistrationContext& context,
+    void*) noexcept {
+    const StringView ns("urn:custom-values");
+    return context.types.TryRegisterType({
+        ns,
+        StringView("CustomLength"),
+        InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed,
+        nullptr})
+        ? Result<void>()
+        : Result<void>(Status::Failure(
+            ErrorCode::InternalError,
+            "CustomLength registration failed"));
+}
+
 Result<XamlValue> ConvertCustomLength(
     TypeId targetType,
     StringView text,
@@ -350,17 +367,20 @@ Result<XamlValue> ConvertCustomLength(
 
 bool TestCustomTextConverter() {
     const StringView ns("urn:custom-values");
-    TypeRegistry types;
     const TypeId customLength = MakeTypeId(ns, StringView("CustomLength"));
-    CHECK(types.TryRegisterType({
-        ns,
-        StringView("CustomLength"),
-        InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed,
+    MetadataDomain metadata;
+    const StringView moduleName("Tests.CustomText");
+    CHECK(metadata.TryRegisterModule({
+        MakeMetadataModuleId(moduleName),
+        moduleName,
+        1U,
+        &RegisterCustomTextMetadata,
         nullptr}));
-    CHECK(types.Freeze());
+    CHECK(metadata.Seal());
+    MetadataRuntime runtime(metadata);
+    CHECK(runtime.Freeze());
 
-    XamlSchemaContext schema(types);
+    XamlSchemaContext schema(metadata, runtime);
     CHECK(schema.TryRegisterTextConverter({
         customLength,
         &ConvertCustomLength,

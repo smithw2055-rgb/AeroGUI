@@ -195,9 +195,14 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "DependencyObject bridge registrations have no common metadata base");
     }
+    if (schema_->Runtime() == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML dependency-property bridge requires MetadataRuntime");
+    }
     Base::Result<void> providerResult =
-        Core::TryRegisterDependencyPropertyProvider(
-            schema_->Members(), *properties_, providerType);
+        Core::TryRegisterDependencyPropertyRuntimeProvider(
+            *schema_->Runtime(), *properties_, providerType);
     if (!providerResult) return providerResult.GetStatus();
     registeredPropertyCount_ = registered;
     providerRegistered_ = true;

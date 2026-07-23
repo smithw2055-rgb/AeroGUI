@@ -5,9 +5,10 @@
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/EffectiveValueEngine.hpp>
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Rendering.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -17,6 +18,7 @@
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -46,18 +48,17 @@ protected:
 
 struct Fixture final {
     Dispatcher dispatcher;
-    TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    PresentationContextScope presentation{dispatcher, properties};
-    EffectiveValueEngine values{dispatcher, properties};
-    ObjectTree tree{dispatcher, values};
-    LayoutManager layout{dispatcher};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<EffectiveValueEngine> values;
+    std::unique_ptr<ObjectTree> tree;
+    std::unique_ptr<LayoutManager> layout;
     NullRenderBackend backend;
-    RenderManager renderer{dispatcher, backend};
-    XamlSchemaContext schema{types};
-    XamlActivationProviderRegistry activation{schema};
-    XamlDependencyPropertyBridge dependencyProperties{schema, properties};
-    XamlVisualTreeHost visual{tree, layout, values, &renderer};
+    std::unique_ptr<RenderManager> renderer;
+    std::unique_ptr<XamlSchemaContext> schema;
+    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
+    std::unique_ptr<XamlVisualTreeHost> visual;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId unsignedType = InvalidTypeId;
@@ -72,7 +73,8 @@ struct Fixture final {
     MemberId canvasChildren = InvalidMemberId;
     MemberId gridChildren = InvalidMemberId;
 
-    static Result<Ref<Object>> Activate(TypeId requestedType,
+    static Result<Ref<Object>> Activate(
+        TypeId requestedType,
         const XamlActivationContext& activationContext,
         void*) noexcept {
         if (activationContext.dispatcher == nullptr ||
@@ -86,9 +88,23 @@ struct Fixture final {
         return Ref<Object>(std::move(leaf));
     }
 
+    static Result<void> RegisterLeafModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        auto* fixture = static_cast<Fixture*>(userContext);
+        const StringView ns("urn:xaml-visual");
+        Result<TypeId> registered = context.types.TryRegisterType({
+            ns, StringView("Leaf"), BuiltinTypes::FrameworkElement,
+            TypeFlags::None, nullptr});
+        if (!registered) return registered.GetStatus();
+        return registered.Value() == fixture->leafType
+            ? Result<void>()
+            : Result<void>(Status::Failure(
+                ErrorCode::IdCollision, "Unexpected Leaf TypeId"));
+    }
+
     bool Build() {
         const StringView ns("urn:xaml-visual");
-        CHECK(TryRegisterPresentationMetadata(types, properties));
         objectType = BuiltinTypes::Object;
         doubleType = BuiltinTypes::Double;
         unsignedType = BuiltinTypes::UnsignedInteger;
@@ -99,32 +115,50 @@ struct Fixture final {
         canvasType = BuiltinTypes::Canvas;
         gridType = BuiltinTypes::Grid;
         leafType = MakeTypeId(ns, StringView("Leaf"));
-        CHECK(types.TryRegisterType({ns, StringView("Leaf"), BuiltinTypes::FrameworkElement,
-            TypeFlags::None, nullptr}));
-        stackPanelChildren = MakeMemberId(stackPanelType, MemberKind::Property,
-            StringView("Children"));
-        canvasChildren = MakeMemberId(canvasType, MemberKind::Property,
-            StringView("Children"));
-        gridChildren = MakeMemberId(gridType, MemberKind::Property,
-            StringView("Children"));
-        CHECK(types.Freeze());
-        CHECK(properties.Freeze());
-        CHECK(values.Initialize());
-        CHECK(tree.Initialize());
-        CHECK(layout.Initialize());
-        CHECK(renderer.Initialize());
+        CHECK(TryRegisterAeroPresentationMetadata(metadata));
+        const StringView moduleName("Tests.XamlVisualTree");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterLeafModule, this}));
+        CHECK(metadata.Seal());
+
+        stackPanelChildren = MakeMemberId(
+            stackPanelType, MemberKind::Property, StringView("Children"));
+        canvasChildren = MakeMemberId(
+            canvasType, MemberKind::Property, StringView("Children"));
+        gridChildren = MakeMemberId(
+            gridType, MemberKind::Property, StringView("Children"));
+
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        values = std::make_unique<EffectiveValueEngine>(
+            dispatcher, metadata.DependencyProperties());
+        tree = std::make_unique<ObjectTree>(dispatcher, *values);
+        layout = std::make_unique<LayoutManager>(dispatcher);
+        renderer = std::make_unique<RenderManager>(dispatcher, backend);
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
+        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
+            *schema, metadata.DependencyProperties());
+        visual = std::make_unique<XamlVisualTreeHost>(
+            *tree, *layout, *values, renderer.get());
+
+        CHECK(values->Initialize());
+        CHECK(tree->Initialize());
+        CHECK(layout->Initialize());
+        CHECK(renderer->Initialize());
         CHECK(TryRegisterAeroPresentationXaml(
-            dependencyProperties, activation, &visual));
-        CHECK(activation.TryRegister({leafType, &Activate, nullptr}));
-        CHECK(schema.Freeze());
-        CHECK(activation.Freeze());
+            *dependencyProperties, *activation, visual.get()));
+        CHECK(activation->TryRegister({leafType, &Activate, nullptr}));
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
+        CHECK(activation->Freeze());
         return true;
     }
 
     XamlActivationContext Activation() noexcept {
         XamlActivationContext result = XamlActivationContext::Create();
         result.dispatcher = &dispatcher;
-        result.dependencyProperties = &properties;
+        result.dependencyProperties = &metadata.DependencyProperties();
         return result;
     }
 };
@@ -140,9 +174,9 @@ bool TestXamlContentMountLayoutRenderAndUnmount() {
         "</ContentPresenter></ContentPresenter>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     ContentPresenter* root = static_cast<ContentPresenter*>(loaded.Value().Get());
     CHECK(root != nullptr && root->Content() != nullptr);
@@ -152,18 +186,18 @@ bool TestXamlContentMountLayoutRenderAndUnmount() {
     Ref<Object> nestedKeep = root->OwnedContent();
     Ref<Object> leafKeep = nested->OwnedContent();
     CHECK(nestedKeep.Get() == nested && leafKeep.Get() == leaf);
-    CHECK(fixture.visual.StagedContentCount() == 2U);
-    CHECK(fixture.visual.Mount(*root, fixture.presenterType, {80.0, 40.0}));
-    CHECK(fixture.tree.Root() == root);
+    CHECK(fixture.visual->StagedContentCount() == 2U);
+    CHECK(fixture.visual->Mount(*root, fixture.presenterType, {80.0, 40.0}));
+    CHECK(fixture.tree->Root() == root);
     CHECK(nested->LogicalParent() == root && nested->VisualParent() == root);
     CHECK(leaf->LogicalParent() == nested && leaf->VisualParent() == nested);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(root->IsArrangeValid() && leaf->IsArrangeValid());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 3U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 3U);
     CHECK(fixture.backend.SubmissionCount() == 1U);
-    CHECK(fixture.visual.Unmount());
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.tree->Root() == nullptr);
     CHECK(root->Content() == nullptr);
     CHECK(nested->Content() == nullptr);
     CHECK(leaf->LogicalParent() == nullptr && leaf->VisualParent() == nullptr);
@@ -179,20 +213,20 @@ bool TestXamlBorderContentMountLayoutRenderAndUnmount() {
         "<Border xmlns=\"urn:aero\" xmlns:local=\"urn:xaml-visual\">"
         "<local:Leaf/></Border>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     Border* root = static_cast<Border*>(loaded.Value().Get());
     CHECK(root != nullptr);
-    CHECK(fixture.visual.Mount(*root, fixture.borderType, {80.0, 40.0}));
+    CHECK(fixture.visual->Mount(*root, fixture.borderType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 1U && root->VisualChildren().Size() == 1U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 2U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
     CHECK(fixture.backend.SubmissionCount() == 1U);
-    CHECK(fixture.visual.Unmount());
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.tree->Root() == nullptr);
     return true;
 }
 
@@ -206,23 +240,23 @@ bool TestXamlStackPanelCollectionMountLayoutRenderAndUnmount() {
         "<local:Leaf/><local:Leaf/></StackPanel>"),
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
     CHECK(root != nullptr && root->OwnedChildCount() == 2U);
-    CHECK(fixture.visual.StagedContentCount() == 2U);
-    CHECK(fixture.visual.Mount(*root, fixture.stackPanelType, {80.0, 40.0}));
+    CHECK(fixture.visual->StagedContentCount() == 2U);
+    CHECK(fixture.visual->Mount(*root, fixture.stackPanelType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 2U && root->VisualChildren().Size() == 2U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(root->DesiredSize().width == 20.0 && root->DesiredSize().height == 20.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 3U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 3U);
     CHECK(fixture.backend.SubmissionCount() == 1U);
-    CHECK(fixture.visual.Unmount());
+    CHECK(fixture.visual->Unmount());
     CHECK(root->OwnedChildCount() == 0U);
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.tree->Root() == nullptr);
     return true;
 }
 
@@ -236,24 +270,24 @@ bool TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount() {
         "xmlns:aero=\"urn:aero\"><local:Leaf aero:Canvas.Left=\"8\" "
         "aero:Canvas.Top=\"9\"/></Canvas>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     Canvas* root = static_cast<Canvas*>(loaded.Value().Get());
     CHECK(root != nullptr);
-    CHECK(fixture.visual.StagedContentCount() == 1U);
-    CHECK(fixture.visual.Mount(*root, fixture.canvasType, {80.0, 40.0}));
+    CHECK(fixture.visual->StagedContentCount() == 1U);
+    CHECK(fixture.visual->Mount(*root, fixture.canvasType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 1U && root->VisualChildren().Size() == 1U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     const Rect childSlot = static_cast<UIElement*>(root->VisualChildren()[0])->
         LayoutSlot();
     CHECK(childSlot.x == 8.0 && childSlot.y == 9.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 2U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
     CHECK(fixture.backend.SubmissionCount() == 1U);
-    CHECK(fixture.visual.Unmount());
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.tree->Root() == nullptr);
     return true;
 }
 
@@ -267,16 +301,16 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
         "xmlns:aero=\"urn:aero\"><local:Leaf aero:Grid.Row=\"1\" "
         "aero:Grid.Column=\"1\"/></Grid>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     Grid* root = static_cast<Grid*>(loaded.Value().Get());
     CHECK(root != nullptr);
     const GridLength tracks[] = {GridLength::Star(), GridLength::Star()};
     CHECK(root->SetColumnDefinitions({tracks, 2U}));
     CHECK(root->SetRowDefinitions({tracks, 2U}));
-    CHECK(fixture.visual.Mount(*root, fixture.gridType, {80.0, 40.0}));
+    CHECK(fixture.visual->Mount(*root, fixture.gridType, {80.0, 40.0}));
     CHECK(root->LogicalChildren().Size() == 1U && root->VisualChildren().Size() == 1U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     const Rect childSlot = static_cast<UIElement*>(root->VisualChildren()[0])->
@@ -284,10 +318,10 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
     CHECK(childSlot.x == 40.0 && childSlot.y == 20.0 &&
         childSlot.width == 40.0 && childSlot.height == 20.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(fixture.renderer.CurrentPlan().Nodes().Size() == 2U);
+    CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
     CHECK(fixture.backend.SubmissionCount() == 1U);
-    CHECK(fixture.visual.Unmount());
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.tree->Root() == nullptr);
     return true;
 }
 
@@ -301,13 +335,13 @@ bool TestFailedLoadDiscardsStagedEdges() {
         "<local:Leaf/></ContentPresenter>"
         "<local:Leaf xmlns:local=\"urn:xaml-visual\"/>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(!loaded);
-    CHECK(fixture.visual.StagedContentCount() == 0U);
-    CHECK(!fixture.visual.IsMounted());
-    CHECK(fixture.tree.Root() == nullptr);
+    CHECK(fixture.visual->StagedContentCount() == 0U);
+    CHECK(!fixture.visual->IsMounted());
+    CHECK(fixture.tree->Root() == nullptr);
     return true;
 }
 
@@ -321,18 +355,18 @@ bool TestXamlGridRejectsOutOfRangeCellOnFirstLayout() {
         "xmlns:aero=\"urn:aero\"><local:Leaf aero:Grid.Row=\"2\"/>"
         "</Grid>"), &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        fixture.visual, writer, reader, fixture.activation, fixture.Activation());
+        *fixture.visual, writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
     Grid* root = static_cast<Grid*>(loaded.Value().Get());
     const GridLength track[] = {GridLength::Star()};
     CHECK(root->SetColumnDefinitions({track, 1U}));
     CHECK(root->SetRowDefinitions({track, 1U}));
-    CHECK(fixture.visual.Mount(*root, fixture.gridType, {80.0, 40.0}));
-    Result<std::uint32_t> phase = fixture.layout.Flush();
+    CHECK(fixture.visual->Mount(*root, fixture.gridType, {80.0, 40.0}));
+    Result<std::uint32_t> phase = fixture.layout->Flush();
     const ErrorCode layoutError = phase ? ErrorCode::Ok : phase.GetStatus().code;
-    CHECK(fixture.visual.Unmount());
+    CHECK(fixture.visual->Unmount());
     CHECK(!phase && layoutError == ErrorCode::OutOfRange);
     return true;
 }

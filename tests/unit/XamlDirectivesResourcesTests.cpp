@@ -7,7 +7,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MetadataDomain.hpp>
+#include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
@@ -16,6 +17,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -34,11 +36,14 @@ using namespace Aero::Markup;
     } while (false)
 
 struct Fixture;
+Fixture* gFixture = nullptr;
+TypeId gRootType = InvalidTypeId;
+TypeId gLeafType = InvalidTypeId;
 
 class DirectiveNode final : public Object {
 public:
-    explicit DirectiveNode(bool root) noexcept
-        : root_(root) {
+    DirectiveNode(TypeId type, bool root) noexcept
+        : type_(type), root_(root) {
         ++liveCount_;
     }
 
@@ -68,6 +73,7 @@ public:
         return serviceChecked_;
     }
     bool IsRoot() const noexcept { return root_; }
+    TypeId RuntimeType() const noexcept override { return type_; }
 
     static void ResetCounters() noexcept {
         liveCount_ = 0U;
@@ -105,6 +111,7 @@ private:
     friend Result<void> EndNode(Object&, void*) noexcept;
     friend void AbortNode(Object&, void*) noexcept;
 
+    TypeId type_ = InvalidTypeId;
     String title_;
     Ref<Object> reference_;
     Ref<Object> optional_;
@@ -135,7 +142,7 @@ Result<XamlValue> ProvideEcho(
     void* context) noexcept;
 
 Result<Ref<Object>> MakeRoot() noexcept {
-    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(true);
+    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(gRootType, true);
     if (!created) {
         return created.GetStatus();
     }
@@ -145,7 +152,7 @@ Result<Ref<Object>> MakeRoot() noexcept {
 }
 
 Result<Ref<Object>> MakeLeaf() noexcept {
-    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(false);
+    Result<Ref<DirectiveNode>> created = MakeRef<DirectiveNode>(gLeafType, false);
     if (!created) {
         return created.GetStatus();
     }
@@ -259,8 +266,9 @@ Result<void> AddResource(
 }
 
 struct Fixture final {
-    TypeRegistry types;
-    XamlSchemaContext schema{types};
+    MetadataDomain metadata;
+    std::unique_ptr<MetadataRuntime> runtime;
+    std::unique_ptr<XamlSchemaContext> schema;
 
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -276,120 +284,112 @@ struct Fixture final {
     MemberId probe = InvalidMemberId;
     MemberId children = InvalidMemberId;
 
+    static Result<void> RegisterModule(
+        MetaRegistrationContext& context,
+        void* userContext) noexcept {
+        return static_cast<Fixture*>(userContext)->RegisterMetadata(context);
+    }
+
+    Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
+        TypeRegistry& types = context.types;
+        const StringView ns("urn:directives");
+        const TypeRegistration registrations[] = {
+            {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
+            {ns, StringView("String"), InvalidTypeId,
+             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
+            {ns, StringView("Node"), objectType, TypeFlags::Abstract, nullptr},
+            {ns, StringView("Root"), nodeType, TypeFlags::None, &MakeRoot},
+            {ns, StringView("Leaf"), nodeType, TypeFlags::Sealed, &MakeLeaf},
+            {ns, StringView("Echo"), objectType,
+             TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr},
+            {ns, StringView("NoProvider"), objectType,
+             TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}
+        };
+        for (const TypeRegistration& registration : registrations) {
+            Result<TypeId> registered = types.TryRegisterType(registration);
+            if (!registered) return registered.GetStatus();
+        }
+
+        Result<MemberId> member = types.TryRegisterProperty(
+            nodeType,
+            {StringView("Title"), stringType, PropertyFlags::Structural});
+        if (!member) return member.GetStatus();
+        title = member.Value();
+        Result<void> status = types.TrySetContentMember(nodeType, title);
+        if (!status) return status.GetStatus();
+
+        member = types.TryRegisterProperty(
+            nodeType, {StringView("Reference"), nodeType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        reference = member.Value();
+        member = types.TryRegisterProperty(
+            nodeType, {StringView("Optional"), nodeType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        optional = member.Value();
+        member = types.TryRegisterProperty(
+            nodeType, {StringView("Probe"), stringType, PropertyFlags::None});
+        if (!member) return member.GetStatus();
+        probe = member.Value();
+        member = types.TryRegisterProperty(
+            rootType,
+            {StringView("Children"), nodeType,
+             PropertyFlags::Structural | PropertyFlags::Collection});
+        if (!member) return member.GetStatus();
+        children = member.Value();
+        return types.TrySetContentMember(rootType, children);
+    }
+
     bool Build() {
+        gFixture = this;
         const StringView ns("urn:directives");
         objectType = MakeTypeId(ns, StringView("Object"));
         stringType = MakeTypeId(ns, StringView("String"));
         nodeType = MakeTypeId(ns, StringView("Node"));
         rootType = MakeTypeId(ns, StringView("Root"));
         leafType = MakeTypeId(ns, StringView("Leaf"));
+        gRootType = rootType;
+        gLeafType = leafType;
         echoExtensionType = MakeTypeId(ns, StringView("Echo"));
-        noProviderExtensionType = MakeTypeId(
-            ns,
-            StringView("NoProvider"));
+        noProviderExtensionType = MakeTypeId(ns, StringView("NoProvider"));
 
-        CHECK(types.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Node"), objectType,
-            TypeFlags::Abstract, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Root"), nodeType,
-            TypeFlags::None, &MakeRoot}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Leaf"), nodeType,
-            TypeFlags::Sealed, &MakeLeaf}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("Echo"), objectType,
-            TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}));
-        CHECK(types.TryRegisterType({
-            ns, StringView("NoProvider"), objectType,
-            TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}));
+        const StringView moduleName("Tests.XamlDirectivesResources");
+        CHECK(metadata.TryRegisterModule({
+            MakeMetadataModuleId(moduleName), moduleName, 1U,
+            &Fixture::RegisterModule, this}));
+        CHECK(metadata.Seal());
+        runtime = std::make_unique<MetadataRuntime>(metadata);
+        schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
 
-        Result<MemberId> titleResult = types.TryRegisterProperty(
-            nodeType,
-            {StringView("Title"), stringType, PropertyFlags::Structural});
-        CHECK(titleResult);
-        title = titleResult.Value();
-        CHECK(types.TrySetContentMember(nodeType, title));
-
-        Result<MemberId> referenceResult = types.TryRegisterProperty(
-            nodeType,
-            {StringView("Reference"), nodeType, PropertyFlags::None});
-        CHECK(referenceResult);
-        reference = referenceResult.Value();
-
-        Result<MemberId> optionalResult = types.TryRegisterProperty(
-            nodeType,
-            {StringView("Optional"), nodeType, PropertyFlags::None});
-        CHECK(optionalResult);
-        optional = optionalResult.Value();
-
-        Result<MemberId> probeResult = types.TryRegisterProperty(
-            nodeType,
-            {StringView("Probe"), stringType, PropertyFlags::None});
-        CHECK(probeResult);
-        probe = probeResult.Value();
-
-        Result<MemberId> childrenResult = types.TryRegisterProperty(
-            rootType,
-            {StringView("Children"), nodeType,
-             PropertyFlags::Structural | PropertyFlags::Collection});
-        CHECK(childrenResult);
-        children = childrenResult.Value();
-        CHECK(types.TrySetContentMember(rootType, children));
-
-        CHECK(types.Freeze());
-        CHECK(schema.TryRegisterScalarType(
-            stringType,
-            XamlScalarKind::String));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterScalarType(
+            stringType, XamlScalarKind::String));
+        CHECK(schema->TryRegisterMemberAdapter({
             title, XamlMemberWriteMode::SetOnce, &SetTitle, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             reference, XamlMemberWriteMode::SetOnce, &SetReference, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             optional, XamlMemberWriteMode::SetOnce, &SetOptional, nullptr}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             probe, XamlMemberWriteMode::SetOnce, nullptr, this, &SetProbe}));
-        CHECK(schema.TryRegisterMemberAdapter({
+        CHECK(schema->TryRegisterMemberAdapter({
             children, XamlMemberWriteMode::Collection, &AddChild, nullptr}));
-        CHECK(schema.TryRegisterTypeAdapter({
+        CHECK(schema->TryRegisterTypeAdapter({
             rootType,
-            &BeginNode,
-            &EndNode,
-            &AbortNode,
-            nullptr,
-            true,
-            true,
-            &RegisterName,
-            &AddResource}));
-        CHECK(schema.TryRegisterTypeAdapter({
-            leafType,
-            &BeginNode,
-            &EndNode,
-            &AbortNode,
-            nullptr}));
-        CHECK(schema.TryRegisterMarkupExtension({
-            echoExtensionType,
-            &ProvideEcho,
-            this}));
-        Result<void> duplicateExtension = schema.TryRegisterMarkupExtension({
-            echoExtensionType,
-            &ProvideEcho,
-            this});
+            &BeginNode, &EndNode, &AbortNode, nullptr,
+            true, true, &RegisterName, &AddResource}));
+        CHECK(schema->TryRegisterTypeAdapter({
+            leafType, &BeginNode, &EndNode, &AbortNode, nullptr}));
+        CHECK(schema->TryRegisterMarkupExtension({
+            echoExtensionType, &ProvideEcho, this}));
+        Result<void> duplicateExtension = schema->TryRegisterMarkupExtension({
+            echoExtensionType, &ProvideEcho, this});
         CHECK(!duplicateExtension);
         CHECK(duplicateExtension.GetStatus().code == ErrorCode::AlreadyExists);
-        Result<void> invalidExtension = schema.TryRegisterMarkupExtension({
-            leafType,
-            &ProvideEcho,
-            this});
+        Result<void> invalidExtension = schema->TryRegisterMarkupExtension({
+            leafType, &ProvideEcho, this});
         CHECK(!invalidExtension);
         CHECK(invalidExtension.GetStatus().code == ErrorCode::InvalidArgument);
-        CHECK(schema.Freeze());
+        CHECK(runtime->Freeze());
+        CHECK(schema->Freeze());
         return true;
     }
 };
@@ -401,7 +401,7 @@ Result<void> SetProbe(
     void* context) noexcept {
     Fixture* fixture = static_cast<Fixture*>(context);
     if (fixture == nullptr || value.Kind() != XamlValueKind::String ||
-        services.schema != &fixture->schema ||
+        services.schema != fixture->schema.get() ||
         services.targetObject != &object ||
         services.targetObjectType != fixture->leafType ||
         services.targetMember != fixture->probe ||
@@ -449,7 +449,7 @@ Result<XamlValue> ProvideEcho(
     const XamlServiceProvider& services,
     void* context) noexcept {
     Fixture* fixture = static_cast<Fixture*>(context);
-    if (fixture == nullptr || services.schema != &fixture->schema ||
+    if (fixture == nullptr || services.schema != fixture->schema.get() ||
         services.targetObject == nullptr ||
         services.targetObjectType != fixture->leafType ||
         services.targetMember != fixture->title ||
@@ -485,7 +485,7 @@ Result<Ref<Object>> LoadDocument(
         return reset.GetStatus();
     }
     XamlNodeReader reader(tokenizer, &diagnostics);
-    XamlObjectWriter writer(fixture.schema, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
     return writer.Load(reader);
 }
 
@@ -507,7 +507,7 @@ bool TestNamesResourcesStaticResourceAndServices() {
             "</Root>");
         CHECK(tokenizer.Reset(xaml, &diagnostics));
         XamlNodeReader reader(tokenizer, &diagnostics);
-        XamlObjectWriter writer(fixture.schema, &diagnostics);
+        XamlObjectWriter writer(*fixture.schema, &diagnostics);
         Result<Ref<Object>> loaded = writer.Load(reader);
         CHECK(loaded);
         CHECK(diagnostics.Size() == 0U);

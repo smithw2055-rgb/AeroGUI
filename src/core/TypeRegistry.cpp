@@ -317,9 +317,7 @@ TypeRegistry::TypeRegistry() noexcept
       memberIndex_(),
       typeFactories_(),
       propertyAccessors_(),
-      methodInvokers_(),
-      valueSemantics_(),
-      textConverters_() {}
+      methodInvokers_() {}
 
 Base::Result<TypeId> TypeRegistry::TryRegisterType(
     const TypeRegistration& registration) noexcept {
@@ -625,53 +623,6 @@ Base::Result<void> TypeRegistry::TrySetContentMember(
     }
     info->contentMember_ = member;
     return {};
-}
-
-Base::Result<void> TypeRegistry::TryRegisterValueSemantics(
-    TypeId type,
-    const ValueTypeRegistration& registration) noexcept {
-    if (frozen_) return RegistryFrozenStatus();
-    const TypeInfo* info = FindType(type);
-    if (info == nullptr) return MissingRelatedTypeStatus();
-    if ((static_cast<std::uint32_t>(info->Flags()) &
-            static_cast<std::uint32_t>(TypeFlags::ValueType)) == 0U ||
-        registration.size == 0U || registration.alignment == 0U ||
-        !Base::IsValidAlignment(registration.alignment) ||
-        registration.equals == nullptr ||
-        (registration.inlineSafe &&
-            (registration.size > Value::InlineCapacity ||
-             registration.alignment > alignof(std::max_align_t))) ||
-        (!registration.inlineSafe && registration.copy == nullptr)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Value type semantics are invalid");
-    }
-    if (FindValueSemantics(type) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Value type semantics are already registered");
-    }
-    Base::Result<Base::Ref<ValueTypeSemantics>> created =
-        Base::MakeRef<ValueTypeSemantics>(registration);
-    if (!created) return created.GetStatus();
-    return valueSemantics_.TryPushBack({type, std::move(created).Value()});
-}
-
-Base::Result<void> TypeRegistry::TryRegisterTextConverter(
-    const TextValueConverterRegistration& registration) noexcept {
-    if (frozen_) return RegistryFrozenStatus();
-    if (registration.type == InvalidTypeId || registration.convert == nullptr ||
-        FindType(registration.type) == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text value converter registration is invalid");
-    }
-    if (FindTextConverter(registration.type) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Text value converter is already registered");
-    }
-    return textConverters_.TryPushBack(registration);
 }
 
 const TypeFactoryRegistration* TypeRegistry::FindTypeFactory(

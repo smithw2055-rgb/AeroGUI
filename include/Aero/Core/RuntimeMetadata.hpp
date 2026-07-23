@@ -11,6 +11,7 @@ inline Base::Result<void> RegisterAeroPresentationMetadataModule(
     void*) noexcept {
     return TryRegisterPresentationMetadata(
         context.types,
+        context.valueRegistrations,
         context.dependencyProperties,
         context.routedEvents);
 }
