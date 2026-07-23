@@ -1,4 +1,5 @@
 #include <Aero/Core/MetadataDomain.hpp>
+#include <Aero/Core/MetadataValueFacets.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>
@@ -270,9 +271,13 @@ Base::Result<Base::HashCode> MetadataDomain::ComputeSchemaHash() const noexcept 
     if (!descriptorHash) return descriptorHash.GetStatus();
     Base::Result<Base::HashCode> facetHash = storage_->facets.ComputeHash();
     if (!facetHash) return facetHash.GetStatus();
+    Base::Result<Base::HashCode> valueFacetHash =
+        ComputeMetadataValueFacetHash(storage_->facets, storage_->descriptors);
+    if (!valueFacetHash) return valueFacetHash.GetStatus();
 
     Base::HashCode hash = Base::MixHash64(
         descriptorHash.Value() ^ facetHash.Value());
+    hash = Base::MixHash64(hash ^ valueFacetHash.Value());
     for (const Storage::ModuleRecord& module : storage_->modules) {
         hash = Base::MixHash64(hash ^ module.id);
         hash = Base::MixHash64(
