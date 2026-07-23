@@ -42,11 +42,14 @@ function(aero_apply_compiler_options target)
         # The existing C++17 two-or-four-argument AERO_DECLARE_METADATA
         # selector intentionally invokes a variadic selector with an empty
         # trailing pack. New compiler releases diagnose that compatibility
-        # form through their extension/pedantic channel. Keep all ordinary
-        # warnings fatal while excluding only that legacy macro channel until
-        # generated declarations replace it throughout the public headers.
+        # form through their extension/pedantic channel. The presentation
+        # bootstrap also has a legacy single-line registration macro that newer
+        # GCC diagnoses as misleading indentation. Keep every other warning
+        # fatal until generated declarations replace these compatibility forms.
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(${target} PRIVATE -Wno-pedantic)
+            target_compile_options(${target} PRIVATE
+                -Wno-pedantic
+                -Wno-error=misleading-indentation)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             target_compile_options(${target} PRIVATE
                 -Wno-error=gnu-zero-variadic-macro-arguments)
