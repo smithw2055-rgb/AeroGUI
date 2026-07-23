@@ -40,7 +40,11 @@ private:
 XamlActivationProviderRegistry::XamlActivationProviderRegistry(
     XamlSchemaContext& schema) noexcept
     : schema_(&schema),
-      providers_(schema.Types()) {}
+      providers_(
+          schema.Types(),
+          schema.Runtime() != nullptr
+              ? &schema.Runtime()->Descriptors()
+              : nullptr) {}
 
 Base::Result<void> XamlActivationProviderRegistry::TryRegister(
     const XamlActivationProviderRegistration& registration) noexcept {
@@ -54,7 +58,7 @@ Base::Result<void> XamlActivationProviderRegistry::Freeze() noexcept {
     if (!schema_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "XAML schema context must be frozen before activation providers");
+            "XAML schema context must be frozen before activation facets");
     }
     return providers_.Freeze();
 }
@@ -66,7 +70,7 @@ XamlActivationProviderRegistry::CreateObject(
     if (!providers_.IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "XAML activation provider registry is not frozen");
+            "XAML activation facet registry is not frozen");
     }
     if (!activation.IsCompatible()) {
         return Base::Status::Failure(
@@ -119,7 +123,7 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
     if (!providers.IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "XAML activation provider registry is not frozen");
+            "XAML activation facet registry is not frozen");
     }
     ActiveActivationScope scope(providers, activation);
     return writer.Load(reader);
