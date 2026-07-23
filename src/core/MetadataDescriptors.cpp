@@ -3,22 +3,13 @@
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/ObjectTree.hpp>
 
-#include <cstdint>
 #include <utility>
 
 namespace Aero::Core {
 namespace {
 
-Base::Status AlreadyBuilt(const char* name) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        name);
-}
-
-Base::Status SourceNotFrozen(const char* name) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        name);
+Base::Status InvalidState(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
 template<class Less>
@@ -26,11 +17,11 @@ Base::Result<void> BuildOrder(
     std::uint32_t count,
     Base::Vector<std::uint32_t>& order,
     Less less) noexcept {
-    Base::Result<void> reserved = order.TryReserve(count);
-    if (!reserved) return reserved.GetStatus();
+    Base::Result<void> result = order.TryReserve(count);
+    if (!result) return result.GetStatus();
     for (std::uint32_t index = 0U; index < count; ++index) {
-        Base::Result<void> appended = order.TryPushBack(index);
-        if (!appended) return appended.GetStatus();
+        result = order.TryPushBack(index);
+        if (!result) return result.GetStatus();
     }
     for (std::uint32_t index = 1U; index < count; ++index) {
         const std::uint32_t value = order[index];
@@ -44,9 +35,19 @@ Base::Result<void> BuildOrder(
     return {};
 }
 
-bool HasPropertyFlag(PropertyFlags value, PropertyFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
+template<class Key, class Value>
+Base::Result<void> InsertUnique(
+    Base::HashMap<Key, Value>& map,
+    Key key,
+    const Value& value,
+    const char* message) noexcept {
+    Base::Result<typename Base::HashMap<Key, Value>::InsertResult> inserted =
+        map.TryInsert(key, value);
+    if (!inserted) return inserted.GetStatus();
+    if (!inserted.Value().inserted) {
+        return Base::Status::Failure(Base::ErrorCode::AlreadyExists, message);
+    }
+    return {};
 }
 
 bool HasEventFlag(EventFlags value, EventFlags flag) noexcept {
@@ -54,69 +55,17 @@ bool HasEventFlag(EventFlags value, EventFlags flag) noexcept {
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Base::Result<void> InsertTypeIndex(
-    Base::HashMap<TypeId, std::uint32_t>& index,
-    TypeId id,
-    std::uint32_t value) noexcept {
-    Base::Result<Base::HashMap<TypeId, std::uint32_t>::InsertResult> inserted =
-        index.TryInsert(id, value);
-    if (!inserted) return inserted.GetStatus();
-    if (!inserted.Value().inserted) {
-        return Base::Status::Failure(
-            Base::ErrorCode::IdCollision,
-            "Descriptor type id collision");
-    }
-    return {};
-}
-
-Base::Result<void> InsertMemberIndex(
-    Base::HashMap<MemberId, MetadataDescriptorStore::MemberLocation>& index,
-    MemberId id,
-    MetadataDescriptorStore::MemberLocation value) noexcept {
-    Base::Result<Base::HashMap<MemberId,
-        MetadataDescriptorStore::MemberLocation>::InsertResult> inserted =
-        index.TryInsert(id, value);
-    if (!inserted) return inserted.GetStatus();
-    if (!inserted.Value().inserted) {
-        return Base::Status::Failure(
-            Base::ErrorCode::IdCollision,
-            "Descriptor member id collision");
-    }
-    return {};
-}
-
-template<class Key>
-Base::Result<void> InsertFacetIndex(
-    Base::HashMap<Key, std::uint32_t>& index,
-    Key key,
-    std::uint32_t value) noexcept {
-    Base::Result<typename Base::HashMap<Key, std::uint32_t>::InsertResult> inserted =
-        index.TryInsert(key, value);
-    if (!inserted) return inserted.GetStatus();
-    if (!inserted.Value().inserted) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Metadata facet is already registered");
-    }
-    return {};
-}
-
 } // namespace
 
 Base::Result<void> MetadataDescriptorStore::Build(
     const TypeRegistry& source) noexcept {
     if (sealed_) {
-        return AlreadyBuilt("MetadataDescriptorStore is already sealed");
+        return InvalidState("MetadataDescriptorStore is already sealed");
     }
     if (!source.IsFrozen()) {
-        return SourceNotFrozen(
+        return InvalidState(
             "TypeRegistry must be frozen before building descriptors");
     }
-
-    Base::Result<void> reserved = types_.TryReserve(source.TypeCount());
-    if (!reserved) return reserved.GetStatus();
-    reserved = typeIndex_.TryReserve(source.TypeCount());
-    if (!reserved) return reserved.GetStatus();
 
     std::uint32_t propertyCount = 0U;
     std::uint32_t eventCount = 0U;
@@ -126,32 +75,36 @@ Base::Result<void> MetadataDescriptorStore::Build(
         eventCount += type.Events().Size();
         methodCount += type.Methods().Size();
     }
-    reserved = properties_.TryReserve(propertyCount);
-    if (!reserved) return reserved.GetStatus();
-    reserved = events_.TryReserve(eventCount);
-    if (!reserved) return reserved.GetStatus();
-    reserved = methods_.TryReserve(methodCount);
-    if (!reserved) return reserved.GetStatus();
-    reserved = memberIndex_.TryReserve(
+
+    Base::Result<void> result = types_.TryReserve(source.TypeCount());
+    if (!result) return result.GetStatus();
+    result = typeIndex_.TryReserve(source.TypeCount());
+    if (!result) return result.GetStatus();
+    result = properties_.TryReserve(propertyCount);
+    if (!result) return result.GetStatus();
+    result = events_.TryReserve(eventCount);
+    if (!result) return result.GetStatus();
+    result = methods_.TryReserve(methodCount);
+    if (!result) return result.GetStatus();
+    result = memberIndex_.TryReserve(
         propertyCount + eventCount + methodCount);
-    if (!reserved) return reserved.GetStatus();
+    if (!result) return result.GetStatus();
 
     for (const TypeInfo& sourceType : source.Types()) {
         MetadataTypeDescriptor type;
         type.id_ = sourceType.Id();
         type.baseType_ = sourceType.BaseType();
         type.flags_ = sourceType.Flags();
-        Base::Result<void> copied = type.xamlNamespace_.TryAssign(
-            sourceType.XamlNamespace());
-        if (!copied) return copied.GetStatus();
-        copied = type.name_.TryAssign(sourceType.Name());
-        if (!copied) return copied.GetStatus();
-        copied = type.properties_.TryReserve(sourceType.Properties().Size());
-        if (!copied) return copied.GetStatus();
-        copied = type.events_.TryReserve(sourceType.Events().Size());
-        if (!copied) return copied.GetStatus();
-        copied = type.methods_.TryReserve(sourceType.Methods().Size());
-        if (!copied) return copied.GetStatus();
+        result = type.xamlNamespace_.TryAssign(sourceType.XamlNamespace());
+        if (!result) return result.GetStatus();
+        result = type.name_.TryAssign(sourceType.Name());
+        if (!result) return result.GetStatus();
+        result = type.properties_.TryReserve(sourceType.Properties().Size());
+        if (!result) return result.GetStatus();
+        result = type.events_.TryReserve(sourceType.Events().Size());
+        if (!result) return result.GetStatus();
+        result = type.methods_.TryReserve(sourceType.Methods().Size());
+        if (!result) return result.GetStatus();
 
         for (const PropertyInfo& sourceProperty : sourceType.Properties()) {
             MetadataPropertyDescriptor property;
@@ -159,16 +112,17 @@ Base::Result<void> MetadataDescriptorStore::Build(
             property.ownerType_ = sourceProperty.OwnerType();
             property.valueType_ = sourceProperty.ValueType();
             property.flags_ = sourceProperty.Flags();
-            copied = property.name_.TryAssign(sourceProperty.Name());
-            if (!copied) return copied.GetStatus();
+            result = property.name_.TryAssign(sourceProperty.Name());
+            if (!result) return result.GetStatus();
             const std::uint32_t index = properties_.Size();
-            copied = properties_.TryPushBack(std::move(property));
-            if (!copied) return copied.GetStatus();
-            copied = type.properties_.TryPushBack(sourceProperty.Id());
-            if (!copied) return copied.GetStatus();
-            copied = InsertMemberIndex(memberIndex_, sourceProperty.Id(),
-                {MetadataDescriptorKind::Property, index});
-            if (!copied) return copied.GetStatus();
+            result = properties_.TryPushBack(std::move(property));
+            if (!result) return result.GetStatus();
+            result = type.properties_.TryPushBack(sourceProperty.Id());
+            if (!result) return result.GetStatus();
+            result = InsertUnique(memberIndex_, sourceProperty.Id(),
+                MemberLocation{MetadataDescriptorKind::Property, index},
+                "Metadata descriptor member id collision");
+            if (!result) return result.GetStatus();
         }
 
         for (const EventInfo& sourceEvent : sourceType.Events()) {
@@ -177,16 +131,17 @@ Base::Result<void> MetadataDescriptorStore::Build(
             event.ownerType_ = sourceEvent.OwnerType();
             event.eventArgsType_ = sourceEvent.EventArgsType();
             event.flags_ = sourceEvent.Flags();
-            copied = event.name_.TryAssign(sourceEvent.Name());
-            if (!copied) return copied.GetStatus();
+            result = event.name_.TryAssign(sourceEvent.Name());
+            if (!result) return result.GetStatus();
             const std::uint32_t index = events_.Size();
-            copied = events_.TryPushBack(std::move(event));
-            if (!copied) return copied.GetStatus();
-            copied = type.events_.TryPushBack(sourceEvent.Id());
-            if (!copied) return copied.GetStatus();
-            copied = InsertMemberIndex(memberIndex_, sourceEvent.Id(),
-                {MetadataDescriptorKind::Event, index});
-            if (!copied) return copied.GetStatus();
+            result = events_.TryPushBack(std::move(event));
+            if (!result) return result.GetStatus();
+            result = type.events_.TryPushBack(sourceEvent.Id());
+            if (!result) return result.GetStatus();
+            result = InsertUnique(memberIndex_, sourceEvent.Id(),
+                MemberLocation{MetadataDescriptorKind::Event, index},
+                "Metadata descriptor member id collision");
+            if (!result) return result.GetStatus();
         }
 
         for (const MethodInfo& sourceMethod : sourceType.Methods()) {
@@ -195,35 +150,37 @@ Base::Result<void> MetadataDescriptorStore::Build(
             method.ownerType_ = sourceMethod.OwnerType();
             method.returnType_ = sourceMethod.ReturnType();
             method.flags_ = sourceMethod.Flags();
-            copied = method.name_.TryAssign(sourceMethod.Name());
-            if (!copied) return copied.GetStatus();
-            copied = method.parameters_.TryReserve(
+            result = method.name_.TryAssign(sourceMethod.Name());
+            if (!result) return result.GetStatus();
+            result = method.parameters_.TryReserve(
                 sourceMethod.Parameters().Size());
-            if (!copied) return copied.GetStatus();
+            if (!result) return result.GetStatus();
             for (const MethodParameterInfo& sourceParameter :
                  sourceMethod.Parameters()) {
                 MetadataMethodParameterDescriptor parameter;
                 parameter.type_ = sourceParameter.Type();
-                copied = parameter.name_.TryAssign(sourceParameter.Name());
-                if (!copied) return copied.GetStatus();
-                copied = method.parameters_.TryPushBack(std::move(parameter));
-                if (!copied) return copied.GetStatus();
+                result = parameter.name_.TryAssign(sourceParameter.Name());
+                if (!result) return result.GetStatus();
+                result = method.parameters_.TryPushBack(std::move(parameter));
+                if (!result) return result.GetStatus();
             }
             const std::uint32_t index = methods_.Size();
-            copied = methods_.TryPushBack(std::move(method));
-            if (!copied) return copied.GetStatus();
-            copied = type.methods_.TryPushBack(sourceMethod.Id());
-            if (!copied) return copied.GetStatus();
-            copied = InsertMemberIndex(memberIndex_, sourceMethod.Id(),
-                {MetadataDescriptorKind::Method, index});
-            if (!copied) return copied.GetStatus();
+            result = methods_.TryPushBack(std::move(method));
+            if (!result) return result.GetStatus();
+            result = type.methods_.TryPushBack(sourceMethod.Id());
+            if (!result) return result.GetStatus();
+            result = InsertUnique(memberIndex_, sourceMethod.Id(),
+                MemberLocation{MetadataDescriptorKind::Method, index},
+                "Metadata descriptor member id collision");
+            if (!result) return result.GetStatus();
         }
 
-        const std::uint32_t typeIndex = types_.Size();
-        copied = types_.TryPushBack(std::move(type));
-        if (!copied) return copied.GetStatus();
-        copied = InsertTypeIndex(typeIndex_, sourceType.Id(), typeIndex);
-        if (!copied) return copied.GetStatus();
+        const std::uint32_t index = types_.Size();
+        result = types_.TryPushBack(std::move(type));
+        if (!result) return result.GetStatus();
+        result = InsertUnique(typeIndex_, sourceType.Id(), index,
+            "Metadata descriptor type id collision");
+        if (!result) return result.GetStatus();
     }
 
     sealed_ = true;
@@ -264,8 +221,7 @@ const MetadataPropertyDescriptor* MetadataDescriptorStore::FindProperty(
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
         const MetadataPropertyDescriptor* property = FindProperty(
             MakeMemberId(current, MemberKind::Property, name));
-        if (property != nullptr && property->OwnerType() == current &&
-            property->Name() == name) return property;
+        if (property != nullptr && property->Name() == name) return property;
         if (!includeBaseTypes) return nullptr;
         const MetadataTypeDescriptor* type = FindType(current);
         if (type == nullptr) return nullptr;
@@ -292,8 +248,7 @@ const MetadataEventDescriptor* MetadataDescriptorStore::FindEvent(
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
         const MetadataEventDescriptor* event = FindEvent(
             MakeMemberId(current, MemberKind::Event, name));
-        if (event != nullptr && event->OwnerType() == current &&
-            event->Name() == name) return event;
+        if (event != nullptr && event->Name() == name) return event;
         if (!includeBaseTypes) return nullptr;
         const MetadataTypeDescriptor* type = FindType(current);
         if (type == nullptr) return nullptr;
@@ -321,8 +276,7 @@ const MetadataMethodDescriptor* MetadataDescriptorStore::FindMethod(
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
         const MetadataMethodDescriptor* method = FindMethod(
             MakeMethodId(current, name, parameterTypes));
-        if (method != nullptr && method->OwnerType() == current &&
-            method->Name() == name) return method;
+        if (method != nullptr && method->Name() == name) return method;
         if (!includeBaseTypes) return nullptr;
         const MetadataTypeDescriptor* type = FindType(current);
         if (type == nullptr) return nullptr;
@@ -348,19 +302,19 @@ bool MetadataDescriptorStore::IsDerivedFrom(
 
 Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexcept {
     if (!sealed_) {
-        return SourceNotFrozen(
-            "Descriptor hash requires a sealed descriptor store");
+        return InvalidState("Descriptor hash requires a sealed store");
     }
     Base::Detail::StableMetadataIdBuilder builder;
-    builder.AddText("AERO.DESCRIPTORS.V1", 19U);
+    constexpr char domain[] = "AERO.DESCRIPTORS.V1";
+    builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataDescriptorFormatVersion);
 
     Base::Vector<std::uint32_t> order;
-    Base::Result<void> built = BuildOrder(types_.Size(), order,
+    Base::Result<void> result = BuildOrder(types_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return types_[left].Id() < types_[right].Id();
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const MetadataTypeDescriptor& type = types_[index];
@@ -372,11 +326,11 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
     }
 
     order.Clear();
-    built = BuildOrder(properties_.Size(), order,
+    result = BuildOrder(properties_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return properties_[left].Id() < properties_[right].Id();
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const MetadataPropertyDescriptor& property = properties_[index];
@@ -388,11 +342,11 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
     }
 
     order.Clear();
-    built = BuildOrder(events_.Size(), order,
+    result = BuildOrder(events_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return events_[left].Id() < events_[right].Id();
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const MetadataEventDescriptor& event = events_[index];
@@ -404,11 +358,11 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
     }
 
     order.Clear();
-    built = BuildOrder(methods_.Size(), order,
+    result = BuildOrder(methods_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return methods_[left].Id() < methods_[right].Id();
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const MetadataMethodDescriptor& method = methods_[index];
@@ -430,35 +384,25 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
 Base::Result<void> MetadataFacetStore::AddTypeMask(
     TypeId type,
     MetadataFacetKind kind) noexcept {
-    MetadataFacetMask* existing = typeMasks_.Find(type);
-    if (existing != nullptr) {
-        *existing |= MetadataFacetBit(kind);
+    MetadataFacetMask* mask = typeMasks_.Find(type);
+    if (mask != nullptr) {
+        *mask |= MetadataFacetBit(kind);
         return {};
     }
-    Base::Result<Base::HashMap<TypeId, MetadataFacetMask>::InsertResult> inserted =
-        typeMasks_.TryInsert(type, MetadataFacetBit(kind));
-    if (!inserted) return inserted.GetStatus();
-    return inserted.Value().inserted ? Base::Result<void>()
-        : Base::Result<void>(Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Type facet mask insertion failed"));
+    return InsertUnique(typeMasks_, type, MetadataFacetBit(kind),
+        "Type facet mask collision");
 }
 
 Base::Result<void> MetadataFacetStore::AddMemberMask(
     MemberId member,
     MetadataFacetKind kind) noexcept {
-    MetadataFacetMask* existing = memberMasks_.Find(member);
-    if (existing != nullptr) {
-        *existing |= MetadataFacetBit(kind);
+    MetadataFacetMask* mask = memberMasks_.Find(member);
+    if (mask != nullptr) {
+        *mask |= MetadataFacetBit(kind);
         return {};
     }
-    Base::Result<Base::HashMap<MemberId, MetadataFacetMask>::InsertResult> inserted =
-        memberMasks_.TryInsert(member, MetadataFacetBit(kind));
-    if (!inserted) return inserted.GetStatus();
-    return inserted.Value().inserted ? Base::Result<void>()
-        : Base::Result<void>(Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Member facet mask insertion failed"));
+    return InsertUnique(memberMasks_, member, MetadataFacetBit(kind),
+        "Member facet mask collision");
 }
 
 Base::Result<void> MetadataFacetStore::Build(
@@ -466,94 +410,99 @@ Base::Result<void> MetadataFacetStore::Build(
     const MetadataDescriptorStore& descriptors,
     const DependencyPropertyRegistry& dependencyProperties,
     const RoutedEventRegistry& routedEvents) noexcept {
-    if (sealed_) {
-        return AlreadyBuilt("MetadataFacetStore is already sealed");
-    }
+    if (sealed_) return InvalidState("MetadataFacetStore is already sealed");
     if (!source.IsFrozen() || !descriptors.IsSealed() ||
         !dependencyProperties.IsFrozen() || !routedEvents.IsFrozen()) {
-        return SourceNotFrozen(
-            "Metadata registries and descriptors must be sealed before facets");
+        return InvalidState(
+            "Metadata sources must be sealed before building facets");
     }
+    descriptors_ = &descriptors;
 
     for (const TypeInfo& type : source.Types()) {
-        Base::Result<void> status;
+        Base::Result<void> result;
         if (type.Factory() != nullptr) {
             const std::uint32_t index = factories_.Size();
-            status = factories_.TryPushBack({type.Id(), type.Factory()});
-            if (!status) return status.GetStatus();
-            status = InsertFacetIndex(factoryIndex_, type.Id(), index);
-            if (!status) return status.GetStatus();
-            status = AddTypeMask(type.Id(), MetadataFacetKind::TypeFactory);
-            if (!status) return status.GetStatus();
+            result = factories_.TryPushBack({type.Id(), type.Factory()});
+            if (!result) return result.GetStatus();
+            result = InsertUnique(factoryIndex_, type.Id(), index,
+                "Type factory facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(type.Id(), MetadataFacetKind::TypeFactory);
+            if (!result) return result.GetStatus();
         }
         if (type.ContentMember() != InvalidMemberId) {
             const std::uint32_t index = contents_.Size();
-            status = contents_.TryPushBack({type.Id(), type.ContentMember()});
-            if (!status) return status.GetStatus();
-            status = InsertFacetIndex(contentIndex_, type.Id(), index);
-            if (!status) return status.GetStatus();
-            status = AddTypeMask(type.Id(), MetadataFacetKind::Content);
-            if (!status) return status.GetStatus();
+            result = contents_.TryPushBack({type.Id(), type.ContentMember()});
+            if (!result) return result.GetStatus();
+            result = InsertUnique(contentIndex_, type.Id(), index,
+                "Content facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(type.Id(), MetadataFacetKind::Content);
+            if (!result) return result.GetStatus();
         }
 
         for (const PropertyInfo& property : type.Properties()) {
             if (property.Access() != PropertyAccessKind::External) {
                 const std::uint32_t index = propertyAccessors_.Size();
-                status = propertyAccessors_.TryPushBack({
+                result = propertyAccessors_.TryPushBack({
                     property.Id(), property.Access(), property.Getter(),
                     property.Setter(), property.Provider(), property.Context()});
-                if (!status) return status.GetStatus();
-                status = InsertFacetIndex(
-                    propertyAccessorIndex_, property.Id(), index);
-                if (!status) return status.GetStatus();
-                status = AddMemberMask(
+                if (!result) return result.GetStatus();
+                result = InsertUnique(
+                    propertyAccessorIndex_, property.Id(), index,
+                    "Property accessor facet collision");
+                if (!result) return result.GetStatus();
+                result = AddMemberMask(
                     property.Id(), MetadataFacetKind::PropertyAccessor);
-                if (!status) return status.GetStatus();
+                if (!result) return result.GetStatus();
             }
 
             const DependencyProperty* dependency = dependencyProperties.Find(
                 DependencyPropertyHandle{property.Id()});
             if (dependency != nullptr) {
                 const std::uint32_t index = dependencyProperties_.Size();
-                status = dependencyProperties_.TryPushBack({
+                result = dependencyProperties_.TryPushBack({
                     property.Id(), dependency->Handle().value,
                     dependency->RegisteredOwnerType(), dependency->ValueType(),
                     static_cast<std::uint32_t>(dependency->Flags()),
                     dependency->MetadataCount(), dependency});
-                if (!status) return status.GetStatus();
-                status = InsertFacetIndex(
-                    dependencyPropertyIndex_, property.Id(), index);
-                if (!status) return status.GetStatus();
-                status = AddMemberMask(
+                if (!result) return result.GetStatus();
+                result = InsertUnique(
+                    dependencyPropertyIndex_, property.Id(), index,
+                    "Dependency property facet collision");
+                if (!result) return result.GetStatus();
+                result = AddMemberMask(
                     property.Id(), MetadataFacetKind::DependencyProperty);
-                if (!status) return status.GetStatus();
+                if (!result) return result.GetStatus();
             }
         }
 
         for (const MethodInfo& method : type.Methods()) {
             if (method.Invoker() == nullptr) continue;
             const std::uint32_t index = methodInvokers_.Size();
-            status = methodInvokers_.TryPushBack({
+            result = methodInvokers_.TryPushBack({
                 method.Id(), method.Invoker(), method.Context()});
-            if (!status) return status.GetStatus();
-            status = InsertFacetIndex(methodInvokerIndex_, method.Id(), index);
-            if (!status) return status.GetStatus();
-            status = AddMemberMask(
+            if (!result) return result.GetStatus();
+            result = InsertUnique(methodInvokerIndex_, method.Id(), index,
+                "Method invoker facet collision");
+            if (!result) return result.GetStatus();
+            result = AddMemberMask(
                 method.Id(), MetadataFacetKind::MethodInvoker);
-            if (!status) return status.GetStatus();
+            if (!result) return result.GetStatus();
         }
 
         for (const EventInfo& event : type.Events()) {
             if (!HasEventFlag(event.Flags(), EventFlags::Routed)) continue;
             const std::uint32_t index = routedEvents_.Size();
-            status = routedEvents_.TryPushBack({
+            result = routedEvents_.TryPushBack({
                 event.Id(), event.OwnerType(), event.EventArgsType(),
                 &routedEvents});
-            if (!status) return status.GetStatus();
-            status = InsertFacetIndex(routedEventIndex_, event.Id(), index);
-            if (!status) return status.GetStatus();
-            status = AddMemberMask(event.Id(), MetadataFacetKind::RoutedEvent);
-            if (!status) return status.GetStatus();
+            if (!result) return result.GetStatus();
+            result = InsertUnique(routedEventIndex_, event.Id(), index,
+                "Routed event facet collision");
+            if (!result) return result.GetStatus();
+            result = AddMemberMask(event.Id(), MetadataFacetKind::RoutedEvent);
+            if (!result) return result.GetStatus();
         }
     }
 
@@ -586,16 +535,15 @@ const ContentFacet* MetadataFacetStore::FindContent(TypeId type) const noexcept 
 }
 
 MemberId MetadataFacetStore::FindContentMember(TypeId type) const noexcept {
+    if (descriptors_ == nullptr) return InvalidMemberId;
     TypeId current = type;
-    for (std::uint32_t depth = 0U; current != InvalidTypeId; ++depth) {
-        const ContentFacet* facet = FindContent(current);
-        if (facet != nullptr) return facet->member;
-        if (depth > typeMasks_.Size() + contentIndex_.Size()) break;
-        const MetadataFacetMask mask = TypeFacets(current);
-        (void)mask;
-        // The type hierarchy is resolved by callers through the descriptor store;
-        // exact lookup remains allocation-free here.
-        break;
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= descriptors_->TypeCount(); ++depth) {
+        const ContentFacet* content = FindContent(current);
+        if (content != nullptr) return content->member;
+        const MetadataTypeDescriptor* descriptor = descriptors_->FindType(current);
+        if (descriptor == nullptr) return InvalidMemberId;
+        current = descriptor->BaseType();
     }
     return InvalidMemberId;
 }
@@ -629,50 +577,43 @@ const RoutedEventFacet* MetadataFacetStore::FindRoutedEvent(
 }
 
 Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
-    if (!sealed_) {
-        return SourceNotFrozen("Facet hash requires a sealed facet store");
-    }
+    if (!sealed_) return InvalidState("Facet hash requires a sealed store");
     Base::Detail::StableMetadataIdBuilder builder;
-    builder.AddText("AERO.FACETS.V1", 14U);
+    constexpr char domain[] = "AERO.FACETS.V1";
+    builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataFacetFormatVersion);
 
     Base::Vector<std::uint32_t> order;
-    Base::Result<void> built = BuildOrder(factories_.Size(), order,
+    Base::Result<void> result = BuildOrder(factories_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return factories_[left].type < factories_[right].type;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
-    for (std::uint32_t index : order) {
-        builder.AddByte(static_cast<std::uint8_t>(MetadataFacetKind::TypeFactory));
-        builder.AddU64(factories_[index].type);
-    }
+    for (std::uint32_t index : order) builder.AddU64(factories_[index].type);
 
     order.Clear();
-    built = BuildOrder(contents_.Size(), order,
+    result = BuildOrder(contents_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return contents_[left].type < contents_[right].type;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
-        builder.AddByte(static_cast<std::uint8_t>(MetadataFacetKind::Content));
         builder.AddU64(contents_[index].type);
         builder.AddU64(contents_[index].member);
     }
 
     order.Clear();
-    built = BuildOrder(propertyAccessors_.Size(), order,
+    result = BuildOrder(propertyAccessors_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return propertyAccessors_[left].member <
                 propertyAccessors_[right].member;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const PropertyAccessorFacet& facet = propertyAccessors_[index];
-        builder.AddByte(static_cast<std::uint8_t>(
-            MetadataFacetKind::PropertyAccessor));
         builder.AddU64(facet.member);
         builder.AddByte(static_cast<std::uint8_t>(facet.access));
         builder.AddU64(facet.provider);
@@ -681,30 +622,26 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
     }
 
     order.Clear();
-    built = BuildOrder(methodInvokers_.Size(), order,
+    result = BuildOrder(methodInvokers_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return methodInvokers_[left].member < methodInvokers_[right].member;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
-        builder.AddByte(static_cast<std::uint8_t>(
-            MetadataFacetKind::MethodInvoker));
         builder.AddU64(methodInvokers_[index].member);
     }
 
     order.Clear();
-    built = BuildOrder(dependencyProperties_.Size(), order,
+    result = BuildOrder(dependencyProperties_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return dependencyProperties_[left].member <
                 dependencyProperties_[right].member;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const DependencyPropertyFacet& facet = dependencyProperties_[index];
-        builder.AddByte(static_cast<std::uint8_t>(
-            MetadataFacetKind::DependencyProperty));
         builder.AddU64(facet.member);
         builder.AddU64(facet.canonicalMember);
         builder.AddU64(facet.registeredOwnerType);
@@ -714,15 +651,14 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
     }
 
     order.Clear();
-    built = BuildOrder(routedEvents_.Size(), order,
+    result = BuildOrder(routedEvents_.Size(), order,
         [this](std::uint32_t left, std::uint32_t right) noexcept {
             return routedEvents_[left].member < routedEvents_[right].member;
         });
-    if (!built) return built.GetStatus();
+    if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
         const RoutedEventFacet& facet = routedEvents_[index];
-        builder.AddByte(static_cast<std::uint8_t>(MetadataFacetKind::RoutedEvent));
         builder.AddU64(facet.member);
         builder.AddU64(facet.ownerType);
         builder.AddU64(facet.eventArgsType);
