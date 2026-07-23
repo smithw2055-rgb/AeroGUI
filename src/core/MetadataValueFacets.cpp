@@ -1,4 +1,4 @@
-#include <Aero/Core/MetadataDescriptors.hpp>
+#include <Aero/Core/MetadataValueFacets.hpp>
 
 #include <utility>
 
@@ -23,6 +23,10 @@ Base::Result<void> InsertValueFacetIndex(
 bool IsValueType(const MetadataTypeDescriptor& type) noexcept {
     return (static_cast<std::uint32_t>(type.Flags()) &
         static_cast<std::uint32_t>(TypeFlags::ValueType)) != 0U;
+}
+
+Base::Status ValueFacetStateError(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
 } // namespace
@@ -112,6 +116,53 @@ const TextConverterFacet* MetadataFacetStore::FindTextConverter(
     const std::uint32_t* index = textConverterIndex_.Find(type);
     return index != nullptr && *index < textConverters_.Size()
         ? &textConverters_[*index] : nullptr;
+}
+
+Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
+    const MetadataFacetStore& facets,
+    const MetadataDescriptorStore& descriptors) noexcept {
+    if (!facets.IsSealed() || !facets.ValueFacetsSealed() ||
+        !descriptors.IsSealed()) {
+        return ValueFacetStateError(
+            "Value facet hash requires sealed descriptors and facets");
+    }
+
+    Base::Detail::StableMetadataIdBuilder builder;
+    constexpr char domain[] = "AERO.VALUE.FACETS.V1";
+    builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
+    builder.AddU32(MetadataFacetFormatVersion);
+
+    std::uint32_t semanticsCount = 0U;
+    std::uint32_t converterCount = 0U;
+    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+        if (facets.FindValueSemantics(type.Id()) != nullptr) ++semanticsCount;
+        if (facets.FindTextConverter(type.Id()) != nullptr) ++converterCount;
+    }
+    builder.AddU32(semanticsCount);
+    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+        const ValueSemanticsFacet* facet =
+            facets.FindValueSemantics(type.Id());
+        if (facet == nullptr || !facet->semantics) continue;
+        const ValueTypeRegistration& registration =
+            facet->semantics->Registration();
+        builder.AddU64(type.Id());
+        builder.AddU32(registration.size);
+        builder.AddU32(registration.alignment);
+        builder.AddByte(registration.copy != nullptr ? 1U : 0U);
+        builder.AddByte(registration.destroy != nullptr ? 1U : 0U);
+        builder.AddByte(registration.equals != nullptr ? 1U : 0U);
+        builder.AddByte(registration.inlineSafe ? 1U : 0U);
+    }
+
+    builder.AddU32(converterCount);
+    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+        const TextConverterFacet* facet =
+            facets.FindTextConverter(type.Id());
+        if (facet == nullptr) continue;
+        builder.AddU64(type.Id());
+        builder.AddByte(facet->convert != nullptr ? 1U : 0U);
+    }
+    return builder.Finish();
 }
 
 } // namespace Aero::Core
