@@ -106,8 +106,8 @@ struct Fixture final {
     }
 
     Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
-        TypeRegistry& types = context.types;
-        DependencyPropertyRegistry& properties = context.dependencyProperties;
+        MetadataRegistrationTypes types = context.Types();
+        DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:xaml-binding-tests");
 
         Result<TypeId> registered = types.TryRegisterType({

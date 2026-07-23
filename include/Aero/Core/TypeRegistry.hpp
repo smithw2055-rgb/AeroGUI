@@ -18,11 +18,13 @@
 
 namespace Aero::Core {
 
-struct MetaRegistrationContext;
+class MetaRegistrationContext;
 class MetaRegistrationBuilder;
+class MetadataBehaviorRegistrationStore;
+class MetadataRegistrationTypes;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
-inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 2U;
+inline constexpr std::uint32_t RegistrySnapshotFormatVersion = 3U;
 
 enum class MemberKind : std::uint8_t {
     Property = 1U,
@@ -355,30 +357,6 @@ public:
     TypeRegistry(TypeRegistry&&) = delete;
     TypeRegistry& operator=(TypeRegistry&&) = delete;
 
-    Base::Result<TypeId> TryRegisterType(
-        const TypeRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterProperty(
-        TypeId ownerType,
-        const PropertyRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterEvent(
-        TypeId ownerType,
-        const EventRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterMethod(
-        TypeId ownerType,
-        const MethodRegistration& registration) noexcept;
-    Base::Result<void> TrySetFactory(
-        TypeId type,
-        ObjectFactory factory) noexcept;
-    Base::Result<void> TrySetContentMember(
-        TypeId type,
-        MemberId member) noexcept;
-    const TypeFactoryRegistration* FindTypeFactory(
-        TypeId type) const noexcept;
-    const PropertyAccessorRegistration* FindPropertyAccessor(
-        MemberId member) const noexcept;
-    const MethodInvokerRegistration* FindMethodInvoker(
-        MemberId member) const noexcept;
-
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -439,6 +417,30 @@ public:
         const noexcept;
 
 private:
+    friend class MetadataRegistrationTypes;
+
+    Base::Result<TypeId> TryRegisterType(
+        MetadataBehaviorRegistrationStore& behaviors,
+        const TypeRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterProperty(
+        MetadataBehaviorRegistrationStore& behaviors,
+        TypeId ownerType,
+        const PropertyRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterEvent(
+        TypeId ownerType,
+        const EventRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterMethod(
+        MetadataBehaviorRegistrationStore& behaviors,
+        TypeId ownerType,
+        const MethodRegistration& registration) noexcept;
+    Base::Result<void> TrySetFactory(
+        MetadataBehaviorRegistrationStore& behaviors,
+        TypeId type,
+        ObjectFactory factory) noexcept;
+    Base::Result<void> TrySetContentMember(
+        TypeId type,
+        MemberId member) noexcept;
+
     struct MemberLocation final {
         std::uint32_t typeIndex = 0U;
         std::uint32_t memberIndex = 0U;
@@ -448,11 +450,6 @@ private:
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
-
-    Base::Vector<TypeFactoryRegistration> typeFactories_;
-    Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
-    Base::Vector<MethodInvokerRegistration> methodInvokers_;
-
     bool frozen_ = false;
 
     TypeInfo* MutableType(TypeId id) noexcept;

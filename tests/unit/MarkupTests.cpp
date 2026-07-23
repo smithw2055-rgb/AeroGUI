@@ -1,3 +1,5 @@
+#include <Aero/Core/RuntimeMetadata.hpp>
+#include <Aero/Markup/XamlCompiledCache.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 #include "TestAllocatorScope.hpp"
@@ -341,7 +343,7 @@ Result<void> RegisterCustomTextMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
     const StringView ns("urn:custom-values");
-    return context.types.TryRegisterType({
+    return context.Types().TryRegisterType({
         ns,
         StringView("CustomLength"),
         InvalidTypeId,
@@ -403,6 +405,59 @@ bool TestCustomTextConverter() {
     return true;
 }
 
+
+bool TestCompiledXamlCacheCompatibility() {
+    MetadataDomain unsealed;
+    Result<XamlCompiledCacheIdentity> premature =
+        BuildXamlCompiledCacheIdentity(unsealed);
+    CHECK(!premature);
+    CHECK(premature.GetStatus().code == ErrorCode::InvalidState);
+
+    MetadataDomain metadata;
+    CHECK(TryRegisterAeroPresentationMetadata(metadata));
+    CHECK(metadata.Seal());
+    Result<XamlCompiledCacheIdentity> built =
+        BuildXamlCompiledCacheIdentity(metadata);
+    CHECK(built);
+    const XamlCompiledCacheIdentity current = built.Value();
+    CHECK(current.metadataSchemaHash != 0U);
+    CHECK(ValidateXamlCompiledCacheIdentity(current, metadata));
+    CHECK(CompareXamlCompiledCacheIdentity(current, current) ==
+        XamlCompiledCacheCompatibility::Compatible);
+
+    XamlCompiledCacheIdentity changed = current;
+    ++changed.cacheFormatVersion;
+    CHECK(CompareXamlCompiledCacheIdentity(changed, current) ==
+        XamlCompiledCacheCompatibility::CacheFormatMismatch);
+    Result<void> validation =
+        ValidateXamlCompiledCacheIdentity(changed, metadata);
+    CHECK(!validation && validation.GetStatus().code == ErrorCode::Unsupported);
+
+    changed = current;
+    ++changed.typeIdAlgorithmVersion;
+    CHECK(CompareXamlCompiledCacheIdentity(changed, current) ==
+        XamlCompiledCacheCompatibility::TypeIdAlgorithmMismatch);
+
+    changed = current;
+    ++changed.descriptorFormatVersion;
+    CHECK(CompareXamlCompiledCacheIdentity(changed, current) ==
+        XamlCompiledCacheCompatibility::DescriptorFormatMismatch);
+
+    changed = current;
+    ++changed.facetFormatVersion;
+    CHECK(CompareXamlCompiledCacheIdentity(changed, current) ==
+        XamlCompiledCacheCompatibility::FacetFormatMismatch);
+
+    changed = current;
+    changed.metadataSchemaHash ^= UINT64_C(0x1);
+    CHECK(CompareXamlCompiledCacheIdentity(changed, current) ==
+        XamlCompiledCacheCompatibility::MetadataSchemaMismatch);
+    validation = ValidateXamlCompiledCacheIdentity(changed, metadata);
+    CHECK(!validation &&
+        validation.GetStatus().code == ErrorCode::ValidationFailed);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -415,6 +470,7 @@ int main() {
     if (!TestNamespaceFailures()) return 1;
     if (!TestInvalidUtf8AndOutOfMemory()) return 1;
     if (!TestCustomTextConverter()) return 1;
+    if (!TestCompiledXamlCacheCompatibility()) return 1;
     std::puts("Aero markup tests passed");
     return 0;
 }

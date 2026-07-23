@@ -268,3 +268,22 @@ M3：
 - event order 与 WPF probe 对齐；
 - 1k item sample 可交互；
 - unknown/partial feature 明确报错。
+
+## Compiled XAML cache compatibility
+
+Compiled XAML and any persistent XAML cache MUST store an
+`XamlCompiledCacheIdentity` and validate it before decoding IR. Compatibility
+requires all of the following to match the runtime:
+
+- `XamlCompiledCacheFormatVersion`;
+- `TypeIdAlgorithmVersion`;
+- `MetadataDescriptorFormatVersion`;
+- `MetadataFacetFormatVersion`;
+- the sealed `MetadataDomain::ComputeSchemaHash()` value, which includes module
+  IDs, module schema versions, structural descriptors, and sealed facets.
+
+A format or algorithm mismatch is an unsupported cache format. A schema-hash
+mismatch is stale cache data and MUST trigger recompilation or runtime XAML
+fallback; it MUST NOT be decoded optimistically. Callback addresses and host
+activation registrations are intentionally excluded from the static schema
+identity.

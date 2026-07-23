@@ -12,7 +12,7 @@
 
 namespace Aero::Core {
 
-struct MetaRegistrationContext;
+class MetaRegistrationContext;
 
 using Point = Base::Point;
 using Size = Base::Size;

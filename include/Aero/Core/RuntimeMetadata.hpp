@@ -9,11 +9,7 @@ namespace Detail {
 inline Base::Result<void> RegisterAeroPresentationMetadataModule(
     MetaRegistrationContext& context,
     void*) noexcept {
-    return TryRegisterPresentationMetadata(
-        context.types,
-        context.valueRegistrations,
-        context.dependencyProperties,
-        context.routedEvents);
+return TryRegisterPresentationMetadata(context);
 }
 
 } // namespace Detail
@@ -24,9 +20,8 @@ inline constexpr Base::StringView AeroPresentationMetadataModuleName() noexcept 
 
 inline Base::Result<void> TryRegisterAeroPresentationMetadata(
     MetadataDomain& domain) noexcept {
-    // Version 7 writes type factories, property accessors and method invokers
-    // directly into stable-ID behavior records; structural Info records remain
-    // callback-free throughout registration and runtime.
+    // Version 7 keeps structural metadata callback-free and transfers all
+    // executable registrations through dedicated behavior/value stores.
     constexpr std::uint32_t SchemaVersion = 7U;
     const Base::StringView name = AeroPresentationMetadataModuleName();
     return domain.TryRegisterModule({

@@ -1,4 +1,5 @@
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Core/Presentation.hpp>
 
 #include <Aero/Base/Assert.hpp>
@@ -83,8 +84,10 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
 }
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
-    TypeRegistry& typeRegistry) noexcept
+    TypeRegistry& typeRegistry,
+    MetadataBehaviorRegistrationStore& behaviors) noexcept
     : typeRegistry_(&typeRegistry),
+      behaviorRegistrations_(&behaviors),
       properties_(),
       memberIndex_() {}
 
@@ -321,8 +324,9 @@ DependencyPropertyRegistry::TryRegister(
         registration.flags, registration.metadata.flags);
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
-    Base::Result<MemberId> registered = typeRegistry_->TryRegisterProperty(
-        registration.ownerType, metaProperty);
+    Base::Result<MemberId> registered = MetadataRegistrationTypes(
+        *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
+            registration.ownerType, metaProperty);
     if (!registered) {
         static_cast<void>(memberIndex_.Erase(member));
         properties_.PopBack();
@@ -423,8 +427,9 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     metaProperty.flags = ToTypeRegistryFlags(property.Flags(), metadata.flags);
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
-    Base::Result<MemberId> alias = typeRegistry_->TryRegisterProperty(
-        ownerType, metaProperty);
+    Base::Result<MemberId> alias = MetadataRegistrationTypes(
+        *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
+            ownerType, metaProperty);
     if (!alias) {
         static_cast<void>(memberIndex_.Erase(aliasMember));
         property.metadata_.PopBack();

@@ -307,7 +307,7 @@ Base::Result<void> XamlObjectWriter::StartObject(
 
     const Core::TypeInfo* type = typeResult.Value();
     Base::Result<Base::Ref<Base::Object>> createResult =
-        schema_->CreateObject(type->Id());
+        schema_->CreateObjectActivated(type->Id());
     if (!createResult) {
         const bool nonConstructible =
             createResult.GetStatus().code == Base::ErrorCode::Unsupported;

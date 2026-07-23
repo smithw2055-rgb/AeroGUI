@@ -11,7 +11,7 @@
 
 namespace Aero::Core {
 
-struct MetaRegistrationContext;
+class MetaRegistrationContext;
 
 using RenderNodeId = Base::RenderNodeId;
 constexpr RenderNodeId InvalidRenderNodeId = Base::InvalidRenderNodeId;

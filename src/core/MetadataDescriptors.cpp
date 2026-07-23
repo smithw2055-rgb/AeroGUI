@@ -1,4 +1,5 @@
 #include <Aero/Core/MetadataDescriptors.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/ObjectTree.hpp>
@@ -407,11 +408,12 @@ Base::Result<void> MetadataFacetStore::AddMemberMask(
 
 Base::Result<void> MetadataFacetStore::Build(
     const TypeRegistry& source,
+    const MetadataBehaviorRegistrationStore& behaviors,
     const MetadataDescriptorStore& descriptors,
     const DependencyPropertyRegistry& dependencyProperties,
     const RoutedEventRegistry& routedEvents) noexcept {
     if (sealed_) return InvalidState("MetadataFacetStore is already sealed");
-    if (!source.IsFrozen() || !descriptors.IsSealed() ||
+    if (!source.IsFrozen() || !behaviors.IsFrozen() || !descriptors.IsSealed() ||
         !dependencyProperties.IsFrozen() || !routedEvents.IsFrozen()) {
         return InvalidState(
             "Metadata sources must be sealed before building facets");
@@ -421,7 +423,7 @@ Base::Result<void> MetadataFacetStore::Build(
     for (const TypeInfo& type : source.Types()) {
         Base::Result<void> result;
         const TypeFactoryRegistration* factory =
-            source.FindTypeFactory(type.Id());
+            behaviors.FindTypeFactory(type.Id());
         if (factory != nullptr && factory->factory != nullptr) {
             const std::uint32_t index = factories_.Size();
             result = factories_.TryPushBack({type.Id(), factory->factory});
@@ -445,7 +447,7 @@ Base::Result<void> MetadataFacetStore::Build(
 
         for (const PropertyInfo& property : type.Properties()) {
             const PropertyAccessorRegistration* accessor =
-                source.FindPropertyAccessor(property.Id());
+                behaviors.FindPropertyAccessor(property.Id());
             if (accessor != nullptr &&
                 accessor->access != PropertyAccessKind::External) {
                 const std::uint32_t index = propertyAccessors_.Size();
@@ -484,7 +486,7 @@ Base::Result<void> MetadataFacetStore::Build(
 
         for (const MethodInfo& method : type.Methods()) {
             const MethodInvokerRegistration* invoker =
-                source.FindMethodInvoker(method.Id());
+                behaviors.FindMethodInvoker(method.Id());
             if (invoker == nullptr || invoker->invoke == nullptr) continue;
             const std::uint32_t index = methodInvokers_.Size();
             result = methodInvokers_.TryPushBack({

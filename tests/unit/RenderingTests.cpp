@@ -1,6 +1,7 @@
 #include <Aero/Core/Rendering.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/Controls.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -94,8 +95,10 @@ public:
 
 struct Fixture final {
     TypeRegistry types;
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
     MetadataValueRegistrationStore valueRegistrations{types};
-    DependencyPropertyRegistry properties{types};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     Dispatcher dispatcher;
     PresentationContextScope presentation{dispatcher, properties, valueRegistrations};
     TypeId objectType = InvalidTypeId;
@@ -105,16 +108,18 @@ struct Fixture final {
     TypeId borderType = InvalidTypeId;
 
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, valueRegistrations, properties));
+        MetaRegistrationContext registrationContext(
+            types, typesBehaviors, valueRegistrations, properties);
+        CHECK(TryRegisterPresentationMetadata(registrationContext));
         const StringView ns("urn:render-tests");
         objectType = BuiltinTypes::Object;
         elementType = BuiltinTypes::FrameworkElement;
         panelType = MakeTypeId(ns, StringView("RenderPanel"));
         textBlockType = BuiltinTypes::TextBlock;
         borderType = BuiltinTypes::Border;
-        CHECK(types.TryRegisterType({ns, StringView("RenderPanel"), elementType,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("RenderPanel"), elementType,
             TypeFlags::None, nullptr}));
-        CHECK(types.Freeze()); CHECK(valueRegistrations.Freeze());
+        CHECK(types.Freeze()); CHECK(typesBehaviors.Freeze()); CHECK(valueRegistrations.Freeze());
         CHECK(properties.Freeze());
         return true;
     }

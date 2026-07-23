@@ -4,6 +4,7 @@
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <cstdio>
 
@@ -30,7 +31,9 @@ public:
 struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -44,11 +47,11 @@ struct Fixture final {
         objectType = MakeTypeId(ns, StringView("Object"));
         doubleType = MakeTypeId(ns, StringView("Double"));
         elementType = MakeTypeId(ns, StringView("Element"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Double"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Element"), objectType,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Element"), objectType,
             TypeFlags::Sealed, nullptr}));
         DependencyPropertyRegistration sourceRegistration;
         sourceRegistration.name = StringView("Source");

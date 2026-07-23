@@ -4,6 +4,7 @@
 #include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
@@ -403,18 +404,20 @@ bool BuildPlan(
     RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId,
     std::uint32_t glyphRunCount = 1U) noexcept {
     TypeRegistry types;
-    DependencyPropertyRegistry properties(types);
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties(types, typesBehaviors);
     Dispatcher dispatcher;
     PresentationContextScope presentation(dispatcher, properties);
     const StringView ns("urn:aero-d3d11-test");
     const TypeId objectType = MakeTypeId(ns, StringView("Object"));
     const TypeId panelType = MakeTypeId(ns, StringView("PlanPanel"));
     const TypeId elementType = MakeTypeId(ns, StringView("PlanElement"));
-    CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+    CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
         TypeFlags::None, nullptr}));
-    CHECK(types.TryRegisterType({ns, StringView("PlanPanel"), objectType,
+    CHECK(typesRegistration.TryRegisterType({ns, StringView("PlanPanel"), objectType,
         TypeFlags::None, nullptr}));
-    CHECK(types.TryRegisterType({ns, StringView("PlanElement"), objectType,
+    CHECK(typesRegistration.TryRegisterType({ns, StringView("PlanElement"), objectType,
         TypeFlags::None, nullptr}));
     CHECK(types.Freeze());
     CHECK(properties.Freeze());

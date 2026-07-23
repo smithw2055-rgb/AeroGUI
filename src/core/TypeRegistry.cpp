@@ -1,4 +1,5 @@
 #include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <Aero/Base/Assert.hpp>
 
@@ -184,15 +185,7 @@ Base::Result<void> AppendTypeLine(
 
 Base::Result<void> AppendPropertyLine(
     Base::String& output,
-    const TypeRegistry& registry,
     const PropertyInfo& property) noexcept {
-    const PropertyAccessorRegistration* accessor =
-        registry.FindPropertyAccessor(property.Id());
-    const PropertyAccessKind access = accessor != nullptr
-        ? accessor->access : PropertyAccessKind::External;
-    const PropertyProviderId provider = accessor != nullptr
-        ? accessor->provider : InvalidPropertyProviderId;
-
     Base::Result<void> result = Append(output, Base::StringView("P|"));
     if (!result) return result.GetStatus();
     result = AppendHex(output, property.Id(), 16U);
@@ -209,14 +202,6 @@ Base::Result<void> AppendPropertyLine(
     if (!result) return result.GetStatus();
     result = AppendHex(
         output, static_cast<std::uint32_t>(property.Flags()), 8U);
-    if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
-    if (!result) return result.GetStatus();
-    result = AppendHex(output, static_cast<std::uint32_t>(access), 2U);
-    if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
-    if (!result) return result.GetStatus();
-    result = AppendHex(output, provider, 16U);
     if (!result) return result.GetStatus();
     result = Append(output, Base::StringView("|"));
     if (!result) return result.GetStatus();
@@ -314,12 +299,10 @@ MemberId MakeMethodId(
 TypeRegistry::TypeRegistry() noexcept
     : types_(),
       typeIndex_(),
-      memberIndex_(),
-      typeFactories_(),
-      propertyAccessors_(),
-      methodInvokers_() {}
+      memberIndex_() {}
 
 Base::Result<TypeId> TypeRegistry::TryRegisterType(
+    MetadataBehaviorRegistrationStore& behaviors,
     const TypeRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
     if (registration.xamlNamespace.Empty() || registration.name.Empty()) {
@@ -338,8 +321,8 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
     }
 
     if (registration.factory != nullptr) {
-        Base::Result<void> reserved = typeFactories_.TryReserve(
-            typeFactories_.Size() + 1U);
+        Base::Result<void> reserved = behaviors.typeFactories_.TryReserve(
+            behaviors.typeFactories_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
 
@@ -359,7 +342,7 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
 
     bool factoryAdded = false;
     if (registration.factory != nullptr) {
-        result = typeFactories_.TryPushBack({id, registration.factory});
+        result = behaviors.typeFactories_.TryPushBack({id, registration.factory});
         if (!result) {
             types_.PopBack();
             return result.GetStatus();
@@ -370,7 +353,7 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
     Base::Result<Base::HashMap<TypeId, std::uint32_t>::InsertResult> inserted =
         typeIndex_.TryInsert(id, index);
     if (!inserted || !inserted.Value().inserted) {
-        if (factoryAdded) typeFactories_.PopBack();
+        if (factoryAdded) behaviors.typeFactories_.PopBack();
         types_.PopBack();
         return !inserted ? inserted.GetStatus() : IdCollisionStatus();
     }
@@ -378,6 +361,7 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
+    MetadataBehaviorRegistrationStore& behaviors,
     TypeId ownerType,
     const PropertyRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -414,8 +398,8 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
 
     const bool hasBehavior = HasPropertyBehavior(registration);
     if (hasBehavior) {
-        Base::Result<void> reserved = propertyAccessors_.TryReserve(
-            propertyAccessors_.Size() + 1U);
+        Base::Result<void> reserved = behaviors.propertyAccessors_.TryReserve(
+            behaviors.propertyAccessors_.Size() + 1U);
         if (!reserved) return reserved.GetStatus();
     }
 
@@ -434,7 +418,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
 
     bool behaviorAdded = false;
     if (hasBehavior) {
-        result = propertyAccessors_.TryPushBack({
+        result = behaviors.propertyAccessors_.TryPushBack({
             id, registration.access, registration.get, registration.set,
             registration.provider, registration.context});
         if (!result) {
@@ -449,7 +433,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
     Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
         memberIndex_.TryInsert(id, location);
     if (!inserted || !inserted.Value().inserted) {
-        if (behaviorAdded) propertyAccessors_.PopBack();
+        if (behaviorAdded) behaviors.propertyAccessors_.PopBack();
         owner.properties_.PopBack();
         return !inserted ? inserted.GetStatus() : IdCollisionStatus();
     }
@@ -506,6 +490,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterEvent(
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
+    MetadataBehaviorRegistrationStore& behaviors,
     TypeId ownerType,
     const MethodRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -536,7 +521,8 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
         {signature.Data(), signature.Size()});
     if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
 
-    result = methodInvokers_.TryReserve(methodInvokers_.Size() + 1U);
+    result = behaviors.methodInvokers_.TryReserve(
+        behaviors.methodInvokers_.Size() + 1U);
     if (!result) return result.GetStatus();
 
     TypeInfo& owner = types_[*ownerIndex];
@@ -563,7 +549,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
     result = owner.methods_.TryPushBack(std::move(method));
     if (!result) return result.GetStatus();
 
-    result = methodInvokers_.TryPushBack(
+    result = behaviors.methodInvokers_.TryPushBack(
         {id, registration.invoke, registration.context});
     if (!result) {
         owner.methods_.PopBack();
@@ -575,7 +561,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
     Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
         memberIndex_.TryInsert(id, location);
     if (!inserted || !inserted.Value().inserted) {
-        methodInvokers_.PopBack();
+        behaviors.methodInvokers_.PopBack();
         owner.methods_.PopBack();
         return !inserted ? inserted.GetStatus() : IdCollisionStatus();
     }
@@ -583,6 +569,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
 }
 
 Base::Result<void> TypeRegistry::TrySetFactory(
+    MetadataBehaviorRegistrationStore& behaviors,
     TypeId type,
     ObjectFactory factory) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -596,12 +583,12 @@ Base::Result<void> TypeRegistry::TrySetFactory(
             Base::ErrorCode::InvalidArgument,
             "Type factory must not be null");
     }
-    if (FindTypeFactory(type) != nullptr) {
+    if (behaviors.FindTypeFactory(type) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Type factory is already registered");
     }
-    return typeFactories_.TryPushBack({type, factory});
+    return behaviors.typeFactories_.TryPushBack({type, factory});
 }
 
 Base::Result<void> TypeRegistry::TrySetContentMember(
@@ -625,29 +612,6 @@ Base::Result<void> TypeRegistry::TrySetContentMember(
     return {};
 }
 
-const TypeFactoryRegistration* TypeRegistry::FindTypeFactory(
-    TypeId type) const noexcept {
-    for (const TypeFactoryRegistration& registration : typeFactories_) {
-        if (registration.type == type) return &registration;
-    }
-    return nullptr;
-}
-
-const PropertyAccessorRegistration* TypeRegistry::FindPropertyAccessor(
-    MemberId member) const noexcept {
-    for (const PropertyAccessorRegistration& registration : propertyAccessors_) {
-        if (registration.member == member) return &registration;
-    }
-    return nullptr;
-}
-
-const MethodInvokerRegistration* TypeRegistry::FindMethodInvoker(
-    MemberId member) const noexcept {
-    for (const MethodInvokerRegistration& registration : methodInvokers_) {
-        if (registration.member == member) return &registration;
-    }
-    return nullptr;
-}
 
 Base::Result<void> TypeRegistry::Freeze() noexcept {
     if (frozen_) return {};
@@ -661,18 +625,6 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
             if (FindType(property.ValueType()) == nullptr) {
                 return MissingRelatedTypeStatus();
             }
-            const PropertyAccessorRegistration* accessor =
-                FindPropertyAccessor(property.Id());
-            if (accessor != nullptr && !IsValidPropertyBehavior(
-                    accessor->access,
-                    accessor->get,
-                    accessor->set,
-                    accessor->provider,
-                    accessor->context)) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "Property access metadata is invalid");
-            }
         }
         for (const EventInfo& eventInfo : type.Events()) {
             if (FindType(eventInfo.EventArgsType()) == nullptr) {
@@ -680,11 +632,8 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
             }
         }
         for (const MethodInfo& method : type.Methods()) {
-            const MethodInvokerRegistration* invoker =
-                FindMethodInvoker(method.Id());
-            if (invoker == nullptr || invoker->invoke == nullptr ||
-                (method.ReturnType() != InvalidTypeId &&
-                 FindType(method.ReturnType()) == nullptr)) {
+            if (method.ReturnType() != InvalidTypeId &&
+                FindType(method.ReturnType()) == nullptr) {
                 return MissingRelatedTypeStatus();
             }
             for (const MethodParameterInfo& parameter : method.Parameters()) {
@@ -863,7 +812,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
 
     Base::String snapshot(&output.Allocator());
     Base::Result<void> result = Append(
-        snapshot, Base::StringView("AERO-TYPE-REGISTRY|2\n"));
+        snapshot, Base::StringView("AERO-TYPE-REGISTRY|3\n"));
     if (!result) return result.GetStatus();
 
     Base::Vector<std::uint32_t> typeOrder;
@@ -887,7 +836,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
         if (!result) return result.GetStatus();
         for (std::uint32_t propertyIndex : propertyOrder) {
             result = AppendPropertyLine(
-                snapshot, *this, properties[propertyIndex]);
+                snapshot, properties[propertyIndex]);
             if (!result) return result.GetStatus();
         }
 

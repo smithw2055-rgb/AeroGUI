@@ -288,7 +288,7 @@ struct Fixture final {
     }
 
     Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
-        TypeRegistry& types = context.types;
+        MetadataRegistrationTypes types = context.Types();
         const StringView ns("urn:test");
         Result<TypeId> type = types.TryRegisterType({
             ns, StringView("Object"), InvalidTypeId,

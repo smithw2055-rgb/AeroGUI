@@ -1,4 +1,5 @@
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Core/Layout.hpp>
 
 #include <Aero/Base/Assert.hpp>
@@ -544,8 +545,11 @@ void ObjectTree::LifecycleHook(void* context) noexcept {
     (void)tree->FlushLifecycle();
 }
 
-RoutedEventRegistry::RoutedEventRegistry(TypeRegistry& types) noexcept
+RoutedEventRegistry::RoutedEventRegistry(
+    TypeRegistry& types,
+    MetadataBehaviorRegistrationStore& behaviors) noexcept
     : types_(&types),
+      behaviorRegistrations_(&behaviors),
       events_(),
       classHandlers_() {}
 
@@ -564,15 +568,8 @@ Base::Result<RoutedEventHandle> RoutedEventRegistry::TryRegister(
         types_->FindType(registration.eventArgsType) == nullptr) {
         return InvalidArgument("Routed event registration is incomplete");
     }
-    Base::Result<MemberId> member = types_->TryRegisterEvent(
-        registration.ownerType,
-        {registration.name, registration.eventArgsType, EventFlags::Routed});
-    if (!member) {
-        return member.GetStatus();
-    }
 
     EventRecord record;
-    record.handle.value = member.Value();
     record.ownerType = registration.ownerType;
     record.argsType = registration.eventArgsType;
     record.strategy = registration.strategy;
@@ -580,9 +577,27 @@ Base::Result<RoutedEventHandle> RoutedEventRegistry::TryRegister(
     if (!nameResult) {
         return nameResult.GetStatus();
     }
+    Base::Result<void> reserveResult = events_.TryReserve(events_.Size() + 1U);
+    if (!reserveResult) {
+        return reserveResult.GetStatus();
+    }
+
+    Base::Result<MemberId> member = MetadataRegistrationTypes(
+        *types_, *behaviorRegistrations_).TryRegisterEvent(
+            registration.ownerType,
+            {registration.name, registration.eventArgsType,
+             EventFlags::Routed});
+    if (!member) {
+        return member.GetStatus();
+    }
+
+    record.handle.value = member.Value();
     Base::Result<void> appended = events_.TryPushBack(std::move(record));
+    AERO_ASSERT(appended);
     if (!appended) {
-        return appended.GetStatus();
+        return Base::Status::Failure(
+            Base::ErrorCode::InternalError,
+            "Reserved routed event append unexpectedly failed");
     }
     return events_[events_.Size() - 1U].handle;
 }

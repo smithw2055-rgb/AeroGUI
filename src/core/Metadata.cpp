@@ -59,7 +59,7 @@ Base::Result<void> MetaRegistrationBuilder::Begin() noexcept {
             "Metadata registration builder was already started");
     }
     begun_ = true;
-    Base::Result<TypeId> registered = context_->types.TryRegisterType(
+    Base::Result<TypeId> registered = context_->Types().TryRegisterType(
         {xamlNamespace_, name_, baseType_, flags_, nullptr});
     if (!registered) {
         status_ = registered.GetStatus();
@@ -125,7 +125,7 @@ void MetaRegistrationBuilder::RegisterDependencyProperty(
     registration.metadata.validate = validate;
     registration.metadata.coerce = coerce;
     Base::Result<DependencyPropertyRegistrationResult> result =
-        context_->dependencyProperties.TryRegister(registration);
+        context_->DependencyProperties().TryRegister(registration);
     if (!result) {
         status_ = result.GetStatus();
     } else if (result.Value().property != declaredHandle) {
@@ -165,7 +165,7 @@ void MetaRegistrationBuilder::Property(
     const PropertyRegistration& registration) noexcept {
     if (!status_.IsOk()) return;
     Base::Result<MemberId> result =
-        context_->types.TryRegisterProperty(ownerType_, registration);
+        context_->Types().TryRegisterProperty(ownerType_, registration);
     if (!result) status_ = result.GetStatus();
 }
 
@@ -173,7 +173,7 @@ void MetaRegistrationBuilder::Method(
     const MethodRegistration& registration) noexcept {
     if (!status_.IsOk()) return;
     Base::Result<MemberId> result =
-        context_->types.TryRegisterMethod(ownerType_, registration);
+        context_->Types().TryRegisterMethod(ownerType_, registration);
     if (!result) status_ = result.GetStatus();
 }
 
@@ -181,7 +181,7 @@ void MetaRegistrationBuilder::Event(
     const EventRegistration& registration) noexcept {
     if (!status_.IsOk()) return;
     Base::Result<MemberId> result =
-        context_->types.TryRegisterEvent(ownerType_, registration);
+        context_->Types().TryRegisterEvent(ownerType_, registration);
     if (!result) status_ = result.GetStatus();
 }
 
@@ -191,7 +191,7 @@ void MetaRegistrationBuilder::RoutedEvent(
     TypeId eventArgsType,
     RoutingStrategy strategy) noexcept {
     if (!status_.IsOk()) return;
-    if (context_->routedEvents == nullptr) {
+    if (context_->RoutedEvents() == nullptr) {
         status_ = Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Routed event metadata requires a RoutedEventRegistry");
         return;
@@ -208,7 +208,7 @@ void MetaRegistrationBuilder::RoutedEvent(
             "Declared routed event handle does not match owner and name");
         return;
     }
-    Base::Result<RoutedEventHandle> result = context_->routedEvents->TryRegister(
+    Base::Result<RoutedEventHandle> result = context_->RoutedEvents()->TryRegister(
         {name, ownerType_, eventArgsType, strategy});
     if (!result) {
         status_ = result.GetStatus();
@@ -226,18 +226,18 @@ void MetaRegistrationBuilder::Content(
     if (kind == ContentKind::Collection) {
         flags = flags | PropertyFlags::Collection;
     }
-    Base::Result<MemberId> member = context_->types.TryRegisterProperty(
+    Base::Result<MemberId> member = context_->Types().TryRegisterProperty(
         ownerType_, {name, BuiltinTypes::UIElement, flags});
     if (!member) {
         status_ = member.GetStatus();
         return;
     }
-    Record(context_->types.TrySetContentMember(ownerType_, member.Value()));
+    Record(context_->Types().TrySetContentMember(ownerType_, member.Value()));
 }
 
 void MetaRegistrationBuilder::Factory(ObjectFactory factory) noexcept {
     if (!status_.IsOk()) return;
-    Record(context_->types.TrySetFactory(ownerType_, factory));
+    Record(context_->Types().TrySetFactory(ownerType_, factory));
 }
 
 void MetaRegistrationBuilder::Fail(Base::Status status) noexcept {

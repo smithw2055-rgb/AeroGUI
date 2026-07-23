@@ -1,6 +1,7 @@
 #include <Aero/Core/Layout.hpp>
 #include <Aero/Core/ObjectTree.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -56,8 +57,10 @@ void RecordLifecycle(
 
 struct Fixture final {
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
-    RoutedEventRegistry events{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
+    RoutedEventRegistry events{types, typesBehaviors};
     Dispatcher dispatcher;
     PresentationContextScope presentation{dispatcher, properties};
 
@@ -78,19 +81,19 @@ struct Fixture final {
         elementType = MakeTypeId(ns, StringView("UIElement"));
         controlType = MakeTypeId(ns, StringView("Control"));
 
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("RoutedEventArgs"), objectType,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Visual"), objectType,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("UIElement"), visualType,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Control"), elementType,
             TypeFlags::None, nullptr}));
 

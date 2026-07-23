@@ -83,6 +83,7 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/MemberAccessor.cpp
     src/core/Metadata.cpp
     src/core/MetadataDescriptors.cpp
+    src/core/MetadataBehaviorRegistrationStore.cpp
     src/core/MetadataDomain.cpp
     src/core/MetadataValueFacets.cpp
     src/core/MetadataValueRegistrationStore.cpp
@@ -117,6 +118,7 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
+    src/markup/XamlCompiledCache.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTypeExtension.cpp
@@ -125,7 +127,8 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlDependencyProperty.cpp
     src/markup/XamlNamesResources.cpp
     src/markup/XamlNodeReader.cpp
-    src/markup/XamlObjectWriterCompiled.cpp
+    src/markup/XamlRuntimeSchema.cpp
+    src/markup/XamlObjectWriter.cpp
     src/markup/XamlSchemaContext.cpp
     src/markup/XamlVisualTree.cpp)
 

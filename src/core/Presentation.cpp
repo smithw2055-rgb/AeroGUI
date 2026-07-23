@@ -19,17 +19,20 @@ thread_local PresentationContext* CurrentPresentationContext = nullptr;
 struct DefaultPresentationRuntime final {
     Dispatcher dispatcher;
     TypeRegistry types;
+    MetadataBehaviorRegistrationStore behaviors{types};
     MetadataValueRegistrationStore values{types};
-    DependencyPropertyRegistry properties{types};
-    RoutedEventRegistry routedEvents{types};
+    DependencyPropertyRegistry properties{types, behaviors};
+    RoutedEventRegistry routedEvents{types, behaviors};
     bool ready = false;
 
     DefaultPresentationRuntime() noexcept {
+        MetaRegistrationContext context(
+            types, behaviors, values, properties, &routedEvents);
         Base::Result<void> registered =
-            TryRegisterPresentationMetadata(
-                types, values, properties, &routedEvents);
-        if (!registered || !types.Freeze() || !values.Freeze() ||
-            !properties.Freeze() || !routedEvents.Freeze()) {
+            TryRegisterPresentationMetadata(context);
+        if (!registered || !types.Freeze() || !behaviors.Freeze() ||
+            !values.Freeze() || !properties.Freeze() ||
+            !routedEvents.Freeze()) {
             return;
         }
         ready = true;
@@ -345,9 +348,11 @@ Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyPropert
 Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
     const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinHeightProperty); }
 
-Base::Result<TypeId> RegisterType(TypeRegistry& types, Base::StringView name,
+Base::Result<TypeId> RegisterType(
+    MetadataRegistrationTypes types, Base::StringView name,
     TypeId base, TypeFlags flags = TypeFlags::None) noexcept {
-    return types.TryRegisterType({PresentationNamespace, name, base, flags, nullptr});
+    return types.TryRegisterType(
+        {PresentationNamespace, name, base, flags, nullptr});
 }
 
 } // namespace
@@ -425,7 +430,7 @@ AERO_IMPLEMENT_EMPTY_METADATA(DependencyObject, TypeFlags::Abstract)
 AERO_IMPLEMENT_EMPTY_METADATA(Visual, TypeFlags::Abstract)
 
 AERO_IMPLEMENT_METADATA(UIElement, TypeFlags::Abstract) {
-    if (helper.Context().routedEvents != nullptr) {
+    if (helper.Context().RoutedEvents() != nullptr) {
         AeroEvent(MouseMove, BuiltinTypes::MouseEventArgs, RoutingStrategy::Bubble);
         AeroEvent(MouseDown, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
         AeroEvent(MouseUp, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
@@ -574,13 +579,12 @@ AERO_IMPLEMENT_METADATA(ContentPresenter, TypeFlags::None) {
 }
 
 Base::Result<void> TryRegisterPresentationMetadata(
-    TypeRegistry& types,
-    MetadataValueRegistrationStore& values,
-    DependencyPropertyRegistry& properties,
-    RoutedEventRegistry* routedEvents) noexcept {
-    auto registerType = [&types](Base::StringView name, TypeId base,
+    MetaRegistrationContext& context) noexcept {
+    MetadataRegistrationTypes registrationTypes = context.Types();
+    MetadataValueRegistrationStore& values = context.ValueRegistrations();
+    auto registerType = [&registrationTypes](Base::StringView name, TypeId base,
         TypeFlags flags, TypeId expected) noexcept -> Base::Result<void> {
-        Base::Result<TypeId> registered = RegisterType(types, name, base, flags);
+        Base::Result<TypeId> registered = RegisterType(registrationTypes, name, base, flags);
         if (!registered) return registered.GetStatus();
         if (registered.Value() != expected) {
             return Base::Status::Failure(Base::ErrorCode::InternalError,
@@ -679,8 +683,7 @@ Base::Result<void> TryRegisterPresentationMetadata(
         if (!status) return status.GetStatus();
     }
 
-    MetaRegistrationContext registrationContext{
-        types, values, properties, routedEvents};
+    MetaRegistrationContext& registrationContext = context;
     using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
     const Registrar presentationRegistrars[] = {
         &DependencyObject::TryRegisterMetadata,

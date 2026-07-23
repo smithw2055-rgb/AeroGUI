@@ -14,6 +14,7 @@
 
 namespace Aero::Core {
 
+class MetadataBehaviorRegistrationStore;
 class MetadataValueRegistrationStore;
 
 class DependencyProperty;
@@ -276,6 +277,7 @@ public:
 
     Base::Result<void> Build(
         const TypeRegistry& source,
+        const MetadataBehaviorRegistrationStore& behaviors,
         const MetadataDescriptorStore& descriptors,
         const DependencyPropertyRegistry& dependencyProperties,
         const RoutedEventRegistry& routedEvents) noexcept;

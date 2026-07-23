@@ -60,12 +60,12 @@ using ObjectActivationProviderRegistration = ActivationFacet;
 
 // Shared activation-facet registry for XAML, templates, compiled markup and
 // direct host construction. When a sealed descriptor store is supplied it is
-// the authoritative type/inheritance source; TypeRegistry remains available for
-// legacy schemas that have not migrated to MetadataDomain.
+// the authoritative type/inheritance source; TypeRegistry provides the sealed
+// structural registration view used to validate activation facets.
 class AERO_API ActivationProviderRegistry final {
 public:
     explicit ActivationProviderRegistry(
-        TypeRegistry& types,
+        const TypeRegistry& types,
         const MetadataDescriptorStore* descriptors = nullptr) noexcept
         : types_(&types),
           descriptors_(descriptors),
@@ -121,7 +121,7 @@ public:
     std::uint32_t ProviderCount() const noexcept {
         return facets_.Size();
     }
-    TypeRegistry& Types() const noexcept {
+    const TypeRegistry& Types() const noexcept {
         AERO_ASSERT(types_ != nullptr);
         return *types_;
     }
@@ -241,7 +241,7 @@ private:
         return nullptr;
     }
 
-    TypeRegistry* types_ = nullptr;
+    const TypeRegistry* types_ = nullptr;
     const MetadataDescriptorStore* descriptors_ = nullptr;
     Base::Vector<ActivationFacet> facets_;
     bool frozen_ = false;

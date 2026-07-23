@@ -1,6 +1,7 @@
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/Input.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -28,21 +29,25 @@ private: Size desired_;
 struct Fixture final {
     Dispatcher dispatcher;
     TypeRegistry types;
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
     MetadataValueRegistrationStore valueRegistrations{types};
-    DependencyPropertyRegistry properties{types};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     PresentationContextScope presentation{dispatcher, properties, valueRegistrations};
-    RoutedEventRegistry events{types};
+    RoutedEventRegistry events{types, typesBehaviors};
     EffectiveValueEngine values{dispatcher, properties}; ObjectTree tree{dispatcher, values};
     LayoutManager layout{dispatcher}; TypeId objectType; TypeId rootType; TypeId boxType;
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, valueRegistrations, properties, &events));
+        MetaRegistrationContext registrationContext(
+            types, typesBehaviors, valueRegistrations, properties, &events);
+        CHECK(TryRegisterPresentationMetadata(registrationContext));
         const StringView ns("urn:input");
         objectType=BuiltinTypes::Object;
         rootType=BuiltinTypes::StackPanel;
         boxType=MakeTypeId(ns,StringView("Box"));
-        CHECK(types.TryRegisterType({ns,StringView("Box"),
+        CHECK(typesRegistration.TryRegisterType({ns,StringView("Box"),
             BuiltinTypes::UIElement,TypeFlags::None,nullptr}));
-        CHECK(types.Freeze()); CHECK(valueRegistrations.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
+        CHECK(types.Freeze()); CHECK(typesBehaviors.Freeze()); CHECK(valueRegistrations.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };
 

@@ -1,6 +1,7 @@
 #include <Aero/Rhi/Graphics.hpp>
 #include <Aero/Render/RenderPlanTranslator.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -48,7 +49,9 @@ protected:
 
 struct Fixture final {
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     Dispatcher dispatcher;
     PresentationContextScope presentation{dispatcher, properties};
     TypeId objectType = InvalidTypeId;
@@ -58,9 +61,9 @@ struct Fixture final {
         const StringView ns("urn:aero");
         objectType = MakeTypeId(ns, StringView("Object"));
         elementType = MakeTypeId(ns, StringView("FrameworkElement"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("FrameworkElement"), objectType,
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("FrameworkElement"), objectType,
             TypeFlags::None, nullptr}));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());

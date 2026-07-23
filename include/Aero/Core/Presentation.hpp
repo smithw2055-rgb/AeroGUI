@@ -5,6 +5,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Core/BuiltinTypeIds.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Core/MetadataRegistrationValues.hpp>
 
 namespace Aero::Core {
@@ -62,31 +63,51 @@ private:
     DispatcherThreadToken ownerThread_ = 0U;
 };
 
-struct MetaRegistrationContext final {
-    TypeRegistry& types;
-    MetadataValueRegistrationStore& valueRegistrations;
-    DependencyPropertyRegistry& dependencyProperties;
-    RoutedEventRegistry* routedEvents = nullptr;
-
+class MetaRegistrationContext final {
+public:
     MetaRegistrationContext(
         TypeRegistry& typeRegistry,
+        MetadataBehaviorRegistrationStore& behaviors,
         MetadataValueRegistrationStore& values,
         DependencyPropertyRegistry& properties,
         RoutedEventRegistry* events = nullptr) noexcept
-        : types(typeRegistry),
-          valueRegistrations(values),
-          dependencyProperties(properties),
-          routedEvents(events) {}
+        : types_(&typeRegistry),
+          behaviorRegistrations_(&behaviors),
+          valueRegistrations_(&values),
+          dependencyProperties_(&properties),
+          routedEvents_(events) {}
+
+    MetadataRegistrationTypes Types() noexcept {
+        return MetadataRegistrationTypes(*types_, *behaviorRegistrations_);
+    }
 
     MetadataRegistrationValues Values() noexcept {
-        return MetadataRegistrationValues(valueRegistrations);
+        return MetadataRegistrationValues(*valueRegistrations_);
     }
 
     MetadataRegistrationValues Values() const noexcept {
         return MetadataRegistrationValues(
             static_cast<const MetadataValueRegistrationStore&>(
-                valueRegistrations));
+                *valueRegistrations_));
     }
+
+    const TypeRegistry& TypeView() const noexcept { return *types_; }
+    MetadataValueRegistrationStore& ValueRegistrations() noexcept {
+        return *valueRegistrations_;
+    }
+    DependencyPropertyRegistry& DependencyProperties() noexcept {
+        return *dependencyProperties_;
+    }
+    RoutedEventRegistry* RoutedEvents() const noexcept {
+        return routedEvents_;
+    }
+
+private:
+    TypeRegistry* types_ = nullptr;
+    MetadataBehaviorRegistrationStore* behaviorRegistrations_ = nullptr;
+    MetadataValueRegistrationStore* valueRegistrations_ = nullptr;
+    DependencyPropertyRegistry* dependencyProperties_ = nullptr;
+    RoutedEventRegistry* routedEvents_ = nullptr;
 };
 
 enum class ContentKind : std::uint8_t {
@@ -164,10 +185,7 @@ private:
 // registry. Applications register custom controls and properties afterwards.
 AERO_API Base::Result<void>
 TryRegisterPresentationMetadata(
-    TypeRegistry& types,
-    MetadataValueRegistrationStore& values,
-    DependencyPropertyRegistry& properties,
-    RoutedEventRegistry* routedEvents = nullptr) noexcept;
+    MetaRegistrationContext& context) noexcept;
 
 } // namespace Aero::Core
 

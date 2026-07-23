@@ -1,5 +1,6 @@
 #include <Aero/Core/EffectiveValueEngine.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <cstdint>
 #include <cstdio>
@@ -28,7 +29,9 @@ public:
 
 struct Fixture final {
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
 
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -42,13 +45,13 @@ struct Fixture final {
         doubleType = MakeTypeId(ns, StringView("Double"));
         elementType = MakeTypeId(ns, StringView("Element"));
 
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Double"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Element"), objectType,
             TypeFlags::None, nullptr}));
 

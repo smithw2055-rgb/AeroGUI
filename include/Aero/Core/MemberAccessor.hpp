@@ -29,7 +29,7 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
     bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
-    TypeRegistry& Types() const noexcept {
+    const TypeRegistry& Types() const noexcept {
         return runtime_->Domain().Types();
     }
     MetadataRuntime& Runtime() const noexcept { return *runtime_; }

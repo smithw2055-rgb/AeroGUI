@@ -1,5 +1,6 @@
 #include <Aero/Core/Style.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <cstdio>
 
@@ -25,7 +26,9 @@ public:
 
 struct Fixture final {
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId elementType = InvalidTypeId;
@@ -39,10 +42,10 @@ struct Fixture final {
         doubleType = MakeTypeId(ns, StringView("Double"));
         elementType = MakeTypeId(ns, StringView("Element"));
         buttonType = MakeTypeId(ns, StringView("Button"));
-        CHECK(types.TryRegisterType({ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Double"), InvalidTypeId, TypeFlags::ValueType, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Element"), objectType, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({ns, StringView("Button"), elementType, TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Double"), InvalidTypeId, TypeFlags::ValueType, nullptr}));
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Element"), objectType, TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType({ns, StringView("Button"), elementType, TypeFlags::None, nullptr}));
         DependencyPropertyRegistration widthRegistration;
         widthRegistration.name = StringView("Width");
         widthRegistration.ownerType = elementType;

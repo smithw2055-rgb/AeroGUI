@@ -65,11 +65,11 @@ public:
         const MetadataModuleRegistration& registration) noexcept;
     Base::Result<void> Seal() noexcept;
 
-    // Mutable registration sources. After Seal() they remain available for
-    // compatibility with subsystems not yet migrated, but descriptor/facet
-    // stores are the canonical runtime query surface.
-    TypeRegistry& Types() noexcept;
+    // Structural registration data is always exposed read-only. Mutable
+    // registration enters through the explicit Registration* views below.
+    const TypeRegistry& Types() noexcept;
     const TypeRegistry& Types() const noexcept;
+    MetadataRegistrationTypes RegistrationTypes() noexcept;
     MetadataRegistrationValues RegistrationValues() noexcept;
     MetadataRegistrationValues RegistrationValues() const noexcept;
     DependencyPropertyRegistry& DependencyProperties() noexcept;

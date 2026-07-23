@@ -5,7 +5,7 @@
 
 namespace Aero::Core {
 
-struct MetaRegistrationContext;
+class MetaRegistrationContext;
 
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 

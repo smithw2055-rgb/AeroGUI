@@ -15,7 +15,8 @@
 
 namespace Aero::Core {
 
-struct MetaRegistrationContext;
+class MetaRegistrationContext;
+class MetadataBehaviorRegistrationStore;
 
 class ObjectTree;
 class RoutedEventRegistry;
@@ -367,7 +368,9 @@ private:
 
 class AERO_API RoutedEventRegistry final {
 public:
-    explicit RoutedEventRegistry(TypeRegistry& types) noexcept;
+    RoutedEventRegistry(
+        TypeRegistry& types,
+        MetadataBehaviorRegistrationStore& behaviors) noexcept;
     ~RoutedEventRegistry() noexcept;
 
     Base::Result<RoutedEventHandle> TryRegister(
@@ -406,6 +409,7 @@ private:
     };
 
     TypeRegistry* types_ = nullptr;
+    MetadataBehaviorRegistrationStore* behaviorRegistrations_ = nullptr;
     Base::Vector<EventRecord> events_;
     Base::Vector<ClassHandlerRecord> classHandlers_;
     std::uint64_t nextClassSequence_ = 1U;

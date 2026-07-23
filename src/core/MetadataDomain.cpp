@@ -1,5 +1,6 @@
 #include <Aero/Core/MetadataDomain.hpp>
 #include <Aero/Core/MetadataValueFacets.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>
@@ -20,6 +21,7 @@ struct MetadataDomain::Storage final {
     };
 
     TypeRegistry types;
+    MetadataBehaviorRegistrationStore behaviorRegistrations;
     MetadataValueRegistrationStore valueRegistrations;
     DependencyPropertyRegistry dependencyProperties;
     RoutedEventRegistry routedEvents;
@@ -30,9 +32,10 @@ struct MetadataDomain::Storage final {
 
     Storage() noexcept
         : types(),
+          behaviorRegistrations(types),
           valueRegistrations(types),
-          dependencyProperties(types),
-          routedEvents(types),
+          dependencyProperties(types, behaviorRegistrations),
+          routedEvents(types, behaviorRegistrations),
           descriptors(),
           facets(),
           modules() {}
@@ -94,6 +97,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
         -> Base::Result<void> {
         MetaRegistrationContext context(
             candidate->types,
+            candidate->behaviorRegistrations,
             candidate->valueRegistrations,
             candidate->dependencyProperties,
             &candidate->routedEvents);
@@ -139,6 +143,11 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             delete candidate;
             return frozen.GetStatus();
         }
+        frozen = candidate->behaviorRegistrations.Freeze();
+        if (!frozen) {
+            delete candidate;
+            return frozen.GetStatus();
+        }
         frozen = candidate->valueRegistrations.Freeze();
         if (!frozen) {
             delete candidate;
@@ -161,6 +170,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
         }
         frozen = candidate->facets.Build(
             candidate->types,
+            candidate->behaviorRegistrations,
             candidate->descriptors,
             candidate->dependencyProperties,
             candidate->routedEvents);
@@ -216,7 +226,7 @@ Base::Result<void> MetadataDomain::Seal() noexcept {
     return {};
 }
 
-TypeRegistry& MetadataDomain::Types() noexcept {
+const TypeRegistry& MetadataDomain::Types() noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->types;
 }
@@ -224,6 +234,12 @@ TypeRegistry& MetadataDomain::Types() noexcept {
 const TypeRegistry& MetadataDomain::Types() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->types;
+}
+
+MetadataRegistrationTypes MetadataDomain::RegistrationTypes() noexcept {
+    AERO_ASSERT(storage_ != nullptr);
+    return MetadataRegistrationTypes(
+        storage_->types, storage_->behaviorRegistrations);
 }
 
 MetadataRegistrationValues MetadataDomain::RegistrationValues() noexcept {

@@ -1,6 +1,7 @@
 #include <Aero/Core/Layout.hpp>
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -83,8 +84,10 @@ protected:
 
 struct Fixture final {
     TypeRegistry types;
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
     MetadataValueRegistrationStore valueRegistrations{types};
-    DependencyPropertyRegistry properties{types};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
     Dispatcher dispatcher;
     PresentationContextScope presentation{dispatcher, properties, valueRegistrations};
     TypeId objectType = InvalidTypeId;
@@ -96,7 +99,9 @@ struct Fixture final {
     TypeId presenterType = InvalidTypeId;
 
     bool Build() {
-        CHECK(TryRegisterPresentationMetadata(types, valueRegistrations, properties));
+        MetaRegistrationContext registrationContext(
+            types, typesBehaviors, valueRegistrations, properties);
+        CHECK(TryRegisterPresentationMetadata(registrationContext));
         objectType = BuiltinTypes::Object;
         elementType = BuiltinTypes::FrameworkElement;
         stackPanelType = BuiltinTypes::StackPanel;
@@ -104,7 +109,7 @@ struct Fixture final {
         gridType = BuiltinTypes::Grid;
         borderType = BuiltinTypes::Border;
         presenterType = BuiltinTypes::ContentPresenter;
-        CHECK(types.Freeze()); CHECK(valueRegistrations.Freeze());
+        CHECK(types.Freeze()); CHECK(typesBehaviors.Freeze()); CHECK(valueRegistrations.Freeze());
         CHECK(properties.Freeze());
         return true;
     }
@@ -289,10 +294,14 @@ bool TestControlsSupportDefaultConstruction() {
 
     Dispatcher outerDispatcher;
     TypeRegistry outerTypes;
-    DependencyPropertyRegistry outerProperties(outerTypes);
+    MetadataBehaviorRegistrationStore outerTypesBehaviors{outerTypes};
+    MetadataRegistrationTypes outerTypesRegistration{outerTypes, outerTypesBehaviors};
+    DependencyPropertyRegistry outerProperties(outerTypes, outerTypesBehaviors);
     Dispatcher innerDispatcher;
     TypeRegistry innerTypes;
-    DependencyPropertyRegistry innerProperties(innerTypes);
+    MetadataBehaviorRegistrationStore innerTypesBehaviors{innerTypes};
+    MetadataRegistrationTypes innerTypesRegistration{innerTypes, innerTypesBehaviors};
+    DependencyPropertyRegistry innerProperties(innerTypes, innerTypesBehaviors);
     {
         PresentationContextScope outer(outerDispatcher, outerProperties);
         Border outerBorder;

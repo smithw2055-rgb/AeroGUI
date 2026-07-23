@@ -2,6 +2,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Core/DependencyProperty.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
 #include "TestAllocatorScope.hpp"
 
 #include <atomic>
@@ -161,7 +162,9 @@ struct Fixture final {
     TrackingAllocator allocator;
     Aero::Tests::ScopedDefaultAllocator allocatorScope{allocator};
     TypeRegistry types;
-    DependencyPropertyRegistry properties{types};
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties{types, typesBehaviors};
 
     TypeId object = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -185,22 +188,22 @@ struct Fixture final {
         button = MakeTypeId(ns, StringView("Button"));
         other = MakeTypeId(ns, StringView("OtherElement"));
 
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Object"), InvalidTypeId,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Double"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Boolean"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("UIElement"), object,
             TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Button"), uiElement,
             TypeFlags::Sealed, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("OtherElement"), object,
             TypeFlags::None, nullptr}));
 
@@ -678,13 +681,15 @@ bool TestRegistrationIsTransactionalOnOom() {
         TrackingAllocator allocator;
         Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
         TypeRegistry types;
-        DependencyPropertyRegistry properties(types);
+        MetadataBehaviorRegistrationStore typesBehaviors{types};
+        MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+        DependencyPropertyRegistry properties(types, typesBehaviors);
         const StringView ns("urn:transaction");
         const TypeId owner = MakeTypeId(ns, StringView("Owner"));
         const TypeId valueType = MakeTypeId(ns, StringView("Double"));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Owner"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(types.TryRegisterType({
+        CHECK(typesRegistration.TryRegisterType({
             ns, StringView("Double"), InvalidTypeId,
             TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
 
@@ -717,7 +722,9 @@ bool TestRegistrationErrors() {
     TrackingAllocator allocator;
     Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
     TypeRegistry types;
-    DependencyPropertyRegistry properties(types);
+    MetadataBehaviorRegistrationStore typesBehaviors{types};
+    MetadataRegistrationTypes typesRegistration{types, typesBehaviors};
+    DependencyPropertyRegistry properties(types, typesBehaviors);
     const StringView ns("urn:test");
 
     const TypeId object = MakeTypeId(ns, StringView("Object"));
@@ -725,16 +732,16 @@ bool TestRegistrationErrors() {
     const TypeId owner = MakeTypeId(ns, StringView("Owner"));
     const TypeId unrelated = MakeTypeId(ns, StringView("Unrelated"));
 
-    CHECK(types.TryRegisterType({
+    CHECK(typesRegistration.TryRegisterType({
         ns, StringView("Object"), InvalidTypeId,
         TypeFlags::None, nullptr}));
-    CHECK(types.TryRegisterType({
+    CHECK(typesRegistration.TryRegisterType({
         ns, StringView("Number"), InvalidTypeId,
         TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-    CHECK(types.TryRegisterType({
+    CHECK(typesRegistration.TryRegisterType({
         ns, StringView("Owner"), object,
         TypeFlags::None, nullptr}));
-    CHECK(types.TryRegisterType({
+    CHECK(typesRegistration.TryRegisterType({
         ns, StringView("Unrelated"), object,
         TypeFlags::None, nullptr}));
 

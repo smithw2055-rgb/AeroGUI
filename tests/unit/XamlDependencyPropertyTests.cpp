@@ -196,8 +196,8 @@ struct Fixture final {
     }
 
     Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
-        TypeRegistry& types = context.types;
-        DependencyPropertyRegistry& properties = context.dependencyProperties;
+        MetadataRegistrationTypes types = context.Types();
+        DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:dp");
         const TypeRegistration registrations[] = {
             {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
@@ -568,7 +568,7 @@ Result<void> RegisterGuardMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
     const StringView ns("urn:guard");
-    Result<TypeId> registered = context.types.TryRegisterType({
+    Result<TypeId> registered = context.Types().TryRegisterType({
         ns, StringView("Object"), InvalidTypeId,
         TypeFlags::None, nullptr});
     return registered ? Result<void>() : Result<void>(registered.GetStatus());

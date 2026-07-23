@@ -191,7 +191,7 @@ Result<void> RegisterBadgeMetadata(
     void*) noexcept {
     const TypeId cornerRadiusType = MakeTypeId(
         CustomNamespace, StringView("CornerRadius"));
-    Result<TypeId> type = context.types.TryRegisterType({
+    Result<TypeId> type = context.Types().TryRegisterType({
         CustomNamespace,
         StringView("CornerRadius"),
         InvalidTypeId,
@@ -211,7 +211,7 @@ Result<void> RegisterBadgeMetadata(
          &EqualCornerRadius, nullptr, true});
     if (!status) return status.GetStatus();
     status = values.TryRegisterTextConverter(
-        {cornerRadiusType, &ConvertCornerRadius, &context.valueRegistrations});
+        {cornerRadiusType, &ConvertCornerRadius, &context.ValueRegistrations()});
     if (!status) return status.GetStatus();
     return Badge::TryRegisterMetadata(context);
 }
@@ -219,7 +219,7 @@ Result<void> RegisterBadgeMetadata(
 Result<void> RegisterFailingMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
-    Result<TypeId> transient = context.types.TryRegisterType({
+    Result<TypeId> transient = context.Types().TryRegisterType({
         CustomNamespace,
         StringView("MustNotLeak"),
         InvalidTypeId,

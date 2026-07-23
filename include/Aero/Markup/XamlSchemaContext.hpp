@@ -199,7 +199,7 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
     bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
-    Core::TypeRegistry& Types() const noexcept { return *types_; }
+    const Core::TypeRegistry& Types() const noexcept { return *types_; }
     Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
     Core::MemberAccessor& Members() noexcept {
         return memberAccessor_;
@@ -299,7 +299,7 @@ private:
         XamlScalarKind kind = XamlScalarKind::String;
     };
 
-    Core::TypeRegistry* types_ = nullptr;
+    const Core::TypeRegistry* types_ = nullptr;
     Core::MetadataDomain* domain_ = nullptr;
     Core::MetadataRuntime* runtime_ = nullptr;
     Core::MemberAccessor memberAccessor_;
