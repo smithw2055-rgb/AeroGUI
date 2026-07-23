@@ -39,12 +39,10 @@ public:
         ownedChildren_.Clear();
         return InvalidateMeasure();
     }
-
 protected:
     explicit Panel(TypeId runtimeType) noexcept
         : FrameworkElement(runtimeType), ownedChildren_() {}
     ~Panel() override = default;
-
 private:
     Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
 };
@@ -52,7 +50,11 @@ private:
 class AERO_API Decorator : public FrameworkElement {
     AERO_DECLARE_METADATA(Decorator, FrameworkElement)
 public:
-    UIElement* Child() const noexcept { return child_; }
+    UIElement* Child() const noexcept {
+        if (child_ != nullptr) return child_;
+        const UIElementChildRange children = LayoutChildren();
+        return children.Size() == 1U ? children[0] : nullptr;
+    }
     const Base::Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
     Base::Result<void> SetChild(UIElement* child) noexcept {
         Base::Result<void> access = VerifyAccess();
@@ -78,38 +80,30 @@ public:
         ownedChild_ = childObject;
         return InvalidateMeasure();
     }
-
 protected:
     explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Decorator() override = default;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
-        if (child_ == nullptr) {
+        UIElement* child = Child();
+        if (child == nullptr) {
             if (!LayoutChildren().Empty()) {
                 return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                    "Decorator has attached children without a configured child");
+                    "Decorator has multiple attached children");
             }
             return Size{};
         }
-        if (!IsOnlyAttachedChild(*child_)) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "Decorator child attachment is invalid");
-        }
-        Base::Result<void> measured = MeasureChild(*child_, availableSize);
+        Base::Result<void> measured = MeasureChild(*child, availableSize);
         if (!measured) return measured.GetStatus();
-        return child_->DesiredSize();
+        return child->DesiredSize();
     }
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
-        if (child_ == nullptr) return finalSize;
-        if (!IsOnlyAttachedChild(*child_)) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "Decorator child attachment is invalid");
-        }
+        UIElement* child = Child();
+        if (child == nullptr) return finalSize;
         Base::Result<void> arranged = ArrangeChild(
-            *child_, {0.0, 0.0, finalSize.width, finalSize.height});
+            *child, {0.0, 0.0, finalSize.width, finalSize.height});
         if (!arranged) return arranged.GetStatus();
         return finalSize;
     }
-
 private:
     UIElement* child_ = nullptr;
     Base::Ref<Base::Object> ownedChild_;
@@ -167,7 +161,6 @@ public:
         ownedContent_ = contentObject;
         return InvalidateMeasure();
     }
-
 protected:
     explicit ContentControl(TypeId runtimeType) noexcept : Control(runtimeType) {}
     ~ContentControl() override = default;
@@ -198,7 +191,6 @@ protected:
         if (!arranged) return arranged.GetStatus();
         return finalSize;
     }
-
 private:
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
@@ -212,8 +204,7 @@ private:
                 return Base::Status::Failure(Base::ErrorCode::InvalidState,
                     "ContentControl content must be detached before clearing it");
             }
-        } else if (!LayoutChildren().Empty() &&
-            !IsOnlyAttachedContent(*content)) {
+        } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "ContentControl content must be its only attached UIElement");
         }
@@ -227,8 +218,7 @@ public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
 protected:
-    explicit UserControl(TypeId runtimeType) noexcept
-        : ContentControl(runtimeType) {}
+    explicit UserControl(TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
 };
 
 #define AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(classType, typeFlags, body) \
@@ -251,15 +241,11 @@ AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Panel, TypeFlags::Abstract, {
 AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Decorator, TypeFlags::Abstract, {
     AeroContent("Content", ContentKind::Single);
 })
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Control, TypeFlags::Abstract, {
-    (void)helper;
-})
+AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Control, TypeFlags::Abstract, { (void)helper; })
 AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(ContentControl, TypeFlags::Abstract, {
     AeroContent("Content", ContentKind::Single);
 })
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(UserControl, TypeFlags::None, {
-    (void)helper;
-})
+AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(UserControl, TypeFlags::None, { (void)helper; })
 
 #undef AERO_DETAIL_IMPLEMENT_CONTROL_METADATA
 
