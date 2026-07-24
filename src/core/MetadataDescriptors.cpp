@@ -56,6 +56,40 @@ bool HasEventFlag(EventFlags value, EventFlags flag) noexcept {
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
+bool InterfaceReachable(
+    const MetadataDescriptorStore& store,
+    TypeId current,
+    TypeId target,
+    std::uint32_t depth) noexcept {
+    if (current == target) return true;
+    if (depth > store.TypeCount()) return false;
+    const MetadataTypeDescriptor* info = store.FindType(current);
+    if (info == nullptr) return false;
+    for (TypeId direct : info->Interfaces()) {
+        if (InterfaceReachable(store, direct, target, depth + 1U)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TypeImplements(
+    const MetadataDescriptorStore& store,
+    TypeId current,
+    TypeId target,
+    std::uint32_t depth) noexcept {
+    if (current == InvalidTypeId || depth > store.TypeCount()) return false;
+    const MetadataTypeDescriptor* info = store.FindType(current);
+    if (info == nullptr) return false;
+    for (TypeId direct : info->Interfaces()) {
+        if (direct == target ||
+            InterfaceReachable(store, direct, target, depth + 1U)) {
+            return true;
+        }
+    }
+    return TypeImplements(store, info->BaseType(), target, depth + 1U);
+}
+
 } // namespace
 
 Base::Result<void> MetadataDescriptorStore::Build(
@@ -69,10 +103,14 @@ Base::Result<void> MetadataDescriptorStore::Build(
     }
 
     std::uint32_t propertyCount = 0U;
+    std::uint32_t fieldCount = 0U;
+    std::uint32_t enumValueCount = 0U;
     std::uint32_t eventCount = 0U;
     std::uint32_t methodCount = 0U;
     for (const TypeInfo& type : source.Types()) {
         propertyCount += type.Properties().Size();
+        fieldCount += type.Fields().Size();
+        enumValueCount += type.EnumValues().Size();
         eventCount += type.Events().Size();
         methodCount += type.Methods().Size();
     }
@@ -83,24 +121,37 @@ Base::Result<void> MetadataDescriptorStore::Build(
     if (!result) return result.GetStatus();
     result = properties_.TryReserve(propertyCount);
     if (!result) return result.GetStatus();
+    result = fields_.TryReserve(fieldCount);
+    if (!result) return result.GetStatus();
+    result = enumValues_.TryReserve(enumValueCount);
+    if (!result) return result.GetStatus();
     result = events_.TryReserve(eventCount);
     if (!result) return result.GetStatus();
     result = methods_.TryReserve(methodCount);
     if (!result) return result.GetStatus();
     result = memberIndex_.TryReserve(
-        propertyCount + eventCount + methodCount);
+        propertyCount + fieldCount + enumValueCount +
+        eventCount + methodCount);
     if (!result) return result.GetStatus();
 
     for (const TypeInfo& sourceType : source.Types()) {
         MetadataTypeDescriptor type;
         type.id_ = sourceType.Id();
         type.baseType_ = sourceType.BaseType();
+        type.underlyingType_ = sourceType.UnderlyingType();
+        type.kind_ = sourceType.Kind();
         type.flags_ = sourceType.Flags();
         result = type.xamlNamespace_.TryAssign(sourceType.XamlNamespace());
         if (!result) return result.GetStatus();
         result = type.name_.TryAssign(sourceType.Name());
         if (!result) return result.GetStatus();
+        result = type.interfaces_.TryAssign(sourceType.Interfaces());
+        if (!result) return result.GetStatus();
         result = type.properties_.TryReserve(sourceType.Properties().Size());
+        if (!result) return result.GetStatus();
+        result = type.fields_.TryReserve(sourceType.Fields().Size());
+        if (!result) return result.GetStatus();
+        result = type.enumValues_.TryReserve(sourceType.EnumValues().Size());
         if (!result) return result.GetStatus();
         result = type.events_.TryReserve(sourceType.Events().Size());
         if (!result) return result.GetStatus();
@@ -123,6 +174,43 @@ Base::Result<void> MetadataDescriptorStore::Build(
             result = InsertUnique(memberIndex_, sourceProperty.Id(),
                 MemberLocation{MetadataDescriptorKind::Property, index},
                 "Metadata descriptor member id collision");
+            if (!result) return result.GetStatus();
+        }
+
+        for (const FieldInfo& sourceField : sourceType.Fields()) {
+            MetadataFieldDescriptor field;
+            field.id_ = sourceField.Id();
+            field.ownerType_ = sourceField.OwnerType();
+            field.valueType_ = sourceField.ValueType();
+            field.flags_ = sourceField.Flags();
+            result = field.name_.TryAssign(sourceField.Name());
+            if (!result) return result.GetStatus();
+            const std::uint32_t index = fields_.Size();
+            result = fields_.TryPushBack(std::move(field));
+            if (!result) return result.GetStatus();
+            result = type.fields_.TryPushBack(sourceField.Id());
+            if (!result) return result.GetStatus();
+            result = InsertUnique(memberIndex_, sourceField.Id(),
+                MemberLocation{MetadataDescriptorKind::Field, index},
+                "Metadata descriptor field id collision");
+            if (!result) return result.GetStatus();
+        }
+
+        for (const EnumValueInfo& sourceValue : sourceType.EnumValues()) {
+            MetadataEnumValueDescriptor value;
+            value.id_ = sourceValue.Id();
+            value.ownerType_ = sourceValue.OwnerType();
+            value.rawValue_ = sourceValue.RawValue();
+            result = value.name_.TryAssign(sourceValue.Name());
+            if (!result) return result.GetStatus();
+            const std::uint32_t index = enumValues_.Size();
+            result = enumValues_.TryPushBack(std::move(value));
+            if (!result) return result.GetStatus();
+            result = type.enumValues_.TryPushBack(sourceValue.Id());
+            if (!result) return result.GetStatus();
+            result = InsertUnique(memberIndex_, sourceValue.Id(),
+                MemberLocation{MetadataDescriptorKind::EnumValue, index},
+                "Metadata descriptor enum value id collision");
             if (!result) return result.GetStatus();
         }
 
@@ -231,6 +319,52 @@ const MetadataPropertyDescriptor* MetadataDescriptorStore::FindProperty(
     return nullptr;
 }
 
+const MetadataFieldDescriptor* MetadataDescriptorStore::FindField(
+    MemberId id) const noexcept {
+    const MemberLocation* location = memberIndex_.Find(id);
+    return location != nullptr &&
+        location->kind == MetadataDescriptorKind::Field &&
+        location->index < fields_.Size()
+        ? &fields_[location->index] : nullptr;
+}
+
+const MetadataFieldDescriptor* MetadataDescriptorStore::FindField(
+    TypeId ownerType,
+    Base::StringView name) const noexcept {
+    const MetadataFieldDescriptor* field = FindField(
+        MakeMemberId(ownerType, MemberKind::Field, name));
+    return field != nullptr && field->Name() == name ? field : nullptr;
+}
+
+const MetadataEnumValueDescriptor* MetadataDescriptorStore::FindEnumValue(
+    MemberId id) const noexcept {
+    const MemberLocation* location = memberIndex_.Find(id);
+    return location != nullptr &&
+        location->kind == MetadataDescriptorKind::EnumValue &&
+        location->index < enumValues_.Size()
+        ? &enumValues_[location->index] : nullptr;
+}
+
+const MetadataEnumValueDescriptor* MetadataDescriptorStore::FindEnumValue(
+    TypeId ownerType,
+    Base::StringView name) const noexcept {
+    const MetadataEnumValueDescriptor* value = FindEnumValue(
+        MakeMemberId(ownerType, MemberKind::EnumValue, name));
+    return value != nullptr && value->Name() == name ? value : nullptr;
+}
+
+const MetadataEnumValueDescriptor* MetadataDescriptorStore::FindEnumValue(
+    TypeId ownerType,
+    std::uint64_t rawValue) const noexcept {
+    const MetadataTypeDescriptor* type = FindType(ownerType);
+    if (type == nullptr) return nullptr;
+    for (MemberId member : type->EnumValues()) {
+        const MetadataEnumValueDescriptor* value = FindEnumValue(member);
+        if (value != nullptr && value->RawValue() == rawValue) return value;
+    }
+    return nullptr;
+}
+
 const MetadataEventDescriptor* MetadataDescriptorStore::FindEvent(
     MemberId id) const noexcept {
     const MemberLocation* location = memberIndex_.Find(id);
@@ -301,12 +435,33 @@ bool MetadataDescriptorStore::IsDerivedFrom(
     return false;
 }
 
+bool MetadataDescriptorStore::Implements(
+    TypeId type,
+    TypeId interfaceType) const noexcept {
+    const MetadataTypeDescriptor* target = FindType(interfaceType);
+    return target != nullptr &&
+        target->Kind() == MetadataTypeKind::Interface &&
+        TypeImplements(*this, type, interfaceType, 0U);
+}
+
+bool MetadataDescriptorStore::IsAssignableFrom(
+    TypeId targetType,
+    TypeId sourceType) const noexcept {
+    if (targetType == InvalidTypeId || sourceType == InvalidTypeId) return false;
+    if (targetType == sourceType) return true;
+    const MetadataTypeDescriptor* target = FindType(targetType);
+    if (target == nullptr) return false;
+    return target->Kind() == MetadataTypeKind::Interface
+        ? Implements(sourceType, targetType)
+        : IsDerivedFrom(sourceType, targetType);
+}
+
 Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexcept {
     if (!sealed_) {
         return InvalidState("Descriptor hash requires a sealed store");
     }
     Base::Detail::StableMetadataIdBuilder builder;
-    constexpr char domain[] = "AERO.DESCRIPTORS.V1";
+    constexpr char domain[] = "AERO.DESCRIPTORS.V2";
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataDescriptorFormatVersion);
 
@@ -321,9 +476,21 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
         const MetadataTypeDescriptor& type = types_[index];
         builder.AddU64(type.Id());
         builder.AddU64(type.BaseType());
+        builder.AddU64(type.UnderlyingType());
+        builder.AddByte(static_cast<std::uint8_t>(type.Kind()));
         builder.AddU32(static_cast<std::uint32_t>(type.Flags()));
         builder.AddString(type.XamlNamespace());
         builder.AddString(type.Name());
+        Base::Vector<std::uint32_t> interfaceOrder;
+        result = BuildOrder(type.Interfaces().Size(), interfaceOrder,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.Interfaces()[left] < type.Interfaces()[right];
+            });
+        if (!result) return result.GetStatus();
+        builder.AddU32(interfaceOrder.Size());
+        for (std::uint32_t interfaceIndex : interfaceOrder) {
+            builder.AddU64(type.Interfaces()[interfaceIndex]);
+        }
     }
 
     order.Clear();
@@ -340,6 +507,37 @@ Base::Result<Base::HashCode> MetadataDescriptorStore::ComputeHash() const noexce
         builder.AddU64(property.ValueType());
         builder.AddU32(static_cast<std::uint32_t>(property.Flags()));
         builder.AddString(property.Name());
+    }
+
+    order.Clear();
+    result = BuildOrder(fields_.Size(), order,
+        [this](std::uint32_t left, std::uint32_t right) noexcept {
+            return fields_[left].Id() < fields_[right].Id();
+        });
+    if (!result) return result.GetStatus();
+    builder.AddU32(order.Size());
+    for (std::uint32_t index : order) {
+        const MetadataFieldDescriptor& field = fields_[index];
+        builder.AddU64(field.Id());
+        builder.AddU64(field.OwnerType());
+        builder.AddU64(field.ValueType());
+        builder.AddU32(static_cast<std::uint32_t>(field.Flags()));
+        builder.AddString(field.Name());
+    }
+
+    order.Clear();
+    result = BuildOrder(enumValues_.Size(), order,
+        [this](std::uint32_t left, std::uint32_t right) noexcept {
+            return enumValues_[left].Id() < enumValues_[right].Id();
+        });
+    if (!result) return result.GetStatus();
+    builder.AddU32(order.Size());
+    for (std::uint32_t index : order) {
+        const MetadataEnumValueDescriptor& value = enumValues_[index];
+        builder.AddU64(value.Id());
+        builder.AddU64(value.OwnerType());
+        builder.AddU64(value.RawValue());
+        builder.AddString(value.Name());
     }
 
     order.Clear();
@@ -484,6 +682,23 @@ Base::Result<void> MetadataFacetStore::Build(
             }
         }
 
+        for (const FieldInfo& field : type.Fields()) {
+            const ValueMemberAccessorRegistration* accessor =
+                behaviors.FindValueMemberAccessor(field.Id());
+            if (accessor == nullptr || accessor->get == nullptr) continue;
+            const std::uint32_t index = valueMemberAccessors_.Size();
+            result = valueMemberAccessors_.TryPushBack({
+                field.Id(), accessor->get, accessor->set, accessor->context});
+            if (!result) return result.GetStatus();
+            result = InsertUnique(
+                valueMemberAccessorIndex_, field.Id(), index,
+                "Value member accessor facet collision");
+            if (!result) return result.GetStatus();
+            result = AddMemberMask(
+                field.Id(), MetadataFacetKind::ValueMemberAccessor);
+            if (!result) return result.GetStatus();
+        }
+
         for (const MethodInfo& method : type.Methods()) {
             const MethodInvokerRegistration* invoker =
                 behaviors.FindMethodInvoker(method.Id());
@@ -564,6 +779,13 @@ const PropertyAccessorFacet* MetadataFacetStore::FindPropertyAccessor(
         ? &propertyAccessors_[*index] : nullptr;
 }
 
+const ValueMemberAccessorFacet* MetadataFacetStore::FindValueMemberAccessor(
+    MemberId member) const noexcept {
+    const std::uint32_t* index = valueMemberAccessorIndex_.Find(member);
+    return index != nullptr && *index < valueMemberAccessors_.Size()
+        ? &valueMemberAccessors_[*index] : nullptr;
+}
+
 const MethodInvokerFacet* MetadataFacetStore::FindMethodInvoker(
     MemberId member) const noexcept {
     const std::uint32_t* index = methodInvokerIndex_.Find(member);
@@ -588,7 +810,7 @@ const RoutedEventFacet* MetadataFacetStore::FindRoutedEvent(
 Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
     if (!sealed_) return InvalidState("Facet hash requires a sealed store");
     Base::Detail::StableMetadataIdBuilder builder;
-    constexpr char domain[] = "AERO.FACETS.V1";
+    constexpr char domain[] = "AERO.FACETS.V2";
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataFacetFormatVersion);
 
@@ -626,6 +848,21 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
         builder.AddU64(facet.member);
         builder.AddByte(static_cast<std::uint8_t>(facet.access));
         builder.AddU64(facet.provider);
+        builder.AddByte(facet.get != nullptr ? 1U : 0U);
+        builder.AddByte(facet.set != nullptr ? 1U : 0U);
+    }
+
+    order.Clear();
+    result = BuildOrder(valueMemberAccessors_.Size(), order,
+        [this](std::uint32_t left, std::uint32_t right) noexcept {
+            return valueMemberAccessors_[left].member <
+                valueMemberAccessors_[right].member;
+        });
+    if (!result) return result.GetStatus();
+    builder.AddU32(order.Size());
+    for (std::uint32_t index : order) {
+        const ValueMemberAccessorFacet& facet = valueMemberAccessors_[index];
+        builder.AddU64(facet.member);
         builder.AddByte(facet.get != nullptr ? 1U : 0U);
         builder.AddByte(facet.set != nullptr ? 1U : 0U);
     }
@@ -672,7 +909,6 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
         builder.AddU64(facet.ownerType);
         builder.AddU64(facet.eventArgsType);
     }
-
     return builder.Finish();
 }
 
