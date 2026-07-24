@@ -300,6 +300,7 @@ aero_apply_compiler_options(AeroPresentation)
 add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Controls.cpp
     src/controls/Metadata.cpp
+    src/controls/TextBlockLayoutService.cpp
     src/controls/Templates.cpp)
 
 add_library(Aero::Controls ALIAS AeroControls)

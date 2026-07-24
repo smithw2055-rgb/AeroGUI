@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <utility>
 
 namespace Aero::Controls {
 
@@ -500,7 +501,13 @@ Base::Result<void> Border::BuildDisplayList(
     return {};
 }
 
-TextBlock::TextBlock() noexcept : FrameworkElement(StaticTypeId()) {}
+TextBlock::TextBlock() noexcept
+    : FrameworkElement(StaticTypeId()),
+      layoutService_(GetCurrentTextBlockLayoutService()) {}
+
+TextBlock::~TextBlock() {
+    ReleaseServiceGlyphRun();
+}
 
 Base::StringView TextBlock::Text() const noexcept {
     Base::Result<Value> value = GetValue(TextProperty);
@@ -531,6 +538,20 @@ Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
                   : stored.GetStatus();
 }
 
+Base::Result<void> TextBlock::SetLayoutService(
+    ITextBlockLayoutService* service) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (layoutService_ == service) return {};
+    ReleaseServiceGlyphRun();
+    layoutService_ = service;
+    glyphRuns_.Clear();
+    glyphRunSize_ = {};
+    Base::Result<void> measure = InvalidateMeasure();
+    if (!measure) return measure.GetStatus();
+    return InvalidateRender();
+}
+
 Base::Result<void> TextBlock::SetGlyphRun(
     RenderGlyphRunId glyphRun, Size size) noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -541,9 +562,17 @@ Base::Result<void> TextBlock::SetGlyphRun(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "TextBlock glyph run and size are invalid");
     }
-    if (glyphRun_ == glyphRun && glyphRunSize_.width == size.width &&
-        glyphRunSize_.height == size.height) return {};
-    glyphRun_ = glyphRun;
+    if (glyphRuns_.Size() == 1U && glyphRuns_[0] == glyphRun &&
+        glyphRunSize_.width == size.width &&
+        glyphRunSize_.height == size.height &&
+        !serviceOwnsGlyphRun_) return {};
+    ReleaseServiceGlyphRun();
+    glyphRuns_.Clear();
+    if (glyphRun != InvalidRenderGlyphRunId) {
+        Base::Result<void> appended =
+            glyphRuns_.TryPushBack(glyphRun);
+        if (!appended) return appended.GetStatus();
+    }
     glyphRunSize_ = size;
     Base::Result<void> measure = InvalidateMeasure();
     if (!measure) return measure.GetStatus();
@@ -551,15 +580,95 @@ Base::Result<void> TextBlock::SetGlyphRun(
 }
 
 Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
+    if (layoutService_ != nullptr) {
+        const Base::StringView text = Text();
+        if (text.Empty()) {
+            const bool changed =
+                !glyphRuns_.Empty() ||
+                glyphRunSize_.width != 0.0 ||
+                glyphRunSize_.height != 0.0;
+            ReleaseServiceGlyphRun();
+            glyphRuns_.Clear();
+            glyphRunSize_ = {};
+            if (changed) {
+                Base::Result<void> invalidated = InvalidateRender();
+                if (!invalidated) return invalidated.GetStatus();
+            }
+            return Size{};
+        }
+
+        TextBlockLayoutRequest request;
+        request.text = text;
+        request.availableSize = availableSize;
+        request.dpiScale = DpiScale();
+        TextBlockLayoutResult output;
+        Base::Result<void> prepared =
+            layoutService_->ShapeAndPrepare(request, output);
+        if (!prepared) return prepared.GetStatus();
+        bool validGlyphRuns = true;
+        for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+            if (glyphRun == InvalidRenderGlyphRunId) {
+                validGlyphRuns = false;
+                break;
+            }
+        }
+        if (!IsValidTextSize(output.desiredSize) ||
+            !validGlyphRuns) {
+            for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+                if (glyphRun != InvalidRenderGlyphRunId) {
+                    layoutService_->ReleaseGlyphRun(glyphRun);
+                }
+            }
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Text layout service returned an invalid result");
+        }
+
+        bool changed =
+            glyphRuns_.Size() != output.glyphRuns.Size() ||
+            glyphRunSize_.width != output.desiredSize.width ||
+            glyphRunSize_.height != output.desiredSize.height ||
+            !serviceOwnsGlyphRun_;
+        if (!changed) {
+            for (std::uint32_t index = 0U;
+                 index < glyphRuns_.Size(); ++index) {
+                if (glyphRuns_[index] != output.glyphRuns[index]) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        ReleaseServiceGlyphRun();
+        glyphRuns_ = std::move(output.glyphRuns);
+        glyphRunSize_ = output.desiredSize;
+        serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+        if (changed) {
+            Base::Result<void> invalidated = InvalidateRender();
+            if (!invalidated) return invalidated.GetStatus();
+        }
+    }
     return Size{std::min(glyphRunSize_.width, availableSize.width),
         std::min(glyphRunSize_.height, availableSize.height)};
 }
 
 Base::Result<void> TextBlock::BuildDisplayList(
     DisplayListBuilder& builder) noexcept {
-    return glyphRun_ == InvalidRenderGlyphRunId
-        ? Base::Result<void>()
-        : builder.DrawGlyphRun(glyphRun_, Foreground());
+    for (RenderGlyphRunId glyphRun : glyphRuns_) {
+        Base::Result<void> drawn =
+            builder.DrawGlyphRun(glyphRun, Foreground());
+        if (!drawn) return drawn.GetStatus();
+    }
+    return {};
+}
+
+void TextBlock::ReleaseServiceGlyphRun() noexcept {
+    if (serviceOwnsGlyphRun_ &&
+        layoutService_ != nullptr) {
+        for (RenderGlyphRunId glyphRun : glyphRuns_) {
+            layoutService_->ReleaseGlyphRun(glyphRun);
+        }
+    }
+    serviceOwnsGlyphRun_ = false;
 }
 
 ContentPresenter::ContentPresenter() noexcept
