@@ -10,12 +10,13 @@ permissions:
 
 jobs:
   migrate-typed-dsl:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/agent/meta-reflection-dsl-value-types'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
     name: Apply typed DSL migration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/meta-reflection-dsl-value-types
           fetch-depth: 0
       - name: Apply migration and publish final commit
         shell: bash
