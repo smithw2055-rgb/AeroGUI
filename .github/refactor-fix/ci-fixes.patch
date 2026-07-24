@@ -1,0 +1,93 @@
+diff --git a/include/Aero/Controls/Selection.hpp b/include/Aero/Controls/Selection.hpp
+index 436efd6..4710931 100644
+--- a/include/Aero/Controls/Selection.hpp
++++ b/include/Aero/Controls/Selection.hpp
+@@ -185,7 +185,6 @@ private:
+     };
+ 
+     ObjectTree* tree_ = nullptr;
+-    RoutedEventManager* events_ = nullptr;
+     FocusManager* focus_ = nullptr;
+     VisualStateManager* states_ = nullptr;
+     Base::Vector<Record> records_;
+diff --git a/src/controls/Selection.cpp b/src/controls/Selection.cpp
+index ebfbe56..401cba5 100644
+--- a/src/controls/Selection.cpp
++++ b/src/controls/Selection.cpp
+@@ -850,7 +850,6 @@ ListBoxInteractionManager::ListBoxInteractionManager(
+     FocusManager& focus,
+     VisualStateManager* states) noexcept
+     : tree_(&tree),
+-      events_(&events),
+       focus_(&focus),
+       states_(states),
+       mouseDownHandler_(
+@@ -858,7 +857,9 @@ ListBoxInteractionManager::ListBoxInteractionManager(
+           &ListBoxInteractionManager::OnMouseDown),
+       keyDownHandler_(
+           this,
+-          &ListBoxInteractionManager::OnKeyDown) {}
++          &ListBoxInteractionManager::OnKeyDown) {
++    static_cast<void>(events);
++}
+ 
+ ListBoxInteractionManager::~ListBoxInteractionManager() noexcept {
+     while (!records_.Empty()) {
+diff --git a/src/render/d3d11/D3D11RenderBackend.cpp b/src/render/d3d11/D3D11RenderBackend.cpp
+index 1aa20ec..10ed788 100644
+--- a/src/render/d3d11/D3D11RenderBackend.cpp
++++ b/src/render/d3d11/D3D11RenderBackend.cpp
+@@ -1,5 +1,13 @@
+ #include <Aero/Render/D3D11RenderBackend.hpp>
+ 
++#ifndef WIN32_LEAN_AND_MEAN
++#define WIN32_LEAN_AND_MEAN
++#endif
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++
+ #include <new>
+ 
+ #include "AeroD3D11RenderPlanGlyphPixelShader.hpp"
+diff --git a/src/rhi/d3d11/D3D11BackendCommands2.inc b/src/rhi/d3d11/D3D11BackendCommands2.inc
+index eab64df..781111c 100644
+--- a/src/rhi/d3d11/D3D11BackendCommands2.inc
++++ b/src/rhi/d3d11/D3D11BackendCommands2.inc
+@@ -30,7 +30,7 @@
+         }
+         case GraphicsCommandKind::BeginRenderPass: {
+             if (impl_->inRenderPass ||
+-                !Presentation::IsValidLayoutRect(command.renderPass.renderArea) ||
++                !Base::IsValidRect(command.renderPass.renderArea) ||
+                 command.renderPass.colorAttachmentCount > MaxColorAttachments) {
+                 return failSubmission(
+                     InvalidState("D3D11 render-pass begin is invalid"));
+diff --git a/src/rhi/d3d11/D3D11BackendPrivate.hpp b/src/rhi/d3d11/D3D11BackendPrivate.hpp
+index ecb45f8..7180305 100644
+--- a/src/rhi/d3d11/D3D11BackendPrivate.hpp
++++ b/src/rhi/d3d11/D3D11BackendPrivate.hpp
+@@ -556,8 +556,8 @@ bool CheckedLong(double value, LONG& output) noexcept {
+     return true;
+ }
+ 
+-Base::Result<D3D11_RECT> ToD3DRect(Presentation::Rect rect) noexcept {
+-    if (!Presentation::IsValidLayoutRect(rect)) {
++Base::Result<D3D11_RECT> ToD3DRect(Base::Rect rect) noexcept {
++    if (!Base::IsValidRect(rect)) {
+         return InvalidArgument("D3D11 rectangle is invalid");
+     }
+ 
+diff --git a/tests/rhi/D3D11BackendTests.cpp b/tests/rhi/D3D11BackendTests.cpp
+index 7c4278b..21cc7f0 100644
+--- a/tests/rhi/D3D11BackendTests.cpp
++++ b/tests/rhi/D3D11BackendTests.cpp
+@@ -23,7 +23,6 @@
+ namespace {
+ 
+ using namespace Aero::Base;
+-using namespace Aero::Core;
+ using namespace Aero::Rhi;
+ 
+ #define CHECK(expression) \
