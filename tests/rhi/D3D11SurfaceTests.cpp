@@ -827,6 +827,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     SurfaceSession& surface,
     D3D11RenderBackend& renderBackend,
     RenderGlyphRunId glyphRun) {
+    static_cast<void>(device);
     XamlControlFixture fixture;
     CHECK(fixture.Initialize());
 

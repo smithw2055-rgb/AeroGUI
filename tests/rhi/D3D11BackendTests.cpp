@@ -23,7 +23,6 @@
 namespace {
 
 using namespace Aero::Base;
-using namespace Aero::Core;
 using namespace Aero::Rhi;
 
 #define CHECK(expression) \
@@ -677,6 +676,7 @@ bool TestDeferredResourceStress() {
     CHECK(commands.Value().CommandCount() == 0U);
 
     FenceValue lastFence = 0U;
+    std::uint32_t totalRetired = 0U;
     for (std::uint32_t iteration = 0U;
          iteration < IterationCount;
          ++iteration) {
@@ -705,17 +705,25 @@ bool TestDeferredResourceStress() {
         CHECK(device.DestroyResource(buffer.Value(), lastFence));
         CHECK(device.DestroyResource(texture.Value(), lastFence));
         CHECK(device.DestroyResource(sampler.Value(), lastFence));
+        totalRetired += ResourcesPerIteration;
         CHECK(device.LiveResourceCount() == 0U);
-        CHECK(device.PendingDestroyCount() ==
-            (iteration + 1U) * ResourcesPerIteration);
+        const std::uint32_t pending = device.PendingDestroyCount();
+        // Submit() opportunistically collects resources whose fences completed.
+        // The current iteration must remain pending until a later collection,
+        // while earlier iterations may already have retired on a fast WARP queue.
+        CHECK(pending >= ResourcesPerIteration);
+        CHECK(pending <= totalRetired);
+        CHECK(backend.LiveResourceCount() == pending);
     }
 
-    CHECK(backend.LiveResourceCount() ==
-        IterationCount * ResourcesPerIteration);
+    const std::uint32_t pendingBeforeCollect =
+        device.PendingDestroyCount();
+    CHECK(pendingBeforeCollect >= ResourcesPerIteration);
+    CHECK(backend.LiveResourceCount() == pendingBeforeCollect);
     CHECK(backend.WaitForFence(lastFence));
     Result<std::uint32_t> collected = device.CollectGarbage();
     CHECK(collected);
-    CHECK(collected.Value() == IterationCount * ResourcesPerIteration);
+    CHECK(collected.Value() == pendingBeforeCollect);
     CHECK(device.PendingDestroyCount() == 0U);
     CHECK(device.LiveResourceCount() == 0U);
     CHECK(backend.LiveResourceCount() == 0U);

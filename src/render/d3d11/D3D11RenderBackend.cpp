@@ -1,5 +1,13 @@
 #include <Aero/Render/D3D11RenderBackend.hpp>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include <new>
 
 #include "AeroD3D11RenderPlanGlyphPixelShader.hpp"

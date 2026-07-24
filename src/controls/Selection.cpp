@@ -850,7 +850,6 @@ ListBoxInteractionManager::ListBoxInteractionManager(
     FocusManager& focus,
     VisualStateManager* states) noexcept
     : tree_(&tree),
-      events_(&events),
       focus_(&focus),
       states_(states),
       mouseDownHandler_(
@@ -858,7 +857,9 @@ ListBoxInteractionManager::ListBoxInteractionManager(
           &ListBoxInteractionManager::OnMouseDown),
       keyDownHandler_(
           this,
-          &ListBoxInteractionManager::OnKeyDown) {}
+          &ListBoxInteractionManager::OnKeyDown) {
+    static_cast<void>(events);
+}
 
 ListBoxInteractionManager::~ListBoxInteractionManager() noexcept {
     while (!records_.Empty()) {
