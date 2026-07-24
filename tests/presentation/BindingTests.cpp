@@ -147,6 +147,24 @@ void RecordDiagnostic(
     probe->diagnostic = diagnostic;
 }
 
+BindingDescriptor MakeBindingDescriptor(
+    DependencyObject& source,
+    DependencyPropertyHandle sourceProperty,
+    DependencyObject& target,
+    DependencyPropertyHandle targetProperty,
+    BindingMode mode,
+    UpdateSourceTrigger updateSourceTrigger =
+        UpdateSourceTrigger::PropertyChanged) noexcept {
+    BindingDescriptor descriptor;
+    descriptor.source = &source;
+    descriptor.sourceProperty = sourceProperty;
+    descriptor.target = &target;
+    descriptor.targetProperty = targetProperty;
+    descriptor.mode = mode;
+    descriptor.updateSourceTrigger = updateSourceTrigger;
+    return descriptor;
+}
+
 bool TestOneWayBindsAtDataBindPhase() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -157,8 +175,13 @@ bool TestOneWayBindsAtDataBindPhase() {
     CHECK(source.SetValue(
         fixture.source,
         PropertyValue::FromDouble(fixture.doubleType, 12.5)));
-    Result<BindingHandle> attached = bindings.Attach({
-        &source, fixture.source, &target, fixture.target, BindingMode::OneWay});
+    Result<BindingHandle> attached = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.target,
+            BindingMode::OneWay));
     CHECK(attached);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::DataBind));
     Result<PropertyValue> first = target.GetValue(fixture.target);
@@ -187,8 +210,13 @@ bool TestOneTimeAndValidation() {
     CHECK(source.SetValue(
         fixture.source,
         PropertyValue::FromDouble(fixture.doubleType, 7.0)));
-    Result<BindingHandle> attached = bindings.Attach({
-        &source, fixture.source, &target, fixture.target, BindingMode::OneTime});
+    Result<BindingHandle> attached = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.target,
+            BindingMode::OneTime));
     CHECK(attached);
     CHECK(bindings.Flush().Value() == 1U);
     CHECK(source.SetValue(
@@ -197,8 +225,13 @@ bool TestOneTimeAndValidation() {
     CHECK(bindings.Flush().Value() == 0U);
     CHECK(target.GetValue(fixture.target).Value().AsDouble() == 7.0);
 
-    Result<BindingHandle> mismatch = bindings.Attach({
-        &source, fixture.source, &target, fixture.boolean, BindingMode::OneWay});
+    Result<BindingHandle> mismatch = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.boolean,
+            BindingMode::OneWay));
     CHECK(!mismatch);
     CHECK(mismatch.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
@@ -214,8 +247,13 @@ bool TestTwoWayAndOneWayToSource() {
     CHECK(source.SetValue(
         fixture.source,
         PropertyValue::FromDouble(fixture.doubleType, 2.0)));
-    Result<BindingHandle> twoWay = bindings.Attach({
-        &source, fixture.source, &target, fixture.target, BindingMode::TwoWay});
+    Result<BindingHandle> twoWay = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.target,
+            BindingMode::TwoWay));
     CHECK(twoWay);
     CHECK(bindings.Flush().Value() == 1U);
     CHECK(target.GetValue(fixture.target).Value().AsDouble() == 2.0);
@@ -230,9 +268,13 @@ bool TestTwoWayAndOneWayToSource() {
     CHECK(target.SetValue(
         fixture.target,
         PropertyValue::FromDouble(fixture.doubleType, 8.0)));
-    Result<BindingHandle> targetToSource = bindings.Attach({
-        &source, fixture.source, &target, fixture.target,
-        BindingMode::OneWayToSource});
+    Result<BindingHandle> targetToSource = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.target,
+            BindingMode::OneWayToSource));
     CHECK(targetToSource);
     CHECK(bindings.Flush().Value() == 1U);
     CHECK(source.GetValue(fixture.source).Value().AsDouble() == 8.0);
@@ -250,9 +292,14 @@ bool TestExplicitUpdateSourceTrigger() {
     CHECK(bindings.Initialize());
     CHECK(source.SetValue(
         fixture.source, PropertyValue::FromDouble(fixture.doubleType, 3.0)));
-    Result<BindingHandle> binding = bindings.Attach({
-        &source, fixture.source, &target, fixture.target, BindingMode::TwoWay,
-        UpdateSourceTrigger::Explicit});
+    Result<BindingHandle> binding = bindings.Attach(
+        MakeBindingDescriptor(
+            source,
+            fixture.source,
+            target,
+            fixture.target,
+            BindingMode::TwoWay,
+            UpdateSourceTrigger::Explicit));
     CHECK(binding);
     CHECK(bindings.Flush().Value() == 1U);
     CHECK(target.GetValue(fixture.target).Value().AsDouble() == 3.0);

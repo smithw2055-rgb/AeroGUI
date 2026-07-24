@@ -405,11 +405,13 @@ Base::Result<void> StyleManager::EvaluateTriggers(
 Base::Result<void> StyleManager::ClearTriggerSetters(
     DependencyObject& object,
     const Style& style) noexcept {
+    const Base::Span<const StylePropertyTrigger> triggers =
+        style.Triggers();
     for (std::uint32_t triggerIndex = 0U;
-         triggerIndex < style.Triggers().Size();
+         triggerIndex < triggers.Size();
          ++triggerIndex) {
         const StylePropertyTrigger& trigger =
-            style.Triggers()[triggerIndex];
+            triggers[triggerIndex];
         for (std::uint32_t setterIndex = 0U;
              setterIndex < trigger.setters.Size();
              ++setterIndex) {
@@ -420,7 +422,7 @@ Base::Result<void> StyleManager::ClearTriggerSetters(
                  earlierTrigger <= triggerIndex;
                  ++earlierTrigger) {
                 const StylePropertyTrigger& earlier =
-                    style.Triggers()[earlierTrigger];
+                    triggers[earlierTrigger];
                 const std::uint32_t limit =
                     earlierTrigger == triggerIndex
                         ? setterIndex : earlier.setters.Size();

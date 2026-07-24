@@ -171,15 +171,15 @@ bool TestInheritedDataContextBindingReResolves() {
     CHECK(root.SetDataContext(first));
     CHECK(tree.SetRoot(&root));
     CHECK(tree.AttachLogical(root, target));
-    Result<BindingHandle> attached = bindings.Attach({
-        &runtime,
-        nullptr,
-        &target,
-        FrameworkElement::WidthProperty,
-        FrameworkElement::DataContextProperty,
-        "Width",
-        BindingMode::TwoWay,
-        UpdateSourceTrigger::PropertyChanged});
+    MetadataBindingDescriptor descriptor;
+    descriptor.metadata = &runtime;
+    descriptor.target = &target;
+    descriptor.targetProperty = FrameworkElement::WidthProperty;
+    descriptor.dataContextProperty =
+        FrameworkElement::DataContextProperty;
+    descriptor.path = "Width";
+    descriptor.mode = BindingMode::TwoWay;
+    Result<BindingHandle> attached = bindings.Attach(descriptor);
     CHECK(attached);
     CHECK(RunPropertyChanges(dispatcher));
     CHECK(dispatcher.RunFramePhase(

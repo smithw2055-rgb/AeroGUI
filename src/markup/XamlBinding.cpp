@@ -216,16 +216,18 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
             "Binding target property or metadata runtime was not found");
     }
 
+    Presentation::MetadataBindingDescriptor descriptor;
+    descriptor.metadata = services.schema->Runtime();
+    descriptor.source = source;
+    descriptor.target = target;
+    descriptor.targetProperty = targetHandle;
+    descriptor.dataContextProperty =
+        extension->options_.dataContextProperty;
+    descriptor.path = path;
+    descriptor.mode = mode;
+    descriptor.updateSourceTrigger = updateSourceTrigger;
     Base::Result<Presentation::BindingHandle> attached =
-        extension->options_.bindings->Attach({
-            services.schema->Runtime(),
-            source,
-            target,
-            targetHandle,
-            extension->options_.dataContextProperty,
-            path,
-            mode,
-            updateSourceTrigger});
+        extension->options_.bindings->Attach(descriptor);
     if (!attached) {
         return attached.GetStatus();
     }
