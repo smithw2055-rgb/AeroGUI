@@ -307,6 +307,7 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Selection.cpp
     src/controls/TextBlockLayoutService.cpp
     src/controls/Templates.cpp
+    src/controls/Virtualization.cpp
     src/controls/VisualStates.cpp)
 
 add_library(Aero::Controls ALIAS AeroControls)

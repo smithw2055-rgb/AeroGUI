@@ -152,6 +152,7 @@ public:
 };
 
 class ItemContainerGenerator;
+class VirtualizingStackPanel;
 
 class AERO_API ItemsControl : public Control {
     AERO_TYPED_META(ItemsControl, Control)
@@ -252,10 +253,25 @@ public:
     Base::Result<void> Attach(
         ItemsControl& owner,
         Panel& itemsHost) noexcept;
+    Base::Result<void> AttachVirtualized(
+        ItemsControl& owner,
+        VirtualizingStackPanel& itemsHost) noexcept;
     Base::Result<bool> Detach() noexcept;
     Base::Result<void> Refresh() noexcept;
+    Base::Result<bool> SetRealizationRange(
+        std::uint32_t firstIndex,
+        std::uint32_t count) noexcept;
     std::uint32_t GeneratedCount() const noexcept {
         return records_.Size();
+    }
+    std::uint32_t FirstGeneratedIndex() const noexcept {
+        return firstGeneratedIndex_;
+    }
+    std::uint32_t CreatedContainerCount() const noexcept {
+        return createdContainerCount_;
+    }
+    std::uint32_t RecycledContainerUseCount() const noexcept {
+        return recycledContainerUseCount_;
     }
     ItemContainer* ContainerFromIndex(
         std::uint32_t index) const noexcept;
@@ -281,7 +297,12 @@ private:
     StyleManager* styles_ = nullptr;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
+    VirtualizingStackPanel* virtualizingHost_ = nullptr;
     Base::Vector<Record> records_;
+    Base::Vector<Base::Ref<ItemContainer>> recycledContainers_;
+    std::uint32_t firstGeneratedIndex_ = 0U;
+    std::uint32_t createdContainerCount_ = 0U;
+    std::uint32_t recycledContainerUseCount_ = 0U;
     ItemsChangedHandler changedHandler_;
     Base::Status lastError_;
 
@@ -293,7 +314,8 @@ private:
         Record& record,
         std::uint32_t index) noexcept;
     Base::Result<void> DetachRecord(
-        Record& record) noexcept;
+        Record& record,
+        bool recycleContainer = false) noexcept;
     Base::Result<void> InsertRecord(
         std::uint32_t index,
         Record record) noexcept;
@@ -302,6 +324,11 @@ private:
     Base::Result<void> ReorderVisuals() noexcept;
     Base::Result<void> ApplyChange(
         const ItemsChangedEvent& event) noexcept;
+    Base::Result<bool> SetRealizationRangeInternal(
+        std::uint32_t firstIndex,
+        std::uint32_t count,
+        bool force) noexcept;
+    Base::Result<void> ReleaseRecycledContainers() noexcept;
 };
 
 } // namespace Aero::Controls

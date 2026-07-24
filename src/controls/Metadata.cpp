@@ -5,6 +5,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
 #include <cctype>
@@ -734,6 +735,40 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Content<Presentation::UIElement>(
             "Children", ContentKind::Collection);
     status = stackPanel.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<VirtualizingStackPanel>
+        virtualizingStackPanel =
+            MetaTypeBuilder<
+                VirtualizingStackPanel>::Object(context);
+    virtualizingStackPanel
+        .DependencyProperty(
+            VirtualizingStackPanel::OrientationProperty,
+            "Orientation", TypeOf<Orientation>(),
+            Value::FromUnsignedInteger(
+                TypeOf<Orientation>(),
+                static_cast<std::uint64_t>(
+                    Orientation::Vertical)),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateOrientationValue)
+        .DependencyProperty(
+            VirtualizingStackPanel::OverscanCountProperty,
+            "OverscanCount",
+            TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), 2U),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateUInt32)
+        .DependencyProperty(
+            VirtualizingStackPanel::
+                EstimatedItemExtentProperty,
+            "EstimatedItemExtent",
+            TypeOf<double>(),
+            Value::FromDouble(
+                TypeOf<double>(), 24.0),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidatePositiveDouble);
+    status = virtualizingStackPanel.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Canvas> canvas =

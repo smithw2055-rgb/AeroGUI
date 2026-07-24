@@ -5,6 +5,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
@@ -49,6 +50,7 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
         return Base::Ref<Base::Object>(std::move(made).Value()); \
     }
     AERO_ACTIVATE_CONTROL(StackPanel)
+    AERO_ACTIVATE_CONTROL(VirtualizingStackPanel)
     AERO_ACTIVATE_CONTROL(Canvas)
     AERO_ACTIVATE_CONTROL(Grid)
     AERO_ACTIVATE_CONTROL(Border)
@@ -325,7 +327,9 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     if (!bridged) return bridged.GetStatus();
 
     const Core::TypeId activatable[] = {
-        Core::TypeOf<Controls::StackPanel>(), Core::TypeOf<Controls::Canvas>(),
+        Core::TypeOf<Controls::StackPanel>(),
+        Core::TypeOf<Controls::VirtualizingStackPanel>(),
+        Core::TypeOf<Controls::Canvas>(),
         Core::TypeOf<Controls::Grid>(), Core::TypeOf<Controls::Border>(),
         Core::TypeOf<Controls::TextBlock>(),
         Core::TypeOf<Controls::ContentPresenter>(),
@@ -350,7 +354,7 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
             type, &ActivateAeroControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
-    std::uint32_t count = bridged.Value() + 22U;
+    std::uint32_t count = bridged.Value() + 23U;
     if (visualTree == nullptr) return count;
 
     Base::Result<void> registered = visualTree->TryRegisterType({

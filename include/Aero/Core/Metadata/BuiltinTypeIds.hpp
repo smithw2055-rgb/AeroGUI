@@ -55,6 +55,8 @@ inline constexpr TypeId ListBox =
     MakeTypeId(Base::StringView("ListBox"));
 inline constexpr TypeId ListBoxItem =
     MakeTypeId(Base::StringView("ListBoxItem"));
+inline constexpr TypeId VirtualizingStackPanel =
+    MakeTypeId(Base::StringView("VirtualizingStackPanel"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));

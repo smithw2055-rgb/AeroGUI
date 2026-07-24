@@ -256,6 +256,36 @@ set_target_properties(AeroSelectionTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroSelectionTests)
 add_test(NAME AeroSelectionTests COMMAND AeroSelectionTests)
 
+add_executable(AeroVirtualizationTests
+    controls/VirtualizationTests.cpp)
+target_link_libraries(AeroVirtualizationTests
+    PRIVATE Aero::Controls)
+target_compile_features(AeroVirtualizationTests
+    PRIVATE cxx_std_17)
+set_target_properties(AeroVirtualizationTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroVirtualizationTests)
+add_test(NAME AeroVirtualizationTests
+    COMMAND AeroVirtualizationTests)
+
+add_executable(AeroVirtualizationBenchmark
+    controls/VirtualizationTests.cpp)
+target_link_libraries(AeroVirtualizationBenchmark
+    PRIVATE Aero::Controls)
+target_compile_definitions(AeroVirtualizationBenchmark
+    PRIVATE AERO_RUN_VIRTUALIZATION_BENCHMARK=1)
+target_compile_features(AeroVirtualizationBenchmark
+    PRIVATE cxx_std_17)
+set_target_properties(AeroVirtualizationBenchmark PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroVirtualizationBenchmark)
+add_test(NAME AeroVirtualizationBenchmark
+    COMMAND AeroVirtualizationBenchmark)
+
 add_executable(AeroRenderingTests presentation/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Controls)
 target_compile_features(AeroRenderingTests PRIVATE cxx_std_17)
