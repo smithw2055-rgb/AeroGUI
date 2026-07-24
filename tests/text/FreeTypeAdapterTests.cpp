@@ -1,5 +1,6 @@
 #include <Aero/Text/FontManager.hpp>
 #include <Aero/Text/FreeTypeAdapter.hpp>
+#include <Aero/Text/GlyphAtlas.hpp>
 
 #include <cstdio>
 
@@ -49,6 +50,7 @@ bool TestFreeTypeOnlyPipelineAndCache() {
     CHECK(manager.Shape(shaping, shaped));
     CHECK(shaped.glyphs.Size() == 8U);
     CHECK(shaped.glyphs[0].advanceX > 0.0F);
+    const GlyphId atlasGlyph = shaped.glyphs[0].glyph;
 
     ShapingRequest complex = shaping;
     complex.direction = TextDirection::RightToLeft;
@@ -56,6 +58,24 @@ bool TestFreeTypeOnlyPipelineAndCache() {
     Result<void> unsupported = manager.Shape(complex, shaped);
     CHECK(!unsupported);
     CHECK(unsupported.GetStatus().code == ErrorCode::Unsupported);
+
+    GlyphAtlas atlas;
+    GlyphAtlasConfig atlasConfig;
+    atlasConfig.pageWidth = 64U;
+    atlasConfig.pageHeight = 64U;
+    atlasConfig.maxPages = 1U;
+    CHECK(atlas.Initialize(atlasConfig));
+    GlyphRequest atlasRequest;
+    atlasRequest.face = first.handle;
+    atlasRequest.glyph = atlasGlyph;
+    atlasRequest.pixelSize = shaping.pixelSize;
+    GlyphAtlasPlacement atlasPlacement;
+    CHECK(atlas.EnsureGlyph(
+        manager, atlasRequest, 1U, 0U, atlasPlacement));
+    CHECK(atlas.IsValid(atlasPlacement));
+    CHECK(atlas.PendingUploads().Size() == 1U);
+    CHECK(!atlas.PendingUploads()[0].pixels.Empty());
+    atlas.Shutdown();
 
     CHECK(manager.ReleaseFace(first.handle));
     shaped.glyphs.Clear();

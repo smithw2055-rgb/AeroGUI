@@ -86,6 +86,7 @@ target_compile_definitions(AeroBase
 
 add_library(AeroText ${AERO_LIBRARY_TYPE}
     src/text/FontManager.cpp
+    src/text/GlyphAtlas.cpp
     src/text/TextLayout.cpp
     src/text/TextTypes.cpp)
 
