@@ -21,12 +21,14 @@ class DependencyProperty;
 class DependencyPropertyRegistry;
 class RoutedEventRegistry;
 
-inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 1U;
-inline constexpr std::uint32_t MetadataFacetFormatVersion = 3U;
+inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 2U;
+inline constexpr std::uint32_t MetadataFacetFormatVersion = 4U;
 
 enum class MetadataDescriptorKind : std::uint8_t {
     Type = 0U,
     Property,
+    Field,
+    EnumValue,
     Event,
     Method
 };
@@ -35,6 +37,7 @@ enum class MetadataFacetKind : std::uint8_t {
     TypeFactory = 0U,
     Content,
     PropertyAccessor,
+    ValueMemberAccessor,
     MethodInvoker,
     DependencyProperty,
     RoutedEvent,
@@ -70,6 +73,38 @@ private:
     TypeId ownerType_ = InvalidTypeId;
     TypeId valueType_ = InvalidTypeId;
     PropertyFlags flags_ = PropertyFlags::None;
+    Base::String name_;
+};
+
+class AERO_API MetadataFieldDescriptor final {
+public:
+    MemberId Id() const noexcept { return id_; }
+    TypeId OwnerType() const noexcept { return ownerType_; }
+    TypeId ValueType() const noexcept { return valueType_; }
+    FieldFlags Flags() const noexcept { return flags_; }
+    Base::StringView Name() const noexcept { return name_.View(); }
+
+private:
+    friend class MetadataDescriptorStore;
+    MemberId id_ = InvalidMemberId;
+    TypeId ownerType_ = InvalidTypeId;
+    TypeId valueType_ = InvalidTypeId;
+    FieldFlags flags_ = FieldFlags::None;
+    Base::String name_;
+};
+
+class AERO_API MetadataEnumValueDescriptor final {
+public:
+    MemberId Id() const noexcept { return id_; }
+    TypeId OwnerType() const noexcept { return ownerType_; }
+    std::uint64_t RawValue() const noexcept { return rawValue_; }
+    Base::StringView Name() const noexcept { return name_.View(); }
+
+private:
+    friend class MetadataDescriptorStore;
+    MemberId id_ = InvalidMemberId;
+    TypeId ownerType_ = InvalidTypeId;
+    std::uint64_t rawValue_ = 0U;
     Base::String name_;
 };
 
@@ -126,11 +161,26 @@ class AERO_API MetadataTypeDescriptor final {
 public:
     TypeId Id() const noexcept { return id_; }
     TypeId BaseType() const noexcept { return baseType_; }
+    TypeId UnderlyingType() const noexcept { return underlyingType_; }
+    MetadataTypeKind Kind() const noexcept { return kind_; }
     TypeFlags Flags() const noexcept { return flags_; }
+    bool IsFlagsEnum() const noexcept {
+        return kind_ == MetadataTypeKind::Enum &&
+            HasTypeFlag(flags_, TypeFlags::FlagsEnum);
+    }
     Base::StringView XamlNamespace() const noexcept { return xamlNamespace_.View(); }
     Base::StringView Name() const noexcept { return name_.View(); }
+    Base::Span<const TypeId> Interfaces() const noexcept {
+        return {interfaces_.Data(), interfaces_.Size()};
+    }
     Base::Span<const MemberId> DeclaredProperties() const noexcept {
         return {properties_.Data(), properties_.Size()};
+    }
+    Base::Span<const MemberId> DeclaredFields() const noexcept {
+        return {fields_.Data(), fields_.Size()};
+    }
+    Base::Span<const MemberId> EnumValues() const noexcept {
+        return {enumValues_.Data(), enumValues_.Size()};
     }
     Base::Span<const MemberId> DeclaredEvents() const noexcept {
         return {events_.Data(), events_.Size()};
@@ -143,10 +193,15 @@ private:
     friend class MetadataDescriptorStore;
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
+    TypeId underlyingType_ = InvalidTypeId;
+    MetadataTypeKind kind_ = MetadataTypeKind::Object;
     TypeFlags flags_ = TypeFlags::None;
     Base::String xamlNamespace_;
     Base::String name_;
+    Base::Vector<TypeId> interfaces_;
     Base::Vector<MemberId> properties_;
+    Base::Vector<MemberId> fields_;
+    Base::Vector<MemberId> enumValues_;
     Base::Vector<MemberId> events_;
     Base::Vector<MemberId> methods_;
 };
@@ -170,6 +225,8 @@ public:
     bool IsSealed() const noexcept { return sealed_; }
     std::uint32_t TypeCount() const noexcept { return types_.Size(); }
     std::uint32_t PropertyCount() const noexcept { return properties_.Size(); }
+    std::uint32_t FieldCount() const noexcept { return fields_.Size(); }
+    std::uint32_t EnumValueCount() const noexcept { return enumValues_.Size(); }
     std::uint32_t EventCount() const noexcept { return events_.Size(); }
     std::uint32_t MethodCount() const noexcept { return methods_.Size(); }
 
@@ -186,6 +243,17 @@ public:
         TypeId ownerType,
         Base::StringView name,
         bool includeBaseTypes = true) const noexcept;
+    const MetadataFieldDescriptor* FindField(MemberId id) const noexcept;
+    const MetadataFieldDescriptor* FindField(
+        TypeId ownerType,
+        Base::StringView name) const noexcept;
+    const MetadataEnumValueDescriptor* FindEnumValue(MemberId id) const noexcept;
+    const MetadataEnumValueDescriptor* FindEnumValue(
+        TypeId ownerType,
+        Base::StringView name) const noexcept;
+    const MetadataEnumValueDescriptor* FindEnumValue(
+        TypeId ownerType,
+        std::uint64_t rawValue) const noexcept;
     const MetadataEventDescriptor* FindEvent(MemberId id) const noexcept;
     const MetadataEventDescriptor* FindEvent(
         TypeId ownerType,
@@ -199,11 +267,15 @@ public:
         bool includeBaseTypes = true) const noexcept;
 
     bool IsDerivedFrom(TypeId type, TypeId expectedBase) const noexcept;
+    bool Implements(TypeId type, TypeId interfaceType) const noexcept;
+    bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
     Base::Result<Base::HashCode> ComputeHash() const noexcept;
 
 private:
     Base::Vector<MetadataTypeDescriptor> types_;
     Base::Vector<MetadataPropertyDescriptor> properties_;
+    Base::Vector<MetadataFieldDescriptor> fields_;
+    Base::Vector<MetadataEnumValueDescriptor> enumValues_;
     Base::Vector<MetadataEventDescriptor> events_;
     Base::Vector<MetadataMethodDescriptor> methods_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
@@ -227,6 +299,13 @@ struct PropertyAccessorFacet final {
     PropertyGetCallback get = nullptr;
     PropertySetCallback set = nullptr;
     PropertyProviderId provider = InvalidPropertyProviderId;
+    void* context = nullptr;
+};
+
+struct ValueMemberAccessorFacet final {
+    MemberId member = InvalidMemberId;
+    ValueMemberGetCallback get = nullptr;
+    ValueMemberSetCallback set = nullptr;
     void* context = nullptr;
 };
 
@@ -300,6 +379,7 @@ public:
     const ContentFacet* FindContent(TypeId type) const noexcept;
     MemberId FindContentMember(TypeId type) const noexcept;
     const PropertyAccessorFacet* FindPropertyAccessor(MemberId member) const noexcept;
+    const ValueMemberAccessorFacet* FindValueMemberAccessor(MemberId member) const noexcept;
     const MethodInvokerFacet* FindMethodInvoker(MemberId member) const noexcept;
     const DependencyPropertyFacet* FindDependencyProperty(MemberId member) const noexcept;
     const RoutedEventFacet* FindRoutedEvent(MemberId member) const noexcept;
@@ -313,6 +393,7 @@ private:
     Base::Vector<TypeFactoryFacet> factories_;
     Base::Vector<ContentFacet> contents_;
     Base::Vector<PropertyAccessorFacet> propertyAccessors_;
+    Base::Vector<ValueMemberAccessorFacet> valueMemberAccessors_;
     Base::Vector<MethodInvokerFacet> methodInvokers_;
     Base::Vector<DependencyPropertyFacet> dependencyProperties_;
     Base::Vector<RoutedEventFacet> routedEvents_;
@@ -322,6 +403,7 @@ private:
     Base::HashMap<TypeId, std::uint32_t> factoryIndex_;
     Base::HashMap<TypeId, std::uint32_t> contentIndex_;
     Base::HashMap<MemberId, std::uint32_t> propertyAccessorIndex_;
+    Base::HashMap<MemberId, std::uint32_t> valueMemberAccessorIndex_;
     Base::HashMap<MemberId, std::uint32_t> methodInvokerIndex_;
     Base::HashMap<MemberId, std::uint32_t> dependencyPropertyIndex_;
     Base::HashMap<MemberId, std::uint32_t> routedEventIndex_;
