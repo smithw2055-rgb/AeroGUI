@@ -91,3 +91,15 @@ index 7c4278b..21cc7f0 100644
  using namespace Aero::Rhi;
  
  #define CHECK(expression) \
+diff --git a/tests/rhi/D3D11SurfaceTests.cpp b/tests/rhi/D3D11SurfaceTests.cpp
+index 7655df9..fe60b28 100644
+--- a/tests/rhi/D3D11SurfaceTests.cpp
++++ b/tests/rhi/D3D11SurfaceTests.cpp
+@@ -827,6 +827,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
+     SurfaceSession& surface,
+     D3D11RenderBackend& renderBackend,
+     RenderGlyphRunId glyphRun) {
++    static_cast<void>(device);
+     XamlControlFixture fixture;
+     CHECK(fixture.Initialize());
+ 
