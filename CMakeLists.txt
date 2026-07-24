@@ -329,6 +329,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlModuleSdk.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
+    src/markup/XamlTheme.cpp
     src/markup/XamlTypeExtension.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
@@ -357,6 +358,20 @@ set_target_properties(AeroMarkup PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroMarkup)
+
+set(AERO_DEFAULT_THEME_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml")
+add_custom_target(AeroDefaultThemes ALL
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:AeroMarkup>/themes"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        ${AERO_DEFAULT_THEME_FILES}
+        "$<TARGET_FILE_DIR:AeroMarkup>/themes"
+    DEPENDS ${AERO_DEFAULT_THEME_FILES}
+    VERBATIM)
+add_dependencies(AeroMarkup AeroDefaultThemes)
 
 if(AERO_BUILD_TOOLS)
     add_executable(aero-xamlc tools/xamlc/main.cpp)

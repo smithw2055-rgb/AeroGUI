@@ -1,0 +1,248 @@
+<ResourceDictionary
+    xmlns="urn:aero/themes"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ControlTemplate TargetType="Button">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="ControlBackground"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"
+                Padding="8"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Pressed">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlPressedBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+
+  <ControlTemplate TargetType="RepeatButton">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="ControlBackground"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"
+                Padding="8"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Pressed">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlPressedBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+
+  <ControlTemplate TargetType="ToggleButton">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="ControlBackground"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"
+                Padding="8"/>
+        <Border x:Name="Indicator"
+                BackgroundResource="Transparent"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Pressed">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlPressedBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked">
+          <Setter TargetName="Indicator" Property="Background" Resource="AccentFill"/>
+        </VisualState>
+        <VisualState Name="Unchecked">
+          <Setter TargetName="Indicator" Property="Background" Resource="Transparent"/>
+        </VisualState>
+        <VisualState Name="Indeterminate">
+          <Setter TargetName="Indicator" Property="Background" Resource="IndeterminateFill"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+
+  <ControlTemplate TargetType="CheckBox">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="ControlBackground"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"
+                Padding="8"/>
+        <Border x:Name="Indicator"
+                BackgroundResource="Transparent"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Pressed">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlPressedBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked">
+          <Setter TargetName="Indicator" Property="Background" Resource="AccentFill"/>
+        </VisualState>
+        <VisualState Name="Unchecked">
+          <Setter TargetName="Indicator" Property="Background" Resource="Transparent"/>
+        </VisualState>
+        <VisualState Name="Indeterminate">
+          <Setter TargetName="Indicator" Property="Background" Resource="IndeterminateFill"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+
+  <ControlTemplate TargetType="RadioButton">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="ControlBackground"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"
+                Padding="8"/>
+        <Border x:Name="Indicator"
+                BackgroundResource="Transparent"
+                BorderBrushResource="ControlBorder"
+                BorderThickness="1"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Pressed">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlPressedBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="CheckStates">
+        <VisualState Name="Checked">
+          <Setter TargetName="Indicator" Property="Background" Resource="AccentFill"/>
+        </VisualState>
+        <VisualState Name="Unchecked">
+          <Setter TargetName="Indicator" Property="Background" Resource="Transparent"/>
+        </VisualState>
+        <VisualState Name="Indeterminate">
+          <Setter TargetName="Indicator" Property="Background" Resource="IndeterminateFill"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+</ResourceDictionary>

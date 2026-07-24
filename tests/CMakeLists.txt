@@ -318,6 +318,15 @@ set_target_properties(AeroXamlButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 aero_apply_compiler_options(AeroXamlButtonTests)
 add_test(NAME AeroXamlButtonTests COMMAND AeroXamlButtonTests)
 
+add_executable(AeroXamlThemeTests markup/XamlThemeTests.cpp)
+target_link_libraries(AeroXamlThemeTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlThemeTests PRIVATE cxx_std_17)
+target_compile_definitions(AeroXamlThemeTests PRIVATE
+    AERO_THEME_SOURCE_DIR="${CMAKE_SOURCE_DIR}/themes")
+set_target_properties(AeroXamlThemeTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlThemeTests)
+add_test(NAME AeroXamlThemeTests COMMAND AeroXamlThemeTests)
+
 add_executable(AeroXamlBorderTests markup/XamlBorderTests.cpp)
 target_link_libraries(AeroXamlBorderTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlBorderTests PRIVATE cxx_std_17)

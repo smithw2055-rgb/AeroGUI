@@ -1,5 +1,7 @@
 #include <Aero/Controls/Templates.hpp>
 
+#include <Aero/Controls/Controls.hpp>
+
 #include <utility>
 
 namespace Aero::Controls {
@@ -114,6 +116,103 @@ Base::Result<void> TemplateBuildContext::AddPart(
     return {};
 }
 
+Base::Result<bool> TemplateBuildContext::ProjectContent(
+    ContentControl& owner,
+    ContentPresenter& presenter) noexcept {
+    if (tree_ == nullptr || parent_ == nullptr ||
+        &owner != parent_ || rootVisual_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template content projection owner is invalid");
+    }
+    UIElement* content = owner.Content();
+    if (content == nullptr) return false;
+    bool presenterIsPart = false;
+    for (const TemplatePart& part : parts_) {
+        presenterIsPart =
+            presenterIsPart || part.visual == &presenter;
+    }
+    if (!presenterIsPart ||
+        (content->LogicalParent() != nullptr &&
+            content->LogicalParent() != &owner) ||
+        (content->VisualParent() != nullptr &&
+            content->VisualParent() != &owner)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Template content cannot be projected");
+    }
+
+    TemplateContentProjection projection;
+    projection.owner = &owner;
+    projection.presenter = &presenter;
+    projection.content = content;
+    projection.originalVisualParent =
+        content->VisualParent();
+    if (content->LogicalParent() == nullptr) {
+        Base::Result<void> logical =
+            tree_->AttachLogical(owner, *content);
+        if (!logical) return logical.GetStatus();
+        projection.attachedLogical = true;
+    }
+    if (projection.originalVisualParent != nullptr) {
+        Base::Result<void> detached =
+            tree_->DetachVisual(
+                *projection.originalVisualParent, *content);
+        if (!detached) {
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(owner, *content));
+            }
+            return detached.GetStatus();
+        }
+    }
+    Base::Result<void> visual =
+        tree_->AttachVisual(presenter, *content);
+    if (!visual) {
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return visual.GetStatus();
+    }
+    Base::Result<void> selected =
+        presenter.SetContent(content);
+    if (!selected) {
+        static_cast<void>(
+            tree_->DetachVisual(presenter, *content));
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return selected.GetStatus();
+    }
+    Base::Result<void> tracked =
+        projections_.TryPushBack(projection);
+    if (!tracked) {
+        static_cast<void>(
+            tree_->DetachVisual(presenter, *content));
+        static_cast<void>(presenter.SetContent(nullptr));
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return tracked.GetStatus();
+    }
+    return true;
+}
+
 DependencyObject* TemplateBuildContext::FindObject(
     Base::StringView name) const noexcept {
     for (const TemplatePart& part : parts_) {
@@ -137,6 +236,29 @@ Base::Result<void> TemplateBuildContext::AddOwnedPart(
 }
 
 void TemplateBuildContext::Rollback() noexcept {
+    for (std::uint32_t index = projections_.Size();
+        index > 0U; --index) {
+        TemplateContentProjection& projection =
+            projections_[index - 1U];
+        if (projection.presenter != nullptr &&
+            projection.content != nullptr) {
+            static_cast<void>(tree_->DetachVisual(
+                *projection.presenter, *projection.content));
+            static_cast<void>(
+                projection.presenter->SetContent(nullptr));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(tree_->AttachVisual(
+                    *projection.originalVisualParent,
+                    *projection.content));
+            }
+            if (projection.attachedLogical &&
+                projection.owner != nullptr) {
+                static_cast<void>(tree_->DetachLogical(
+                    *projection.owner, *projection.content));
+            }
+        }
+    }
+    projections_.Clear();
     for (TemplatePart& part : parts_) {
         if (part.frameworkElement != nullptr) {
             (void)part.frameworkElement->SetTemplatedParent(nullptr);
@@ -394,6 +516,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     instance.rootVisual = context.rootVisual_;
     instance.rootElement = context.rootElement_;
     instance.parts = std::move(context.parts_);
+    instance.projections =
+        std::move(context.projections_);
     context.rootVisual_ = nullptr;
     context.rootElement_ = nullptr;
     Base::Result<void> tracked =
@@ -401,6 +525,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     if (!tracked) {
         --nextHandle_;
         context.parts_ = std::move(instance.parts);
+        context.projections_ =
+            std::move(instance.projections);
         context.rootVisual_ = instance.rootVisual;
         context.rootElement_ = instance.rootElement;
         context.Rollback();
@@ -707,9 +833,54 @@ Base::Result<void> TemplateManager::ClearAt(
     Base::Result<void> child =
         instance.parent->SetTemplateChild(nullptr);
     if (!child) return child.GetStatus();
+    for (std::uint32_t projectionIndex =
+            instance.projections.Size();
+        projectionIndex > 0U; --projectionIndex) {
+        TemplateContentProjection& projection =
+            instance.projections[projectionIndex - 1U];
+        if (projection.presenter == nullptr ||
+            projection.content == nullptr) {
+            continue;
+        }
+        Base::Result<void> contentDetached =
+            tree_->DetachVisual(
+                *projection.presenter,
+                *projection.content);
+        if (!contentDetached) {
+            return contentDetached.GetStatus();
+        }
+        Base::Result<void> presenterCleared =
+            projection.presenter->SetContent(nullptr);
+        if (!presenterCleared) {
+            return presenterCleared.GetStatus();
+        }
+        if (projection.originalVisualParent != nullptr) {
+            Base::Result<void> restored =
+                tree_->AttachVisual(
+                    *projection.originalVisualParent,
+                    *projection.content);
+            if (!restored) return restored.GetStatus();
+        }
+        if (projection.attachedLogical &&
+            projection.owner != nullptr) {
+            Base::Result<void> logicalDetached =
+                tree_->DetachLogical(
+                    *projection.owner,
+                    *projection.content);
+            if (!logicalDetached) {
+                return logicalDetached.GetStatus();
+            }
+        }
+    }
     Base::Result<void> detached =
         tree_->DetachNode(*instance.rootVisual);
     if (!detached) return detached.GetStatus();
+    for (TemplatePart& part : instance.parts) {
+        if (part.object == nullptr) continue;
+        Base::Result<void> untracked =
+            values_->DetachObject(*part.object);
+        if (!untracked) return untracked.GetStatus();
+    }
     if (index + 1U != instances_.Size()) {
         instances_[index] =
             std::move(instances_[instances_.Size() - 1U]);

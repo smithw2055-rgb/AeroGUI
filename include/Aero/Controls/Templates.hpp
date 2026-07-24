@@ -13,6 +13,8 @@ namespace Aero::Controls {
 using namespace Aero::Core;
 using namespace Aero::Presentation;
 
+class ContentPresenter;
+
 struct TemplateHandle final {
     std::uint64_t value = 0U;
     constexpr bool IsValid() const noexcept {
@@ -28,6 +30,14 @@ struct TemplatePart final {
     FrameworkElement* frameworkElement = nullptr;
 };
 
+struct TemplateContentProjection final {
+    ContentControl* owner = nullptr;
+    ContentPresenter* presenter = nullptr;
+    UIElement* content = nullptr;
+    Visual* originalVisualParent = nullptr;
+    bool attachedLogical = false;
+};
+
 class AERO_API TemplateBuildContext final {
 public:
     Base::Result<void> SetRoot(
@@ -38,6 +48,11 @@ public:
         Visual& parent,
         Base::Ref<Base::Object> owner,
         Visual& part) noexcept;
+    // Projects a ContentControl's logical content into a template-owned
+    // ContentPresenter without changing the logical parent.
+    Base::Result<bool> ProjectContent(
+        ContentControl& owner,
+        ContentPresenter& presenter) noexcept;
 
     Control& TemplatedParent() const noexcept {
         return *parent_;
@@ -73,6 +88,7 @@ private:
     Visual* rootVisual_ = nullptr;
     UIElement* rootElement_ = nullptr;
     Base::Vector<TemplatePart> parts_;
+    Base::Vector<TemplateContentProjection> projections_;
 };
 
 using TemplateFactoryCallback = Base::Result<void> (*)(
@@ -206,6 +222,7 @@ private:
         Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
         Base::Vector<TemplatePart> parts;
+        Base::Vector<TemplateContentProjection> projections;
     };
 
     ObjectTree* tree_ = nullptr;
