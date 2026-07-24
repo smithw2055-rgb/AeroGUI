@@ -192,6 +192,68 @@ Base::Result<void> FrameworkTemplate::TryAddPropertyTrigger(
     return triggers_.TryPushBack(std::move(trigger));
 }
 
+Base::Result<void> FrameworkTemplate::TryAddVisualStateGroup(
+    VisualStateGroup group) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    if (group.name.Empty() || group.states.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Visual state group requires a name and at least one state");
+    }
+    for (const VisualStateGroup& existing : visualStateGroups_) {
+        if (existing.name.View() == group.name.View()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Visual state group name is duplicated");
+        }
+    }
+    for (std::uint32_t stateIndex = 0U;
+        stateIndex < group.states.Size(); ++stateIndex) {
+        const VisualState& state = group.states[stateIndex];
+        if (state.name.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Visual state requires a name");
+        }
+        for (std::uint32_t previous = 0U;
+            previous < stateIndex; ++previous) {
+            if (group.states[previous].name.View() ==
+                state.name.View()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::AlreadyExists,
+                    "Visual state name is duplicated in its group");
+            }
+        }
+        for (std::uint32_t setterIndex = 0U;
+            setterIndex < state.setters.Size(); ++setterIndex) {
+            const VisualStateSetter& setter =
+                state.setters[setterIndex];
+            if (!setter.property.IsValid() ||
+                setter.value.IsUnset()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Visual state setter is incomplete");
+            }
+            for (std::uint32_t previous = 0U;
+                previous < setterIndex; ++previous) {
+                const VisualStateSetter& candidate =
+                    state.setters[previous];
+                if (candidate.property == setter.property &&
+                    candidate.targetName.View() ==
+                        setter.targetName.View()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::AlreadyExists,
+                        "Visual state setter target is duplicated");
+                }
+            }
+        }
+    }
+    return visualStateGroups_.TryPushBack(std::move(group));
+}
+
 Base::Result<void> FrameworkTemplate::Seal(
     const DependencyPropertyRegistry& properties) noexcept {
     if (sealed_) return {};
@@ -234,6 +296,46 @@ Base::Result<void> FrameworkTemplate::Seal(
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Template trigger setter is invalid");
+            }
+        }
+    }
+    for (std::uint32_t groupIndex = 0U;
+        groupIndex < visualStateGroups_.Size(); ++groupIndex) {
+        const VisualStateGroup& group =
+            visualStateGroups_[groupIndex];
+        for (const VisualState& state : group.states) {
+            for (const VisualStateSetter& setter : state.setters) {
+                const DependencyProperty* property =
+                    properties.Find(setter.property);
+                if (property == nullptr || property->IsReadOnly()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidArgument,
+                        "Visual state setter property is invalid");
+                }
+                Base::Result<void> valid =
+                    properties.ValidateValueFor(
+                        setter.property,
+                        property->RegisteredOwnerType(),
+                        setter.value);
+                if (!valid) return valid.GetStatus();
+                for (std::uint32_t otherIndex = 0U;
+                    otherIndex < groupIndex; ++otherIndex) {
+                    for (const VisualState& otherState :
+                        visualStateGroups_[otherIndex].states) {
+                        for (const VisualStateSetter& otherSetter :
+                            otherState.setters) {
+                            if (otherSetter.property ==
+                                    setter.property &&
+                                otherSetter.targetName.View() ==
+                                    setter.targetName.View()) {
+                                return Base::Status::Failure(
+                                    Base::ErrorCode::InvalidState,
+                                    "Visual state groups cannot target "
+                                    "the same property");
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -351,6 +453,20 @@ DependencyObject* TemplateManager::FindName(
     return index != UINT32_MAX
         ? FindTarget(instances_[index], name)
         : nullptr;
+}
+
+TemplateHandle TemplateManager::AppliedHandle(
+    const Control& control) const noexcept {
+    const std::uint32_t index = FindInstance(control);
+    return index != UINT32_MAX
+        ? instances_[index].handle : TemplateHandle{};
+}
+
+const ControlTemplate* TemplateManager::AppliedTemplate(
+    TemplateHandle handle) const noexcept {
+    const std::uint32_t index = FindInstance(handle);
+    return index != UINT32_MAX
+        ? instances_[index].plan : nullptr;
 }
 
 std::uint32_t TemplateManager::FindInstance(

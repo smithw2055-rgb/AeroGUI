@@ -97,6 +97,22 @@ struct TemplatePropertyTrigger final {
     Base::Vector<TemplateTriggerSetter> setters;
 };
 
+struct VisualStateSetter final {
+    Base::String targetName;
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+struct VisualState final {
+    Base::String name;
+    Base::Vector<VisualStateSetter> setters;
+};
+
+struct VisualStateGroup final {
+    Base::String name;
+    Base::Vector<VisualState> states;
+};
+
 class AERO_API FrameworkTemplate {
 public:
     FrameworkTemplate(
@@ -116,6 +132,8 @@ public:
         DependencyPropertyHandle targetProperty) noexcept;
     Base::Result<void> TryAddPropertyTrigger(
         TemplatePropertyTrigger trigger) noexcept;
+    Base::Result<void> TryAddVisualStateGroup(
+        VisualStateGroup group) noexcept;
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 
@@ -133,6 +151,9 @@ public:
     Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
         return {triggers_.Data(), triggers_.Size()};
     }
+    Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
+        return {visualStateGroups_.Data(), visualStateGroups_.Size()};
+    }
 
 private:
     TypeId targetType_ = InvalidTypeId;
@@ -140,6 +161,7 @@ private:
     void* factoryContext_ = nullptr;
     Base::Vector<TemplateBindingPlan> bindings_;
     Base::Vector<TemplatePropertyTrigger> triggers_;
+    Base::Vector<VisualStateGroup> visualStateGroups_;
     bool sealed_ = false;
 };
 
@@ -171,6 +193,10 @@ public:
     DependencyObject* FindName(
         TemplateHandle handle,
         Base::StringView name) const noexcept;
+    TemplateHandle AppliedHandle(
+        const Control& control) const noexcept;
+    const ControlTemplate* AppliedTemplate(
+        TemplateHandle handle) const noexcept;
 
 private:
     struct Instance final {
@@ -212,6 +238,60 @@ private:
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
+};
+
+// Applies setter-only visual states through the Animation provider. State
+// changes are immediate; animated transitions intentionally remain a later
+// extension. A sealed template rejects property conflicts between groups so
+// clearing one group cannot disturb another.
+class AERO_API VisualStateManager final {
+public:
+    VisualStateManager(
+        EffectiveValueEngine& values,
+        TemplateManager& templates) noexcept
+        : values_(&values), templates_(&templates) {}
+
+    Base::Result<bool> GoToState(
+        Control& control,
+        Base::StringView groupName,
+        Base::StringView stateName) noexcept;
+    Base::Result<bool> ClearState(
+        Control& control,
+        Base::StringView groupName) noexcept;
+    Base::Result<std::uint32_t> Clear(
+        Control& control) noexcept;
+    Base::StringView CurrentState(
+        const Control& control,
+        Base::StringView groupName) const noexcept;
+
+private:
+    struct ActiveGroup final {
+        std::uint64_t templateValue = 0U;
+        Base::String groupName;
+        Base::String stateName;
+    };
+
+    EffectiveValueEngine* values_ = nullptr;
+    TemplateManager* templates_ = nullptr;
+    Base::Vector<ActiveGroup> active_;
+
+    std::uint32_t FindActive(
+        TemplateHandle handle,
+        Base::StringView groupName) const noexcept;
+    static const VisualStateGroup* FindGroup(
+        const ControlTemplate& plan,
+        Base::StringView groupName) noexcept;
+    static const VisualState* FindState(
+        const VisualStateGroup& group,
+        Base::StringView stateName) noexcept;
+    Base::Result<void> ApplyState(
+        TemplateHandle handle,
+        const VisualState& state) noexcept;
+    Base::Result<void> ClearStateValues(
+        TemplateHandle handle,
+        const VisualState& state) noexcept;
+    void PruneStale() noexcept;
+    void RemoveActiveAt(std::uint32_t index) noexcept;
 };
 
 } // namespace Aero::Controls
