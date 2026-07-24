@@ -65,6 +65,11 @@ private:
             "Metadata value path cannot traverse this value kind");
     }
 
+    static Base::Span<const Base::StringView> Tail(
+        Base::Span<const Base::StringView> path) noexcept {
+        return path.Subspan(1U, path.Size() - 1U);
+    }
+
     Base::Result<Value> GetObject(
         const Base::Object& object,
         Base::Span<const Base::StringView> path) const noexcept {
@@ -79,7 +84,7 @@ private:
         Base::Result<Value> current =
             runtime_->GetProperty(object, property->Id());
         if (!current || path.Size() == 1U) return current;
-        return GetValue(current.Value(), path.Subspan(1U));
+        return GetValue(current.Value(), Tail(path));
     }
 
     Base::Result<Value> GetValue(
@@ -104,7 +109,7 @@ private:
         Base::Result<Value> current =
             runtime_->GetValueMember(value, field->Id());
         if (!current || path.Size() == 1U) return current;
-        return GetValue(current.Value(), path.Subspan(1U));
+        return GetValue(current.Value(), Tail(path));
     }
 
     Base::Result<void> SetObject(
@@ -126,7 +131,7 @@ private:
             runtime_->GetProperty(object, property->Id());
         if (!child) return child.GetStatus();
         Base::Result<bool> changed =
-            SetValue(child.Value(), path.Subspan(1U), value);
+            SetValue(child.Value(), Tail(path), value);
         if (!changed) return changed.GetStatus();
         return changed.Value()
             ? runtime_->SetProperty(object, property->Id(), child.Value())
@@ -166,7 +171,7 @@ private:
             runtime_->GetValueMember(owner, field->Id());
         if (!child) return child.GetStatus();
         Base::Result<bool> changed =
-            SetValue(child.Value(), path.Subspan(1U), value);
+            SetValue(child.Value(), Tail(path), value);
         if (!changed) return changed.GetStatus();
         if (!changed.Value()) return false;
         Base::Result<void> stored =
