@@ -11,6 +11,8 @@ namespace Aero::Presentation {
 
 using namespace Aero::Core;
 
+class CommandManager;
+
 struct HitTestResult final {
     UIElement* target = nullptr;
     Point position;
@@ -64,6 +66,7 @@ struct KeyboardInput final {
 struct KeyboardDispatchResult final {
     UIElement* target = nullptr;
     bool routed = false;
+    bool commandExecuted = false;
 };
 
 // Text is delivered separately from physical/logical keyboard events. The
@@ -128,6 +131,12 @@ class AERO_API KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
         ObjectTree& tree) noexcept;
+    KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
+        ObjectTree& tree, CommandManager* commands) noexcept;
+
+    void SetCommandManager(CommandManager* commands) noexcept {
+        commands_ = commands;
+    }
 
     Base::Result<KeyboardDispatchResult> Dispatch(
         const KeyboardInput& input) noexcept;
@@ -136,6 +145,7 @@ private:
     FocusManager* focus_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
+    CommandManager* commands_ = nullptr;
 };
 
 class AERO_API TextInputManager final {

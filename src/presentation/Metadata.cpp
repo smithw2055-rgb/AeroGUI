@@ -2,6 +2,7 @@
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -287,6 +288,14 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         MetaTypeBuilder<KeyboardFocusChangedEventArgs>::Struct(context);
     status = focusEventArgs.Finish();
     if (!status) return status.GetStatus();
+    MetaTypeBuilder<CanExecuteRoutedEventArgs> canExecuteEventArgs =
+        MetaTypeBuilder<CanExecuteRoutedEventArgs>::Struct(context);
+    status = canExecuteEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<ExecutedRoutedEventArgs> executedEventArgs =
+        MetaTypeBuilder<ExecutedRoutedEventArgs>::Struct(context);
+    status = executedEventArgs.Finish();
+    if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Length> length =
         MetaTypeBuilder<Length>::Struct(context);
@@ -344,6 +353,23 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .EnumValue("Bottom", VerticalAlignment::Bottom)
         .TextConverter(&ConvertVertical);
     status = vertical.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ICommand> command =
+        MetaTypeBuilder<ICommand>::Object(context, TypeFlags::Abstract);
+    status = command.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<InputGesture> inputGesture =
+        MetaTypeBuilder<InputGesture>::Object(context, TypeFlags::Abstract);
+    status = inputGesture.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<KeyGesture> keyGesture =
+        MetaTypeBuilder<KeyGesture>::Object(context);
+    status = keyGesture.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<RoutedCommand> routedCommand =
+        MetaTypeBuilder<RoutedCommand>::Object(context);
+    status = routedCommand.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Visual> visual =

@@ -274,6 +274,7 @@ aero_apply_compiler_options(AeroCore)
 
 add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/Binding.cpp
+    src/presentation/Commands.cpp
     src/presentation/Input.cpp
     src/presentation/Layout.cpp
     src/presentation/Metadata.cpp

@@ -1,5 +1,7 @@
 #include <Aero/Presentation/Input.hpp>
 
+#include <Aero/Presentation/Commands.hpp>
+
 #include <cmath>
 
 namespace Aero::Presentation {
@@ -268,7 +270,13 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
 
 KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
     RoutedEventManager& events, ObjectTree& tree) noexcept
-    : focus_(&focus), events_(&events), tree_(&tree) {}
+    : KeyboardInputManager(focus, events, tree, nullptr) {}
+
+KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
+    RoutedEventManager& events, ObjectTree& tree,
+    CommandManager* commands) noexcept
+    : focus_(&focus), events_(&events), tree_(&tree),
+      commands_(commands) {}
 
 Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     const KeyboardInput& input) noexcept {
@@ -303,6 +311,14 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     Base::Result<void> raised = events_->RaiseEvent(*result.target, event, &args);
     if (!raised) return raised.GetStatus();
     result.routed = true;
+    if (commands_ != nullptr &&
+        input.action == KeyboardAction::Down &&
+        !args.handled) {
+        Base::Result<bool> command =
+            commands_->ProcessInput(*result.target, input);
+        if (!command) return command.GetStatus();
+        result.commandExecuted = command.Value();
+    }
     return result;
 }
 
