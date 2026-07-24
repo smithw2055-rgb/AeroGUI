@@ -76,6 +76,14 @@ public:
         return {};
     }
 
+    Result<bool> HasCodePoint(
+        FontFaceHandle face,
+        std::uint32_t codePoint) noexcept override {
+        if (face.face == 1U) return codePoint <= 0x7FU;
+        if (face.face == 2U) return codePoint > 0x7FU;
+        return false;
+    }
+
     void ReleaseFace(FontFaceHandle) noexcept override {}
 
     bool Supports(FontProviderIdentity provider) const noexcept override {
@@ -131,10 +139,11 @@ public:
             ErrorCode::Unsupported, "Not used by layout tests");
     }
 
-    static FontFace MakeFace() noexcept {
+    static FontFace MakeFace(
+        FontFaceId faceId = 1U) noexcept {
         FontFace face;
         face.handle.provider = ProviderIdentity;
-        face.handle.face = 1U;
+        face.handle.face = faceId;
         face.handle.generation = 1U;
         face.metrics.unitsPerEm = 1000.0F;
         face.metrics.ascent = 800.0F;
@@ -222,6 +231,31 @@ bool TestZeroWidthConstraint(
     CHECK(layout.Lines().Size() == 1U);
     CHECK(Near(layout.NaturalSize().width, 8.0F));
     CHECK(Near(layout.NaturalSize().height, 10.0F));
+    return true;
+}
+
+bool TestFallbackSegmentation(
+    FontManager& fonts,
+    const FontFace& face) {
+    const FontFace fallback =
+        LayoutProvider::MakeFace(2U);
+    TextLayoutRequest request;
+    request.face = face;
+    request.fallbackFaces = {&fallback, 1U};
+    request.text = "A\xC3\xA9" "B";
+    request.pixelSize = 10.0F;
+
+    TextLayout layout;
+    CHECK(layout.ShapeAndMeasure(fonts, request));
+    CHECK(layout.Lines().Size() == 1U);
+    CHECK(layout.Runs().Size() == 3U);
+    CHECK(layout.Runs()[0].face == face.handle);
+    CHECK(layout.Runs()[1].face == fallback.handle);
+    CHECK(layout.Runs()[2].face == face.handle);
+    CHECK(layout.Runs()[0].glyphs[0].cluster == 0U);
+    CHECK(layout.Runs()[1].glyphs[0].cluster == 1U);
+    CHECK(layout.Runs()[2].glyphs[0].cluster == 3U);
+    CHECK(Near(layout.NaturalSize().width, 24.0F));
     return true;
 }
 
@@ -320,6 +354,7 @@ int main() {
     if (!TestMixedTextAndStableMeasure(fonts, face)) return 1;
     if (!TestWordAndCharacterWrapping(fonts, face)) return 1;
     if (!TestZeroWidthConstraint(fonts, face)) return 1;
+    if (!TestFallbackSegmentation(fonts, face)) return 1;
     if (!TestTrimming(fonts, face)) return 1;
     if (!TestLineHeightAndArrange(fonts, face)) return 1;
     if (!TestValidationIsTransactional(fonts, face)) return 1;

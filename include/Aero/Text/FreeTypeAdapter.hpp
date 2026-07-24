@@ -32,6 +32,9 @@ public:
     Base::Result<void> ResolveFace(
         const FontQuery& query,
         FontFace& output) noexcept override;
+    Base::Result<bool> HasCodePoint(
+        FontFaceHandle face,
+        std::uint32_t codePoint) noexcept override;
     void ReleaseFace(FontFaceHandle face) noexcept override;
 
     bool Supports(

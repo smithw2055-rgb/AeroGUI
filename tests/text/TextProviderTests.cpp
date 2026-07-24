@@ -66,6 +66,17 @@ public:
         return {};
     }
 
+    Result<bool> HasCodePoint(
+        FontFaceHandle face,
+        std::uint32_t codePoint) noexcept override {
+        if (face.provider != identity_) {
+            return Status::Failure(
+                ErrorCode::ValidationFailed,
+                "Mock coverage query references another provider");
+        }
+        return codePoint <= 0x10FFFFU;
+    }
+
     void ReleaseFace(FontFaceHandle face) noexcept override {
         released = face;
         ++releaseCount;
@@ -253,6 +264,9 @@ bool TestRegistrationAndFallback() {
         firstIdentity.id, source, typeface, face));
     CHECK(face.handle.face == 21U);
     CHECK(firstFonts.loadCount == 1U);
+    Result<bool> covered =
+        manager.HasCodePoint(face.handle, 0x4E2DU);
+    CHECK(covered && covered.Value());
     CHECK(manager.ReleaseFace(face.handle));
     CHECK(firstFonts.releaseCount == 1U);
     CHECK(firstFonts.released == face.handle);

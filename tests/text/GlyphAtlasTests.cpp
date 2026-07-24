@@ -42,6 +42,12 @@ public:
         return {};
     }
 
+    Result<bool> HasCodePoint(
+        FontFaceHandle,
+        std::uint32_t codePoint) noexcept override {
+        return codePoint <= 0x10FFFFU;
+    }
+
     void ReleaseFace(FontFaceHandle) noexcept override {}
 
     bool Supports(

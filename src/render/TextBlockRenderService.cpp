@@ -35,13 +35,28 @@ struct BatchBuild final {
 
 bool IsValidConfig(
     const TextBlockRenderServiceConfig& config) noexcept {
-    return config.face.handle.IsValid() &&
-        std::isfinite(config.pixelSize) &&
-        config.pixelSize > 0.0F &&
-        std::isfinite(config.lineHeight) &&
-        config.lineHeight >= 0.0F &&
-        config.firstGlyphRunId !=
-            Presentation::InvalidRenderGlyphRunId;
+    auto validFace = [](const Text::FontFace& face) noexcept {
+        return face.handle.IsValid() &&
+            std::isfinite(face.metrics.unitsPerEm) &&
+            face.metrics.unitsPerEm > 0.0F &&
+            std::isfinite(face.metrics.ascent) &&
+            std::isfinite(face.metrics.descent) &&
+            std::isfinite(face.metrics.lineGap);
+    };
+    if (!validFace(config.face) ||
+        !std::isfinite(config.pixelSize) ||
+        config.pixelSize <= 0.0F ||
+        !std::isfinite(config.lineHeight) ||
+        config.lineHeight < 0.0F ||
+        config.firstGlyphRunId ==
+            Presentation::InvalidRenderGlyphRunId) {
+        return false;
+    }
+    for (const Text::FontFace& fallback :
+         config.fallbackFaces) {
+        if (!validFace(fallback)) return false;
+    }
+    return true;
 }
 
 Base::Span<const std::uint8_t> AsBytes(
@@ -88,6 +103,7 @@ struct TextBlockRenderService::Impl final {
         : resources(device, graphics),
           queue(graphics),
           atlas(allocator),
+          fallbackFaces(allocator),
           pages(allocator),
           runs(allocator) {}
 
@@ -95,6 +111,7 @@ struct TextBlockRenderService::Impl final {
     Rhi::GraphicsResourceFactory resources;
     Rhi::GraphicsQueue queue;
     Text::GlyphAtlas atlas;
+    Base::Vector<Text::FontFace> fallbackFaces;
     Base::Vector<PageResource> pages;
     Base::Vector<RunResource> runs;
     Rhi::ResourceHandle sampler;
@@ -152,6 +169,15 @@ Base::Result<void> TextBlockRenderService::Initialize(
         *device_, *graphics_, allocator_);
     impl_->config = config;
     impl_->nextGlyphRun = config.firstGlyphRunId;
+    Base::Result<void> fallbacksCopied =
+        impl_->fallbackFaces.TryAppend(
+            config.fallbackFaces);
+    if (!fallbacksCopied) {
+        Shutdown();
+        return fallbacksCopied.GetStatus();
+    }
+    impl_->config.fallbackFaces =
+        impl_->fallbackFaces.AsSpan();
 
     Base::Result<void> queueReady =
         impl_->queue.Initialize();
@@ -327,6 +353,8 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
 
     Text::TextLayoutRequest layoutRequest;
     layoutRequest.face = impl_->config.face;
+    layoutRequest.fallbackFaces =
+        impl_->fallbackFaces.AsSpan();
     layoutRequest.text = request.text;
     layoutRequest.pixelSize = impl_->config.pixelSize;
     layoutRequest.maxWidth =

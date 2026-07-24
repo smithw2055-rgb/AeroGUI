@@ -121,21 +121,31 @@ Base::Result<void> TokenizeParagraph(
 
 Base::Result<void> ValidateRequest(
     const TextLayoutRequest& request) noexcept {
-    if (!request.face.handle.IsValid() ||
+    auto validFace = [](const FontFace& face) noexcept {
+        return face.handle.IsValid() &&
+            std::isfinite(face.metrics.unitsPerEm) &&
+            face.metrics.unitsPerEm > 0.0F &&
+            std::isfinite(face.metrics.ascent) &&
+            std::isfinite(face.metrics.descent) &&
+            std::isfinite(face.metrics.lineGap);
+    };
+    if (!validFace(request.face) ||
         !std::isfinite(request.pixelSize) ||
         request.pixelSize <= 0.0F ||
         request.maxWidth < 0.0F ||
         std::isnan(request.maxWidth) ||
         !std::isfinite(request.lineHeight) ||
-        request.lineHeight < 0.0F ||
-        !std::isfinite(request.face.metrics.unitsPerEm) ||
-        request.face.metrics.unitsPerEm <= 0.0F ||
-        !std::isfinite(request.face.metrics.ascent) ||
-        !std::isfinite(request.face.metrics.descent) ||
-        !std::isfinite(request.face.metrics.lineGap)) {
+        request.lineHeight < 0.0F) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Text layout request contains invalid face or dimensions");
+    }
+    for (const FontFace& fallback : request.fallbackFaces) {
+        if (!validFace(fallback)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Text layout fallback face is invalid");
+        }
     }
     const Base::Utf8Validation utf8 =
         Base::ValidateUtf8(request.text);
@@ -224,15 +234,31 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         return {};
     }
 
-    const float metricsScale =
-        request.pixelSize / request.face.metrics.unitsPerEm;
-    const float ascent =
-        std::max(0.0F, request.face.metrics.ascent * metricsScale);
-    const float descent =
-        std::max(0.0F, -request.face.metrics.descent * metricsScale);
-    const float naturalLineHeight =
-        ascent + descent +
-        std::max(0.0F, request.face.metrics.lineGap * metricsScale);
+    float ascent = 0.0F;
+    float descent = 0.0F;
+    float naturalLineHeight = 0.0F;
+    auto includeMetrics = [&](
+        const FontFace& face) noexcept {
+        const float scale =
+            request.pixelSize / face.metrics.unitsPerEm;
+        const float faceAscent =
+            std::max(0.0F, face.metrics.ascent * scale);
+        const float faceDescent =
+            std::max(0.0F, -face.metrics.descent * scale);
+        const float faceHeight =
+            faceAscent + faceDescent +
+            std::max(0.0F, face.metrics.lineGap * scale);
+        ascent = std::max(ascent, faceAscent);
+        descent = std::max(descent, faceDescent);
+        naturalLineHeight =
+            std::max(naturalLineHeight, faceHeight);
+    };
+    includeMetrics(request.face);
+    for (const FontFace& fallback : request.fallbackFaces) {
+        includeMetrics(fallback);
+    }
+    naturalLineHeight =
+        std::max(naturalLineHeight, ascent + descent);
     const float lineHeight = request.lineHeight > 0.0F
         ? request.lineHeight
         : naturalLineHeight;
@@ -251,100 +277,159 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     float maximumWidth = 0.0F;
     std::uint32_t paragraphStart = 0U;
 
+    auto selectFace = [&](
+        std::uint32_t codePoint) noexcept
+            -> Base::Result<FontFaceHandle> {
+        if (request.fallbackFaces.Empty()) {
+            return request.face.handle;
+        }
+        Base::Result<bool> primary =
+            fonts.HasCodePoint(
+                request.face.handle, codePoint);
+        if (!primary) return primary.GetStatus();
+        if (primary.Value()) return request.face.handle;
+        for (const FontFace& fallback :
+             request.fallbackFaces) {
+            Base::Result<bool> covered =
+                fonts.HasCodePoint(
+                    fallback.handle, codePoint);
+            if (!covered) return covered.GetStatus();
+            if (covered.Value()) return fallback.handle;
+        }
+        return request.face.handle;
+    };
+
+    auto shapeText = [&](
+        Base::StringView text,
+        std::uint32_t clusterBase,
+        float penX,
+        Base::Vector<GlyphRun>& runs,
+        float& width) noexcept -> Base::Result<void> {
+        runs.Clear();
+        width = 0.0F;
+        if (text.Empty()) return {};
+
+        auto appendSpan = [&](
+            FontFaceHandle face,
+            std::uint32_t spanStart,
+            std::uint32_t spanEnd) noexcept
+                -> Base::Result<void> {
+            ShapingRequest shaping;
+            shaping.face = face;
+            shaping.text =
+                text.Substr(spanStart, spanEnd - spanStart);
+            shaping.pixelSize = request.pixelSize;
+            shaping.direction = request.direction;
+            shaping.script = request.script;
+            shaping.language = request.language;
+            ShapedTextRun shaped(allocator);
+            Base::Result<void> shapedResult =
+                fonts.Shape(shaping, shaped);
+            if (!shapedResult) return shapedResult.GetStatus();
+
+            GlyphRun run(allocator);
+            run.face = shaped.face;
+            run.pixelSize = request.pixelSize;
+            run.direction = shaped.direction;
+            run.script = shaped.script;
+            Base::Result<void> reserved =
+                run.glyphs.TryReserve(shaped.glyphs.Size());
+            if (!reserved) return reserved.GetStatus();
+            for (const ShapedGlyph& source : shaped.glyphs) {
+                if (source.advanceX < 0.0F) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "Horizontal layout requires nonnegative advances");
+                }
+                if (spanStart >
+                        UINT32_MAX - source.cluster ||
+                    clusterBase >
+                        UINT32_MAX -
+                            (spanStart + source.cluster)) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::OutOfRange,
+                        "Text layout cluster offset overflowed");
+                }
+                PositionedGlyph glyph;
+                glyph.glyph = source.glyph;
+                glyph.cluster =
+                    clusterBase + spanStart + source.cluster;
+                glyph.x =
+                    penX + width + source.offsetX;
+                glyph.y =
+                    lineY + baseline - source.offsetY;
+                glyph.advanceX = source.advanceX;
+                Base::Result<void> appended =
+                    run.glyphs.TryPushBack(glyph);
+                if (!appended) return appended.GetStatus();
+                width += source.advanceX;
+            }
+            Base::Result<GlyphRun*> appended =
+                runs.TryEmplaceBack(std::move(run));
+            return appended
+                ? Base::Result<void>()
+                : Base::Result<void>(
+                    appended.GetStatus());
+        };
+
+        std::uint32_t offset = 0U;
+        std::uint32_t spanStart = 0U;
+        FontFaceHandle spanFace;
+        while (offset < text.SizeBytes()) {
+            const std::uint32_t characterStart = offset;
+            const std::uint32_t codePoint =
+                DecodeCodePoint(text, offset);
+            Base::Result<FontFaceHandle> selected =
+                selectFace(codePoint);
+            if (!selected) return selected.GetStatus();
+            if (!spanFace.IsValid()) {
+                spanFace = selected.Value();
+                spanStart = characterStart;
+                continue;
+            }
+            if (selected.Value() == spanFace) continue;
+            Base::Result<void> appended =
+                appendSpan(
+                    spanFace, spanStart, characterStart);
+            if (!appended) return appended.GetStatus();
+            spanFace = selected.Value();
+            spanStart = characterStart;
+        }
+        return appendSpan(
+            spanFace, spanStart, text.SizeBytes());
+    };
+
     auto shapeSegment = [&](
         std::uint32_t start,
         std::uint32_t length,
         float penX,
-        GlyphRun& run,
+        Base::Vector<GlyphRun>& runs,
         float& width) noexcept -> Base::Result<void> {
-        ShapingRequest shaping;
-        shaping.face = request.face.handle;
-        shaping.text = request.text.Substr(start, length);
-        shaping.pixelSize = request.pixelSize;
-        shaping.direction = request.direction;
-        shaping.script = request.script;
-        shaping.language = request.language;
-        ShapedTextRun shaped(allocator);
-        Base::Result<void> shapedResult =
-            fonts.Shape(shaping, shaped);
-        if (!shapedResult) return shapedResult.GetStatus();
-
-        run.face = shaped.face;
-        run.pixelSize = request.pixelSize;
-        run.direction = shaped.direction;
-        run.script = shaped.script;
-        width = 0.0F;
-        Base::Result<void> reserved =
-            run.glyphs.TryReserve(shaped.glyphs.Size());
-        if (!reserved) return reserved.GetStatus();
-        for (const ShapedGlyph& source : shaped.glyphs) {
-            if (source.advanceX < 0.0F) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Horizontal layout requires nonnegative advances");
-            }
-            PositionedGlyph glyph;
-            glyph.glyph = source.glyph;
-            glyph.cluster = start + source.cluster;
-            glyph.x = penX + width + source.offsetX;
-            glyph.y = lineY + baseline - source.offsetY;
-            glyph.advanceX = source.advanceX;
-            Base::Result<void> appended =
-                run.glyphs.TryPushBack(glyph);
-            if (!appended) return appended.GetStatus();
-            width += source.advanceX;
-        }
-        return {};
+        return shapeText(
+            request.text.Substr(start, length),
+            start, penX, runs, width);
     };
 
     auto appendEllipsis = [&](
         TextLine& line,
         float penX) noexcept -> Base::Result<float> {
-        ShapingRequest shaping;
-        shaping.face = request.face.handle;
-        shaping.text = EllipsisText;
-        shaping.pixelSize = request.pixelSize;
-        shaping.direction = request.direction;
-        shaping.script = request.script;
-        shaping.language = request.language;
-        ShapedTextRun shaped(allocator);
-        Base::Result<void> shapedResult =
-            fonts.Shape(shaping, shaped);
-        if (!shapedResult) return shapedResult.GetStatus();
-
-        GlyphRun run(allocator);
-        run.face = shaped.face;
-        run.pixelSize = request.pixelSize;
-        run.direction = shaped.direction;
-        run.script = shaped.script;
+        Base::Vector<GlyphRun> runs(allocator);
         float width = 0.0F;
-        Base::Result<void> reserved =
-            run.glyphs.TryReserve(shaped.glyphs.Size());
-        if (!reserved) return reserved.GetStatus();
-        for (const ShapedGlyph& source : shaped.glyphs) {
-            if (source.advanceX < 0.0F) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Horizontal layout requires nonnegative advances");
-            }
-            PositionedGlyph glyph;
-            glyph.glyph = source.glyph;
-            glyph.cluster = line.textStart + line.textLength;
-            glyph.x = penX + width + source.offsetX;
-            glyph.y = lineY + baseline - source.offsetY;
-            glyph.advanceX = source.advanceX;
-            Base::Result<void> appended =
-                run.glyphs.TryPushBack(glyph);
-            if (!appended) return appended.GetStatus();
-            width += source.advanceX;
-        }
+        Base::Result<void> shaped =
+            shapeText(
+                EllipsisText,
+                line.textStart + line.textLength,
+                penX, runs, width);
+        if (!shaped) return shaped.GetStatus();
         if (width > request.maxWidth) {
             return 0.0F;
         }
-        Base::Result<void> appended =
-            pending.TryAddRun(std::move(run));
-        if (!appended) return appended.GetStatus();
-        ++line.runCount;
+        for (GlyphRun& run : runs) {
+            Base::Result<void> appended =
+                pending.TryAddRun(std::move(run));
+            if (!appended) return appended.GetStatus();
+            ++line.runCount;
+        }
         return width;
     };
 
@@ -358,26 +443,14 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             return {};
         }
 
-        ShapingRequest ellipsisRequest;
-        ellipsisRequest.face = request.face.handle;
-        ellipsisRequest.text = EllipsisText;
-        ellipsisRequest.pixelSize = request.pixelSize;
-        ellipsisRequest.direction = request.direction;
-        ellipsisRequest.script = request.script;
-        ellipsisRequest.language = request.language;
-        ShapedTextRun ellipsisShape(allocator);
-        Base::Result<void> ellipsisResult =
-            fonts.Shape(ellipsisRequest, ellipsisShape);
-        if (!ellipsisResult) return ellipsisResult.GetStatus();
+        Base::Vector<GlyphRun> ellipsisRuns(allocator);
         float ellipsisWidth = 0.0F;
-        for (const ShapedGlyph& glyph : ellipsisShape.glyphs) {
-            if (glyph.advanceX < 0.0F) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Horizontal layout requires nonnegative advances");
-            }
-            ellipsisWidth += glyph.advanceX;
-        }
+        Base::Result<void> ellipsisResult =
+            shapeText(
+                EllipsisText,
+                line.textStart + line.textLength,
+                0.0F, ellipsisRuns, ellipsisWidth);
+        if (!ellipsisResult) return ellipsisResult.GetStatus();
         const float contentLimit =
             std::max(0.0F, request.maxWidth - ellipsisWidth);
 
@@ -490,12 +563,12 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
 
         auto appendPiece = [&](
             const TextSegment& piece) noexcept -> Base::Result<void> {
-            GlyphRun run(allocator);
+            Base::Vector<GlyphRun> runs(allocator);
             float pieceWidth = 0.0F;
             Base::Result<void> shaped =
                 shapeSegment(
                     piece.start, piece.length,
-                    lineWidth, run, pieceWidth);
+                    lineWidth, runs, pieceWidth);
             if (!shaped) return shaped.GetStatus();
 
             if (wrap &&
@@ -520,10 +593,10 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     lineEnd = lineStart;
                     return {};
                 }
-                run = GlyphRun(allocator);
+                runs.Clear();
                 shaped = shapeSegment(
                     piece.start, piece.length,
-                    0.0F, run, pieceWidth);
+                    0.0F, runs, pieceWidth);
                 if (!shaped) return shaped.GetStatus();
             }
 
@@ -539,9 +612,11 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 if (!added) return added.GetStatus();
             }
 
-            Base::Result<void> appended =
-                pending.TryAddRun(std::move(run));
-            if (!appended) return appended.GetStatus();
+            for (GlyphRun& run : runs) {
+                Base::Result<void> appended =
+                    pending.TryAddRun(std::move(run));
+                if (!appended) return appended.GetStatus();
+            }
             lineWidth += pieceWidth;
             lineEnd = piece.start + piece.length;
             lineEndsWhitespace =
@@ -561,7 +636,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         };
 
         for (const TextSegment& segment : segments) {
-            GlyphRun probe(allocator);
+            Base::Vector<GlyphRun> probe(allocator);
             float probeWidth = 0.0F;
             Base::Result<void> probed =
                 shapeSegment(

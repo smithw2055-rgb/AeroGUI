@@ -436,6 +436,7 @@ if(WIN32 AND TARGET AeroRhiD3D11)
         target_compile_definitions(AeroD3D11SurfaceTests
             PRIVATE
                 AERO_D3D11_TEXT_RENDER_TESTS=1
+                "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\""
                 "AERO_TEXT_TEST_CJK_FONT=\"${AERO_TEXT_TEST_CJK_FONT}\"")
     endif()
     target_compile_features(AeroD3D11SurfaceTests PRIVATE cxx_std_17)

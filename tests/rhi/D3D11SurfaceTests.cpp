@@ -938,22 +938,34 @@ bool TestAutomaticTextBlockD3D11Presentation(
     CHECK(fonts.RegisterProvider(
         {&fontProvider, &shaper, &fontProvider}));
 
-    Typeface typeface;
-    CHECK(typeface.TrySetFamily("Mplus"));
-    CHECK(typeface.TrySetLanguage("zh-CN"));
-    FontSource source;
-    source.kind = FontSourceKind::File;
-    source.identifier = AERO_TEXT_TEST_CJK_FONT;
-    FontFace face;
+    Typeface latinTypeface;
+    CHECK(latinTypeface.TrySetFamily("Roboto"));
+    CHECK(latinTypeface.TrySetLanguage("en"));
+    FontSource latinSource;
+    latinSource.kind = FontSourceKind::File;
+    latinSource.identifier = AERO_TEXT_TEST_FONT;
+    FontFace latinFace;
     CHECK(fonts.LoadFace(
         fontProvider.Identity().id,
-        source, typeface, face));
+        latinSource, latinTypeface, latinFace));
+
+    Typeface cjkTypeface;
+    CHECK(cjkTypeface.TrySetFamily("Mplus"));
+    CHECK(cjkTypeface.TrySetLanguage("zh-CN"));
+    FontSource cjkSource;
+    cjkSource.kind = FontSourceKind::File;
+    cjkSource.identifier = AERO_TEXT_TEST_CJK_FONT;
+    FontFace cjkFace;
+    CHECK(fonts.LoadFace(
+        fontProvider.Identity().id,
+        cjkSource, cjkTypeface, cjkFace));
 
     D3D11GlyphRunResourceRegistry registry(renderBackend);
     TextBlockRenderService textService(
         fonts, device, backend, registry);
     TextBlockRenderServiceConfig config;
-    config.face = face;
+    config.face = latinFace;
+    config.fallbackFaces = {&cjkFace, 1U};
     config.pixelSize = 20.0F;
     config.atlas.pageWidth = 256U;
     config.atlas.pageHeight = 256U;
@@ -1046,7 +1058,8 @@ bool TestAutomaticTextBlockD3D11Presentation(
     CHECK(textService.CollectGarbage());
     textService.Shutdown();
     CHECK(device.CollectGarbage());
-    CHECK(fonts.ReleaseFace(face.handle));
+    CHECK(fonts.ReleaseFace(latinFace.handle));
+    CHECK(fonts.ReleaseFace(cjkFace.handle));
     fonts.Shutdown();
     fontProvider.Shutdown();
     return true;

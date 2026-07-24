@@ -63,6 +63,7 @@ enum class TextAlignment : std::uint8_t {
 
 struct TextLayoutRequest final {
     FontFace face;
+    Base::Span<const FontFace> fallbackFaces;
     Base::StringView text;
     Base::StringView language;
     float pixelSize = 0.0F;

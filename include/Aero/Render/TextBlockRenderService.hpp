@@ -27,6 +27,7 @@ public:
 
 struct TextBlockRenderServiceConfig final {
     Text::FontFace face;
+    Base::Span<const Text::FontFace> fallbackFaces;
     float pixelSize = 16.0F;
     float lineHeight = 0.0F;
     Text::TextWrapping wrapping = Text::TextWrapping::NoWrap;

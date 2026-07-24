@@ -91,6 +91,19 @@ bool TestRealFontPipeline() {
     cjkQuery.requireCodePoint = true;
     FontFace resolvedCjk;
     CHECK(manager.ResolveFace(cjkQuery, resolvedCjk));
+    Result<bool> robotoHasLatin =
+        manager.HasCodePoint(
+            resolved.handle,
+            static_cast<std::uint32_t>('A'));
+    CHECK(robotoHasLatin && robotoHasLatin.Value());
+    Result<bool> robotoHasCjk =
+        manager.HasCodePoint(
+            resolved.handle, 0x4E2DU);
+    CHECK(robotoHasCjk && !robotoHasCjk.Value());
+    Result<bool> mplusHasCjk =
+        manager.HasCodePoint(
+            resolvedCjk.handle, 0x4E2DU);
+    CHECK(mplusHasCjk && mplusHasCjk.Value());
     ShapingRequest cjkShaping;
     cjkShaping.face = resolvedCjk.handle;
     cjkShaping.text = "\xE4\xB8\xAD\xE6\x96\x87";
@@ -106,7 +119,8 @@ bool TestRealFontPipeline() {
     CHECK(shapedCjk.glyphs[1].glyph != 0U);
 
     TextLayoutRequest mixedRequest;
-    mixedRequest.face = resolvedCjk;
+    mixedRequest.face = resolved;
+    mixedRequest.fallbackFaces = {&resolvedCjk, 1U};
     mixedRequest.text =
         "A1"
         "\xE4\xB8\xAD"
@@ -117,6 +131,9 @@ bool TestRealFontPipeline() {
     CHECK(mixedLayout.ShapeAndMeasure(manager, mixedRequest));
     CHECK(mixedLayout.Lines().Size() == 1U);
     CHECK(mixedLayout.Runs().Size() == 3U);
+    CHECK(mixedLayout.Runs()[0].face == resolved.handle);
+    CHECK(mixedLayout.Runs()[1].face == resolvedCjk.handle);
+    CHECK(mixedLayout.Runs()[2].face == resolvedCjk.handle);
     CHECK(mixedLayout.NaturalSize().width > 0.0F);
     const TextLayoutSize firstMixedSize =
         mixedLayout.NaturalSize();
@@ -188,9 +205,21 @@ bool TestRealFontPipeline() {
     CHECK(!stale);
     CHECK(stale.GetStatus().code == ErrorCode::NotFound);
 
-    manager.Shutdown();
     fonts.Shutdown();
     CHECK(!fonts.IsInitialized());
+    Result<bool> coverageAfterShutdown =
+        manager.HasCodePoint(
+            resolved.handle,
+            static_cast<std::uint32_t>('A'));
+    CHECK(!coverageAfterShutdown);
+    CHECK(coverageAfterShutdown.GetStatus().code ==
+        ErrorCode::NotInitialized);
+    Result<void> managedAfterShutdown =
+        manager.Shape(shaping, shaped);
+    CHECK(!managedAfterShutdown);
+    CHECK(managedAfterShutdown.GetStatus().code ==
+        ErrorCode::NotInitialized);
+    manager.Shutdown();
     ShapedTextRun afterShutdown;
     Result<void> unavailable =
         shaper.Shape(shaping, afterShutdown);

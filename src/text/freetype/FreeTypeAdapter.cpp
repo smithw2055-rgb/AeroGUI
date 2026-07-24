@@ -423,6 +423,32 @@ Base::Result<void> FreeTypeAdapter::ResolveFace(
         "No loaded FreeType face matches the query");
 }
 
+Base::Result<bool> FreeTypeAdapter::HasCodePoint(
+    FontFaceHandle handle,
+    std::uint32_t codePoint) noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "FreeType adapter is not initialized");
+    }
+    if (!handle.IsValid() ||
+        handle.provider != AdapterIdentity ||
+        codePoint > 0x10FFFFU ||
+        (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FreeType coverage query is invalid");
+    }
+    FT_Face face = static_cast<FT_Face>(
+        FindNativeFace(handle));
+    if (face == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "FreeType coverage query references a stale face");
+    }
+    return FT_Get_Char_Index(face, codePoint) != 0U;
+}
+
 void FreeTypeAdapter::ReleaseFace(
     FontFaceHandle handle) noexcept {
     if (impl_ == nullptr) return;
