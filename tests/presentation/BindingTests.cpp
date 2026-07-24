@@ -429,6 +429,7 @@ bool TestConvertBackAndTargetNullValue() {
     CHECK(nullTarget.GetValue(
         fixture.boolean).Value().AsObject().Get() ==
         replacementTyped.Get());
+    CHECK(bindings.Detach(nullAttached.Value()).Value());
     return true;
 }
 
