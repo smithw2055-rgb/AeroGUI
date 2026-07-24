@@ -2,19 +2,14 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
-#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
 
-#include <cstddef>
 #include <cstdint>
-
-namespace Aero::Render { class RenderPlanTranslator; }
 
 namespace Aero::Rhi {
 
-constexpr std::uint32_t RhiAbiVersion = 1U;
+constexpr std::uint32_t RhiAbiVersion = 2U;
 using FenceValue = std::uint64_t;
 
 struct DeviceCapabilities final {
@@ -88,93 +83,43 @@ struct ResourceDescriptor final {
     TextureDescriptor texture;
 };
 
-enum class RhiCommandKind : std::uint8_t {
-    BeginPass = 0U,
-    EndPass,
-    PushClip,
-    PopClip,
-    PushOpacity,
-    PopOpacity,
-    PushTransform,
-    PopTransform,
-    DrawFilledRect,
-    DrawStrokedRect
-};
+// Forward-declared graphics contracts keep the device/resource lifetime layer
+// independent from command encoding details while retaining one backend API.
+enum class GraphicsBackendKind : std::uint8_t;
+struct GraphicsCapabilities;
+struct TextureResourceDescriptor;
+struct SamplerDescriptor;
+struct PipelineDescriptor;
+class CommandList;
 
-struct RhiCommand final {
-    RhiCommandKind kind = RhiCommandKind::DrawFilledRect;
-    Base::Rect rect;
-    Base::Transform2D transform;
-    Base::Color color;
-    double scalar = 0.0;
-    Base::RenderNodeId nodeId = Base::InvalidRenderNodeId;
-};
-
-class AERO_API CommandBuffer final {
+class AERO_API IGraphicsBackend {
 public:
-    explicit CommandBuffer(Base::IAllocator* allocator = nullptr) noexcept
-        : commands_(allocator) {}
+    virtual ~IGraphicsBackend() = default;
 
-    Base::Span<const RhiCommand> Commands() const noexcept {
-        return {commands_.Data(), commands_.Size()};
-    }
-    std::uint32_t CommandCount() const noexcept {
-        return commands_.Size();
-    }
-    std::uint64_t StableHash() const noexcept;
-
-private:
-    friend class Aero::Render::RenderPlanTranslator;
-    Base::Vector<RhiCommand> commands_;
-};
-
-struct UploadSlice final {
-    std::uint32_t offset = 0U;
-    std::uint32_t size = 0U;
-    void* data = nullptr;
-};
-
-class AERO_API UploadArena final {
-public:
-    explicit UploadArena(
-        std::uint32_t capacityBytes,
-        Base::IAllocator* allocator = nullptr) noexcept;
-
-    Base::Result<void> Initialize() noexcept;
-    void Reset() noexcept { offset_ = 0U; }
-    Base::Result<UploadSlice> Allocate(
-        std::uint32_t size,
-        std::uint32_t alignment) noexcept;
-    std::uint32_t Capacity() const noexcept { return capacity_; }
-    std::uint32_t Used() const noexcept { return offset_; }
-
-private:
-    Base::Vector<std::uint8_t> bytes_;
-    std::uint32_t capacity_ = 0U;
-    std::uint32_t offset_ = 0U;
-    bool initialized_ = false;
-};
-
-struct FrameContext final {
-    std::uint32_t frameIndex = 0U;
-    FenceValue signalFence = 0U;
-    UploadArena* uploadArena = nullptr;
-};
-
-class AERO_API IRhiBackend {
-public:
-    virtual ~IRhiBackend() = default;
     virtual DeviceCapabilities Capabilities() const noexcept = 0;
+    virtual GraphicsBackendKind Kind() const noexcept = 0;
+    virtual GraphicsCapabilities
+    QueryGraphicsCapabilities() const noexcept = 0;
+
     virtual Base::Result<void> CreateResource(
         ResourceHandle handle,
         const ResourceDescriptor& descriptor) noexcept = 0;
     virtual void DestroyResource(ResourceHandle handle) noexcept = 0;
+    virtual Base::Result<void> ConfigureTexture(
+        ResourceHandle handle,
+        const TextureResourceDescriptor& descriptor) noexcept = 0;
+    virtual Base::Result<void> ConfigureSampler(
+        ResourceHandle handle,
+        const SamplerDescriptor& descriptor) noexcept = 0;
+    virtual Base::Result<void> ConfigurePipeline(
+        ResourceHandle handle,
+        const PipelineDescriptor& descriptor) noexcept = 0;
+
+    // This is the only command submission path. Backends never consume
+    // Presentation::RenderPlan or UI objects directly.
     virtual Base::Result<void> Submit(
-        const CommandBuffer& commands,
+        const CommandList& commands,
         FenceValue signalFence) noexcept = 0;
-    // The backend owns the global submission timeline. Every queue facade must
-    // allocate its next fence from this value so legacy and graphics submits
-    // cannot independently reuse the same fence.
     virtual FenceValue LastSubmittedFence() const noexcept = 0;
     virtual FenceValue CompletedFence() const noexcept = 0;
     virtual bool IsDeviceLost() const noexcept = 0;
@@ -182,8 +127,8 @@ public:
 
 class AERO_API RhiDevice final {
 public:
-    RhiDevice(
-        IRhiBackend& backend,
+    explicit RhiDevice(
+        IGraphicsBackend& backend,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RhiDevice() noexcept;
 
@@ -194,18 +139,31 @@ public:
     const DeviceCapabilities& Capabilities() const noexcept {
         return capabilities_;
     }
+    IGraphicsBackend& Backend() const noexcept { return *backend_; }
 
-    Base::Result<ResourceHandle> CreateResource(
-        const ResourceDescriptor& descriptor) noexcept;
+    Base::Result<ResourceHandle> CreateBuffer(
+        const BufferDescriptor& descriptor) noexcept;
+    Base::Result<ResourceHandle> CreateTexture(
+        const TextureResourceDescriptor& descriptor) noexcept;
+    Base::Result<ResourceHandle> CreateRenderTarget(
+        const TextureResourceDescriptor& descriptor) noexcept;
+    // Reserves a render-target handle and backend record without creating
+    // native storage. Platform backends use this before importing an
+    // externally owned swap-chain image or framebuffer.
+    Base::Result<ResourceHandle> CreateExternalRenderTarget(
+        const TextureResourceDescriptor& descriptor) noexcept;
+    Base::Result<ResourceHandle> CreateSampler(
+        const SamplerDescriptor& descriptor) noexcept;
+    Base::Result<ResourceHandle> CreatePipeline(
+        const PipelineDescriptor& descriptor) noexcept;
+
     Base::Result<void> DestroyResource(
         ResourceHandle handle,
-        FenceValue retireAfter) noexcept;
+        FenceValue retireAfter = 0U) noexcept;
     bool IsAlive(ResourceHandle handle) const noexcept;
 
-    Base::Result<FrameContext> BeginFrame() noexcept;
     Base::Result<FenceValue> Submit(
-        FrameContext& frame,
-        const CommandBuffer& commands) noexcept;
+        const CommandList& commands) noexcept;
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
 
     FenceValue LastSubmittedFence() const noexcept {
@@ -228,69 +186,20 @@ private:
         FenceValue retireAfter = 0U;
     };
 
-    IRhiBackend* backend_ = nullptr;
+    IGraphicsBackend* backend_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     DeviceCapabilities capabilities_;
     Base::Vector<ResourceSlot> slots_;
     Base::Vector<DeferredDestroy> deferred_;
-    Base::Vector<UploadArena*> frameArenas_;
     FenceValue lastSubmittedFence_ = 0U;
-    std::uint32_t nextFrameIndex_ = 0U;
     bool initialized_ = false;
 
     Base::Result<void> VerifyReady() const noexcept;
     Base::Result<void> ValidateDescriptor(
         const ResourceDescriptor& descriptor) const noexcept;
-    void ReleaseFrameArenas() noexcept;
-};
-
-class AERO_API NullRhiBackend final : public IRhiBackend {
-public:
-    explicit NullRhiBackend(
-        Base::IAllocator* allocator = nullptr) noexcept
-        : resources_(allocator) {}
-
-    DeviceCapabilities Capabilities() const noexcept override;
-    Base::Result<void> CreateResource(
-        ResourceHandle handle,
-        const ResourceDescriptor& descriptor) noexcept override;
-    void DestroyResource(ResourceHandle handle) noexcept override;
-    Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    FenceValue LastSubmittedFence() const noexcept override {
-        return lastSubmittedFence_;
-    }
-    FenceValue CompletedFence() const noexcept override {
-        return completedFence_;
-    }
-    bool IsDeviceLost() const noexcept override {
-        return deviceLost_;
-    }
-
-    void CompleteThrough(FenceValue fence) noexcept;
-    void SimulateDeviceLoss() noexcept { deviceLost_ = true; }
-
-    std::uint32_t SubmissionCount() const noexcept {
-        return submissionCount_;
-    }
-    std::uint64_t LastCommandHash() const noexcept {
-        return lastCommandHash_;
-    }
-    std::uint32_t LiveBackendResourceCount() const noexcept;
-
-private:
-    struct BackendResource final {
-        ResourceHandle handle;
-        ResourceDescriptor descriptor;
-    };
-
-    Base::Vector<BackendResource> resources_;
-    FenceValue completedFence_ = 0U;
-    FenceValue lastSubmittedFence_ = 0U;
-    std::uint64_t lastCommandHash_ = 0U;
-    std::uint32_t submissionCount_ = 0U;
-    bool deviceLost_ = false;
+    Base::Result<ResourceHandle> CreateResource(
+        const ResourceDescriptor& descriptor) noexcept;
+    void Rollback(ResourceHandle handle) noexcept;
 };
 
 } // namespace Aero::Rhi

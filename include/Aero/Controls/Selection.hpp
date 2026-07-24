@@ -185,7 +185,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    [[maybe_unused]] RoutedEventManager* events_ = nullptr;
     FocusManager* focus_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<Record> records_;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Render/TextBlockRenderService.hpp>
-#include <Aero/Rhi/D3D11Backend.hpp>
+#include <Aero/Render/D3D11RendererBackend.hpp>
 
 namespace Aero::Render {
 
@@ -9,7 +9,7 @@ class AERO_API D3D11GlyphRunResourceRegistry final
     : public IGlyphRunResourceRegistry {
 public:
     explicit D3D11GlyphRunResourceRegistry(
-        Rhi::D3D11RenderPlanBackend& backend) noexcept
+        D3D11RenderPlanBackend& backend) noexcept
         : backend_(&backend) {}
 
     Base::Result<void> RegisterGlyphRun(
@@ -24,7 +24,7 @@ public:
         Presentation::RenderGlyphRunId glyphRun) noexcept override;
 
 private:
-    Rhi::D3D11RenderPlanBackend* backend_ = nullptr;
+    D3D11RenderPlanBackend* backend_ = nullptr;
 };
 
 } // namespace Aero::Render

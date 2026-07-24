@@ -412,7 +412,7 @@ set_target_properties(AeroRhi PROPERTIES
 aero_apply_compiler_options(AeroRhi)
 
 add_library(AeroRender ${AERO_LIBRARY_TYPE}
-    src/render/RenderPlanTranslator.cpp)
+    src/render/Renderer.cpp)
 add_library(Aero::Render ALIAS AeroRender)
 target_include_directories(AeroRender
     PUBLIC
@@ -642,18 +642,14 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     add_library(AeroRhiD3D11 ${AERO_LIBRARY_TYPE}
         src/rhi/d3d11/D3D11Backend.cpp
-        src/rhi/d3d11/D3D11RenderPlanBackend.cpp
         ${_aero_d3d11_backend_fragments})
     add_library(Aero::RhiD3D11 ALIAS AeroRhiD3D11)
-    add_dependencies(AeroRhiD3D11 AeroD3D11RenderPlanShaders)
-
     target_include_directories(AeroRhiD3D11
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>
-        PRIVATE "${_aero_d3d11_shader_directory}")
+            $<INSTALL_INTERFACE:include>)
     target_link_libraries(AeroRhiD3D11
-        PUBLIC Aero::Rhi Aero::Presentation
+        PUBLIC Aero::Rhi
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRhiD3D11 PROPERTIES
@@ -663,9 +659,28 @@ if(AERO_ENABLE_D3D11_BACKEND)
         POSITION_INDEPENDENT_CODE ON
         WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
     target_compile_definitions(AeroRhiD3D11
-        PRIVATE AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
         PUBLIC AERO_HAS_D3D11_BACKEND=1)
     aero_apply_compiler_options(AeroRhiD3D11)
+
+    add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
+        src/render/d3d11/D3D11RendererBackend.cpp)
+    add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
+    add_dependencies(AeroRenderD3D11 AeroD3D11RenderPlanShaders)
+    target_include_directories(AeroRenderD3D11
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${_aero_d3d11_shader_directory}")
+    target_link_libraries(AeroRenderD3D11
+        PUBLIC Aero::Render Aero::RhiD3D11)
+    target_compile_features(AeroRenderD3D11 PUBLIC cxx_std_17)
+    set_target_properties(AeroRenderD3D11 PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroRenderD3D11)
 
     add_library(AeroTextRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11TextBlockRenderService.cpp)
@@ -675,7 +690,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>)
     target_link_libraries(AeroTextRenderD3D11
-        PUBLIC Aero::TextRender Aero::RhiD3D11)
+        PUBLIC Aero::TextRender Aero::RenderD3D11)
     target_compile_features(AeroTextRenderD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroTextRenderD3D11 PROPERTIES
         CXX_STANDARD 17

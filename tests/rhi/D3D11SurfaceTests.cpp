@@ -2,6 +2,7 @@
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Rhi/D3D11Backend.hpp>
+#include <Aero/Render/D3D11RendererBackend.hpp>
 
 #if defined(AERO_D3D11_TEXT_RENDER_TESTS)
 #include <Aero/Render/D3D11TextBlockRenderService.hpp>
@@ -47,8 +48,8 @@ using namespace Aero::Presentation;
 using namespace Aero::Controls;
 using namespace Aero::Markup;
 using namespace Aero::Rhi;
-#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
 using namespace Aero::Render;
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
 using namespace Aero::Text;
 #endif
 
@@ -715,7 +716,7 @@ Result<GraphicsCommandBuffer> MakeClearCommands(
 }
 
 Result<FenceValue> UploadTestImage(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle texture) noexcept {
     static constexpr std::uint8_t Pixels[] = {
         255U, 0U, 0U, 255U,
@@ -733,12 +734,7 @@ Result<FenceValue> UploadTestImage(
     if (!commands) {
         return commands.GetStatus();
     }
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) {
-        return initialized.GetStatus();
-    }
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 struct TestMeshVertex final {
@@ -758,7 +754,7 @@ struct TestGlyphVertex final {
 };
 
 Result<FenceValue> UploadTestMesh(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer) noexcept {
     static constexpr TestMeshVertex Vertices[] = {
@@ -778,14 +774,11 @@ Result<FenceValue> UploadTestMesh(
     if (!uploaded) return uploaded.GetStatus();
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
     if (!commands) return commands.GetStatus();
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) return initialized.GetStatus();
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 Result<FenceValue> UploadTestGlyph(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
     ResourceHandle atlasTexture) noexcept {
@@ -811,10 +804,7 @@ Result<FenceValue> UploadTestGlyph(
     if (!uploaded) return uploaded.GetStatus();
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
     if (!commands) return commands.GetStatus();
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) return initialized.GetStatus();
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 bool VerifySolidGreen(
@@ -1109,9 +1099,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(clearCommands);
     CHECK(clearCommands.Value().CommandCount() == 2U);
 
-    GraphicsQueue queue(backend);
-    CHECK(queue.Initialize());
-    Result<FenceValue> submitted = queue.Submit(clearCommands.Value());
+    Result<FenceValue> submitted = device.Submit(clearCommands.Value());
     CHECK(submitted);
     CHECK(submitted.Value() == 1U);
     CHECK(backend.WaitForFence(submitted.Value()));
@@ -1159,7 +1147,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
 
     RenderPlan renderPlan;
     CHECK(BuildPlan(renderPlan, 80U, 48U));
-    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    D3D11RenderPlanBackend renderBackend(device, presenter);
     CHECK(renderBackend.Initialize());
     CHECK(renderBackend.Submit(renderPlan));
     const D3D11RenderPlanSubmitStatistics firstPlanStatistics =
@@ -1368,24 +1356,23 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(device.DestroyResource(
         roundedFillTarget.Value(), renderBackend.LastSubmittedFence()));
 
-    GraphicsResourceFactory resources(device, backend);
     TextureResourceDescriptor imageDescriptor;
     imageDescriptor.width = 2U;
     imageDescriptor.height = 2U;
     imageDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
     imageDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> imageTexture = resources.CreateTexture(imageDescriptor);
+    Result<ResourceHandle> imageTexture = device.CreateTexture(imageDescriptor);
     CHECK(imageTexture);
     SamplerDescriptor imageSamplerDescriptor;
     imageSamplerDescriptor.minFilter = FilterMode::Nearest;
     imageSamplerDescriptor.magFilter = FilterMode::Nearest;
     imageSamplerDescriptor.mipFilter = FilterMode::Nearest;
     Result<ResourceHandle> imageSampler =
-        resources.CreateSampler(imageSamplerDescriptor);
+        device.CreateSampler(imageSamplerDescriptor);
     CHECK(imageSampler);
     Result<FenceValue> imageUpload = UploadTestImage(
-        backend, imageTexture.Value());
+        device, imageTexture.Value());
     CHECK(imageUpload);
     CHECK(imageUpload.Value() == 8U);
     CHECK(backend.WaitForFence(imageUpload.Value()));
@@ -1452,15 +1439,15 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     BufferDescriptor meshVertexDescriptor;
     meshVertexDescriptor.sizeBytes = sizeof(TestMeshVertex) * 3U;
     meshVertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> meshVertex = resources.CreateBuffer(meshVertexDescriptor);
+    Result<ResourceHandle> meshVertex = device.CreateBuffer(meshVertexDescriptor);
     CHECK(meshVertex);
     BufferDescriptor meshIndexDescriptor;
     meshIndexDescriptor.sizeBytes = sizeof(std::uint32_t) * 3U;
     meshIndexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> meshIndex = resources.CreateBuffer(meshIndexDescriptor);
+    Result<ResourceHandle> meshIndex = device.CreateBuffer(meshIndexDescriptor);
     CHECK(meshIndex);
     Result<FenceValue> meshUpload = UploadTestMesh(
-        backend, meshVertex.Value(), meshIndex.Value());
+        device, meshVertex.Value(), meshIndex.Value());
     CHECK(meshUpload && meshUpload.Value() == 11U);
     CHECK(backend.WaitForFence(meshUpload.Value()));
     CHECK(renderBackend.RegisterMesh(
@@ -1514,12 +1501,12 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     BufferDescriptor glyphVertexDescriptor;
     glyphVertexDescriptor.sizeBytes = sizeof(TestGlyphVertex) * 3U;
     glyphVertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> glyphVertex = resources.CreateBuffer(glyphVertexDescriptor);
+    Result<ResourceHandle> glyphVertex = device.CreateBuffer(glyphVertexDescriptor);
     CHECK(glyphVertex);
     BufferDescriptor glyphIndexDescriptor;
     glyphIndexDescriptor.sizeBytes = sizeof(std::uint16_t) * 3U;
     glyphIndexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> glyphIndex = resources.CreateBuffer(glyphIndexDescriptor);
+    Result<ResourceHandle> glyphIndex = device.CreateBuffer(glyphIndexDescriptor);
     CHECK(glyphIndex);
     TextureResourceDescriptor glyphAtlasDescriptor;
     glyphAtlasDescriptor.width = 1U;
@@ -1527,10 +1514,10 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     glyphAtlasDescriptor.format = GraphicsTextureFormat::R8Unorm;
     glyphAtlasDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> glyphAtlas = resources.CreateTexture(glyphAtlasDescriptor);
+    Result<ResourceHandle> glyphAtlas = device.CreateTexture(glyphAtlasDescriptor);
     CHECK(glyphAtlas);
     Result<FenceValue> glyphUpload = UploadTestGlyph(
-        backend, glyphVertex.Value(), glyphIndex.Value(), glyphAtlas.Value());
+        device, glyphVertex.Value(), glyphIndex.Value(), glyphAtlas.Value());
     CHECK(glyphUpload && glyphUpload.Value() == 14U);
     CHECK(backend.WaitForFence(glyphUpload.Value()));
     CHECK(renderBackend.RegisterGlyphRun(1U, glyphVertex.Value(), glyphIndex.Value(),
@@ -1719,7 +1706,7 @@ bool TestFl10RenderPlanSurfaceSubmission() {
         backend, window.Handle(), 64U, 48U)));
     D3D11SurfacePresenter presenter(device, backend, surface);
     CHECK(presenter.Initialize());
-    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    D3D11RenderPlanBackend renderBackend(device, presenter);
     CHECK(renderBackend.Initialize());
 
     // Initialization creates every packaged SM4 RenderPlan pipeline, and the

@@ -153,17 +153,7 @@ Result<void> FakeConfigurePipeline(
 
 Result<void> FakeSubmit(
     void* context,
-    const CommandBuffer&,
-    FenceValue signalFence) noexcept {
-    auto* state = static_cast<FakeSokolState*>(context);
-    ++state->submitted;
-    state->completed = signalFence;
-    return {};
-}
-
-Result<void> FakeSubmitGraphics(
-    void* context,
-    const GraphicsCommandBuffer&,
+    const CommandList&,
     FenceValue signalFence) noexcept {
     auto* state = static_cast<FakeSokolState*>(context);
     ++state->submitted;
@@ -192,7 +182,6 @@ bool TestBackendSelectionAndSokolAdapter() {
     api.configureSampler = &FakeConfigureSampler;
     api.configurePipeline = &FakeConfigurePipeline;
     api.submit = &FakeSubmit;
-    api.submitGraphics = &FakeSubmitGraphics;
     api.completedFence = &FakeCompletedFence;
     api.isDeviceLost = &FakeDeviceLost;
 
@@ -221,24 +210,23 @@ bool TestResourcesCommandsAndSubmission() {
     NullGraphicsBackend backend;
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    GraphicsResourceFactory resources(device, backend);
 
     BufferDescriptor vertexDescriptor;
     vertexDescriptor.sizeBytes = 256U;
     vertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> vertex = resources.CreateBuffer(vertexDescriptor);
+    Result<ResourceHandle> vertex = device.CreateBuffer(vertexDescriptor);
     CHECK(vertex);
 
     BufferDescriptor indexDescriptor;
     indexDescriptor.sizeBytes = 128U;
     indexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> index = resources.CreateBuffer(indexDescriptor);
+    Result<ResourceHandle> index = device.CreateBuffer(indexDescriptor);
     CHECK(index);
 
     BufferDescriptor uniformDescriptor;
     uniformDescriptor.sizeBytes = 256U;
     uniformDescriptor.usage = BufferUsage::Uniform;
-    Result<ResourceHandle> uniform = resources.CreateBuffer(uniformDescriptor);
+    Result<ResourceHandle> uniform = device.CreateBuffer(uniformDescriptor);
     CHECK(uniform);
 
     TextureResourceDescriptor textureDescriptor;
@@ -246,23 +234,23 @@ bool TestResourcesCommandsAndSubmission() {
     textureDescriptor.height = 4U;
     textureDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> texture = resources.CreateTexture(textureDescriptor);
+    Result<ResourceHandle> texture = device.CreateTexture(textureDescriptor);
     CHECK(texture);
 
     TextureResourceDescriptor targetDescriptor;
     targetDescriptor.width = 64U;
     targetDescriptor.height = 48U;
     targetDescriptor.usage = TextureUsageBit(TextureUsage::RenderTarget);
-    Result<ResourceHandle> target = resources.CreateRenderTarget(targetDescriptor);
+    Result<ResourceHandle> target = device.CreateRenderTarget(targetDescriptor);
     CHECK(target);
 
     SamplerDescriptor samplerDescriptor;
     samplerDescriptor.maxAnisotropy = 4U;
-    Result<ResourceHandle> sampler = resources.CreateSampler(samplerDescriptor);
+    Result<ResourceHandle> sampler = device.CreateSampler(samplerDescriptor);
     CHECK(sampler);
 
     PipelineDescriptor pipelineDescriptor = MakePipeline();
-    Result<ResourceHandle> pipeline = resources.CreatePipeline(pipelineDescriptor);
+    Result<ResourceHandle> pipeline = device.CreatePipeline(pipelineDescriptor);
     CHECK(pipeline);
     CHECK(device.LiveResourceCount() == 7U);
 
@@ -271,7 +259,7 @@ bool TestResourcesCommandsAndSubmission() {
     const std::uint8_t uniformBytes[16]{};
     const std::uint8_t textureBytes[64]{};
 
-    GraphicsCommandEncoder encoder;
+    CommandEncoder encoder;
     CHECK(encoder.UploadBuffer(vertex.Value(), 0U, vertexBytes));
     CHECK(encoder.UploadBuffer(index.Value(), 0U, indexBytes));
     CHECK(encoder.UploadBuffer(uniform.Value(), 0U, uniformBytes));
@@ -296,23 +284,18 @@ bool TestResourcesCommandsAndSubmission() {
     CHECK(encoder.DrawIndexed(6U));
     CHECK(encoder.EndRenderPass());
 
-    Result<GraphicsCommandBuffer> commandBuffer = encoder.Finish();
+    Result<CommandList> commandBuffer = encoder.Finish();
     CHECK(commandBuffer);
     CHECK(commandBuffer.Value().CommandCount() == 13U);
     CHECK(commandBuffer.Value().UploadByteCount() == 124U);
     const std::uint64_t commandHash = commandBuffer.Value().StableHash();
     CHECK(commandHash != 0U);
 
-    GraphicsQueue queue(backend);
-    CHECK(queue.Initialize());
-    Result<FenceValue> fence = queue.Submit(commandBuffer.Value());
+    Result<FenceValue> fence = device.Submit(commandBuffer.Value());
     CHECK(fence);
     CHECK(fence.Value() == 1U);
     CHECK(backend.SubmissionCount() == 1U);
     CHECK(backend.LastGraphicsHash() == commandHash);
-    CHECK(queue.LastCapture().commandCount == 13U);
-    CHECK(queue.LastCapture().uploadByteCount == 124U);
-    CHECK(queue.LastCapture().backend == GraphicsBackendKind::Null);
 
     backend.CompleteThrough(fence.Value());
     const ResourceHandle handles[] = {
@@ -330,7 +313,7 @@ bool TestResourcesCommandsAndSubmission() {
 }
 
 bool TestInvalidEncodingAndResources() {
-    GraphicsCommandEncoder encoder;
+    CommandEncoder encoder;
     Result<void> drawOutsidePass = encoder.Draw(3U);
     CHECK(!drawOutsidePass);
     CHECK(drawOutsidePass.GetStatus().code == ErrorCode::InvalidState);
@@ -338,11 +321,10 @@ bool TestInvalidEncodingAndResources() {
     NullGraphicsBackend backend;
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    GraphicsResourceFactory resources(device, backend);
     TextureResourceDescriptor invalidTarget;
     invalidTarget.width = 16U;
     invalidTarget.height = 16U;
-    Result<ResourceHandle> target = resources.CreateRenderTarget(invalidTarget);
+    Result<ResourceHandle> target = device.CreateRenderTarget(invalidTarget);
     CHECK(!target);
     CHECK(target.GetStatus().code == ErrorCode::InvalidArgument);
     return true;
