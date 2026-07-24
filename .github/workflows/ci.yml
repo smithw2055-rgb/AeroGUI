@@ -31,17 +31,6 @@ jobs:
             _migration_payload_note.tmp \
             _migration_payload_marker.tmp \
             _migration_payload_marker2.tmp
-          python - <<'PYTHON'
-          from pathlib import Path
-          path = Path('.github/workflows/ci.yml')
-          text = path.read_text()
-          start = text.index('  migrate-typed-dsl:')
-          end = text.index('  linux:', start)
-          text = text[:start] + text[end:]
-          text = text.replace('contents: write', 'contents: read')
-          path.write_text(text)
-          PYTHON
-          git add .github/workflows/ci.yml
           git config user.name "AeroGUI Metadata Migration"
           git config user.email "actions@users.noreply.github.com"
           git commit -m "Switch metadata registration to typed Fluent DSL"
