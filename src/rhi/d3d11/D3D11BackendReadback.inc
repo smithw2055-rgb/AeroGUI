@@ -234,12 +234,8 @@ Base::Result<ResourceHandle> ImportD3D11ExternalRenderTarget(
         return InvalidArgument("D3D11 external color target cannot use a depth format");
     }
 
-    ResourceDescriptor base;
-    base.type = ResourceType::RenderTarget;
-    base.texture.width = descriptor.texture.width;
-    base.texture.height = descriptor.texture.height;
-    base.texture.format = ToBaseTextureFormat(descriptor.texture.format);
-    Base::Result<ResourceHandle> created = device.CreateResource(base);
+    Base::Result<ResourceHandle> created =
+        device.CreateExternalRenderTarget(descriptor.texture);
     if (!created) {
         return created.GetStatus();
     }

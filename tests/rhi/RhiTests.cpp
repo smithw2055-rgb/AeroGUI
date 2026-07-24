@@ -213,6 +213,21 @@ bool TestResourceGenerationsAndDeferredDestroy() {
     invalidTexture.height = 32U;
     CHECK(!device.CreateTexture(invalidTexture));
 
+    TextureResourceDescriptor externalTarget;
+    externalTarget.width = 32U;
+    externalTarget.height = 24U;
+    externalTarget.format = GraphicsTextureFormat::Rgba8Unorm;
+    externalTarget.usage = TextureUsageBit(TextureUsage::RenderTarget);
+    Result<ResourceHandle> external =
+        device.CreateExternalRenderTarget(externalTarget);
+    CHECK(external);
+    CHECK(external.Value().type == ResourceType::RenderTarget);
+    CHECK(device.IsAlive(external.Value()));
+    CHECK(device.DestroyResource(external.Value()));
+
+    externalTarget.usage = TextureUsageBit(TextureUsage::Sampled);
+    CHECK(!device.CreateExternalRenderTarget(externalTarget));
+
     CHECK(device.DestroyResource(second.Value()));
     CHECK(device.CollectGarbage());
     return true;

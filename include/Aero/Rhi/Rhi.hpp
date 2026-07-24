@@ -147,6 +147,11 @@ public:
         const TextureResourceDescriptor& descriptor) noexcept;
     Base::Result<ResourceHandle> CreateRenderTarget(
         const TextureResourceDescriptor& descriptor) noexcept;
+    // Reserves a render-target handle and backend record without creating
+    // native storage. Platform backends use this before importing an
+    // externally owned swap-chain image or framebuffer.
+    Base::Result<ResourceHandle> CreateExternalRenderTarget(
+        const TextureResourceDescriptor& descriptor) noexcept;
     Base::Result<ResourceHandle> CreateSampler(
         const SamplerDescriptor& descriptor) noexcept;
     Base::Result<ResourceHandle> CreatePipeline(
