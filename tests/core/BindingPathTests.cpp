@@ -21,7 +21,6 @@ using namespace Aero::Core;
         } \
     } while (false)
 
-constexpr StringView TestNamespace("urn:binding-path-tests");
 constexpr StringView TestModuleName("Aero.Tests.BindingPath");
 
 struct Location final {
