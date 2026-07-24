@@ -72,6 +72,29 @@ target_compile_definitions(AeroBase
     PRIVATE
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
+add_library(AeroText ${AERO_LIBRARY_TYPE}
+    src/text/FontManager.cpp
+    src/text/TextLayout.cpp
+    src/text/TextTypes.cpp)
+
+add_library(Aero::Text ALIAS AeroText)
+
+target_include_directories(AeroText
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+
+target_link_libraries(AeroText PUBLIC Aero::Base)
+target_compile_features(AeroText PUBLIC cxx_std_17)
+set_target_properties(AeroText PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+
+aero_apply_compiler_options(AeroText)
+
 add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/metadata/BindingPath.cpp
     src/core/property/DependencyProperty.cpp

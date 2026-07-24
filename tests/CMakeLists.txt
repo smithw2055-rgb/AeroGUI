@@ -15,6 +15,13 @@ set_target_properties(AeroContainerTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroContainerTests)
 add_test(NAME AeroContainerTests COMMAND AeroContainerTests)
 
+add_executable(AeroTextProviderTests text/TextProviderTests.cpp)
+target_link_libraries(AeroTextProviderTests PRIVATE Aero::Text)
+target_compile_features(AeroTextProviderTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextProviderTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextProviderTests)
+add_test(NAME AeroTextProviderTests COMMAND AeroTextProviderTests)
+
 add_executable(AeroCoreTests core/TypeRegistryTests.cpp)
 target_link_libraries(AeroCoreTests PRIVATE Aero::Presentation)
 target_compile_features(AeroCoreTests PRIVATE cxx_std_17)

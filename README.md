@@ -19,7 +19,8 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 - 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK 和 `aero-xamlc`。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
-- 尚未完成：FreeType/HarfBuzz 文本栈、Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。
+- 已建立 `AeroText` 的 provider-neutral 合同层：`FontManager`、`IFontProvider`、`ITextShaper`、`IGlyphRasterizer`、`FontFace`、`Typeface`、shaped/glyph run 与 `TextLayout` 数据合同。
+- 尚未完成：FreeType/HarfBuzz adapter、glyph atlas 与 TextBlock 自动排版，以及 Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。
 
 ## 已确定的技术方向
 
@@ -98,8 +99,10 @@ flowchart LR
     Markup --> Controls
     Controls --> Presentation
     Presentation --> Core[AeroCore]
+    Controls -. text services .-> Text[AeroText]
 
     Core --> Base[AeroBase]
+    Text --> Base
     Markup --> Base
     Presentation --> Base
 
@@ -123,7 +126,12 @@ Aero::Base
   -> Aero::Presentation
   -> Aero::Controls
   -> Aero::Markup / application integration
+
+Aero::Text
+  -> Aero::Base
 ```
+
+`Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use

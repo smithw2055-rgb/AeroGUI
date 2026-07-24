@@ -378,7 +378,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 
 | 库 | Interface boundary | 状态 |
 | --- | --- | --- |
-| FreeType | `IFontFace` / `IGlyphRasterizer` | 推荐默认，可替换 |
+| FreeType | `IFontProvider` / `IGlyphRasterizer` | 推荐默认，可替换 |
 | HarfBuzz | `ITextShaper` | 完整复杂文本推荐默认，可替换 |
 | Expat | `IXmlTokenizer` | Runtime XAML 推荐默认，可替换/关闭 |
 | libtess2 | `IGeometryTessellator` | experimental，可替换 |
