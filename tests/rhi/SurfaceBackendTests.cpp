@@ -196,9 +196,9 @@ Result<void> FakeConfigurePipeline(
     return {};
 }
 
-Result<void> FakeLegacySubmit(
+Result<void> FakeSubmit(
     void* context,
-    const CommandBuffer&,
+    const CommandList& commands,
     FenceValue signalFence) noexcept {
     FakeHost& host = *static_cast<FakeHost*>(context);
     if (signalFence <= host.lastSignaledFence) {
@@ -206,140 +206,73 @@ Result<void> FakeLegacySubmit(
             ErrorCode::InvalidArgument,
             "Fence is not monotonic");
     }
-    host.lastSignaledFence = signalFence;
-    host.completedFence = signalFence;
-    return {};
-}
 
-Result<void> FakeUploadBuffer(
-    void* context,
-    ResourceHandle,
-    std::uint64_t,
-    Span<const std::uint8_t> data) noexcept {
-    FakeHost& host = *static_cast<FakeHost*>(context);
-    ++host.uploadBufferCount;
-    host.uploadedBytes += data.Size();
-    return {};
-}
-
-Result<void> FakeUploadTexture(
-    void* context,
-    ResourceHandle,
-    const TextureRegion&,
-    Span<const std::uint8_t> data) noexcept {
-    FakeHost& host = *static_cast<FakeHost*>(context);
-    ++host.uploadTextureCount;
-    host.uploadedBytes += data.Size();
-    return {};
-}
-
-Result<void> FakeBeginRenderPass(
-    void* context,
-    const RenderPassDescriptor&) noexcept {
-    FakeHost& host = *static_cast<FakeHost*>(context);
+    const Span<const std::uint8_t> uploadBytes = commands.UploadBytes();
+    for (const Command& command : commands.Commands()) {
+        switch (command.kind) {
+        case CommandKind::UploadBuffer:
+        case CommandKind::UploadTexture:
+            if (command.uploadOffset > uploadBytes.Size() ||
+                command.uploadSize > uploadBytes.Size() - command.uploadOffset) {
+                return Status::Failure(
+                    ErrorCode::InvalidArgument,
+                    "Upload command references bytes outside the command list");
+            }
+            if (command.kind == CommandKind::UploadBuffer) {
+                ++host.uploadBufferCount;
+            } else {
+                ++host.uploadTextureCount;
+            }
+            host.uploadedBytes += command.uploadSize;
+            break;
+        case CommandKind::BeginRenderPass:
+            if (host.inRenderPass) {
+                return Status::Failure(
+                    ErrorCode::InvalidState,
+                    "Render pass is already active");
+            }
+            host.inRenderPass = true;
+            ++host.beginPassCount;
+            break;
+        case CommandKind::EndRenderPass:
+            if (!host.inRenderPass) {
+                return Status::Failure(
+                    ErrorCode::InvalidState,
+                    "Render pass is not active");
+            }
+            host.inRenderPass = false;
+            ++host.endPassCount;
+            break;
+        case CommandKind::BindPipeline:
+        case CommandKind::BindVertexBuffer:
+        case CommandKind::BindIndexBuffer:
+        case CommandKind::BindUniformBuffer:
+        case CommandKind::BindTextureSampler:
+        case CommandKind::SetScissor:
+            if (!host.inRenderPass) {
+                return Status::Failure(
+                    ErrorCode::InvalidState,
+                    "Render state was recorded outside a render pass");
+            }
+            ++host.bindingCount;
+            break;
+        case CommandKind::Draw:
+        case CommandKind::DrawIndexed:
+            if (!host.inRenderPass) {
+                return Status::Failure(
+                    ErrorCode::InvalidState,
+                    "Draw was recorded outside a render pass");
+            }
+            ++host.drawCount;
+            break;
+        }
+    }
     if (host.inRenderPass) {
         return Status::Failure(
             ErrorCode::InvalidState,
-            "Render pass is already active");
+            "Command list contains an unclosed render pass");
     }
-    host.inRenderPass = true;
-    ++host.beginPassCount;
-    return {};
-}
 
-Result<void> FakeEndRenderPass(void* context) noexcept {
-    FakeHost& host = *static_cast<FakeHost*>(context);
-    if (!host.inRenderPass) {
-        return Status::Failure(
-            ErrorCode::InvalidState,
-            "Render pass is not active");
-    }
-    host.inRenderPass = false;
-    ++host.endPassCount;
-    return {};
-}
-
-Result<void> FakeBindPipeline(
-    void* context,
-    ResourceHandle) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeBindVertexBuffer(
-    void* context,
-    std::uint32_t,
-    ResourceHandle,
-    std::uint64_t) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeBindIndexBuffer(
-    void* context,
-    ResourceHandle,
-    IndexType,
-    std::uint64_t) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeBindUniformBuffer(
-    void* context,
-    std::uint32_t,
-    ResourceHandle,
-    std::uint64_t,
-    std::uint32_t) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeBindTextureSampler(
-    void* context,
-    std::uint32_t,
-    ResourceHandle,
-    ResourceHandle) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeSetScissor(
-    void* context,
-    Rect) noexcept {
-    ++static_cast<FakeHost*>(context)->bindingCount;
-    return {};
-}
-
-Result<void> FakeDraw(
-    void* context,
-    std::uint32_t,
-    std::uint32_t,
-    std::uint32_t,
-    std::uint32_t) noexcept {
-    ++static_cast<FakeHost*>(context)->drawCount;
-    return {};
-}
-
-Result<void> FakeDrawIndexed(
-    void* context,
-    std::uint32_t,
-    std::uint32_t,
-    std::uint32_t,
-    std::int32_t,
-    std::uint32_t) noexcept {
-    ++static_cast<FakeHost*>(context)->drawCount;
-    return {};
-}
-
-Result<void> FakeSignalFence(
-    void* context,
-    FenceValue signalFence) noexcept {
-    FakeHost& host = *static_cast<FakeHost*>(context);
-    if (signalFence <= host.lastSignaledFence) {
-        return Status::Failure(
-            ErrorCode::InvalidArgument,
-            "Fence is not monotonic");
-    }
     host.lastSignaledFence = signalFence;
     host.completedFence = signalFence;
     ++host.signalCount;
@@ -490,20 +423,7 @@ HostedGraphicsApi MakeHostedApi(FakeHost& host) noexcept {
     api.configureTexture = &FakeConfigureTexture;
     api.configureSampler = &FakeConfigureSampler;
     api.configurePipeline = &FakeConfigurePipeline;
-    api.submitLegacy = &FakeLegacySubmit;
-    api.uploadBuffer = &FakeUploadBuffer;
-    api.uploadTexture = &FakeUploadTexture;
-    api.beginRenderPass = &FakeBeginRenderPass;
-    api.endRenderPass = &FakeEndRenderPass;
-    api.bindPipeline = &FakeBindPipeline;
-    api.bindVertexBuffer = &FakeBindVertexBuffer;
-    api.bindIndexBuffer = &FakeBindIndexBuffer;
-    api.bindUniformBuffer = &FakeBindUniformBuffer;
-    api.bindTextureSampler = &FakeBindTextureSampler;
-    api.setScissor = &FakeSetScissor;
-    api.draw = &FakeDraw;
-    api.drawIndexed = &FakeDrawIndexed;
-    api.signalFence = &FakeSignalFence;
+    api.submit = &FakeSubmit;
     api.completedFence = &FakeCompletedFence;
     api.isDeviceLost = &FakeIsDeviceLost;
     api.createSurface = &FakeCreateSurface;
@@ -579,24 +499,23 @@ bool TestHostedOffscreenSmoke() {
 
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    GraphicsResourceFactory resources(device, backend);
 
     BufferDescriptor vertexDescriptor;
     vertexDescriptor.sizeBytes = 256U;
     vertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> vertex = resources.CreateBuffer(vertexDescriptor);
+    Result<ResourceHandle> vertex = device.CreateBuffer(vertexDescriptor);
     CHECK(vertex);
 
     BufferDescriptor indexDescriptor;
     indexDescriptor.sizeBytes = 128U;
     indexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> index = resources.CreateBuffer(indexDescriptor);
+    Result<ResourceHandle> index = device.CreateBuffer(indexDescriptor);
     CHECK(index);
 
     BufferDescriptor uniformDescriptor;
     uniformDescriptor.sizeBytes = 256U;
     uniformDescriptor.usage = BufferUsage::Uniform;
-    Result<ResourceHandle> uniform = resources.CreateBuffer(uniformDescriptor);
+    Result<ResourceHandle> uniform = device.CreateBuffer(uniformDescriptor);
     CHECK(uniform);
 
     TextureResourceDescriptor textureDescriptor;
@@ -606,7 +525,7 @@ bool TestHostedOffscreenSmoke() {
         TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
     Result<ResourceHandle> texture =
-        resources.CreateTexture(textureDescriptor);
+        device.CreateTexture(textureDescriptor);
     CHECK(texture);
 
     TextureResourceDescriptor targetDescriptor;
@@ -615,23 +534,21 @@ bool TestHostedOffscreenSmoke() {
     targetDescriptor.usage =
         TextureUsageBit(TextureUsage::RenderTarget);
     Result<ResourceHandle> target =
-        resources.CreateRenderTarget(targetDescriptor);
+        device.CreateRenderTarget(targetDescriptor);
     CHECK(target);
 
     SamplerDescriptor samplerDescriptor;
     Result<ResourceHandle> sampler =
-        resources.CreateSampler(samplerDescriptor);
+        device.CreateSampler(samplerDescriptor);
     CHECK(sampler);
 
     PipelineDescriptor pipelineDescriptor = MakePipeline();
     Result<ResourceHandle> pipeline =
-        resources.CreatePipeline(pipelineDescriptor);
+        device.CreatePipeline(pipelineDescriptor);
     CHECK(pipeline);
 
     SurfaceSession surface(backend);
     CHECK(surface.Initialize(MakeHeadlessSurface()));
-    SurfaceGraphicsQueue queue(backend, surface);
-    CHECK(queue.Initialize());
     Result<SurfaceFrame> frame = surface.AcquireFrame();
     CHECK(frame);
 
@@ -672,7 +589,7 @@ bool TestHostedOffscreenSmoke() {
     CHECK(commands);
     const std::uint64_t commandHash = commands.Value().StableHash();
     Result<FenceValue> fence =
-        queue.SubmitAndPresent(frame.Value(), commands.Value());
+        surface.SubmitAndPresent(device, frame.Value(), commands.Value());
     CHECK(fence && fence.Value() == 1U);
 
     CHECK(host.resourcesCreated == 7U);
@@ -686,12 +603,12 @@ bool TestHostedOffscreenSmoke() {
     CHECK(host.drawCount == 1U);
     CHECK(host.signalCount == 1U);
     CHECK(host.presentCount == 1U);
-    CHECK(queue.LastCapture().presented);
-    CHECK(queue.LastCapture().commandHash == commandHash);
-    CHECK(queue.LastCapture().commandCount == 13U);
-    CHECK(queue.LastCapture().uploadByteCount == 124U);
-    CHECK(queue.LastCapture().width == 64U);
-    CHECK(queue.LastCapture().height == 48U);
+    CHECK(surface.LastCapture().presented);
+    CHECK(surface.LastCapture().commandHash == commandHash);
+    CHECK(surface.LastCapture().commandCount == 13U);
+    CHECK(surface.LastCapture().uploadByteCount == 124U);
+    CHECK(surface.LastCapture().width == 64U);
+    CHECK(surface.LastCapture().height == 48U);
 
     const ResourceHandle handles[] = {
         vertex.Value(),
@@ -716,10 +633,10 @@ bool TestHostedOffscreenSmoke() {
 bool TestResizeAndContextLoss() {
     FakeHost host;
     HostedGraphicsBackend backend(MakeHostedApi(host));
+    RhiDevice device(backend);
+    CHECK(device.Initialize());
     SurfaceSession surface(backend);
     CHECK(surface.Initialize(MakeWebGlSurface()));
-    SurfaceGraphicsQueue queue(backend, surface);
-    CHECK(queue.Initialize());
 
     const std::uint64_t initialGeneration = surface.Generation();
     Result<SurfaceFrame> first = surface.AcquireFrame();
@@ -750,7 +667,7 @@ bool TestResizeAndContextLoss() {
     Result<GraphicsCommandBuffer> empty = encoder.Finish();
     CHECK(empty);
     Result<FenceValue> fence =
-        queue.SubmitAndPresent(third.Value(), empty.Value());
+        surface.SubmitAndPresent(device, third.Value(), empty.Value());
     CHECK(fence && fence.Value() == 1U);
     CHECK(host.presentCount == 1U);
     return true;
@@ -763,7 +680,7 @@ bool TestInvalidHostedApiAndDeviceLoss() {
 
     FakeHost host;
     HostedGraphicsApi api = MakeHostedApi(host);
-    api.drawIndexed = nullptr;
+    api.submit = nullptr;
     HostedGraphicsBackend incomplete(api);
     CHECK(!incomplete.IsValid());
 

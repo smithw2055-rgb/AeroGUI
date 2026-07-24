@@ -96,20 +96,14 @@ struct TextBlockRenderService::Impl final {
             : placements(allocator) {}
     };
 
-    Impl(
-        Rhi::RhiDevice& device,
-        Rhi::IGraphicsBackend& graphics,
+    explicit Impl(
         Base::IAllocator* allocator) noexcept
-        : resources(device, graphics),
-          queue(graphics),
-          atlas(allocator),
+        : atlas(allocator),
           fallbackFaces(allocator),
           pages(allocator),
           runs(allocator) {}
 
     TextBlockRenderServiceConfig config;
-    Rhi::GraphicsResourceFactory resources;
-    Rhi::GraphicsQueue queue;
     Text::GlyphAtlas atlas;
     Base::Vector<Text::FontFace> fallbackFaces;
     Base::Vector<PageResource> pages;
@@ -124,12 +118,10 @@ struct TextBlockRenderService::Impl final {
 TextBlockRenderService::TextBlockRenderService(
     Text::FontManager& fonts,
     Rhi::RhiDevice& device,
-    Rhi::IGraphicsBackend& graphics,
     IGlyphRunResourceRegistry& registry,
     Base::IAllocator* allocator) noexcept
     : fonts_(&fonts),
       device_(&device),
-      graphics_(&graphics),
       registry_(&registry),
       allocator_(
           allocator != nullptr
@@ -151,7 +143,6 @@ Base::Result<void> TextBlockRenderService::Initialize(
         fonts_ == nullptr ||
         !fonts_->IsInitialized() ||
         device_ == nullptr ||
-        graphics_ == nullptr ||
         registry_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -165,8 +156,7 @@ Base::Result<void> TextBlockRenderService::Initialize(
             Base::ErrorCode::OutOfMemory,
             "TextBlock render service allocation failed");
     }
-    impl_ = new (memory) Impl(
-        *device_, *graphics_, allocator_);
+    impl_ = new (memory) Impl(allocator_);
     impl_->config = config;
     impl_->nextGlyphRun = config.firstGlyphRunId;
     Base::Result<void> fallbacksCopied =
@@ -179,12 +169,6 @@ Base::Result<void> TextBlockRenderService::Initialize(
     impl_->config.fallbackFaces =
         impl_->fallbackFaces.AsSpan();
 
-    Base::Result<void> queueReady =
-        impl_->queue.Initialize();
-    if (!queueReady) {
-        Shutdown();
-        return queueReady.GetStatus();
-    }
     Base::Result<void> atlasReady =
         impl_->atlas.Initialize(config.atlas);
     if (!atlasReady) {
@@ -197,7 +181,7 @@ Base::Result<void> TextBlockRenderService::Initialize(
     sampler.magFilter = Rhi::FilterMode::Linear;
     sampler.mipFilter = Rhi::FilterMode::Nearest;
     Base::Result<Rhi::ResourceHandle> createdSampler =
-        impl_->resources.CreateSampler(sampler);
+        device_->CreateSampler(sampler);
     if (!createdSampler) {
         Shutdown();
         return createdSampler.GetStatus();
@@ -210,19 +194,18 @@ Base::Result<void> TextBlockRenderService::Initialize(
 Base::Result<void>
 TextBlockRenderService::RecoverDeviceResources(
     Rhi::RhiDevice& device,
-    Rhi::IGraphicsBackend& graphics,
     IGlyphRunResourceRegistry& registry) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "TextBlock render service is not initialized");
     }
-    if (!graphics_->IsDeviceLost()) {
+    if (!device_->Backend().IsDeviceLost()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBlock render service recovery requires a lost device");
     }
-    if (graphics.IsDeviceLost()) {
+    if (device.Backend().IsDeviceLost()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Replacement text graphics device is lost");
@@ -251,7 +234,6 @@ TextBlockRenderService::RecoverDeviceResources(
     impl_ = nullptr;
 
     device_ = &device;
-    graphics_ = &graphics;
     registry_ = &registry;
     return Initialize(config);
 }
@@ -259,8 +241,8 @@ TextBlockRenderService::RecoverDeviceResources(
 void TextBlockRenderService::Shutdown() noexcept {
     if (impl_ == nullptr) return;
     const Rhi::FenceValue retireFence =
-        graphics_ != nullptr
-            ? graphics_->LastSubmittedFence()
+        device_ != nullptr
+            ? device_->LastSubmittedFence()
             : 0U;
     for (Impl::RunResource& run : impl_->runs) {
         if (registry_ != nullptr &&
@@ -310,7 +292,7 @@ TextBlockRenderService::CollectGarbage() noexcept {
             "TextBlock render service is not initialized");
     }
     const Rhi::FenceValue completed =
-        graphics_->CompletedFence();
+        device_->Backend().CompletedFence();
     std::uint32_t releasedCount = 0U;
     std::uint32_t index = 0U;
     while (index < impl_->runs.Size()) {
@@ -370,7 +352,7 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
             Base::ErrorCode::InvalidArgument,
             "TextBlock layout request is invalid");
     }
-    if (graphics_->IsDeviceLost()) {
+    if (device_->Backend().IsDeviceLost()) {
         impl_->atlas.NotifyDeviceLost();
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -382,7 +364,7 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
     if (!collected) return collected.GetStatus();
 
     const Rhi::FenceValue lastSubmitted =
-        graphics_->LastSubmittedFence();
+        device_->LastSubmittedFence();
     if (lastSubmitted > 0U) {
         for (Impl::RunResource& run : impl_->runs) {
             if (run.released) continue;
@@ -429,7 +411,7 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
     const Text::GlyphAtlasConfig atlasConfig =
         impl_->atlas.Config();
     const Rhi::FenceValue completedFence =
-        graphics_->CompletedFence();
+        device_->Backend().CompletedFence();
 
     auto findBatch = [&](
         std::uint32_t page) noexcept -> Base::Result<BatchBuild*> {
@@ -567,12 +549,12 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
             Rhi::TextureUsageBit(
                 Rhi::TextureUsage::CopyDestination);
         Base::Result<Rhi::ResourceHandle> texture =
-            impl_->resources.CreateTexture(descriptor);
+            device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
         impl_->pages[page].texture = texture.Value();
     }
 
-    Rhi::GraphicsCommandEncoder encoder(allocator_);
+    Rhi::CommandEncoder encoder(allocator_);
     for (const Text::GlyphAtlasUpload& upload :
          impl_->atlas.PendingUploads()) {
         if (upload.page >= impl_->pages.Size()) {
@@ -613,7 +595,7 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
             batch.indices.Size() >
                 UINT32_MAX / sizeof(std::uint32_t)) {
             destroyBatchResources(
-                graphics_->LastSubmittedFence());
+                device_->LastSubmittedFence());
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "Text glyph buffer exceeds upload limits");
@@ -630,11 +612,11 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
         vertexDescriptor.sizeBytes = vertexBytes;
         vertexDescriptor.usage = Rhi::BufferUsage::Vertex;
         Base::Result<Rhi::ResourceHandle> vertex =
-            impl_->resources.CreateBuffer(
+            device_->CreateBuffer(
                 vertexDescriptor);
         if (!vertex) {
             destroyBatchResources(
-                graphics_->LastSubmittedFence());
+                device_->LastSubmittedFence());
             return vertex.GetStatus();
         }
         batch.vertexBuffer = vertex.Value();
@@ -643,11 +625,11 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
         indexDescriptor.sizeBytes = indexBytes;
         indexDescriptor.usage = Rhi::BufferUsage::Index;
         Base::Result<Rhi::ResourceHandle> index =
-            impl_->resources.CreateBuffer(
+            device_->CreateBuffer(
                 indexDescriptor);
         if (!index) {
             destroyBatchResources(
-                graphics_->LastSubmittedFence());
+                device_->LastSubmittedFence());
             return index.GetStatus();
         }
         batch.indexBuffer = index.Value();
@@ -658,7 +640,7 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
                 AsBytes(batch.vertices.AsSpan()));
         if (!uploaded) {
             destroyBatchResources(
-                graphics_->LastSubmittedFence());
+                device_->LastSubmittedFence());
             return uploaded.GetStatus();
         }
         uploaded = encoder.UploadBuffer(
@@ -666,23 +648,23 @@ Base::Result<void> TextBlockRenderService::ShapeAndPrepare(
             AsBytes(batch.indices.AsSpan()));
         if (!uploaded) {
             destroyBatchResources(
-                graphics_->LastSubmittedFence());
+                device_->LastSubmittedFence());
             return uploaded.GetStatus();
         }
     }
 
-    Base::Result<Rhi::GraphicsCommandBuffer> commands =
+    Base::Result<Rhi::CommandList> commands =
         encoder.Finish();
     if (!commands) {
         destroyBatchResources(
-            graphics_->LastSubmittedFence());
+            device_->LastSubmittedFence());
         return commands.GetStatus();
     }
     Base::Result<Rhi::FenceValue> submitted =
-        impl_->queue.Submit(commands.Value());
+        device_->Submit(commands.Value());
     if (!submitted) {
         destroyBatchResources(
-            graphics_->LastSubmittedFence());
+            device_->LastSubmittedFence());
         return submitted.GetStatus();
     }
     impl_->lastUploadFence = submitted.Value();
@@ -784,7 +766,7 @@ void TextBlockRenderService::ReleaseGlyphRun(
             continue;
         }
         run.retireFence =
-            graphics_->LastSubmittedFence();
+            device_->LastSubmittedFence();
         if (run.retireFence > 0U) {
             for (const Text::GlyphAtlasPlacement& placement :
                  run.placements) {

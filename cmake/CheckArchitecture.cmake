@@ -56,11 +56,11 @@ endif()
 file(GLOB_RECURSE rhi_public_files
     "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp")
 aero_collect_matches(rhi_reverse
-    "#[ \t]*include[ \t]*<Aero/(Controls|Markup)/"
+    "#[ \t]*include[ \t]*<Aero/(Core|Presentation|Controls|Markup|Render|Text)/"
     ${rhi_public_files})
 if(rhi_reverse)
     message(FATAL_ERROR
-        "RHI public contracts must not include Controls or Markup: ${rhi_reverse}")
+        "RHI public contracts must depend only on Base and RHI: ${rhi_reverse}")
 endif()
 
 set(legacy_header_pattern

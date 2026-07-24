@@ -14,7 +14,7 @@
 
 namespace Aero::Rhi {
 
-constexpr std::uint32_t GraphicsAbiVersion = 1U;
+constexpr std::uint32_t GraphicsAbiVersion = 2U;
 constexpr std::uint32_t MaxVertexBuffers = 4U;
 constexpr std::uint32_t MaxVertexAttributes = 16U;
 constexpr std::uint32_t MaxColorAttachments = 4U;
@@ -361,7 +361,7 @@ enum class IndexType : std::uint8_t {
     UInt32
 };
 
-enum class GraphicsCommandKind : std::uint8_t {
+enum class CommandKind : std::uint8_t {
     UploadBuffer = 0U,
     UploadTexture,
     BeginRenderPass,
@@ -376,8 +376,8 @@ enum class GraphicsCommandKind : std::uint8_t {
     DrawIndexed
 };
 
-struct GraphicsCommand final {
-    GraphicsCommandKind kind = GraphicsCommandKind::Draw;
+struct Command final {
+    CommandKind kind = CommandKind::Draw;
     ResourceHandle resource0;
     ResourceHandle resource1;
     RenderPassDescriptor renderPass;
@@ -396,13 +396,13 @@ struct GraphicsCommand final {
     IndexType indexType = IndexType::UInt16;
 };
 
-class AERO_API GraphicsCommandBuffer final {
+class AERO_API CommandList final {
 public:
-    explicit GraphicsCommandBuffer(
+    explicit CommandList(
         Base::IAllocator* allocator = nullptr) noexcept
         : commands_(allocator), uploadBytes_(allocator) {}
 
-    Base::Span<const GraphicsCommand> Commands() const noexcept {
+    Base::Span<const Command> Commands() const noexcept {
         return {commands_.Data(), commands_.Size()};
     }
     Base::Span<const std::uint8_t> UploadBytes() const noexcept {
@@ -417,14 +417,14 @@ public:
     std::uint64_t StableHash() const noexcept;
 
 private:
-    friend class GraphicsCommandEncoder;
-    Base::Vector<GraphicsCommand> commands_;
+    friend class CommandEncoder;
+    Base::Vector<Command> commands_;
     Base::Vector<std::uint8_t> uploadBytes_;
 };
 
-class AERO_API GraphicsCommandEncoder final {
+class AERO_API CommandEncoder final {
 public:
-    explicit GraphicsCommandEncoder(
+    explicit CommandEncoder(
         Base::IAllocator* allocator = nullptr) noexcept
         : buffer_(allocator) {}
 
@@ -470,20 +470,27 @@ public:
         std::uint32_t firstIndex = 0U,
         std::int32_t baseVertex = 0,
         std::uint32_t firstInstance = 0U) noexcept;
-    Base::Result<GraphicsCommandBuffer> Finish() noexcept;
+    Base::Result<CommandList> Finish() noexcept;
 
 private:
-    GraphicsCommandBuffer buffer_;
+    CommandList buffer_;
     bool inRenderPass_ = false;
     bool finished_ = false;
 
     Base::Result<void> VerifyRecording() const noexcept;
     Base::Result<void> Append(
-        const GraphicsCommand& command) noexcept;
+        const Command& command) noexcept;
     Base::Result<void> AppendUpload(
-        GraphicsCommand& command,
+        Command& command,
         Base::Span<const std::uint8_t> data) noexcept;
 };
+
+// Transitional source aliases; there is only one command representation and
+// one backend submission path. New code should use the shorter names.
+using GraphicsCommandKind = CommandKind;
+using GraphicsCommand = Command;
+using GraphicsCommandBuffer = CommandList;
+using GraphicsCommandEncoder = CommandEncoder;
 
 AERO_API Base::Result<void> ValidateTextureDescriptor(
     const TextureResourceDescriptor& descriptor,
@@ -497,25 +504,6 @@ AERO_API Base::Result<void> ValidatePipelineDescriptor(
 AERO_API std::uint64_t StablePipelineHash(
     const PipelineDescriptor& descriptor) noexcept;
 
-class AERO_API IGraphicsBackend : public IRhiBackend {
-public:
-    virtual GraphicsBackendKind Kind() const noexcept = 0;
-    virtual GraphicsCapabilities
-    QueryGraphicsCapabilities() const noexcept = 0;
-    virtual Base::Result<void> ConfigureTexture(
-        ResourceHandle handle,
-        const TextureResourceDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> ConfigureSampler(
-        ResourceHandle handle,
-        const SamplerDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> ConfigurePipeline(
-        ResourceHandle handle,
-        const PipelineDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> SubmitGraphics(
-        const GraphicsCommandBuffer& commands,
-        FenceValue signalFence) noexcept = 0;
-};
-
 struct BackendRequest final {
     GraphicsBackendKind preferred = GraphicsBackendKind::Invalid;
     GraphicsFeatureFlags requiredFeatures = 0U;
@@ -528,70 +516,11 @@ SelectGraphicsBackend(
     Base::Span<IGraphicsBackend*> backends,
     const BackendRequest& request) noexcept;
 
-class AERO_API GraphicsResourceFactory final {
-public:
-    GraphicsResourceFactory(
-        RhiDevice& device,
-        IGraphicsBackend& backend) noexcept
-        : device_(&device), backend_(&backend) {}
-
-    Base::Result<ResourceHandle> CreateBuffer(
-        const BufferDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateTexture(
-        const TextureResourceDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateRenderTarget(
-        const TextureResourceDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateSampler(
-        const SamplerDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreatePipeline(
-        const PipelineDescriptor& descriptor) noexcept;
-
-private:
-    RhiDevice* device_ = nullptr;
-    IGraphicsBackend* backend_ = nullptr;
-
-    Base::Result<ResourceHandle> CreateTextureInternal(
-        const TextureResourceDescriptor& descriptor,
-        ResourceType resourceType) noexcept;
-    void Rollback(ResourceHandle handle) noexcept;
-};
-
-struct GraphicsFrameCapture final {
-    GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
-    FenceValue signalFence = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint32_t uploadByteCount = 0U;
-    std::uint64_t commandHash = 0U;
-};
-
-class AERO_API GraphicsQueue final {
-public:
-    explicit GraphicsQueue(IGraphicsBackend& backend) noexcept
-        : backend_(&backend) {}
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<FenceValue> Submit(
-        const GraphicsCommandBuffer& commands) noexcept;
-    FenceValue LastSubmittedFence() const noexcept {
-        return lastSubmittedFence_;
-    }
-    const GraphicsFrameCapture& LastCapture() const noexcept {
-        return lastCapture_;
-    }
-
-private:
-    IGraphicsBackend* backend_ = nullptr;
-    GraphicsCapabilities capabilities_;
-    FenceValue lastSubmittedFence_ = 0U;
-    GraphicsFrameCapture lastCapture_;
-    bool initialized_ = false;
-};
-
 class AERO_API NullGraphicsBackend final : public IGraphicsBackend {
 public:
     explicit NullGraphicsBackend(
         Base::IAllocator* allocator = nullptr) noexcept
-        : base_(allocator), resources_(allocator) {}
+        : resources_(allocator) {}
 
     DeviceCapabilities Capabilities() const noexcept override;
     GraphicsBackendKind Kind() const noexcept override {
@@ -614,10 +543,7 @@ public:
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
-        const GraphicsCommandBuffer& commands,
+        const CommandList& commands,
         FenceValue signalFence) noexcept override;
     FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;
@@ -626,7 +552,7 @@ public:
         return completedFence_;
     }
     bool IsDeviceLost() const noexcept override {
-        return deviceLost_ || base_.IsDeviceLost();
+        return deviceLost_;
     }
 
     void CompleteThrough(FenceValue fence) noexcept;
@@ -639,7 +565,7 @@ public:
         return lastGraphicsHash_;
     }
     std::uint32_t LiveBackendResourceCount() const noexcept {
-        return base_.LiveBackendResourceCount();
+        return resources_.Size();
     }
 
 private:
@@ -658,7 +584,6 @@ private:
         ConfigurationKind configuration = ConfigurationKind::None;
     };
 
-    NullRhiBackend base_;
     Base::Vector<ResourceRecord> resources_;
     FenceValue completedFence_ = 0U;
     FenceValue lastSubmittedFence_ = 0U;
@@ -672,8 +597,8 @@ private:
     bool IsConfigured(
         ResourceHandle handle,
         ConfigurationKind configuration) const noexcept;
-    Base::Result<void> ValidateGraphicsCommands(
-        const GraphicsCommandBuffer& commands) const noexcept;
+    Base::Result<void> ValidateCommands(
+        const CommandList& commands) const noexcept;
 };
 
 struct SokolBackendApi final {
@@ -692,9 +617,7 @@ struct SokolBackendApi final {
     Base::Result<void> (*configurePipeline)(
         void*, ResourceHandle, const PipelineDescriptor&) noexcept = nullptr;
     Base::Result<void> (*submit)(
-        void*, const CommandBuffer&, FenceValue) noexcept = nullptr;
-    Base::Result<void> (*submitGraphics)(
-        void*, const GraphicsCommandBuffer&, FenceValue) noexcept = nullptr;
+        void*, const CommandList&, FenceValue) noexcept = nullptr;
     FenceValue (*completedFence)(void*) noexcept = nullptr;
     bool (*isDeviceLost)(void*) noexcept = nullptr;
 };
@@ -725,10 +648,7 @@ public:
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
-        const GraphicsCommandBuffer& commands,
+        const CommandList& commands,
         FenceValue signalFence) noexcept override;
     FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;

@@ -430,66 +430,33 @@ void SurfaceSession::Shutdown() noexcept {
     }
 }
 
-Base::Result<void> SurfaceGraphicsQueue::Initialize() noexcept {
-    if (initialized_) {
-        return {};
-    }
-    if (surface_->State() != SurfaceState::Ready) {
-        return NotInitialized("Surface must be ready before queue initialization");
-    }
-    if (!surface_->Capabilities().supportsPresent) {
-        return Unsupported("Surface does not support presentation");
-    }
-    if (backend_->IsDeviceLost()) {
-        return InvalidState("Graphics backend is lost");
-    }
-
-    capabilities_ = backend_->QueryGraphicsCapabilities();
-    if (capabilities_.abiVersion != GraphicsAbiVersion ||
-        capabilities_.backendKind != backend_->Kind() ||
-        !IsKnownBackendKind(capabilities_.backendKind)) {
-        return Unsupported("Graphics backend capabilities are incompatible");
-    }
-
-    lastSubmittedFence_ = backend_->LastSubmittedFence();
-    initialized_ = true;
-    return {};
-}
-
-Base::Result<FenceValue> SurfaceGraphicsQueue::SubmitAndPresent(
+Base::Result<FenceValue> SurfaceSession::SubmitAndPresent(
+    RhiDevice& device,
     SurfaceFrame& frame,
-    const GraphicsCommandBuffer& commands) noexcept {
-    if (!initialized_) {
-        return NotInitialized("Surface graphics queue is not initialized");
-    }
-    if (!surface_->IsCurrentFrame(frame)) {
+    const CommandList& commands) noexcept {
+    if (!IsCurrentFrame(frame)) {
         return InvalidState("Surface frame is stale or not active");
     }
-    if (backend_->IsDeviceLost()) {
-        static_cast<void>(surface_->DiscardFrame(frame));
+    if (!capabilities_.supportsPresent) {
+        static_cast<void>(DiscardFrame(frame));
+        return Unsupported("Surface does not support presentation");
+    }
+    if (device.Backend().IsDeviceLost()) {
+        static_cast<void>(DiscardFrame(frame));
         return InvalidState("Graphics backend is lost");
     }
-    const FenceValue backendFence = backend_->LastSubmittedFence();
-    if (backendFence == UINT64_MAX) {
-        static_cast<void>(surface_->DiscardFrame(frame));
-        return OutOfRange("Graphics fence space is exhausted");
-    }
 
-    const FenceValue signalFence = backendFence + 1U;
     const std::uint64_t surfaceGeneration = frame.surfaceGeneration;
     const std::uint64_t frameSerial = frame.frameSerial;
     const ExternalRenderTargetDescriptor target = frame.target;
-
-    Base::Result<void> submitted =
-        backend_->SubmitGraphics(commands, signalFence);
+    Base::Result<FenceValue> submitted = device.Submit(commands);
     if (!submitted) {
-        static_cast<void>(surface_->DiscardFrame(frame));
+        static_cast<void>(DiscardFrame(frame));
         return submitted.GetStatus();
     }
 
-    lastSubmittedFence_ = signalFence;
-    lastCapture_.backend = backend_->Kind();
-    lastCapture_.signalFence = signalFence;
+    lastCapture_.backend = device.Backend().Kind();
+    lastCapture_.signalFence = submitted.Value();
     lastCapture_.surfaceGeneration = surfaceGeneration;
     lastCapture_.frameSerial = frameSerial;
     lastCapture_.targetStableId = target.stableId;
@@ -500,14 +467,13 @@ Base::Result<FenceValue> SurfaceGraphicsQueue::SubmitAndPresent(
     lastCapture_.commandHash = commands.StableHash();
     lastCapture_.presented = false;
 
-    Base::Result<void> presented = surface_->Present(frame, signalFence);
+    Base::Result<void> presented = Present(frame, submitted.Value());
     if (!presented) {
-        static_cast<void>(surface_->DiscardFrame(frame));
+        static_cast<void>(DiscardFrame(frame));
         return presented.GetStatus();
     }
-
     lastCapture_.presented = true;
-    return signalFence;
+    return submitted.Value();
 }
 
 bool HostedGraphicsBackend::IsValid() const noexcept {
@@ -526,19 +492,7 @@ bool HostedGraphicsBackend::IsValid() const noexcept {
         api_.configureTexture != nullptr &&
         api_.configureSampler != nullptr &&
         api_.configurePipeline != nullptr &&
-        api_.uploadBuffer != nullptr &&
-        api_.uploadTexture != nullptr &&
-        api_.beginRenderPass != nullptr &&
-        api_.endRenderPass != nullptr &&
-        api_.bindPipeline != nullptr &&
-        api_.bindVertexBuffer != nullptr &&
-        api_.bindIndexBuffer != nullptr &&
-        api_.bindUniformBuffer != nullptr &&
-        api_.bindTextureSampler != nullptr &&
-        api_.setScissor != nullptr &&
-        api_.draw != nullptr &&
-        api_.drawIndexed != nullptr &&
-        api_.signalFence != nullptr &&
+        api_.submit != nullptr &&
         api_.completedFence != nullptr &&
         api_.isDeviceLost != nullptr &&
         api_.createSurface != nullptr &&
@@ -649,204 +603,13 @@ Base::Result<void> HostedGraphicsBackend::ConfigurePipeline(
 }
 
 Base::Result<void> HostedGraphicsBackend::Submit(
-    const CommandBuffer& commands,
+    const CommandList& commands,
     FenceValue signalFence) noexcept {
     Base::Result<void> valid = VerifySubmission(signalFence);
-    if (!valid) {
-        return valid;
-    }
-    if (api_.submitLegacy == nullptr) {
-        return Unsupported("Hosted backend does not implement legacy submission");
-    }
-
+    if (!valid) return valid;
     Base::Result<void> submitted =
-        api_.submitLegacy(api_.context, commands, signalFence);
-    if (!submitted) {
-        return submitted;
-    }
-    lastSubmittedFence_ = signalFence;
-    return {};
-}
-
-Base::Result<void> HostedGraphicsBackend::SubmitGraphics(
-    const GraphicsCommandBuffer& commands,
-    FenceValue signalFence) noexcept {
-    Base::Result<void> valid = VerifySubmission(signalFence);
-    if (!valid) {
-        return valid;
-    }
-
-    const Base::Span<const GraphicsCommand> commandSpan = commands.Commands();
-    const Base::Span<const std::uint8_t> uploadSpan = commands.UploadBytes();
-    bool inRenderPass = false;
-
-    for (const GraphicsCommand& command : commandSpan) {
-        Base::Result<void> dispatched;
-        switch (command.kind) {
-        case GraphicsCommandKind::UploadBuffer: {
-            if (!command.resource0.IsValid() ||
-                command.resource0.type != ResourceType::Buffer ||
-                command.uploadOffset > uploadSpan.Size() ||
-                command.uploadSize > uploadSpan.Size() - command.uploadOffset) {
-                return InvalidArgument("Buffer upload command is invalid");
-            }
-            dispatched = api_.uploadBuffer(
-                api_.context,
-                command.resource0,
-                command.resourceOffset,
-                uploadSpan.Subspan(command.uploadOffset, command.uploadSize));
-            break;
-        }
-        case GraphicsCommandKind::UploadTexture: {
-            if (inRenderPass) {
-                return InvalidState("Texture upload is not allowed inside a render pass");
-            }
-            if (!command.resource0.IsValid() ||
-                (command.resource0.type != ResourceType::Texture &&
-                 command.resource0.type != ResourceType::RenderTarget) ||
-                command.uploadOffset > uploadSpan.Size() ||
-                command.uploadSize > uploadSpan.Size() - command.uploadOffset) {
-                return InvalidArgument("Texture upload command is invalid");
-            }
-            dispatched = api_.uploadTexture(
-                api_.context,
-                command.resource0,
-                command.textureRegion,
-                uploadSpan.Subspan(command.uploadOffset, command.uploadSize));
-            break;
-        }
-        case GraphicsCommandKind::BeginRenderPass:
-            if (inRenderPass) {
-                return InvalidState("Nested hosted render passes are invalid");
-            }
-            dispatched = api_.beginRenderPass(
-                api_.context, command.renderPass);
-            if (dispatched) {
-                inRenderPass = true;
-            }
-            break;
-        case GraphicsCommandKind::EndRenderPass:
-            if (!inRenderPass) {
-                return InvalidState("Hosted render pass stack underflow");
-            }
-            dispatched = api_.endRenderPass(api_.context);
-            if (dispatched) {
-                inRenderPass = false;
-            }
-            break;
-        case GraphicsCommandKind::BindPipeline:
-            if (!inRenderPass ||
-                !command.resource0.IsValid() ||
-                command.resource0.type != ResourceType::Pipeline) {
-                return InvalidState("Pipeline binding requires an active render pass");
-            }
-            dispatched = api_.bindPipeline(api_.context, command.resource0);
-            break;
-        case GraphicsCommandKind::BindVertexBuffer:
-            if (!inRenderPass ||
-                !command.resource0.IsValid() ||
-                command.resource0.type != ResourceType::Buffer) {
-                return InvalidState("Vertex-buffer binding requires an active render pass");
-            }
-            dispatched = api_.bindVertexBuffer(
-                api_.context,
-                command.slot,
-                command.resource0,
-                command.resourceOffset);
-            break;
-        case GraphicsCommandKind::BindIndexBuffer:
-            if (!inRenderPass ||
-                !command.resource0.IsValid() ||
-                command.resource0.type != ResourceType::Buffer) {
-                return InvalidState("Index-buffer binding requires an active render pass");
-            }
-            dispatched = api_.bindIndexBuffer(
-                api_.context,
-                command.resource0,
-                command.indexType,
-                command.resourceOffset);
-            break;
-        case GraphicsCommandKind::BindUniformBuffer:
-            if (!inRenderPass ||
-                !command.resource0.IsValid() ||
-                command.resource0.type != ResourceType::Buffer ||
-                command.resourceSize == 0U) {
-                return InvalidState("Uniform-buffer binding requires an active render pass");
-            }
-            dispatched = api_.bindUniformBuffer(
-                api_.context,
-                command.slot,
-                command.resource0,
-                command.resourceOffset,
-                command.resourceSize);
-            break;
-        case GraphicsCommandKind::BindTextureSampler:
-            if (!inRenderPass ||
-                !command.resource0.IsValid() ||
-                !command.resource1.IsValid() ||
-                (command.resource0.type != ResourceType::Texture &&
-                 command.resource0.type != ResourceType::RenderTarget) ||
-                command.resource1.type != ResourceType::Sampler) {
-                return InvalidState("Texture-sampler binding requires an active render pass");
-            }
-            dispatched = api_.bindTextureSampler(
-                api_.context,
-                command.slot,
-                command.resource0,
-                command.resource1);
-            break;
-        case GraphicsCommandKind::SetScissor:
-            if (!inRenderPass) {
-                return InvalidState("Scissor state requires an active render pass");
-            }
-            dispatched = api_.setScissor(api_.context, command.rect);
-            break;
-        case GraphicsCommandKind::Draw:
-            if (!inRenderPass ||
-                command.count == 0U ||
-                command.instanceCount == 0U) {
-                return InvalidState("Draw requires an active render pass and non-zero counts");
-            }
-            dispatched = api_.draw(
-                api_.context,
-                command.count,
-                command.instanceCount,
-                command.first,
-                command.firstInstance);
-            break;
-        case GraphicsCommandKind::DrawIndexed:
-            if (!inRenderPass ||
-                command.count == 0U ||
-                command.instanceCount == 0U) {
-                return InvalidState("Indexed draw requires an active render pass and non-zero counts");
-            }
-            dispatched = api_.drawIndexed(
-                api_.context,
-                command.count,
-                command.instanceCount,
-                command.first,
-                command.baseVertex,
-                command.firstInstance);
-            break;
-        default:
-            return InvalidArgument("Graphics command kind is invalid");
-        }
-
-        if (!dispatched) {
-            return dispatched;
-        }
-    }
-
-    if (inRenderPass) {
-        return InvalidState("Hosted graphics command buffer ended inside a render pass");
-    }
-
-    Base::Result<void> signaled =
-        api_.signalFence(api_.context, signalFence);
-    if (!signaled) {
-        return signaled;
-    }
-
+        api_.submit(api_.context, commands, signalFence);
+    if (!submitted) return submitted;
     lastSubmittedFence_ = signalFence;
     return {};
 }

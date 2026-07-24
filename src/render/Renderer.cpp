@@ -1,32 +1,17 @@
-#include <Aero/Rhi/D3D11Backend.hpp>
+#include <Aero/Render/Renderer.hpp>
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
 
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <new>
+#include <utility>
 
-#include "AeroD3D11RenderPlanPixelShader.hpp"
-#include "AeroD3D11RenderPlanVertexShader.hpp"
-#include "AeroD3D11RenderPlanImagePixelShader.hpp"
-#include "AeroD3D11RenderPlanImageVertexShader.hpp"
-#include "AeroD3D11RenderPlanMeshPixelShader.hpp"
-#include "AeroD3D11RenderPlanMeshVertexShader.hpp"
-#include "AeroD3D11RenderPlanGlyphPixelShader.hpp"
-#include "AeroD3D11RenderPlanGlyphVertexShader.hpp"
-
-namespace Aero::Rhi {
+namespace Aero::Render {
+using namespace Aero::Rhi;
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -125,8 +110,7 @@ bool FitsFloat(double value) noexcept {
 }
 
 constexpr std::uint32_t MaxShaderClips = 32U;
-constexpr std::uint32_t MaxRectangleBatchInstances =
-    AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES;
+constexpr std::uint32_t MaxRectangleBatchInstances = 64U;
 
 struct ClipState final {
     Presentation::Rect rect;
@@ -185,35 +169,35 @@ struct ShaderGlyphConstants final {
 };
 
 static_assert(sizeof(ShaderRectConstants) % 16U == 0U,
-    "D3D11 constant buffers must be float4 aligned");
+    "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderRectConstants) <= 64U * 1024U,
-    "D3D11 constant buffers must not exceed 64 KiB");
+    "Renderer constant buffers must not exceed 64 KiB");
 static_assert(sizeof(ShaderImageConstants) % 16U == 0U,
-    "D3D11 constant buffers must be float4 aligned");
+    "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderImageConstants) <= 64U * 1024U,
-    "D3D11 constant buffers must not exceed 64 KiB");
+    "Renderer constant buffers must not exceed 64 KiB");
 static_assert(sizeof(ShaderMeshConstants) % 16U == 0U,
-    "D3D11 constant buffers must be float4 aligned");
+    "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderGlyphConstants) % 16U == 0U,
-    "D3D11 constant buffers must be float4 aligned");
+    "Renderer constant buffers must be float4 aligned");
 static_assert(sizeof(ShaderGlyphConstants) <= 64U * 1024U,
-    "D3D11 constant buffers must not exceed 64 KiB");
+    "Renderer constant buffers must not exceed 64 KiB");
 
 Base::Result<void> PushClipState(
     Base::Vector<ClipState>& clips,
     Presentation::Rect rect,
     const Presentation::Transform2D& transform) noexcept {
     if (clips.Size() >= MaxShaderClips) {
-        return Unsupported("D3D11 RenderPlan clip nesting exceeds shader capacity");
+        return Unsupported("Renderer clip nesting exceeds shader capacity");
     }
     const double determinant = transform.m11 * transform.m22 -
         transform.m12 * transform.m21;
     if (!std::isfinite(determinant) || std::fabs(determinant) < 1.0e-12) {
-        return Unsupported("D3D11 RenderPlan cannot clip through a singular transform");
+        return Unsupported("Renderer cannot clip through a singular transform");
     }
     Presentation::Rect bounds = TransformBounds(transform, rect);
     if (!Presentation::IsValidLayoutRect(bounds)) {
-        return InvalidArgument("D3D11 RenderPlan clip bounds are invalid");
+        return InvalidArgument("Renderer clip bounds are invalid");
     }
     if (!clips.Empty()) {
         bounds = IntersectRect(clips[clips.Size() - 1U].bounds, bounds);
@@ -230,7 +214,7 @@ struct NodeState final {
 
 template <typename Constants>
 Base::Result<void> AppendDraw(
-    GraphicsCommandEncoder& encoder,
+    CommandEncoder& encoder,
     ResourceHandle uniformBuffer,
     const Constants& constants,
     Presentation::Rect scissor,
@@ -273,18 +257,21 @@ struct GlyphBinding final {
 
 } // namespace
 
-struct D3D11RenderPlanBackend::Impl final {
-    Impl(
+struct Renderer::Impl final {
+    explicit Impl(
         RhiDevice& device,
-        D3D11GraphicsBackend& graphics,
         Base::IAllocator* allocator) noexcept
-        : device(&device), graphics(&graphics), resources(device, graphics), nodes(allocator), transforms(allocator),
-          clips(allocator), opacities(allocator), nodePath(allocator), images(allocator),
-          meshes(allocator), glyphRuns(allocator) {}
+        : device(&device),
+          nodes(allocator),
+          transforms(allocator),
+          clips(allocator),
+          opacities(allocator),
+          nodePath(allocator),
+          images(allocator),
+          meshes(allocator),
+          glyphRuns(allocator) {}
 
     RhiDevice* device = nullptr;
-    D3D11GraphicsBackend* graphics = nullptr;
-    GraphicsResourceFactory resources;
     ResourceHandle vertexBuffer;
     ResourceHandle uniformBuffer;
     ResourceHandle pipeline;
@@ -302,46 +289,44 @@ struct D3D11RenderPlanBackend::Impl final {
     Base::Vector<ImageBinding> images;
     Base::Vector<MeshBinding> meshes;
     Base::Vector<GlyphBinding> glyphRuns;
-    FenceValue lastSubmittedFence = 0U;
-    D3D11RenderPlanSubmitStatistics lastSubmitStatistics;
+    RendererStatistics lastStatistics;
     bool initialized = false;
 };
 
-D3D11RenderPlanBackend::D3D11RenderPlanBackend(
+Renderer::Renderer(
     RhiDevice& device,
-    D3D11GraphicsBackend& graphics,
-    D3D11SurfacePresenter& presenter,
+    const RendererShaderSet& shaders,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
-      graphics_(&graphics),
-      presenter_(&presenter),
-      allocator_(allocator != nullptr ? allocator : &Base::GetDefaultAllocator()) {}
+      shaders_(shaders),
+      allocator_(allocator != nullptr
+          ? allocator
+          : &Base::GetDefaultAllocator()) {}
 
-D3D11RenderPlanBackend::~D3D11RenderPlanBackend() noexcept {
+Renderer::~Renderer() noexcept {
     Shutdown();
 }
 
-Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
+Base::Result<void> Renderer::Initialize() noexcept {
     if (impl_ != nullptr && impl_->initialized) {
         return {};
     }
-    if (device_ == nullptr || graphics_ == nullptr || presenter_ == nullptr ||
-        !graphics_->IsInitialized() || graphics_->IsDeviceLost()) {
-        return NotInitialized("D3D11 RenderPlan backend requires a ready graphics backend");
+    if (device_ == nullptr || device_->Backend().IsDeviceLost()) {
+        return NotInitialized("Renderer requires a ready graphics device");
     }
     if (impl_ == nullptr) {
         void* memory = allocator_->Allocate({
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Render});
         if (memory == nullptr) {
-            return OutOfMemory("Failed to allocate D3D11 RenderPlan backend state");
+            return OutOfMemory("Failed to allocate Renderer backend state");
         }
-        impl_ = new (memory) Impl(*device_, *graphics_, allocator_);
+        impl_ = new (memory) Impl(*device_, allocator_);
     }
 
     BufferDescriptor vertexDescriptor;
     vertexDescriptor.sizeBytes = 32U;
     vertexDescriptor.usage = BufferUsage::Vertex;
-    Base::Result<ResourceHandle> vertex = impl_->resources.CreateBuffer(vertexDescriptor);
+    Base::Result<ResourceHandle> vertex = device_->CreateBuffer(vertexDescriptor);
     if (!vertex) {
         return vertex.GetStatus();
     }
@@ -350,7 +335,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     BufferDescriptor uniformDescriptor;
     uniformDescriptor.sizeBytes = sizeof(ShaderRectConstants);
     uniformDescriptor.usage = BufferUsage::Uniform;
-    Base::Result<ResourceHandle> uniform = impl_->resources.CreateBuffer(uniformDescriptor);
+    Base::Result<ResourceHandle> uniform = device_->CreateBuffer(uniformDescriptor);
     if (!uniform) {
         Shutdown();
         return uniform.GetStatus();
@@ -361,7 +346,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     imageUniformDescriptor.sizeBytes = sizeof(ShaderImageConstants);
     imageUniformDescriptor.usage = BufferUsage::Uniform;
     Base::Result<ResourceHandle> imageUniform =
-        impl_->resources.CreateBuffer(imageUniformDescriptor);
+        device_->CreateBuffer(imageUniformDescriptor);
     if (!imageUniform) {
         Shutdown();
         return imageUniform.GetStatus();
@@ -372,7 +357,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     meshUniformDescriptor.sizeBytes = sizeof(ShaderMeshConstants);
     meshUniformDescriptor.usage = BufferUsage::Uniform;
     Base::Result<ResourceHandle> meshUniform =
-        impl_->resources.CreateBuffer(meshUniformDescriptor);
+        device_->CreateBuffer(meshUniformDescriptor);
     if (!meshUniform) {
         Shutdown();
         return meshUniform.GetStatus();
@@ -383,7 +368,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     glyphUniformDescriptor.sizeBytes = sizeof(ShaderGlyphConstants);
     glyphUniformDescriptor.usage = BufferUsage::Uniform;
     Base::Result<ResourceHandle> glyphUniform =
-        impl_->resources.CreateBuffer(glyphUniformDescriptor);
+        device_->CreateBuffer(glyphUniformDescriptor);
     if (!glyphUniform) {
         Shutdown();
         return glyphUniform.GetStatus();
@@ -391,18 +376,8 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     impl_->glyphUniformBuffer = glyphUniform.Value();
 
     PipelineDescriptor pipelineDescriptor;
-    pipelineDescriptor.vertexShader.stage = ShaderStage::Vertex;
-    pipelineDescriptor.vertexShader.language = ShaderLanguage::Dxbc;
-    pipelineDescriptor.vertexShader.bytecode = AeroD3D11RenderPlanVertexShader;
-    pipelineDescriptor.vertexShader.bytecodeSize = sizeof(AeroD3D11RenderPlanVertexShader);
-    pipelineDescriptor.vertexShader.entryPoint = Base::StringView("vs_main");
-    pipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111001);
-    pipelineDescriptor.fragmentShader.stage = ShaderStage::Fragment;
-    pipelineDescriptor.fragmentShader.language = ShaderLanguage::Dxbc;
-    pipelineDescriptor.fragmentShader.bytecode = AeroD3D11RenderPlanPixelShader;
-    pipelineDescriptor.fragmentShader.bytecodeSize = sizeof(AeroD3D11RenderPlanPixelShader);
-    pipelineDescriptor.fragmentShader.entryPoint = Base::StringView("ps_main");
-    pipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111002);
+    pipelineDescriptor.vertexShader = shaders_.rectangleVertex;
+    pipelineDescriptor.fragmentShader = shaders_.rectangleFragment;
     pipelineDescriptor.vertexLayout.bufferCount = 1U;
     pipelineDescriptor.vertexLayout.attributeCount = 1U;
     pipelineDescriptor.vertexLayout.buffers[0].stride = 8U;
@@ -416,9 +391,10 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     pipelineDescriptor.blend.color.destination = BlendFactor::OneMinusSourceAlpha;
     pipelineDescriptor.blend.alpha.source = BlendFactor::One;
     pipelineDescriptor.blend.alpha.destination = BlendFactor::OneMinusSourceAlpha;
-    pipelineDescriptor.colorFormat = GraphicsTextureFormat::Bgra8Unorm;
+    pipelineDescriptor.colorFormat = shaders_.colorFormat;
     pipelineDescriptor.raster.scissorEnabled = true;
-    Base::Result<ResourceHandle> pipeline = impl_->resources.CreatePipeline(pipelineDescriptor);
+    Base::Result<ResourceHandle> pipeline =
+        device_->CreatePipeline(pipelineDescriptor);
     if (!pipeline) {
         Shutdown();
         return pipeline.GetStatus();
@@ -426,18 +402,10 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     impl_->pipeline = pipeline.Value();
 
     PipelineDescriptor imagePipelineDescriptor = pipelineDescriptor;
-    imagePipelineDescriptor.vertexShader.bytecode =
-        AeroD3D11RenderPlanImageVertexShader;
-    imagePipelineDescriptor.vertexShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanImageVertexShader);
-    imagePipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111011);
-    imagePipelineDescriptor.fragmentShader.bytecode =
-        AeroD3D11RenderPlanImagePixelShader;
-    imagePipelineDescriptor.fragmentShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanImagePixelShader);
-    imagePipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111012);
+    imagePipelineDescriptor.vertexShader = shaders_.imageVertex;
+    imagePipelineDescriptor.fragmentShader = shaders_.imageFragment;
     Base::Result<ResourceHandle> imagePipeline =
-        impl_->resources.CreatePipeline(imagePipelineDescriptor);
+        device_->CreatePipeline(imagePipelineDescriptor);
     if (!imagePipeline) {
         Shutdown();
         return imagePipeline.GetStatus();
@@ -445,14 +413,8 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     impl_->imagePipeline = imagePipeline.Value();
 
     PipelineDescriptor meshPipelineDescriptor = pipelineDescriptor;
-    meshPipelineDescriptor.vertexShader.bytecode = AeroD3D11RenderPlanMeshVertexShader;
-    meshPipelineDescriptor.vertexShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanMeshVertexShader);
-    meshPipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111021);
-    meshPipelineDescriptor.fragmentShader.bytecode = AeroD3D11RenderPlanMeshPixelShader;
-    meshPipelineDescriptor.fragmentShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanMeshPixelShader);
-    meshPipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111022);
+    meshPipelineDescriptor.vertexShader = shaders_.meshVertex;
+    meshPipelineDescriptor.fragmentShader = shaders_.meshFragment;
     meshPipelineDescriptor.vertexLayout.buffers[0].stride = 24U;
     meshPipelineDescriptor.vertexLayout.attributeCount = 2U;
     meshPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
@@ -461,7 +423,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     meshPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
     meshPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
     Base::Result<ResourceHandle> meshPipeline =
-        impl_->resources.CreatePipeline(meshPipelineDescriptor);
+        device_->CreatePipeline(meshPipelineDescriptor);
     if (!meshPipeline) {
         Shutdown();
         return meshPipeline.GetStatus();
@@ -469,16 +431,8 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     impl_->meshPipeline = meshPipeline.Value();
 
     PipelineDescriptor glyphPipelineDescriptor = pipelineDescriptor;
-    glyphPipelineDescriptor.vertexShader.bytecode =
-        AeroD3D11RenderPlanGlyphVertexShader;
-    glyphPipelineDescriptor.vertexShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanGlyphVertexShader);
-    glyphPipelineDescriptor.vertexShader.stableId = UINT64_C(0xD3111031);
-    glyphPipelineDescriptor.fragmentShader.bytecode =
-        AeroD3D11RenderPlanGlyphPixelShader;
-    glyphPipelineDescriptor.fragmentShader.bytecodeSize =
-        sizeof(AeroD3D11RenderPlanGlyphPixelShader);
-    glyphPipelineDescriptor.fragmentShader.stableId = UINT64_C(0xD3111032);
+    glyphPipelineDescriptor.vertexShader = shaders_.glyphVertex;
+    glyphPipelineDescriptor.fragmentShader = shaders_.glyphFragment;
     glyphPipelineDescriptor.vertexLayout.buffers[0].stride = 16U;
     glyphPipelineDescriptor.vertexLayout.attributeCount = 2U;
     glyphPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
@@ -487,7 +441,7 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     glyphPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
     glyphPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
     Base::Result<ResourceHandle> glyphPipeline =
-        impl_->resources.CreatePipeline(glyphPipelineDescriptor);
+        device_->CreatePipeline(glyphPipelineDescriptor);
     if (!glyphPipeline) {
         Shutdown();
         return glyphPipeline.GetStatus();
@@ -497,12 +451,12 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
     return {};
 }
 
-void D3D11RenderPlanBackend::Shutdown() noexcept {
+void Renderer::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
-    const FenceValue retireFence = graphics_ != nullptr
-        ? graphics_->LastSubmittedFence()
+    const FenceValue retireFence = device_ != nullptr
+        ? device_->LastSubmittedFence()
         : 0U;
     if (device_ != nullptr) {
         if (impl_->glyphPipeline.IsValid()) {
@@ -542,32 +496,32 @@ void D3D11RenderPlanBackend::Shutdown() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> D3D11RenderPlanBackend::RegisterImage(
+Base::Result<void> Renderer::RegisterImage(
     Presentation::RenderImageId image,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     if (image == Presentation::InvalidRenderImageId ||
         texture.type != ResourceType::Texture ||
         sampler.type != ResourceType::Sampler || !device_->IsAlive(texture) ||
         !device_->IsAlive(sampler)) {
         return InvalidArgument(
-            "D3D11 RenderPlan image registration requires live texture and sampler resources");
+            "Renderer image registration requires live texture and sampler resources");
     }
     for (const ImageBinding& binding : impl_->images) {
         if (binding.id == image) {
-            return InvalidState("D3D11 RenderPlan image ID is already registered");
+            return InvalidState("Renderer image ID is already registered");
         }
     }
     return impl_->images.TryPushBack({image, texture, sampler});
 }
 
-Base::Result<void> D3D11RenderPlanBackend::UnregisterImage(
+Base::Result<void> Renderer::UnregisterImage(
     Presentation::RenderImageId image) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     for (std::uint32_t index = 0U; index < impl_->images.Size(); ++index) {
         if (impl_->images[index].id == image) {
@@ -580,38 +534,38 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterImage(
         }
     }
     return Base::Status::Failure(Base::ErrorCode::NotFound,
-        "D3D11 RenderPlan image ID is not registered");
+        "Renderer image ID is not registered");
 }
 
-Base::Result<void> D3D11RenderPlanBackend::RegisterMesh(
+Base::Result<void> Renderer::RegisterMesh(
     Presentation::RenderMeshId mesh,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
     std::uint32_t indexCount,
     IndexType indexType) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     if (mesh == Presentation::InvalidRenderMeshId || indexCount == 0U ||
         vertexBuffer.type != ResourceType::Buffer ||
         indexBuffer.type != ResourceType::Buffer || !device_->IsAlive(vertexBuffer) ||
         !device_->IsAlive(indexBuffer)) {
         return InvalidArgument(
-            "D3D11 RenderPlan mesh registration requires live vertex and index buffers");
+            "Renderer mesh registration requires live vertex and index buffers");
     }
     for (const MeshBinding& binding : impl_->meshes) {
         if (binding.id == mesh) {
-            return InvalidState("D3D11 RenderPlan mesh ID is already registered");
+            return InvalidState("Renderer mesh ID is already registered");
         }
     }
     return impl_->meshes.TryPushBack(
         {mesh, vertexBuffer, indexBuffer, indexCount, indexType});
 }
 
-Base::Result<void> D3D11RenderPlanBackend::UnregisterMesh(
+Base::Result<void> Renderer::UnregisterMesh(
     Presentation::RenderMeshId mesh) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     for (std::uint32_t index = 0U; index < impl_->meshes.Size(); ++index) {
         if (impl_->meshes[index].id == mesh) {
@@ -624,10 +578,10 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterMesh(
         }
     }
     return Base::Status::Failure(Base::ErrorCode::NotFound,
-        "D3D11 RenderPlan mesh ID is not registered");
+        "Renderer mesh ID is not registered");
 }
 
-Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
+Base::Result<void> Renderer::RegisterGlyphRun(
     Presentation::RenderGlyphRunId glyphRun,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
@@ -636,7 +590,7 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
     ResourceHandle sampler,
     IndexType indexType) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     if (glyphRun == Presentation::InvalidRenderGlyphRunId || indexCount == 0U ||
         vertexBuffer.type != ResourceType::Buffer ||
@@ -646,11 +600,11 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
         !device_->IsAlive(indexBuffer) || !device_->IsAlive(atlasTexture) ||
         !device_->IsAlive(sampler)) {
         return InvalidArgument(
-            "D3D11 RenderPlan glyph registration requires live buffers, atlas, and sampler");
+            "Renderer glyph registration requires live buffers, atlas, and sampler");
     }
     for (const GlyphBinding& binding : impl_->glyphRuns) {
         if (binding.id == glyphRun) {
-            return InvalidState("D3D11 RenderPlan glyph ID is already registered");
+            return InvalidState("Renderer glyph ID is already registered");
         }
     }
     return impl_->glyphRuns.TryPushBack(
@@ -658,10 +612,10 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
             indexType});
 }
 
-Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
+Base::Result<void> Renderer::UnregisterGlyphRun(
     Presentation::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer backend is not initialized");
     }
     for (std::uint32_t index = 0U; index < impl_->glyphRuns.Size(); ++index) {
         if (impl_->glyphRuns[index].id == glyphRun) {
@@ -674,45 +628,40 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
         }
     }
     return Base::Status::Failure(Base::ErrorCode::NotFound,
-        "D3D11 RenderPlan glyph ID is not registered");
+        "Renderer glyph ID is not registered");
 }
 
-bool D3D11RenderPlanBackend::IsInitialized() const noexcept {
+bool Renderer::IsInitialized() const noexcept {
     return impl_ != nullptr && impl_->initialized;
 }
 
-FenceValue D3D11RenderPlanBackend::LastSubmittedFence() const noexcept {
-    return impl_ != nullptr ? impl_->lastSubmittedFence : 0U;
+RendererStatistics
+Renderer::LastStatistics() const noexcept {
+    return impl_ != nullptr ? impl_->lastStatistics
+                            : RendererStatistics{};
 }
 
-D3D11RenderPlanSubmitStatistics
-D3D11RenderPlanBackend::LastSubmitStatistics() const noexcept {
-    return impl_ != nullptr ? impl_->lastSubmitStatistics
-                            : D3D11RenderPlanSubmitStatistics{};
-}
-
-Base::Result<void> D3D11RenderPlanBackend::Submit(
-    const Presentation::RenderPlan& plan) noexcept {
+Base::Result<CommandList> Renderer::Record(
+    const Presentation::RenderPlan& plan,
+    const RenderTarget& target) noexcept {
     if (!IsInitialized()) {
-        return NotInitialized("D3D11 RenderPlan backend is not initialized");
+        return NotInitialized("Renderer is not initialized");
     }
-    if (graphics_->IsDeviceLost()) {
-        return InvalidState("Cannot submit a RenderPlan to a lost D3D11 device");
+    if (device_->Backend().IsDeviceLost()) {
+        return InvalidState("Cannot record a RenderPlan for a lost graphics device");
     }
-
-    Base::Result<D3D11SurfaceFrame> acquired = presenter_->AcquireFrame();
-    if (!acquired) {
-        return acquired.GetStatus();
-    }
-    D3D11SurfaceFrame frame = acquired.Value();
-    const std::uint32_t width = frame.surface.target.width;
-    const std::uint32_t height = frame.surface.target.height;
-    if (width == 0U || height == 0U) {
-        static_cast<void>(presenter_->DiscardFrame(frame));
-        return InvalidArgument("D3D11 surface frame has an empty render target");
+    if (!target.color.IsValid() ||
+        (target.color.type != ResourceType::RenderTarget &&
+         target.color.type != ResourceType::Texture) ||
+        !device_->IsAlive(target.color) ||
+        target.width == 0U || target.height == 0U) {
+        return InvalidArgument("Renderer target is invalid or unavailable");
     }
 
-    GraphicsCommandEncoder encoder(allocator_);
+    const std::uint32_t width = target.width;
+    const std::uint32_t height = target.height;
+
+    CommandEncoder encoder(allocator_);
     static constexpr float UnitQuad[] = {
         0.0F, 0.0F, 1.0F, 0.0F,
         0.0F, 1.0F, 1.0F, 1.0F};
@@ -721,23 +670,21 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
         impl_->vertexBuffer, 0U,
         {vertexBytes, static_cast<std::uint32_t>(sizeof(UnitQuad))});
     if (!encoded) {
-        static_cast<void>(presenter_->DiscardFrame(frame));
-        return encoded;
+        return encoded.GetStatus();
     }
     RenderPassDescriptor pass;
     pass.renderArea = {
         0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
     pass.colorAttachmentCount = 1U;
-    pass.colorAttachments[0].target = frame.renderTarget;
+    pass.colorAttachments[0].target = target.color;
     pass.colorAttachments[0].load = LoadOperation::Clear;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
     encoded = encoder.BeginRenderPass(pass);
     if (!encoded) {
-        static_cast<void>(presenter_->DiscardFrame(frame));
-        return encoded;
+        return encoded.GetStatus();
     }
-    D3D11RenderPlanSubmitStatistics submissionStatistics;
+    RendererStatistics submissionStatistics;
     submissionStatistics.renderPassCount = 1U;
     enum class ActivePipeline : std::uint8_t {
         None = 0U,
@@ -836,7 +783,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             !Presentation::IsValidLayoutSize(node.renderSize) ||
             node.commandOffset > commands.Size() ||
             node.commandCount > commands.Size() - node.commandOffset) {
-            encoded = InvalidArgument("D3D11 RenderPlan contains an invalid node snapshot");
+            encoded = InvalidArgument("Renderer contains an invalid node snapshot");
             break;
         }
         previousId = node.id;
@@ -855,7 +802,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 }
             }
             if (parent == nullptr) {
-                encoded = InvalidState("D3D11 RenderPlan node parent is unavailable");
+                encoded = InvalidState("Renderer node parent is unavailable");
                 break;
             }
             parentTransform = parent->transform;
@@ -866,7 +813,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             Translation(node.layoutSlot.x, node.layoutSlot.y), parentTransform);
         const Presentation::Rect nodeBounds = TransformBounds(parentTransform, node.clip);
         if (!Presentation::IsValidLayoutRect(nodeBounds)) {
-            encoded = InvalidArgument("D3D11 RenderPlan node clip bounds are invalid");
+            encoded = InvalidArgument("Renderer node clip bounds are invalid");
             break;
         }
         ClipState nodeClip{node.clip, parentTransform,
@@ -886,7 +833,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
         while (true) {
             if (impl_->nodePath.Size() >= MaxShaderClips) {
                 encoded = Unsupported(
-                    "D3D11 RenderPlan layout clip nesting exceeds shader capacity");
+                    "Renderer layout clip nesting exceeds shader capacity");
                 break;
             }
             Base::Result<void> pathAppended = impl_->nodePath.TryPushBack(nodePathIndex);
@@ -917,7 +864,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
         }
         if (!(impl_->transforms.TryPushBack(nodeTransform)) ||
             !(impl_->opacities.TryPushBack(1.0))) {
-            encoded = OutOfMemory("Failed to allocate D3D11 RenderPlan state stack");
+            encoded = OutOfMemory("Failed to allocate Renderer state stack");
             break;
         }
         const std::uint32_t baseClipCount = impl_->clips.Size();
@@ -930,7 +877,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             switch (command.kind) {
             case Presentation::RenderCommandKind::PushClip: {
                 if (!Presentation::IsValidLayoutRect(command.rect)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan contains an invalid clip");
+                    encoded = InvalidArgument("Renderer contains an invalid clip");
                     break;
                 }
                 Base::Result<void> pushed = PushClipState(
@@ -941,14 +888,14 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             }
             case Presentation::RenderCommandKind::PopClip:
                 if (impl_->clips.Size() <= baseClipCount) {
-                    encoded = InvalidState("D3D11 RenderPlan clip stack underflow");
+                    encoded = InvalidState("Renderer clip stack underflow");
                 } else {
                     impl_->clips.PopBack();
                 }
                 break;
             case Presentation::RenderCommandKind::PushOpacity: {
                 if (!Presentation::IsValidOpacity(command.scalar)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan contains invalid opacity");
+                    encoded = InvalidArgument("Renderer contains invalid opacity");
                     break;
                 }
                 Base::Result<void> pushed = impl_->opacities.TryPushBack(
@@ -958,14 +905,14 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             }
             case Presentation::RenderCommandKind::PopOpacity:
                 if (impl_->opacities.Size() <= 1U) {
-                    encoded = InvalidState("D3D11 RenderPlan opacity stack underflow");
+                    encoded = InvalidState("Renderer opacity stack underflow");
                 } else {
                     impl_->opacities.PopBack();
                 }
                 break;
             case Presentation::RenderCommandKind::PushTransform: {
                 if (!Presentation::IsFinite(command.transform)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan contains an invalid transform");
+                    encoded = InvalidArgument("Renderer contains an invalid transform");
                     break;
                 }
                 Base::Result<void> pushed = impl_->transforms.TryPushBack(Compose(
@@ -976,7 +923,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             }
             case Presentation::RenderCommandKind::PopTransform:
                 if (impl_->transforms.Size() <= 1U) {
-                    encoded = InvalidState("D3D11 RenderPlan transform stack underflow");
+                    encoded = InvalidState("Renderer transform stack underflow");
                 } else {
                     impl_->transforms.PopBack();
                 }
@@ -993,13 +940,13 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     ((command.kind == Presentation::RenderCommandKind::FillRoundedRect ||
                       command.kind == Presentation::RenderCommandKind::StrokeRect) &&
                      (!std::isfinite(command.scalar) || command.scalar < 0.0))) {
-                    encoded = InvalidArgument("D3D11 RenderPlan contains invalid rectangle geometry");
+                    encoded = InvalidArgument("Renderer contains invalid rectangle geometry");
                     break;
                 }
                 if (command.kind == Presentation::RenderCommandKind::FillRoundedRect &&
                     command.scalar * 2.0 >
                         std::fmin(command.rect.width, command.rect.height)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan corner radius exceeds rectangle bounds");
+                    encoded = InvalidArgument("Renderer corner radius exceeds rectangle bounds");
                     break;
                 }
                 const Presentation::Rect clip =
@@ -1018,7 +965,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
                     !FitsFloat(opacity)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan values exceed shader precision");
+                    encoded = InvalidArgument("Renderer values exceed shader precision");
                     break;
                 }
                 auto configureConstants = [&](ShaderRectConstants& constants)
@@ -1054,7 +1001,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                             !FitsFloat(clipTransform.dx) ||
                             !FitsFloat(clipTransform.dy)) {
                             return InvalidArgument(
-                                "D3D11 RenderPlan clip values exceed shader precision");
+                                "Renderer clip values exceed shader precision");
                         }
                         constants.clipRect[clipIndex][0] =
                             static_cast<float>(clipState.rect.x);
@@ -1142,7 +1089,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                               candidate.scalar * 2.0 > std::fmin(
                                   candidate.rect.width, candidate.rect.height)))) {
                             encoded = InvalidArgument(
-                                "D3D11 RenderPlan contains invalid rectangle geometry");
+                                "Renderer contains invalid rectangle geometry");
                             break;
                         }
                         if (IsEmpty(candidate.rect)) {
@@ -1156,7 +1103,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                                 Presentation::RenderCommandKind::FillRoundedRect &&
                              !FitsFloat(candidate.scalar))) {
                             encoded = InvalidArgument(
-                                "D3D11 RenderPlan values exceed shader precision");
+                                "Renderer values exceed shader precision");
                             break;
                         }
                         constants.rects[instanceCount][0] =
@@ -1207,7 +1154,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     command.sourceUv.y + command.sourceUv.height > 1.0 ||
                     !Presentation::IsFinite(command.color)) {
                     encoded = InvalidArgument(
-                        "D3D11 RenderPlan contains invalid image geometry");
+                        "Renderer contains invalid image geometry");
                     break;
                 }
                 const ImageBinding* imageBinding = nullptr;
@@ -1219,13 +1166,13 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 }
                 if (imageBinding == nullptr) {
                     encoded = InvalidState(
-                        "D3D11 RenderPlan image is not registered");
+                        "Renderer image is not registered");
                     break;
                 }
                 if (!device_->IsAlive(imageBinding->texture) ||
                     !device_->IsAlive(imageBinding->sampler)) {
                     encoded = InvalidState(
-                        "D3D11 RenderPlan image resources are no longer alive");
+                        "Renderer image resources are no longer alive");
                     break;
                 }
                 const Presentation::Rect clip =
@@ -1248,7 +1195,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
                     !FitsFloat(opacity)) {
                     encoded = InvalidArgument(
-                        "D3D11 RenderPlan image values exceed shader precision");
+                        "Renderer image values exceed shader precision");
                     break;
                 }
                 ShaderImageConstants constants;
@@ -1282,7 +1229,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         !FitsFloat(clipTransform.dx) ||
                         !FitsFloat(clipTransform.dy)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan image clip values exceed shader precision");
+                            "Renderer image clip values exceed shader precision");
                         break;
                     }
                     constants.clipRect[clipIndex][0] =
@@ -1329,7 +1276,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         candidate.sourceUv.y + candidate.sourceUv.height > 1.0 ||
                         !Presentation::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan contains invalid image geometry");
+                            "Renderer contains invalid image geometry");
                         break;
                     }
                     if (IsEmpty(candidate.rect) || IsEmpty(candidate.sourceUv)) {
@@ -1344,7 +1291,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         !FitsFloat(candidate.sourceUv.width) ||
                         !FitsFloat(candidate.sourceUv.height)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan image values exceed shader precision");
+                            "Renderer image values exceed shader precision");
                         break;
                     }
                     constants.rects[instanceCount][0] =
@@ -1396,7 +1343,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
             case Presentation::RenderCommandKind::DrawMesh: {
                 if (command.mesh == Presentation::InvalidRenderMeshId ||
                     !Presentation::IsFinite(command.color)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan contains invalid mesh draw");
+                    encoded = InvalidArgument("Renderer contains invalid mesh draw");
                     break;
                 }
                 const MeshBinding* meshBinding = nullptr;
@@ -1409,7 +1356,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 if (meshBinding == nullptr ||
                     !device_->IsAlive(meshBinding->vertexBuffer) ||
                     !device_->IsAlive(meshBinding->indexBuffer)) {
-                    encoded = InvalidState("D3D11 RenderPlan mesh is not registered or alive");
+                    encoded = InvalidState("Renderer mesh is not registered or alive");
                     break;
                 }
                 const Presentation::Rect clip =
@@ -1425,7 +1372,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
                     !FitsFloat(opacity)) {
-                    encoded = InvalidArgument("D3D11 RenderPlan mesh values exceed shader precision");
+                    encoded = InvalidArgument("Renderer mesh values exceed shader precision");
                     break;
                 }
                 ShaderMeshConstants constants;
@@ -1454,7 +1401,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         !FitsFloat(inverseM11) || !FitsFloat(inverseM12) ||
                         !FitsFloat(inverseM21) || !FitsFloat(inverseM22) ||
                         !FitsFloat(clipTransform.dx) || !FitsFloat(clipTransform.dy)) {
-                        encoded = InvalidArgument("D3D11 RenderPlan mesh clip values exceed shader precision");
+                        encoded = InvalidArgument("Renderer mesh clip values exceed shader precision");
                         break;
                     }
                     constants.clipRect[clipIndex][0] = static_cast<float>(clipState.rect.x);
@@ -1486,7 +1433,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     ++batchCommandCount;
                     if (!Presentation::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan contains invalid mesh tint");
+                            "Renderer contains invalid mesh tint");
                         break;
                     }
                     constants.tints[instanceCount][0] = candidate.color.red;
@@ -1532,7 +1479,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                 if (command.glyphRun == Presentation::InvalidRenderGlyphRunId ||
                     !Presentation::IsFinite(command.color)) {
                     encoded = InvalidArgument(
-                        "D3D11 RenderPlan contains invalid glyph draw");
+                        "Renderer contains invalid glyph draw");
                     break;
                 }
                 const GlyphBinding* glyphBinding = nullptr;
@@ -1548,7 +1495,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     !device_->IsAlive(glyphBinding->atlasTexture) ||
                     !device_->IsAlive(glyphBinding->sampler)) {
                     encoded = InvalidState(
-                        "D3D11 RenderPlan glyph is not registered or alive");
+                        "Renderer glyph is not registered or alive");
                     break;
                 }
                 const Presentation::Rect clip =
@@ -1565,7 +1512,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     !FitsFloat(transform.dx) || !FitsFloat(transform.dy) ||
                     !FitsFloat(opacity)) {
                     encoded = InvalidArgument(
-                        "D3D11 RenderPlan glyph values exceed shader precision");
+                        "Renderer glyph values exceed shader precision");
                     break;
                 }
                 ShaderGlyphConstants constants;
@@ -1595,7 +1542,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                         !FitsFloat(inverseM21) || !FitsFloat(inverseM22) ||
                         !FitsFloat(clipTransform.dx) || !FitsFloat(clipTransform.dy)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan glyph clip values exceed shader precision");
+                            "Renderer glyph clip values exceed shader precision");
                         break;
                     }
                     constants.clipRect[clipIndex][0] =
@@ -1633,7 +1580,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
                     ++batchCommandCount;
                     if (!Presentation::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
-                            "D3D11 RenderPlan contains invalid glyph tint");
+                            "Renderer contains invalid glyph tint");
                         break;
                     }
                     constants.tints[instanceCount][0] = candidate.color.red;
@@ -1691,7 +1638,7 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
         if (!encoded || impl_->transforms.Size() != 1U ||
             impl_->clips.Size() != baseClipCount || impl_->opacities.Size() != 1U) {
             if (encoded) {
-                encoded = InvalidState("D3D11 RenderPlan node has unbalanced state stacks");
+                encoded = InvalidState("Renderer node has unbalanced state stacks");
             }
             break;
         }
@@ -1700,20 +1647,14 @@ Base::Result<void> D3D11RenderPlanBackend::Submit(
     if (encoded) {
         encoded = encoder.EndRenderPass();
     }
-    Base::Result<GraphicsCommandBuffer> finished = encoded
+    Base::Result<CommandList> finished = encoded
         ? encoder.Finish()
-        : Base::Result<GraphicsCommandBuffer>(encoded.GetStatus());
+        : Base::Result<CommandList>(encoded.GetStatus());
     if (!finished) {
-        static_cast<void>(presenter_->DiscardFrame(frame));
         return finished.GetStatus();
     }
-    Base::Result<FenceValue> submitted = presenter_->SubmitAndPresent(frame, finished.Value());
-    if (!submitted) {
-        return submitted.GetStatus();
-    }
-    impl_->lastSubmittedFence = submitted.Value();
-    impl_->lastSubmitStatistics = submissionStatistics;
-    return {};
+    impl_->lastStatistics = submissionStatistics;
+    return std::move(finished).Value();
 }
 
-} // namespace Aero::Rhi
+} // namespace Aero::Render

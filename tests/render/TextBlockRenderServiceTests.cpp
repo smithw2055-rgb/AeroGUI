@@ -199,7 +199,7 @@ bool TestAtlasUploadBatchesAndFenceRetirement() {
     CHECK(device.Initialize());
     MockGlyphRegistry registry(device);
     TextBlockRenderService service(
-        fonts, device, graphics, registry);
+        fonts, device, registry);
 
     TextBlockRenderServiceConfig config;
     config.face = RenderFontProvider::MakeFace();
@@ -272,7 +272,7 @@ bool TestDeviceLossDiagnostic() {
     MockGlyphRegistry replacementRegistry(
         replacementDevice);
     TextBlockRenderService service(
-        fonts, device, graphics, registry);
+        fonts, device, registry);
     TextBlockRenderServiceConfig config;
     config.face = RenderFontProvider::MakeFace();
     config.atlas.pageWidth = 16U;
@@ -291,7 +291,6 @@ bool TestDeviceLossDiagnostic() {
 
     CHECK(service.RecoverDeviceResources(
         replacementDevice,
-        replacementGraphics,
         replacementRegistry));
     CHECK(service.IsInitialized());
     CHECK(registry.Count() == 0U);

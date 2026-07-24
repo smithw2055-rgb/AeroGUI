@@ -1,18 +1,5 @@
 Base::Result<void> D3D11GraphicsBackend::Submit(
-    const CommandBuffer&,
-    FenceValue) noexcept {
-    if (impl_ == nullptr) {
-        return NotInitialized("D3D11 backend is not initialized");
-    }
-    Base::Result<void> ready = impl_->VerifyReady();
-    return ready
-        ? Base::Result<void>(Unsupported(
-            "D3D11 backend does not implement the legacy rectangle command stream"))
-        : ready;
-}
-
-Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
-    const GraphicsCommandBuffer& commands,
+    const CommandList& commands,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
@@ -48,7 +35,7 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
     impl_->currentPipeline = {};
     impl_->inRenderPass = false;
     impl_->submissionState.Reset();
-    const Base::Span<const GraphicsCommand> commandSpan = commands.Commands();
+    const Base::Span<const Command> commandSpan = commands.Commands();
     const Base::Span<const std::uint8_t> uploadSpan = commands.UploadBytes();
     Impl::RequiredStateSnapshot preservedState;
     if (options_.statePolicy == D3D11StatePolicy::PreserveRequiredState) {
@@ -73,9 +60,9 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
         return status;
     };
 
-    for (const GraphicsCommand& command : commandSpan) {
+    for (const Command& command : commandSpan) {
         switch (command.kind) {
-        case GraphicsCommandKind::UploadBuffer: {
+        case CommandKind::UploadBuffer: {
             if (command.uploadOffset > uploadSpan.Size()) {
                 return failSubmission(
                     InvalidState("D3D11 buffer upload offset is invalid"));
@@ -164,7 +151,7 @@ Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
             }
             break;
         }
-        case GraphicsCommandKind::UploadTexture: {
+        case CommandKind::UploadTexture: {
             if (impl_->inRenderPass ||
                 command.uploadOffset > uploadSpan.Size() ||
                 command.uploadSize > uploadSpan.Size() - command.uploadOffset) {
