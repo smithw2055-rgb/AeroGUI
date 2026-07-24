@@ -32,8 +32,9 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
     }
 
     for (const TypeFactoryRegistration& factory : typeFactories_) {
+        const TypeInfo* type = types_->FindType(factory.type);
         if (factory.type == InvalidTypeId || factory.factory == nullptr ||
-            types_->FindType(factory.type) == nullptr) {
+            type == nullptr || type->Kind() != MetadataTypeKind::Object) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Type factory registration is invalid");
@@ -48,6 +49,18 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
                 "Property accessor registration is invalid");
         }
     }
+    for (const ValueMemberAccessorRegistration& accessor :
+         valueMemberAccessors_) {
+        const FieldInfo* field = types_->FindField(accessor.member);
+        if (accessor.member == InvalidMemberId || field == nullptr ||
+            accessor.get == nullptr ||
+            (!HasFieldFlag(field->Flags(), FieldFlags::ReadOnly) &&
+             accessor.set == nullptr)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Value member accessor registration is invalid");
+        }
+    }
     for (const MethodInvokerRegistration& invoker : methodInvokers_) {
         if (invoker.member == InvalidMemberId || invoker.invoke == nullptr ||
             types_->FindMethod(invoker.member) == nullptr) {
@@ -57,6 +70,15 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
         }
     }
     for (const TypeInfo& type : types_->Types()) {
+        for (const FieldInfo& field : type.Fields()) {
+            const ValueMemberAccessorRegistration* accessor =
+                FindValueMemberAccessor(field.Id());
+            if (accessor == nullptr || accessor->get == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Registered value field has no accessor behavior");
+            }
+        }
         for (const MethodInfo& method : type.Methods()) {
             const MethodInvokerRegistration* invoker =
                 FindMethodInvoker(method.Id());
@@ -84,6 +106,16 @@ const PropertyAccessorRegistration*
 MetadataBehaviorRegistrationStore::FindPropertyAccessor(
     MemberId member) const noexcept {
     for (const PropertyAccessorRegistration& registration : propertyAccessors_) {
+        if (registration.member == member) return &registration;
+    }
+    return nullptr;
+}
+
+const ValueMemberAccessorRegistration*
+MetadataBehaviorRegistrationStore::FindValueMemberAccessor(
+    MemberId member) const noexcept {
+    for (const ValueMemberAccessorRegistration& registration :
+         valueMemberAccessors_) {
         if (registration.member == member) return &registration;
     }
     return nullptr;
@@ -121,12 +153,36 @@ Base::Result<TypeId> MetadataRegistrationTypes::TryRegisterType(
     return types_->TryRegisterType(*behaviors_, registration);
 }
 
+Base::Result<void> MetadataRegistrationTypes::TryRegisterInterface(
+    TypeId ownerType,
+    TypeId interfaceType) const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid.GetStatus();
+    return types_->TryRegisterInterface(ownerType, interfaceType);
+}
+
 Base::Result<MemberId> MetadataRegistrationTypes::TryRegisterProperty(
     TypeId ownerType,
     const PropertyRegistration& registration) const noexcept {
     Base::Result<void> valid = ValidateRegistrationPair();
     if (!valid) return valid.GetStatus();
     return types_->TryRegisterProperty(*behaviors_, ownerType, registration);
+}
+
+Base::Result<MemberId> MetadataRegistrationTypes::TryRegisterField(
+    TypeId ownerType,
+    const FieldRegistration& registration) const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid.GetStatus();
+    return types_->TryRegisterField(*behaviors_, ownerType, registration);
+}
+
+Base::Result<MemberId> MetadataRegistrationTypes::TryRegisterEnumValue(
+    TypeId ownerType,
+    const EnumValueRegistration& registration) const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid.GetStatus();
+    return types_->TryRegisterEnumValue(ownerType, registration);
 }
 
 Base::Result<MemberId> MetadataRegistrationTypes::TryRegisterEvent(
