@@ -43,12 +43,15 @@ private:
         TypeId type) const noexcept;
     const PropertyAccessorRegistration* FindPropertyAccessor(
         MemberId member) const noexcept;
+    const ValueMemberAccessorRegistration* FindValueMemberAccessor(
+        MemberId member) const noexcept;
     const MethodInvokerRegistration* FindMethodInvoker(
         MemberId member) const noexcept;
 
     TypeRegistry* types_ = nullptr;
     Base::Vector<TypeFactoryRegistration> typeFactories_;
     Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
+    Base::Vector<ValueMemberAccessorRegistration> valueMemberAccessors_;
     Base::Vector<MethodInvokerRegistration> methodInvokers_;
     bool frozen_ = false;
 };
@@ -64,9 +67,18 @@ public:
 
     Base::Result<TypeId> TryRegisterType(
         const TypeRegistration& registration) const noexcept;
+    Base::Result<void> TryRegisterInterface(
+        TypeId ownerType,
+        TypeId interfaceType) const noexcept;
     Base::Result<MemberId> TryRegisterProperty(
         TypeId ownerType,
         const PropertyRegistration& registration) const noexcept;
+    Base::Result<MemberId> TryRegisterField(
+        TypeId ownerType,
+        const FieldRegistration& registration) const noexcept;
+    Base::Result<MemberId> TryRegisterEnumValue(
+        TypeId ownerType,
+        const EnumValueRegistration& registration) const noexcept;
     Base::Result<MemberId> TryRegisterEvent(
         TypeId ownerType,
         const EventRegistration& registration) const noexcept;
