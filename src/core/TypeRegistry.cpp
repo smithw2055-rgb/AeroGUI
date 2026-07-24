@@ -55,13 +55,13 @@ constexpr Base::Status MissingOwnerStatus() noexcept {
 constexpr Base::Status MissingRelatedTypeStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotFound,
-        "Base, property value, or event argument type is not registered");
+        "Related metadata type is not registered");
 }
 
 constexpr Base::Status InheritanceCycleStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::CycleDetected,
-        "Type inheritance cycle detected");
+        "Type inheritance or interface cycle detected");
 }
 
 constexpr Base::Status SnapshotBeforeFreezeStatus() noexcept {
@@ -152,6 +152,10 @@ Base::Result<void> BuildOrder(
     return {};
 }
 
+Base::Result<void> AppendSeparator(Base::String& output) noexcept {
+    return Append(output, Base::StringView("|"));
+}
+
 Base::Result<void> AppendTypeLine(
     Base::String& output,
     const TypeInfo& type) noexcept {
@@ -159,27 +163,53 @@ Base::Result<void> AppendTypeLine(
     if (!result) return result.GetStatus();
     result = AppendHex(output, type.Id(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, type.BaseType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, type.UnderlyingType(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(
+        output, static_cast<std::uint8_t>(type.Kind()), 2U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(
         output, static_cast<std::uint32_t>(type.Flags()), 8U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, type.ContentMember(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendSizedText(output, type.XamlNamespace());
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendSizedText(output, type.Name());
     if (!result) return result.GetStatus();
+
+    Base::Vector<std::uint32_t> order;
+    result = BuildOrder(type.Interfaces().Size(), order,
+        [&type](std::uint32_t left, std::uint32_t right) noexcept {
+            return type.Interfaces()[left] < type.Interfaces()[right];
+        });
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, order.Size(), 8U);
+    if (!result) return result.GetStatus();
+    for (std::uint32_t index : order) {
+        result = AppendSeparator(output);
+        if (!result) return result.GetStatus();
+        result = AppendHex(output, type.Interfaces()[index], 16U);
+        if (!result) return result.GetStatus();
+    }
     return Append(output, Base::StringView("\n"));
 }
 
@@ -190,22 +220,70 @@ Base::Result<void> AppendPropertyLine(
     if (!result) return result.GetStatus();
     result = AppendHex(output, property.Id(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, property.OwnerType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, property.ValueType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(
         output, static_cast<std::uint32_t>(property.Flags()), 8U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendSizedText(output, property.Name());
+    if (!result) return result.GetStatus();
+    return Append(output, Base::StringView("\n"));
+}
+
+Base::Result<void> AppendFieldLine(
+    Base::String& output,
+    const FieldInfo& field) noexcept {
+    Base::Result<void> result = Append(output, Base::StringView("F|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, field.Id(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, field.OwnerType(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, field.ValueType(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, static_cast<std::uint32_t>(field.Flags()), 8U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendSizedText(output, field.Name());
+    if (!result) return result.GetStatus();
+    return Append(output, Base::StringView("\n"));
+}
+
+Base::Result<void> AppendEnumValueLine(
+    Base::String& output,
+    const EnumValueInfo& value) noexcept {
+    Base::Result<void> result = Append(output, Base::StringView("V|"));
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, value.Id(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, value.OwnerType(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendHex(output, value.RawValue(), 16U);
+    if (!result) return result.GetStatus();
+    result = AppendSeparator(output);
+    if (!result) return result.GetStatus();
+    result = AppendSizedText(output, value.Name());
     if (!result) return result.GetStatus();
     return Append(output, Base::StringView("\n"));
 }
@@ -217,20 +295,20 @@ Base::Result<void> AppendEventLine(
     if (!result) return result.GetStatus();
     result = AppendHex(output, eventInfo.Id(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, eventInfo.OwnerType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, eventInfo.EventArgsType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(
         output, static_cast<std::uint32_t>(eventInfo.Flags()), 8U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendSizedText(output, eventInfo.Name());
     if (!result) return result.GetStatus();
@@ -244,28 +322,28 @@ Base::Result<void> AppendMethodLine(
     if (!result) return result.GetStatus();
     result = AppendHex(output, method.Id(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, method.OwnerType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, method.ReturnType(), 16U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, static_cast<std::uint32_t>(method.Flags()), 8U);
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendSizedText(output, method.Name());
     if (!result) return result.GetStatus();
-    result = Append(output, Base::StringView("|"));
+    result = AppendSeparator(output);
     if (!result) return result.GetStatus();
     result = AppendHex(output, method.Parameters().Size(), 8U);
     if (!result) return result.GetStatus();
     for (const MethodParameterInfo& parameter : method.Parameters()) {
-        result = Append(output, Base::StringView("|"));
+        result = AppendSeparator(output);
         if (!result) return result.GetStatus();
         result = AppendHex(output, parameter.Type(), 16U);
         if (!result) return result.GetStatus();
@@ -275,6 +353,41 @@ Base::Result<void> AppendMethodLine(
         if (!result) return result.GetStatus();
     }
     return Append(output, Base::StringView("\n"));
+}
+
+bool InterfaceReachable(
+    const TypeRegistry& registry,
+    TypeId current,
+    TypeId target,
+    std::uint32_t depth) noexcept {
+    if (current == target) return true;
+    if (depth > registry.TypeCount()) return false;
+    const TypeInfo* info = registry.FindType(current);
+    if (info == nullptr) return false;
+    for (TypeId direct : info->Interfaces()) {
+        if (InterfaceReachable(registry, direct, target, depth + 1U)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TypeImplements(
+    const TypeRegistry& registry,
+    TypeId current,
+    TypeId target,
+    std::uint32_t depth) noexcept {
+    if (current == InvalidTypeId || depth > registry.TypeCount()) return false;
+    const TypeInfo* info = registry.FindType(current);
+    if (info == nullptr) return false;
+    for (TypeId direct : info->Interfaces()) {
+        if (direct == target ||
+            InterfaceReachable(registry, direct, target, depth + 1U)) {
+            return true;
+        }
+    }
+    return TypeImplements(
+        registry, info->BaseType(), target, depth + 1U);
 }
 
 } // namespace
@@ -320,6 +433,26 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
             : Base::Result<TypeId>(IdCollisionStatus());
     }
 
+    MetadataTypeKind kind = registration.kind;
+    if (kind == MetadataTypeKind::Object &&
+        HasTypeFlag(registration.flags, TypeFlags::ValueType)) {
+        kind = MetadataTypeKind::Primitive;
+    }
+    TypeFlags flags = registration.flags;
+    if (kind == MetadataTypeKind::Interface) {
+        flags = flags | TypeFlags::Abstract;
+    } else if (kind == MetadataTypeKind::Struct ||
+               kind == MetadataTypeKind::Enum ||
+               kind == MetadataTypeKind::Primitive) {
+        flags = flags | TypeFlags::ValueType | TypeFlags::Sealed;
+    }
+    if (registration.factory != nullptr &&
+        kind != MetadataTypeKind::Object) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Only object metadata types may register factories");
+    }
+
     if (registration.factory != nullptr) {
         Base::Result<void> reserved = behaviors.typeFactories_.TryReserve(
             behaviors.typeFactories_.Size() + 1U);
@@ -329,12 +462,28 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
     TypeInfo info;
     info.id_ = id;
     info.baseType_ = registration.baseType;
-    info.flags_ = registration.flags;
+    info.underlyingType_ = registration.underlyingType;
+    info.kind_ = kind;
+    info.flags_ = flags;
     Base::Result<void> result =
         info.xamlNamespace_.TryAssign(registration.xamlNamespace);
     if (!result) return result.GetStatus();
     result = info.name_.TryAssign(registration.name);
     if (!result) return result.GetStatus();
+    result = info.interfaces_.TryReserve(registration.interfaces.Size());
+    if (!result) return result.GetStatus();
+    for (TypeId interfaceType : registration.interfaces) {
+        if (interfaceType == InvalidTypeId) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Implemented interface type must be valid");
+        }
+        for (TypeId existing : info.interfaces_) {
+            if (existing == interfaceType) return DuplicateMemberStatus();
+        }
+        result = info.interfaces_.TryPushBack(interfaceType);
+        if (!result) return result.GetStatus();
+    }
 
     const std::uint32_t index = types_.Size();
     result = types_.TryPushBack(std::move(info));
@@ -358,6 +507,27 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
         return !inserted ? inserted.GetStatus() : IdCollisionStatus();
     }
     return id;
+}
+
+Base::Result<void> TypeRegistry::TryRegisterInterface(
+    TypeId ownerType,
+    TypeId interfaceType) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (interfaceType == InvalidTypeId || ownerType == interfaceType) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Implemented interface relation is invalid");
+    }
+    TypeInfo* owner = MutableType(ownerType);
+    if (owner == nullptr) return MissingOwnerStatus();
+    for (TypeId existing : owner->interfaces_) {
+        if (existing == interfaceType) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Implemented interface is already registered");
+        }
+    }
+    return owner->interfaces_.TryPushBack(interfaceType);
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
@@ -435,6 +605,108 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
     if (!inserted || !inserted.Value().inserted) {
         if (behaviorAdded) behaviors.propertyAccessors_.PopBack();
         owner.properties_.PopBack();
+        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+    }
+    return id;
+}
+
+Base::Result<MemberId> TypeRegistry::TryRegisterField(
+    MetadataBehaviorRegistrationStore& behaviors,
+    TypeId ownerType,
+    const FieldRegistration& registration) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (registration.name.Empty()) return EmptyMemberNameStatus();
+    if (registration.valueType == InvalidTypeId || registration.get == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Value field requires a valid type and getter");
+    }
+    std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
+    if (ownerIndex == nullptr) return MissingOwnerStatus();
+    TypeInfo& owner = types_[*ownerIndex];
+    if (owner.Kind() != MetadataTypeKind::Struct) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Value fields may only be declared by struct metadata types");
+    }
+
+    const MemberId id = MakeMemberId(
+        ownerType, MemberKind::Field, registration.name);
+    if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
+
+    Base::Result<void> result = behaviors.valueMemberAccessors_.TryReserve(
+        behaviors.valueMemberAccessors_.Size() + 1U);
+    if (!result) return result.GetStatus();
+
+    FieldInfo field;
+    field.id_ = id;
+    field.ownerType_ = ownerType;
+    field.valueType_ = registration.valueType;
+    field.flags_ = registration.flags;
+    result = field.name_.TryAssign(registration.name);
+    if (!result) return result.GetStatus();
+
+    const std::uint32_t fieldIndex = owner.fields_.Size();
+    result = owner.fields_.TryPushBack(std::move(field));
+    if (!result) return result.GetStatus();
+    result = behaviors.valueMemberAccessors_.TryPushBack({
+        id, registration.get, registration.set, registration.context});
+    if (!result) {
+        owner.fields_.PopBack();
+        return result.GetStatus();
+    }
+
+    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+        memberIndex_.TryInsert(
+            id, {*ownerIndex, fieldIndex, MemberKind::Field});
+    if (!inserted || !inserted.Value().inserted) {
+        behaviors.valueMemberAccessors_.PopBack();
+        owner.fields_.PopBack();
+        return !inserted ? inserted.GetStatus() : IdCollisionStatus();
+    }
+    return id;
+}
+
+Base::Result<MemberId> TypeRegistry::TryRegisterEnumValue(
+    TypeId ownerType,
+    const EnumValueRegistration& registration) noexcept {
+    if (frozen_) return RegistryFrozenStatus();
+    if (registration.name.Empty()) return EmptyMemberNameStatus();
+    std::uint32_t* ownerIndex = typeIndex_.Find(ownerType);
+    if (ownerIndex == nullptr) return MissingOwnerStatus();
+    TypeInfo& owner = types_[*ownerIndex];
+    if (owner.Kind() != MetadataTypeKind::Enum) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Enum values may only be declared by enum metadata types");
+    }
+
+    const MemberId id = MakeMemberId(
+        ownerType, MemberKind::EnumValue, registration.name);
+    if (memberIndex_.Find(id) != nullptr) return DuplicateMemberStatus();
+    for (const EnumValueInfo& value : owner.enumValues_) {
+        if (!owner.IsFlagsEnum() && value.RawValue() == registration.rawValue) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Non-flags enum raw value is already registered");
+        }
+    }
+
+    EnumValueInfo value;
+    value.id_ = id;
+    value.ownerType_ = ownerType;
+    value.rawValue_ = registration.rawValue;
+    Base::Result<void> result = value.name_.TryAssign(registration.name);
+    if (!result) return result.GetStatus();
+    const std::uint32_t valueIndex = owner.enumValues_.Size();
+    result = owner.enumValues_.TryPushBack(std::move(value));
+    if (!result) return result.GetStatus();
+
+    Base::Result<Base::HashMap<MemberId, MemberLocation>::InsertResult> inserted =
+        memberIndex_.TryInsert(
+            id, {*ownerIndex, valueIndex, MemberKind::EnumValue});
+    if (!inserted || !inserted.Value().inserted) {
+        owner.enumValues_.PopBack();
         return !inserted ? inserted.GetStatus() : IdCollisionStatus();
     }
     return id;
@@ -573,15 +845,16 @@ Base::Result<void> TypeRegistry::TrySetFactory(
     TypeId type,
     ObjectFactory factory) noexcept {
     if (frozen_) return RegistryFrozenStatus();
-    if (FindType(type) == nullptr) {
+    const TypeInfo* info = FindType(type);
+    if (info == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Factory owner type was not found");
     }
-    if (factory == nullptr) {
+    if (info->Kind() != MetadataTypeKind::Object || factory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Type factory must not be null");
+            "Object type factory registration is invalid");
     }
     if (behaviors.FindTypeFactory(type) != nullptr) {
         return Base::Status::Failure(
@@ -612,17 +885,66 @@ Base::Result<void> TypeRegistry::TrySetContentMember(
     return {};
 }
 
-
 Base::Result<void> TypeRegistry::Freeze() noexcept {
     if (frozen_) return {};
 
     for (const TypeInfo& type : types_) {
-        if (type.BaseType() != InvalidTypeId &&
-            FindType(type.BaseType()) == nullptr) {
-            return MissingRelatedTypeStatus();
+        if (type.BaseType() != InvalidTypeId) {
+            const TypeInfo* base = FindType(type.BaseType());
+            if (base == nullptr) return MissingRelatedTypeStatus();
+            if (type.Kind() != MetadataTypeKind::Object ||
+                base->Kind() != MetadataTypeKind::Object) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Only object metadata types may use class inheritance");
+            }
+        }
+        if ((type.Kind() == MetadataTypeKind::Interface ||
+             type.Kind() == MetadataTypeKind::Struct ||
+             type.Kind() == MetadataTypeKind::Enum ||
+             type.Kind() == MetadataTypeKind::Primitive) &&
+            type.BaseType() != InvalidTypeId) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Non-object metadata types cannot declare a base class");
+        }
+        if (type.Kind() == MetadataTypeKind::Enum) {
+            if (type.UnderlyingType() == InvalidTypeId ||
+                FindType(type.UnderlyingType()) == nullptr ||
+                type.EnumValues().Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Enum metadata requires an underlying type and values");
+            }
+        } else if (type.UnderlyingType() != InvalidTypeId) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Only enum metadata types declare an underlying type");
+        }
+        for (TypeId interfaceType : type.Interfaces()) {
+            const TypeInfo* interfaceInfo = FindType(interfaceType);
+            if (interfaceInfo == nullptr) return MissingRelatedTypeStatus();
+            if (interfaceInfo->Kind() != MetadataTypeKind::Interface) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Implemented metadata type is not an interface");
+            }
+        }
+        if (type.Kind() == MetadataTypeKind::Interface) {
+            for (TypeId direct : type.Interfaces()) {
+                if (direct == type.Id() ||
+                    InterfaceReachable(*this, direct, type.Id(), 1U)) {
+                    return InheritanceCycleStatus();
+                }
+            }
         }
         for (const PropertyInfo& property : type.Properties()) {
             if (FindType(property.ValueType()) == nullptr) {
+                return MissingRelatedTypeStatus();
+            }
+        }
+        for (const FieldInfo& field : type.Fields()) {
+            if (FindType(field.ValueType()) == nullptr) {
                 return MissingRelatedTypeStatus();
             }
         }
@@ -722,6 +1044,45 @@ const PropertyInfo* TypeRegistry::FindProperty(
     return nullptr;
 }
 
+const FieldInfo* TypeRegistry::FindField(MemberId id) const noexcept {
+    const MemberLocation* location = memberIndex_.Find(id);
+    return location != nullptr ? FieldAt(*location) : nullptr;
+}
+
+const FieldInfo* TypeRegistry::FindField(
+    TypeId ownerType,
+    Base::StringView name) const noexcept {
+    const FieldInfo* field = FindField(
+        MakeMemberId(ownerType, MemberKind::Field, name));
+    return field != nullptr && field->OwnerType() == ownerType &&
+        field->Name() == name ? field : nullptr;
+}
+
+const EnumValueInfo* TypeRegistry::FindEnumValue(MemberId id) const noexcept {
+    const MemberLocation* location = memberIndex_.Find(id);
+    return location != nullptr ? EnumValueAt(*location) : nullptr;
+}
+
+const EnumValueInfo* TypeRegistry::FindEnumValue(
+    TypeId ownerType,
+    Base::StringView name) const noexcept {
+    const EnumValueInfo* value = FindEnumValue(
+        MakeMemberId(ownerType, MemberKind::EnumValue, name));
+    return value != nullptr && value->OwnerType() == ownerType &&
+        value->Name() == name ? value : nullptr;
+}
+
+const EnumValueInfo* TypeRegistry::FindEnumValue(
+    TypeId ownerType,
+    std::uint64_t rawValue) const noexcept {
+    const TypeInfo* type = FindType(ownerType);
+    if (type == nullptr) return nullptr;
+    for (const EnumValueInfo& value : type->EnumValues()) {
+        if (value.RawValue() == rawValue) return &value;
+    }
+    return nullptr;
+}
+
 const EventInfo* TypeRegistry::FindEvent(MemberId id) const noexcept {
     const MemberLocation* location = memberIndex_.Find(id);
     return location != nullptr ? EventAt(*location) : nullptr;
@@ -800,10 +1161,31 @@ bool TypeRegistry::IsDerivedFrom(
     return false;
 }
 
+bool TypeRegistry::Implements(
+    TypeId type,
+    TypeId interfaceType) const noexcept {
+    const TypeInfo* target = FindType(interfaceType);
+    return target != nullptr &&
+        target->Kind() == MetadataTypeKind::Interface &&
+        TypeImplements(*this, type, interfaceType, 0U);
+}
+
+bool TypeRegistry::IsAssignableFrom(
+    TypeId targetType,
+    TypeId sourceType) const noexcept {
+    if (targetType == InvalidTypeId || sourceType == InvalidTypeId) return false;
+    if (targetType == sourceType) return true;
+    const TypeInfo* target = FindType(targetType);
+    if (target == nullptr) return false;
+    return target->Kind() == MetadataTypeKind::Interface
+        ? Implements(sourceType, targetType)
+        : IsDerivedFrom(sourceType, targetType);
+}
+
 bool TypeRegistry::IsInstanceOf(
     const Base::Object& object,
     TypeId expectedType) const noexcept {
-    return IsDerivedFrom(object.RuntimeType(), expectedType);
+    return IsAssignableFrom(expectedType, object.RuntimeType());
 }
 
 Base::Result<void> TypeRegistry::BuildSnapshot(
@@ -812,7 +1194,7 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
 
     Base::String snapshot(&output.Allocator());
     Base::Result<void> result = Append(
-        snapshot, Base::StringView("AERO-TYPE-REGISTRY|3\n"));
+        snapshot, Base::StringView("AERO-TYPE-REGISTRY|4\n"));
     if (!result) return result.GetStatus();
 
     Base::Vector<std::uint32_t> typeOrder;
@@ -827,40 +1209,60 @@ Base::Result<void> TypeRegistry::BuildSnapshot(
         result = AppendTypeLine(snapshot, type);
         if (!result) return result.GetStatus();
 
-        Base::Vector<std::uint32_t> propertyOrder;
-        const Base::Span<const PropertyInfo> properties = type.Properties();
-        result = BuildOrder(properties.Size(), propertyOrder,
-            [&properties](std::uint32_t left, std::uint32_t right) noexcept {
-                return properties[left].Id() < properties[right].Id();
+        Base::Vector<std::uint32_t> order;
+        result = BuildOrder(type.Properties().Size(), order,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.Properties()[left].Id() <
+                    type.Properties()[right].Id();
             });
         if (!result) return result.GetStatus();
-        for (std::uint32_t propertyIndex : propertyOrder) {
-            result = AppendPropertyLine(
-                snapshot, properties[propertyIndex]);
+        for (std::uint32_t index : order) {
+            result = AppendPropertyLine(snapshot, type.Properties()[index]);
             if (!result) return result.GetStatus();
         }
 
-        Base::Vector<std::uint32_t> eventOrder;
-        const Base::Span<const EventInfo> events = type.Events();
-        result = BuildOrder(events.Size(), eventOrder,
-            [&events](std::uint32_t left, std::uint32_t right) noexcept {
-                return events[left].Id() < events[right].Id();
+        order.Clear();
+        result = BuildOrder(type.Fields().Size(), order,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.Fields()[left].Id() < type.Fields()[right].Id();
             });
         if (!result) return result.GetStatus();
-        for (std::uint32_t eventIndex : eventOrder) {
-            result = AppendEventLine(snapshot, events[eventIndex]);
+        for (std::uint32_t index : order) {
+            result = AppendFieldLine(snapshot, type.Fields()[index]);
             if (!result) return result.GetStatus();
         }
 
-        Base::Vector<std::uint32_t> methodOrder;
-        const Base::Span<const MethodInfo> methods = type.Methods();
-        result = BuildOrder(methods.Size(), methodOrder,
-            [&methods](std::uint32_t left, std::uint32_t right) noexcept {
-                return methods[left].Id() < methods[right].Id();
+        order.Clear();
+        result = BuildOrder(type.EnumValues().Size(), order,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.EnumValues()[left].Id() <
+                    type.EnumValues()[right].Id();
             });
         if (!result) return result.GetStatus();
-        for (std::uint32_t methodIndex : methodOrder) {
-            result = AppendMethodLine(snapshot, methods[methodIndex]);
+        for (std::uint32_t index : order) {
+            result = AppendEnumValueLine(snapshot, type.EnumValues()[index]);
+            if (!result) return result.GetStatus();
+        }
+
+        order.Clear();
+        result = BuildOrder(type.Events().Size(), order,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.Events()[left].Id() < type.Events()[right].Id();
+            });
+        if (!result) return result.GetStatus();
+        for (std::uint32_t index : order) {
+            result = AppendEventLine(snapshot, type.Events()[index]);
+            if (!result) return result.GetStatus();
+        }
+
+        order.Clear();
+        result = BuildOrder(type.Methods().Size(), order,
+            [&type](std::uint32_t left, std::uint32_t right) noexcept {
+                return type.Methods()[left].Id() < type.Methods()[right].Id();
+            });
+        if (!result) return result.GetStatus();
+        for (std::uint32_t index : order) {
+            result = AppendMethodLine(snapshot, type.Methods()[index]);
             if (!result) return result.GetStatus();
         }
     }
@@ -894,6 +1296,22 @@ const PropertyInfo* TypeRegistry::PropertyAt(
     const TypeInfo* owner = TypeAt(location.typeIndex);
     return owner != nullptr && location.memberIndex < owner->properties_.Size()
         ? &owner->properties_[location.memberIndex] : nullptr;
+}
+
+const FieldInfo* TypeRegistry::FieldAt(
+    const MemberLocation& location) const noexcept {
+    if (location.kind != MemberKind::Field) return nullptr;
+    const TypeInfo* owner = TypeAt(location.typeIndex);
+    return owner != nullptr && location.memberIndex < owner->fields_.Size()
+        ? &owner->fields_[location.memberIndex] : nullptr;
+}
+
+const EnumValueInfo* TypeRegistry::EnumValueAt(
+    const MemberLocation& location) const noexcept {
+    if (location.kind != MemberKind::EnumValue) return nullptr;
+    const TypeInfo* owner = TypeAt(location.typeIndex);
+    return owner != nullptr && location.memberIndex < owner->enumValues_.Size()
+        ? &owner->enumValues_[location.memberIndex] : nullptr;
 }
 
 const EventInfo* TypeRegistry::EventAt(
