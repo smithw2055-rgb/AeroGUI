@@ -1,8 +1,17 @@
 # Quality、测试与路线图规范
 
-- **状态**：Architecture Baseline
+- **状态**：Runtime Vertical Slice / M3.5 in progress
 - **语言**：C++17-only
 - **生产 renderer**：AeroRHI native GPU / WebGL 2；不支持 Skia
+
+当前已验证基线：
+
+- M0/M1 的架构、Foundation、Core、ABI 和严格 C++17 构建约束已落地主线；
+- M2 的 runtime XAML、布局、RenderTransaction/RenderPlan、AeroRHI_Null 与 Windows D3D11/WARP 垂直切片已落地；
+- M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；
+- Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
+- M3.5 剩余文本、交互控件、Items/virtualization、OpenGL 3.3、TextBox/IME、ControlGallery 和质量门禁仍按本路线图验收，不因框架代码存在而提前标记完成。
 
 ## 1. Diagnostics
 
@@ -561,6 +570,8 @@ Fuzz targets：
 
 ### M2 — Vertical slice
 
+状态：**完成（主线 runtime vertical-slice 基线）**。
+
 交付：
 
 - runtime XAML、StaticResource、NameScope；
@@ -571,6 +582,8 @@ Fuzz targets：
 - XAML → layout → GPU image sample。
 
 ### M3 — Application model 与桌面/移动兼容
+
+状态：**进行中（M3.5）**。Binding/DataContext、Style/Template、compiled XAML 与 D3D11 基线已完成；Command/controls、完整文本栈、Items/virtualization、OpenGL 3.3/WGL/GLX 与应用样例尚未完成。
 
 交付：
 

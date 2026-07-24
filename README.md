@@ -3,7 +3,7 @@
 > 一个面向 C++17 的、跨平台的 WPF/XAML 语义运行时与原生 GPU UI 引擎。  
 > A clean-room, cross-platform WPF-style XAML runtime and native GPU UI engine for C++17.
 
-[![Status: Architecture Baseline](https://img.shields.io/badge/status-architecture%20baseline-blue)](#项目状态)
+[![Status: Runtime Vertical Slice](https://img.shields.io/badge/status-runtime%20vertical%20slice-blue)](#项目状态)
 [![Language: C++17](https://img.shields.io/badge/language-C%2B%2B17-blue)](#技术基线)
 [![Renderer: Native GPU](https://img.shields.io/badge/renderer-native%20GPU-purple)](#原生-gpu-渲染)
 [![Web: WebGL 2](https://img.shields.io/badge/web-WebGL%202-orange)](#浏览器与-webgl-2)
@@ -11,7 +11,15 @@
 
 AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI、Moonlight 或其他产品的内部实现。项目以 **WPF 的公开行为与 XAML 语义**为主要兼容基准，采用 clean-room 方法，以 C++17 自主实现对象系统、属性系统、XAML、布局、绑定、控件和原生 GPU 渲染器。
 
-本仓库当前处于 **architecture-first / specification-first** 阶段。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
+本仓库当前处于 **runtime vertical slice** 阶段。架构基线、C++17 runtime、metadata-driven XAML、Binding/DataContext、Style/Template、compiled XAML、D3D11/WARP 垂直切片和模块 SDK 已落地主线；当前 M3.5 聚焦文本栈、交互控件、滚动/Items、OpenGL 3.3 与真实 ControlGallery。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
+
+## 项目状态
+
+- 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK 和 `aero-xamlc`。
+- 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
+- 尚未完成：FreeType/HarfBuzz 文本栈、Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。
 
 ## 已确定的技术方向
 

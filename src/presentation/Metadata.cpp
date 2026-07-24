@@ -7,10 +7,8 @@
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <cctype>
-#include <cerrno>
 #include <cmath>
 #include <cstdlib>
-#include <limits>
 
 namespace Aero::Presentation {
 
@@ -49,44 +47,6 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
             "Text is not a finite number");
     }
     return value;
-}
-
-Base::Result<Value> ConvertBoolean(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "true")) return Value::FromBoolean(type, true);
-    if (EqualsAsciiInsensitive(value, "false")) return Value::FromBoolean(type, false);
-    return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "Boolean text must be true or false");
-}
-
-Base::Result<Value> ConvertUnsigned(TypeId type, Base::StringView text,
-    void*) noexcept {
-    Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
-    if (!assigned) return assigned.GetStatus();
-    char* end = nullptr;
-    errno = 0;
-    const unsigned long long value = std::strtoull(buffer.CStr(), &end, 10);
-    if (end == buffer.CStr() || *end != '\0' || errno == ERANGE ||
-        value > static_cast<unsigned long long>(UINT32_MAX) ||
-        (!buffer.Empty() && buffer.View()[0] == '-')) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Text is not an unsigned integer");
-    }
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(value));
-}
-
-Base::Result<Value> ConvertDoubleValue(TypeId type, Base::StringView text,
-    void*) noexcept {
-    Base::Result<double> value = ParseDouble(text);
-    return value ? Base::Result<Value>(Value::FromDouble(type, value.Value()))
-                 : Base::Result<Value>(value.GetStatus());
-}
-
-Base::Result<Value> ConvertString(TypeId type, Base::StringView text,
-    void*) noexcept {
-    return Value::TryFromString(type, text);
 }
 
 Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
@@ -248,24 +208,11 @@ bool ValidateNonnegativeDouble(const Value& value) noexcept {
     return value.Kind() == ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
 }
-bool ValidateFiniteDouble(const Value& value) noexcept {
-    return value.Kind() == ValueKind::Double && std::isfinite(value.AsDouble());
-}
 bool ValidateThicknessValue(const Value& value) noexcept {
     if (value.Kind() != ValueKind::Custom) return false;
     const Thickness& t = *static_cast<const Thickness*>(value.AsCustom());
     return IsFinite(t) && t.left >= 0.0 && t.top >= 0.0 &&
         t.right >= 0.0 && t.bottom >= 0.0;
-}
-bool ValidateColorValue(const Value& value) noexcept {
-    if (value.Kind() != ValueKind::Custom) return false;
-    const Color& color = *static_cast<const Color*>(value.AsCustom());
-    return std::isfinite(color.red) && std::isfinite(color.green) &&
-        std::isfinite(color.blue) && std::isfinite(color.alpha) &&
-        color.red >= 0.0F && color.red <= 1.0F &&
-        color.green >= 0.0F && color.green <= 1.0F &&
-        color.blue >= 0.0F && color.blue <= 1.0F &&
-        color.alpha >= 0.0F && color.alpha <= 1.0F;
 }
 bool ValidateHorizontalValue(const Value& value) noexcept {
     return value.Kind() == ValueKind::UnsignedInteger &&
@@ -275,11 +222,6 @@ bool ValidateVerticalValue(const Value& value) noexcept {
     return value.Kind() == ValueKind::UnsignedInteger &&
         value.AsUnsignedInteger() <= static_cast<std::uint64_t>(VerticalAlignment::Bottom);
 }
-bool ValidateUInt32(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= std::numeric_limits<std::uint32_t>::max();
-}
-
 Base::Result<Value> CheckMinimum(DependencyObject& object,
     const Value& value, DependencyPropertyHandle maximum) noexcept {
     Base::Result<Value> other = object.GetValue(maximum);
