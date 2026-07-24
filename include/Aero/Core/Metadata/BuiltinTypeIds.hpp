@@ -25,6 +25,8 @@ inline constexpr TypeId ButtonBase =
     MakeTypeId(Base::StringView("ButtonBase"));
 inline constexpr TypeId Button =
     MakeTypeId(Base::StringView("Button"));
+inline constexpr TypeId RepeatButton =
+    MakeTypeId(Base::StringView("RepeatButton"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));

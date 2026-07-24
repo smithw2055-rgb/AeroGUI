@@ -1,5 +1,7 @@
 #include <Aero/Controls/Buttons.hpp>
 
+#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+
 #include <utility>
 
 namespace Aero::Controls {
@@ -64,6 +66,41 @@ Base::Result<void> ButtonBase::SetCommandTarget(
     Base::Ref<Base::Object> object(std::move(target));
     return SetValue(CommandTargetProperty,
         Value::FromObject(TypeOf<UIElement>(), std::move(object)));
+}
+
+std::uint32_t RepeatButton::Delay() const noexcept {
+    Base::Result<Value> value = GetValue(DelayProperty);
+    return value
+        ? static_cast<std::uint32_t>(
+            value.Value().AsUnsignedInteger())
+        : 400U;
+}
+
+std::uint32_t RepeatButton::Interval() const noexcept {
+    Base::Result<Value> value = GetValue(IntervalProperty);
+    return value
+        ? static_cast<std::uint32_t>(
+            value.Value().AsUnsignedInteger())
+        : 100U;
+}
+
+Base::Result<void> RepeatButton::SetDelay(
+    std::uint32_t value) noexcept {
+    return SetValue(DelayProperty,
+        Value::FromUnsignedInteger(
+            BuiltinTypes::UnsignedInteger, value));
+}
+
+Base::Result<void> RepeatButton::SetInterval(
+    std::uint32_t value) noexcept {
+    if (value == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "RepeatButton interval must be positive");
+    }
+    return SetValue(IntervalProperty,
+        Value::FromUnsignedInteger(
+            BuiltinTypes::UnsignedInteger, value));
 }
 
 ControlInteractionManager::ControlInteractionManager(
@@ -355,6 +392,44 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
     return {};
 }
 
+Base::Result<std::uint32_t>
+ControlInteractionManager::AdvanceTime(
+    std::uint32_t elapsedMilliseconds) noexcept {
+    std::uint32_t emitted = 0U;
+    for (std::uint32_t index = 0U;
+        index < buttons_.Size(); ++index) {
+        ButtonBase* button = ResolveButton(index);
+        if (button == nullptr ||
+            button->RuntimeType() != RepeatButton::StaticTypeId() ||
+            !button->IsEnabled()) {
+            continue;
+        }
+        ButtonRecord& record = buttons_[index];
+        const bool active = record.keyboardDown ||
+            (record.pointerDown && button->IsMouseOver());
+        if (!active) continue;
+        auto& repeat = static_cast<RepeatButton&>(*button);
+        record.repeatElapsed += elapsedMilliseconds;
+        if (record.nextRepeat == 0U) {
+            record.nextRepeat = repeat.Delay();
+        }
+        const std::uint64_t interval = repeat.Interval();
+        while (record.repeatElapsed >= record.nextRepeat &&
+            emitted < 1024U) {
+            Base::Result<void> clicked = InvokeClick(repeat);
+            if (!clicked) return clicked.GetStatus();
+            ++emitted;
+            record.nextRepeat += interval;
+        }
+        if (emitted == 1024U &&
+            record.repeatElapsed >= record.nextRepeat) {
+            record.nextRepeat =
+                record.repeatElapsed + interval;
+        }
+    }
+    return emitted;
+}
+
 Base::Result<void> ControlInteractionManager::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.IsEnabled()) return {};
@@ -410,6 +485,8 @@ void ControlInteractionManager::OnMouseDown(
     ButtonRecord& record = buttons_[index];
     record.pointerId = args.pointerId;
     record.pointerDown = true;
+    record.repeatElapsed = 0U;
+    record.nextRepeat = 0U;
     static_cast<void>(
         pointer_->CapturePointer(args.pointerId, button));
     static_cast<void>(focus_->SetFocus(&button));
@@ -431,6 +508,8 @@ void ControlInteractionManager::OnMouseUp(
     if (!record.pointerDown ||
         record.pointerId != args.pointerId) return;
     record.pointerDown = false;
+    record.repeatElapsed = 0U;
+    record.nextRepeat = 0U;
     args.handled = true;
     if (button.GetClickMode() == ClickMode::Release &&
         button.IsEnabled() && button.IsMouseOver()) {
@@ -451,7 +530,12 @@ void ControlInteractionManager::OnKeyDown(
     ButtonRecord& record = buttons_[index];
     if (!record.keyboardDown) {
         record.keyboardDown = true;
+        record.repeatElapsed = 0U;
+        record.nextRepeat = 0U;
         static_cast<void>(button.SetPressedState(true));
+        if (button.GetClickMode() == ClickMode::Press) {
+            static_cast<void>(InvokeClick(button));
+        }
         SyncVisualState(button);
     }
     args.handled = true;
@@ -467,9 +551,12 @@ void ControlInteractionManager::OnKeyUp(
     if (index == UINT32_MAX ||
         !buttons_[index].keyboardDown) return;
     buttons_[index].keyboardDown = false;
+    buttons_[index].repeatElapsed = 0U;
+    buttons_[index].nextRepeat = 0U;
     static_cast<void>(button.SetPressedState(false));
     args.handled = true;
-    if (button.IsEnabled()) {
+    if (button.IsEnabled() &&
+        button.GetClickMode() == ClickMode::Release) {
         static_cast<void>(InvokeClick(button));
     }
     SyncVisualState(button);
@@ -484,6 +571,8 @@ void ControlInteractionManager::OnFocusChanged(
     if (args.newFocus != &button &&
         buttons_[index].keyboardDown) {
         buttons_[index].keyboardDown = false;
+        buttons_[index].repeatElapsed = 0U;
+        buttons_[index].nextRepeat = 0U;
         static_cast<void>(button.SetPressedState(false));
     }
     SyncVisualState(button);
@@ -535,6 +624,8 @@ void ControlInteractionManager::OnCaptureChanged(
             continue;
         }
         buttons_[index].pointerDown = false;
+        buttons_[index].repeatElapsed = 0U;
+        buttons_[index].nextRepeat = 0U;
         SyncVisualState(*button);
         return;
     }

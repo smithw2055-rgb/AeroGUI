@@ -69,6 +69,25 @@ public:
     ~Button() override = default;
 };
 
+class AERO_API RepeatButton final : public ButtonBase {
+    AERO_TYPED_META(RepeatButton, ButtonBase)
+public:
+    RepeatButton() noexcept : ButtonBase(StaticTypeId()) {}
+    ~RepeatButton() override = default;
+
+    std::uint32_t Delay() const noexcept;
+    std::uint32_t Interval() const noexcept;
+    Base::Result<void> SetDelay(std::uint32_t value) noexcept;
+    Base::Result<void> SetInterval(std::uint32_t value) noexcept;
+
+    inline static constexpr DependencyPropertyHandle
+        DelayProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Delay");
+    inline static constexpr DependencyPropertyHandle
+        IntervalProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Interval");
+};
+
 class AERO_API ControlInteractionManager final {
 public:
     ControlInteractionManager(
@@ -85,6 +104,10 @@ public:
     Base::Result<bool> Detach(ButtonBase& button) noexcept;
     Base::Result<void> RefreshCanExecute(
         ButtonBase& button) noexcept;
+    // Host-driven deterministic clock for RepeatButton. A single call emits
+    // at most 1024 repeats and skips excess backlog.
+    Base::Result<std::uint32_t> AdvanceTime(
+        std::uint32_t elapsedMilliseconds) noexcept;
 
 private:
     struct ButtonRecord final {
@@ -94,6 +117,8 @@ private:
         bool pointerDown = false;
         bool keyboardDown = false;
         bool wasMouseOver = false;
+        std::uint64_t repeatElapsed = 0U;
+        std::uint64_t nextRepeat = 0U;
     };
 
     ObjectTree* tree_ = nullptr;

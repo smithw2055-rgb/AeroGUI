@@ -202,10 +202,113 @@ bool TestButtonInputCommandAndCapture() {
     return true;
 }
 
+bool TestRepeatButtonClock() {
+    Dispatcher dispatcher;
+    TypeRegistry types;
+    MetadataBehaviorRegistrationStore typeBehaviors(types);
+    MetadataRegistrationTypes typeRegistration(
+        types, typeBehaviors);
+    MetadataValueRegistrationStore valueRegistrations(types);
+    DependencyPropertyRegistry properties(types, typeBehaviors);
+    ObjectServicesScope services(
+        dispatcher, properties, valueRegistrations);
+    RoutedEventCatalog eventCatalog(types, typeBehaviors);
+    RoutedEventManager events(eventCatalog);
+    EffectiveValueEngine values(dispatcher, properties);
+    ObjectTree tree(dispatcher, values);
+    LayoutManager layout(dispatcher);
+    MetaRegistrationContext registration(
+        types, typeBehaviors, valueRegistrations,
+        properties, &eventCatalog);
+    CHECK(Aero::Core::Detail::PopulateCoreMetadata(registration));
+    CHECK(Aero::Presentation::Detail::
+        PopulatePresentationMetadata(registration));
+    CHECK(Aero::Controls::Detail::
+        PopulateControlsMetadata(registration));
+    CHECK(types.Freeze());
+    CHECK(typeBehaviors.Freeze());
+    CHECK(valueRegistrations.Freeze());
+    CHECK(properties.Freeze());
+    CHECK(eventCatalog.Freeze());
+    CHECK(values.Initialize());
+    CHECK(tree.Initialize());
+    CHECK(layout.Initialize());
+
+    RepeatButton button;
+    CHECK(button.GetClickMode() == ClickMode::Press);
+    CHECK(button.Delay() == 400U);
+    CHECK(button.Interval() == 100U);
+    CHECK(button.SetWidth(100.0));
+    CHECK(button.SetHeight(30.0));
+    CHECK(tree.SetRoot(&button));
+    CHECK(layout.SetRoot(&button, {100.0, 30.0}));
+    CHECK(dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle));
+    CHECK(dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+
+    HitTestManager hitTests;
+    PointerInputManager pointer(hitTests, events, button);
+    FocusManager focus(tree, events);
+    CommandManager commands(tree);
+    ControlInteractionManager interactions(
+        tree, events, pointer, focus, commands);
+    ClickLog clickLog;
+    RoutedEventHandler clickHandler(
+        &clickLog, &ClickLog::OnClick);
+    CHECK(button.Click().TryAdd(clickHandler));
+    CHECK(interactions.Attach(button));
+
+    CHECK(pointer.Dispatch(
+        {1U, PointerAction::Down, {10.0, 10.0}}));
+    CHECK(clickLog.count == 1U);
+    Result<std::uint32_t> repeated =
+        interactions.AdvanceTime(399U);
+    CHECK(repeated && repeated.Value() == 0U);
+    repeated = interactions.AdvanceTime(1U);
+    CHECK(repeated && repeated.Value() == 1U);
+    CHECK(clickLog.count == 2U);
+    repeated = interactions.AdvanceTime(200U);
+    CHECK(repeated && repeated.Value() == 2U);
+    CHECK(clickLog.count == 4U);
+
+    CHECK(pointer.Dispatch(
+        {1U, PointerAction::Move, {150.0, 10.0}}));
+    repeated = interactions.AdvanceTime(500U);
+    CHECK(repeated && repeated.Value() == 0U);
+    CHECK(pointer.Dispatch(
+        {1U, PointerAction::Move, {10.0, 10.0}}));
+    repeated = interactions.AdvanceTime(100U);
+    CHECK(repeated && repeated.Value() == 1U);
+    CHECK(clickLog.count == 5U);
+    CHECK(pointer.Dispatch(
+        {1U, PointerAction::Up, {10.0, 10.0}}));
+    CHECK(clickLog.count == 5U);
+
+    KeyboardInputManager keyboard(focus, events, tree);
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Down, KeyboardKeyEnter, 0U, false}));
+    CHECK(clickLog.count == 6U);
+    repeated = interactions.AdvanceTime(400U);
+    CHECK(repeated && repeated.Value() == 1U);
+    CHECK(clickLog.count == 7U);
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Up, KeyboardKeyEnter, 0U, false}));
+    CHECK(clickLog.count == 7U);
+
+    CHECK(interactions.Detach(button).Value());
+    CHECK(button.Click().Remove(clickHandler));
+    CHECK(layout.SetRoot(nullptr, {}));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(button));
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestButtonInputCommandAndCapture()) return 1;
+    if (!TestRepeatButtonClock()) return 1;
     std::puts("Aero button tests passed");
     return 0;
 }

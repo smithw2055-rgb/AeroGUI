@@ -123,6 +123,12 @@ bool ValidateUInt32(const Core::Value& value) noexcept {
             std::numeric_limits<std::uint32_t>::max();
 }
 
+bool ValidatePositiveUInt32(
+    const Core::Value& value) noexcept {
+    return ValidateUInt32(value) &&
+        value.AsUnsignedInteger() != 0U;
+}
+
 bool ValidateClickModeValue(
     const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::UnsignedInteger &&
@@ -257,6 +263,37 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     button.Content<Presentation::UIElement>(
         "Content", ContentKind::Single);
     status = button.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<RepeatButton> repeatButton =
+        MetaTypeBuilder<RepeatButton>::Object(context);
+    repeatButton
+        .DependencyProperty(
+            RepeatButton::DelayProperty,
+            "Delay", TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), 400U),
+            PropertyMetadataFlags::None,
+            &ValidateUInt32)
+        .DependencyProperty(
+            RepeatButton::IntervalProperty,
+            "Interval", TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), 100U),
+            PropertyMetadataFlags::None,
+            &ValidatePositiveUInt32)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = repeatButton.Finish();
+    if (!status) return status.GetStatus();
+    PropertyMetadata repeatClickMode;
+    repeatClickMode.defaultValue =
+        Value::FromUnsignedInteger(
+            TypeOf<ClickMode>(),
+            static_cast<std::uint64_t>(ClickMode::Press));
+    status = context.DependencyProperties().TryOverrideMetadata(
+        ButtonBase::ClickModeProperty,
+        TypeOf<RepeatButton>(), repeatClickMode);
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =
