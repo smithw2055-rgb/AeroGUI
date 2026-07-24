@@ -43,6 +43,12 @@ inline constexpr TypeId Track =
     MakeTypeId(Base::StringView("Track"));
 inline constexpr TypeId Thumb =
     MakeTypeId(Base::StringView("Thumb"));
+inline constexpr TypeId ItemContainer =
+    MakeTypeId(Base::StringView("ItemContainer"));
+inline constexpr TypeId ItemsControl =
+    MakeTypeId(Base::StringView("ItemsControl"));
+inline constexpr TypeId ItemsPresenter =
+    MakeTypeId(Base::StringView("ItemsPresenter"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));

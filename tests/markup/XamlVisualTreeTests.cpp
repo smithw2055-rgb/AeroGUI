@@ -3,6 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
@@ -373,6 +374,47 @@ bool TestXamlScrollViewerMountAndOffset() {
     return true;
 }
 
+bool TestXamlItemsControlCollection() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<ItemsControl xmlns=\"urn:aero\">"
+        "<TextBlock Text=\"One\"/>"
+        "<Button/>"
+        "</ItemsControl>"),
+        &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded =
+        LoadXamlVisualTreeWithActivation(
+            *fixture.visual,
+            writer,
+            reader,
+            *fixture.activation,
+            fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    auto* root =
+        static_cast<ItemsControl*>(
+            loaded.Value().Get());
+    CHECK(root != nullptr);
+    CHECK(root->ItemCount() == 2U);
+    CHECK(root->ItemAt(0U)->RuntimeType() ==
+        TextBlock::StaticTypeId());
+    CHECK(root->ItemAt(1U)->RuntimeType() ==
+        Button::StaticTypeId());
+    CHECK(fixture.visual->StagedContentCount() == 0U);
+    CHECK(fixture.visual->Mount(
+        *root,
+        BuiltinTypes::ItemsControl,
+        {80.0, 40.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+    CHECK(fixture.visual->Unmount());
+    return true;
+}
+
 bool TestFailedLoadDiscardsStagedEdges() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -428,6 +470,7 @@ int main() {
     if (!TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlGridGenericCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlScrollViewerMountAndOffset()) return 1;
+    if (!TestXamlItemsControlCollection()) return 1;
     if (!TestXamlGridRejectsOutOfRangeCellOnFirstLayout()) return 1;
     if (!TestFailedLoadDiscardsStagedEdges()) return 1;
     std::puts("Aero XAML visual-tree tests passed");

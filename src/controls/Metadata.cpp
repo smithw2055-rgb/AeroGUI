@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
@@ -548,6 +549,34 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble);
     status = scrollBar.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ItemContainer> itemContainer =
+        MetaTypeBuilder<ItemContainer>::Object(context);
+    itemContainer.Content<Presentation::UIElement>(
+        "Content", ContentKind::Single);
+    status = itemContainer.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ItemsControl> itemsControl =
+        MetaTypeBuilder<ItemsControl>::Object(context);
+    itemsControl.ReadOnlyDependencyProperty(
+        ItemsControl::ItemCountProperty,
+        "ItemCount", TypeOf<std::uint32_t>(),
+        Value::FromUnsignedInteger(
+            TypeOf<std::uint32_t>(), 0U),
+        PropertyMetadataFlags::None,
+        &ValidateUInt32)
+        .Content<Base::Object>(
+            "Items", ContentKind::Collection);
+    status = itemsControl.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ItemsPresenter> itemsPresenter =
+        MetaTypeBuilder<ItemsPresenter>::Object(context);
+    itemsPresenter.Content<Presentation::UIElement>(
+        "Content", ContentKind::Single);
+    status = itemsPresenter.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =

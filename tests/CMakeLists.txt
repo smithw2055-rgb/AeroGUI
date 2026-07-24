@@ -240,6 +240,14 @@ set_target_properties(AeroScrollTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_RE
 aero_apply_compiler_options(AeroScrollTests)
 add_test(NAME AeroScrollTests COMMAND AeroScrollTests)
 
+add_executable(AeroItemsTests
+    controls/ItemsTests.cpp)
+target_link_libraries(AeroItemsTests PRIVATE Aero::Controls)
+target_compile_features(AeroItemsTests PRIVATE cxx_std_17)
+set_target_properties(AeroItemsTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroItemsTests)
+add_test(NAME AeroItemsTests COMMAND AeroItemsTests)
+
 add_executable(AeroRenderingTests presentation/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Controls)
 target_compile_features(AeroRenderingTests PRIVATE cxx_std_17)
