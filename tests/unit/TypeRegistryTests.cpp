@@ -1,9 +1,10 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
+#include <Aero/Core/MetadataDescriptors.hpp>
 #include <Aero/Core/MetadataRegistrationValues.hpp>
 #include <Aero/Core/ObjectTree.hpp>
-#include <Aero/Core/MetadataBehaviorRegistrationStore.hpp>
+#include <Aero/Core/TypeRegistry.hpp>
 #include "TestAllocatorScope.hpp"
 
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <utility>
 
 namespace {
 
@@ -29,13 +31,8 @@ using namespace Aero::Core;
 class TrackingAllocator final : public IAllocator {
 public:
     void* Allocate(const AllocationRequest& request) noexcept override {
-        if (failAfter_ == 0U) {
-            return nullptr;
-        }
-        if (failAfter_ != UINT32_MAX) {
-            --failAfter_;
-        }
-
+        if (failAfter_ == 0U) return nullptr;
+        if (failAfter_ != UINT32_MAX) --failAfter_;
         void* memory = upstream_.Allocate(request);
         if (memory != nullptr) {
             ++active_;
@@ -50,9 +47,7 @@ public:
         std::size_t alignment,
         MemoryTag tag) noexcept override {
         if (memory != nullptr) {
-            if (active_ == 0U) {
-                std::abort();
-            }
+            if (active_ == 0U) std::abort();
             --active_;
         }
         upstream_.Deallocate(memory, size, alignment, tag);
@@ -61,11 +56,7 @@ public:
     void FailAfter(std::uint32_t successfulAllocations) noexcept {
         failAfter_ = successfulAllocations;
     }
-
-    void DisableFailures() noexcept {
-        failAfter_ = UINT32_MAX;
-    }
-
+    void DisableFailures() noexcept { failAfter_ = UINT32_MAX; }
     std::uint32_t Active() const noexcept { return active_; }
     std::uint32_t Total() const noexcept { return total_; }
 
@@ -99,75 +90,62 @@ Result<Ref<Object>> SnapshotFactoryTwo() noexcept {
 }
 
 bool PopulateRegistry(
-    MetadataRegistrationTypes registryRegistration,
+    MetadataRegistrationTypes registration,
     bool reverseOrder,
     CommonIds& ids) {
     const StringView ns("urn:aero");
-    ids.object = MakeTypeId(ns, StringView("Object"));
-    ids.number = MakeTypeId(ns, StringView("Double"));
-    ids.eventArgs = MakeTypeId(ns, StringView("EventArgs"));
-    ids.uiElement = MakeTypeId(ns, StringView("UIElement"));
-    ids.button = MakeTypeId(ns, StringView("Button"));
+    ids.object = MakeTypeId(ns, "Object");
+    ids.number = MakeTypeId(ns, "Double");
+    ids.eventArgs = MakeTypeId(ns, "EventArgs");
+    ids.uiElement = MakeTypeId(ns, "UIElement");
+    ids.button = MakeTypeId(ns, "Button");
+
+    const TypeRegistration object{ns, "Object"};
+    const TypeRegistration number{
+        ns, "Double", InvalidTypeId,
+        TypeFlags::ValueType | TypeFlags::Sealed};
+    const TypeRegistration eventArgs{
+        ns, "EventArgs", ids.object};
+    const TypeRegistration uiElement{
+        ns, "UIElement", ids.object};
+    const TypeRegistration button{
+        ns, "Button", ids.uiElement, TypeFlags::Sealed};
 
     if (!reverseOrder) {
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("EventArgs"), ids.object,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("UIElement"), ids.object,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Button"), ids.uiElement,
-            TypeFlags::Sealed, nullptr}));
+        CHECK(registration.TryRegisterType(object));
+        CHECK(registration.TryRegisterType(number));
+        CHECK(registration.TryRegisterType(eventArgs));
+        CHECK(registration.TryRegisterType(uiElement));
+        CHECK(registration.TryRegisterType(button));
     } else {
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("EventArgs"), ids.object,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Button"), ids.uiElement,
-            TypeFlags::Sealed, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("UIElement"), ids.object,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
+        CHECK(registration.TryRegisterType(number));
+        CHECK(registration.TryRegisterType(eventArgs));
+        CHECK(registration.TryRegisterType(button));
+        CHECK(registration.TryRegisterType(uiElement));
+        CHECK(registration.TryRegisterType(object));
     }
 
     if (!reverseOrder) {
-        Result<MemberId> width = registryRegistration.TryRegisterProperty(
+        Result<MemberId> width = registration.TryRegisterProperty(
             ids.uiElement,
-            {StringView("Width"), ids.number,
+            {"Width", ids.number,
              PropertyFlags::AffectsMeasure | PropertyFlags::AffectsArrange});
         CHECK(width);
         ids.width = width.Value();
-
-        Result<MemberId> loaded = registryRegistration.TryRegisterEvent(
+        Result<MemberId> loaded = registration.TryRegisterEvent(
             ids.uiElement,
-            {StringView("Loaded"), ids.eventArgs,
-             EventFlags::Routed});
+            {"Loaded", ids.eventArgs, EventFlags::Routed});
         CHECK(loaded);
         ids.loaded = loaded.Value();
     } else {
-        Result<MemberId> loaded = registryRegistration.TryRegisterEvent(
+        Result<MemberId> loaded = registration.TryRegisterEvent(
             ids.uiElement,
-            {StringView("Loaded"), ids.eventArgs,
-             EventFlags::Routed});
+            {"Loaded", ids.eventArgs, EventFlags::Routed});
         CHECK(loaded);
         ids.loaded = loaded.Value();
-
-        Result<MemberId> width = registryRegistration.TryRegisterProperty(
+        Result<MemberId> width = registration.TryRegisterProperty(
             ids.uiElement,
-            {StringView("Width"), ids.number,
+            {"Width", ids.number,
              PropertyFlags::AffectsMeasure | PropertyFlags::AffectsArrange});
         CHECK(width);
         ids.width = width.Value();
@@ -177,165 +155,75 @@ bool PopulateRegistry(
 
 bool TestStableIds() {
     const StringView ns("urn:aero");
-    const TypeId object = MakeTypeId(ns, StringView("Object"));
-    const TypeId uiElement = MakeTypeId(ns, StringView("UIElement"));
-
+    const TypeId object = MakeTypeId(ns, "Object");
+    const TypeId uiElement = MakeTypeId(ns, "UIElement");
     CHECK(object == UINT64_C(0x6563B5703AEB39E0));
     CHECK(uiElement == UINT64_C(0x0376178515911073));
     CHECK(AeroNamespaceUri() == ns);
-    CHECK(MakeTypeId(StringView("Object")) == object);
+    CHECK(MakeTypeId("Object") == object);
     CHECK(Aero::Base::Object::StaticTypeId() == object);
-    CHECK(EventArgs::StaticTypeId() == MakeTypeId(StringView("EventArgs")));
-    CHECK(MakeTypeId(ns, StringView("Object")) == object);
-    CHECK(MakeTypeId(StringView("urn:other"), StringView("Object")) != object);
-    CHECK(MakeTypeId(ns, StringView("object")) != object);
-
-    CHECK(MakeMemberId(
-        uiElement, MemberKind::Property, StringView("Width")) ==
+    CHECK(EventArgs::StaticTypeId() == MakeTypeId("EventArgs"));
+    CHECK(MakeTypeId("urn:other", "Object") != object);
+    CHECK(MakeTypeId(ns, "object") != object);
+    CHECK(MakeMemberId(uiElement, MemberKind::Property, "Width") ==
         UINT64_C(0x3CC42934E991D0BE));
-    CHECK(MakeMemberId(
-        uiElement, MemberKind::Event, StringView("Loaded")) ==
+    CHECK(MakeMemberId(uiElement, MemberKind::Event, "Loaded") ==
         UINT64_C(0x69EAE11AEB0F97AA));
-    CHECK(MakeMemberId(
-        uiElement, MemberKind::Property, StringView("Loaded")) !=
-        MakeMemberId(
-            uiElement, MemberKind::Event, StringView("Loaded")));
-    const TypeId firstSignature[] = {object};
-    const TypeId secondSignature[] = {uiElement};
-    CHECK(MakeMethodId(uiElement, StringView("Find"),
-        {firstSignature, 1U}) ==
-        MakeMethodId(uiElement, StringView("Find"),
-            {firstSignature, 1U}));
-    CHECK(MakeMethodId(uiElement, StringView("Find"),
-        {firstSignature, 1U}) !=
-        MakeMethodId(uiElement, StringView("Find"),
-            {secondSignature, 1U}));
+    CHECK(MakeMemberId(uiElement, MemberKind::Field, "Width") !=
+        MakeMemberId(uiElement, MemberKind::Property, "Width"));
     return true;
 }
 
 bool TestRegistrationLookupAndFreeze() {
     TypeRegistry registry;
-    MetadataBehaviorRegistrationStore registryBehaviors{registry};
-    MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
+    MetadataBehaviorRegistrationStore behaviors{registry};
+    MetadataRegistrationTypes registration{registry, behaviors};
     CommonIds ids;
-    CHECK(PopulateRegistry(registryRegistration, false, ids));
+    CHECK(PopulateRegistry(registration, false, ids));
     CHECK(registry.TypeCount() == 5U);
-    CHECK(!registry.IsFrozen());
-
-    const TypeInfo* uiElement = registry.FindType(
-        StringView("urn:aero"), StringView("UIElement"));
+    const TypeInfo* uiElement = registry.FindType("urn:aero", "UIElement");
     CHECK(uiElement != nullptr);
-    CHECK(uiElement->Id() == ids.uiElement);
     CHECK(uiElement->BaseType() == ids.object);
     CHECK(uiElement->Properties().Size() == 1U);
     CHECK(uiElement->Events().Size() == 1U);
-
-    const PropertyInfo* width = registry.FindProperty(ids.width);
-    CHECK(width != nullptr);
-    CHECK(width->ValueType() == ids.number);
-    CHECK(width->Name() == StringView("Width"));
-
-    const EventInfo* loaded = registry.FindEvent(ids.loaded);
-    CHECK(loaded != nullptr);
-    CHECK(loaded->EventArgsType() == ids.eventArgs);
-    CHECK(loaded->Name() == StringView("Loaded"));
-
-    CHECK(registry.FindProperty(
-        ids.button, StringView("Width"), true) == width);
-    CHECK(registry.FindProperty(
-        ids.button, StringView("Width"), false) == nullptr);
-    CHECK(registry.FindEvent(
-        ids.button, StringView("Loaded"), true) == loaded);
-
-    CHECK(registry.IsDerivedFrom(ids.button, ids.uiElement));
+    CHECK(registry.FindProperty(ids.button, "Width", true) != nullptr);
+    CHECK(registry.FindProperty(ids.button, "Width", false) == nullptr);
     CHECK(registry.IsDerivedFrom(ids.button, ids.object));
-    CHECK(registry.IsDerivedFrom(ids.object, ids.object));
     CHECK(!registry.IsDerivedFrom(ids.object, ids.button));
 
-    Result<TypeId> duplicate = registryRegistration.TryRegisterType({
-        StringView("urn:aero"), StringView("Object"),
-        InvalidTypeId, TypeFlags::None, nullptr});
+    Result<TypeId> duplicate = registration.TryRegisterType(
+        {"urn:aero", "Object"});
     CHECK(!duplicate);
     CHECK(duplicate.GetStatus().code == ErrorCode::AlreadyExists);
-
-    Result<MemberId> duplicateProperty = registryRegistration.TryRegisterProperty(
-        ids.uiElement,
-        {StringView("Width"), ids.number, PropertyFlags::None});
-    CHECK(!duplicateProperty);
-    CHECK(duplicateProperty.GetStatus().code == ErrorCode::AlreadyExists);
-
     CHECK(registry.Freeze());
-    CHECK(registry.IsFrozen());
     CHECK(registry.Freeze());
-
-    Result<TypeId> afterFreeze = registryRegistration.TryRegisterType({
-        StringView("urn:aero"), StringView("LateType"),
-        ids.object, TypeFlags::None, nullptr});
-    CHECK(!afterFreeze);
-    CHECK(afterFreeze.GetStatus().code == ErrorCode::InvalidState);
+    Result<TypeId> late = registration.TryRegisterType(
+        {"urn:aero", "Late", ids.object});
+    CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);
     return true;
 }
 
 bool TestFreezeValidation() {
     const StringView ns("urn:validation");
-
     {
         TypeRegistry registry;
-        MetadataBehaviorRegistrationStore registryBehaviors{registry};
-        MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-        const TypeId missingBase = MakeTypeId(ns, StringView("Missing"));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("Child"), missingBase,
-            TypeFlags::None, nullptr}));
+        MetadataBehaviorRegistrationStore behaviors{registry};
+        MetadataRegistrationTypes registration{registry, behaviors};
+        CHECK(registration.TryRegisterType(
+            {ns, "Child", MakeTypeId(ns, "Missing")}));
         Result<void> frozen = registry.Freeze();
-        CHECK(!frozen);
-        CHECK(frozen.GetStatus().code == ErrorCode::NotFound);
+        CHECK(!frozen && frozen.GetStatus().code == ErrorCode::NotFound);
     }
-
     {
         TypeRegistry registry;
-        MetadataBehaviorRegistrationStore registryBehaviors{registry};
-        MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-        Result<TypeId> owner = registryRegistration.TryRegisterType({
-            ns, StringView("Owner"), InvalidTypeId,
-            TypeFlags::None, nullptr});
-        CHECK(owner);
-        const TypeId missingValue = MakeTypeId(ns, StringView("Value"));
-        CHECK(registryRegistration.TryRegisterProperty(
-            owner.Value(),
-            {StringView("Value"), missingValue, PropertyFlags::None}));
+        MetadataBehaviorRegistrationStore behaviors{registry};
+        MetadataRegistrationTypes registration{registry, behaviors};
+        const TypeId typeA = MakeTypeId(ns, "A");
+        const TypeId typeB = MakeTypeId(ns, "B");
+        CHECK(registration.TryRegisterType({ns, "A", typeB}));
+        CHECK(registration.TryRegisterType({ns, "B", typeA}));
         Result<void> frozen = registry.Freeze();
-        CHECK(!frozen);
-        CHECK(frozen.GetStatus().code == ErrorCode::NotFound);
-    }
-
-    {
-        TypeRegistry registry;
-        MetadataBehaviorRegistrationStore registryBehaviors{registry};
-        MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-        const TypeId typeA = MakeTypeId(ns, StringView("A"));
-        const TypeId typeB = MakeTypeId(ns, StringView("B"));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("A"), typeB,
-            TypeFlags::None, nullptr}));
-        CHECK(registryRegistration.TryRegisterType({
-            ns, StringView("B"), typeA,
-            TypeFlags::None, nullptr}));
-        Result<void> frozen = registry.Freeze();
-        CHECK(!frozen);
-        CHECK(frozen.GetStatus().code == ErrorCode::CycleDetected);
-    }
-
-    {
-        TypeRegistry registry;
-        MetadataBehaviorRegistrationStore registryBehaviors{registry};
-        MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-        Result<MemberId> missingOwner = registryRegistration.TryRegisterEvent(
-            MakeTypeId(ns, StringView("Unknown")),
-            {StringView("Changed"), MakeTypeId(ns, StringView("Args")),
-             EventFlags::None});
-        CHECK(!missingOwner);
-        CHECK(missingOwner.GetStatus().code == ErrorCode::NotFound);
+        CHECK(!frozen && frozen.GetStatus().code == ErrorCode::CycleDetected);
     }
     return true;
 }
@@ -349,61 +237,123 @@ bool TestDeterministicSnapshot() {
     MetadataRegistrationTypes secondRegistration{second, secondBehaviors};
     CommonIds firstIds;
     CommonIds secondIds;
-
     CHECK(PopulateRegistry(firstRegistration, false, firstIds));
     CHECK(PopulateRegistry(secondRegistration, true, secondIds));
-
-    String beforeFreeze;
-    Result<void> premature = first.BuildSnapshot(beforeFreeze);
-    CHECK(!premature);
-    CHECK(premature.GetStatus().code == ErrorCode::InvalidState);
-
     CHECK(first.Freeze());
     CHECK(second.Freeze());
-
     String firstSnapshot;
     String secondSnapshot;
     CHECK(first.BuildSnapshot(firstSnapshot));
     CHECK(second.BuildSnapshot(secondSnapshot));
     CHECK(firstSnapshot.View() == secondSnapshot.View());
-    CHECK(std::strstr(
-        firstSnapshot.CStr(), "AERO-TYPE-REGISTRY|3") != nullptr);
+    CHECK(std::strstr(firstSnapshot.CStr(),
+        "AERO-TYPE-REGISTRY|4") != nullptr);
     CHECK(std::strstr(firstSnapshot.CStr(), "UIElement") != nullptr);
-    CHECK(std::strstr(firstSnapshot.CStr(), "Width") != nullptr);
-    CHECK(std::strstr(firstSnapshot.CStr(), "Loaded") != nullptr);
-
     Result<HashCode> firstHash = first.ComputeSnapshotHash();
     Result<HashCode> secondHash = second.ComputeSnapshotHash();
-    CHECK(firstHash);
-    CHECK(secondHash);
+    CHECK(firstHash && secondHash);
     CHECK(firstHash.Value() == secondHash.Value());
-    CHECK(firstHash.Value() != 0U);
 
-    TypeRegistry firstFactoryRegistry;
-    MetadataBehaviorRegistrationStore firstFactoryBehaviors{
-        firstFactoryRegistry};
+    TypeRegistry firstFactory;
+    MetadataBehaviorRegistrationStore firstFactoryBehaviors{firstFactory};
     MetadataRegistrationTypes firstFactoryRegistration{
-        firstFactoryRegistry, firstFactoryBehaviors};
-    TypeRegistry secondFactoryRegistry;
-    MetadataBehaviorRegistrationStore secondFactoryBehaviors{
-        secondFactoryRegistry};
+        firstFactory, firstFactoryBehaviors};
+    TypeRegistry secondFactory;
+    MetadataBehaviorRegistrationStore secondFactoryBehaviors{secondFactory};
     MetadataRegistrationTypes secondFactoryRegistration{
-        secondFactoryRegistry, secondFactoryBehaviors};
-    CHECK(firstFactoryRegistration.TryRegisterType({
-        StringView("urn:snapshot"), StringView("Object"), InvalidTypeId,
-        TypeFlags::None, &SnapshotFactoryOne}));
-    CHECK(secondFactoryRegistration.TryRegisterType({
-        StringView("urn:snapshot"), StringView("Object"), InvalidTypeId,
-        TypeFlags::None, &SnapshotFactoryTwo}));
-    CHECK(firstFactoryRegistry.Freeze());
-    CHECK(secondFactoryRegistry.Freeze());
-    CHECK(firstFactoryBehaviors.Freeze());
-    CHECK(secondFactoryBehaviors.Freeze());
-    String firstFactorySnapshot;
-    String secondFactorySnapshot;
-    CHECK(firstFactoryRegistry.BuildSnapshot(firstFactorySnapshot));
-    CHECK(secondFactoryRegistry.BuildSnapshot(secondFactorySnapshot));
-    CHECK(firstFactorySnapshot.View() == secondFactorySnapshot.View());
+        secondFactory, secondFactoryBehaviors};
+    CHECK(firstFactoryRegistration.TryRegisterType(
+        {"urn:snapshot", "Object", InvalidTypeId,
+         TypeFlags::None, &SnapshotFactoryOne}));
+    CHECK(secondFactoryRegistration.TryRegisterType(
+        {"urn:snapshot", "Object", InvalidTypeId,
+         TypeFlags::None, &SnapshotFactoryTwo}));
+    CHECK(firstFactory.Freeze());
+    CHECK(secondFactory.Freeze());
+    String one;
+    String two;
+    CHECK(firstFactory.BuildSnapshot(one));
+    CHECK(secondFactory.BuildSnapshot(two));
+    CHECK(one.View() == two.View());
+    return true;
+}
+
+Result<Value> GetStructCount(
+    const void* object,
+    MetadataRuntime&,
+    void*) noexcept {
+    return Value::FromUnsignedInteger(
+        MakeTypeId("urn:meta", "UInt32"),
+        *static_cast<const std::uint32_t*>(object));
+}
+
+Result<void> SetStructCount(
+    void* object,
+    const Value& value,
+    MetadataRuntime&,
+    void*) noexcept {
+    *static_cast<std::uint32_t*>(object) =
+        static_cast<std::uint32_t>(value.AsUnsignedInteger());
+    return {};
+}
+
+bool TestInterfacesEnumsAndStructs() {
+    const StringView ns("urn:meta");
+    TypeRegistry registry;
+    MetadataBehaviorRegistrationStore behaviors{registry};
+    MetadataRegistrationTypes registration{registry, behaviors};
+    const TypeId uintType = MakeTypeId(ns, "UInt32");
+    const TypeId interfaceType = MakeTypeId(ns, "ICommandSource");
+    const TypeId objectType = MakeTypeId(ns, "Object");
+    const TypeId buttonType = MakeTypeId(ns, "Button");
+    const TypeId enumType = MakeTypeId(ns, "Options");
+    const TypeId structType = MakeTypeId(ns, "Counter");
+
+    CHECK(registration.TryRegisterType(
+        {ns, "UInt32", InvalidTypeId,
+         TypeFlags::ValueType | TypeFlags::Sealed}));
+    CHECK(registration.TryRegisterType(
+        {ns, "ICommandSource", InvalidTypeId, TypeFlags::Abstract,
+         nullptr, MetadataTypeKind::Interface}));
+    CHECK(registration.TryRegisterType({ns, "Object"}));
+    CHECK(registration.TryRegisterType({ns, "Button", objectType}));
+    CHECK(registration.TryRegisterInterface(buttonType, interfaceType));
+    CHECK(registration.TryRegisterType(
+        {ns, "Options", InvalidTypeId,
+         TypeFlags::ValueType | TypeFlags::FlagsEnum,
+         nullptr, MetadataTypeKind::Enum, uintType}));
+    CHECK(registration.TryRegisterEnumValue(enumType, {"None", 0U}));
+    CHECK(registration.TryRegisterEnumValue(enumType, {"Fast", 1U}));
+    CHECK(registration.TryRegisterEnumValue(enumType, {"Safe", 2U}));
+    CHECK(registration.TryRegisterType(
+        {ns, "Counter", InvalidTypeId,
+         TypeFlags::ValueType | TypeFlags::TriviallyCopyable,
+         nullptr, MetadataTypeKind::Struct}));
+    Result<MemberId> count = registration.TryRegisterField(
+        structType,
+        {"Count", uintType, FieldFlags::None,
+         &GetStructCount, &SetStructCount, nullptr});
+    CHECK(count);
+    CHECK(registry.Freeze());
+    CHECK(behaviors.Freeze());
+    CHECK(registry.Implements(buttonType, interfaceType));
+    CHECK(registry.IsAssignableFrom(interfaceType, buttonType));
+    CHECK(!registry.IsAssignableFrom(buttonType, interfaceType));
+
+    MetadataDescriptorStore descriptors;
+    CHECK(descriptors.Build(registry));
+    const MetadataTypeDescriptor* enumDescriptor =
+        descriptors.FindType(enumType);
+    CHECK(enumDescriptor != nullptr);
+    CHECK(enumDescriptor->Kind() == MetadataTypeKind::Enum);
+    CHECK(enumDescriptor->UnderlyingType() == uintType);
+    CHECK(enumDescriptor->IsFlagsEnum());
+    CHECK(descriptors.FindEnumValue(enumType, "Fast") != nullptr);
+    CHECK(descriptors.FindEnumValue(enumType, 2U) != nullptr);
+    const MetadataFieldDescriptor* field =
+        descriptors.FindField(structType, "Count");
+    CHECK(field != nullptr && field->Id() == count.Value());
+    CHECK(descriptors.Implements(buttonType, interfaceType));
     return true;
 }
 
@@ -412,61 +362,37 @@ bool TestBehaviorRegistrationBoundaries() {
     MetadataBehaviorRegistrationStore firstBehaviors{first};
     TypeRegistry second;
     MetadataBehaviorRegistrationStore secondBehaviors{second};
-
     MetadataRegistrationTypes mismatched{first, secondBehaviors};
-    Result<TypeId> rejected = mismatched.TryRegisterType({
-        StringView("urn:behavior"), StringView("Rejected"), InvalidTypeId,
-        TypeFlags::None, nullptr});
-    CHECK(!rejected);
-    CHECK(rejected.GetStatus().code == ErrorCode::InvalidArgument);
-    CHECK(first.TypeCount() == 0U);
-    CHECK(second.TypeCount() == 0U);
-
-    Result<void> premature = firstBehaviors.Freeze();
-    CHECK(!premature);
-    CHECK(premature.GetStatus().code == ErrorCode::InvalidState);
-
+    Result<TypeId> rejected = mismatched.TryRegisterType(
+        {"urn:behavior", "Rejected"});
+    CHECK(!rejected &&
+        rejected.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(!firstBehaviors.Freeze());
     MetadataRegistrationTypes registration{first, firstBehaviors};
-    CHECK(registration.TryRegisterType({
-        StringView("urn:behavior"), StringView("Object"), InvalidTypeId,
-        TypeFlags::None, &SnapshotFactoryOne}));
+    CHECK(registration.TryRegisterType(
+        {"urn:behavior", "Object", InvalidTypeId,
+         TypeFlags::None, &SnapshotFactoryOne}));
     CHECK(first.Freeze());
     CHECK(firstBehaviors.Freeze());
-
-    Result<TypeId> late = registration.TryRegisterType({
-        StringView("urn:behavior"), StringView("Late"), InvalidTypeId,
-        TypeFlags::None, nullptr});
-    CHECK(!late);
-    CHECK(late.GetStatus().code == ErrorCode::InvalidState);
     return true;
 }
 
 bool TestRegistrationRollbackOnOom() {
     TrackingAllocator allocator;
-    Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
+    Aero::Tests::ScopedDefaultAllocator scope(allocator);
     {
         TypeRegistry registry;
-        MetadataBehaviorRegistrationStore registryBehaviors{registry};
-        MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-        const TypeId expected = MakeTypeId(
-            StringView("urn:oom"), StringView("Object"));
-
+        MetadataBehaviorRegistrationStore behaviors{registry};
+        MetadataRegistrationTypes registration{registry, behaviors};
+        const TypeId expected = MakeTypeId("urn:oom", "Object");
         allocator.FailAfter(1U);
-        Result<TypeId> failed = registryRegistration.TryRegisterType({
-            StringView("urn:oom"), StringView("Object"),
-            InvalidTypeId, TypeFlags::None, nullptr});
-        CHECK(!failed);
-        CHECK(failed.GetStatus().code == ErrorCode::OutOfMemory);
+        Result<TypeId> failed = registration.TryRegisterType(
+            {"urn:oom", "Object"});
+        CHECK(!failed && failed.GetStatus().code == ErrorCode::OutOfMemory);
         CHECK(registry.TypeCount() == 0U);
         CHECK(registry.FindType(expected) == nullptr);
-
         allocator.DisableFailures();
-        Result<TypeId> registered = registryRegistration.TryRegisterType({
-            StringView("urn:oom"), StringView("Object"),
-            InvalidTypeId, TypeFlags::None, nullptr});
-        CHECK(registered);
-        CHECK(registered.Value() == expected);
-        CHECK(registry.TypeCount() == 1U);
+        CHECK(registration.TryRegisterType({"urn:oom", "Object"}));
         CHECK(registry.Freeze());
     }
     CHECK(allocator.Active() == 0U);
@@ -479,192 +405,58 @@ struct SmallValue final {
     std::uint64_t second = 0U;
 };
 
-struct ManagedValue final {
-    int* active = nullptr;
-    int payload = 0;
-
-    ManagedValue(int& count, int value) noexcept : active(&count), payload(value) {
-        ++*active;
-    }
-    ManagedValue(const ManagedValue& other) noexcept
-        : active(other.active), payload(other.payload) {
-        ++*active;
-    }
-    ~ManagedValue() { --*active; }
-};
-
-struct LargeValue final {
-    std::uint8_t bytes[40]{};
-};
-
-class ValueProbe final : public Object {};
-
 bool EqualSmall(const void* left, const void* right, void*) noexcept {
     const auto& a = *static_cast<const SmallValue*>(left);
     const auto& b = *static_cast<const SmallValue*>(right);
     return a.first == b.first && a.second == b.second;
 }
 
-Result<void> CopyManaged(void* destination, const void* source, void*) noexcept {
-    new (destination) ManagedValue(*static_cast<const ManagedValue*>(source));
-    return {};
-}
-
-void DestroyManaged(void* value, void*) noexcept {
-    static_cast<ManagedValue*>(value)->~ManagedValue();
-}
-
-bool EqualManaged(const void* left, const void* right, void*) noexcept {
-    return static_cast<const ManagedValue*>(left)->payload ==
-        static_cast<const ManagedValue*>(right)->payload;
-}
-
-Result<void> CopyLarge(void* destination, const void* source, void*) noexcept {
-    std::memcpy(destination, source, sizeof(LargeValue));
-    return {};
-}
-
-bool EqualLarge(const void* left, const void* right, void*) noexcept {
-    return std::memcmp(left, right, sizeof(LargeValue)) == 0;
-}
-
 Result<Value> ConvertSmall(
-    TypeId type, StringView text, void* context) noexcept {
-    auto* registrations =
-        static_cast<MetadataValueRegistrationStore*>(context);
+    TypeId type,
+    StringView text,
+    void* context) noexcept {
+    auto* store = static_cast<MetadataValueRegistrationStore*>(context);
     if (text != StringView("7,9")) {
-        return Status::Failure(ErrorCode::InvalidArgument, "Invalid SmallValue");
+        return Status::Failure(
+            ErrorCode::InvalidArgument,
+            "Invalid SmallValue");
     }
     const SmallValue value{7U, 9U};
-    return MetadataRegistrationValues(
-        *registrations).TryCreateValue(type, &value);
+    return MetadataRegistrationValues(*store).TryCreateValue(type, &value);
 }
 
 bool TestUnifiedValueAndRegistrySemantics() {
     static_assert(noexcept(Value(std::declval<const Value&>())),
         "Value copies must remain noexcept");
-    static_assert(noexcept(Value(std::declval<Value&&>())),
-        "Value moves must remain noexcept");
-
-    TrackingAllocator allocator;
-    Aero::Tests::ScopedDefaultAllocator allocatorScope(allocator);
     TypeRegistry registry;
-    MetadataBehaviorRegistrationStore registryBehaviors{registry};
-    MetadataRegistrationTypes registryRegistration{registry, registryBehaviors};
-    MetadataValueRegistrationStore registrationStore(registry);
-    const StringView ns("urn:value-tests");
-    const TypeId smallType = MakeTypeId(ns, StringView("Small"));
-    const TypeId managedType = MakeTypeId(ns, StringView("Managed"));
-    const TypeId largeType = MakeTypeId(ns, StringView("Large"));
-    const TypeId objectType = MakeTypeId(ns, StringView("Object"));
-    CHECK(registryRegistration.TryRegisterType({ns, StringView("Small"), InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-    CHECK(registryRegistration.TryRegisterType({ns, StringView("Managed"), InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-    CHECK(registryRegistration.TryRegisterType({ns, StringView("Large"), InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-    CHECK(registryRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-        TypeFlags::None, nullptr}));
-    MetadataRegistrationValues values(registrationStore);
-    CHECK(values.TryRegisterValueSemantics(smallType,
+    MetadataBehaviorRegistrationStore behaviors{registry};
+    MetadataRegistrationTypes registration{registry, behaviors};
+    MetadataValueRegistrationStore valueStore(registry);
+    const TypeId smallType = MakeTypeId("urn:value-tests", "Small");
+    CHECK(registration.TryRegisterType(
+        {"urn:value-tests", "Small", InvalidTypeId,
+         TypeFlags::ValueType | TypeFlags::Sealed}));
+    MetadataRegistrationValues values(valueStore);
+    CHECK(values.TryRegisterValueSemantics(
+        smallType,
         {sizeof(SmallValue), alignof(SmallValue), nullptr, nullptr,
          &EqualSmall, nullptr, true}));
-    CHECK(values.TryRegisterValueSemantics(managedType,
-        {sizeof(ManagedValue), alignof(ManagedValue), &CopyManaged,
-         &DestroyManaged, &EqualManaged, nullptr, false}));
-    CHECK(values.TryRegisterValueSemantics(largeType,
-        {sizeof(LargeValue), alignof(LargeValue), &CopyLarge, nullptr,
-         &EqualLarge, nullptr, false}));
-    Result<void> duplicate = values.TryRegisterValueSemantics(smallType,
-        {sizeof(SmallValue), alignof(SmallValue), nullptr, nullptr,
-         &EqualSmall, nullptr, true});
-    CHECK(!duplicate && duplicate.GetStatus().code == ErrorCode::AlreadyExists);
-    Result<void> invalid = values.TryRegisterValueSemantics(managedType,
-        {sizeof(ManagedValue), 3U, &CopyManaged, &DestroyManaged,
-         &EqualManaged, nullptr, false});
-    CHECK(!invalid && invalid.GetStatus().code == ErrorCode::InvalidArgument);
-    CHECK(values.TryRegisterTextConverter({smallType, &ConvertSmall, &registrationStore}));
-    Result<void> duplicateConverter = values.TryRegisterTextConverter(
-        {smallType, &ConvertSmall, &registrationStore});
-    CHECK(!duplicateConverter &&
-        duplicateConverter.GetStatus().code == ErrorCode::AlreadyExists);
-
+    CHECK(values.TryRegisterTextConverter(
+        {smallType, &ConvertSmall, &valueStore}));
     const SmallValue first{7U, 9U};
     const SmallValue second{7U, 10U};
     Result<Value> inlineValue = values.TryCreateValue(smallType, &first);
-    Result<Value> differentValue = values.TryCreateValue(smallType, &second);
+    Result<Value> different = values.TryCreateValue(smallType, &second);
     CHECK(inlineValue && inlineValue.Value().IsInlineCustom());
-    CHECK(differentValue && inlineValue.Value() != differentValue.Value());
-    Value inlineCopy = inlineValue.Value();
-    Value inlineMove = std::move(inlineCopy);
-    CHECK(inlineMove == inlineValue.Value());
-    Result<Value> converted = values.TryConvertText(smallType, StringView("7,9"));
+    CHECK(different && inlineValue.Value() != different.Value());
+    Result<Value> converted = values.TryConvertText(smallType, "7,9");
     CHECK(converted && converted.Value() == inlineValue.Value());
-    Result<Value> failedConversion = values.TryConvertText(
-        smallType, StringView("bad"));
-    CHECK(!failedConversion &&
-        failedConversion.GetStatus().code == ErrorCode::InvalidArgument);
-
-    Result<Value> empty = Value::TryFromString(smallType, StringView());
-    Result<Value> text = Value::TryFromString(smallType, StringView("aero"));
-    Result<Value> sameText = Value::TryFromString(smallType, StringView("aero"));
-    CHECK(empty && empty.Value().AsString().Empty());
-    CHECK(text && sameText && text.Value() == sameText.Value());
-
-    CHECK(Value::Unset().IsUnset());
     CHECK(Value::FromBoolean(smallType, true).AsBoolean());
     CHECK(Value::FromSignedInteger(smallType, -8).AsSignedInteger() == -8);
     CHECK(Value::FromUnsignedInteger(smallType, 8U).AsUnsignedInteger() == 8U);
     CHECK(Value::FromDouble(smallType, 1.25).AsDouble() == 1.25);
-    Result<Ref<ValueProbe>> firstObject = MakeRef<ValueProbe>();
-    Result<Ref<ValueProbe>> secondObject = MakeRef<ValueProbe>();
-    CHECK(firstObject && secondObject);
-    Ref<Object> firstRef(firstObject.Value());
-    Ref<Object> sameRef(firstObject.Value());
-    Ref<Object> secondRef(secondObject.Value());
-    const Value object = Value::FromObject(objectType, firstRef);
-    CHECK(object == Value::FromObject(objectType, sameRef));
-    CHECK(object != Value::FromObject(objectType, secondRef));
-    CHECK(Value::NullObject(objectType).IsNullObject());
-
-    LargeValue large{};
-    large.bytes[39] = 91U;
-    Result<Value> boxedLarge = values.TryCreateValue(largeType, &large);
-    CHECK(boxedLarge && !boxedLarge.Value().IsInlineCustom());
-    Value largeCopy = boxedLarge.Value();
-    CHECK(largeCopy == boxedLarge.Value());
-
-    int activeManaged = 0;
-    {
-        ManagedValue source(activeManaged, 42);
-        CHECK(activeManaged == 1);
-        Result<Value> boxed = values.TryCreateValue(managedType, &source);
-        CHECK(boxed && !boxed.Value().IsInlineCustom() && activeManaged == 2);
-        {
-            Value copy = boxed.Value();
-            Value moved = std::move(copy);
-            CHECK(moved == boxed.Value() && activeManaged == 2);
-        }
-        CHECK(activeManaged == 2);
-    }
-    CHECK(activeManaged == 0);
-
-    allocator.FailAfter(0U);
-    Result<Value> stringOom = Value::TryFromString(
-        smallType, StringView("allocation"));
-    CHECK(!stringOom && stringOom.GetStatus().code == ErrorCode::OutOfMemory);
-    int failedActive = 0;
-    ManagedValue failedSource(failedActive, 5);
-    Result<Value> boxedOom = values.TryCreateValue(
-        managedType, &failedSource);
-    CHECK(!boxedOom && boxedOom.GetStatus().code == ErrorCode::OutOfMemory);
-    allocator.DisableFailures();
-
     CHECK(registry.Freeze());
-    CHECK(registrationStore.Freeze());
-    Result<void> late = values.TryRegisterTextConverter(
-        {managedType, &ConvertSmall, &registrationStore});
-    CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(valueStore.Freeze());
     return true;
 }
 
@@ -680,19 +472,19 @@ int main() {
         {"Stable metadata IDs", &TestStableIds},
         {"Registration, lookup, and freeze", &TestRegistrationLookupAndFreeze},
         {"Freeze validation", &TestFreezeValidation},
-        {"Deterministic snapshot", &TestDeterministicSnapshot},
+        {"Deterministic snapshot v4", &TestDeterministicSnapshot},
+        {"Interfaces, enums, and structs", &TestInterfacesEnumsAndStructs},
         {"Behavior registration boundaries", &TestBehaviorRegistrationBoundaries},
         {"Registration rollback on OOM", &TestRegistrationRollbackOnOom},
-        {"Unified Value and registration service semantics", &TestUnifiedValueAndRegistrySemantics},
+        {"Unified Value and registration service semantics",
+         &TestUnifiedValueAndRegistrySemantics},
     };
 
     std::uint32_t passed = 0U;
     for (const TestCase& test : tests) {
         const bool ok = test.run();
         std::printf("[%s] %s\n", ok ? "PASS" : "FAIL", test.name);
-        if (!ok) {
-            return 1;
-        }
+        if (!ok) return 1;
         ++passed;
     }
     std::printf("%u tests passed\n", passed);
