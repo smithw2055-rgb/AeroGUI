@@ -224,6 +224,12 @@ public:
         return {*this, MouseUpEvent};
     }
 
+    inline static constexpr RoutedEventHandle MouseWheelEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseWheel");
+    RoutedEvent_<MouseWheelEventHandler> MouseWheel() noexcept {
+        return {*this, MouseWheelEvent};
+    }
+
     inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
         MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
     RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {

@@ -1,6 +1,8 @@
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Scroll.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
@@ -51,6 +53,16 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
     AERO_ACTIVATE_CONTROL(TextBlock)
     AERO_ACTIVATE_CONTROL(ContentPresenter)
     AERO_ACTIVATE_CONTROL(UserControl)
+    AERO_ACTIVATE_CONTROL(Button)
+    AERO_ACTIVATE_CONTROL(RepeatButton)
+    AERO_ACTIVATE_CONTROL(ToggleButton)
+    AERO_ACTIVATE_CONTROL(CheckBox)
+    AERO_ACTIVATE_CONTROL(RadioButton)
+    AERO_ACTIVATE_CONTROL(ScrollContentPresenter)
+    AERO_ACTIVATE_CONTROL(ScrollViewer)
+    AERO_ACTIVATE_CONTROL(ScrollBar)
+    AERO_ACTIVATE_CONTROL(Track)
+    AERO_ACTIVATE_CONTROL(Thumb)
 #undef AERO_ACTIVATE_CONTROL
     return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Requested type is not a constructible Aero presentation type");
@@ -294,13 +306,23 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
         Core::TypeOf<Controls::Grid>(), Core::TypeOf<Controls::Border>(),
         Core::TypeOf<Controls::TextBlock>(),
         Core::TypeOf<Controls::ContentPresenter>(),
-        Core::TypeOf<Controls::UserControl>()};
+        Core::TypeOf<Controls::UserControl>(),
+        Core::TypeOf<Controls::Button>(),
+        Core::TypeOf<Controls::RepeatButton>(),
+        Core::TypeOf<Controls::ToggleButton>(),
+        Core::TypeOf<Controls::CheckBox>(),
+        Core::TypeOf<Controls::RadioButton>(),
+        Core::TypeOf<Controls::ScrollContentPresenter>(),
+        Core::TypeOf<Controls::ScrollViewer>(),
+        Core::TypeOf<Controls::ScrollBar>(),
+        Core::TypeOf<Controls::Track>(),
+        Core::TypeOf<Controls::Thumb>()};
     for (Core::TypeId type : activatable) {
         Base::Result<void> registered = activation.TryRegister({
             type, &ActivateAeroControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
-    std::uint32_t count = bridged.Value() + 7U;
+    std::uint32_t count = bridged.Value() + 17U;
     if (visualTree == nullptr) return count;
 
     Base::Result<void> registered = visualTree->TryRegisterType({

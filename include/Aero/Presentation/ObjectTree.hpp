@@ -24,7 +24,7 @@ class Visual;
 class UIElement;
 class FrameworkElement;
 
-enum class PointerAction : std::uint8_t { Move = 0U, Down, Up };
+enum class PointerAction : std::uint8_t { Move = 0U, Down, Up, Wheel };
 enum class KeyboardAction : std::uint8_t { Down = 0U, Up };
 enum class MouseButton : std::uint8_t { Left = 0U, Right, Middle, XButton1, XButton2 };
 enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
@@ -68,6 +68,13 @@ struct MouseButtonEventArgs final : MouseEventArgs {
     MouseButtonState buttonState = MouseButtonState::Released;
 };
 
+struct MouseWheelEventArgs final : MouseEventArgs {
+    AERO_TYPED_META(MouseWheelEventArgs, MouseEventArgs)
+    constexpr MouseWheelEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
+    double deltaX = 0.0;
+    double deltaY = 0.0;
+};
+
 struct KeyEventArgs final : InputEventArgs {
     AERO_TYPED_META(KeyEventArgs, InputEventArgs)
     constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
@@ -97,6 +104,8 @@ using MouseEventHandler =
     Base::Delegate<void(Base::Object*, const MouseEventArgs&)>;
 using MouseButtonEventHandler =
     Base::Delegate<void(Base::Object*, const MouseButtonEventArgs&)>;
+using MouseWheelEventHandler =
+    Base::Delegate<void(Base::Object*, const MouseWheelEventArgs&)>;
 using KeyEventHandler =
     Base::Delegate<void(Base::Object*, const KeyEventArgs&)>;
 using TextCompositionEventHandler =

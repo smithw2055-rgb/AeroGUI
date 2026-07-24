@@ -358,11 +358,19 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Pointer position must be finite");
     }
+    if (input.action == PointerAction::Wheel &&
+        (!std::isfinite(input.wheelDeltaX) ||
+            !std::isfinite(input.wheelDeltaY))) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Pointer wheel delta must be finite");
+    }
     RoutedEventHandle event;
     switch (input.action) {
     case PointerAction::Move: event = UIElement::MouseMoveEvent; break;
     case PointerAction::Down: event = UIElement::MouseDownEvent; break;
     case PointerAction::Up: event = UIElement::MouseUpEvent; break;
+    case PointerAction::Wheel: event = UIElement::MouseWheelEvent; break;
     }
     UIElement* captured = CapturedNode(input.pointerId);
     Base::Result<HitTestResult> hit = captured != nullptr
@@ -396,6 +404,14 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
         args.pointerId = input.pointerId;
         args.position = result.hit.position;
         raised = events_->RaiseEvent(*result.hit.target, event, &args);
+    } else if (input.action == PointerAction::Wheel) {
+        MouseWheelEventArgs args;
+        args.pointerId = input.pointerId;
+        args.position = result.hit.position;
+        args.deltaX = input.wheelDeltaX;
+        args.deltaY = input.wheelDeltaY;
+        raised = events_->RaiseEvent(
+            *result.hit.target, event, &args);
     } else {
         MouseButtonEventArgs args;
         args.pointerId = input.pointerId;

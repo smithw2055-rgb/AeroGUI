@@ -3,6 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Scroll.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
@@ -326,6 +327,52 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
     return true;
 }
 
+bool TestXamlScrollViewerMountAndOffset() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<ScrollViewer xmlns=\"urn:aero\" "
+        "xmlns:local=\"urn:xaml-visual\" "
+        "CanHorizontallyScroll=\"False\">"
+        "<StackPanel><local:Leaf/><local:Leaf/>"
+        "</StackPanel></ScrollViewer>"),
+        &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded =
+        LoadXamlVisualTreeWithActivation(
+            *fixture.visual,
+            writer,
+            reader,
+            *fixture.activation,
+            fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    auto* root =
+        static_cast<ScrollViewer*>(
+            loaded.Value().Get());
+    CHECK(root != nullptr);
+    CHECK(!root->CanHorizontallyScroll());
+    CHECK(root->Child() != nullptr);
+    CHECK(fixture.visual->Mount(
+        *root,
+        BuiltinTypes::ScrollViewer,
+        {20.0, 8.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+    CHECK(root->ExtentHeight() == 20.0);
+    CHECK(root->ViewportHeight() == 8.0);
+    CHECK(root->SetVerticalOffset(12.0));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+    CHECK(root->VerticalOffset() == 12.0);
+    CHECK(root->Child()->LayoutSlot().y == -12.0);
+    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.tree->Root() == nullptr);
+    return true;
+}
+
 bool TestFailedLoadDiscardsStagedEdges() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -380,6 +427,7 @@ int main() {
     if (!TestXamlStackPanelCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlGridGenericCollectionMountLayoutRenderAndUnmount()) return 1;
+    if (!TestXamlScrollViewerMountAndOffset()) return 1;
     if (!TestXamlGridRejectsOutOfRangeCellOnFirstLayout()) return 1;
     if (!TestFailedLoadDiscardsStagedEdges()) return 1;
     std::puts("Aero XAML visual-tree tests passed");

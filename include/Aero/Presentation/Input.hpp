@@ -46,6 +46,8 @@ struct PointerInput final {
     PointerAction action = PointerAction::Move;
     Point position;
     MouseButton changedButton = MouseButton::Left;
+    double wheelDeltaX = 0.0;
+    double wheelDeltaY = 0.0;
 };
 
 struct PointerDispatchResult final {

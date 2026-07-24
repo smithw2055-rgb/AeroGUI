@@ -282,6 +282,10 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         MetaTypeBuilder<MouseButtonEventArgs>::Struct(context);
     status = mouseButtonEventArgs.Finish();
     if (!status) return status.GetStatus();
+    MetaTypeBuilder<MouseWheelEventArgs> mouseWheelEventArgs =
+        MetaTypeBuilder<MouseWheelEventArgs>::Struct(context);
+    status = mouseWheelEventArgs.Finish();
+    if (!status) return status.GetStatus();
     MetaTypeBuilder<KeyEventArgs> keyEventArgs =
         MetaTypeBuilder<KeyEventArgs>::Struct(context);
     status = keyEventArgs.Finish();
@@ -393,6 +397,8 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
                 TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
             .RoutedEvent(UIElement::MouseUpEvent, "MouseUp",
                 TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::MouseWheelEvent, "MouseWheel",
+                TypeOf<MouseWheelEventArgs>(), RoutingStrategy::Bubble)
             .RoutedEvent(UIElement::GotKeyboardFocusEvent,
                 "GotKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
                 RoutingStrategy::Bubble)

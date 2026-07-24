@@ -33,6 +33,16 @@ inline constexpr TypeId CheckBox =
     MakeTypeId(Base::StringView("CheckBox"));
 inline constexpr TypeId RadioButton =
     MakeTypeId(Base::StringView("RadioButton"));
+inline constexpr TypeId ScrollContentPresenter =
+    MakeTypeId(Base::StringView("ScrollContentPresenter"));
+inline constexpr TypeId ScrollViewer =
+    MakeTypeId(Base::StringView("ScrollViewer"));
+inline constexpr TypeId ScrollBar =
+    MakeTypeId(Base::StringView("ScrollBar"));
+inline constexpr TypeId Track =
+    MakeTypeId(Base::StringView("Track"));
+inline constexpr TypeId Thumb =
+    MakeTypeId(Base::StringView("Thumb"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));
@@ -64,11 +74,15 @@ inline constexpr TypeId MouseEventArgs =
     MakeTypeId(Base::StringView("MouseEventArgs"));
 inline constexpr TypeId MouseButtonEventArgs =
     MakeTypeId(Base::StringView("MouseButtonEventArgs"));
+inline constexpr TypeId MouseWheelEventArgs =
+    MakeTypeId(Base::StringView("MouseWheelEventArgs"));
 inline constexpr TypeId KeyEventArgs =
     MakeTypeId(Base::StringView("KeyEventArgs"));
 inline constexpr TypeId TextCompositionEventArgs =
     MakeTypeId(Base::StringView("TextCompositionEventArgs"));
 inline constexpr TypeId KeyboardFocusChangedEventArgs =
     MakeTypeId(Base::StringView("KeyboardFocusChangedEventArgs"));
+inline constexpr TypeId ScrollChangedEventArgs =
+    MakeTypeId(Base::StringView("ScrollChangedEventArgs"));
 
 } // namespace Aero::Core::BuiltinTypes

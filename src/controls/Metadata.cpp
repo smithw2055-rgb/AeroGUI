@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Scroll.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
 #include <cctype>
@@ -88,6 +89,11 @@ bool ValidateNonnegativeDouble(const Core::Value& value) noexcept {
 bool ValidateFiniteDouble(const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::Double &&
         std::isfinite(value.AsDouble());
+}
+
+bool ValidatePositiveDouble(const Core::Value& value) noexcept {
+    return ValidateFiniteDouble(value) &&
+        value.AsDouble() > 0.0;
 }
 
 bool ValidateThicknessValue(const Core::Value& value) noexcept {
@@ -177,6 +183,11 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .EnumValue("Hover", ClickMode::Hover)
         .TextConverter(&ConvertClickMode);
     status = clickMode.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ScrollChangedEventArgs> scrollChangedEventArgs =
+        MetaTypeBuilder<ScrollChangedEventArgs>::Struct(context);
+    status = scrollChangedEventArgs.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Panel> panel =
@@ -364,6 +375,179 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Content<Presentation::UIElement>(
             "Content", ContentKind::Single);
     status = radioButton.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ScrollContentPresenter> scrollPresenter =
+        MetaTypeBuilder<ScrollContentPresenter>::Object(context);
+    scrollPresenter.Content<Presentation::UIElement>(
+        "Content", ContentKind::Single);
+    status = scrollPresenter.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ScrollViewer> scrollViewer =
+        MetaTypeBuilder<ScrollViewer>::Object(context);
+    if (context.RoutedEvents() != nullptr) {
+        scrollViewer.RoutedEvent(
+            ScrollViewer::ScrollChangedEvent,
+            "ScrollChanged",
+            TypeOf<ScrollChangedEventArgs>(),
+            RoutingStrategy::Bubble);
+    }
+    scrollViewer
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::HorizontalOffsetProperty,
+            "HorizontalOffset", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::VerticalOffsetProperty,
+            "VerticalOffset", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::ExtentWidthProperty,
+            "ExtentWidth", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::ExtentHeightProperty,
+            "ExtentHeight", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::ViewportWidthProperty,
+            "ViewportWidth", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .ReadOnlyDependencyProperty(
+            ScrollViewer::ViewportHeightProperty,
+            "ViewportHeight", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble)
+        .DependencyProperty(
+            ScrollViewer::CanHorizontallyScrollProperty,
+            "CanHorizontallyScroll", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), true),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateBooleanValue)
+        .DependencyProperty(
+            ScrollViewer::CanVerticallyScrollProperty,
+            "CanVerticallyScroll", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), true),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateBooleanValue)
+        .DependencyProperty(
+            ScrollViewer::CanContentScrollProperty,
+            "CanContentScroll", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateBooleanValue)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = scrollViewer.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Thumb> thumb =
+        MetaTypeBuilder<Thumb>::Object(context);
+    status = thumb.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Track> track =
+        MetaTypeBuilder<Track>::Object(context);
+    track
+        .DependencyProperty(
+            Track::OrientationProperty,
+            "Orientation", TypeOf<Orientation>(),
+            Value::FromUnsignedInteger(
+                TypeOf<Orientation>(),
+                static_cast<std::uint64_t>(
+                    Orientation::Vertical)),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateOrientationValue)
+        .DependencyProperty(
+            Track::MinimumProperty,
+            "Minimum", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            Track::MaximumProperty,
+            "Maximum", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 1.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            Track::ValueProperty,
+            "Value", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange |
+                PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            Track::ViewportSizeProperty,
+            "ViewportSize", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateNonnegativeDouble);
+    status = track.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ScrollBar> scrollBar =
+        MetaTypeBuilder<ScrollBar>::Object(context);
+    scrollBar
+        .DependencyProperty(
+            ScrollBar::OrientationProperty,
+            "Orientation", TypeOf<Orientation>(),
+            Value::FromUnsignedInteger(
+                TypeOf<Orientation>(),
+                static_cast<std::uint64_t>(
+                    Orientation::Vertical)),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateOrientationValue)
+        .DependencyProperty(
+            ScrollBar::MinimumProperty,
+            "Minimum", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            ScrollBar::MaximumProperty,
+            "Maximum", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 1.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            ScrollBar::ValueProperty,
+            "Value", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange |
+                PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateFiniteDouble)
+        .DependencyProperty(
+            ScrollBar::ViewportSizeProperty,
+            "ViewportSize", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateNonnegativeDouble)
+        .DependencyProperty(
+            ScrollBar::SmallChangeProperty,
+            "SmallChange", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 16.0),
+            PropertyMetadataFlags::None,
+            &ValidatePositiveDouble)
+        .DependencyProperty(
+            ScrollBar::LargeChangeProperty,
+            "LargeChange", TypeOf<double>(),
+            Value::FromDouble(TypeOf<double>(), 0.0),
+            PropertyMetadataFlags::None,
+            &ValidateNonnegativeDouble);
+    status = scrollBar.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =
