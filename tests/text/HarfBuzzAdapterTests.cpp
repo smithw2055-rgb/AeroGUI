@@ -1,6 +1,6 @@
-#include <Aero/Text/FontManager.hpp>
 #include <Aero/Text/FreeTypeAdapter.hpp>
 #include <Aero/Text/HarfBuzzAdapter.hpp>
+#include <Aero/Text/TextLayout.hpp>
 
 #include <cstdio>
 
@@ -104,6 +104,27 @@ bool TestRealFontPipeline() {
     CHECK(shapedCjk.glyphs.Size() == 2U);
     CHECK(shapedCjk.glyphs[0].glyph != 0U);
     CHECK(shapedCjk.glyphs[1].glyph != 0U);
+
+    TextLayoutRequest mixedRequest;
+    mixedRequest.face = resolvedCjk;
+    mixedRequest.text =
+        "A1"
+        "\xE4\xB8\xAD"
+        "\xE6\x96\x87";
+    mixedRequest.pixelSize = 24.0F;
+    mixedRequest.language = "zh-CN";
+    TextLayout mixedLayout;
+    CHECK(mixedLayout.ShapeAndMeasure(manager, mixedRequest));
+    CHECK(mixedLayout.Lines().Size() == 1U);
+    CHECK(mixedLayout.Runs().Size() == 3U);
+    CHECK(mixedLayout.NaturalSize().width > 0.0F);
+    const TextLayoutSize firstMixedSize =
+        mixedLayout.NaturalSize();
+    CHECK(mixedLayout.ShapeAndMeasure(manager, mixedRequest));
+    CHECK(mixedLayout.NaturalSize().width ==
+        firstMixedSize.width);
+    CHECK(mixedLayout.NaturalSize().height ==
+        firstMixedSize.height);
 
     Typeface arabicTypeface;
     CHECK(arabicTypeface.TrySetFamily("Amiri"));

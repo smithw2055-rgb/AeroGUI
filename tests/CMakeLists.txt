@@ -22,6 +22,16 @@ set_target_properties(AeroTextProviderTests PROPERTIES CXX_STANDARD 17 CXX_STAND
 aero_apply_compiler_options(AeroTextProviderTests)
 add_test(NAME AeroTextProviderTests COMMAND AeroTextProviderTests)
 
+add_executable(AeroTextLayoutTests text/TextLayoutTests.cpp)
+target_link_libraries(AeroTextLayoutTests PRIVATE Aero::Text)
+target_compile_features(AeroTextLayoutTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextLayoutTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextLayoutTests)
+add_test(NAME AeroTextLayoutTests COMMAND AeroTextLayoutTests)
+
 add_executable(AeroGlyphAtlasTests text/GlyphAtlasTests.cpp)
 target_link_libraries(AeroGlyphAtlasTests PRIVATE Aero::Text)
 target_compile_features(AeroGlyphAtlasTests PRIVATE cxx_std_17)
