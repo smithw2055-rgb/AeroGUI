@@ -2,6 +2,7 @@
 
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/MetadataDsl.hpp>
 
 #include <cctype>
 #include <cerrno>
@@ -12,7 +13,6 @@
 namespace Aero::Core {
 namespace {
 
-constexpr Base::StringView PresentationNamespace = AeroNamespaceUri();
 constexpr double DefaultMaximum = 1.0e12;
 thread_local PresentationContext* CurrentPresentationContext = nullptr;
 
@@ -348,13 +348,6 @@ Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyPropert
 Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
     const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinHeightProperty); }
 
-Base::Result<TypeId> RegisterType(
-    MetadataRegistrationTypes types, Base::StringView name,
-    TypeId base, TypeFlags flags = TypeFlags::None) noexcept {
-    return types.TryRegisterType(
-        {PresentationNamespace, name, base, flags, nullptr});
-}
-
 } // namespace
 
 PresentationContext GetCurrentPresentationContext() noexcept {
@@ -426,291 +419,365 @@ PresentationContextScope::~PresentationContextScope() {
     CurrentPresentationContext = previous_;
 }
 
-AERO_IMPLEMENT_EMPTY_METADATA(DependencyObject, TypeFlags::Abstract)
-AERO_IMPLEMENT_EMPTY_METADATA(Visual, TypeFlags::Abstract)
+Base::Result<void> TryRegisterPresentationMetadata(
+    MetaRegistrationContext& context) noexcept {
+    Base::Result<void> status;
 
-AERO_IMPLEMENT_METADATA(UIElement, TypeFlags::Abstract) {
-    if (helper.Context().RoutedEvents() != nullptr) {
-        AeroEvent(MouseMove, BuiltinTypes::MouseEventArgs, RoutingStrategy::Bubble);
-        AeroEvent(MouseDown, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
-        AeroEvent(MouseUp, BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble);
-        AeroEvent(GotKeyboardFocus, BuiltinTypes::KeyboardFocusChangedEventArgs,
-            RoutingStrategy::Bubble);
-        AeroEvent(LostKeyboardFocus, BuiltinTypes::KeyboardFocusChangedEventArgs,
-            RoutingStrategy::Bubble);
-        AeroEvent(KeyDown, BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble);
-        AeroEvent(KeyUp, BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble);
-        AeroEvent(TextInput, BuiltinTypes::TextCompositionEventArgs,
-            RoutingStrategy::Bubble);
+    MetaTypeBuilder<Base::Object> object =
+        MetaTypeBuilder<Base::Object>::Object(context);
+    status = object.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<bool> boolean =
+        MetaTypeBuilder<bool>::Primitive(context);
+    boolean.TextConverter(&ConvertBoolean);
+    status = boolean.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<std::uint32_t> unsignedInteger =
+        MetaTypeBuilder<std::uint32_t>::Primitive(context);
+    unsignedInteger.TextConverter(&ConvertUnsigned);
+    status = unsignedInteger.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<double> number =
+        MetaTypeBuilder<double>::Primitive(context);
+    number.TextConverter(&ConvertDoubleValue);
+    status = number.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Base::String> string =
+        MetaTypeBuilder<Base::String>::Primitive(context);
+    string.TextConverter(&ConvertString);
+    status = string.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<EventArgs> eventArgs =
+        MetaTypeBuilder<EventArgs>::Struct(context);
+    status = eventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<RoutedEventArgs> routedEventArgs =
+        MetaTypeBuilder<RoutedEventArgs>::Struct(context);
+    status = routedEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<InputEventArgs> inputEventArgs =
+        MetaTypeBuilder<InputEventArgs>::Struct(context);
+    status = inputEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<MouseEventArgs> mouseEventArgs =
+        MetaTypeBuilder<MouseEventArgs>::Struct(context);
+    status = mouseEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<MouseButtonEventArgs> mouseButtonEventArgs =
+        MetaTypeBuilder<MouseButtonEventArgs>::Struct(context);
+    status = mouseButtonEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<KeyEventArgs> keyEventArgs =
+        MetaTypeBuilder<KeyEventArgs>::Struct(context);
+    status = keyEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<TextCompositionEventArgs> textCompositionEventArgs =
+        MetaTypeBuilder<TextCompositionEventArgs>::Struct(context);
+    status = textCompositionEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<KeyboardFocusChangedEventArgs> focusEventArgs =
+        MetaTypeBuilder<KeyboardFocusChangedEventArgs>::Struct(context);
+    status = focusEventArgs.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Length> length =
+        MetaTypeBuilder<Length>::Struct(context);
+    length
+        .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr,
+            &EqualLength, nullptr, true})
+        .TextConverter(&ConvertLength, &context.ValueRegistrations());
+    status = length.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Thickness> thickness =
+        MetaTypeBuilder<Thickness>::Struct(context);
+    thickness
+        .Field<&Thickness::left>("Left")
+        .Field<&Thickness::top>("Top")
+        .Field<&Thickness::right>("Right")
+        .Field<&Thickness::bottom>("Bottom")
+        .ValueSemantics({sizeof(Thickness), alignof(Thickness), nullptr,
+            nullptr, &EqualThickness, nullptr, true})
+        .TextConverter(&ConvertThickness, &context.ValueRegistrations());
+    status = thickness.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Color> color = MetaTypeBuilder<Color>::Struct(context);
+    color
+        .Field<&Color::red>("Red")
+        .Field<&Color::green>("Green")
+        .Field<&Color::blue>("Blue")
+        .Field<&Color::alpha>("Alpha")
+        .ValueSemantics({sizeof(Color), alignof(Color), nullptr, nullptr,
+            &EqualColor, nullptr, true})
+        .TextConverter(&ConvertColor, &context.ValueRegistrations());
+    status = color.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<HorizontalAlignment> horizontal =
+        MetaTypeBuilder<HorizontalAlignment>::Enum(
+            context, BuiltinTypes::UnsignedInteger);
+    horizontal
+        .EnumValue("Stretch", HorizontalAlignment::Stretch)
+        .EnumValue("Left", HorizontalAlignment::Left)
+        .EnumValue("Center", HorizontalAlignment::Center)
+        .EnumValue("Right", HorizontalAlignment::Right)
+        .TextConverter(&ConvertHorizontal);
+    status = horizontal.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<VerticalAlignment> vertical =
+        MetaTypeBuilder<VerticalAlignment>::Enum(
+            context, BuiltinTypes::UnsignedInteger);
+    vertical
+        .EnumValue("Stretch", VerticalAlignment::Stretch)
+        .EnumValue("Top", VerticalAlignment::Top)
+        .EnumValue("Center", VerticalAlignment::Center)
+        .EnumValue("Bottom", VerticalAlignment::Bottom)
+        .TextConverter(&ConvertVertical);
+    status = vertical.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Orientation> orientation =
+        MetaTypeBuilder<Orientation>::Enum(
+            context, BuiltinTypes::UnsignedInteger);
+    orientation
+        .EnumValue("Horizontal", Orientation::Horizontal)
+        .EnumValue("Vertical", Orientation::Vertical)
+        .TextConverter(&ConvertOrientation);
+    status = orientation.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<DependencyObject> dependencyObject =
+        MetaTypeBuilder<DependencyObject>::Object(
+            context, TypeFlags::Abstract);
+    status = dependencyObject.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Visual> visual =
+        MetaTypeBuilder<Visual>::Object(context, TypeFlags::Abstract);
+    status = visual.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<UIElement> uiElement =
+        MetaTypeBuilder<UIElement>::Object(context, TypeFlags::Abstract);
+    if (context.RoutedEvents() != nullptr) {
+        uiElement
+            .RoutedEvent(UIElement::MouseMoveEvent, "MouseMove",
+                BuiltinTypes::MouseEventArgs, RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::MouseDownEvent, "MouseDown",
+                BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::MouseUpEvent, "MouseUp",
+                BuiltinTypes::MouseButtonEventArgs, RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::GotKeyboardFocusEvent,
+                "GotKeyboardFocus", BuiltinTypes::KeyboardFocusChangedEventArgs,
+                RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::LostKeyboardFocusEvent,
+                "LostKeyboardFocus", BuiltinTypes::KeyboardFocusChangedEventArgs,
+                RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::KeyDownEvent, "KeyDown",
+                BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::KeyUpEvent, "KeyUp",
+                BuiltinTypes::KeyEventArgs, RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::TextInputEvent, "TextInput",
+                BuiltinTypes::TextCompositionEventArgs,
+                RoutingStrategy::Bubble);
     }
-    const auto arrange = PropertyMetadataFlags::AffectsArrange;
-    AeroDP(ClipToBounds, BuiltinTypes::Boolean,
-        Value::FromBoolean(BuiltinTypes::Boolean, false), arrange);
-    AeroDP(IsHitTestVisible, BuiltinTypes::Boolean,
-        Value::FromBoolean(BuiltinTypes::Boolean, true),
-        PropertyMetadataFlags::None);
-}
+    uiElement
+        .DependencyProperty(UIElement::ClipToBoundsProperty, "ClipToBounds",
+            BuiltinTypes::Boolean,
+            Value::FromBoolean(BuiltinTypes::Boolean, false),
+            PropertyMetadataFlags::AffectsArrange)
+        .DependencyProperty(UIElement::IsHitTestVisibleProperty,
+            "IsHitTestVisible", BuiltinTypes::Boolean,
+            Value::FromBoolean(BuiltinTypes::Boolean, true),
+            PropertyMetadataFlags::None);
+    status = uiElement.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(FrameworkElement, TypeFlags::Abstract) {
-    MetaRegistrationContext& context = helper.Context();
+    MetaTypeBuilder<FrameworkElement> frameworkElement =
+        MetaTypeBuilder<FrameworkElement>::Object(
+            context, TypeFlags::Abstract);
     const Length autoSource = Length::Auto();
     Base::Result<Value> automatic = context.Values().TryCreateValue(
         BuiltinTypes::Length, &autoSource);
-    if (!automatic) {
-        helper.Fail(automatic.GetStatus());
-        return;
-    }
+    if (!automatic) return automatic.GetStatus();
     const Thickness zero{};
     Base::Result<Value> margin = context.Values().TryCreateValue(
         BuiltinTypes::Thickness, &zero);
-    if (!margin) {
-        helper.Fail(margin.GetStatus());
-        return;
-    }
-    const auto measure = PropertyMetadataFlags::AffectsMeasure;
-    const auto arrange = PropertyMetadataFlags::AffectsArrange;
-    AeroDP(Width, BuiltinTypes::Length, automatic.Value(), measure,
-        &ValidateLength);
-    AeroDP(Height, BuiltinTypes::Length, automatic.Value(), measure,
-        &ValidateLength);
-    AeroDP(MinWidth, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, 0.0), measure,
-        &ValidateNonnegativeDouble, &CoerceMinWidth);
-    AeroDP(MaxWidth, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, DefaultMaximum), measure,
-        &ValidateNonnegativeDouble, &CoerceMaxWidth);
-    AeroDP(MinHeight, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, 0.0), measure,
-        &ValidateNonnegativeDouble, &CoerceMinHeight);
-    AeroDP(MaxHeight, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, DefaultMaximum), measure,
-        &ValidateNonnegativeDouble, &CoerceMaxHeight);
-    AeroDP(Margin, BuiltinTypes::Thickness, margin.Value(), measure,
-        &ValidateThicknessValue);
-    AeroDP(HorizontalAlignment, BuiltinTypes::HorizontalAlignment,
-        Value::FromUnsignedInteger(BuiltinTypes::HorizontalAlignment, 0U),
-        arrange, &ValidateHorizontalValue);
-    AeroDP(VerticalAlignment, BuiltinTypes::VerticalAlignment,
-        Value::FromUnsignedInteger(BuiltinTypes::VerticalAlignment, 0U),
-        arrange, &ValidateVerticalValue);
-    AeroDP(UseLayoutRounding, BuiltinTypes::Boolean,
-        Value::FromBoolean(BuiltinTypes::Boolean, false), measure);
-}
+    if (!margin) return margin.GetStatus();
+    frameworkElement
+        .DependencyProperty(FrameworkElement::WidthProperty, "Width",
+            BuiltinTypes::Length, automatic.Value(),
+            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
+        .DependencyProperty(FrameworkElement::HeightProperty, "Height",
+            BuiltinTypes::Length, automatic.Value(),
+            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
+        .DependencyProperty(FrameworkElement::MinWidthProperty, "MinWidth",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, 0.0),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble, &CoerceMinWidth)
+        .DependencyProperty(FrameworkElement::MaxWidthProperty, "MaxWidth",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, DefaultMaximum),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble, &CoerceMaxWidth)
+        .DependencyProperty(FrameworkElement::MinHeightProperty, "MinHeight",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, 0.0),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble, &CoerceMinHeight)
+        .DependencyProperty(FrameworkElement::MaxHeightProperty, "MaxHeight",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, DefaultMaximum),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble, &CoerceMaxHeight)
+        .DependencyProperty(FrameworkElement::MarginProperty, "Margin",
+            BuiltinTypes::Thickness, margin.Value(),
+            PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue)
+        .DependencyProperty(FrameworkElement::HorizontalAlignmentProperty,
+            "HorizontalAlignment", BuiltinTypes::HorizontalAlignment,
+            Value::FromUnsignedInteger(
+                BuiltinTypes::HorizontalAlignment, 0U),
+            PropertyMetadataFlags::AffectsArrange, &ValidateHorizontalValue)
+        .DependencyProperty(FrameworkElement::VerticalAlignmentProperty,
+            "VerticalAlignment", BuiltinTypes::VerticalAlignment,
+            Value::FromUnsignedInteger(
+                BuiltinTypes::VerticalAlignment, 0U),
+            PropertyMetadataFlags::AffectsArrange, &ValidateVerticalValue)
+        .DependencyProperty(FrameworkElement::UseLayoutRoundingProperty,
+            "UseLayoutRounding", BuiltinTypes::Boolean,
+            Value::FromBoolean(BuiltinTypes::Boolean, false),
+            PropertyMetadataFlags::AffectsMeasure);
+    status = frameworkElement.Finish();
+    if (!status) return status.GetStatus();
 
+    MetaTypeBuilder<Panel> panel =
+        MetaTypeBuilder<Panel>::Object(context, TypeFlags::Abstract);
+    panel.Content("Children", ContentKind::Collection);
+    status = panel.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(StackPanel, TypeFlags::None) {
-    AeroDP(Orientation, BuiltinTypes::Orientation,
-        Value::FromUnsignedInteger(BuiltinTypes::Orientation, 1U),
-        PropertyMetadataFlags::AffectsMeasure, &ValidateOrientationValue);
-    AeroContent("Children", ContentKind::Collection);
-}
+    MetaTypeBuilder<Decorator> decorator =
+        MetaTypeBuilder<Decorator>::Object(context, TypeFlags::Abstract);
+    decorator.Content("Content", ContentKind::Single);
+    status = decorator.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(Canvas, TypeFlags::None) {
-    AeroAttachedDP(Left, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, 0.0),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
-    AeroAttachedDP(Top, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, 0.0),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateFiniteDouble);
-    AeroContent("Children", ContentKind::Collection);
-}
+    MetaTypeBuilder<Control> control =
+        MetaTypeBuilder<Control>::Object(context, TypeFlags::Abstract);
+    status = control.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(Grid, TypeFlags::None) {
-    AeroAttachedDP(Row, BuiltinTypes::UnsignedInteger,
-        Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
-    AeroAttachedDP(Column, BuiltinTypes::UnsignedInteger,
-        Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
-        PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32);
-    AeroContent("Children", ContentKind::Collection);
-}
+    MetaTypeBuilder<ContentControl> contentControl =
+        MetaTypeBuilder<ContentControl>::Object(
+            context, TypeFlags::Abstract);
+    contentControl.Content("Content", ContentKind::Single);
+    status = contentControl.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(Border, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
+    MetaTypeBuilder<UserControl> userControl =
+        MetaTypeBuilder<UserControl>::Object(context);
+    status = userControl.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<StackPanel> stackPanel =
+        MetaTypeBuilder<StackPanel>::Object(context);
+    stackPanel
+        .DependencyProperty(StackPanel::OrientationProperty, "Orientation",
+            BuiltinTypes::Orientation,
+            Value::FromUnsignedInteger(BuiltinTypes::Orientation, 1U),
+            PropertyMetadataFlags::AffectsMeasure, &ValidateOrientationValue)
+        .Content("Children", ContentKind::Collection);
+    status = stackPanel.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Canvas> canvas =
+        MetaTypeBuilder<Canvas>::Object(context);
+    canvas
+        .AttachedDependencyProperty(Canvas::LeftProperty, "Left",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, 0.0),
+            PropertyMetadataFlags::AffectsParentMeasure,
+            &ValidateFiniteDouble)
+        .AttachedDependencyProperty(Canvas::TopProperty, "Top",
+            BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, 0.0),
+            PropertyMetadataFlags::AffectsParentMeasure,
+            &ValidateFiniteDouble)
+        .Content("Children", ContentKind::Collection);
+    status = canvas.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Grid> grid = MetaTypeBuilder<Grid>::Object(context);
+    grid
+        .AttachedDependencyProperty(Grid::RowProperty, "Row",
+            BuiltinTypes::UnsignedInteger,
+            Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
+            PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32)
+        .AttachedDependencyProperty(Grid::ColumnProperty, "Column",
+            BuiltinTypes::UnsignedInteger,
+            Value::FromUnsignedInteger(BuiltinTypes::UnsignedInteger, 0U),
+            PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32)
+        .Content("Children", ContentKind::Collection);
+    status = grid.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Border> border = MetaTypeBuilder<Border>::Object(context);
     const Color transparent{};
-    Base::Result<Value> color = context.Values().TryCreateValue(
+    Base::Result<Value> transparentValue = context.Values().TryCreateValue(
         BuiltinTypes::Color, &transparent);
-    if (!color) {
-        helper.Fail(color.GetStatus());
-        return;
-    }
-    const Thickness zero{};
+    if (!transparentValue) return transparentValue.GetStatus();
     Base::Result<Value> padding = context.Values().TryCreateValue(
         BuiltinTypes::Thickness, &zero);
-    if (!padding) {
-        helper.Fail(padding.GetStatus());
-        return;
-    }
-    AeroDP(Background, BuiltinTypes::Color, color.Value(),
-        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderBrush, BuiltinTypes::Color, color.Value(),
-        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-    AeroDP(BorderThickness, BuiltinTypes::Double,
-        Value::FromDouble(BuiltinTypes::Double, 0.0),
-        PropertyMetadataFlags::AffectsRender, &ValidateNonnegativeDouble);
-    AeroDP(Padding, BuiltinTypes::Thickness, padding.Value(),
-        PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue);
-    AeroContent("Content", ContentKind::Single);
-}
+    if (!padding) return padding.GetStatus();
+    border
+        .DependencyProperty(Border::BackgroundProperty, "Background",
+            BuiltinTypes::Color, transparentValue.Value(),
+            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
+        .DependencyProperty(Border::BorderBrushProperty, "BorderBrush",
+            BuiltinTypes::Color, transparentValue.Value(),
+            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
+        .DependencyProperty(Border::BorderThicknessProperty,
+            "BorderThickness", BuiltinTypes::Double,
+            Value::FromDouble(BuiltinTypes::Double, 0.0),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateNonnegativeDouble)
+        .DependencyProperty(Border::PaddingProperty, "Padding",
+            BuiltinTypes::Thickness, padding.Value(),
+            PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue)
+        .Content("Content", ContentKind::Single);
+    status = border.Finish();
+    if (!status) return status.GetStatus();
 
-AERO_IMPLEMENT_METADATA(TextBlock, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
-    Base::Result<Value> text = Value::TryFromString(
-        BuiltinTypes::String, {});
-    if (!text) {
-        helper.Fail(text.GetStatus());
-        return;
-    }
+    MetaTypeBuilder<TextBlock> textBlock =
+        MetaTypeBuilder<TextBlock>::Object(context);
+    Base::Result<Value> text = Value::TryFromString(BuiltinTypes::String, {});
+    if (!text) return text.GetStatus();
     const Color black{0.0F, 0.0F, 0.0F, 1.0F};
     Base::Result<Value> foreground = context.Values().TryCreateValue(
         BuiltinTypes::Color, &black);
-    if (!foreground) {
-        helper.Fail(foreground.GetStatus());
-        return;
-    }
-    AeroDP(Text, BuiltinTypes::String, text.Value(),
-        PropertyMetadataFlags::AffectsMeasure);
-    AeroDP(Foreground, BuiltinTypes::Color, foreground.Value(),
-        PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
-}
-
-AERO_IMPLEMENT_METADATA(ContentPresenter, TypeFlags::None) {
-    AeroContent("Content", ContentKind::Single);
-}
-
-Base::Result<void> TryRegisterPresentationMetadata(
-    MetaRegistrationContext& context) noexcept {
-    MetadataRegistrationTypes registrationTypes = context.Types();
-    MetadataValueRegistrationStore& values = context.ValueRegistrations();
-    auto registerType = [&registrationTypes](Base::StringView name, TypeId base,
-        TypeFlags flags, TypeId expected) noexcept -> Base::Result<void> {
-        Base::Result<TypeId> registered = RegisterType(registrationTypes, name, base, flags);
-        if (!registered) return registered.GetStatus();
-        if (registered.Value() != expected) {
-            return Base::Status::Failure(Base::ErrorCode::InternalError,
-                "Built-in metadata type ID does not match its canonical ID");
-        }
-        return {};
-    };
-
-    Base::Result<void> status = registerType(
-        Base::StringView("Object"), InvalidTypeId, TypeFlags::None,
-        BuiltinTypes::Object);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("EventArgs"), InvalidTypeId,
-        TypeFlags::ValueType, BuiltinTypes::EventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("RoutedEventArgs"),
-        BuiltinTypes::EventArgs, TypeFlags::ValueType,
-        BuiltinTypes::RoutedEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("InputEventArgs"),
-        BuiltinTypes::RoutedEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::InputEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("MouseEventArgs"),
-        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::MouseEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("MouseButtonEventArgs"),
-        BuiltinTypes::MouseEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::MouseButtonEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("KeyEventArgs"),
-        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::KeyEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("TextCompositionEventArgs"),
-        BuiltinTypes::InputEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::TextCompositionEventArgs);
-    if (!status) return status.GetStatus();
-    status = registerType(Base::StringView("KeyboardFocusChangedEventArgs"),
-        BuiltinTypes::RoutedEventArgs, TypeFlags::ValueType,
-        BuiltinTypes::KeyboardFocusChangedEventArgs);
+    if (!foreground) return foreground.GetStatus();
+    textBlock
+        .DependencyProperty(TextBlock::TextProperty, "Text",
+            BuiltinTypes::String, text.Value(),
+            PropertyMetadataFlags::AffectsMeasure)
+        .DependencyProperty(TextBlock::ForegroundProperty, "Foreground",
+            BuiltinTypes::Color, foreground.Value(),
+            PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
+    status = textBlock.Finish();
     if (!status) return status.GetStatus();
 
-    const struct BuiltinValueType final {
-        Base::StringView name;
-        TypeId id;
-    } valueTypes[] = {
-        {Base::StringView("Boolean"), BuiltinTypes::Boolean},
-        {Base::StringView("UInt32"), BuiltinTypes::UnsignedInteger},
-        {Base::StringView("Double"), BuiltinTypes::Double},
-        {Base::StringView("String"), BuiltinTypes::String},
-        {Base::StringView("Length"), BuiltinTypes::Length},
-        {Base::StringView("Thickness"), BuiltinTypes::Thickness},
-        {Base::StringView("Color"), BuiltinTypes::Color},
-        {Base::StringView("HorizontalAlignment"),
-            BuiltinTypes::HorizontalAlignment},
-        {Base::StringView("VerticalAlignment"),
-            BuiltinTypes::VerticalAlignment},
-        {Base::StringView("Orientation"), BuiltinTypes::Orientation}
-    };
-    for (const BuiltinValueType& valueType : valueTypes) {
-        status = registerType(valueType.name, InvalidTypeId,
-            TypeFlags::ValueType, valueType.id);
-        if (!status) return status.GetStatus();
-    }
-
-    MetadataRegistrationValues registrationValues(values);
-    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Length,
-        {sizeof(Length), alignof(Length), nullptr, nullptr,
-         &EqualLength, nullptr, true});
-    if (!status) return status.GetStatus();
-    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Thickness,
-        {sizeof(Thickness), alignof(Thickness), nullptr, nullptr,
-         &EqualThickness, nullptr, true});
-    if (!status) return status.GetStatus();
-    status = registrationValues.TryRegisterValueSemantics(BuiltinTypes::Color,
-        {sizeof(Color), alignof(Color), nullptr, nullptr,
-         &EqualColor, nullptr, true});
-    if (!status) return status.GetStatus();
-
-    const TextValueConverterRegistration converters[] = {
-        {BuiltinTypes::Boolean, &ConvertBoolean, nullptr},
-        {BuiltinTypes::UnsignedInteger, &ConvertUnsigned, nullptr},
-        {BuiltinTypes::Double, &ConvertDoubleValue, nullptr},
-        {BuiltinTypes::String, &ConvertString, nullptr},
-        {BuiltinTypes::Length, &ConvertLength, &values},
-        {BuiltinTypes::Thickness, &ConvertThickness, &values},
-        {BuiltinTypes::Color, &ConvertColor, &values},
-        {BuiltinTypes::HorizontalAlignment, &ConvertHorizontal, nullptr},
-        {BuiltinTypes::VerticalAlignment, &ConvertVertical, nullptr},
-        {BuiltinTypes::Orientation, &ConvertOrientation, nullptr}
-    };
-    for (const TextValueConverterRegistration& converter : converters) {
-        status = registrationValues.TryRegisterTextConverter(converter);
-        if (!status) return status.GetStatus();
-    }
-
-    MetaRegistrationContext& registrationContext = context;
-    using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
-    const Registrar presentationRegistrars[] = {
-        &DependencyObject::TryRegisterMetadata,
-        &Visual::TryRegisterMetadata,
-        &UIElement::TryRegisterMetadata,
-        &FrameworkElement::TryRegisterMetadata
-    };
-    for (Registrar registrar : presentationRegistrars) {
-        status = registrar(registrationContext);
-        if (!status) return status.GetStatus();
-    }
-    status = TryRegisterControlPrimitiveMetadata(registrationContext);
-    if (!status) return status.GetStatus();
-
-    const Registrar controlRegistrars[] = {
-        &StackPanel::TryRegisterMetadata,
-        &Canvas::TryRegisterMetadata,
-        &Grid::TryRegisterMetadata,
-        &Border::TryRegisterMetadata,
-        &TextBlock::TryRegisterMetadata,
-        &ContentPresenter::TryRegisterMetadata
-    };
-    for (Registrar registrar : controlRegistrars) {
-        status = registrar(registrationContext);
-        if (!status) return status.GetStatus();
-    }
-    return {};
+    MetaTypeBuilder<ContentPresenter> contentPresenter =
+        MetaTypeBuilder<ContentPresenter>::Object(context);
+    contentPresenter.Content("Content", ContentKind::Single);
+    return contentPresenter.Finish();
 }
 
 } // namespace Aero::Core

@@ -118,20 +118,21 @@ struct Fixture final {
         const StringView ns("urn:xaml-style-tests");
 
         const TypeRegistration registrations[] = {
-            {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
-            {ns, StringView("String"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Double"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("TypeReference"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot},
-            {ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement},
-            {ns, StringView("Brush"), objectType, TypeFlags::None, &MakeBrush},
-            {ns, StringView("Style"), objectType, TypeFlags::None, nullptr},
-            {ns, StringView("Setter"), objectType, TypeFlags::None, nullptr},
-            {XamlLanguageNamespaceUri(), StringView("Type"), objectType,
-             TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr}
+            TypeRegistration::Object(ns, "Object"),
+            TypeRegistration::Primitive(ns, "String"),
+            TypeRegistration::Primitive(ns, "Double"),
+            TypeRegistration::Primitive(ns, "TypeReference"),
+            TypeRegistration::Object(ns, "Root", objectType,
+                TypeFlags::None, &MakeRoot),
+            TypeRegistration::Object(ns, "Element", objectType,
+                TypeFlags::None, &MakeElement),
+            TypeRegistration::Object(ns, "Brush", objectType,
+                TypeFlags::None, &MakeBrush),
+            TypeRegistration::Object(ns, "Style", objectType),
+            TypeRegistration::Object(ns, "Setter", objectType),
+            TypeRegistration::Object(XamlLanguageNamespaceUri(), "Type",
+                objectType,
+                TypeFlags::MarkupExtension | TypeFlags::Sealed)
         };
         for (const TypeRegistration& registration : registrations) {
             Result<TypeId> registered = types.TryRegisterType(registration);

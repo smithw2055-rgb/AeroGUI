@@ -45,8 +45,7 @@ struct Fixture final {
         objectType=BuiltinTypes::Object;
         rootType=BuiltinTypes::StackPanel;
         boxType=MakeTypeId(ns,StringView("Box"));
-        CHECK(typesRegistration.TryRegisterType({ns,StringView("Box"),
-            BuiltinTypes::UIElement,TypeFlags::None,nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Box"), BuiltinTypes::UIElement, TypeFlags::None, nullptr)));
         CHECK(types.Freeze()); CHECK(typesBehaviors.Freeze()); CHECK(valueRegistrations.Freeze()); CHECK(properties.Freeze()); CHECK(events.Freeze()); CHECK(values.Initialize()); CHECK(tree.Initialize()); CHECK(layout.Initialize()); return true;
     }
 };

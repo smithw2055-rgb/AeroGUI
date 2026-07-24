@@ -61,10 +61,8 @@ struct Fixture final {
         const StringView ns("urn:aero");
         objectType = MakeTypeId(ns, StringView("Object"));
         elementType = MakeTypeId(ns, StringView("FrameworkElement"));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("FrameworkElement"), objectType,
-            TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("FrameworkElement"), objectType, TypeFlags::None, nullptr)));
         CHECK(types.Freeze());
         CHECK(properties.Freeze());
         return true;

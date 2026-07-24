@@ -413,12 +413,9 @@ bool BuildPlan(
     const TypeId objectType = MakeTypeId(ns, StringView("Object"));
     const TypeId panelType = MakeTypeId(ns, StringView("PlanPanel"));
     const TypeId elementType = MakeTypeId(ns, StringView("PlanElement"));
-    CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId,
-        TypeFlags::None, nullptr}));
-    CHECK(typesRegistration.TryRegisterType({ns, StringView("PlanPanel"), objectType,
-        TypeFlags::None, nullptr}));
-    CHECK(typesRegistration.TryRegisterType({ns, StringView("PlanElement"), objectType,
-        TypeFlags::None, nullptr}));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("PlanPanel"), objectType, TypeFlags::None, nullptr)));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("PlanElement"), objectType, TypeFlags::None, nullptr)));
     CHECK(types.Freeze());
     CHECK(properties.Freeze());
 

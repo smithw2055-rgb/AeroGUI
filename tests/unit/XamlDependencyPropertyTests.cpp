@@ -200,18 +200,15 @@ struct Fixture final {
         DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:dp");
         const TypeRegistration registrations[] = {
-            {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
-            {ns, StringView("Boolean"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Int64"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("UInt64"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Double"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Element"), objectType, TypeFlags::None, nullptr},
-            {ns, StringView("Button"), elementType, TypeFlags::Sealed, nullptr},
-            {ns, StringView("Grid"), objectType, TypeFlags::None, nullptr}
+            TypeRegistration::Object(ns, "Object"),
+            TypeRegistration::Primitive(ns, "Boolean"),
+            TypeRegistration::Primitive(ns, "Int64"),
+            TypeRegistration::Primitive(ns, "UInt64"),
+            TypeRegistration::Primitive(ns, "Double"),
+            TypeRegistration::Object(ns, "Element", objectType),
+            TypeRegistration::Object(
+                ns, "Button", elementType, TypeFlags::Sealed),
+            TypeRegistration::Object(ns, "Grid", objectType)
         };
         for (const TypeRegistration& registration : registrations) {
             Result<TypeId> registered = types.TryRegisterType(registration);
@@ -568,9 +565,7 @@ Result<void> RegisterGuardMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
     const StringView ns("urn:guard");
-    Result<TypeId> registered = context.Types().TryRegisterType({
-        ns, StringView("Object"), InvalidTypeId,
-        TypeFlags::None, nullptr});
+    Result<TypeId> registered = context.Types().TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr));
     return registered ? Result<void>() : Result<void>(registered.GetStatus());
 }
 

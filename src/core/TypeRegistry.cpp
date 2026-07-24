@@ -433,11 +433,7 @@ Base::Result<TypeId> TypeRegistry::TryRegisterType(
             : Base::Result<TypeId>(IdCollisionStatus());
     }
 
-    MetadataTypeKind kind = registration.kind;
-    if (kind == MetadataTypeKind::Object &&
-        HasTypeFlag(registration.flags, TypeFlags::ValueType)) {
-        kind = MetadataTypeKind::Primitive;
-    }
+    const MetadataTypeKind kind = registration.kind;
     TypeFlags flags = registration.flags;
     if (kind == MetadataTypeKind::Interface) {
         flags = flags | TypeFlags::Abstract;
@@ -892,21 +888,17 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         if (type.BaseType() != InvalidTypeId) {
             const TypeInfo* base = FindType(type.BaseType());
             if (base == nullptr) return MissingRelatedTypeStatus();
-            if (type.Kind() != MetadataTypeKind::Object ||
-                base->Kind() != MetadataTypeKind::Object) {
+            const bool objectInheritance =
+                type.Kind() == MetadataTypeKind::Object &&
+                base->Kind() == MetadataTypeKind::Object;
+            const bool structInheritance =
+                type.Kind() == MetadataTypeKind::Struct &&
+                base->Kind() == MetadataTypeKind::Struct;
+            if (!objectInheritance && !structInheritance) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
-                    "Only object metadata types may use class inheritance");
+                    "Metadata base types must preserve object or struct kind");
             }
-        }
-        if ((type.Kind() == MetadataTypeKind::Interface ||
-             type.Kind() == MetadataTypeKind::Struct ||
-             type.Kind() == MetadataTypeKind::Enum ||
-             type.Kind() == MetadataTypeKind::Primitive) &&
-            type.BaseType() != InvalidTypeId) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Non-object metadata types cannot declare a base class");
         }
         if (type.Kind() == MetadataTypeKind::Enum) {
             if (type.UnderlyingType() == InvalidTypeId ||

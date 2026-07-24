@@ -50,12 +50,6 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
-#define AERO_DECLARE_DEPENDENCY_PROPERTY(propertyName) \
-    inline static constexpr Aero::Core::DependencyPropertyHandle \
-        propertyName##Property = \
-            Aero::Core::MakeDependencyPropertyHandle( \
-                StaticTypeIdValue_, #propertyName)
-
 using PropertyValueKind = ValueKind;
 using PropertyValue = Value;
 
@@ -359,7 +353,7 @@ private:
 };
 
 class AERO_API DependencyObject : public DispatcherObject {
-    AERO_DECLARE_METADATA(DependencyObject, Base::Object)
+    AERO_TYPED_META(DependencyObject, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;

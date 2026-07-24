@@ -15,11 +15,11 @@
 #include <Aero/Core/Value.hpp>
 
 #include <cstdint>
+#include <type_traits>
 
 namespace Aero::Core {
 
 class MetaRegistrationContext;
-class MetaRegistrationBuilder;
 class MetadataBehaviorRegistrationStore;
 class MetadataRegistrationTypes;
 class MetadataRuntime;
@@ -178,20 +178,6 @@ using ValueMemberSetCallback = Base::Result<void> (*)(
     void* context) noexcept;
 
 struct TypeRegistration final {
-    TypeRegistration() noexcept = default;
-
-    constexpr TypeRegistration(
-        Base::StringView registeredNamespace,
-        Base::StringView registeredName,
-        TypeId registeredBase = InvalidTypeId,
-        TypeFlags registeredFlags = TypeFlags::None,
-        ObjectFactory registeredFactory = nullptr) noexcept
-        : xamlNamespace(registeredNamespace),
-          name(registeredName),
-          baseType(registeredBase),
-          flags(registeredFlags),
-          factory(registeredFactory) {}
-
     constexpr TypeRegistration(
         Base::StringView registeredNamespace,
         Base::StringView registeredName,
@@ -199,8 +185,8 @@ struct TypeRegistration final {
         TypeFlags registeredFlags,
         ObjectFactory registeredFactory,
         MetadataTypeKind registeredKind,
-        TypeId registeredUnderlying = InvalidTypeId,
-        Base::Span<const TypeId> registeredInterfaces = {}) noexcept
+        TypeId registeredUnderlying,
+        Base::Span<const TypeId> registeredInterfaces) noexcept
         : xamlNamespace(registeredNamespace),
           name(registeredName),
           baseType(registeredBase),
@@ -209,6 +195,56 @@ struct TypeRegistration final {
           kind(registeredKind),
           underlyingType(registeredUnderlying),
           interfaces(registeredInterfaces) {}
+
+    static constexpr TypeRegistration Object(
+        Base::StringView metadataNamespace,
+        Base::StringView name,
+        TypeId baseType = InvalidTypeId,
+        TypeFlags flags = TypeFlags::None,
+        ObjectFactory factory = nullptr,
+        Base::Span<const TypeId> interfaces = {}) noexcept {
+        return {metadataNamespace, name, baseType, flags, factory,
+            MetadataTypeKind::Object, InvalidTypeId, interfaces};
+    }
+
+    static constexpr TypeRegistration Interface(
+        Base::StringView metadataNamespace,
+        Base::StringView name,
+        TypeFlags flags = TypeFlags::None,
+        Base::Span<const TypeId> interfaces = {}) noexcept {
+        return {metadataNamespace, name, InvalidTypeId,
+            flags | TypeFlags::Abstract, nullptr,
+            MetadataTypeKind::Interface, InvalidTypeId, interfaces};
+    }
+
+    static constexpr TypeRegistration Struct(
+        Base::StringView metadataNamespace,
+        Base::StringView name,
+        TypeId baseType = InvalidTypeId,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return {metadataNamespace, name, baseType,
+            flags | TypeFlags::ValueType | TypeFlags::Sealed, nullptr,
+            MetadataTypeKind::Struct, InvalidTypeId, {}};
+    }
+
+    static constexpr TypeRegistration Enum(
+        Base::StringView metadataNamespace,
+        Base::StringView name,
+        TypeId underlyingType,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return {metadataNamespace, name, InvalidTypeId,
+            flags | TypeFlags::ValueType | TypeFlags::Sealed, nullptr,
+            MetadataTypeKind::Enum, underlyingType, {}};
+    }
+
+    static constexpr TypeRegistration Primitive(
+        Base::StringView metadataNamespace,
+        Base::StringView name,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return {metadataNamespace, name, InvalidTypeId,
+            flags | TypeFlags::ValueType | TypeFlags::Sealed, nullptr,
+            MetadataTypeKind::Primitive, InvalidTypeId, {}};
+    }
 
     Base::StringView xamlNamespace;
     Base::StringView name;
@@ -423,10 +459,7 @@ public:
     TypeId Id() const noexcept { return id_; }
     TypeId BaseType() const noexcept { return baseType_; }
     TypeId UnderlyingType() const noexcept { return underlyingType_; }
-    MetadataTypeKind Kind() const noexcept {
-        return kind_ == MetadataTypeKind::Primitive
-            ? MetadataTypeKind::Object : kind_;
-    }
+    MetadataTypeKind Kind() const noexcept { return kind_; }
     TypeFlags Flags() const noexcept { return flags_; }
     bool IsFlagsEnum() const noexcept {
         return kind_ == MetadataTypeKind::Enum &&
@@ -464,13 +497,41 @@ constexpr TypeId MakeTypeId(Base::StringView xamlNamespace, Base::StringView nam
 constexpr Base::StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
 constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeMetaTypeId(name); }
 
-template<class T> struct MetaTypeTraits {
+struct NoMetadataBase final {};
+
+template<class T>
+struct MetaTypeTraits {
     static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
-    static constexpr Base::StringView Namespace() noexcept { return T::StaticMetadataNamespace(); }
-    static constexpr Base::StringView Name() noexcept { return T::StaticMetadataName(); }
-    static constexpr TypeId BaseType() noexcept { return T::ParentClass::StaticTypeId(); }
+    static constexpr Base::StringView Namespace() noexcept {
+        return T::StaticMetadataNamespace();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return T::StaticMetadataName();
+    }
+    static constexpr TypeId BaseType() noexcept {
+        if constexpr (std::is_same_v<typename T::MetadataBaseType,
+            NoMetadataBase>) {
+            return InvalidTypeId;
+        } else {
+            return MetaTypeTraits<typename T::MetadataBaseType>::Id();
+        }
+    }
 };
-template<class T> constexpr TypeId TypeOf() noexcept { return MetaTypeTraits<T>::Id(); }
+
+template<>
+struct MetaTypeTraits<Base::Object> {
+    static constexpr TypeId Id() noexcept {
+        return Base::Object::StaticTypeId();
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Object"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<class T>
+constexpr TypeId TypeOf() noexcept { return MetaTypeTraits<T>::Id(); }
 
 constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
@@ -544,30 +605,27 @@ private:
 
 } // namespace Aero::Core
 
-#define AERO_DECLARE_METADATA_NAMED(classType, parentType, metadataNamespace, metadataName) \
-private: \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(metadataNamespace), Aero::Base::StringView(metadataName)); \
+#define AERO_TYPED_META_NAMED( \
+    typeName, metadataBaseType, metadataNamespace, metadataName) \
 public: \
-    using SelfClass = classType; using ParentClass = parentType; \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; } \
-    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { return Aero::Base::StringView(metadataNamespace); } \
-    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { return Aero::Base::StringView(metadataName); } \
-    static Aero::Base::Result<void> TryRegisterMetadata(Aero::Core::MetaRegistrationContext& context) noexcept; \
-private: \
-    static void StaticFillMetadata(Aero::Core::MetaRegistrationBuilder& helper) noexcept;
+    using MetadataBaseType = metadataBaseType; \
+    static constexpr Aero::Base::StringView \
+    StaticMetadataNamespace() noexcept { \
+        return Aero::Base::StringView(metadataNamespace); \
+    } \
+    static constexpr Aero::Base::StringView \
+    StaticMetadataName() noexcept { \
+        return Aero::Base::StringView(metadataName); \
+    } \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
+        Aero::Core::MakeTypeId( \
+            Aero::Base::StringView(metadataNamespace), \
+            Aero::Base::StringView(metadataName)); \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
+        return StaticTypeIdValue_; \
+    }
 
-#define AERO_DECLARE_METADATA(classType, parentType) \
-private: \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(#classType)); \
-public: \
-    using SelfClass = classType; using ParentClass = parentType; \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; } \
-    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { return Aero::Core::AeroNamespaceUri(); } \
-    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { return Aero::Base::StringView(#classType); } \
-    static Aero::Base::Result<void> TryRegisterMetadata(Aero::Core::MetaRegistrationContext& context) noexcept; \
-private: \
-    static void StaticFillMetadata(Aero::Core::MetaRegistrationBuilder& helper) noexcept;
-
-#define AERO_DECLARE_TYPE_ID(typeName) \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(#typeName)); \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; }
+#define AERO_TYPED_META(typeName, metadataBaseType) \
+    AERO_TYPED_META_NAMED( \
+        typeName, metadataBaseType, \
+        Aero::Core::AeroNamespaceUri(), #typeName)

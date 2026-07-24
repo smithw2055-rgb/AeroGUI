@@ -81,21 +81,11 @@ struct Fixture final {
         elementType = MakeTypeId(ns, StringView("UIElement"));
         controlType = MakeTypeId(ns, StringView("Control"));
 
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("RoutedEventArgs"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Visual"), objectType,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("UIElement"), visualType,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Control"), elementType,
-            TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("RoutedEventArgs"), objectType, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Visual"), objectType, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("UIElement"), visualType, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Control"), elementType, TypeFlags::None, nullptr)));
 
         Result<RoutedEventHandle> bubbleResult = events.TryRegister({
             StringView("Click"), elementType, eventArgsType,

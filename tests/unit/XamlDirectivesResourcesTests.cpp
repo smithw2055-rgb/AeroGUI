@@ -294,16 +294,18 @@ struct Fixture final {
         MetadataRegistrationTypes types = context.Types();
         const StringView ns("urn:directives");
         const TypeRegistration registrations[] = {
-            {ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr},
-            {ns, StringView("String"), InvalidTypeId,
-             TypeFlags::ValueType | TypeFlags::Sealed, nullptr},
-            {ns, StringView("Node"), objectType, TypeFlags::Abstract, nullptr},
-            {ns, StringView("Root"), nodeType, TypeFlags::None, &MakeRoot},
-            {ns, StringView("Leaf"), nodeType, TypeFlags::Sealed, &MakeLeaf},
-            {ns, StringView("Echo"), objectType,
-             TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr},
-            {ns, StringView("NoProvider"), objectType,
-             TypeFlags::Sealed | TypeFlags::MarkupExtension, nullptr}
+            TypeRegistration::Object(ns, "Object"),
+            TypeRegistration::Primitive(ns, "String"),
+            TypeRegistration::Object(
+                ns, "Node", objectType, TypeFlags::Abstract),
+            TypeRegistration::Object(ns, "Root", nodeType,
+                TypeFlags::None, &MakeRoot),
+            TypeRegistration::Object(ns, "Leaf", nodeType,
+                TypeFlags::Sealed, &MakeLeaf),
+            TypeRegistration::Object(ns, "Echo", objectType,
+                TypeFlags::Sealed | TypeFlags::MarkupExtension),
+            TypeRegistration::Object(ns, "NoProvider", objectType,
+                TypeFlags::Sealed | TypeFlags::MarkupExtension)
         };
         for (const TypeRegistration& registration : registrations) {
             Result<TypeId> registered = types.TryRegisterType(registration);

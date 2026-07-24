@@ -8,7 +8,7 @@
 namespace Aero::Core {
 
 class AERO_API Panel : public FrameworkElement {
-    AERO_DECLARE_METADATA(Panel, FrameworkElement)
+    AERO_TYPED_META(Panel, FrameworkElement)
 public:
     std::uint32_t OwnedChildCount() const noexcept { return ownedChildren_.Size(); }
     Base::Result<void> AddOwnedChild(
@@ -48,7 +48,7 @@ private:
 };
 
 class AERO_API Decorator : public FrameworkElement {
-    AERO_DECLARE_METADATA(Decorator, FrameworkElement)
+    AERO_TYPED_META(Decorator, FrameworkElement)
 public:
     UIElement* Child() const noexcept {
         if (child_ != nullptr) return child_;
@@ -126,14 +126,14 @@ private:
 };
 
 class AERO_API Control : public FrameworkElement {
-    AERO_DECLARE_METADATA(Control, FrameworkElement)
+    AERO_TYPED_META(Control, FrameworkElement)
 protected:
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
 };
 
 class AERO_API ContentControl : public Control {
-    AERO_DECLARE_METADATA(ContentControl, Control)
+    AERO_TYPED_META(ContentControl, Control)
 public:
     UIElement* Content() const noexcept { return content_; }
     const Base::Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
@@ -213,54 +213,12 @@ private:
 };
 
 class AERO_API UserControl : public ContentControl {
-    AERO_DECLARE_METADATA(UserControl, ContentControl)
+    AERO_TYPED_META(UserControl, ContentControl)
 public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
 protected:
     explicit UserControl(TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
 };
-
-#define AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(classType, typeFlags, body) \
-    inline Base::Result<void> classType::TryRegisterMetadata( \
-        MetaRegistrationContext& context) noexcept { \
-        MetaRegistrationBuilder helper(context, StaticTypeId(), \
-            StaticMetadataNamespace(), StaticMetadataName(), \
-            ParentClass::StaticTypeId(), typeFlags); \
-        Base::Result<void> begun = helper.Begin(); \
-        if (!begun) return begun.GetStatus(); \
-        StaticFillMetadata(helper); \
-        return helper.Finish(); \
-    } \
-    inline void classType::StaticFillMetadata( \
-        MetaRegistrationBuilder& helper) noexcept body
-
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Panel, TypeFlags::Abstract, {
-    AeroContent("Children", ContentKind::Collection);
-})
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Decorator, TypeFlags::Abstract, {
-    AeroContent("Content", ContentKind::Single);
-})
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(Control, TypeFlags::Abstract, { (void)helper; })
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(ContentControl, TypeFlags::Abstract, {
-    AeroContent("Content", ContentKind::Single);
-})
-AERO_DETAIL_IMPLEMENT_CONTROL_METADATA(UserControl, TypeFlags::None, { (void)helper; })
-
-#undef AERO_DETAIL_IMPLEMENT_CONTROL_METADATA
-
-inline Base::Result<void> TryRegisterControlPrimitiveMetadata(
-    MetaRegistrationContext& context) noexcept {
-    using Registrar = Base::Result<void> (*)(MetaRegistrationContext&) noexcept;
-    const Registrar registrars[] = {
-        &Panel::TryRegisterMetadata, &Decorator::TryRegisterMetadata,
-        &Control::TryRegisterMetadata, &ContentControl::TryRegisterMetadata,
-        &UserControl::TryRegisterMetadata};
-    for (Registrar registrar : registrars) {
-        Base::Result<void> registered = registrar(context);
-        if (!registered) return registered.GetStatus();
-    }
-    return {};
-}
 
 } // namespace Aero::Core

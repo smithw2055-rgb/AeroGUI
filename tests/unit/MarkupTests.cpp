@@ -343,12 +343,7 @@ Result<void> RegisterCustomTextMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
     const StringView ns("urn:custom-values");
-    return context.Types().TryRegisterType({
-        ns,
-        StringView("CustomLength"),
-        InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed,
-        nullptr})
+    return context.Types().TryRegisterType(TypeRegistration::Primitive(ns, StringView("CustomLength"), TypeFlags::ValueType | TypeFlags::Sealed))
         ? Result<void>()
         : Result<void>(Status::Failure(
             ErrorCode::InternalError,

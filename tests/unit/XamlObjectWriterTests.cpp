@@ -290,37 +290,21 @@ struct Fixture final {
     Result<void> RegisterMetadata(MetaRegistrationContext& context) noexcept {
         MetadataRegistrationTypes types = context.Types();
         const StringView ns("urn:test");
-        Result<TypeId> type = types.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr});
+        Result<TypeId> type = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("String"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        type = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("String"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Boolean"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        type = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Boolean"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Int64"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        type = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Int64"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        type = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Element"), objectType,
-            TypeFlags::None, &MakeElement});
+        type = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Leaf"), elementType,
-            TypeFlags::Sealed, &MakeLeaf});
+        type = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Leaf"), elementType, TypeFlags::Sealed, &MakeLeaf));
         if (!type) return type.GetStatus();
-        type = types.TryRegisterType({
-            ns, StringView("Grid"), objectType,
-            TypeFlags::None, nullptr});
+        type = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Grid"), objectType, TypeFlags::None, nullptr));
         if (!type) return type.GetStatus();
 
         Result<MemberId> member = types.TryRegisterProperty(

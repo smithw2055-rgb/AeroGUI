@@ -9,27 +9,43 @@ class MetaRegistrationContext;
 
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 
+template<>
+struct MetaTypeTraits<Orientation> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Orientation"); }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Orientation"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
 class AERO_API StackPanel final : public Panel {
-    AERO_DECLARE_METADATA(StackPanel, Panel)
+    AERO_TYPED_META(StackPanel, Panel)
 public:
     StackPanel() noexcept;
     explicit StackPanel(Orientation orientation) noexcept;
     Orientation GetOrientation() const noexcept;
     Base::Result<void> SetOrientation(Orientation value) noexcept;
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Orientation);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        OrientationProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Orientation");
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
 };
 
 class AERO_API Canvas final : public Panel {
-    AERO_DECLARE_METADATA(Canvas, Panel)
+    AERO_TYPED_META(Canvas, Panel)
 public:
     Canvas() noexcept;
     Base::Result<void> SetChildPosition(UIElement& child, Point position) noexcept;
     Point ChildPosition(const UIElement& child) const noexcept;
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Left);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Top);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        LeftProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Left");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        TopProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Top");
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -46,7 +62,7 @@ struct GridLength final {
 };
 
 class AERO_API Grid final : public Panel {
-    AERO_DECLARE_METADATA(Grid, Panel)
+    AERO_TYPED_META(Grid, Panel)
 public:
     Grid() noexcept;
     Base::Result<void> SetColumnDefinitions(Base::Span<const GridLength> definitions) noexcept;
@@ -54,8 +70,12 @@ public:
     Base::Result<void> SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;
     Base::Span<const GridLength> ColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
     Base::Span<const GridLength> RowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Row);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Column);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        RowProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Row");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        ColumnProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Column");
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -77,7 +97,7 @@ private:
 };
 
 class AERO_API Border : public Decorator {
-    AERO_DECLARE_METADATA(Border, Decorator)
+    AERO_TYPED_META(Border, Decorator)
 public:
     Border() noexcept;
     Base::Result<void> SetBackground(Color value) noexcept;
@@ -89,10 +109,18 @@ public:
     Color BorderBrush() const noexcept;
     double BorderThickness() const noexcept;
     Thickness Padding() const noexcept;
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Background);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(BorderBrush);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(BorderThickness);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Padding);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        BackgroundProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Background");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        BorderBrushProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "BorderBrush");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        BorderThicknessProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "BorderThickness");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        PaddingProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Padding");
 protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -101,7 +129,7 @@ protected:
 };
 
 class AERO_API TextBlock final : public FrameworkElement {
-    AERO_DECLARE_METADATA(TextBlock, FrameworkElement)
+    AERO_TYPED_META(TextBlock, FrameworkElement)
 public:
     TextBlock() noexcept;
     Base::StringView Text() const noexcept;
@@ -110,8 +138,12 @@ public:
     Size GlyphRunSize() const noexcept { return glyphRunSize_; }
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Text);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Foreground);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        TextProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Text");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        ForegroundProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Foreground");
     Base::Result<void> SetGlyphRun(RenderGlyphRunId glyphRun, Size size) noexcept;
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -122,7 +154,7 @@ private:
 };
 
 class AERO_API ContentPresenter final : public FrameworkElement {
-    AERO_DECLARE_METADATA(ContentPresenter, FrameworkElement)
+    AERO_TYPED_META(ContentPresenter, FrameworkElement)
 public:
     ContentPresenter() noexcept;
     UIElement* Content() const noexcept { return content_; }

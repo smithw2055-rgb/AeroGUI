@@ -45,15 +45,9 @@ struct Fixture final {
         doubleType = MakeTypeId(ns, StringView("Double"));
         elementType = MakeTypeId(ns, StringView("Element"));
 
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Element"), objectType,
-            TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), objectType, TypeFlags::None, nullptr)));
 
         DependencyPropertyRegistration widthRegistration;
         widthRegistration.name = StringView("Width");

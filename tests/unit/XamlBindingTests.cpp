@@ -110,29 +110,19 @@ struct Fixture final {
         DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:xaml-binding-tests");
 
-        Result<TypeId> registered = types.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr});
+        Result<TypeId> registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr});
+        registered = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot});
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement});
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("Brush"), objectType, TypeFlags::None, nullptr});
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Brush"), objectType, TypeFlags::None, nullptr));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("Binding"), objectType,
-            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr});
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Binding"), objectType, TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType({
-            ns, StringView("DynamicResource"), objectType,
-            TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr});
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("DynamicResource"), objectType, TypeFlags::MarkupExtension | TypeFlags::Sealed, nullptr));
         if (!registered) return registered.GetStatus();
 
         DependencyPropertyRegistration sourceRegistration;

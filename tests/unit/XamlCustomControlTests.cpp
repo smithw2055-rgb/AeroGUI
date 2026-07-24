@@ -2,6 +2,7 @@
 #include <Aero/Core/ControlPrimitives.hpp>
 #include <Aero/Core/Controls.hpp>
 #include <Aero/Core/MetadataRuntime.hpp>
+#include <Aero/Core/MetadataDsl.hpp>
 #include <Aero/Core/MetadataRegistrationValues.hpp>
 #include <Aero/Core/RuntimeMetadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -35,6 +36,8 @@ constexpr StringView CustomModuleName("Aero.Tests.Badge");
 constexpr StringView FailingModuleName("Aero.Tests.FailingMetadata");
 
 struct CornerRadius final {
+    AERO_TYPED_META_NAMED(
+        CornerRadius, NoMetadataBase, "urn:aero-custom", "CornerRadius")
     double topLeft = 0.0;
     double topRight = 0.0;
     double bottomRight = 0.0;
@@ -106,12 +109,18 @@ Result<Value> ConvertCornerRadius(
 }
 
 class Badge final : public Control {
-    AERO_DECLARE_METADATA_NAMED(Badge, Control, "urn:aero-custom", "Badge")
+    AERO_TYPED_META_NAMED(Badge, Control, "urn:aero-custom", "Badge")
 public:
     Badge() noexcept : Control(StaticTypeId()) {}
 
-    AERO_DECLARE_DEPENDENCY_PROPERTY(CornerRadius);
-    AERO_DECLARE_ROUTED_EVENT(Activated, RoutedEventHandler);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        CornerRadiusProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "CornerRadius");
+    inline static constexpr RoutedEventHandle ActivatedEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "Activated");
+    RoutedEvent_<RoutedEventHandler> Activated() noexcept {
+        return {*this, ActivatedEvent};
+    }
 
     Result<CornerRadius> GetCornerRadius() const noexcept {
         Result<Value> value = GetValue(CornerRadiusProperty);
@@ -149,82 +158,58 @@ Result<Value> IncrementBadgeCode(
         BuiltinTypes::UnsignedInteger, badge.Code());
 }
 
-AERO_IMPLEMENT_METADATA(Badge, TypeFlags::None) {
-    MetaRegistrationContext& context = helper.Context();
-    const TypeId cornerRadiusType = MakeTypeId(
-        CustomNamespace, StringView("CornerRadius"));
+Result<void> RegisterBadgeMetadata(
+    MetaRegistrationContext& context,
+    void*) noexcept {
+    MetaTypeBuilder<CornerRadius> cornerRadius =
+        MetaTypeBuilder<CornerRadius>::Struct(context);
+    cornerRadius
+        .Field<&CornerRadius::topLeft>("TopLeft")
+        .Field<&CornerRadius::topRight>("TopRight")
+        .Field<&CornerRadius::bottomRight>("BottomRight")
+        .Field<&CornerRadius::bottomLeft>("BottomLeft")
+        .ValueSemantics({sizeof(CornerRadius), alignof(CornerRadius),
+            nullptr, nullptr, &EqualCornerRadius, nullptr, true})
+        .TextConverter(&ConvertCornerRadius, &context.ValueRegistrations());
+    Result<void> status = cornerRadius.Finish();
+    if (!status) return status.GetStatus();
+
     const CornerRadius zero{};
     Result<Value> defaultValue = context.Values().TryCreateValue(
-        cornerRadiusType, &zero);
-    if (!defaultValue) {
-        helper.Fail(defaultValue.GetStatus());
-        return;
-    }
-    AeroDP(CornerRadius,
-        cornerRadiusType,
-        std::move(defaultValue).Value(),
+        TypeOf<CornerRadius>(), &zero);
+    if (!defaultValue) return defaultValue.GetStatus();
+
+    MetaTypeBuilder<Badge> badge = MetaTypeBuilder<Badge>::Object(context);
+    badge.DependencyProperty(Badge::CornerRadiusProperty, "CornerRadius",
+        TypeOf<CornerRadius>(), std::move(defaultValue).Value(),
         PropertyMetadataFlags::AffectsRender);
 
     PropertyRegistration codeProperty;
-    codeProperty.name = StringView("Code");
+    codeProperty.name = "Code";
     codeProperty.valueType = BuiltinTypes::UnsignedInteger;
     codeProperty.access = PropertyAccessKind::Ordinary;
     codeProperty.get = &GetBadgeCode;
     codeProperty.set = &SetBadgeCode;
-    AeroProp(codeProperty);
+    badge.Property(codeProperty);
 
     const MethodParameterRegistration incrementParameters[] = {
-        {StringView("amount"), BuiltinTypes::UnsignedInteger}
+        {"amount", BuiltinTypes::UnsignedInteger}
     };
     MethodRegistration increment;
-    increment.name = StringView("Increment");
+    increment.name = "Increment";
     increment.returnType = BuiltinTypes::UnsignedInteger;
     increment.parameters = {incrementParameters, 1U};
     increment.invoke = &IncrementBadgeCode;
-    AeroMethod(increment);
-    AeroEvent(Activated, BuiltinTypes::RoutedEventArgs,
-        RoutingStrategy::Bubble);
-}
-
-Result<void> RegisterBadgeMetadata(
-    MetaRegistrationContext& context,
-    void*) noexcept {
-    const TypeId cornerRadiusType = MakeTypeId(
-        CustomNamespace, StringView("CornerRadius"));
-    Result<TypeId> type = context.Types().TryRegisterType({
-        CustomNamespace,
-        StringView("CornerRadius"),
-        InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed,
-        nullptr});
-    if (!type) return type.GetStatus();
-    if (type.Value() != cornerRadiusType) {
-        return Status::Failure(
-            ErrorCode::IdCollision,
-            "CornerRadius stable type id mismatch");
-    }
-
-    MetadataRegistrationValues values = context.Values();
-    Result<void> status = values.TryRegisterValueSemantics(
-        cornerRadiusType,
-        {sizeof(CornerRadius), alignof(CornerRadius), nullptr, nullptr,
-         &EqualCornerRadius, nullptr, true});
-    if (!status) return status.GetStatus();
-    status = values.TryRegisterTextConverter(
-        {cornerRadiusType, &ConvertCornerRadius, &context.ValueRegistrations()});
-    if (!status) return status.GetStatus();
-    return Badge::TryRegisterMetadata(context);
+    badge.Method(increment)
+        .RoutedEvent(Badge::ActivatedEvent, "Activated",
+            BuiltinTypes::RoutedEventArgs, RoutingStrategy::Bubble);
+    return badge.Finish();
 }
 
 Result<void> RegisterFailingMetadata(
     MetaRegistrationContext& context,
     void*) noexcept {
-    Result<TypeId> transient = context.Types().TryRegisterType({
-        CustomNamespace,
-        StringView("MustNotLeak"),
-        InvalidTypeId,
-        TypeFlags::None,
-        nullptr});
+    Result<TypeId> transient = context.Types().TryRegisterType(TypeRegistration::Object(CustomNamespace, StringView("MustNotLeak"), InvalidTypeId, TypeFlags::None, nullptr));
     if (!transient) return transient.GetStatus();
     return Status::Failure(
         ErrorCode::ValidationFailed,

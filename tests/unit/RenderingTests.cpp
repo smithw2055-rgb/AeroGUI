@@ -117,8 +117,7 @@ struct Fixture final {
         panelType = MakeTypeId(ns, StringView("RenderPanel"));
         textBlockType = BuiltinTypes::TextBlock;
         borderType = BuiltinTypes::Border;
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("RenderPanel"), elementType,
-            TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("RenderPanel"), elementType, TypeFlags::None, nullptr)));
         CHECK(types.Freeze()); CHECK(typesBehaviors.Freeze()); CHECK(valueRegistrations.Freeze());
         CHECK(properties.Freeze());
         return true;

@@ -68,9 +68,7 @@ struct Fixture final {
         void* userContext) noexcept {
         auto* fixture = static_cast<Fixture*>(userContext);
         const StringView ns("urn:xaml-layout");
-        Result<TypeId> registered = context.Types().TryRegisterType({
-            ns, StringView("TestElement"), BuiltinTypes::FrameworkElement,
-            TypeFlags::Sealed, nullptr});
+        Result<TypeId> registered = context.Types().TryRegisterType(TypeRegistration::Object(ns, StringView("TestElement"), BuiltinTypes::FrameworkElement, TypeFlags::Sealed, nullptr));
         if (!registered) return registered.GetStatus();
         return registered.Value() == fixture->testType
             ? Result<void>()

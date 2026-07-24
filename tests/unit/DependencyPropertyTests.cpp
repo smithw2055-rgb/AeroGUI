@@ -188,24 +188,12 @@ struct Fixture final {
         button = MakeTypeId(ns, StringView("Button"));
         other = MakeTypeId(ns, StringView("OtherElement"));
 
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Object"), InvalidTypeId,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Boolean"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("UIElement"), object,
-            TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Button"), uiElement,
-            TypeFlags::Sealed, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("OtherElement"), object,
-            TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Boolean"), TypeFlags::ValueType | TypeFlags::Sealed)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("UIElement"), object, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Button"), uiElement, TypeFlags::Sealed, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("OtherElement"), object, TypeFlags::None, nullptr)));
 
         DependencyPropertyRegistration widthRegistration;
         widthRegistration.name = StringView("Width");
@@ -687,11 +675,8 @@ bool TestRegistrationIsTransactionalOnOom() {
         const StringView ns("urn:transaction");
         const TypeId owner = MakeTypeId(ns, StringView("Owner"));
         const TypeId valueType = MakeTypeId(ns, StringView("Double"));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Owner"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({
-            ns, StringView("Double"), InvalidTypeId,
-            TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Owner"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed)));
 
         DependencyPropertyRegistration registration;
         registration.name = StringView("Value");
@@ -732,18 +717,10 @@ bool TestRegistrationErrors() {
     const TypeId owner = MakeTypeId(ns, StringView("Owner"));
     const TypeId unrelated = MakeTypeId(ns, StringView("Unrelated"));
 
-    CHECK(typesRegistration.TryRegisterType({
-        ns, StringView("Object"), InvalidTypeId,
-        TypeFlags::None, nullptr}));
-    CHECK(typesRegistration.TryRegisterType({
-        ns, StringView("Number"), InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed, nullptr}));
-    CHECK(typesRegistration.TryRegisterType({
-        ns, StringView("Owner"), object,
-        TypeFlags::None, nullptr}));
-    CHECK(typesRegistration.TryRegisterType({
-        ns, StringView("Unrelated"), object,
-        TypeFlags::None, nullptr}));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Number"), TypeFlags::ValueType | TypeFlags::Sealed)));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Owner"), object, TypeFlags::None, nullptr)));
+    CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Unrelated"), object, TypeFlags::None, nullptr)));
 
     Result<void> prematureFreeze = properties.Freeze();
     CHECK(!prematureFreeze);

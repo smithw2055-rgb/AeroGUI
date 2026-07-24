@@ -42,10 +42,10 @@ struct Fixture final {
         doubleType = MakeTypeId(ns, StringView("Double"));
         elementType = MakeTypeId(ns, StringView("Element"));
         buttonType = MakeTypeId(ns, StringView("Button"));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("Double"), InvalidTypeId, TypeFlags::ValueType, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("Element"), objectType, TypeFlags::None, nullptr}));
-        CHECK(typesRegistration.TryRegisterType({ns, StringView("Button"), elementType, TypeFlags::None, nullptr}));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), objectType, TypeFlags::None, nullptr)));
+        CHECK(typesRegistration.TryRegisterType(TypeRegistration::Object(ns, StringView("Button"), elementType, TypeFlags::None, nullptr)));
         DependencyPropertyRegistration widthRegistration;
         widthRegistration.name = StringView("Width");
         widthRegistration.ownerType = elementType;

@@ -22,7 +22,46 @@ using Thickness = Base::Thickness;
 enum class HorizontalAlignment : std::uint8_t { Stretch = 0U, Left, Center, Right };
 enum class VerticalAlignment : std::uint8_t { Stretch = 0U, Top, Center, Bottom };
 
+template<>
+struct MetaTypeTraits<HorizontalAlignment> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("HorizontalAlignment");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "HorizontalAlignment";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<VerticalAlignment> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("VerticalAlignment");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "VerticalAlignment";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Base::Thickness> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Thickness"); }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Thickness"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
 struct Length final {
+    AERO_TYPED_META(Length, NoMetadataBase)
     double value = 0.0;
     bool isAuto = true;
 
@@ -104,7 +143,7 @@ private:
 };
 
 class AERO_API UIElement : public Visual {
-    AERO_DECLARE_METADATA(UIElement, Visual)
+    AERO_TYPED_META(UIElement, Visual)
 public:
     template<class THandler>
     class RoutedEvent_ final {
@@ -153,16 +192,53 @@ public:
         RoutedEventHandle event_;
     };
 
-    AERO_DECLARE_ROUTED_EVENT(MouseMove, MouseEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(MouseDown, MouseButtonEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(MouseUp, MouseButtonEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(
-        GotKeyboardFocus, KeyboardFocusChangedEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(
-        LostKeyboardFocus, KeyboardFocusChangedEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(KeyDown, KeyEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(KeyUp, KeyEventHandler);
-    AERO_DECLARE_ROUTED_EVENT(TextInput, TextCompositionEventHandler);
+    inline static constexpr RoutedEventHandle MouseMoveEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseMove");
+    RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
+        return {*this, MouseMoveEvent};
+    }
+
+    inline static constexpr RoutedEventHandle MouseDownEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseDown");
+    RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
+        return {*this, MouseDownEvent};
+    }
+
+    inline static constexpr RoutedEventHandle MouseUpEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseUp");
+    RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
+        return {*this, MouseUpEvent};
+    }
+
+    inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
+    RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
+        return {*this, GotKeyboardFocusEvent};
+    }
+
+    inline static constexpr RoutedEventHandle LostKeyboardFocusEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "LostKeyboardFocus");
+    RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
+        return {*this, LostKeyboardFocusEvent};
+    }
+
+    inline static constexpr RoutedEventHandle KeyDownEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyDown");
+    RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
+        return {*this, KeyDownEvent};
+    }
+
+    inline static constexpr RoutedEventHandle KeyUpEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyUp");
+    RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
+        return {*this, KeyUpEvent};
+    }
+
+    inline static constexpr RoutedEventHandle TextInputEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "TextInput");
+    RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
+        return {*this, TextInputEvent};
+    }
 
     explicit UIElement(TypeId runtimeType) noexcept;
     ~UIElement() override;
@@ -209,8 +285,12 @@ public:
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
-    AERO_DECLARE_DEPENDENCY_PROPERTY(ClipToBounds);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(IsHitTestVisible);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        ClipToBoundsProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "ClipToBounds");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsHitTestVisibleProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsHitTestVisible");
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;

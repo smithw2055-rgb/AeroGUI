@@ -3,6 +3,7 @@
 #include <Aero/Core/BuiltinTypeIds.hpp>
 #include <Aero/Core/MetadataRuntime.hpp>
 #include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/ObjectTree.hpp>
 
 #include <cstddef>
 #include <cstring>
@@ -11,6 +12,54 @@
 #include <utility>
 
 namespace Aero::Core {
+
+enum class ContentKind : std::uint8_t {
+    Single = 0U,
+    Collection
+};
+
+template<>
+struct MetaTypeTraits<bool> {
+    static constexpr TypeId Id() noexcept { return BuiltinTypes::Boolean; }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Boolean"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<std::uint32_t> {
+    static constexpr TypeId Id() noexcept {
+        return BuiltinTypes::UnsignedInteger;
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "UInt32"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<double> {
+    static constexpr TypeId Id() noexcept { return BuiltinTypes::Double; }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Double"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Base::String> {
+    static constexpr TypeId Id() noexcept { return BuiltinTypes::String; }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "String"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
 namespace Detail {
 
 template<class T, class = void>
@@ -174,6 +223,24 @@ struct MetaValueCodec<double, void> {
     }
 };
 
+template<>
+struct MetaValueCodec<float, void> {
+    static constexpr TypeId Type() noexcept { return BuiltinTypes::Double; }
+    static Base::Result<Value> Encode(
+        MetadataRuntime&, float value) noexcept {
+        return Value::FromDouble(Type(), static_cast<double>(value));
+    }
+    static Base::Result<float> Decode(
+        MetadataRuntime&, const Value& value) noexcept {
+        if (value.Type() != Type() || value.Kind() != ValueKind::Double) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Float metadata field is incompatible");
+        }
+        return static_cast<float>(value.AsDouble());
+    }
+};
+
 template<class T>
 struct MetaValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
@@ -226,20 +293,51 @@ public:
     MetaTypeBuilder(MetaTypeBuilder&&) noexcept = default;
     MetaTypeBuilder& operator=(MetaTypeBuilder&&) noexcept = default;
 
-    static MetaTypeBuilder Object(MetaRegistrationContext& context, TypeFlags flags = TypeFlags::None) noexcept {
-        return MetaTypeBuilder(context, {MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), MetaTypeTraits<T>::BaseType(), flags, nullptr, MetadataTypeKind::Object});
+    static MetaTypeBuilder Object(
+        MetaRegistrationContext& context,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return MetaTypeBuilder(context, TypeRegistration::Object(
+            MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(),
+            MetaTypeTraits<T>::BaseType(), flags));
     }
-    static MetaTypeBuilder Interface(MetaRegistrationContext& context, TypeFlags flags = TypeFlags::None) noexcept {
-        return MetaTypeBuilder(context, {MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), InvalidTypeId, flags | TypeFlags::Abstract, nullptr, MetadataTypeKind::Interface});
+
+    static MetaTypeBuilder Interface(
+        MetaRegistrationContext& context,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return MetaTypeBuilder(context, TypeRegistration::Interface(
+            MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), flags));
     }
-    static MetaTypeBuilder Struct(MetaRegistrationContext& context, TypeFlags flags = TypeFlags::None) noexcept {
-        if constexpr (std::is_trivially_copyable_v<T>) flags = flags | TypeFlags::TriviallyCopyable;
-        return MetaTypeBuilder(context, {MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), InvalidTypeId, flags | TypeFlags::ValueType, nullptr, MetadataTypeKind::Struct});
+
+    static MetaTypeBuilder Struct(
+        MetaRegistrationContext& context,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            flags = flags | TypeFlags::TriviallyCopyable;
+        }
+        return MetaTypeBuilder(context, TypeRegistration::Struct(
+            MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(),
+            MetaTypeTraits<T>::BaseType(), flags));
     }
-    static MetaTypeBuilder Enum(MetaRegistrationContext& context, TypeId underlyingType, TypeFlags flags = TypeFlags::None) noexcept {
-        static_assert(std::is_enum_v<T>, "MetaTypeBuilder::Enum requires an enum type");
-        if constexpr (std::is_signed_v<std::underlying_type_t<T>>) flags = flags | TypeFlags::SignedEnum;
-        return MetaTypeBuilder(context, {MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), InvalidTypeId, flags | TypeFlags::ValueType, nullptr, MetadataTypeKind::Enum, underlyingType});
+
+    static MetaTypeBuilder Enum(
+        MetaRegistrationContext& context,
+        TypeId underlyingType,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        static_assert(std::is_enum_v<T>,
+            "MetaTypeBuilder::Enum requires an enum type");
+        if constexpr (std::is_signed_v<std::underlying_type_t<T>>) {
+            flags = flags | TypeFlags::SignedEnum;
+        }
+        return MetaTypeBuilder(context, TypeRegistration::Enum(
+            MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(),
+            underlyingType, flags));
+    }
+
+    static MetaTypeBuilder Primitive(
+        MetaRegistrationContext& context,
+        TypeFlags flags = TypeFlags::None) noexcept {
+        return MetaTypeBuilder(context, TypeRegistration::Primitive(
+            MetaTypeTraits<T>::Namespace(), MetaTypeTraits<T>::Name(), flags));
     }
 
     MetaTypeBuilder& Implements(TypeId interfaceType) noexcept {
@@ -247,7 +345,80 @@ public:
         return *this;
     }
     template<class Interface> MetaTypeBuilder& Implements() noexcept { return Implements(TypeOf<Interface>()); }
-    MetaTypeBuilder& Factory(ObjectFactory factory) noexcept { if (Ok()) Record(context_->Types().TrySetFactory(type_, factory)); return *this; }
+    MetaTypeBuilder& Factory(ObjectFactory factory) noexcept {
+        if (Ok()) Record(context_->Types().TrySetFactory(type_, factory));
+        return *this;
+    }
+
+    MetaTypeBuilder& DependencyProperty(
+        DependencyPropertyHandle declaredHandle,
+        Base::StringView name,
+        TypeId valueType,
+        Value defaultValue,
+        PropertyMetadataFlags metadataFlags,
+        ValidateValueCallback validate = nullptr,
+        CoerceValueCallback coerce = nullptr) noexcept {
+        return RegisterDependencyProperty(declaredHandle, name, valueType,
+            std::move(defaultValue), metadataFlags,
+            DependencyPropertyFlags::None, validate, coerce);
+    }
+
+    MetaTypeBuilder& AttachedDependencyProperty(
+        DependencyPropertyHandle declaredHandle,
+        Base::StringView name,
+        TypeId valueType,
+        Value defaultValue,
+        PropertyMetadataFlags metadataFlags,
+        ValidateValueCallback validate = nullptr,
+        CoerceValueCallback coerce = nullptr) noexcept {
+        return RegisterDependencyProperty(declaredHandle, name, valueType,
+            std::move(defaultValue), metadataFlags,
+            DependencyPropertyFlags::Attached, validate, coerce);
+    }
+
+    MetaTypeBuilder& RoutedEvent(
+        RoutedEventHandle declaredHandle,
+        Base::StringView name,
+        TypeId eventArgsType,
+        RoutingStrategy strategy) noexcept {
+        if (!Ok()) return *this;
+        RoutedEventRegistry* events = context_->RoutedEvents();
+        if (events == nullptr) {
+            return Fail(Base::Status::Failure(Base::ErrorCode::InvalidState,
+                "Routed event metadata requires a registry"));
+        }
+        if (name.Empty() ||
+            declaredHandle != MakeRoutedEventHandle(type_, name)) {
+            return Fail(Base::Status::Failure(Base::ErrorCode::IdCollision,
+                "Typed routed event handle does not match owner and name"));
+        }
+        Base::Result<RoutedEventHandle> registered = events->TryRegister(
+            {name, type_, eventArgsType, strategy});
+        if (!registered) {
+            return Fail(registered.GetStatus());
+        }
+        if (registered.Value() != declaredHandle) {
+            return Fail(Base::Status::Failure(Base::ErrorCode::IdCollision,
+                "Routed event registry returned a different handle"));
+        }
+        return *this;
+    }
+
+    MetaTypeBuilder& Content(
+        Base::StringView name,
+        ContentKind kind) noexcept {
+        if (!Ok()) return *this;
+        PropertyFlags flags = PropertyFlags::Structural;
+        if (kind == ContentKind::Collection) {
+            flags = flags | PropertyFlags::Collection;
+        }
+        Base::Result<MemberId> member = context_->Types().TryRegisterProperty(
+            type_, {name, BuiltinTypes::UIElement, flags});
+        if (!member) return Fail(member.GetStatus());
+        Record(context_->Types().TrySetContentMember(type_, member.Value()));
+        return *this;
+    }
+
     MetaTypeBuilder& Property(const PropertyRegistration& registration) noexcept { if (Ok()) { auto result = context_->Types().TryRegisterProperty(type_, registration); Record(result); } return *this; }
     MetaTypeBuilder& Field(const FieldRegistration& registration) noexcept { if (Ok()) { auto result = context_->Types().TryRegisterField(type_, registration); Record(result); } return *this; }
 
@@ -270,20 +441,67 @@ public:
         return EnumValue(name, static_cast<std::uint64_t>(static_cast<Unsigned>(static_cast<Underlying>(value))));
     }
     MetaTypeBuilder& Content(MemberId member) noexcept { if (Ok()) Record(context_->Types().TrySetContentMember(type_, member)); return *this; }
-    MetaTypeBuilder& ValueSemantics() noexcept {
-        if (Ok()) { auto result = context_->Values().TryRegisterValueSemantics(type_, Detail::MakeValueTypeRegistration<T>()); Record(result); }
+    MetaTypeBuilder& ValueSemantics(
+        const ValueTypeRegistration& registration) noexcept {
+        if (Ok()) {
+            Record(context_->Values().TryRegisterValueSemantics(
+                type_, registration));
+        }
         return *this;
+    }
+
+    MetaTypeBuilder& ValueSemantics() noexcept {
+        return ValueSemantics(Detail::MakeValueTypeRegistration<T>());
     }
     MetaTypeBuilder& TextConverter(TextValueConverterCallback converter, void* context = nullptr) noexcept {
         if (Ok()) Record(context_->Values().TryRegisterTextConverter({type_, converter, context}));
         return *this;
     }
+    MetaTypeBuilder& Fail(Base::Status status) noexcept {
+        if (status_.IsOk() && !status.IsOk()) status_ = status;
+        return *this;
+    }
+
     bool Ok() const noexcept { return status_.IsOk(); }
     TypeId Type() const noexcept { return type_; }
     Base::Status Status() const noexcept { return status_; }
     Base::Result<void> Finish() const noexcept { return status_.IsOk() ? Base::Result<void>() : Base::Result<void>(status_); }
 
 private:
+    MetaTypeBuilder& RegisterDependencyProperty(
+        DependencyPropertyHandle declaredHandle,
+        Base::StringView name,
+        TypeId valueType,
+        Value defaultValue,
+        PropertyMetadataFlags metadataFlags,
+        DependencyPropertyFlags propertyFlags,
+        ValidateValueCallback validate,
+        CoerceValueCallback coerce) noexcept {
+        if (!Ok()) return *this;
+        if (name.Empty() ||
+            declaredHandle != MakeDependencyPropertyHandle(type_, name)) {
+            return Fail(Base::Status::Failure(Base::ErrorCode::IdCollision,
+                "Typed dependency property handle does not match owner and name"));
+        }
+        DependencyPropertyRegistration registration;
+        registration.name = name;
+        registration.ownerType = type_;
+        registration.valueType = valueType;
+        registration.flags = propertyFlags;
+        registration.metadata.defaultValue = std::move(defaultValue);
+        registration.metadata.flags = metadataFlags;
+        registration.metadata.validate = validate;
+        registration.metadata.coerce = coerce;
+        Base::Result<DependencyPropertyRegistrationResult> registered =
+            context_->DependencyProperties().TryRegister(registration);
+        if (!registered) return Fail(registered.GetStatus());
+        if (registered.Value().property != declaredHandle) {
+            return Fail(Base::Status::Failure(Base::ErrorCode::IdCollision,
+                "Dependency property registry returned a different handle"));
+        }
+        return *this;
+    }
+
     MetaTypeBuilder(MetaRegistrationContext& context, const TypeRegistration& registration) noexcept : context_(&context) {
         Base::Result<TypeId> result = context_->Types().TryRegisterType(registration);
         if (!result) { status_ = result.GetStatus(); return; }
@@ -298,11 +516,3 @@ private:
 };
 
 } // namespace Aero::Core
-
-#define AERO_DEFINE_META_TYPE(typeName, metadataNamespace, metadataName) \
-    namespace Aero::Core { template<> struct MetaTypeTraits<typeName> { \
-        static constexpr TypeId Id() noexcept { return MakeTypeId(Aero::Base::StringView(metadataNamespace), Aero::Base::StringView(metadataName)); } \
-        static constexpr Aero::Base::StringView Namespace() noexcept { return Aero::Base::StringView(metadataNamespace); } \
-        static constexpr Aero::Base::StringView Name() noexcept { return Aero::Base::StringView(metadataName); } \
-        static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } \
-    }; }

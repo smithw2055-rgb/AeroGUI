@@ -100,16 +100,17 @@ bool PopulateRegistry(
     ids.uiElement = MakeTypeId(ns, "UIElement");
     ids.button = MakeTypeId(ns, "Button");
 
-    const TypeRegistration object{ns, "Object"};
-    const TypeRegistration number{
-        ns, "Double", InvalidTypeId,
-        TypeFlags::ValueType | TypeFlags::Sealed};
-    const TypeRegistration eventArgs{
-        ns, "EventArgs", ids.object};
-    const TypeRegistration uiElement{
-        ns, "UIElement", ids.object};
-    const TypeRegistration button{
-        ns, "Button", ids.uiElement, TypeFlags::Sealed};
+    const TypeRegistration object =
+        TypeRegistration::Object(ns, "Object");
+    const TypeRegistration number =
+        TypeRegistration::Primitive(ns, "Double");
+    const TypeRegistration eventArgs =
+        TypeRegistration::Object(ns, "EventArgs", ids.object);
+    const TypeRegistration uiElement =
+        TypeRegistration::Object(ns, "UIElement", ids.object);
+    const TypeRegistration button =
+        TypeRegistration::Object(
+            ns, "Button", ids.uiElement, TypeFlags::Sealed);
 
     if (!reverseOrder) {
         CHECK(registration.TryRegisterType(object));
@@ -191,14 +192,12 @@ bool TestRegistrationLookupAndFreeze() {
     CHECK(registry.IsDerivedFrom(ids.button, ids.object));
     CHECK(!registry.IsDerivedFrom(ids.object, ids.button));
 
-    Result<TypeId> duplicate = registration.TryRegisterType(
-        {"urn:aero", "Object"});
+    Result<TypeId> duplicate = registration.TryRegisterType(TypeRegistration::Object("urn:aero", "Object"));
     CHECK(!duplicate);
     CHECK(duplicate.GetStatus().code == ErrorCode::AlreadyExists);
     CHECK(registry.Freeze());
     CHECK(registry.Freeze());
-    Result<TypeId> late = registration.TryRegisterType(
-        {"urn:aero", "Late", ids.object});
+    Result<TypeId> late = registration.TryRegisterType(TypeRegistration::Object("urn:aero", "Late", ids.object));
     CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);
     return true;
 }
@@ -209,8 +208,7 @@ bool TestFreezeValidation() {
         TypeRegistry registry;
         MetadataBehaviorRegistrationStore behaviors{registry};
         MetadataRegistrationTypes registration{registry, behaviors};
-        CHECK(registration.TryRegisterType(
-            {ns, "Child", MakeTypeId(ns, "Missing")}));
+        CHECK(registration.TryRegisterType(TypeRegistration::Object(ns, "Child", MakeTypeId(ns, "Missing"))));
         Result<void> frozen = registry.Freeze();
         CHECK(!frozen && frozen.GetStatus().code == ErrorCode::NotFound);
     }
@@ -220,8 +218,8 @@ bool TestFreezeValidation() {
         MetadataRegistrationTypes registration{registry, behaviors};
         const TypeId typeA = MakeTypeId(ns, "A");
         const TypeId typeB = MakeTypeId(ns, "B");
-        CHECK(registration.TryRegisterType({ns, "A", typeB}));
-        CHECK(registration.TryRegisterType({ns, "B", typeA}));
+        CHECK(registration.TryRegisterType(TypeRegistration::Object(ns, "A", typeB)));
+        CHECK(registration.TryRegisterType(TypeRegistration::Object(ns, "B", typeA)));
         Result<void> frozen = registry.Freeze();
         CHECK(!frozen && frozen.GetStatus().code == ErrorCode::CycleDetected);
     }
@@ -262,12 +260,8 @@ bool TestDeterministicSnapshot() {
     MetadataBehaviorRegistrationStore secondFactoryBehaviors{secondFactory};
     MetadataRegistrationTypes secondFactoryRegistration{
         secondFactory, secondFactoryBehaviors};
-    CHECK(firstFactoryRegistration.TryRegisterType(
-        {"urn:snapshot", "Object", InvalidTypeId,
-         TypeFlags::None, &SnapshotFactoryOne}));
-    CHECK(secondFactoryRegistration.TryRegisterType(
-        {"urn:snapshot", "Object", InvalidTypeId,
-         TypeFlags::None, &SnapshotFactoryTwo}));
+    CHECK(firstFactoryRegistration.TryRegisterType(TypeRegistration::Object("urn:snapshot", "Object", InvalidTypeId, TypeFlags::None, &SnapshotFactoryOne)));
+    CHECK(secondFactoryRegistration.TryRegisterType(TypeRegistration::Object("urn:snapshot", "Object", InvalidTypeId, TypeFlags::None, &SnapshotFactoryTwo)));
     CHECK(firstFactory.Freeze());
     CHECK(secondFactory.Freeze());
     String one;
@@ -309,26 +303,16 @@ bool TestInterfacesEnumsAndStructs() {
     const TypeId enumType = MakeTypeId(ns, "Options");
     const TypeId structType = MakeTypeId(ns, "Counter");
 
-    CHECK(registration.TryRegisterType(
-        {ns, "UInt32", InvalidTypeId,
-         TypeFlags::ValueType | TypeFlags::Sealed}));
-    CHECK(registration.TryRegisterType(
-        {ns, "ICommandSource", InvalidTypeId, TypeFlags::Abstract,
-         nullptr, MetadataTypeKind::Interface}));
-    CHECK(registration.TryRegisterType({ns, "Object"}));
-    CHECK(registration.TryRegisterType({ns, "Button", objectType}));
+    CHECK(registration.TryRegisterType(TypeRegistration::Primitive(ns, "UInt32", TypeFlags::ValueType | TypeFlags::Sealed)));
+    CHECK(registration.TryRegisterType(TypeRegistration::Interface(ns, "ICommandSource", TypeFlags::Abstract)));
+    CHECK(registration.TryRegisterType(TypeRegistration::Object(ns, "Object")));
+    CHECK(registration.TryRegisterType(TypeRegistration::Object(ns, "Button", objectType)));
     CHECK(registration.TryRegisterInterface(buttonType, interfaceType));
-    CHECK(registration.TryRegisterType(
-        {ns, "Options", InvalidTypeId,
-         TypeFlags::ValueType | TypeFlags::FlagsEnum,
-         nullptr, MetadataTypeKind::Enum, uintType}));
+    CHECK(registration.TryRegisterType(TypeRegistration::Enum(ns, "Options", uintType, TypeFlags::ValueType | TypeFlags::FlagsEnum)));
     CHECK(registration.TryRegisterEnumValue(enumType, {"None", 0U}));
     CHECK(registration.TryRegisterEnumValue(enumType, {"Fast", 1U}));
     CHECK(registration.TryRegisterEnumValue(enumType, {"Safe", 2U}));
-    CHECK(registration.TryRegisterType(
-        {ns, "Counter", InvalidTypeId,
-         TypeFlags::ValueType | TypeFlags::TriviallyCopyable,
-         nullptr, MetadataTypeKind::Struct}));
+    CHECK(registration.TryRegisterType(TypeRegistration::Struct(ns, "Counter", InvalidTypeId, TypeFlags::ValueType | TypeFlags::TriviallyCopyable)));
     Result<MemberId> count = registration.TryRegisterField(
         structType,
         {"Count", uintType, FieldFlags::None,
@@ -363,15 +347,12 @@ bool TestBehaviorRegistrationBoundaries() {
     TypeRegistry second;
     MetadataBehaviorRegistrationStore secondBehaviors{second};
     MetadataRegistrationTypes mismatched{first, secondBehaviors};
-    Result<TypeId> rejected = mismatched.TryRegisterType(
-        {"urn:behavior", "Rejected"});
+    Result<TypeId> rejected = mismatched.TryRegisterType(TypeRegistration::Object("urn:behavior", "Rejected"));
     CHECK(!rejected &&
         rejected.GetStatus().code == ErrorCode::InvalidArgument);
     CHECK(!firstBehaviors.Freeze());
     MetadataRegistrationTypes registration{first, firstBehaviors};
-    CHECK(registration.TryRegisterType(
-        {"urn:behavior", "Object", InvalidTypeId,
-         TypeFlags::None, &SnapshotFactoryOne}));
+    CHECK(registration.TryRegisterType(TypeRegistration::Object("urn:behavior", "Object", InvalidTypeId, TypeFlags::None, &SnapshotFactoryOne)));
     CHECK(first.Freeze());
     CHECK(firstBehaviors.Freeze());
     return true;
@@ -386,13 +367,12 @@ bool TestRegistrationRollbackOnOom() {
         MetadataRegistrationTypes registration{registry, behaviors};
         const TypeId expected = MakeTypeId("urn:oom", "Object");
         allocator.FailAfter(1U);
-        Result<TypeId> failed = registration.TryRegisterType(
-            {"urn:oom", "Object"});
+        Result<TypeId> failed = registration.TryRegisterType(TypeRegistration::Object("urn:oom", "Object"));
         CHECK(!failed && failed.GetStatus().code == ErrorCode::OutOfMemory);
         CHECK(registry.TypeCount() == 0U);
         CHECK(registry.FindType(expected) == nullptr);
         allocator.DisableFailures();
-        CHECK(registration.TryRegisterType({"urn:oom", "Object"}));
+        CHECK(registration.TryRegisterType(TypeRegistration::Object("urn:oom", "Object")));
         CHECK(registry.Freeze());
     }
     CHECK(allocator.Active() == 0U);
@@ -433,9 +413,7 @@ bool TestUnifiedValueAndRegistrySemantics() {
     MetadataRegistrationTypes registration{registry, behaviors};
     MetadataValueRegistrationStore valueStore(registry);
     const TypeId smallType = MakeTypeId("urn:value-tests", "Small");
-    CHECK(registration.TryRegisterType(
-        {"urn:value-tests", "Small", InvalidTypeId,
-         TypeFlags::ValueType | TypeFlags::Sealed}));
+    CHECK(registration.TryRegisterType(TypeRegistration::Primitive("urn:value-tests", "Small", TypeFlags::ValueType | TypeFlags::Sealed)));
     MetadataRegistrationValues values(valueStore);
     CHECK(values.TryRegisterValueSemantics(
         smallType,

@@ -24,6 +24,16 @@ constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
 using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 
+template<>
+struct MetaTypeTraits<Base::Color> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("Color"); }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Color"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
 AERO_API bool IsFinite(Color value) noexcept;
 AERO_API bool IsFinite(Transform2D value) noexcept;
 AERO_API bool IsValidOpacity(double value) noexcept;
@@ -168,7 +178,7 @@ private:
 };
 
 class AERO_API FrameworkElement : public UIElement {
-    AERO_DECLARE_METADATA(FrameworkElement, UIElement)
+    AERO_TYPED_META(FrameworkElement, UIElement)
 public:
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
@@ -197,16 +207,36 @@ public:
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
 
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Width);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Height);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MinWidth);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxWidth);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MinHeight);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(MaxHeight);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(Margin);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(HorizontalAlignment);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(VerticalAlignment);
-    AERO_DECLARE_DEPENDENCY_PROPERTY(UseLayoutRounding);
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        WidthProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Width");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        HeightProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Height");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        MinWidthProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "MinWidth");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        MaxWidthProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "MaxWidth");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        MinHeightProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "MinHeight");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        MaxHeightProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "MaxHeight");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        MarginProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Margin");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        HorizontalAlignmentProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "HorizontalAlignment");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        VerticalAlignmentProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "VerticalAlignment");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        UseLayoutRoundingProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "UseLayoutRounding");
 
     Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
