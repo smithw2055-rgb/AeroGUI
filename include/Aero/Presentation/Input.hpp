@@ -63,10 +63,26 @@ struct KeyboardInput final {
     bool isRepeat = false;
 };
 
+inline constexpr std::uint32_t KeyboardKeyTab = 9U;
+
+enum class KeyboardModifiers : std::uint32_t {
+    None = 0U,
+    Shift = 1U << 0U,
+    Control = 1U << 1U,
+    Alt = 1U << 2U,
+};
+
+constexpr bool HasKeyboardModifier(
+    std::uint32_t modifiers,
+    KeyboardModifiers value) noexcept {
+    return (modifiers & static_cast<std::uint32_t>(value)) != 0U;
+}
+
 struct KeyboardDispatchResult final {
     UIElement* target = nullptr;
     bool routed = false;
     bool commandExecuted = false;
+    bool focusMoved = false;
 };
 
 // Text is delivered separately from physical/logical keyboard events. The
@@ -126,18 +142,45 @@ private:
         std::uint32_t ignoredIndex) const noexcept;
 };
 
+enum class FocusNavigationDirection : std::uint8_t {
+    Next,
+    Previous,
+};
+
 class AERO_API FocusManager final {
 public:
     FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
 
     UIElement* FocusedNode() noexcept;
+    UIElement* FocusedElement(UIElement& scope) noexcept;
     Base::Result<bool> SetFocus(UIElement* node) noexcept;
     Base::Result<bool> ClearFocus() noexcept;
+    Base::Result<bool> MoveFocus(
+        FocusNavigationDirection direction,
+        bool wrap = true) noexcept;
 
 private:
+    struct ScopeFocus final {
+        VisualHandle scope;
+        VisualHandle focused;
+    };
+    struct FocusCandidate final {
+        UIElement* element = nullptr;
+        std::uint32_t tabIndex = 0U;
+        std::uint32_t order = 0U;
+    };
+
     ObjectTree* tree_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     VisualHandle focused_;
+    Base::Vector<ScopeFocus> scopeFocus_;
+
+    UIElement* FindNavigationScope(UIElement* node) noexcept;
+    Base::Result<void> RememberFocus(UIElement& node) noexcept;
+    Base::Result<void> CollectCandidates(
+        Visual& parent,
+        Base::Vector<FocusCandidate>& candidates,
+        std::uint32_t& order) noexcept;
 };
 
 // UI-thread keyboard router. It delivers KeyDown/KeyUp to the current focus

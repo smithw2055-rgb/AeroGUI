@@ -296,6 +296,9 @@ public:
     bool IsMouseOver() const noexcept;
     bool IsPressed() const noexcept;
     bool IsKeyboardFocused() const noexcept;
+    bool IsTabStop() const noexcept;
+    std::uint32_t TabIndex() const noexcept;
+    bool IsFocusScope() const noexcept;
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
@@ -318,11 +321,23 @@ public:
         IsKeyboardFocusedProperty =
             Aero::Core::MakeDependencyPropertyHandle(
                 StaticTypeIdValue_, "IsKeyboardFocused");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsTabStopProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsTabStop");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        TabIndexProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "TabIndex");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsFocusScopeProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsFocusScope");
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
     Base::Result<void> SetEnabled(bool value) noexcept;
+    Base::Result<void> SetTabStop(bool value) noexcept;
+    Base::Result<void> SetTabIndex(std::uint32_t value) noexcept;
+    Base::Result<void> SetFocusScope(bool value) noexcept;
 
 protected:
     Base::Result<void> OnPropertyInvalidated(

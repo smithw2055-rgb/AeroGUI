@@ -10,6 +10,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 
 namespace Aero::Presentation {
 
@@ -208,6 +209,11 @@ bool ValidateLength(const Value& value) noexcept {
 bool ValidateNonnegativeDouble(const Value& value) noexcept {
     return value.Kind() == ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
+}
+bool ValidateUInt32(const Value& value) noexcept {
+    return value.Kind() == ValueKind::UnsignedInteger &&
+        value.AsUnsignedInteger() <=
+            std::numeric_limits<std::uint32_t>::max();
 }
 bool ValidateThicknessValue(const Value& value) noexcept {
     if (value.Kind() != ValueKind::Custom) return false;
@@ -427,7 +433,20 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
             UIElement::IsKeyboardFocusedProperty,
             "IsKeyboardFocused", TypeOf<bool>(),
             Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsRender);
+            PropertyMetadataFlags::AffectsRender)
+        .DependencyProperty(UIElement::IsTabStopProperty,
+            "IsTabStop", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::None)
+        .DependencyProperty(UIElement::TabIndexProperty,
+            "TabIndex", TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), 0U),
+            PropertyMetadataFlags::None, &ValidateUInt32)
+        .DependencyProperty(UIElement::IsFocusScopeProperty,
+            "IsFocusScope", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::None);
     status = uiElement.Finish();
     if (!status) return status.GetStatus();
 

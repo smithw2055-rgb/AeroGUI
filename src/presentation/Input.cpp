@@ -375,13 +375,124 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
 
 FocusManager::FocusManager(
     ObjectTree& tree, RoutedEventManager& events) noexcept
-    : tree_(&tree), events_(&events) {}
+    : tree_(&tree), events_(&events),
+      scopeFocus_(&Base::GetDefaultAllocator()) {}
 
 UIElement* FocusManager::FocusedNode() noexcept {
     Visual* visual = tree_->ResolveHandle(focused_);
     UIElement* node = visual != nullptr ? visual->AsUIElement() : nullptr;
     if (node == nullptr) focused_ = {};
     return node;
+}
+
+UIElement* FocusManager::FindNavigationScope(UIElement* node) noexcept {
+    Visual* current = node != nullptr
+        ? (node->LogicalParent() != nullptr
+            ? node->LogicalParent() : node->VisualParent())
+        : nullptr;
+    while (current != nullptr) {
+        UIElement* element = current->AsUIElement();
+        if (element != nullptr && element->IsFocusScope()) return element;
+        current = current->LogicalParent() != nullptr
+            ? current->LogicalParent() : current->VisualParent();
+    }
+    Visual* root = tree_->Root();
+    return root != nullptr ? root->AsUIElement() : nullptr;
+}
+
+Base::Result<void> FocusManager::RememberFocus(
+    UIElement& node) noexcept {
+    Visual* current = &node;
+    Visual* root = tree_->Root();
+    while (current != nullptr) {
+        UIElement* element = current->AsUIElement();
+        const bool isScope = current == root ||
+            (element != nullptr && element->IsFocusScope());
+        if (isScope) {
+            Base::Result<VisualHandle> scope =
+                tree_->GetHandle(*current);
+            if (!scope) return scope.GetStatus();
+            std::uint32_t recordIndex = UINT32_MAX;
+            for (std::uint32_t index = 0U;
+                index < scopeFocus_.Size(); ++index) {
+                if (scopeFocus_[index].scope.index ==
+                        scope.Value().index &&
+                    scopeFocus_[index].scope.generation ==
+                        scope.Value().generation) {
+                    recordIndex = index;
+                    break;
+                }
+            }
+            if (recordIndex == UINT32_MAX) {
+                Base::Result<void> appended = scopeFocus_.TryPushBack(
+                    {scope.Value(), node.Handle()});
+                if (!appended) return appended.GetStatus();
+            } else {
+                scopeFocus_[recordIndex].focused = node.Handle();
+            }
+        }
+        if (current == root) break;
+        current = current->LogicalParent() != nullptr
+            ? current->LogicalParent() : current->VisualParent();
+    }
+    return {};
+}
+
+UIElement* FocusManager::FocusedElement(UIElement& scope) noexcept {
+    Base::Result<VisualHandle> handle = tree_->GetHandle(scope);
+    if (!handle) return nullptr;
+    for (std::uint32_t index = 0U;
+        index < scopeFocus_.Size(); ++index) {
+        ScopeFocus& record = scopeFocus_[index];
+        if (record.scope.index != handle.Value().index ||
+            record.scope.generation != handle.Value().generation) {
+            continue;
+        }
+        Visual* visual = tree_->ResolveHandle(record.focused);
+        UIElement* element =
+            visual != nullptr ? visual->AsUIElement() : nullptr;
+        if (element == nullptr || !element->IsLoaded()) {
+            record.focused = {};
+            return nullptr;
+        }
+        return element;
+    }
+    return nullptr;
+}
+
+Base::Result<void> FocusManager::CollectCandidates(
+    Visual& parent,
+    Base::Vector<FocusCandidate>& candidates,
+    std::uint32_t& order) noexcept {
+    for (Visual* child : parent.VisualChildren()) {
+        if (child == nullptr) continue;
+        UIElement* element = child->AsUIElement();
+        const std::uint32_t candidateOrder = order++;
+        if (element != nullptr && element->IsLoaded() &&
+            element->IsEnabled() && element->IsTabStop()) {
+            Base::Result<void> appended = candidates.TryPushBack(
+                {element, element->TabIndex(), candidateOrder});
+            if (!appended) return appended.GetStatus();
+            std::uint32_t index = candidates.Size() - 1U;
+            while (index > 0U) {
+                FocusCandidate& previous = candidates[index - 1U];
+                FocusCandidate& current = candidates[index];
+                if (previous.tabIndex < current.tabIndex ||
+                    (previous.tabIndex == current.tabIndex &&
+                        previous.order <= current.order)) {
+                    break;
+                }
+                FocusCandidate temporary = previous;
+                previous = current;
+                current = temporary;
+                --index;
+            }
+        }
+        Base::Result<void> nested =
+            CollectCandidates(*child, candidates, order);
+        if (!nested) return nested.GetStatus();
+    }
+    return {};
 }
 
 Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
@@ -392,6 +503,17 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target must be loaded and enabled");
     }
+    std::uint32_t ancestorCount = 1U;
+    Visual* ancestor = node;
+    while (ancestor != tree_->Root()) {
+        ancestor = ancestor->LogicalParent() != nullptr
+            ? ancestor->LogicalParent() : ancestor->VisualParent();
+        if (ancestor == nullptr) break;
+        ++ancestorCount;
+    }
+    Base::Result<void> reserved = scopeFocus_.TryReserve(
+        scopeFocus_.Size() + ancestorCount);
+    if (!reserved) return reserved.GetStatus();
     UIElement* previous = FocusedNode();
     if (previous == node) return false;
     if (previous != nullptr) {
@@ -431,6 +553,8 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
         return gained.GetStatus();
     }
     focused_ = next.Value();
+    Base::Result<void> remembered = RememberFocus(*node);
+    if (!remembered) return remembered.GetStatus();
     return true;
 }
 
@@ -453,6 +577,57 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
     }
     focused_ = {};
     return true;
+}
+
+Base::Result<bool> FocusManager::MoveFocus(
+    FocusNavigationDirection direction,
+    bool wrap) noexcept {
+    UIElement* current = FocusedNode();
+    UIElement* scope = FindNavigationScope(current);
+    if (scope == nullptr || !scope->IsLoaded()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Focus navigation requires a loaded UIElement root");
+    }
+    Base::Vector<FocusCandidate> candidates(
+        &Base::GetDefaultAllocator());
+    std::uint32_t order = 0U;
+    Base::Result<void> collected =
+        CollectCandidates(*scope, candidates, order);
+    if (!collected) return collected.GetStatus();
+    if (candidates.Empty()) return false;
+
+    std::uint32_t currentIndex = UINT32_MAX;
+    for (std::uint32_t index = 0U;
+        index < candidates.Size(); ++index) {
+        if (candidates[index].element == current) {
+            currentIndex = index;
+            break;
+        }
+    }
+
+    std::uint32_t nextIndex = 0U;
+    if (direction == FocusNavigationDirection::Next) {
+        if (currentIndex == UINT32_MAX) {
+            nextIndex = 0U;
+        } else if (currentIndex + 1U < candidates.Size()) {
+            nextIndex = currentIndex + 1U;
+        } else if (wrap) {
+            nextIndex = 0U;
+        } else {
+            return false;
+        }
+    } else {
+        if (currentIndex == UINT32_MAX) {
+            nextIndex = candidates.Size() - 1U;
+        } else if (currentIndex > 0U) {
+            nextIndex = currentIndex - 1U;
+        } else if (wrap) {
+            nextIndex = candidates.Size() - 1U;
+        } else {
+            return false;
+        }
+    }
+    return SetFocus(candidates[nextIndex].element);
 }
 
 KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
@@ -485,7 +660,20 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     }
     KeyboardDispatchResult result;
     result.target = focus_->FocusedNode();
-    if (result.target == nullptr) return result;
+    if (result.target == nullptr) {
+        if (input.action == KeyboardAction::Down &&
+            input.key == KeyboardKeyTab) {
+            Base::Result<bool> moved = focus_->MoveFocus(
+                HasKeyboardModifier(input.modifiers,
+                    KeyboardModifiers::Shift)
+                    ? FocusNavigationDirection::Previous
+                    : FocusNavigationDirection::Next);
+            if (!moved) return moved.GetStatus();
+            result.focusMoved = moved.Value();
+            result.target = focus_->FocusedNode();
+        }
+        return result;
+    }
     if (!result.target->IsEnabled()) {
         Base::Result<bool> cleared = focus_->ClearFocus();
         if (!cleared) return cleared.GetStatus();
@@ -511,6 +699,17 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
             commands_->ProcessInput(*result.target, input);
         if (!command) return command.GetStatus();
         result.commandExecuted = command.Value();
+    }
+    if (input.action == KeyboardAction::Down &&
+        input.key == KeyboardKeyTab &&
+        !args.handled && !result.commandExecuted) {
+        Base::Result<bool> moved = focus_->MoveFocus(
+            HasKeyboardModifier(input.modifiers,
+                KeyboardModifiers::Shift)
+                ? FocusNavigationDirection::Previous
+                : FocusNavigationDirection::Next);
+        if (!moved) return moved.GetStatus();
+        result.focusMoved = moved.Value();
     }
     return result;
 }
