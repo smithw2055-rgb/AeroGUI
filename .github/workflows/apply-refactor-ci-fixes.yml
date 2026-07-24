@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
-          echo "f66141f2af036684faaba06ea7f393d5a7e411572f986275f99f2e7bf9627b0d  /tmp/ci-fixes.patch" | sha256sum -c -
+          echo "108912afeee4e2cb8e3a0f461e69c84dfc32ad67056e652cbca9f641e7c4b528  /tmp/ci-fixes.patch" | sha256sum -c -
           git apply --check --whitespace=error /tmp/ci-fixes.patch
           git apply --whitespace=error /tmp/ci-fixes.patch
       - name: Configure Clang sanitizer build
@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
-          echo "f66141f2af036684faaba06ea7f393d5a7e411572f986275f99f2e7bf9627b0d  /tmp/ci-fixes.patch" | sha256sum -c -
+          echo "108912afeee4e2cb8e3a0f461e69c84dfc32ad67056e652cbca9f641e7c4b528  /tmp/ci-fixes.patch" | sha256sum -c -
           git apply --check --whitespace=error /tmp/ci-fixes.patch
           git apply --whitespace=error /tmp/ci-fixes.patch
       - name: Configure
@@ -119,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
-          echo "f66141f2af036684faaba06ea7f393d5a7e411572f986275f99f2e7bf9627b0d  /tmp/ci-fixes.patch" | sha256sum -c -
+          echo "108912afeee4e2cb8e3a0f461e69c84dfc32ad67056e652cbca9f641e7c4b528  /tmp/ci-fixes.patch" | sha256sum -c -
           git apply --index --whitespace=error /tmp/ci-fixes.patch
           rm -rf .github/refactor-fix
           rm -f .github/workflows/apply-refactor-ci-fixes.yml
