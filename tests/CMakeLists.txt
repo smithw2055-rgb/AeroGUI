@@ -22,6 +22,56 @@ set_target_properties(AeroTextProviderTests PROPERTIES CXX_STANDARD 17 CXX_STAND
 aero_apply_compiler_options(AeroTextProviderTests)
 add_test(NAME AeroTextProviderTests COMMAND AeroTextProviderTests)
 
+if(TARGET AeroTextFreeType)
+    if(NOT EXISTS "${AERO_TEXT_TEST_FONT}")
+        message(FATAL_ERROR
+            "AeroFreeTypeAdapterTests require AERO_TEXT_TEST_FONT")
+    endif()
+    add_executable(AeroFreeTypeAdapterTests
+        text/FreeTypeAdapterTests.cpp)
+    target_link_libraries(AeroFreeTypeAdapterTests
+        PRIVATE Aero::TextFreeType)
+    target_compile_definitions(AeroFreeTypeAdapterTests
+        PRIVATE
+            "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\"")
+    target_compile_features(AeroFreeTypeAdapterTests PRIVATE cxx_std_17)
+    set_target_properties(AeroFreeTypeAdapterTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroFreeTypeAdapterTests)
+    add_test(NAME AeroFreeTypeAdapterTests
+        COMMAND AeroFreeTypeAdapterTests)
+endif()
+
+if(TARGET AeroTextHarfBuzz)
+    foreach(_aero_text_test_font IN ITEMS
+            "${AERO_TEXT_TEST_CJK_FONT}"
+            "${AERO_TEXT_TEST_ARABIC_FONT}")
+        if(NOT EXISTS "${_aero_text_test_font}")
+            message(FATAL_ERROR
+                "AeroHarfBuzzAdapterTests require CJK and Arabic test fonts")
+        endif()
+    endforeach()
+    add_executable(AeroHarfBuzzAdapterTests
+        text/HarfBuzzAdapterTests.cpp)
+    target_link_libraries(AeroHarfBuzzAdapterTests
+        PRIVATE Aero::TextHarfBuzz)
+    target_compile_definitions(AeroHarfBuzzAdapterTests
+        PRIVATE
+            "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\""
+            "AERO_TEXT_TEST_CJK_FONT=\"${AERO_TEXT_TEST_CJK_FONT}\""
+            "AERO_TEXT_TEST_ARABIC_FONT=\"${AERO_TEXT_TEST_ARABIC_FONT}\"")
+    target_compile_features(AeroHarfBuzzAdapterTests PRIVATE cxx_std_17)
+    set_target_properties(AeroHarfBuzzAdapterTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroHarfBuzzAdapterTests)
+    add_test(NAME AeroHarfBuzzAdapterTests
+        COMMAND AeroHarfBuzzAdapterTests)
+endif()
+
 add_executable(AeroCoreTests core/TypeRegistryTests.cpp)
 target_link_libraries(AeroCoreTests PRIVATE Aero::Presentation)
 target_compile_features(AeroCoreTests PRIVATE cxx_std_17)

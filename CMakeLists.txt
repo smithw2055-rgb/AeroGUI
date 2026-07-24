@@ -13,6 +13,10 @@ option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
+option(AERO_WITH_FREETYPE
+    "Build the optional FreeType text provider adapter" OFF)
+option(AERO_WITH_HARFBUZZ
+    "Build the optional HarfBuzz text shaping adapter" OFF)
 option(AERO_ENABLE_SOKOL_BACKEND
     "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
@@ -21,6 +25,14 @@ set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
     "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
 set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
     "Optional private include directory containing sokol_gfx.h")
+set(AERO_THIRD_PARTY_ROOT "" CACHE PATH
+    "Root containing the optional freetype and harfbuzz source directories")
+set(AERO_TEXT_TEST_FONT "" CACHE FILEPATH
+    "Font used by optional FreeType adapter conformance tests")
+set(AERO_TEXT_TEST_CJK_FONT "" CACHE FILEPATH
+    "CJK font used by optional HarfBuzz conformance tests")
+set(AERO_TEXT_TEST_ARABIC_FONT "" CACHE FILEPATH
+    "Arabic font used by optional HarfBuzz conformance tests")
 
 include(cmake/AeroCompilerOptions.cmake)
 
@@ -94,6 +106,131 @@ set_target_properties(AeroText PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroText)
+
+if(AERO_WITH_HARFBUZZ AND NOT AERO_WITH_FREETYPE)
+    message(FATAL_ERROR
+        "AERO_WITH_HARFBUZZ currently requires AERO_WITH_FREETYPE")
+endif()
+
+if(AERO_WITH_FREETYPE)
+    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
+        get_filename_component(_aero_sibling_third_party
+            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
+            ABSOLUTE)
+        if(EXISTS "${_aero_sibling_third_party}/freetype/freetype.c")
+            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
+        endif()
+    endif()
+    if(AERO_TEXT_TEST_FONT STREQUAL "" AND
+       EXISTS "${AERO_THIRD_PARTY_ROOT}/harfbuzz/perf/fonts/Roboto-Regular.ttf")
+        set(AERO_TEXT_TEST_FONT
+            "${AERO_THIRD_PARTY_ROOT}/harfbuzz/perf/fonts/Roboto-Regular.ttf")
+    endif()
+
+    set(_aero_freetype_source
+        "${AERO_THIRD_PARTY_ROOT}/freetype/freetype.c")
+    set(_aero_freetype_include
+        "${AERO_THIRD_PARTY_ROOT}/freetype/include")
+    foreach(_aero_required_path IN ITEMS
+            "${_aero_freetype_source}"
+            "${_aero_freetype_include}/ft2build.h")
+        if(NOT EXISTS "${_aero_required_path}")
+            message(FATAL_ERROR
+                "AERO_WITH_FREETYPE requires: "
+                "${_aero_required_path}")
+        endif()
+    endforeach()
+
+    add_library(freetype STATIC "${_aero_freetype_source}")
+    target_include_directories(freetype PUBLIC "${_aero_freetype_include}")
+    set_target_properties(freetype PROPERTIES
+        POSITION_INDEPENDENT_CODE ON)
+
+    add_library(AeroTextFreeType ${AERO_LIBRARY_TYPE}
+        src/text/freetype/FreeTypeAdapter.cpp)
+    add_library(Aero::TextFreeType ALIAS AeroTextFreeType)
+    target_include_directories(AeroTextFreeType
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroTextFreeType
+        PUBLIC Aero::Text
+        PRIVATE freetype)
+    target_compile_features(AeroTextFreeType PUBLIC cxx_std_17)
+    set_target_properties(AeroTextFreeType PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroTextFreeType)
+endif()
+
+function(aero_add_vendored_harfbuzz source_directory binary_directory)
+    set(HB_HAVE_CAIRO OFF)
+    set(HB_HAVE_FREETYPE ON)
+    set(HB_HAVE_GRAPHITE2 OFF)
+    set(HB_HAVE_GLIB OFF)
+    set(HB_HAVE_ICU OFF)
+    set(HB_HAVE_GOBJECT OFF)
+    set(HB_HAVE_INTROSPECTION OFF)
+    set(HB_HAVE_UNISCRIBE OFF)
+    set(HB_HAVE_GDI OFF)
+    set(HB_HAVE_DIRECTWRITE OFF)
+    set(HB_BUILD_UTILS OFF)
+    set(HB_BUILD_SUBSET OFF)
+    set(HB_BUILD_RASTER OFF)
+    set(HB_BUILD_VECTOR OFF)
+    set(HB_BUILD_GPU OFF)
+    set(SKIP_INSTALL_ALL ON)
+    set(BUILD_SHARED_LIBS OFF)
+    add_subdirectory(
+        "${source_directory}" "${binary_directory}"
+        EXCLUDE_FROM_ALL)
+endfunction()
+
+if(AERO_WITH_HARFBUZZ)
+    set(_aero_harfbuzz_source
+        "${AERO_THIRD_PARTY_ROOT}/harfbuzz")
+    if(NOT EXISTS "${_aero_harfbuzz_source}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "AERO_WITH_HARFBUZZ requires: "
+            "${_aero_harfbuzz_source}/CMakeLists.txt")
+    endif()
+    if(AERO_TEXT_TEST_CJK_FONT STREQUAL "" AND
+       EXISTS "${_aero_harfbuzz_source}/test/api/fonts/Mplus1p-Regular.ttf")
+        set(AERO_TEXT_TEST_CJK_FONT
+            "${_aero_harfbuzz_source}/test/api/fonts/Mplus1p-Regular.ttf")
+    endif()
+    if(AERO_TEXT_TEST_ARABIC_FONT STREQUAL "" AND
+       EXISTS "${_aero_harfbuzz_source}/perf/fonts/Amiri-Regular.ttf")
+        set(AERO_TEXT_TEST_ARABIC_FONT
+            "${_aero_harfbuzz_source}/perf/fonts/Amiri-Regular.ttf")
+    endif()
+
+    aero_add_vendored_harfbuzz(
+        "${_aero_harfbuzz_source}"
+        "${CMAKE_CURRENT_BINARY_DIR}/third_party/harfbuzz")
+
+    add_library(AeroTextHarfBuzz ${AERO_LIBRARY_TYPE}
+        src/text/harfbuzz/HarfBuzzAdapter.cpp)
+    add_library(Aero::TextHarfBuzz ALIAS AeroTextHarfBuzz)
+    target_include_directories(AeroTextHarfBuzz
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroTextHarfBuzz
+        PUBLIC Aero::TextFreeType
+        PRIVATE freetype harfbuzz)
+    target_compile_features(AeroTextHarfBuzz PUBLIC cxx_std_17)
+    set_target_properties(AeroTextHarfBuzz PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroTextHarfBuzz)
+endif()
 
 add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/metadata/BindingPath.cpp

@@ -19,8 +19,8 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 - 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK 和 `aero-xamlc`。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
-- 已建立 `AeroText` 的 provider-neutral 合同层：`FontManager`、`IFontProvider`、`ITextShaper`、`IGlyphRasterizer`、`FontFace`、`Typeface`、shaped/glyph run 与 `TextLayout` 数据合同。
-- 尚未完成：FreeType/HarfBuzz adapter、glyph atlas 与 TextBlock 自动排版，以及 Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。
+- 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider 与 HarfBuzz shaper；固定字体测试覆盖 Latin、数字、中文、Arabic、glyph metrics、Gray8 raster、outline、DPI 和 face cache/lifetime。
+- 尚未完成：fallback 分段、glyph atlas、完整 `TextLayout` 算法与 TextBlock 自动排版，以及 Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。
 
 ## 已确定的技术方向
 
@@ -132,6 +132,8 @@ Aero::Text
 ```
 
 `Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
+
+本地 source 模式通过 `AERO_THIRD_PARTY_ROOT` 指向同时包含 `freetype/` 与 `harfbuzz/` 的目录，并显式启用 `AERO_WITH_FREETYPE` / `AERO_WITH_HARFBUZZ`。FreeType-only profile 提供有限的 simple-text shaping；组合 profile 分别导出 `Aero::TextFreeType` 与 `Aero::TextHarfBuzz`，宿主可将同一个 FreeType provider 与 HarfBuzz shaper 注册到 `FontManager`。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use
