@@ -69,6 +69,33 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
                 "Method invoker registration is invalid");
         }
     }
+    for (const PropertyChangeNotificationRegistration& notification :
+         propertyChangeNotifications_) {
+        const TypeInfo* type = types_->FindType(notification.type);
+        if (type == nullptr ||
+            (type->Kind() != MetadataTypeKind::Object &&
+             type->Kind() != MetadataTypeKind::Interface) ||
+            notification.subscribe == nullptr ||
+            notification.unsubscribe == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Property-change notification registration is invalid");
+        }
+    }
+    for (const CollectionChangeNotificationRegistration& notification :
+         collectionChangeNotifications_) {
+        const TypeInfo* type = types_->FindType(notification.type);
+        if (type == nullptr ||
+            (type->Kind() != MetadataTypeKind::Object &&
+             type->Kind() != MetadataTypeKind::Interface) ||
+            !HasTypeFlag(type->Flags(), TypeFlags::Collection) ||
+            notification.subscribe == nullptr ||
+            notification.unsubscribe == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Collection-change notification registration is invalid");
+        }
+    }
     for (const TypeInfo& type : types_->Types()) {
         for (const FieldInfo& field : type.Fields()) {
             const ValueMemberAccessorRegistration* accessor =
@@ -130,6 +157,26 @@ MetadataBehaviorRegistrationStore::FindMethodInvoker(
     return nullptr;
 }
 
+const PropertyChangeNotificationRegistration*
+MetadataBehaviorRegistrationStore::FindPropertyChangeNotification(
+    TypeId type) const noexcept {
+    for (const PropertyChangeNotificationRegistration& registration :
+         propertyChangeNotifications_) {
+        if (registration.type == type) return &registration;
+    }
+    return nullptr;
+}
+
+const CollectionChangeNotificationRegistration*
+MetadataBehaviorRegistrationStore::FindCollectionChangeNotification(
+    TypeId type) const noexcept {
+    for (const CollectionChangeNotificationRegistration& registration :
+         collectionChangeNotifications_) {
+        if (registration.type == type) return &registration;
+    }
+    return nullptr;
+}
+
 Base::Result<void> MetadataRegistrationTypes::ValidateRegistrationPair()
     const noexcept {
     if (types_ == nullptr || behaviors_ == nullptr ||
@@ -138,10 +185,15 @@ Base::Result<void> MetadataRegistrationTypes::ValidateRegistrationPair()
             Base::ErrorCode::InvalidArgument,
             "Metadata registration type and behavior stores do not match");
     }
-    if (types_->IsFrozen() || behaviors_->IsFrozen()) {
+    if (types_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "Metadata type registration stores are frozen");
+            "Metadata type registry is frozen");
+    }
+    if (behaviors_->IsFrozen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Metadata behavior registration store is frozen");
     }
     return {};
 }
@@ -215,6 +267,59 @@ Base::Result<void> MetadataRegistrationTypes::TrySetContentMember(
     Base::Result<void> valid = ValidateRegistrationPair();
     if (!valid) return valid.GetStatus();
     return types_->TrySetContentMember(type, member);
+}
+
+Base::Result<void>
+MetadataRegistrationTypes::TryRegisterPropertyChangeNotification(
+    const PropertyChangeNotificationRegistration& registration)
+    const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid;
+    const TypeInfo* type = types_->FindType(registration.type);
+    if (type == nullptr ||
+        (type->Kind() != MetadataTypeKind::Object &&
+         type->Kind() != MetadataTypeKind::Interface) ||
+        registration.subscribe == nullptr ||
+        registration.unsubscribe == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Property-change notification registration is invalid");
+    }
+    if (behaviors_->FindPropertyChangeNotification(
+            registration.type) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Property-change notification is already registered");
+    }
+    return behaviors_->propertyChangeNotifications_.TryPushBack(
+        registration);
+}
+
+Base::Result<void>
+MetadataRegistrationTypes::TryRegisterCollectionChangeNotification(
+    const CollectionChangeNotificationRegistration& registration)
+    const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid;
+    const TypeInfo* type = types_->FindType(registration.type);
+    if (type == nullptr ||
+        (type->Kind() != MetadataTypeKind::Object &&
+         type->Kind() != MetadataTypeKind::Interface) ||
+        !HasTypeFlag(type->Flags(), TypeFlags::Collection) ||
+        registration.subscribe == nullptr ||
+        registration.unsubscribe == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Collection-change notification registration is invalid");
+    }
+    if (behaviors_->FindCollectionChangeNotification(
+            registration.type) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Collection-change notification is already registered");
+    }
+    return behaviors_->collectionChangeNotifications_.TryPushBack(
+        registration);
 }
 
 } // namespace Aero::Core

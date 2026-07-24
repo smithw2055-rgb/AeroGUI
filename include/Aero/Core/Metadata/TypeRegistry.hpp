@@ -175,6 +175,47 @@ using ValueMemberSetCallback = Base::Result<void> (*)(
     const Value& value,
     MetadataRuntime& runtime,
     void* context) noexcept;
+using MetadataPropertyChangedCallback = void (*)(
+    Base::Object& object,
+    MemberId property,
+    void* context) noexcept;
+using PropertyChangeSubscribeCallback = Base::Result<std::uint64_t> (*)(
+    Base::Object& object,
+    MetadataPropertyChangedCallback callback,
+    void* callbackContext,
+    void* context) noexcept;
+using PropertyChangeUnsubscribeCallback = Base::Result<bool> (*)(
+    Base::Object& object,
+    std::uint64_t subscription,
+    void* context) noexcept;
+enum class MetadataCollectionChangeAction : std::uint8_t {
+    Add = 0U,
+    Remove,
+    Replace,
+    Move,
+    Reset
+};
+struct MetadataCollectionChangedEvent final {
+    MetadataCollectionChangeAction action =
+        MetadataCollectionChangeAction::Reset;
+    std::uint32_t oldIndex = UINT32_MAX;
+    std::uint32_t newIndex = UINT32_MAX;
+    std::uint32_t oldCount = 0U;
+    std::uint32_t newCount = 0U;
+};
+using MetadataCollectionChangedCallback = void (*)(
+    Base::Object& collection,
+    const MetadataCollectionChangedEvent& event,
+    void* context) noexcept;
+using CollectionChangeSubscribeCallback = Base::Result<std::uint64_t> (*)(
+    Base::Object& collection,
+    MetadataCollectionChangedCallback callback,
+    void* callbackContext,
+    void* context) noexcept;
+using CollectionChangeUnsubscribeCallback = Base::Result<bool> (*)(
+    Base::Object& collection,
+    std::uint64_t subscription,
+    void* context) noexcept;
 
 struct TypeRegistration final {
     constexpr TypeRegistration(
@@ -324,6 +365,20 @@ struct ValueMemberAccessorRegistration final {
 struct MethodInvokerRegistration final {
     MemberId member = InvalidMemberId;
     MethodInvokeCallback invoke = nullptr;
+    void* context = nullptr;
+};
+
+struct PropertyChangeNotificationRegistration final {
+    TypeId type = InvalidTypeId;
+    PropertyChangeSubscribeCallback subscribe = nullptr;
+    PropertyChangeUnsubscribeCallback unsubscribe = nullptr;
+    void* context = nullptr;
+};
+
+struct CollectionChangeNotificationRegistration final {
+    TypeId type = InvalidTypeId;
+    CollectionChangeSubscribeCallback subscribe = nullptr;
+    CollectionChangeUnsubscribeCallback unsubscribe = nullptr;
     void* context = nullptr;
 };
 

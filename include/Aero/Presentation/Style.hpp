@@ -15,6 +15,17 @@ struct StyleSetter final {
     PropertyValue value;
 };
 
+struct StyleTriggerSetter final {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+struct StylePropertyTrigger final {
+    DependencyPropertyHandle property;
+    PropertyValue value;
+    Base::Vector<StyleTriggerSetter> setters;
+};
+
 // Host-owned immutable style plan. Styles are authored through setters and
 // sealed only after DependencyProperty metadata is frozen. BasedOn setters are
 // flattened deterministically; a derived style replaces a base setter for the
@@ -31,6 +42,8 @@ public:
     Base::Result<void> TryAddSetter(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    Base::Result<void> TryAddPropertyTrigger(
+        StylePropertyTrigger trigger) noexcept;
     // Builder configuration is intentionally available only before Seal().
     // XAML object construction supplies TargetType and BasedOn as members,
     // whereas native callers commonly provide both to the constructor.
@@ -47,12 +60,19 @@ public:
     Base::Span<const StyleSetter> Setters() const noexcept {
         return {flattened_.Data(), flattened_.Size()};
     }
+    Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
+        return {
+            flattenedTriggers_.Data(),
+            flattenedTriggers_.Size()};
+    }
 
 private:
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Base::Vector<StyleSetter> authored_;
     Base::Vector<StyleSetter> flattened_;
+    Base::Vector<StylePropertyTrigger> authoredTriggers_;
+    Base::Vector<StylePropertyTrigger> flattenedTriggers_;
     bool sealed_ = false;
 };
 
@@ -65,7 +85,9 @@ public:
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties) noexcept
         : values_(&values), properties_(&properties),
-          applications_() {}
+          applications_(),
+          propertyChangedHandler_(
+              this, &StyleManager::OnPropertyChanged) {}
 
     Base::Result<void> Apply(
         DependencyObject& object,
@@ -85,10 +107,76 @@ private:
         const Style* style = nullptr;
     };
     Base::Vector<Application> applications_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
 
     Base::Result<void> VerifyTarget(
         const DependencyObject& object,
         const Style& style) const noexcept;
+    std::uint32_t FindApplication(
+        const DependencyObject& object) const noexcept;
+    Base::Result<void> ClearSetters(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    Base::Result<void> SubscribeTriggers(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    void UnsubscribeTriggers(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    Base::Result<void> EvaluateTriggers(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    Base::Result<void> ClearTriggerSetters(
+        DependencyObject& object,
+        const Style& style) noexcept;
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+};
+
+// Type-keyed default styles are resolved through the registered base-type
+// chain and occupy the ThemeStyle provider below explicit Style values.
+class AERO_API ThemeStyleRegistry final {
+public:
+    explicit ThemeStyleRegistry(
+        const DependencyPropertyRegistry& properties) noexcept
+        : properties_(&properties) {}
+
+    Base::Result<void> TryRegister(
+        TypeId controlType,
+        const Style& style) noexcept;
+    const Style* Find(TypeId controlType) const noexcept;
+
+private:
+    struct Entry final {
+        TypeId controlType = InvalidTypeId;
+        const Style* style = nullptr;
+    };
+    const DependencyPropertyRegistry* properties_ = nullptr;
+    Base::Vector<Entry> entries_;
+};
+
+class AERO_API ThemeStyleManager final {
+public:
+    ThemeStyleManager(
+        EffectiveValueEngine& values,
+        const ThemeStyleRegistry& registry) noexcept
+        : values_(&values), registry_(&registry) {}
+
+    Base::Result<bool> ApplyDefault(
+        DependencyObject& object) noexcept;
+    Base::Result<bool> Clear(
+        DependencyObject& object) noexcept;
+
+private:
+    struct Application final {
+        DependencyObject* object = nullptr;
+        const Style* style = nullptr;
+    };
+    EffectiveValueEngine* values_ = nullptr;
+    const ThemeStyleRegistry* registry_ = nullptr;
+    Base::Vector<Application> applications_;
+
     std::uint32_t FindApplication(
         const DependencyObject& object) const noexcept;
     Base::Result<void> ClearSetters(

@@ -9,6 +9,7 @@ find_package(Threads REQUIRED)
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
+option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
@@ -72,6 +73,7 @@ target_compile_definitions(AeroBase
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
 add_library(AeroCore ${AERO_LIBRARY_TYPE}
+    src/core/metadata/BindingPath.cpp
     src/core/property/DependencyProperty.cpp
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
@@ -136,7 +138,8 @@ aero_apply_compiler_options(AeroPresentation)
 
 add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Controls.cpp
-    src/controls/Metadata.cpp)
+    src/controls/Metadata.cpp
+    src/controls/Templates.cpp)
 
 add_library(Aero::Controls ALIAS AeroControls)
 
@@ -157,6 +160,8 @@ aero_apply_compiler_options(AeroControls)
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
     src/markup/XamlCompiledCache.cpp
+    src/markup/XamlCompiledDocument.cpp
+    src/markup/XamlModuleSdk.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTypeExtension.cpp
@@ -187,6 +192,17 @@ set_target_properties(AeroMarkup PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroMarkup)
+
+if(AERO_BUILD_TOOLS)
+    add_executable(aero-xamlc tools/xamlc/main.cpp)
+    target_link_libraries(aero-xamlc PRIVATE Aero::Markup)
+    target_compile_features(aero-xamlc PRIVATE cxx_std_17)
+    set_target_properties(aero-xamlc PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(aero-xamlc)
+endif()
 
 add_library(AeroRhi ${AERO_LIBRARY_TYPE}
     src/rhi/Graphics.cpp

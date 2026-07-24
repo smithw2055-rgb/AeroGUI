@@ -47,12 +47,20 @@ private:
         MemberId member) const noexcept;
     const MethodInvokerRegistration* FindMethodInvoker(
         MemberId member) const noexcept;
+    const PropertyChangeNotificationRegistration*
+    FindPropertyChangeNotification(TypeId type) const noexcept;
+    const CollectionChangeNotificationRegistration*
+    FindCollectionChangeNotification(TypeId type) const noexcept;
 
     TypeRegistry* types_ = nullptr;
     Base::Vector<TypeFactoryRegistration> typeFactories_;
     Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
     Base::Vector<ValueMemberAccessorRegistration> valueMemberAccessors_;
     Base::Vector<MethodInvokerRegistration> methodInvokers_;
+    Base::Vector<PropertyChangeNotificationRegistration>
+        propertyChangeNotifications_;
+    Base::Vector<CollectionChangeNotificationRegistration>
+        collectionChangeNotifications_;
     bool frozen_ = false;
 };
 
@@ -91,6 +99,12 @@ public:
     Base::Result<void> TrySetContentMember(
         TypeId type,
         MemberId member) const noexcept;
+    Base::Result<void> TryRegisterPropertyChangeNotification(
+        const PropertyChangeNotificationRegistration& registration)
+        const noexcept;
+    Base::Result<void> TryRegisterCollectionChangeNotification(
+        const CollectionChangeNotificationRegistration& registration)
+        const noexcept;
 
     TypeRegistry& Registry() const noexcept { return *types_; }
     MetadataBehaviorRegistrationStore& Behaviors() const noexcept {

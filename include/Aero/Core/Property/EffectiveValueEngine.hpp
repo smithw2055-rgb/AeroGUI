@@ -14,8 +14,10 @@ namespace Aero::Core {
 enum class EffectiveValueProvider : std::uint8_t {
     Default = 0U,
     Inherited,
+    ThemeStyle,
     Style,
     Template,
+    Trigger,
     Local,
     LocalExpression,
     Animation
@@ -84,11 +86,27 @@ public:
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
+    Base::Result<void> SetThemeStyleValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> ClearThemeStyleValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+
     Base::Result<void> SetTemplateValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
     Base::Result<void> ClearTemplateValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+
+    Base::Result<void> SetTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> ClearTriggerValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;
 
@@ -145,8 +163,10 @@ private:
     struct Entry final {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
+        ProviderSlot themeStyle;
         ProviderSlot style;
         ProviderSlot templated;
+        ProviderSlot trigger;
         ProviderSlot animation;
         ExpressionSlot localExpression;
         EffectiveValueDiagnostics diagnostics;

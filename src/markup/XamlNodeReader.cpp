@@ -51,6 +51,33 @@ void XamlNode::Clear() noexcept {
     fromAttribute_ = false;
 }
 
+Base::Result<XamlNode> XamlNode::TryClone(
+    const XamlNode& source) noexcept {
+    XamlNode clone;
+    clone.kind_ = source.kind_;
+    clone.source_ = source.source_;
+    clone.fromAttribute_ = source.fromAttribute_;
+    Base::Result<void> copied =
+        clone.name_.prefix_.TryAssign(
+            source.name_.prefix_.View());
+    if (!copied) return copied.GetStatus();
+    copied = clone.name_.localName_.TryAssign(
+        source.name_.localName_.View());
+    if (!copied) return copied.GetStatus();
+    copied = clone.name_.namespaceUri_.TryAssign(
+        source.name_.namespaceUri_.View());
+    if (!copied) return copied.GetStatus();
+    copied = clone.namespacePrefix_.TryAssign(
+        source.namespacePrefix_.View());
+    if (!copied) return copied.GetStatus();
+    copied = clone.namespaceUri_.TryAssign(
+        source.namespaceUri_.View());
+    if (!copied) return copied.GetStatus();
+    copied = clone.value_.TryAssign(source.value_.View());
+    if (!copied) return copied.GetStatus();
+    return clone;
+}
+
 XamlNodeReader::XamlNodeReader(
     IXmlTokenizer& tokenizer,
     Core::IDiagnosticSink* diagnostics) noexcept

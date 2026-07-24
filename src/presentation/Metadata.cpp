@@ -457,6 +457,10 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         TypeOf<Thickness>(), &zero);
     if (!margin) return margin.GetStatus();
     frameworkElement
+        .DependencyProperty(FrameworkElement::DataContextProperty,
+            "DataContext", TypeOf<Base::Object>(),
+            Value::NullObject(TypeOf<Base::Object>()),
+            PropertyMetadataFlags::Inherits)
         .DependencyProperty(FrameworkElement::WidthProperty, "Width",
             TypeOf<Length>(), automatic.Value(),
             PropertyMetadataFlags::AffectsMeasure, &ValidateLength)

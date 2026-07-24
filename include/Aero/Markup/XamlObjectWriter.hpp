@@ -16,6 +16,8 @@
 
 namespace Aero::Markup {
 
+class XamlCompiledDocument;
+
 namespace XamlObjectWriterDiagnosticCodes {
 inline constexpr Core::DiagnosticCode UnknownType =
     Core::MakeDiagnosticCode(Core::DiagnosticDomain::Xaml, 201U);
@@ -85,6 +87,8 @@ public:
 
     Base::Result<Base::Ref<Base::Object>> Load(
         XamlNodeReader& reader) noexcept;
+    Base::Result<Base::Ref<Base::Object>> Load(
+        const XamlCompiledDocument& document) noexcept;
     void Reset() noexcept;
 
     const NameScope& DocumentNameScope() const noexcept {

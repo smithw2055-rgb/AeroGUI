@@ -1,4 +1,5 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Markup/XamlCompiledDocument.hpp>
 
 #include <utility>
 
@@ -180,6 +181,61 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
         return status;
     }
 
+    CommitDocumentScopes();
+    Base::Ref<Base::Object> result = std::move(root_);
+    ClearTransaction();
+    loading_ = false;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
+    const XamlCompiledDocument& document) noexcept {
+    if (loading_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML object writer does not support reentrant Load calls");
+    }
+    AbortTransaction();
+    committedNames_.Clear();
+    committedResources_.Clear();
+    if (!schema_->IsFrozen() || !document.IsValid()) {
+        return Failure(
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                MessageSchemaNotReady.Data()),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageSchemaNotReady,
+            {});
+    }
+    Base::Result<void> compatible =
+        ValidateXamlCompiledCacheIdentity(
+            document.Identity(), schema_->Domain(),
+            schema_->ModuleManifestHash());
+    if (!compatible) return compatible.GetStatus();
+
+    loading_ = true;
+    for (const XamlNode& node : document.Nodes()) {
+        Base::Result<void> processed = ProcessNode(node);
+        if (!processed) {
+            const Base::Status status = processed.GetStatus();
+            AbortTransaction();
+            loading_ = false;
+            return status;
+        }
+        if (ended_) break;
+    }
+    if (!ended_ || !frames_.Empty() || !root_ ||
+        !pendingNamespaces_.Empty() ||
+        !namespaceBindings_.Empty()) {
+        const Base::Status status = Failure(
+            InvalidStateStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState,
+            {});
+        AbortTransaction();
+        loading_ = false;
+        return status;
+    }
     CommitDocumentScopes();
     Base::Ref<Base::Object> result = std::move(root_);
     ClearTransaction();

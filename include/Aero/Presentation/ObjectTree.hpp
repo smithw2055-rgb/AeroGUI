@@ -295,6 +295,7 @@ private:
     DispatcherFrameHookHandle lifecycleHook_;
     ObjectTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
+    DependencyPropertyChangedEventHandler dataContextChangedHandler_;
     std::uint64_t nextLifecycleSequence_ = 1U;
     std::uint64_t version_ = 0U;
     bool mutating_ = false;
@@ -317,6 +318,11 @@ private:
     Base::Result<std::uint32_t> FlushLifecycle() noexcept;
     Base::Result<void> RegisterHandleSubtree(Visual& node) noexcept;
     void InvalidateHandleSubtree(Visual& node) noexcept;
+    Base::Result<void> TrackInheritedValues(Visual& node) noexcept;
+    void UntrackInheritedValues(Visual& node) noexcept;
+    void OnDataContextChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     void RemoveChild(Base::Vector<Visual*>& children, Visual& child) noexcept;
     static void LifecycleHook(void* context) noexcept;
 };

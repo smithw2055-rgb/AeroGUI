@@ -346,6 +346,26 @@ public:
         if (Ok()) Record(context_->Types().TrySetFactory(type_, factory));
         return *this;
     }
+    MetaTypeBuilder& PropertyChangeNotifications(
+        PropertyChangeSubscribeCallback subscribe,
+        PropertyChangeUnsubscribeCallback unsubscribe,
+        void* callbackContext = nullptr) noexcept {
+        if (Ok()) {
+            Record(context_->Types().TryRegisterPropertyChangeNotification(
+                {type_, subscribe, unsubscribe, callbackContext}));
+        }
+        return *this;
+    }
+    MetaTypeBuilder& CollectionChangeNotifications(
+        CollectionChangeSubscribeCallback subscribe,
+        CollectionChangeUnsubscribeCallback unsubscribe,
+        void* callbackContext = nullptr) noexcept {
+        if (Ok()) {
+            Record(context_->Types().TryRegisterCollectionChangeNotification(
+                {type_, subscribe, unsubscribe, callbackContext}));
+        }
+        return *this;
+    }
 
     MetaTypeBuilder& DependencyProperty(
         DependencyPropertyHandle declaredHandle,

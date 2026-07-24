@@ -22,11 +22,10 @@ struct XamlBindingExtensionOptions final {
     Core::DependencyPropertyHandle dataContextProperty;
 };
 
-// Registers a {Binding ElementName=..., Path=..., Mode=...} provider. When a
-// DataContext property is configured, ElementName may be omitted. This initial
-// slice resolves one DependencyObject source and a single dependency-property
-// path; nested paths, converters, and TwoWay propagation build on this
-// type-safe bridge later.
+// Registers a {Binding ElementName=..., Path=..., Mode=...} provider. Explicit
+// ElementName wins over DataContext. Paths are compiled to immutable metadata
+// plans; DataContext paths are resolved after tree attachment and recompiled
+// only when the concrete source type changes.
 class AERO_API XamlBindingExtension final {
 public:
     explicit XamlBindingExtension(

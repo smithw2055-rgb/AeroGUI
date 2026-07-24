@@ -11,7 +11,7 @@ namespace Aero::Markup {
 
 // Increment only when the compiled-XAML cache header or IR interpretation
 // changes. Metadata graph changes are tracked separately by metadataSchemaHash.
-inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = 1U;
+inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = 3U;
 
 struct XamlCompiledCacheIdentity final {
     std::uint32_t cacheFormatVersion = XamlCompiledCacheFormatVersion;
@@ -20,6 +20,7 @@ struct XamlCompiledCacheIdentity final {
         Core::MetadataDescriptorFormatVersion;
     std::uint32_t facetFormatVersion = Core::MetadataFacetFormatVersion;
     Base::HashCode metadataSchemaHash = 0U;
+    Base::HashCode moduleManifestHash = 0U;
 };
 
 enum class XamlCompiledCacheCompatibility : std::uint8_t {
@@ -28,12 +29,14 @@ enum class XamlCompiledCacheCompatibility : std::uint8_t {
     TypeIdAlgorithmMismatch,
     DescriptorFormatMismatch,
     FacetFormatMismatch,
-    MetadataSchemaMismatch
+    MetadataSchemaMismatch,
+    ModuleManifestMismatch
 };
 
 AERO_API Base::Result<XamlCompiledCacheIdentity>
 BuildXamlCompiledCacheIdentity(
-    const Core::MetadataDomain& domain) noexcept;
+    const Core::MetadataDomain& domain,
+    Base::HashCode moduleManifestHash = 0U) noexcept;
 
 AERO_API XamlCompiledCacheCompatibility
 CompareXamlCompiledCacheIdentity(
@@ -42,6 +45,7 @@ CompareXamlCompiledCacheIdentity(
 
 AERO_API Base::Result<void> ValidateXamlCompiledCacheIdentity(
     const XamlCompiledCacheIdentity& cached,
-    const Core::MetadataDomain& currentDomain) noexcept;
+    const Core::MetadataDomain& currentDomain,
+    Base::HashCode moduleManifestHash = 0U) noexcept;
 
 } // namespace Aero::Markup

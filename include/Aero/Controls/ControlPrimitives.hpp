@@ -130,9 +130,50 @@ private:
 
 class AERO_API Control : public FrameworkElement {
     AERO_TYPED_META(Control, FrameworkElement)
+public:
+    UIElement* TemplateChild() const noexcept {
+        return templateChild_;
+    }
+    Base::Result<void> SetTemplateChild(
+        UIElement* child) noexcept {
+        if (child != nullptr &&
+            child->LayoutParent() != this) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Control template child must be visually attached");
+        }
+        if (templateChild_ != nullptr &&
+            child != nullptr &&
+            templateChild_ != child) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Control already has a template child");
+        }
+        templateChild_ = child;
+        return InvalidateMeasure();
+    }
 protected:
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
+    Base::Result<Size> MeasureOverride(
+        Size availableSize) noexcept override {
+        if (templateChild_ == nullptr) return Size{};
+        Base::Result<void> measured =
+            MeasureChild(*templateChild_, availableSize);
+        if (!measured) return measured.GetStatus();
+        return templateChild_->DesiredSize();
+    }
+    Base::Result<Size> ArrangeOverride(
+        Size finalSize) noexcept override {
+        if (templateChild_ == nullptr) return finalSize;
+        Base::Result<void> arranged = ArrangeChild(
+            *templateChild_,
+            {0.0, 0.0, finalSize.width, finalSize.height});
+        if (!arranged) return arranged.GetStatus();
+        return finalSize;
+    }
+private:
+    UIElement* templateChild_ = nullptr;
 };
 
 class AERO_API ContentControl : public Control {
@@ -168,6 +209,9 @@ protected:
     explicit ContentControl(TypeId runtimeType) noexcept : Control(runtimeType) {}
     ~ContentControl() override = default;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
+        if (TemplateChild() != nullptr) {
+            return Control::MeasureOverride(availableSize);
+        }
         if (content_ == nullptr) {
             if (!LayoutChildren().Empty()) {
                 return Base::Status::Failure(Base::ErrorCode::InvalidState,
@@ -184,6 +228,9 @@ protected:
         return content_->DesiredSize();
     }
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
+        if (TemplateChild() != nullptr) {
+            return Control::ArrangeOverride(finalSize);
+        }
         if (content_ == nullptr) return finalSize;
         if (!IsOnlyAttachedContent(*content_)) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,

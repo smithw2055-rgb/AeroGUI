@@ -10,6 +10,7 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlBinding.hpp>
+#include <Aero/Markup/XamlCompiledDocument.hpp>
 #include <Aero/Markup/XamlDynamicResource.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
@@ -423,6 +424,111 @@ bool TestDataContextBinding() {
     return true;
 }
 
+bool TestDataContextBindingReResolvesAndWritesBack() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    const char* xaml =
+        "<Root xmlns=\"urn:xaml-binding-tests\">"
+        "<Element>"
+        "<Element.DataContext><Element Source=\"10.0\"/></Element.DataContext>"
+        "<Element.Target>{Binding Path=Source, Mode=TwoWay}</Element.Target>"
+        "</Element>"
+        "</Root>";
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        xaml,
+        static_cast<std::uint32_t>(std::strlen(xaml)))));
+    XamlNodeReader reader(tokenizer);
+    XamlObjectWriter writer(*fixture.schema);
+    Result<Ref<Object>> loaded = writer.Load(reader);
+    CHECK(loaded);
+
+    BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
+    BindableNode& target = static_cast<BindableNode&>(*root.Children()[0]);
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::DataBind));
+    CHECK(target.GetValue(fixture.target).Value().AsDouble() == 10.0);
+
+    Result<Ref<BindableNode>> replacement =
+        MakeRef<BindableNode>(fixture.elementType);
+    CHECK(replacement);
+    Ref<BindableNode> replacementTyped =
+        std::move(replacement).Value();
+    CHECK(replacementTyped->SetValue(
+        fixture.source,
+        PropertyValue::FromDouble(fixture.doubleType, 40.0)));
+    Ref<Object> replacementObject(replacementTyped);
+    CHECK(target.SetValue(
+        fixture.dataContext,
+        PropertyValue::FromObject(
+            fixture.objectType, replacementObject)));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::DataBind));
+    CHECK(target.GetValue(fixture.target).Value().AsDouble() == 40.0);
+
+    CHECK(target.SetValue(
+        fixture.target,
+        PropertyValue::FromDouble(fixture.doubleType, 55.0)));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::DataBind));
+    CHECK(replacementTyped->GetValue(
+        fixture.source).Value().AsDouble() == 55.0);
+    fixture.bindings.Shutdown();
+    return true;
+}
+
+bool TestCompiledDocumentReplaysWithoutXmlTokenization() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    const char* xaml =
+        "<Root xmlns=\"urn:xaml-binding-tests\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Element x:Name=\"source\" Source=\"18.0\"/>"
+        "<Element Target=\"{Binding ElementName=source, Path=Source}\"/>"
+        "</Root>";
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        xaml,
+        static_cast<std::uint32_t>(std::strlen(xaml)))));
+    XamlNodeReader reader(tokenizer);
+    Result<XamlCompiledDocument> compiled =
+        XamlCompiledDocument::Compile(
+            reader, *fixture.schema);
+    CHECK(compiled && compiled.Value().IsValid());
+    CHECK(compiled.Value().Nodes().Size() > 1U);
+    Result<Vector<std::uint8_t>> serialized =
+        compiled.Value().Serialize();
+    CHECK(serialized && !serialized.Value().Empty());
+    Result<XamlCompiledDocument> decoded =
+        XamlCompiledDocument::Deserialize(
+            {serialized.Value().Data(),
+             serialized.Value().Size()},
+            fixture.metadata);
+    CHECK(decoded && decoded.Value().IsValid());
+    Result<XamlCompiledDocument> truncated =
+        XamlCompiledDocument::Deserialize(
+            {serialized.Value().Data(),
+             serialized.Value().Size() - 1U},
+            fixture.metadata);
+    CHECK(!truncated);
+
+    XamlObjectWriter writer(*fixture.schema);
+    Result<Ref<Object>> loaded =
+        writer.Load(decoded.Value());
+    CHECK(loaded);
+    BindableNode& root =
+        static_cast<BindableNode&>(*loaded.Value());
+    CHECK(root.Children().Size() == 2U);
+    BindableNode& target =
+        static_cast<BindableNode&>(*root.Children()[1]);
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::DataBind));
+    CHECK(target.GetValue(
+        fixture.target).Value().AsDouble() == 18.0);
+    fixture.bindings.Shutdown();
+    return true;
+}
+
 bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -478,6 +584,8 @@ int main() {
     if (!TestElementNameOneWayBinding()) return 1;
     if (!TestBindingArgumentsAreValidated()) return 1;
     if (!TestDataContextBinding()) return 1;
+    if (!TestDataContextBindingReResolvesAndWritesBack()) return 1;
+    if (!TestCompiledDocumentReplaysWithoutXmlTokenization()) return 1;
     if (!TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement()) return 1;
     std::puts("Aero XAML binding tests passed");
     return 0;

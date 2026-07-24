@@ -238,11 +238,17 @@ Base::Result<void> EffectiveValueEngine::SetProviderValue(
 
     ProviderSlot* slot = nullptr;
     switch (provider) {
+    case EffectiveValueProvider::ThemeStyle:
+        slot = &entries_[index].themeStyle;
+        break;
     case EffectiveValueProvider::Style:
         slot = &entries_[index].style;
         break;
     case EffectiveValueProvider::Template:
         slot = &entries_[index].templated;
+        break;
+    case EffectiveValueProvider::Trigger:
+        slot = &entries_[index].trigger;
         break;
     case EffectiveValueProvider::Animation:
         slot = &entries_[index].animation;
@@ -276,11 +282,17 @@ Base::Result<void> EffectiveValueEngine::ClearProviderValue(
 
     ProviderSlot* slot = nullptr;
     switch (provider) {
+    case EffectiveValueProvider::ThemeStyle:
+        slot = &entries_[index].themeStyle;
+        break;
     case EffectiveValueProvider::Style:
         slot = &entries_[index].style;
         break;
     case EffectiveValueProvider::Template:
         slot = &entries_[index].templated;
+        break;
+    case EffectiveValueProvider::Trigger:
+        slot = &entries_[index].trigger;
         break;
     case EffectiveValueProvider::Animation:
         slot = &entries_[index].animation;
@@ -329,6 +341,36 @@ Base::Result<void> EffectiveValueEngine::ClearTemplateValue(
     DependencyPropertyHandle property) noexcept {
     return ClearProviderValue(
         object, property, EffectiveValueProvider::Template);
+}
+
+Base::Result<void> EffectiveValueEngine::SetThemeStyleValue(
+    DependencyObject& object,
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    return SetProviderValue(
+        object, property, EffectiveValueProvider::ThemeStyle, value);
+}
+
+Base::Result<void> EffectiveValueEngine::ClearThemeStyleValue(
+    DependencyObject& object,
+    DependencyPropertyHandle property) noexcept {
+    return ClearProviderValue(
+        object, property, EffectiveValueProvider::ThemeStyle);
+}
+
+Base::Result<void> EffectiveValueEngine::SetTriggerValue(
+    DependencyObject& object,
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    return SetProviderValue(
+        object, property, EffectiveValueProvider::Trigger, value);
+}
+
+Base::Result<void> EffectiveValueEngine::ClearTriggerValue(
+    DependencyObject& object,
+    DependencyPropertyHandle property) noexcept {
+    return ClearProviderValue(
+        object, property, EffectiveValueProvider::Trigger);
 }
 
 Base::Result<void> EffectiveValueEngine::SetAnimationValue(
@@ -530,6 +572,11 @@ EffectiveValueEngine::Resolve(Entry& entry) noexcept {
         return resolution;
     }
 
+    if (entry.trigger.hasValue) {
+        resolution.value = entry.trigger.value;
+        resolution.provider = EffectiveValueProvider::Trigger;
+        return resolution;
+    }
     if (entry.templated.hasValue) {
         resolution.value = entry.templated.value;
         resolution.provider = EffectiveValueProvider::Template;
@@ -538,6 +585,11 @@ EffectiveValueEngine::Resolve(Entry& entry) noexcept {
     if (entry.style.hasValue) {
         resolution.value = entry.style.value;
         resolution.provider = EffectiveValueProvider::Style;
+        return resolution;
+    }
+    if (entry.themeStyle.hasValue) {
+        resolution.value = entry.themeStyle.value;
+        resolution.provider = EffectiveValueProvider::ThemeStyle;
         return resolution;
     }
 

@@ -3,12 +3,14 @@
 namespace Aero::Markup {
 
 Base::Result<XamlCompiledCacheIdentity> BuildXamlCompiledCacheIdentity(
-    const Core::MetadataDomain& domain) noexcept {
+    const Core::MetadataDomain& domain,
+    Base::HashCode moduleManifestHash) noexcept {
     Base::Result<Base::HashCode> hash = domain.ComputeSchemaHash();
     if (!hash) return hash.GetStatus();
 
     XamlCompiledCacheIdentity identity;
     identity.metadataSchemaHash = hash.Value();
+    identity.moduleManifestHash = moduleManifestHash;
     return identity;
 }
 
@@ -30,14 +32,19 @@ XamlCompiledCacheCompatibility CompareXamlCompiledCacheIdentity(
     if (cached.metadataSchemaHash != current.metadataSchemaHash) {
         return XamlCompiledCacheCompatibility::MetadataSchemaMismatch;
     }
+    if (cached.moduleManifestHash != current.moduleManifestHash) {
+        return XamlCompiledCacheCompatibility::ModuleManifestMismatch;
+    }
     return XamlCompiledCacheCompatibility::Compatible;
 }
 
 Base::Result<void> ValidateXamlCompiledCacheIdentity(
     const XamlCompiledCacheIdentity& cached,
-    const Core::MetadataDomain& currentDomain) noexcept {
+    const Core::MetadataDomain& currentDomain,
+    Base::HashCode moduleManifestHash) noexcept {
     Base::Result<XamlCompiledCacheIdentity> current =
-        BuildXamlCompiledCacheIdentity(currentDomain);
+        BuildXamlCompiledCacheIdentity(
+            currentDomain, moduleManifestHash);
     if (!current) return current.GetStatus();
 
     switch (CompareXamlCompiledCacheIdentity(cached, current.Value())) {
@@ -63,6 +70,10 @@ Base::Result<void> ValidateXamlCompiledCacheIdentity(
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Compiled XAML metadata schema hash does not match the runtime");
+    case XamlCompiledCacheCompatibility::ModuleManifestMismatch:
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Compiled XAML module manifest does not match the runtime");
     }
     return Base::Status::Failure(
         Base::ErrorCode::InternalError,

@@ -641,6 +641,51 @@ Base::Result<void> MetadataFacetStore::Build(
             result = AddTypeMask(type.Id(), MetadataFacetKind::Content);
             if (!result) return result.GetStatus();
         }
+        const PropertyChangeNotificationRegistration* notification =
+            behaviors.FindPropertyChangeNotification(type.Id());
+        if (notification != nullptr) {
+            const std::uint32_t index =
+                propertyChangeNotifications_.Size();
+            result = propertyChangeNotifications_.TryPushBack({
+                type.Id(),
+                notification->subscribe,
+                notification->unsubscribe,
+                notification->context});
+            if (!result) return result.GetStatus();
+            result = InsertUnique(
+                propertyChangeNotificationIndex_,
+                type.Id(),
+                index,
+                "Property-change notification facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(
+                type.Id(),
+                MetadataFacetKind::PropertyChangeNotification);
+            if (!result) return result.GetStatus();
+        }
+        const CollectionChangeNotificationRegistration*
+            collectionNotification =
+                behaviors.FindCollectionChangeNotification(type.Id());
+        if (collectionNotification != nullptr) {
+            const std::uint32_t index =
+                collectionChangeNotifications_.Size();
+            result = collectionChangeNotifications_.TryPushBack({
+                type.Id(),
+                collectionNotification->subscribe,
+                collectionNotification->unsubscribe,
+                collectionNotification->context});
+            if (!result) return result.GetStatus();
+            result = InsertUnique(
+                collectionChangeNotificationIndex_,
+                type.Id(),
+                index,
+                "Collection-change notification facet collision");
+            if (!result) return result.GetStatus();
+            result = AddTypeMask(
+                type.Id(),
+                MetadataFacetKind::CollectionChangeNotification);
+            if (!result) return result.GetStatus();
+        }
 
         for (const PropertyInfo& property : type.Properties()) {
             const PropertyAccessorRegistration* accessor =
@@ -812,10 +857,74 @@ const RoutedEventFacet* MetadataFacetStore::FindRoutedEvent(
         ? &routedEvents_[*index] : nullptr;
 }
 
+const PropertyChangeNotificationFacet*
+MetadataFacetStore::FindPropertyChangeNotification(
+    TypeId type) const noexcept {
+    if (descriptors_ == nullptr) return nullptr;
+    const auto find = [this](
+        const auto& self,
+        TypeId current,
+        std::uint32_t depth) noexcept
+        -> const PropertyChangeNotificationFacet* {
+        if (current == InvalidTypeId ||
+            depth > descriptors_->TypeCount()) {
+            return nullptr;
+        }
+        const std::uint32_t* index =
+            propertyChangeNotificationIndex_.Find(current);
+        if (index != nullptr &&
+            *index < propertyChangeNotifications_.Size()) {
+            return &propertyChangeNotifications_[*index];
+        }
+        const MetadataTypeDescriptor* descriptor =
+            descriptors_->FindType(current);
+        if (descriptor == nullptr) return nullptr;
+        for (TypeId interfaceType : descriptor->Interfaces()) {
+            const PropertyChangeNotificationFacet* inherited =
+                self(self, interfaceType, depth + 1U);
+            if (inherited != nullptr) return inherited;
+        }
+        return self(self, descriptor->BaseType(), depth + 1U);
+    };
+    return find(find, type, 0U);
+}
+
+const CollectionChangeNotificationFacet*
+MetadataFacetStore::FindCollectionChangeNotification(
+    TypeId type) const noexcept {
+    if (descriptors_ == nullptr) return nullptr;
+    const auto find = [this](
+        const auto& self,
+        TypeId current,
+        std::uint32_t depth) noexcept
+        -> const CollectionChangeNotificationFacet* {
+        if (current == InvalidTypeId ||
+            depth > descriptors_->TypeCount()) {
+            return nullptr;
+        }
+        const std::uint32_t* index =
+            collectionChangeNotificationIndex_.Find(current);
+        if (index != nullptr &&
+            *index < collectionChangeNotifications_.Size()) {
+            return &collectionChangeNotifications_[*index];
+        }
+        const MetadataTypeDescriptor* descriptor =
+            descriptors_->FindType(current);
+        if (descriptor == nullptr) return nullptr;
+        for (TypeId interfaceType : descriptor->Interfaces()) {
+            const CollectionChangeNotificationFacet* inherited =
+                self(self, interfaceType, depth + 1U);
+            if (inherited != nullptr) return inherited;
+        }
+        return self(self, descriptor->BaseType(), depth + 1U);
+    };
+    return find(find, type, 0U);
+}
+
 Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
     if (!sealed_) return InvalidState("Facet hash requires a sealed store");
     Base::Detail::StableMetadataIdBuilder builder;
-    constexpr char domain[] = "AERO.FACETS.V2";
+    constexpr char domain[] = "AERO.FACETS.V4";
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
     builder.AddU32(MetadataFacetFormatVersion);
 
@@ -913,6 +1022,38 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
         builder.AddU64(facet.member);
         builder.AddU64(facet.ownerType);
         builder.AddU64(facet.eventArgsType);
+    }
+
+    order.Clear();
+    result = BuildOrder(propertyChangeNotifications_.Size(), order,
+        [this](std::uint32_t left, std::uint32_t right) noexcept {
+            return propertyChangeNotifications_[left].type <
+                propertyChangeNotifications_[right].type;
+        });
+    if (!result) return result.GetStatus();
+    builder.AddU32(order.Size());
+    for (std::uint32_t index : order) {
+        const PropertyChangeNotificationFacet& facet =
+            propertyChangeNotifications_[index];
+        builder.AddU64(facet.type);
+        builder.AddByte(facet.subscribe != nullptr ? 1U : 0U);
+        builder.AddByte(facet.unsubscribe != nullptr ? 1U : 0U);
+    }
+
+    order.Clear();
+    result = BuildOrder(collectionChangeNotifications_.Size(), order,
+        [this](std::uint32_t left, std::uint32_t right) noexcept {
+            return collectionChangeNotifications_[left].type <
+                collectionChangeNotifications_[right].type;
+        });
+    if (!result) return result.GetStatus();
+    builder.AddU32(order.Size());
+    for (std::uint32_t index : order) {
+        const CollectionChangeNotificationFacet& facet =
+            collectionChangeNotifications_[index];
+        builder.AddU64(facet.type);
+        builder.AddByte(facet.subscribe != nullptr ? 1U : 0U);
+        builder.AddByte(facet.unsubscribe != nullptr ? 1U : 0U);
     }
     return builder.Finish();
 }

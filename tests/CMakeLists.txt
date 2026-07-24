@@ -56,6 +56,13 @@ set_target_properties(AeroDependencyPropertyTests PROPERTIES CXX_STANDARD 17 CXX
 aero_apply_compiler_options(AeroDependencyPropertyTests)
 add_test(NAME AeroDependencyPropertyTests COMMAND AeroDependencyPropertyTests)
 
+add_executable(AeroBindingPathTests core/BindingPathTests.cpp)
+target_link_libraries(AeroBindingPathTests PRIVATE Aero::Core)
+target_compile_features(AeroBindingPathTests PRIVATE cxx_std_17)
+set_target_properties(AeroBindingPathTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroBindingPathTests)
+add_test(NAME AeroBindingPathTests COMMAND AeroBindingPathTests)
+
 add_executable(AeroBindingTests presentation/BindingTests.cpp)
 target_link_libraries(AeroBindingTests PRIVATE Aero::Presentation)
 target_compile_features(AeroBindingTests PRIVATE cxx_std_17)
@@ -84,12 +91,26 @@ set_target_properties(AeroObjectTreeTests PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 aero_apply_compiler_options(AeroObjectTreeTests)
 add_test(NAME AeroObjectTreeTests COMMAND AeroObjectTreeTests)
 
+add_executable(AeroDataContextTests presentation/DataContextTests.cpp)
+target_link_libraries(AeroDataContextTests PRIVATE Aero::Presentation)
+target_compile_features(AeroDataContextTests PRIVATE cxx_std_17)
+set_target_properties(AeroDataContextTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroDataContextTests)
+add_test(NAME AeroDataContextTests COMMAND AeroDataContextTests)
+
 add_executable(AeroLayoutTests controls/LayoutTests.cpp)
 target_link_libraries(AeroLayoutTests PRIVATE Aero::Controls)
 target_compile_features(AeroLayoutTests PRIVATE cxx_std_17)
 set_target_properties(AeroLayoutTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroLayoutTests)
 add_test(NAME AeroLayoutTests COMMAND AeroLayoutTests)
+
+add_executable(AeroTemplateTests controls/TemplatesTests.cpp)
+target_link_libraries(AeroTemplateTests PRIVATE Aero::Controls)
+target_compile_features(AeroTemplateTests PRIVATE cxx_std_17)
+set_target_properties(AeroTemplateTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTemplateTests)
+add_test(NAME AeroTemplateTests COMMAND AeroTemplateTests)
 
 add_executable(AeroInputTests presentation/InputTests.cpp)
 target_link_libraries(AeroInputTests PRIVATE Aero::Controls)
@@ -141,6 +162,20 @@ target_compile_features(AeroXamlBindingTests PRIVATE cxx_std_17)
 set_target_properties(AeroXamlBindingTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroXamlBindingTests)
 add_test(NAME AeroXamlBindingTests COMMAND AeroXamlBindingTests)
+
+add_executable(AeroXamlModuleSdkTests
+    markup/XamlModuleSdkTests.cpp)
+target_link_libraries(AeroXamlModuleSdkTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlModuleSdkTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlModuleSdkTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlModuleSdkTests)
+add_test(NAME AeroXamlModuleSdkTests COMMAND AeroXamlModuleSdkTests)
+if(TARGET aero-xamlc)
+    add_test(
+        NAME AeroXamlCompilerSmoke
+        COMMAND aero-xamlc --check
+            "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/xamlc_smoke.xaml")
+endif()
 
 add_executable(AeroXamlStyleTests markup/XamlStyleTests.cpp)
 target_link_libraries(AeroXamlStyleTests PRIVATE Aero::Markup)

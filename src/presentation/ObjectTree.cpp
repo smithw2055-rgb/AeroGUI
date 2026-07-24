@@ -1,6 +1,7 @@
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 
 #include <Aero/Base/Assert.hpp>
 
@@ -97,7 +98,9 @@ ObjectTree::ObjectTree(
     : dispatcher_(&dispatcher),
       values_(&values),
       lifecycleQueue_(),
-      handles_() {}
+      handles_(),
+      dataContextChangedHandler_(
+          this, &ObjectTree::OnDataContextChanged) {}
 
 ObjectTree::~ObjectTree() noexcept {
     if (lifecycleHook_.IsValid() && dispatcher_->CheckAccess()) {
@@ -155,6 +158,13 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
         Base::Result<void> appended = handles_.TryPushBack(entry);
         if (!appended) return appended.GetStatus();
         node.handle_ = {handles_.Size() - 1U, entry.generation};
+        Base::Result<void> tracked = TrackInheritedValues(node);
+        if (!tracked) {
+            handles_.Back().node = nullptr;
+            ++handles_.Back().generation;
+            node.handle_ = {};
+            return tracked.GetStatus();
+        }
     }
     for (Visual* child : node.logicalChildren_) {
         if (child != nullptr) {
@@ -170,6 +180,7 @@ void ObjectTree::InvalidateHandleSubtree(Visual& node) noexcept {
         if (child != nullptr) InvalidateHandleSubtree(*child);
     }
     if (node.handle_.IsValid() && node.handle_.index < handles_.Size()) {
+        UntrackInheritedValues(node);
         HandleEntry& entry = handles_[node.handle_.index];
         if (entry.node == &node) {
             entry.node = nullptr;
@@ -178,6 +189,50 @@ void ObjectTree::InvalidateHandleSubtree(Visual& node) noexcept {
         }
     }
     node.handle_ = {};
+}
+
+Base::Result<void> ObjectTree::TrackInheritedValues(
+    Visual& node) noexcept {
+    FrameworkElement* element = node.AsFrameworkElement();
+    if (element == nullptr ||
+        element->PropertyRegistry().Find(
+            FrameworkElement::DataContextProperty) == nullptr) {
+        return {};
+    }
+    Base::Result<void> subscribed =
+        element->TryAddValueChangedHandler(
+            FrameworkElement::DataContextProperty,
+            dataContextChangedHandler_);
+    if (!subscribed) return subscribed.GetStatus();
+    Base::Result<void> invalidated = values_->Invalidate(
+        *element, FrameworkElement::DataContextProperty);
+    if (!invalidated) {
+        (void)element->RemoveValueChangedHandler(
+            FrameworkElement::DataContextProperty,
+            dataContextChangedHandler_);
+        return invalidated.GetStatus();
+    }
+    return {};
+}
+
+void ObjectTree::UntrackInheritedValues(Visual& node) noexcept {
+    FrameworkElement* element = node.AsFrameworkElement();
+    if (element == nullptr ||
+        element->PropertyRegistry().Find(
+            FrameworkElement::DataContextProperty) == nullptr) {
+        return;
+    }
+    (void)element->RemoveValueChangedHandler(
+        FrameworkElement::DataContextProperty,
+        dataContextChangedHandler_);
+}
+
+void ObjectTree::OnDataContextChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    if (args.property == FrameworkElement::DataContextProperty) {
+        (void)values_->Invalidate(object, args.property);
+    }
 }
 
 Base::Result<void> ObjectTree::VerifyMutation(

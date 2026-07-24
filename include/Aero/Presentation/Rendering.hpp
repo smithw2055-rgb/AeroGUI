@@ -214,9 +214,16 @@ public:
     Size MinSize() const noexcept;
     Size MaxSize() const noexcept;
     Thickness Margin() const noexcept;
+    Base::Result<Base::Ref<Base::Object>> GetDataContext() const noexcept;
+    DependencyObject* TemplatedParent() const noexcept {
+        return templatedParent_;
+    }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
 
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        DataContextProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "DataContext");
     inline static constexpr Aero::Core::DependencyPropertyHandle
         WidthProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "Width");
@@ -257,6 +264,16 @@ public:
     Base::Result<void> SetMinSize(Size value) noexcept;
     Base::Result<void> SetMaxSize(Size value) noexcept;
     Base::Result<void> SetMargin(Thickness value) noexcept;
+    Base::Result<void> SetDataContext(
+        Base::Ref<Base::Object> value) noexcept;
+    Base::Result<void> ClearDataContext() noexcept;
+    Base::Result<void> SetTemplatedParent(
+        DependencyObject* value) noexcept {
+        Base::Result<void> access = VerifyAccess();
+        if (!access) return access.GetStatus();
+        templatedParent_ = value;
+        return {};
+    }
     Base::Result<void> SetHorizontalAlignment(
         HorizontalAlignment value) noexcept;
     Base::Result<void> SetVerticalAlignment(
@@ -285,6 +302,7 @@ private:
     bool renderValid_ = false;
     bool renderQueued_ = false;
     bool buildingDisplayList_ = false;
+    DependencyObject* templatedParent_ = nullptr;
 };
 
 struct RenderNodeSnapshot final {

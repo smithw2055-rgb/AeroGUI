@@ -190,59 +190,40 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
             "Binding target must be a DependencyObject instance");
     }
 
-    Core::DependencyObject* source = nullptr;
+    Base::Object* source = nullptr;
     if (!elementName.Empty()) {
-        Base::Object* sourceObject = services.nameScope->Find(elementName);
-        if (sourceObject == nullptr) {
+        source = services.nameScope->Find(elementName);
+        if (source == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Binding ElementName was not found in the active NameScope");
         }
-        source = extension->options_.asDependencyObject(
-            *sourceObject, extension->options_.castContext);
     } else {
         if (!extension->options_.dataContextProperty.IsValid()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Binding without ElementName requires a DataContext property");
         }
-        Base::Result<Core::PropertyValue> dataContext = target->GetValue(
-            extension->options_.dataContextProperty);
-        if (!dataContext) {
-            return dataContext.GetStatus();
-        }
-        if (dataContext.Value().Kind() != Core::PropertyValueKind::Object ||
-            !dataContext.Value().AsObject()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Binding target has no DataContext object");
-        }
-        source = extension->options_.asDependencyObject(
-            *dataContext.Value().AsObject(), extension->options_.castContext);
-    }
-    if (source == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Binding source must be a DependencyObject instance");
     }
 
-    const Core::DependencyProperty* sourceProperty =
-        source->PropertyRegistry().Find(source->RuntimeType(), path);
     const Core::DependencyPropertyHandle targetHandle{services.targetMember};
     const Core::DependencyProperty* targetProperty =
         target->PropertyRegistry().Find(targetHandle);
-    if (sourceProperty == nullptr || targetProperty == nullptr) {
+    if (targetProperty == nullptr ||
+        services.schema->Runtime() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
-            "Binding source path or target dependency property was not found");
+            "Binding target property or metadata runtime was not found");
     }
 
     Base::Result<Presentation::BindingHandle> attached =
         extension->options_.bindings->Attach({
+            services.schema->Runtime(),
             source,
-            sourceProperty->Handle(),
             target,
             targetHandle,
+            extension->options_.dataContextProperty,
+            path,
             mode,
             updateSourceTrigger});
     if (!attached) {

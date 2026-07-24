@@ -62,6 +62,7 @@ public:
 private:
     friend class XamlNode;
     friend class XamlNodeReader;
+    friend class XamlCompiledDocument;
 
     void Clear() noexcept;
 
@@ -81,6 +82,8 @@ public:
     XamlNode& operator=(const XamlNode&) = delete;
 
     void Clear() noexcept;
+    static Base::Result<XamlNode> TryClone(
+        const XamlNode& source) noexcept;
 
     XamlNodeKind Kind() const noexcept { return kind_; }
     const XamlQualifiedName& Name() const noexcept {
@@ -104,6 +107,7 @@ public:
 
 private:
     friend class XamlNodeReader;
+    friend class XamlCompiledDocument;
 
     XamlNodeKind kind_ = XamlNodeKind::None;
     XamlQualifiedName name_;

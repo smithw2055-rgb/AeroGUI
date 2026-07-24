@@ -1,6 +1,7 @@
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <Aero/Base/Assert.hpp>
+#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 
 #include <cmath>
 #include <cstring>
@@ -314,6 +315,39 @@ FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
 FrameworkElement::~FrameworkElement() {
     AERO_ASSERT(renderManager_ == nullptr);
     AERO_ASSERT(!renderAttached_);
+}
+
+Base::Result<Base::Ref<Base::Object>>
+FrameworkElement::GetDataContext() const noexcept {
+    Base::Result<Value> value = GetValue(DataContextProperty);
+    if (!value) return value.GetStatus();
+    if (value.Value().Kind() != ValueKind::Object) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "FrameworkElement DataContext is not an object value");
+    }
+    return value.Value().AsObject();
+}
+
+Base::Result<void> FrameworkElement::SetDataContext(
+    Base::Ref<Base::Object> value) noexcept {
+    const TypeId type = value
+        ? value->RuntimeType()
+        : BuiltinTypes::Object;
+    if (type == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "DataContext object has no runtime metadata type");
+    }
+    return SetValue(
+        DataContextProperty,
+        value
+            ? Value::FromObject(type, std::move(value))
+            : Value::NullObject(BuiltinTypes::Object));
+}
+
+Base::Result<void> FrameworkElement::ClearDataContext() noexcept {
+    return ClearValue(DataContextProperty);
 }
 
 Base::Result<void> FrameworkElement::OnPropertyInvalidated(

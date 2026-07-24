@@ -22,7 +22,7 @@ class DependencyProperty;
 class DependencyPropertyRegistry;
 
 inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 2U;
-inline constexpr std::uint32_t MetadataFacetFormatVersion = 4U;
+inline constexpr std::uint32_t MetadataFacetFormatVersion = 6U;
 
 enum class MetadataDescriptorKind : std::uint8_t {
     Type = 0U,
@@ -43,7 +43,9 @@ enum class MetadataFacetKind : std::uint8_t {
     RoutedEvent,
     ValueSemantics,
     TextConverter,
-    Activation
+    Activation,
+    PropertyChangeNotification,
+    CollectionChangeNotification
 };
 
 using MetadataFacetMask = std::uint64_t;
@@ -332,6 +334,20 @@ struct RoutedEventFacet final {
     RoutingStrategy strategy = RoutingStrategy::Bubble;
 };
 
+struct PropertyChangeNotificationFacet final {
+    TypeId type = InvalidTypeId;
+    PropertyChangeSubscribeCallback subscribe = nullptr;
+    PropertyChangeUnsubscribeCallback unsubscribe = nullptr;
+    void* context = nullptr;
+};
+
+struct CollectionChangeNotificationFacet final {
+    TypeId type = InvalidTypeId;
+    CollectionChangeSubscribeCallback subscribe = nullptr;
+    CollectionChangeUnsubscribeCallback unsubscribe = nullptr;
+    void* context = nullptr;
+};
+
 // Sealed value facets own their runtime registrations. No runtime lookup is
 // routed back through TypeRegistry after MetadataDomain::Seal().
 struct ValueSemanticsFacet final {
@@ -383,6 +399,10 @@ public:
     const MethodInvokerFacet* FindMethodInvoker(MemberId member) const noexcept;
     const DependencyPropertyFacet* FindDependencyProperty(MemberId member) const noexcept;
     const RoutedEventFacet* FindRoutedEvent(MemberId member) const noexcept;
+    const PropertyChangeNotificationFacet*
+    FindPropertyChangeNotification(TypeId type) const noexcept;
+    const CollectionChangeNotificationFacet*
+    FindCollectionChangeNotification(TypeId type) const noexcept;
     const ValueSemanticsFacet* FindValueSemantics(TypeId type) const noexcept;
     const TextConverterFacet* FindTextConverter(TypeId type) const noexcept;
 
@@ -397,6 +417,10 @@ private:
     Base::Vector<MethodInvokerFacet> methodInvokers_;
     Base::Vector<DependencyPropertyFacet> dependencyProperties_;
     Base::Vector<RoutedEventFacet> routedEvents_;
+    Base::Vector<PropertyChangeNotificationFacet>
+        propertyChangeNotifications_;
+    Base::Vector<CollectionChangeNotificationFacet>
+        collectionChangeNotifications_;
     Base::Vector<ValueSemanticsFacet> valueSemantics_;
     Base::Vector<TextConverterFacet> textConverters_;
 
@@ -407,6 +431,10 @@ private:
     Base::HashMap<MemberId, std::uint32_t> methodInvokerIndex_;
     Base::HashMap<MemberId, std::uint32_t> dependencyPropertyIndex_;
     Base::HashMap<MemberId, std::uint32_t> routedEventIndex_;
+    Base::HashMap<TypeId, std::uint32_t>
+        propertyChangeNotificationIndex_;
+    Base::HashMap<TypeId, std::uint32_t>
+        collectionChangeNotificationIndex_;
     Base::HashMap<TypeId, std::uint32_t> valueSemanticsIndex_;
     Base::HashMap<TypeId, std::uint32_t> textConverterIndex_;
     Base::HashMap<TypeId, MetadataFacetMask> typeMasks_;

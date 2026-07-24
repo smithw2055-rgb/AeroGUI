@@ -134,11 +134,114 @@ bool TestStyleSealContracts() {
     return true;
 }
 
+bool TestPropertyTriggersUseProviderPrecedence() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Dispatcher dispatcher;
+    ObjectServicesScope presentation(dispatcher, fixture.properties);
+    TestElement button(fixture.buttonType);
+    EffectiveValueEngine values(dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+
+    Style base(fixture.elementType);
+    StylePropertyTrigger trigger;
+    trigger.property = fixture.width;
+    trigger.value =
+        PropertyValue::FromDouble(fixture.doubleType, 5.0);
+    CHECK(trigger.setters.TryPushBack({
+        fixture.height,
+        PropertyValue::FromDouble(fixture.doubleType, 77.0)}));
+    CHECK(base.TryAddPropertyTrigger(std::move(trigger)));
+    CHECK(base.Seal(fixture.properties));
+    Style derived(fixture.buttonType, &base);
+    CHECK(derived.Seal(fixture.properties));
+    CHECK(derived.Triggers().Size() == 1U);
+
+    StyleManager manager(values, fixture.properties);
+    CHECK(manager.Apply(button, derived));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 1.0);
+
+    CHECK(button.SetValue(
+        fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 5.0)));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 77.0);
+    CHECK(values.Diagnostics(
+        button, fixture.height).Value().provider ==
+        EffectiveValueProvider::Trigger);
+
+    CHECK(button.SetValue(
+        fixture.height,
+        PropertyValue::FromDouble(fixture.doubleType, 88.0)));
+    CHECK(values.Invalidate(button, fixture.height));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 88.0);
+    CHECK(button.ClearValue(fixture.height));
+    CHECK(values.Invalidate(button, fixture.height));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 77.0);
+
+    CHECK(button.SetValue(
+        fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 6.0)));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.height).Value().AsDouble() == 1.0);
+    CHECK(manager.DetachObject(button).Value());
+    return true;
+}
+
+bool TestThemeStyleResolutionAndPrecedence() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Dispatcher dispatcher;
+    ObjectServicesScope presentation(dispatcher, fixture.properties);
+    TestElement button(fixture.buttonType);
+    EffectiveValueEngine values(dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+
+    Style theme(fixture.buttonType);
+    CHECK(theme.TryAddSetter(
+        fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 24.0)));
+    CHECK(theme.Seal(fixture.properties));
+    ThemeStyleRegistry themes(fixture.properties);
+    CHECK(themes.TryRegister(fixture.buttonType, theme));
+    CHECK(themes.Find(fixture.buttonType) == &theme);
+    ThemeStyleManager themeManager(values, themes);
+    CHECK(themeManager.ApplyDefault(button).Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.width).Value().AsDouble() == 24.0);
+    CHECK(values.Diagnostics(
+        button, fixture.width).Value().provider ==
+        EffectiveValueProvider::ThemeStyle);
+
+    Style explicitStyle(fixture.buttonType);
+    CHECK(explicitStyle.TryAddSetter(
+        fixture.width,
+        PropertyValue::FromDouble(fixture.doubleType, 36.0)));
+    CHECK(explicitStyle.Seal(fixture.properties));
+    StyleManager styles(values, fixture.properties);
+    CHECK(styles.Apply(button, explicitStyle));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.width).Value().AsDouble() == 36.0);
+    CHECK(styles.Clear(button, explicitStyle));
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.width).Value().AsDouble() == 24.0);
+
+    CHECK(themeManager.Clear(button).Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(button.GetValue(fixture.width).Value().AsDouble() == 1.0);
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestBasedOnFlatteningAndPrecedence()) return 1;
     if (!TestStyleSealContracts()) return 1;
+    if (!TestPropertyTriggersUseProviderPrecedence()) return 1;
+    if (!TestThemeStyleResolutionAndPrecedence()) return 1;
     std::puts("Aero style tests passed");
     return 0;
 }
