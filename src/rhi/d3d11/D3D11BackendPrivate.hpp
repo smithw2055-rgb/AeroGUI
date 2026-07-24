@@ -844,7 +844,7 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
-    // The intentionally bounded state set changed by SubmitGraphics(). It is
+    // The intentionally bounded state set changed by Submit(). It is
     // used only by the explicit PreserveRequiredState integration contract;
     // HostResetsState avoids the Get* calls entirely.
     struct RequiredStateSnapshot final {

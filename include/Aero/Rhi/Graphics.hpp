@@ -14,7 +14,9 @@
 
 namespace Aero::Rhi {
 
-constexpr std::uint32_t GraphicsAbiVersion = 1U;
+struct ExternalRenderTargetDescriptor;
+
+constexpr std::uint32_t GraphicsAbiVersion = 2U;
 constexpr std::uint32_t MaxVertexBuffers = 4U;
 constexpr std::uint32_t MaxVertexAttributes = 16U;
 constexpr std::uint32_t MaxColorAttachments = 4U;
@@ -511,7 +513,10 @@ public:
     virtual Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> SubmitGraphics(
+    virtual Base::Result<void> ImportRenderTarget(
+        ResourceHandle handle,
+        const ExternalRenderTargetDescriptor& descriptor) noexcept = 0;
+    virtual Base::Result<void> Submit(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept = 0;
 };
@@ -528,70 +533,11 @@ SelectGraphicsBackend(
     Base::Span<IGraphicsBackend*> backends,
     const BackendRequest& request) noexcept;
 
-class AERO_API GraphicsResourceFactory final {
-public:
-    GraphicsResourceFactory(
-        RhiDevice& device,
-        IGraphicsBackend& backend) noexcept
-        : device_(&device), backend_(&backend) {}
-
-    Base::Result<ResourceHandle> CreateBuffer(
-        const BufferDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateTexture(
-        const TextureResourceDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateRenderTarget(
-        const TextureResourceDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreateSampler(
-        const SamplerDescriptor& descriptor) noexcept;
-    Base::Result<ResourceHandle> CreatePipeline(
-        const PipelineDescriptor& descriptor) noexcept;
-
-private:
-    RhiDevice* device_ = nullptr;
-    IGraphicsBackend* backend_ = nullptr;
-
-    Base::Result<ResourceHandle> CreateTextureInternal(
-        const TextureResourceDescriptor& descriptor,
-        ResourceType resourceType) noexcept;
-    void Rollback(ResourceHandle handle) noexcept;
-};
-
-struct GraphicsFrameCapture final {
-    GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
-    FenceValue signalFence = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint32_t uploadByteCount = 0U;
-    std::uint64_t commandHash = 0U;
-};
-
-class AERO_API GraphicsQueue final {
-public:
-    explicit GraphicsQueue(IGraphicsBackend& backend) noexcept
-        : backend_(&backend) {}
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<FenceValue> Submit(
-        const GraphicsCommandBuffer& commands) noexcept;
-    FenceValue LastSubmittedFence() const noexcept {
-        return lastSubmittedFence_;
-    }
-    const GraphicsFrameCapture& LastCapture() const noexcept {
-        return lastCapture_;
-    }
-
-private:
-    IGraphicsBackend* backend_ = nullptr;
-    GraphicsCapabilities capabilities_;
-    FenceValue lastSubmittedFence_ = 0U;
-    GraphicsFrameCapture lastCapture_;
-    bool initialized_ = false;
-};
-
 class AERO_API NullGraphicsBackend final : public IGraphicsBackend {
 public:
     explicit NullGraphicsBackend(
         Base::IAllocator* allocator = nullptr) noexcept
-        : base_(allocator), resources_(allocator) {}
+        : resources_(allocator) {}
 
     DeviceCapabilities Capabilities() const noexcept override;
     GraphicsBackendKind Kind() const noexcept override {
@@ -613,10 +559,10 @@ public:
     Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
+    Base::Result<void> ImportRenderTarget(
+        ResourceHandle handle,
+        const ExternalRenderTargetDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
     FenceValue LastSubmittedFence() const noexcept override {
@@ -626,7 +572,7 @@ public:
         return completedFence_;
     }
     bool IsDeviceLost() const noexcept override {
-        return deviceLost_ || base_.IsDeviceLost();
+        return deviceLost_;
     }
 
     void CompleteThrough(FenceValue fence) noexcept;
@@ -639,7 +585,7 @@ public:
         return lastGraphicsHash_;
     }
     std::uint32_t LiveBackendResourceCount() const noexcept {
-        return base_.LiveBackendResourceCount();
+        return resources_.Size();
     }
 
 private:
@@ -658,7 +604,6 @@ private:
         ConfigurationKind configuration = ConfigurationKind::None;
     };
 
-    NullRhiBackend base_;
     Base::Vector<ResourceRecord> resources_;
     FenceValue completedFence_ = 0U;
     FenceValue lastSubmittedFence_ = 0U;
@@ -691,9 +636,9 @@ struct SokolBackendApi final {
         void*, ResourceHandle, const SamplerDescriptor&) noexcept = nullptr;
     Base::Result<void> (*configurePipeline)(
         void*, ResourceHandle, const PipelineDescriptor&) noexcept = nullptr;
+    Base::Result<void> (*importRenderTarget)(
+        void*, ResourceHandle, const ExternalRenderTargetDescriptor&) noexcept = nullptr;
     Base::Result<void> (*submit)(
-        void*, const CommandBuffer&, FenceValue) noexcept = nullptr;
-    Base::Result<void> (*submitGraphics)(
         void*, const GraphicsCommandBuffer&, FenceValue) noexcept = nullptr;
     FenceValue (*completedFence)(void*) noexcept = nullptr;
     bool (*isDeviceLost)(void*) noexcept = nullptr;
@@ -724,10 +669,10 @@ public:
     Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
+    Base::Result<void> ImportRenderTarget(
+        ResourceHandle handle,
+        const ExternalRenderTargetDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
     FenceValue LastSubmittedFence() const noexcept override {

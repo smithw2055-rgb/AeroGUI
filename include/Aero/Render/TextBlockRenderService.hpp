@@ -52,7 +52,6 @@ public:
     TextBlockRenderService(
         Text::FontManager& fonts,
         Rhi::RhiDevice& device,
-        Rhi::IGraphicsBackend& graphics,
         IGlyphRunResourceRegistry& registry,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~TextBlockRenderService() override;
@@ -69,7 +68,6 @@ public:
     // so controls request fresh resources from the replacement device.
     Base::Result<void> RecoverDeviceResources(
         Rhi::RhiDevice& device,
-        Rhi::IGraphicsBackend& graphics,
         IGlyphRunResourceRegistry& registry) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
@@ -88,7 +86,6 @@ private:
 
     Text::FontManager* fonts_ = nullptr;
     Rhi::RhiDevice* device_ = nullptr;
-    Rhi::IGraphicsBackend* graphics_ = nullptr;
     IGlyphRunResourceRegistry* registry_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

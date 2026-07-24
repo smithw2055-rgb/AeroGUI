@@ -11,8 +11,9 @@
 - M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v3；
 - Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
-- M3.5 的 provider-neutral `AeroText` 合同层已完成；FreeType/HarfBuzz adapter、glyph atlas、TextLayout 算法与 TextBlock 接入仍未完成；
-- 交互控件、Items/virtualization、OpenGL 3.3、TextBox/IME、ControlGallery 和质量门禁仍按本路线图验收，不因框架代码存在而提前标记完成。
+- M3.5 的 provider-neutral `AeroText`、FreeType/HarfBuzz adapter、glyph atlas、基础 TextLayout 与 TextBlock GPU 接入已完成，并有 provider、atlas、fallback、布局和 D3D11/WARP 像素测试；
+- Render/RHI 已收敛为 `RenderPlan -> Renderer -> RhiDevice -> IGraphicsBackend` 单一路径，surface acquire 直接导入 RHI frame target，旧命令通道、resource factory/queue 和 D3D11 presenter 已移除；
+- 完整 Unicode line breaking/bidi、其余交互控件、Items/virtualization、OpenGL 3.3、TextBox/IME、ControlGallery 和质量门禁仍按本路线图验收，不因框架代码存在而提前标记完成。
 
 ## 1. Diagnostics
 
@@ -584,7 +585,7 @@ Fuzz targets：
 
 ### M3 — Application model 与桌面/移动兼容
 
-状态：**进行中（M3.5）**。Binding/DataContext、Style/Template、compiled XAML、D3D11 基线与 `AeroText` provider 合同已完成；Command/controls、FreeType/HarfBuzz/atlas/TextBlock 文本实现、Items/virtualization、OpenGL 3.3/WGL/GLX 与应用样例尚未完成。
+状态：**进行中（M3.5）**。Binding/DataContext、Style/Template、compiled XAML、D3D11 基线、`AeroText` provider/atlas/TextBlock 垂直切片，以及 Presentation → Renderer → 单一 RHI command stream 的边界收敛已完成；完整 controls、OpenGL 3.3/WGL/GLX、TextBox/IME 与应用样例尚未完成。
 
 交付：
 

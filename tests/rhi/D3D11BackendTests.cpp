@@ -190,30 +190,29 @@ bool TestOffscreenRectangleAndReadback(
 
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    GraphicsResourceFactory resources(device, backend);
 
     BufferDescriptor vertexDescriptor;
     vertexDescriptor.sizeBytes = 64U;
     vertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> vertex = resources.CreateBuffer(vertexDescriptor);
+    Result<ResourceHandle> vertex = device.CreateBuffer(vertexDescriptor);
     CHECK(vertex);
 
     BufferDescriptor indexDescriptor;
     indexDescriptor.sizeBytes = 12U;
     indexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> index = resources.CreateBuffer(indexDescriptor);
+    Result<ResourceHandle> index = device.CreateBuffer(indexDescriptor);
     CHECK(index);
 
     BufferDescriptor uniformDescriptor;
     uniformDescriptor.sizeBytes = 32U;
     uniformDescriptor.usage = BufferUsage::Uniform;
-    Result<ResourceHandle> uniform = resources.CreateBuffer(uniformDescriptor);
+    Result<ResourceHandle> uniform = device.CreateBuffer(uniformDescriptor);
     CHECK(uniform);
     BufferDescriptor offsetUniformDescriptor;
     offsetUniformDescriptor.sizeBytes = 96U;
     offsetUniformDescriptor.usage = BufferUsage::Uniform;
     Result<ResourceHandle> offsetUniform =
-        resources.CreateBuffer(offsetUniformDescriptor);
+        device.CreateBuffer(offsetUniformDescriptor);
     CHECK(offsetUniform);
 
     TextureResourceDescriptor sampledDescriptor;
@@ -222,11 +221,11 @@ bool TestOffscreenRectangleAndReadback(
     sampledDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
     sampledDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> sampled = resources.CreateTexture(sampledDescriptor);
+    Result<ResourceHandle> sampled = device.CreateTexture(sampledDescriptor);
     CHECK(sampled);
     TextureResourceDescriptor arrayDescriptor = sampledDescriptor;
     arrayDescriptor.arrayLayers = 2U;
-    Result<ResourceHandle> arrayTexture = resources.CreateTexture(arrayDescriptor);
+    Result<ResourceHandle> arrayTexture = device.CreateTexture(arrayDescriptor);
     CHECK(arrayTexture);
 
     TextureResourceDescriptor targetDescriptor;
@@ -236,7 +235,7 @@ bool TestOffscreenRectangleAndReadback(
     targetDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::RenderTarget) |
         TextureUsageBit(TextureUsage::CopySource);
-    Result<ResourceHandle> target = resources.CreateTexture(targetDescriptor);
+    Result<ResourceHandle> target = device.CreateTexture(targetDescriptor);
     CHECK(target);
 
     TextureResourceDescriptor depthDescriptor;
@@ -244,14 +243,14 @@ bool TestOffscreenRectangleAndReadback(
     depthDescriptor.height = 64U;
     depthDescriptor.format = GraphicsTextureFormat::Depth24Stencil8;
     depthDescriptor.usage = TextureUsageBit(TextureUsage::RenderTarget);
-    Result<ResourceHandle> depthStencil = resources.CreateTexture(depthDescriptor);
+    Result<ResourceHandle> depthStencil = device.CreateTexture(depthDescriptor);
     CHECK(depthStencil);
 
     SamplerDescriptor samplerDescriptor;
     samplerDescriptor.minFilter = FilterMode::Nearest;
     samplerDescriptor.magFilter = FilterMode::Nearest;
     samplerDescriptor.mipFilter = FilterMode::Nearest;
-    Result<ResourceHandle> sampler = resources.CreateSampler(samplerDescriptor);
+    Result<ResourceHandle> sampler = device.CreateSampler(samplerDescriptor);
     CHECK(sampler);
 
     auto* nativeDevice = reinterpret_cast<ID3D11Device*>(backend.NativeDevice());
@@ -287,7 +286,7 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(hazardEncoder.EndRenderPass());
     Result<GraphicsCommandBuffer> hazardCommands = hazardEncoder.Finish();
     CHECK(hazardCommands);
-    CHECK(!backend.SubmitGraphics(hazardCommands.Value(), 1U));
+    CHECK(!backend.Submit(hazardCommands.Value(), 1U));
     ID3D11ShaderResourceView* remainingView = nullptr;
     nativeContext->VSGetShaderResources(0U, 1U, &remainingView);
     CHECK(statePolicy == D3D11StatePolicy::PreserveRequiredState
@@ -301,21 +300,21 @@ bool TestOffscreenRectangleAndReadback(
     pipelineDescriptor.depthStencil.depthTestEnabled = true;
     pipelineDescriptor.depthStencil.depthWriteEnabled = true;
     pipelineDescriptor.depthStencil.depthCompare = CompareOperation::LessEqual;
-    Result<ResourceHandle> pipeline = resources.CreatePipeline(pipelineDescriptor);
+    Result<ResourceHandle> pipeline = device.CreatePipeline(pipelineDescriptor);
     CHECK(pipeline);
     Result<ResourceHandle> arrayPipeline =
-        resources.CreatePipeline(MakeTextureArrayPipeline());
+        device.CreatePipeline(MakeTextureArrayPipeline());
     CHECK(arrayPipeline);
-    Result<ResourceHandle> arrayUniform = resources.CreateBuffer(uniformDescriptor);
+    Result<ResourceHandle> arrayUniform = device.CreateBuffer(uniformDescriptor);
     CHECK(arrayUniform);
     PipelineDescriptor mismatchedLayout = pipelineDescriptor;
     mismatchedLayout.vertexLayout.attributeCount = 1U;
-    CHECK(!resources.CreatePipeline(mismatchedLayout));
+    CHECK(!device.CreatePipeline(mismatchedLayout));
     PipelineDescriptor mismatchedStage = pipelineDescriptor;
     mismatchedStage.fragmentShader.bytecode = AeroD3D11RectangleVertexShader;
     mismatchedStage.fragmentShader.bytecodeSize =
         sizeof(AeroD3D11RectangleVertexShader);
-    CHECK(!resources.CreatePipeline(mismatchedStage));
+    CHECK(!device.CreatePipeline(mismatchedStage));
 
     struct Vertex final {
         float x;
@@ -403,9 +402,7 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(commands);
     CHECK(commands.Value().CommandCount() == 19U);
 
-    GraphicsQueue queue(backend);
-    CHECK(queue.Initialize());
-    Result<FenceValue> fence = queue.Submit(commands.Value());
+    Result<FenceValue> fence = device.Submit(commands.Value());
     CHECK(fence);
     CHECK(fence.Value() == 1U);
     CHECK(backend.WaitForFence(fence.Value()));
@@ -463,7 +460,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> offsetUniformCommands =
         offsetUniformEncoder.Finish();
     CHECK(offsetUniformCommands);
-    Result<FenceValue> offsetUniformFence = queue.Submit(
+    Result<FenceValue> offsetUniformFence = device.Submit(
         offsetUniformCommands.Value());
     CHECK(offsetUniformFence && offsetUniformFence.Value() == 2U);
     CHECK(backend.WaitForFence(offsetUniformFence.Value()));
@@ -508,7 +505,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> textureArrayCommands =
         textureArrayEncoder.Finish();
     CHECK(textureArrayCommands);
-    Result<FenceValue> textureArrayFence = queue.Submit(
+    Result<FenceValue> textureArrayFence = device.Submit(
         textureArrayCommands.Value());
     CHECK(textureArrayFence && textureArrayFence.Value() == 3U);
     CHECK(backend.WaitForFence(textureArrayFence.Value()));
@@ -536,7 +533,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> mismatchedTextureDimensionCommands =
         mismatchedTextureDimensionEncoder.Finish();
     CHECK(mismatchedTextureDimensionCommands);
-    CHECK(!backend.SubmitGraphics(
+    CHECK(!backend.Submit(
         mismatchedTextureDimensionCommands.Value(), textureArrayFence.Value() + 1U));
     // The rejected draw bound the array SRV before reflection detected the
     // Texture2D mismatch. A failed pass must leave no backend SRV behind for
@@ -565,7 +562,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> undersizedUniformCommands =
         undersizedUniformEncoder.Finish();
     CHECK(undersizedUniformCommands);
-    CHECK(!backend.SubmitGraphics(
+    CHECK(!backend.Submit(
         undersizedUniformCommands.Value(), textureArrayFence.Value() + 1U));
 
     // The packaged pixel shader also reflects Texture2D/Sampler bindings at
@@ -583,7 +580,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> missingTextureCommands =
         missingTextureEncoder.Finish();
     CHECK(missingTextureCommands);
-    CHECK(!backend.SubmitGraphics(
+    CHECK(!backend.Submit(
         missingTextureCommands.Value(), textureArrayFence.Value() + 1U));
 
     // D3D11 exposes more SRV than sampler slots. AeroRHI binds them as one
@@ -598,7 +595,7 @@ bool TestOffscreenRectangleAndReadback(
     Result<GraphicsCommandBuffer> invalidTextureSlotCommands =
         invalidTextureSlotEncoder.Finish();
     CHECK(invalidTextureSlotCommands);
-    CHECK(!backend.SubmitGraphics(
+    CHECK(!backend.Submit(
         invalidTextureSlotCommands.Value(), textureArrayFence.Value() + 1U));
 
     D3D11_PRIMITIVE_TOPOLOGY remainingTopology =
@@ -621,15 +618,13 @@ bool TestOffscreenRectangleAndReadback(
     CHECK(SUCCEEDED(nativeDevice->CreateTexture2D(
         &externalNative, nullptr, &externalTexture)));
 
-    D3D11ExternalRenderTargetDescriptor external;
-    external.texture2D = reinterpret_cast<std::uintptr_t>(externalTexture);
-    external.texture.width = 8U;
-    external.texture.height = 8U;
-    external.texture.format = GraphicsTextureFormat::Bgra8Unorm;
-    external.texture.usage = TextureUsageBit(TextureUsage::RenderTarget);
+    ExternalRenderTargetDescriptor external;
+    external.colorTarget = reinterpret_cast<std::uintptr_t>(externalTexture);
+    external.width = 8U;
+    external.height = 8U;
+    external.colorFormat = GraphicsTextureFormat::Bgra8Unorm;
     external.stableId = UINT64_C(0xD311BACC);
-    Result<ResourceHandle> imported = ImportD3D11ExternalRenderTarget(
-        device, backend, external);
+    Result<ResourceHandle> imported = device.ImportRenderTarget(external);
     CHECK(imported);
     ReleaseCom(externalTexture);
     CHECK(device.IsAlive(imported.Value()));
@@ -675,9 +670,6 @@ bool TestDeferredResourceStress() {
     CHECK(backend.Initialize());
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    GraphicsResourceFactory resources(device, backend);
-    GraphicsQueue queue(backend);
-    CHECK(queue.Initialize());
 
     GraphicsCommandEncoder encoder;
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
@@ -691,7 +683,7 @@ bool TestDeferredResourceStress() {
         BufferDescriptor bufferDescriptor;
         bufferDescriptor.sizeBytes = 256U;
         bufferDescriptor.usage = BufferUsage::Vertex;
-        Result<ResourceHandle> buffer = resources.CreateBuffer(bufferDescriptor);
+        Result<ResourceHandle> buffer = device.CreateBuffer(bufferDescriptor);
         CHECK(buffer);
 
         TextureResourceDescriptor textureDescriptor;
@@ -700,14 +692,14 @@ bool TestDeferredResourceStress() {
         textureDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
         textureDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
             TextureUsageBit(TextureUsage::CopyDestination);
-        Result<ResourceHandle> texture = resources.CreateTexture(textureDescriptor);
+        Result<ResourceHandle> texture = device.CreateTexture(textureDescriptor);
         CHECK(texture);
 
         SamplerDescriptor samplerDescriptor;
-        Result<ResourceHandle> sampler = resources.CreateSampler(samplerDescriptor);
+        Result<ResourceHandle> sampler = device.CreateSampler(samplerDescriptor);
         CHECK(sampler);
 
-        Result<FenceValue> submitted = queue.Submit(commands.Value());
+        Result<FenceValue> submitted = device.Submit(commands.Value());
         CHECK(submitted);
         lastFence = submitted.Value();
         CHECK(device.DestroyResource(buffer.Value(), lastFence));

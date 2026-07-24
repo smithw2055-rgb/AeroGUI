@@ -20,7 +20,8 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed RHI 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
-- 尚未完成：完整 Unicode line breaking/bidi，以及 Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。TextBlock 渲染服务已支持在 loss 后放弃旧 handles、重绑定宿主重建的 device/backend，并由下一次布局重建 atlas 与 glyph runs。
+- Render/RHI 边界已收敛为单一路径：`Presentation::RenderManager` 只构建不可变 `RenderPlan`，`Render::Renderer` 统一处理 transform/clip/opacity、batch 和 glyph/image/mesh lowering，`Rhi::RhiDevice` 统一管理 typed resources、外部 render target 导入、deferred destruction、submission 与 fence；`SurfaceSession` 直接产出可记录的 RHI frame target 并在 present/discard 后安全回收。D3D11/hosted/sokol backend 只执行同一 `GraphicsCommandBuffer`，不再遍历 UI render tree，也不再需要 presenter/queue facade。
+- 尚未完成：完整 Unicode line breaking/bidi，以及 Button/Toggle/Scroll/Items/ListBox、recycling virtualization、OpenGL 3.3/WGL/GLX、TextBox/IME、ControlGallery 与对应性能/稳健性门禁。TextBlock 渲染服务已支持在 loss 后放弃旧 handles、重绑定宿主重建的 device，并由下一次布局重建 atlas 与 glyph runs。
 
 ## 已确定的技术方向
 
@@ -194,7 +195,7 @@ UI 线程之外不得读写可变 UI 对象。渲染域只接收不可变事务�
 
 ## 原生 GPU 渲染
 
-`AeroRender` 负责 retained render tree、scene diff、clip/effect plan、批次、glyph/image/geometry cache；`AeroRHI` 只负责资源、pipeline、pass、command encoding 和同步抽象。
+`AeroPresentation` 负责从 UI 状态生成不可变 `RenderPlan`；`AeroRender` 负责 clip/transform/opacity 状态解析、批次和 glyph/image/mesh lowering，并记录唯一的 backend-neutral `GraphicsCommandBuffer`；`AeroRHI` 的 `RhiDevice` 统一负责资源句柄、pipeline、外部 frame target 导入、deferred destruction、submission 和 fence。`SurfaceSession` 在 acquire 时将平台目标导入为 RHI handle，在 present/discard 后按 fence 回收；具体 backend 只把命令映射到原生 GPU API。
 
 ### 后端等级
 

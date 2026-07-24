@@ -1,4 +1,5 @@
 #include <Aero/Rhi/Graphics.hpp>
+#include <Aero/Rhi/Surface.hpp>
 
 #include <cmath>
 #include <cstring>
@@ -773,166 +774,13 @@ Base::Result<IGraphicsBackend*> SelectGraphicsBackend(
     return Unsupported("No graphics backend satisfies the requested capabilities");
 }
 
-void GraphicsResourceFactory::Rollback(ResourceHandle handle) noexcept {
-    if (!handle.IsValid()) {
-        return;
-    }
-    (void)device_->DestroyResource(handle, 0U);
-    (void)device_->CollectGarbage();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateBuffer(
-    const BufferDescriptor& descriptor) noexcept {
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Buffer;
-    resource.buffer = descriptor;
-    return device_->CreateResource(resource);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateTextureInternal(
-    const TextureResourceDescriptor& descriptor,
-    ResourceType resourceType) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidateTextureDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    if (resourceType == ResourceType::RenderTarget &&
-        !HasTextureUsage(descriptor.usage, TextureUsage::RenderTarget)) {
-        return InvalidArgument("Render-target resources require RenderTarget usage");
-    }
-
-    ResourceDescriptor resource;
-    resource.type = resourceType;
-    resource.texture.width = descriptor.width;
-    resource.texture.height = descriptor.height;
-    resource.texture.format = ToBaseTextureFormat(descriptor.format);
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigureTexture(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateTexture(
-    const TextureResourceDescriptor& descriptor) noexcept {
-    return CreateTextureInternal(descriptor, ResourceType::Texture);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateRenderTarget(
-    const TextureResourceDescriptor& descriptor) noexcept {
-    return CreateTextureInternal(descriptor, ResourceType::RenderTarget);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateSampler(
-    const SamplerDescriptor& descriptor) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidateSamplerDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Sampler;
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigureSampler(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreatePipeline(
-    const PipelineDescriptor& descriptor) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidatePipelineDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Pipeline;
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigurePipeline(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<void> GraphicsQueue::Initialize() noexcept {
-    if (initialized_) {
-        return {};
-    }
-    if (backend_ == nullptr || backend_->IsDeviceLost() ||
-        backend_->Capabilities().abiVersion != RhiAbiVersion) {
-        return InvalidState("Graphics queue backend is unavailable");
-    }
-    capabilities_ = backend_->QueryGraphicsCapabilities();
-    if (!IsValidGraphicsCapabilities(capabilities_)) {
-        return Unsupported("Graphics backend capabilities are incompatible");
-    }
-    lastSubmittedFence_ = backend_->LastSubmittedFence();
-    initialized_ = true;
-    return {};
-}
-
-Base::Result<FenceValue> GraphicsQueue::Submit(
-    const GraphicsCommandBuffer& commands) noexcept {
-    if (!initialized_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Graphics queue is not initialized");
-    }
-    if (backend_->IsDeviceLost()) {
-        return InvalidState("Graphics backend device is lost");
-    }
-    const FenceValue backendFence = backend_->LastSubmittedFence();
-    if (backendFence == UINT64_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Graphics queue fence space is exhausted");
-    }
-    const FenceValue signalFence = backendFence + 1U;
-    Base::Result<void> submitted = backend_->SubmitGraphics(
-        commands, signalFence);
-    if (!submitted) {
-        return submitted.GetStatus();
-    }
-    lastSubmittedFence_ = signalFence;
-    lastCapture_.backend = backend_->Kind();
-    lastCapture_.signalFence = signalFence;
-    lastCapture_.commandCount = commands.CommandCount();
-    lastCapture_.uploadByteCount = commands.UploadByteCount();
-    lastCapture_.commandHash = commands.StableHash();
-    return signalFence;
-}
-
 DeviceCapabilities NullGraphicsBackend::Capabilities() const noexcept {
-    return base_.Capabilities();
+    DeviceCapabilities capabilities;
+    capabilities.abiVersion = RhiAbiVersion;
+    capabilities.maxFramesInFlight = 3U;
+    capabilities.maxTextureDimension = 8192U;
+    capabilities.supportsTimestampQueries = false;
+    return capabilities;
 }
 
 GraphicsCapabilities
@@ -969,19 +817,18 @@ Base::Result<void> NullGraphicsBackend::CreateResource(
     if (IsDeviceLost()) {
         return InvalidState("Null graphics device is lost");
     }
-    Base::Result<void> created = base_.CreateResource(handle, descriptor);
-    if (!created) {
-        return created;
+    if (!handle.IsValid() || handle.type != descriptor.type) {
+        return InvalidArgument("Backend resource handle does not match descriptor");
+    }
+    if (Find(handle) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Backend resource handle already exists");
     }
     ResourceRecord record;
     record.handle = handle;
     record.descriptor = descriptor;
-    Base::Result<void> appended = resources_.TryPushBack(record);
-    if (!appended) {
-        base_.DestroyResource(handle);
-        return appended;
-    }
-    return {};
+    return resources_.TryPushBack(record);
 }
 
 void NullGraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {
@@ -996,7 +843,6 @@ void NullGraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {
             break;
         }
     }
-    base_.DestroyResource(handle);
 }
 
 NullGraphicsBackend::ResourceRecord* NullGraphicsBackend::Find(
@@ -1087,21 +933,37 @@ Base::Result<void> NullGraphicsBackend::ConfigurePipeline(
     return {};
 }
 
-Base::Result<void> NullGraphicsBackend::Submit(
-    const CommandBuffer& commands,
-    FenceValue signalFence) noexcept {
-    if (IsDeviceLost()) {
-        return InvalidState("Null graphics device is lost");
+Base::Result<void> NullGraphicsBackend::ImportRenderTarget(
+    ResourceHandle handle,
+    const ExternalRenderTargetDescriptor& descriptor) noexcept {
+    Base::Result<void> valid =
+        ValidateExternalRenderTargetDescriptor(descriptor);
+    if (!valid) {
+        return valid;
     }
-    if (signalFence <= lastSubmittedFence_) {
-        return InvalidArgument("Submission fence must increase monotonically");
+    ResourceRecord* record = Find(handle);
+    if (record == nullptr ||
+        record->descriptor.type != ResourceType::RenderTarget ||
+        record->descriptor.texture.width != descriptor.width ||
+        record->descriptor.texture.height != descriptor.height ||
+        record->descriptor.texture.format !=
+            ToBaseTextureFormat(descriptor.colorFormat) ||
+        record->configuration != ConfigurationKind::None) {
+        return NotFound(
+            "External render target does not match its resource handle");
     }
-    Base::Result<void> submitted = base_.Submit(commands, signalFence);
-    if (!submitted) {
-        return submitted;
-    }
-    lastSubmittedFence_ = signalFence;
-    ++submissionCount_;
+
+    TextureResourceDescriptor texture;
+    texture.width = descriptor.width;
+    texture.height = descriptor.height;
+    texture.sampleCount = descriptor.sampleCount;
+    texture.format = descriptor.colorFormat;
+    texture.usage = TextureUsageBit(TextureUsage::RenderTarget) |
+        TextureUsageBit(TextureUsage::CopySource);
+    record->texture = texture;
+    record->configurationHash =
+        StableTextureHash(texture) ^ descriptor.stableId;
+    record->configuration = ConfigurationKind::Texture;
     return {};
 }
 
@@ -1304,7 +1166,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
     return {};
 }
 
-Base::Result<void> NullGraphicsBackend::SubmitGraphics(
+Base::Result<void> NullGraphicsBackend::Submit(
     const GraphicsCommandBuffer& commands,
     FenceValue signalFence) noexcept {
     if (IsDeviceLost()) {
@@ -1330,12 +1192,10 @@ void NullGraphicsBackend::CompleteThrough(FenceValue fence) noexcept {
     if (fence > completedFence_) {
         completedFence_ = fence;
     }
-    base_.CompleteThrough(fence);
 }
 
 void NullGraphicsBackend::SimulateDeviceLoss() noexcept {
     deviceLost_ = true;
-    base_.SimulateDeviceLoss();
 }
 
 bool SokolBackendAdapter::IsValid() const noexcept {
@@ -1348,8 +1208,8 @@ bool SokolBackendAdapter::IsValid() const noexcept {
         api_.configureTexture != nullptr &&
         api_.configureSampler != nullptr &&
         api_.configurePipeline != nullptr &&
+        api_.importRenderTarget != nullptr &&
         api_.submit != nullptr &&
-        api_.submitGraphics != nullptr &&
         api_.completedFence != nullptr &&
         api_.isDeviceLost != nullptr;
 }
@@ -1409,27 +1269,23 @@ Base::Result<void> SokolBackendAdapter::ConfigurePipeline(
         : Base::Result<void>(Unsupported("Sokol backend function table is invalid"));
 }
 
-Base::Result<void> SokolBackendAdapter::Submit(
-    const CommandBuffer& commands,
-    FenceValue signalFence) noexcept {
-    if (!IsValid()) {
-        return Unsupported("Sokol backend function table is invalid");
-    }
-    Base::Result<void> submitted = api_.submit(api_.context, commands, signalFence);
-    if (submitted) {
-        lastSubmittedFence_ = signalFence;
-    }
-    return submitted;
+Base::Result<void> SokolBackendAdapter::ImportRenderTarget(
+    ResourceHandle handle,
+    const ExternalRenderTargetDescriptor& descriptor) noexcept {
+    return IsValid()
+        ? api_.importRenderTarget(api_.context, handle, descriptor)
+        : Base::Result<void>(Unsupported(
+            "Sokol backend function table is invalid"));
 }
 
-Base::Result<void> SokolBackendAdapter::SubmitGraphics(
+Base::Result<void> SokolBackendAdapter::Submit(
     const GraphicsCommandBuffer& commands,
     FenceValue signalFence) noexcept {
     if (!IsValid()) {
         return Unsupported("Sokol backend function table is invalid");
     }
     Base::Result<void> submitted =
-        api_.submitGraphics(api_.context, commands, signalFence);
+        api_.submit(api_.context, commands, signalFence);
     if (submitted) {
         lastSubmittedFence_ = signalFence;
     }

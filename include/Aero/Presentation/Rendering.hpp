@@ -336,31 +336,8 @@ private:
     std::uint64_t version_ = 0U;
 };
 
-class AERO_API IRenderBackend {
-public:
-    virtual ~IRenderBackend() = default;
-    virtual Base::Result<void> Submit(
-        const RenderPlan& plan) noexcept = 0;
-};
-
-class AERO_API NullRenderBackend final : public IRenderBackend {
-public:
-    Base::Result<void> Submit(
-        const RenderPlan& plan) noexcept override;
-
-    std::uint64_t LastVersion() const noexcept {
-        return lastVersion_;
-    }
-    std::uint64_t LastHash() const noexcept { return lastHash_; }
-    std::uint32_t SubmissionCount() const noexcept {
-        return submissionCount_;
-    }
-
-private:
-    std::uint64_t lastVersion_ = 0U;
-    std::uint64_t lastHash_ = 0U;
-    std::uint32_t submissionCount_ = 0U;
-};
+AERO_API Base::Result<void> ValidateRenderPlan(
+    const RenderPlan& plan) noexcept;
 
 struct RenderDiagnostics final {
     std::uint64_t commitVersion = 0U;
@@ -372,9 +349,7 @@ struct RenderDiagnostics final {
 
 class AERO_API RenderManager final {
 public:
-    RenderManager(
-        Dispatcher& dispatcher,
-        IRenderBackend& backend) noexcept;
+    explicit RenderManager(Dispatcher& dispatcher) noexcept;
     ~RenderManager() noexcept;
 
     RenderManager(const RenderManager&) = delete;
@@ -399,7 +374,6 @@ public:
 
 private:
     Dispatcher* dispatcher_ = nullptr;
-    IRenderBackend* backend_ = nullptr;
     FrameworkElement* root_ = nullptr;
     Base::Vector<FrameworkElement*> dirty_;
     RenderPlan currentPlan_;

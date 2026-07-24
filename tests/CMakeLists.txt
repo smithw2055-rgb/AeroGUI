@@ -522,7 +522,8 @@ if(WIN32 AND TARGET AeroRhiD3D11)
 
     add_executable(AeroD3D11SurfaceTests rhi/D3D11SurfaceTests.cpp)
     target_link_libraries(
-        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 d3d11 user32)
+        AeroD3D11SurfaceTests PRIVATE
+            Aero::Markup Aero::RenderD3D11 Aero::RhiD3D11 d3d11 user32)
     if(TARGET AeroTextHarfBuzz)
         target_link_libraries(AeroD3D11SurfaceTests
             PRIVATE Aero::TextRenderD3D11 Aero::TextHarfBuzz)

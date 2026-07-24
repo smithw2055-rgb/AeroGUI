@@ -225,32 +225,3 @@ D3D11GraphicsBackend::ReadbackTextureChecksum(
     ReleaseCom(staging);
     return hash;
 }
-
-Base::Result<ResourceHandle> ImportD3D11ExternalRenderTarget(
-    RhiDevice& device,
-    D3D11GraphicsBackend& backend,
-    const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept {
-    if (descriptor.texture.format == GraphicsTextureFormat::Depth24Stencil8) {
-        return InvalidArgument("D3D11 external color target cannot use a depth format");
-    }
-
-    ResourceDescriptor base;
-    base.type = ResourceType::RenderTarget;
-    base.texture.width = descriptor.texture.width;
-    base.texture.height = descriptor.texture.height;
-    base.texture.format = ToBaseTextureFormat(descriptor.texture.format);
-    Base::Result<ResourceHandle> created = device.CreateResource(base);
-    if (!created) {
-        return created.GetStatus();
-    }
-
-    const ResourceHandle handle = created.Value();
-    Base::Result<void> imported = backend.ImportExternalRenderTarget(
-        handle, descriptor);
-    if (!imported) {
-        static_cast<void>(device.DestroyResource(handle, 0U));
-        static_cast<void>(device.CollectGarbage());
-        return imported.GetStatus();
-    }
-    return handle;
-}

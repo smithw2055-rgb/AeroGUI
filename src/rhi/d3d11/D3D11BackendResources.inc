@@ -397,9 +397,9 @@ Base::Result<void> D3D11GraphicsBackend::ConfigurePipeline(
     return {};
 }
 
-Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
+Base::Result<void> D3D11GraphicsBackend::ImportRenderTarget(
     ResourceHandle handle,
-    const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept {
+    const ExternalRenderTargetDescriptor& descriptor) noexcept {
     if (impl_ == nullptr) {
         return NotInitialized("D3D11 backend is not initialized");
     }
@@ -408,13 +408,21 @@ Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
         return ready;
     }
     if (handle.type != ResourceType::RenderTarget ||
-        descriptor.texture2D == 0U ||
-        descriptor.texture.format == GraphicsTextureFormat::Depth24Stencil8 ||
-        !HasTextureUsage(descriptor.texture.usage, TextureUsage::RenderTarget)) {
-        return InvalidArgument("D3D11 external render-target descriptor is invalid");
+        descriptor.defaultFramebuffer || descriptor.colorTarget == 0U ||
+        descriptor.colorFormat == GraphicsTextureFormat::Depth24Stencil8) {
+        return InvalidArgument(
+            "D3D11 external render-target descriptor is invalid");
     }
+
+    TextureResourceDescriptor textureDescriptor;
+    textureDescriptor.width = descriptor.width;
+    textureDescriptor.height = descriptor.height;
+    textureDescriptor.sampleCount = descriptor.sampleCount;
+    textureDescriptor.format = descriptor.colorFormat;
+    textureDescriptor.usage = TextureUsageBit(TextureUsage::RenderTarget) |
+        TextureUsageBit(TextureUsage::CopySource);
     Base::Result<void> valid = ValidateTextureDescriptor(
-        descriptor.texture, QueryGraphicsCapabilities());
+        textureDescriptor, QueryGraphicsCapabilities());
     if (!valid) {
         return valid;
     }
@@ -427,7 +435,8 @@ Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
         return InvalidState("D3D11 resource is already configured");
     }
 
-    auto* texture = reinterpret_cast<ID3D11Texture2D*>(descriptor.texture2D);
+    auto* texture = reinterpret_cast<ID3D11Texture2D*>(
+        descriptor.colorTarget);
     ID3D11Device* textureDevice = nullptr;
     texture->GetDevice(&textureDevice);
     const bool sameDevice = textureDevice == impl_->device;
@@ -439,10 +448,10 @@ Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
 
     D3D11_TEXTURE2D_DESC nativeDescriptor{};
     texture->GetDesc(&nativeDescriptor);
-    if (nativeDescriptor.Width != descriptor.texture.width ||
-        nativeDescriptor.Height != descriptor.texture.height ||
-        nativeDescriptor.Format != ToDxgiFormat(descriptor.texture.format) ||
-        nativeDescriptor.SampleDesc.Count != descriptor.texture.sampleCount) {
+    if (nativeDescriptor.Width != descriptor.width ||
+        nativeDescriptor.Height != descriptor.height ||
+        nativeDescriptor.Format != ToDxgiFormat(descriptor.colorFormat) ||
+        nativeDescriptor.SampleDesc.Count != descriptor.sampleCount) {
         return InvalidArgument(
             "D3D11 external texture does not match its Aero descriptor");
     }
@@ -450,18 +459,11 @@ Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
     texture->AddRef();
     ID3D11RenderTargetView* renderTargetView = nullptr;
     ID3D11DepthStencilView* depthStencilView = nullptr;
-    HRESULT result = S_OK;
-    if (descriptor.renderTargetView != 0U) {
-        renderTargetView = reinterpret_cast<ID3D11RenderTargetView*>(
-            descriptor.renderTargetView);
-        renderTargetView->AddRef();
-    } else {
-        result = impl_->device->CreateRenderTargetView(
-            texture, nullptr, &renderTargetView);
-    }
-    if (SUCCEEDED(result) && descriptor.depthStencilView != 0U) {
+    HRESULT result = impl_->device->CreateRenderTargetView(
+        texture, nullptr, &renderTargetView);
+    if (SUCCEEDED(result) && descriptor.depthStencilTarget != 0U) {
         depthStencilView = reinterpret_cast<ID3D11DepthStencilView*>(
-            descriptor.depthStencilView);
+            descriptor.depthStencilTarget);
         depthStencilView->AddRef();
     }
     if (FAILED(result)) {
@@ -477,7 +479,7 @@ Base::Result<void> D3D11GraphicsBackend::ImportExternalRenderTarget(
     record->texture = texture;
     record->renderTargetView = renderTargetView;
     record->depthStencilView = depthStencilView;
-    record->textureDescriptor = descriptor.texture;
+    record->textureDescriptor = textureDescriptor;
     record->configured = true;
     record->external = true;
     return {};

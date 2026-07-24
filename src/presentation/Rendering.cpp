@@ -398,7 +398,7 @@ std::uint64_t RenderPlan::StableHash() const noexcept {
     return hash;
 }
 
-Base::Result<void> NullRenderBackend::Submit(
+Base::Result<void> ValidateRenderPlan(
     const RenderPlan& plan) noexcept {
     std::uint32_t clipDepth = 0U;
     std::uint32_t opacityDepth = 0U;
@@ -505,17 +505,11 @@ Base::Result<void> NullRenderBackend::Submit(
         return InvalidState("RenderPlan contains unbalanced state stacks");
     }
 
-    lastVersion_ = plan.Version();
-    lastHash_ = plan.StableHash();
-    ++submissionCount_;
     return {};
 }
 
-RenderManager::RenderManager(
-    Dispatcher& dispatcher,
-    IRenderBackend& backend) noexcept
+RenderManager::RenderManager(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
-      backend_(&backend),
       dirty_(),
       currentPlan_() {}
 
@@ -818,10 +812,10 @@ Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
         committing_ = false;
         return built.GetStatus();
     }
-    Base::Result<void> submitted = backend_->Submit(next);
-    if (!submitted) {
+    Base::Result<void> valid = ValidateRenderPlan(next);
+    if (!valid) {
         committing_ = false;
-        return submitted.GetStatus();
+        return valid.GetStatus();
     }
     const std::uint32_t committedNodes = next.nodes_.Size();
     currentPlan_ = std::move(next);

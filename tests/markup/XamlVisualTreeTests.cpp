@@ -59,7 +59,6 @@ struct Fixture final {
     std::unique_ptr<EffectiveValueEngine> values;
     std::unique_ptr<ObjectTree> tree;
     std::unique_ptr<LayoutManager> layout;
-    NullRenderBackend backend;
     std::unique_ptr<RenderManager> renderer;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
@@ -138,7 +137,7 @@ struct Fixture final {
             dispatcher, metadata.DependencyProperties());
         tree = std::make_unique<ObjectTree>(dispatcher, *values);
         layout = std::make_unique<LayoutManager>(dispatcher);
-        renderer = std::make_unique<RenderManager>(dispatcher, backend);
+        renderer = std::make_unique<RenderManager>(dispatcher);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
         dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
@@ -199,7 +198,6 @@ bool TestXamlContentMountLayoutRenderAndUnmount() {
     CHECK(root->IsArrangeValid() && leaf->IsArrangeValid());
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 3U);
-    CHECK(fixture.backend.SubmissionCount() == 1U);
     CHECK(fixture.visual->Unmount());
     CHECK(fixture.tree->Root() == nullptr);
     CHECK(root->Content() == nullptr);
@@ -228,7 +226,6 @@ bool TestXamlBorderContentMountLayoutRenderAndUnmount() {
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
-    CHECK(fixture.backend.SubmissionCount() == 1U);
     CHECK(fixture.visual->Unmount());
     CHECK(fixture.tree->Root() == nullptr);
     return true;
@@ -257,7 +254,6 @@ bool TestXamlStackPanelCollectionMountLayoutRenderAndUnmount() {
     CHECK(root->DesiredSize().width == 20.0 && root->DesiredSize().height == 20.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 3U);
-    CHECK(fixture.backend.SubmissionCount() == 1U);
     CHECK(fixture.visual->Unmount());
     CHECK(root->OwnedChildCount() == 0U);
     CHECK(fixture.tree->Root() == nullptr);
@@ -289,7 +285,6 @@ bool TestXamlCanvasGenericCollectionMountLayoutRenderAndUnmount() {
     CHECK(childSlot.x == 8.0 && childSlot.y == 9.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
-    CHECK(fixture.backend.SubmissionCount() == 1U);
     CHECK(fixture.visual->Unmount());
     CHECK(fixture.tree->Root() == nullptr);
     return true;
@@ -323,7 +318,6 @@ bool TestXamlGridGenericCollectionMountLayoutRenderAndUnmount() {
         childSlot.width == 40.0 && childSlot.height == 20.0);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
     CHECK(fixture.renderer->CurrentPlan().Nodes().Size() == 2U);
-    CHECK(fixture.backend.SubmissionCount() == 1U);
     CHECK(fixture.visual->Unmount());
     CHECK(fixture.tree->Root() == nullptr);
     return true;

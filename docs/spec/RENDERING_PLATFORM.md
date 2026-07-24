@@ -132,6 +132,21 @@ effect/offscreen state
 
 Render tree 只接受 transaction 修改。Backend 不遍历 Visual tree。
 
+当前 source model 固定为一条调用链，不允许 backend 自行实现第二套 UI lowering：
+
+```text
+Presentation::RenderManager::Commit
+ -> immutable Presentation::RenderPlan
+ -> SurfaceSession::AcquireFrame（导入 RHI frame target）
+ -> Render::Renderer::Record(plan, frame.target)
+ -> Rhi::GraphicsCommandBuffer
+ -> Rhi::RhiDevice::Submit
+ -> Rhi::IGraphicsBackend::Submit
+ -> SurfaceSession::Present / Discard（按 fence 回收 frame target）
+```
+
+`RenderManager` 不持有 backend；`Renderer` 不直接持有 backend，只依赖 `RhiDevice`；`SurfaceSession` 直接协调 platform target 的导入、present/discard 与延迟回收，不再叠加 platform presenter 或 surface queue。D3D11、OpenGL、GLES、WebGL2、hosted 与可选 sokol adapter 都消费同一命令流。
+
 每帧：
 
 ```text
@@ -180,27 +195,28 @@ RenderPlan 不得假设 compute、storage buffer、bindless、indirect draw 或 
 `AeroRHI` 是 AeroGUI 自有的最小 GPU abstraction，不是完整 3D engine。
 
 ```cpp
-class IRhiDevice {
+class RhiDevice final {
 public:
-    virtual RhiCaps GetCaps() const noexcept = 0;
-    virtual Result<BufferHandle> CreateBuffer(const BufferDesc&) = 0;
-    virtual Result<TextureHandle> CreateTexture(const TextureDesc&) = 0;
-    virtual Result<SamplerHandle> CreateSampler(const SamplerDesc&) = 0;
-    virtual Result<PipelineHandle> CreatePipeline(const PipelineDesc&) = 0;
-    virtual Result<void> DestroyDeferred(RhiHandle, FenceValue) = 0;
+    Result<BufferHandle> CreateBuffer(const BufferDesc&) noexcept;
+    Result<TextureHandle> CreateTexture(const TextureDesc&) noexcept;
+    Result<SamplerHandle> CreateSampler(const SamplerDesc&) noexcept;
+    Result<PipelineHandle> CreatePipeline(const PipelineDesc&) noexcept;
+    Result<RenderTargetHandle> ImportRenderTarget(
+        const ExternalRenderTargetDesc&) noexcept;
+    Result<void> DestroyResource(RhiHandle, FenceValue retireAfter) noexcept;
+    Result<FenceValue> Submit(const GraphicsCommandBuffer&) noexcept;
 };
 
-class IRhiCommandContext {
+class IGraphicsBackend : public IRhiBackend {
 public:
-    virtual Result<void> BeginPass(const PassDesc&) = 0;
-    virtual Result<void> BindPipeline(PipelineHandle) = 0;
-    virtual Result<void> BindResources(Span<const ResourceBinding>) = 0;
-    virtual Result<void> Draw(const DrawDesc&) = 0;
-    virtual Result<void> EndPass() = 0;
+    virtual Result<void> ImportRenderTarget(
+        RenderTargetHandle, const ExternalRenderTargetDesc&) noexcept = 0;
+    virtual Result<void> Submit(
+        const GraphicsCommandBuffer&, FenceValue) noexcept = 0;
 };
 ```
 
-具体 binary ABI 使用 C function table/opaque handle；以上仅表达 C++ source model。GL/WebGL backend 可以将 command context 实现为 stateful recorder，但上层合同不暴露 GL global state。
+`GraphicsCommandEncoder` 是值类型 recorder，不是第二个 backend facade。资源创建、外部 frame target 导入、配置 rollback、全局 fence 分配和 deferred destruction 都由 `RhiDevice` 收口；`SurfaceSession` 是 acquire/present 生命周期的唯一协调者。具体 binary ABI 可使用 C function table/opaque handle。GL/WebGL backend 可以内部维护 state cache，但上层合同不暴露 GL global state。
 
 ### 9.1 RhiCaps
 

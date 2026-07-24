@@ -1,6 +1,6 @@
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Rhi/Graphics.hpp>
-#include <Aero/Render/RenderPlanTranslator.hpp>
+#include <Aero/Render/Renderer.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 
@@ -80,8 +80,7 @@ bool BuildPlan(RenderPlan& destination) {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    NullRenderBackend renderBackend;
-    RenderManager renderer(fixture.dispatcher, renderBackend);
+    RenderManager renderer(fixture.dispatcher);
     CHECK(renderer.Initialize());
 
     RenderBox root(fixture.elementType);
@@ -99,62 +98,96 @@ bool BuildPlan(RenderPlan& destination) {
     return true;
 }
 
-bool TestUploadArena() {
-    UploadArena arena(128U);
-    CHECK(arena.Initialize());
-    Result<UploadSlice> first = arena.Allocate(12U, 16U);
-    CHECK(first);
-    CHECK(first.Value().offset == 0U);
-    Result<UploadSlice> second = arena.Allocate(8U, 32U);
-    CHECK(second);
-    CHECK(second.Value().offset == 32U);
-    CHECK(arena.Used() == 40U);
-    Result<UploadSlice> overflow = arena.Allocate(100U, 8U);
-    CHECK(!overflow);
-    CHECK(overflow.GetStatus().code == ErrorCode::OutOfMemory);
-    arena.Reset();
-    CHECK(arena.Used() == 0U);
-    return true;
+RendererShaderSet MakeShaders() noexcept {
+    static constexpr std::uint8_t VertexBytes[] = {0x01U, 0x02U, 0x03U};
+    static constexpr std::uint8_t FragmentBytes[] = {0x04U, 0x05U, 0x06U};
+    auto pair = [](std::uint64_t baseId) noexcept {
+        RendererShaderPair result;
+        result.vertex.stage = ShaderStage::Vertex;
+        result.vertex.language = ShaderLanguage::Dxbc;
+        result.vertex.bytecode = VertexBytes;
+        result.vertex.bytecodeSize = sizeof(VertexBytes);
+        result.vertex.entryPoint = "vs_main";
+        result.vertex.stableId = baseId;
+        result.fragment.stage = ShaderStage::Fragment;
+        result.fragment.language = ShaderLanguage::Dxbc;
+        result.fragment.bytecode = FragmentBytes;
+        result.fragment.bytecodeSize = sizeof(FragmentBytes);
+        result.fragment.entryPoint = "ps_main";
+        result.fragment.stableId = baseId + 1U;
+        return result;
+    };
+    RendererShaderSet shaders;
+    shaders.rectangle = pair(100U);
+    shaders.image = pair(200U);
+    shaders.mesh = pair(300U);
+    shaders.glyph = pair(400U);
+    shaders.colorFormat = GraphicsTextureFormat::Rgba8Unorm;
+    return shaders;
 }
 
-bool TestTranslationAndSubmission() {
+TextureResourceDescriptor MakeTargetDescriptor() noexcept {
+    TextureResourceDescriptor descriptor;
+    descriptor.width = 64U;
+    descriptor.height = 48U;
+    descriptor.format = GraphicsTextureFormat::Rgba8Unorm;
+    descriptor.usage = TextureUsageBit(TextureUsage::RenderTarget) |
+        TextureUsageBit(TextureUsage::CopySource);
+    return descriptor;
+}
+
+bool TestRendererRecordAndDeviceSubmission() {
     RenderPlan plan;
     CHECK(BuildPlan(plan));
-    RenderPlanTranslator translator;
-    Result<CommandBuffer> translated = translator.Translate(plan);
-    CHECK(translated);
-    CHECK(translated.Value().CommandCount() == plan.Commands().Size() + 2U);
-    const std::uint64_t hash = translated.Value().StableHash();
-    Result<CommandBuffer> translatedAgain = translator.Translate(plan);
-    CHECK(translatedAgain);
-    CHECK(translatedAgain.Value().StableHash() == hash);
 
-    NullRhiBackend backend;
+    NullGraphicsBackend backend;
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    Result<FrameContext> frame = device.BeginFrame();
-    CHECK(frame);
-    Result<UploadSlice> upload = frame.Value().uploadArena->Allocate(64U, 16U);
-    CHECK(upload);
-    Result<FenceValue> fence = device.Submit(frame.Value(), translated.Value());
-    CHECK(fence);
-    CHECK(fence.Value() == 1U);
+    Result<ResourceHandle> target =
+        device.CreateRenderTarget(MakeTargetDescriptor());
+    CHECK(target);
+
+    Renderer renderer(device, MakeShaders());
+    CHECK(renderer.Initialize());
+    RenderTarget frameTarget;
+    frameTarget.color = target.Value();
+    frameTarget.width = 64U;
+    frameTarget.height = 48U;
+    frameTarget.format = GraphicsTextureFormat::Rgba8Unorm;
+
+    Result<GraphicsCommandBuffer> first =
+        renderer.Record(plan, frameTarget);
+    CHECK(first);
+    CHECK(first.Value().CommandCount() > 0U);
+    const std::uint64_t hash = first.Value().StableHash();
+    Result<GraphicsCommandBuffer> second =
+        renderer.Record(plan, frameTarget);
+    CHECK(second && second.Value().StableHash() == hash);
+
+    Result<FenceValue> fence = device.Submit(first.Value());
+    CHECK(fence && fence.Value() == 1U);
     CHECK(backend.SubmissionCount() == 1U);
-    CHECK(backend.LastCommandHash() == hash);
-    CHECK(!device.Submit(frame.Value(), translated.Value()));
+    CHECK(backend.LastGraphicsHash() == hash);
+    CHECK(device.LastCapture().commandHash == hash);
+    CHECK(renderer.LastStatistics().renderPassCount == 1U);
+    CHECK(renderer.LastStatistics().drawCallCount == 1U);
+
+    renderer.Shutdown();
+    CHECK(device.DestroyResource(target.Value(), fence.Value()));
+    backend.CompleteThrough(fence.Value());
+    CHECK(device.CollectGarbage().Value() > 0U);
     return true;
 }
 
 bool TestResourceGenerationsAndDeferredDestroy() {
-    NullRhiBackend backend;
+    NullGraphicsBackend backend;
     RhiDevice device(backend);
     CHECK(device.Initialize());
 
-    ResourceDescriptor buffer;
-    buffer.type = ResourceType::Buffer;
-    buffer.buffer.sizeBytes = 4096U;
-    buffer.buffer.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> first = device.CreateResource(buffer);
+    BufferDescriptor buffer;
+    buffer.sizeBytes = 4096U;
+    buffer.usage = BufferUsage::Vertex;
+    Result<ResourceHandle> first = device.CreateBuffer(buffer);
     CHECK(first);
     CHECK(device.IsAlive(first.Value()));
     CHECK(device.LiveResourceCount() == 1U);
@@ -163,12 +196,10 @@ bool TestResourceGenerationsAndDeferredDestroy() {
     CHECK(device.DestroyResource(first.Value(), 0U));
     CHECK(!device.IsAlive(first.Value()));
     CHECK(device.PendingDestroyCount() == 1U);
-    CHECK(backend.LiveBackendResourceCount() == 1U);
-    Result<std::uint32_t> collected = device.CollectGarbage();
-    CHECK(collected && collected.Value() == 1U);
+    CHECK(device.CollectGarbage().Value() == 1U);
     CHECK(backend.LiveBackendResourceCount() == 0U);
 
-    Result<ResourceHandle> second = device.CreateResource(buffer);
+    Result<ResourceHandle> second = device.CreateBuffer(buffer);
     CHECK(second);
     CHECK(second.Value().index == first.Value().index);
     CHECK(second.Value().generation > first.Value().generation);
@@ -176,11 +207,10 @@ bool TestResourceGenerationsAndDeferredDestroy() {
     CHECK(device.IsAlive(second.Value()));
     CHECK(!device.DestroyResource(first.Value(), 0U));
 
-    ResourceDescriptor invalidTexture;
-    invalidTexture.type = ResourceType::Texture;
-    invalidTexture.texture.width = 0U;
-    invalidTexture.texture.height = 32U;
-    CHECK(!device.CreateResource(invalidTexture));
+    TextureResourceDescriptor invalidTexture;
+    invalidTexture.width = 0U;
+    invalidTexture.height = 32U;
+    CHECK(!device.CreateTexture(invalidTexture));
 
     CHECK(device.DestroyResource(second.Value(), 0U));
     CHECK(device.CollectGarbage());
@@ -188,79 +218,54 @@ bool TestResourceGenerationsAndDeferredDestroy() {
 }
 
 bool TestFenceRetirementAndDeviceLoss() {
-    RenderPlan plan;
-    CHECK(BuildPlan(plan));
-    RenderPlanTranslator translator;
-    Result<CommandBuffer> commands = translator.Translate(plan);
-    CHECK(commands);
-
-    NullRhiBackend backend;
+    NullGraphicsBackend backend;
     RhiDevice device(backend);
     CHECK(device.Initialize());
-    ResourceDescriptor texture;
-    texture.type = ResourceType::Texture;
-    texture.texture.width = 64U;
-    texture.texture.height = 64U;
-    Result<ResourceHandle> handle = device.CreateResource(texture);
+
+    TextureResourceDescriptor texture;
+    texture.width = 64U;
+    texture.height = 64U;
+    Result<ResourceHandle> handle = device.CreateTexture(texture);
     CHECK(handle);
 
-    Result<FrameContext> frame = device.BeginFrame();
-    CHECK(frame);
-    Result<FenceValue> fence = device.Submit(frame.Value(), commands.Value());
-    CHECK(fence);
+    GraphicsCommandEncoder encoder;
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    CHECK(commands);
+    Result<FenceValue> fence = device.Submit(commands.Value());
+    CHECK(fence && fence.Value() == 1U);
     CHECK(device.DestroyResource(handle.Value(), fence.Value()));
     CHECK(device.CollectGarbage().Value() == 0U);
-    CHECK(backend.LiveBackendResourceCount() == 1U);
     backend.CompleteThrough(fence.Value());
     CHECK(device.CollectGarbage().Value() == 1U);
-    CHECK(backend.LiveBackendResourceCount() == 0U);
 
     backend.SimulateDeviceLoss();
-    Result<FrameContext> lostFrame = device.BeginFrame();
-    CHECK(!lostFrame);
-    CHECK(lostFrame.GetStatus().code == ErrorCode::InvalidState);
+    CHECK(!device.Submit(commands.Value()));
     return true;
 }
 
-bool TestMixedSubmissionFenceTimeline() {
-    RenderPlan plan;
-    CHECK(BuildPlan(plan));
-    RenderPlanTranslator translator;
-    Result<CommandBuffer> legacyCommands = translator.Translate(plan);
-    CHECK(legacyCommands);
-    GraphicsCommandEncoder encoder;
-    Result<GraphicsCommandBuffer> graphicsCommands = encoder.Finish();
-    CHECK(graphicsCommands);
-
+bool TestUnifiedSubmissionTimeline() {
     NullGraphicsBackend backend;
     RhiDevice device(backend);
-    GraphicsQueue graphicsQueue(backend);
     CHECK(device.Initialize());
-    CHECK(graphicsQueue.Initialize());
+    GraphicsCommandEncoder encoder;
+    Result<GraphicsCommandBuffer> commands = encoder.Finish();
+    CHECK(commands);
 
-    Result<FenceValue> graphicsFence =
-        graphicsQueue.Submit(graphicsCommands.Value());
-    CHECK(graphicsFence && graphicsFence.Value() == 1U);
-    Result<FrameContext> frame = device.BeginFrame();
-    CHECK(frame);
-    Result<FenceValue> legacyFence =
-        device.Submit(frame.Value(), legacyCommands.Value());
-    CHECK(legacyFence && legacyFence.Value() == 2U);
-    graphicsFence = graphicsQueue.Submit(graphicsCommands.Value());
-    CHECK(graphicsFence && graphicsFence.Value() == 3U);
-    CHECK(backend.LastSubmittedFence() == 3U);
-    CHECK(backend.SubmissionCount() == 3U);
+    Result<FenceValue> first = device.Submit(commands.Value());
+    Result<FenceValue> second = device.Submit(commands.Value());
+    CHECK(first && first.Value() == 1U);
+    CHECK(second && second.Value() == 2U);
+    CHECK(backend.LastSubmittedFence() == 2U);
+    CHECK(backend.SubmissionCount() == 2U);
     return true;
 }
 
 } // namespace
 
 int main() {
-    if (!TestUploadArena()) return 1;
-    if (!TestTranslationAndSubmission()) return 1;
+    if (!TestRendererRecordAndDeviceSubmission()) return 1;
     if (!TestResourceGenerationsAndDeferredDestroy()) return 1;
     if (!TestFenceRetirementAndDeviceLoss()) return 1;
-    if (!TestMixedSubmissionFenceTimeline()) return 1;
-    std::puts("Aero RHI tests passed");
+    if (!TestUnifiedSubmissionTimeline()) return 1;
     return 0;
 }

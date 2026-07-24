@@ -4,7 +4,6 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Rhi/Graphics.hpp>
 #include <Aero/Rhi/Surface.hpp>
 
@@ -36,14 +35,6 @@ struct D3D11BackendOptions final {
     std::uintptr_t borrowedImmediateContext = 0U;
 };
 
-struct D3D11ExternalRenderTargetDescriptor final {
-    std::uintptr_t texture2D = 0U;
-    std::uintptr_t renderTargetView = 0U;
-    std::uintptr_t depthStencilView = 0U;
-    TextureResourceDescriptor texture;
-    std::uint64_t stableId = 0U;
-};
-
 class AERO_API D3D11GraphicsBackend final : public IGraphicsBackend {
 public:
     explicit D3D11GraphicsBackend(
@@ -63,10 +54,6 @@ public:
     std::uint32_t NativeFeatureLevel() const noexcept;
     std::uint32_t LiveResourceCount() const noexcept;
     FenceValue LastSubmittedFence() const noexcept override;
-
-    Base::Result<void> ImportExternalRenderTarget(
-        ResourceHandle handle,
-        const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept;
 
     Base::Result<void> ReadbackTexture(
         ResourceHandle handle,
@@ -98,10 +85,10 @@ public:
     Base::Result<void> ConfigurePipeline(
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
+    Base::Result<void> ImportRenderTarget(
+        ResourceHandle handle,
+        const ExternalRenderTargetDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
         const GraphicsCommandBuffer& commands,
         FenceValue signalFence) noexcept override;
     FenceValue CompletedFence() const noexcept override;
@@ -160,159 +147,5 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
-
-struct D3D11SurfaceFrame final {
-    SurfaceFrame surface;
-    ResourceHandle renderTarget;
-
-    bool IsValid() const noexcept {
-        return surface.frameSerial != 0U && renderTarget.IsValid();
-    }
-};
-
-class AERO_API D3D11SurfacePresenter final {
-public:
-    D3D11SurfacePresenter(
-        RhiDevice& device,
-        D3D11GraphicsBackend& backend,
-        SurfaceSession& surface) noexcept;
-    ~D3D11SurfacePresenter() noexcept;
-
-    D3D11SurfacePresenter(const D3D11SurfacePresenter&) = delete;
-    D3D11SurfacePresenter& operator=(const D3D11SurfacePresenter&) = delete;
-
-    Base::Result<void> Initialize() noexcept;
-    void Shutdown() noexcept;
-
-    Base::Result<D3D11SurfaceFrame> AcquireFrame() noexcept;
-    Base::Result<FenceValue> SubmitAndPresent(
-        D3D11SurfaceFrame& frame,
-        const GraphicsCommandBuffer& commands) noexcept;
-    Base::Result<void> DiscardFrame(
-        D3D11SurfaceFrame& frame) noexcept;
-    Base::Result<void> Resize(
-        std::uint32_t width,
-        std::uint32_t height,
-        std::uint32_t timeoutMilliseconds = 5000U) noexcept;
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
-
-    FenceValue LastSubmittedFence() const noexcept {
-        return lastSubmittedFence_;
-    }
-    bool HasFrameInFlight() const noexcept {
-        return active_.IsValid();
-    }
-
-private:
-    RhiDevice* device_ = nullptr;
-    D3D11GraphicsBackend* backend_ = nullptr;
-    SurfaceSession* surface_ = nullptr;
-    D3D11SurfaceFrame active_;
-    FenceValue lastSubmittedFence_ = 0U;
-    bool initialized_ = false;
-
-    bool Matches(
-        const D3D11SurfaceFrame& frame) const noexcept;
-    void ClearFrame(D3D11SurfaceFrame& frame) noexcept;
-    Base::Result<void> RetireRenderTarget(
-        ResourceHandle handle,
-        FenceValue fence) noexcept;
-};
-
-// Submission counters for the most recently completed RenderPlan frame. They
-// make the compatibility renderer's pass and draw granularity observable
-// without exposing native D3D11 objects to callers.
-struct D3D11RenderPlanSubmitStatistics final {
-    std::uint32_t renderPassCount = 0U;
-    std::uint32_t drawCallCount = 0U;
-    std::uint32_t rectangleInstanceCount = 0U;
-    std::uint32_t imageInstanceCount = 0U;
-    std::uint32_t meshDrawCallCount = 0U;
-    std::uint32_t meshInstanceCount = 0U;
-    std::uint32_t glyphDrawCallCount = 0U;
-    std::uint32_t glyphInstanceCount = 0U;
-    std::uint32_t uniformBufferUploadCount = 0U;
-    std::uint32_t pipelineBindingCount = 0U;
-    std::uint32_t vertexBufferBindingCount = 0U;
-    std::uint32_t indexBufferBindingCount = 0U;
-    std::uint32_t uniformBufferBindingCount = 0U;
-    std::uint32_t textureSamplerBindingCount = 0U;
-};
-
-// Consumes immutable Presentation::RenderPlan snapshots and presents them through the
-// D3D11 surface presenter. The device, graphics backend, and presenter must
-// outlive this adapter.
-class AERO_API D3D11RenderPlanBackend final
-    : public Presentation::IRenderBackend {
-public:
-    D3D11RenderPlanBackend(
-        RhiDevice& device,
-        D3D11GraphicsBackend& graphics,
-        D3D11SurfacePresenter& presenter,
-        Base::IAllocator* allocator = nullptr) noexcept;
-    ~D3D11RenderPlanBackend() noexcept override;
-
-    D3D11RenderPlanBackend(const D3D11RenderPlanBackend&) = delete;
-    D3D11RenderPlanBackend& operator=(const D3D11RenderPlanBackend&) = delete;
-
-    Base::Result<void> Initialize() noexcept;
-    void Shutdown() noexcept;
-
-    // Image resources stay owned by the caller. They must remain alive until
-    // no submitted frame can reference them, then be unregistered before destruction.
-    Base::Result<void> RegisterImage(
-        Presentation::RenderImageId image,
-        ResourceHandle texture,
-        ResourceHandle sampler) noexcept;
-    Base::Result<void> UnregisterImage(
-        Presentation::RenderImageId image) noexcept;
-
-    // Mesh vertex buffers use Float2 position at byte offset zero followed by
-    // Float4 vertex color at byte offset eight; meshes use indexed triangles.
-    Base::Result<void> RegisterMesh(
-        Presentation::RenderMeshId mesh,
-        ResourceHandle vertexBuffer,
-        ResourceHandle indexBuffer,
-        std::uint32_t indexCount,
-        IndexType indexType = IndexType::UInt16) noexcept;
-    Base::Result<void> UnregisterMesh(
-        Presentation::RenderMeshId mesh) noexcept;
-
-    // Glyph vertices use Float2 position followed by Float2 atlas UV. The
-    // sampled atlas is R8Unorm; its alpha coverage is multiplied by tint.
-    Base::Result<void> RegisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun,
-        ResourceHandle vertexBuffer,
-        ResourceHandle indexBuffer,
-        std::uint32_t indexCount,
-        ResourceHandle atlasTexture,
-        ResourceHandle sampler,
-        IndexType indexType = IndexType::UInt16) noexcept;
-    Base::Result<void> UnregisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept;
-
-    Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override;
-
-    bool IsInitialized() const noexcept;
-    FenceValue LastSubmittedFence() const noexcept;
-    D3D11RenderPlanSubmitStatistics
-    LastSubmitStatistics() const noexcept;
-
-private:
-    struct Impl;
-
-    RhiDevice* device_ = nullptr;
-    D3D11GraphicsBackend* graphics_ = nullptr;
-    D3D11SurfacePresenter* presenter_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
-};
-
-AERO_API Base::Result<ResourceHandle>
-ImportD3D11ExternalRenderTarget(
-    RhiDevice& device,
-    D3D11GraphicsBackend& backend,
-    const D3D11ExternalRenderTargetDescriptor& descriptor) noexcept;
 
 } // namespace Aero::Rhi

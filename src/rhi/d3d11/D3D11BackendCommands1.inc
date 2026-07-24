@@ -1,17 +1,4 @@
 Base::Result<void> D3D11GraphicsBackend::Submit(
-    const CommandBuffer&,
-    FenceValue) noexcept {
-    if (impl_ == nullptr) {
-        return NotInitialized("D3D11 backend is not initialized");
-    }
-    Base::Result<void> ready = impl_->VerifyReady();
-    return ready
-        ? Base::Result<void>(Unsupported(
-            "D3D11 backend does not implement the legacy rectangle command stream"))
-        : ready;
-}
-
-Base::Result<void> D3D11GraphicsBackend::SubmitGraphics(
     const GraphicsCommandBuffer& commands,
     FenceValue signalFence) noexcept {
     if (impl_ == nullptr) {

@@ -252,8 +252,7 @@ bool TestRenderCommitAndInvalidation() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    NullRenderBackend backend;
-    RenderManager renderer(fixture.dispatcher, backend);
+    RenderManager renderer(fixture.dispatcher);
     CHECK(renderer.Initialize());
 
     RenderPanel root(fixture.panelType);
@@ -276,11 +275,9 @@ bool TestRenderCommitAndInvalidation() {
 
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::Layout));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(backend.SubmissionCount() == 1U);
     CHECK(renderer.CurrentPlan().Nodes().Size() == 3U);
     CHECK(renderer.CurrentPlan().Commands().Size() == 11U);
     const std::uint64_t firstHash = renderer.CurrentPlan().StableHash();
-    CHECK(firstHash == backend.LastHash());
     CHECK(renderer.Diagnostics().dirtyCount == 0U);
 
     first.SetColor({0.0F, 1.0F, 0.0F, 1.0F});
@@ -288,7 +285,6 @@ bool TestRenderCommitAndInvalidation() {
     CHECK(!first.IsRenderValid() && !root.IsRenderValid());
     CHECK(renderer.Diagnostics().dirtyCount == 2U);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::RenderCommit));
-    CHECK(backend.SubmissionCount() == 2U);
     CHECK(renderer.CurrentPlan().StableHash() != firstHash);
     CHECK(renderer.CurrentPlan().Version() == 2U);
 
@@ -310,8 +306,7 @@ bool TestRenderCommitAndInvalidation() {
 bool TestRenderRequiresArrange() {
     Fixture fixture;
     CHECK(fixture.Build());
-    NullRenderBackend backend;
-    RenderManager renderer(fixture.dispatcher, backend);
+    RenderManager renderer(fixture.dispatcher);
     CHECK(renderer.Initialize());
     RenderPanel root(fixture.panelType);
     CHECK(renderer.SetRoot(&root));
@@ -330,8 +325,7 @@ bool TestTextBlockGlyphRunRendering() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    NullRenderBackend backend;
-    RenderManager renderer(fixture.dispatcher, backend);
+    RenderManager renderer(fixture.dispatcher);
     CHECK(renderer.Initialize());
     TextBlock text;
     CHECK(text.SetText(StringView("Hello")));
@@ -367,8 +361,7 @@ bool TestTextBlockAutomaticLayoutService() {
     CHECK(tree.Initialize());
     LayoutManager layout(fixture.dispatcher);
     CHECK(layout.Initialize());
-    NullRenderBackend backend;
-    RenderManager renderer(fixture.dispatcher, backend);
+    RenderManager renderer(fixture.dispatcher);
     CHECK(renderer.Initialize());
 
     MockTextBlockLayoutService service;
