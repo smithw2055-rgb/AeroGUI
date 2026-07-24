@@ -5,6 +5,7 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
+#include <Aero/Controls/Selection.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
@@ -415,6 +416,60 @@ bool TestXamlItemsControlCollection() {
     return true;
 }
 
+bool TestXamlListBoxCollectionAndSelectionMode() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    DiagnosticBag diagnostics;
+    Utf8XmlTokenizer tokenizer;
+    CHECK(tokenizer.Reset(StringView(
+        "<ListBox xmlns=\"urn:aero\" "
+        "SelectionMode=\"Extended\" "
+        "SelectedIndex=\"1\">"
+        "<TextBlock Text=\"One\"/>"
+        "<TextBlock Text=\"Two\"/>"
+        "</ListBox>"),
+        &diagnostics));
+    XamlNodeReader reader(tokenizer, &diagnostics);
+    XamlObjectWriter writer(*fixture.schema, &diagnostics);
+    Result<Ref<Object>> loaded =
+        LoadXamlVisualTreeWithActivation(
+            *fixture.visual,
+            writer,
+            reader,
+            *fixture.activation,
+            fixture.Activation());
+    CHECK(loaded && diagnostics.Size() == 0U);
+    auto* root =
+        static_cast<ListBox*>(
+            loaded.Value().Get());
+    CHECK(root != nullptr);
+    CHECK(root->ItemCount() == 2U);
+    CHECK(root->GetSelectionMode() ==
+        SelectionMode::Extended);
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::PropertyChanges));
+    if (root->SelectedIndex() != 1U) {
+        std::fprintf(stderr,
+            "XAML ListBox selected index=%u count=%u error=%s\n",
+            root->SelectedIndex(),
+            root->SelectedCount(),
+            root->LastSelectionError().message);
+    }
+    CHECK(root->SelectedIndex() == 1U);
+    CHECK(root->SelectedCount() == 1U);
+    CHECK(root->SelectedItem().Get() ==
+        root->ItemAt(1U).Get());
+    CHECK(fixture.visual->StagedContentCount() == 0U);
+    CHECK(fixture.visual->Mount(
+        *root,
+        BuiltinTypes::ListBox,
+        {80.0, 40.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+    CHECK(fixture.visual->Unmount());
+    return true;
+}
+
 bool TestFailedLoadDiscardsStagedEdges() {
     Fixture fixture;
     CHECK(fixture.Build());
@@ -471,6 +526,7 @@ int main() {
     if (!TestXamlGridGenericCollectionMountLayoutRenderAndUnmount()) return 1;
     if (!TestXamlScrollViewerMountAndOffset()) return 1;
     if (!TestXamlItemsControlCollection()) return 1;
+    if (!TestXamlListBoxCollectionAndSelectionMode()) return 1;
     if (!TestXamlGridRejectsOutOfRangeCellOnFirstLayout()) return 1;
     if (!TestFailedLoadDiscardsStagedEdges()) return 1;
     std::puts("Aero XAML visual-tree tests passed");

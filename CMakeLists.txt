@@ -304,6 +304,7 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Items.cpp
     src/controls/Metadata.cpp
     src/controls/Scroll.cpp
+    src/controls/Selection.cpp
     src/controls/TextBlockLayoutService.cpp
     src/controls/Templates.cpp
     src/controls/VisualStates.cpp)

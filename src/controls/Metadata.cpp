@@ -4,6 +4,7 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
+#include <Aero/Controls/Selection.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
 #include <cctype>
@@ -82,6 +83,34 @@ Base::Result<Core::Value> ConvertClickMode(
         "ClickMode is invalid");
 }
 
+Base::Result<Core::Value> ConvertSelectionMode(
+    Core::TypeId type,
+    Base::StringView text,
+    void*) noexcept {
+    const Base::StringView value = Trim(text);
+    if (EqualsAsciiInsensitive(value, "single")) {
+        return Core::Value::FromUnsignedInteger(
+            type,
+            static_cast<std::uint64_t>(
+                SelectionMode::Single));
+    }
+    if (EqualsAsciiInsensitive(value, "multiple")) {
+        return Core::Value::FromUnsignedInteger(
+            type,
+            static_cast<std::uint64_t>(
+                SelectionMode::Multiple));
+    }
+    if (EqualsAsciiInsensitive(value, "extended")) {
+        return Core::Value::FromUnsignedInteger(
+            type,
+            static_cast<std::uint64_t>(
+                SelectionMode::Extended));
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed,
+        "SelectionMode is invalid");
+}
+
 bool ValidateNonnegativeDouble(const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
@@ -143,6 +172,35 @@ bool ValidateClickModeValue(
             static_cast<std::uint64_t>(ClickMode::Hover);
 }
 
+bool ValidateSelectionModeValue(
+    const Core::Value& value) noexcept {
+    return value.Kind() ==
+            Core::ValueKind::UnsignedInteger &&
+        value.AsUnsignedInteger() <=
+            static_cast<std::uint64_t>(
+                SelectionMode::Extended);
+}
+
+bool ValidateObjectValue(
+    const Core::Value& value) noexcept {
+    return value.Kind() == Core::ValueKind::Object;
+}
+
+Base::Result<Core::Value> CoerceSelectedObject(
+    Core::DependencyObject& object,
+    const Core::DependencyProperty&,
+    const Core::Value& value) noexcept {
+    const auto& selector =
+        static_cast<const Selector&>(object);
+    if (!value.IsNullObject() &&
+        selector.IndexOfItem(
+            value.AsObject().Get()) == UINT32_MAX) {
+        return Core::Value::FromObject(
+            Core::TypeOf<Base::Object>(), {});
+    }
+    return value;
+}
+
 bool ValidateBooleanValue(
     const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::Boolean;
@@ -184,6 +242,17 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .EnumValue("Hover", ClickMode::Hover)
         .TextConverter(&ConvertClickMode);
     status = clickMode.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<SelectionMode> selectionMode =
+        MetaTypeBuilder<SelectionMode>::Enum(
+            context, TypeOf<std::uint32_t>());
+    selectionMode
+        .EnumValue("Single", SelectionMode::Single)
+        .EnumValue("Multiple", SelectionMode::Multiple)
+        .EnumValue("Extended", SelectionMode::Extended)
+        .TextConverter(&ConvertSelectionMode);
+    status = selectionMode.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<ScrollChangedEventArgs> scrollChangedEventArgs =
@@ -577,6 +646,76 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     itemsPresenter.Content<Presentation::UIElement>(
         "Content", ContentKind::Single);
     status = itemsPresenter.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Selector> selector =
+        MetaTypeBuilder<Selector>::Object(
+            context, TypeFlags::Abstract);
+    selector
+        .DependencyProperty(
+            Selector::SelectionModeProperty,
+            "SelectionMode", TypeOf<SelectionMode>(),
+            Value::FromUnsignedInteger(
+                TypeOf<SelectionMode>(),
+                static_cast<std::uint64_t>(
+                    SelectionMode::Single)),
+            PropertyMetadataFlags::None,
+            &ValidateSelectionModeValue)
+        .DependencyProperty(
+            Selector::SelectedIndexProperty,
+            "SelectedIndex", TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), UINT32_MAX),
+            PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateUInt32)
+        .DependencyProperty(
+            Selector::SelectedItemProperty,
+            "SelectedItem", TypeOf<Base::Object>(),
+            Value::FromObject(
+                TypeOf<Base::Object>(), {}),
+            PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateObjectValue,
+            &CoerceSelectedObject)
+        .DependencyProperty(
+            Selector::SelectedValueProperty,
+            "SelectedValue", TypeOf<Base::Object>(),
+            Value::FromObject(
+                TypeOf<Base::Object>(), {}),
+            PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateObjectValue,
+            &CoerceSelectedObject);
+    status = selector.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ListBox> listBox =
+        MetaTypeBuilder<ListBox>::Object(context);
+    status = listBox.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ListBoxItem> listBoxItem =
+        MetaTypeBuilder<ListBoxItem>::Object(context);
+    listBoxItem
+        .DependencyProperty(
+            ListBoxItem::IsSelectedProperty,
+            "IsSelected", TypeOf<bool>(),
+            Value::FromBoolean(
+                TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender |
+                PropertyMetadataFlags::BindsTwoWayByDefault,
+            &ValidateBooleanValue)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = listBoxItem.Finish();
+    if (!status) return status.GetStatus();
+
+    PropertyMetadata listBoxItemTabStop;
+    listBoxItemTabStop.defaultValue =
+        Value::FromBoolean(TypeOf<bool>(), true);
+    status =
+        context.DependencyProperties().TryOverrideMetadata(
+            Presentation::UIElement::IsTabStopProperty,
+            TypeOf<ListBoxItem>(),
+            listBoxItemTabStop);
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =

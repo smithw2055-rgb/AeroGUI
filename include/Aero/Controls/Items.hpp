@@ -205,6 +205,9 @@ public:
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
+    ItemContainerGenerator* AttachedGenerator() const noexcept {
+        return generator_;
+    }
     virtual Base::Result<
         Base::Ref<ItemContainer>>
         CreateContainer(
@@ -215,6 +218,7 @@ protected:
         std::uint32_t index) noexcept;
     virtual void ClearContainer(
         ItemContainer& container) noexcept;
+    virtual void OnContainersChanged() noexcept {}
 
 private:
     friend class ItemContainerGenerator;

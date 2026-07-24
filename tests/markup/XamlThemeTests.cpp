@@ -1,4 +1,5 @@
 #include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
 #include <Aero/Core/Dispatcher.hpp>
@@ -91,6 +92,10 @@ bool TestLightAndDarkThemeTemplates() {
             StringView(light.data(),
                 static_cast<std::uint32_t>(light.size())),
             fixture.metadata.DependencyProperties());
+    if (!lightResult) {
+        std::fprintf(stderr, "Theme load failed: %s\n",
+            lightResult.GetStatus().message);
+    }
     CHECK(lightResult);
     std::unique_ptr<XamlTheme> lightTheme =
         std::move(lightResult).Value();
@@ -100,6 +105,8 @@ bool TestLightAndDarkThemeTemplates() {
     CHECK(lightTheme->FindTemplate(ToggleButton::StaticTypeId()));
     CHECK(lightTheme->FindTemplate(CheckBox::StaticTypeId()));
     CHECK(lightTheme->FindTemplate(RadioButton::StaticTypeId()));
+    CHECK(lightTheme->FindTemplate(ListBox::StaticTypeId()));
+    CHECK(lightTheme->FindTemplate(ListBoxItem::StaticTypeId()));
 
     Button button;
     TextBlock buttonContent;
@@ -222,6 +229,38 @@ bool TestLightAndDarkThemeTemplates() {
     CHECK(fixture.templates->Clear(checkBox).Value());
     CHECK(fixture.tree->SetRoot(nullptr));
     CHECK(fixture.values->DetachObject(checkBox));
+
+    ListBoxItem listBoxItem;
+    TextBlock itemContent;
+    CHECK(itemContent.SetText("Item"));
+    CHECK(listBoxItem.SetContent(&itemContent));
+    CHECK(fixture.tree->SetRoot(&listBoxItem));
+    applied = darkTheme->Apply(
+        *fixture.templates, listBoxItem);
+    CHECK(applied);
+    auto* selectionChrome = static_cast<Border*>(
+        fixture.templates->FindName(
+            applied.Value(), "SelectionChrome"));
+    CHECK(selectionChrome != nullptr);
+    CHECK(states.GoToState(
+        listBoxItem,
+        "SelectionStates",
+        "Selected").Value());
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::PropertyChanges));
+    CHECK(SameColor(
+        selectionChrome->Background(),
+        fill.Value()));
+    CHECK(states.Clear(listBoxItem));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::PropertyChanges));
+    CHECK(fixture.templates->Clear(
+        listBoxItem).Value());
+    CHECK(itemContent.LogicalParent() == nullptr);
+    CHECK(itemContent.VisualParent() == nullptr);
+    CHECK(fixture.tree->SetRoot(nullptr));
+    CHECK(fixture.values->DetachObject(itemContent));
+    CHECK(fixture.values->DetachObject(listBoxItem));
     return true;
 }
 

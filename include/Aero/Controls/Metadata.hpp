@@ -26,7 +26,7 @@ inline constexpr Base::StringView ControlsMetadataModuleName() noexcept {
 
 inline Base::Result<void> TryRegisterControlsMetadata(
     Core::MetadataDomain& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 6U;
+    constexpr std::uint32_t SchemaVersion = 7U;
     const Base::StringView name = ControlsMetadataModuleName();
     return domain.TryRegisterModule({
         Core::MakeMetadataModuleId(name),

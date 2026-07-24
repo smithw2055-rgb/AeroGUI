@@ -855,6 +855,9 @@ void ItemContainerGenerator::OnItemsChanged(
     lastError_ = applied
         ? Base::Status{}
         : applied.GetStatus();
+    if (applied && owner_ != nullptr) {
+        owner_->OnContainersChanged();
+    }
 }
 
 ItemContainer*

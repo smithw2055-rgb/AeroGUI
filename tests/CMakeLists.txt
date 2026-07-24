@@ -248,6 +248,14 @@ set_target_properties(AeroItemsTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQ
 aero_apply_compiler_options(AeroItemsTests)
 add_test(NAME AeroItemsTests COMMAND AeroItemsTests)
 
+add_executable(AeroSelectionTests
+    controls/SelectionTests.cpp)
+target_link_libraries(AeroSelectionTests PRIVATE Aero::Controls)
+target_compile_features(AeroSelectionTests PRIVATE cxx_std_17)
+set_target_properties(AeroSelectionTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroSelectionTests)
+add_test(NAME AeroSelectionTests COMMAND AeroSelectionTests)
+
 add_executable(AeroRenderingTests presentation/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Controls)
 target_compile_features(AeroRenderingTests PRIVATE cxx_std_17)

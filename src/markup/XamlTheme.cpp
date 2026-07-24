@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/ObjectServices.hpp>
@@ -342,6 +343,12 @@ TypeId TargetTypeFromName(
     }
     if (name == Base::StringView("RadioButton")) {
         return RadioButton::StaticTypeId();
+    }
+    if (name == Base::StringView("ListBox")) {
+        return ListBox::StaticTypeId();
+    }
+    if (name == Base::StringView("ListBoxItem")) {
+        return ListBoxItem::StaticTypeId();
     }
     return InvalidTypeId;
 }

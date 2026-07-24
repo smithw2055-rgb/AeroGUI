@@ -245,4 +245,73 @@
       </VisualStateGroup>
     </VisualStateGroups>
   </ControlTemplate>
+
+  <ControlTemplate TargetType="ListBox">
+    <VisualTree>
+      <Border x:Name="Chrome"
+              BackgroundResource="ControlBackground"
+              BorderBrushResource="ControlBorder"
+              BorderThickness="1"
+              Padding="2"/>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
+
+  <ControlTemplate TargetType="ListBoxItem">
+    <VisualTree>
+      <Grid>
+        <Border x:Name="Chrome"
+                BackgroundResource="Transparent"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"
+                Padding="6"/>
+        <Border x:Name="SelectionChrome"
+                BackgroundResource="Transparent"
+                BorderBrushResource="Transparent"
+                BorderThickness="0"/>
+        <ContentPresenter x:Name="ContentPresenter"/>
+        <Border x:Name="FocusCue"
+                BorderBrushResource="Transparent"
+                BorderThickness="1"/>
+      </Grid>
+    </VisualTree>
+    <VisualStateGroups>
+      <VisualStateGroup Name="CommonStates">
+        <VisualState Name="Normal">
+          <Setter TargetName="Chrome" Property="Background" Resource="Transparent"/>
+        </VisualState>
+        <VisualState Name="PointerOver">
+          <Setter TargetName="Chrome" Property="Background" Resource="ControlHoverBackground"/>
+        </VisualState>
+        <VisualState Name="Disabled">
+          <Setter TargetName="Chrome" Property="Background" Resource="DisabledBackground"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="SelectionStates">
+        <VisualState Name="Selected">
+          <Setter TargetName="SelectionChrome" Property="Background" Resource="AccentFill"/>
+        </VisualState>
+        <VisualState Name="Unselected">
+          <Setter TargetName="SelectionChrome" Property="Background" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+      <VisualStateGroup Name="FocusStates">
+        <VisualState Name="Focused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="AccentBorder"/>
+        </VisualState>
+        <VisualState Name="Unfocused">
+          <Setter TargetName="FocusCue" Property="BorderBrush" Resource="Transparent"/>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateGroups>
+  </ControlTemplate>
 </ResourceDictionary>
