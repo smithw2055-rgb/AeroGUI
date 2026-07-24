@@ -64,6 +64,13 @@ public:
 
     Base::Result<void> Initialize(
         const TextBlockRenderServiceConfig& config) noexcept;
+    // Rebinds after the current backend reports device loss. Existing
+    // glyph-run IDs are abandoned; the host must invalidate TextBlock layout
+    // so controls request fresh resources from the replacement device.
+    Base::Result<void> RecoverDeviceResources(
+        Rhi::RhiDevice& device,
+        Rhi::IGraphicsBackend& graphics,
+        IGlyphRunResourceRegistry& registry) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
 

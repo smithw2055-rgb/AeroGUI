@@ -266,6 +266,11 @@ bool TestDeviceLossDiagnostic() {
     RhiDevice device(graphics);
     CHECK(device.Initialize());
     MockGlyphRegistry registry(device);
+    NullGraphicsBackend replacementGraphics;
+    RhiDevice replacementDevice(replacementGraphics);
+    CHECK(replacementDevice.Initialize());
+    MockGlyphRegistry replacementRegistry(
+        replacementDevice);
     TextBlockRenderService service(
         fonts, device, graphics, registry);
     TextBlockRenderServiceConfig config;
@@ -283,6 +288,24 @@ bool TestDeviceLossDiagnostic() {
         service.ShapeAndPrepare(request, output);
     CHECK(!lost);
     CHECK(lost.GetStatus().code == ErrorCode::InvalidState);
+
+    CHECK(service.RecoverDeviceResources(
+        replacementDevice,
+        replacementGraphics,
+        replacementRegistry));
+    CHECK(service.IsInitialized());
+    CHECK(registry.Count() == 0U);
+    CHECK(service.ShapeAndPrepare(request, output));
+    CHECK(output.glyphRuns.Size() == 1U);
+    CHECK(replacementRegistry.Count() == 1U);
+    CHECK(replacementGraphics.SubmissionCount() == 1U);
+    service.ReleaseGlyphRun(output.glyphRuns[0]);
+    replacementGraphics.CompleteThrough(
+        service.Statistics().lastUploadFence);
+    CHECK(service.CollectGarbage());
+    CHECK(replacementRegistry.Count() == 0U);
+    service.Shutdown();
+    CHECK(replacementDevice.CollectGarbage());
     return true;
 }
 

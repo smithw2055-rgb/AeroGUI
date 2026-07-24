@@ -207,6 +207,55 @@ Base::Result<void> TextBlockRenderService::Initialize(
     return {};
 }
 
+Base::Result<void>
+TextBlockRenderService::RecoverDeviceResources(
+    Rhi::RhiDevice& device,
+    Rhi::IGraphicsBackend& graphics,
+    IGlyphRunResourceRegistry& registry) noexcept {
+    if (!IsInitialized()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "TextBlock render service is not initialized");
+    }
+    if (!graphics_->IsDeviceLost()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "TextBlock render service recovery requires a lost device");
+    }
+    if (graphics.IsDeviceLost()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Replacement text graphics device is lost");
+    }
+
+    TextBlockRenderServiceConfig config = impl_->config;
+    Base::Vector<Text::FontFace> fallbackFaces(allocator_);
+    Base::Result<void> copied =
+        fallbackFaces.TryAppend(
+            impl_->fallbackFaces.AsSpan());
+    if (!copied) return copied.GetStatus();
+    config.fallbackFaces = fallbackFaces.AsSpan();
+
+    for (const Impl::RunResource& run : impl_->runs) {
+        if (run.id !=
+            Presentation::InvalidRenderGlyphRunId) {
+            (void)registry_->UnregisterGlyphRun(run.id);
+        }
+    }
+    impl_->atlas.NotifyDeviceLost();
+    impl_->atlas.Shutdown();
+    impl_->~Impl();
+    allocator_->Deallocate(
+        impl_, sizeof(Impl), alignof(Impl),
+        Base::MemoryTag::Render);
+    impl_ = nullptr;
+
+    device_ = &device;
+    graphics_ = &graphics;
+    registry_ = &registry;
+    return Initialize(config);
+}
+
 void TextBlockRenderService::Shutdown() noexcept {
     if (impl_ == nullptr) return;
     const Rhi::FenceValue retireFence =
