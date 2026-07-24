@@ -356,7 +356,7 @@ private:
     RoutedEventCatalog* catalog_ = nullptr;
     Base::Vector<ClassHandlerRecord> classHandlers_;
     std::uint64_t nextClassSequence_ = 1U;
-    bool raising_ = false;
+    std::uint32_t raiseDepth_ = 0U;
 
     Base::Result<void> BuildRoute(
         Visual& source,
@@ -378,7 +378,7 @@ Base::Result<void> RoutedEventManager::RegisterClassHandler(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "RoutedEventCatalog must be frozen before handlers");
     }
-    if (raising_) {
+    if (raiseDepth_ != 0U) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Cannot mutate class handlers during routed event dispatch");
     }

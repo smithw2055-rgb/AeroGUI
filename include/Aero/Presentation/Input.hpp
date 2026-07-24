@@ -53,6 +53,12 @@ struct PointerDispatchResult final {
     bool routed = false;
 };
 
+using PointerStateChangedHandler =
+    Base::Delegate<void(UIElement&)>;
+using PointerCaptureChangedHandler =
+    Base::Delegate<void(
+        std::uint32_t, UIElement*, bool)>;
+
 // The platform host normalizes native keyboard input into this small value
 // type. key is a non-zero platform-neutral key identifier; text composition
 // and IME remain a separate input path.
@@ -64,6 +70,8 @@ struct KeyboardInput final {
 };
 
 inline constexpr std::uint32_t KeyboardKeyTab = 9U;
+inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
+inline constexpr std::uint32_t KeyboardKeySpace = 32U;
 
 enum class KeyboardModifiers : std::uint32_t {
     None = 0U,
@@ -110,6 +118,22 @@ public:
         std::uint32_t pointerId) noexcept;
     UIElement* CapturedNode(
         std::uint32_t pointerId) noexcept;
+    Base::Result<void> TryAddStateChanged(
+        const PointerStateChangedHandler& handler) noexcept {
+        return stateChanged_.TryAdd(handler);
+    }
+    bool RemoveStateChanged(
+        const PointerStateChangedHandler& handler) noexcept {
+        return stateChanged_.Remove(handler);
+    }
+    Base::Result<void> TryAddCaptureChanged(
+        const PointerCaptureChangedHandler& handler) noexcept {
+        return captureChanged_.TryAdd(handler);
+    }
+    bool RemoveCaptureChanged(
+        const PointerCaptureChangedHandler& handler) noexcept {
+        return captureChanged_.Remove(handler);
+    }
 
 private:
     struct PointerCapture final {
@@ -127,6 +151,8 @@ private:
     Visual* root_ = nullptr;
     Base::Vector<PointerCapture> captures_;
     Base::Vector<PointerState> states_;
+    PointerStateChangedHandler stateChanged_;
+    PointerCaptureChangedHandler captureChanged_;
 
     std::uint32_t FindCapture(
         std::uint32_t pointerId) const noexcept;

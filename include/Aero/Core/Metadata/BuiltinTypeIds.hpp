@@ -21,6 +21,10 @@ inline constexpr TypeId ContentControl =
     MakeTypeId(Base::StringView("ContentControl"));
 inline constexpr TypeId UserControl =
     MakeTypeId(Base::StringView("UserControl"));
+inline constexpr TypeId ButtonBase =
+    MakeTypeId(Base::StringView("ButtonBase"));
+inline constexpr TypeId Button =
+    MakeTypeId(Base::StringView("Button"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));

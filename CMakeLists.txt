@@ -299,6 +299,7 @@ set_target_properties(AeroPresentation PROPERTIES
 aero_apply_compiler_options(AeroPresentation)
 
 add_library(AeroControls ${AERO_LIBRARY_TYPE}
+    src/controls/Buttons.cpp
     src/controls/Controls.cpp
     src/controls/Metadata.cpp
     src/controls/TextBlockLayoutService.cpp

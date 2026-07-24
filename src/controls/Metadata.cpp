@@ -1,5 +1,6 @@
 #include <Aero/Controls/Metadata.hpp>
 
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
@@ -57,6 +58,28 @@ Base::Result<Core::Value> ConvertOrientation(
         "Orientation is invalid");
 }
 
+Base::Result<Core::Value> ConvertClickMode(
+    Core::TypeId type,
+    Base::StringView text,
+    void*) noexcept {
+    const Base::StringView value = Trim(text);
+    if (EqualsAsciiInsensitive(value, "release")) {
+        return Core::Value::FromUnsignedInteger(
+            type, static_cast<std::uint64_t>(ClickMode::Release));
+    }
+    if (EqualsAsciiInsensitive(value, "press")) {
+        return Core::Value::FromUnsignedInteger(
+            type, static_cast<std::uint64_t>(ClickMode::Press));
+    }
+    if (EqualsAsciiInsensitive(value, "hover")) {
+        return Core::Value::FromUnsignedInteger(
+            type, static_cast<std::uint64_t>(ClickMode::Hover));
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed,
+        "ClickMode is invalid");
+}
+
 bool ValidateNonnegativeDouble(const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
@@ -100,6 +123,23 @@ bool ValidateUInt32(const Core::Value& value) noexcept {
             std::numeric_limits<std::uint32_t>::max();
 }
 
+bool ValidateClickModeValue(
+    const Core::Value& value) noexcept {
+    return value.Kind() == Core::ValueKind::UnsignedInteger &&
+        value.AsUnsignedInteger() <=
+            static_cast<std::uint64_t>(ClickMode::Hover);
+}
+
+Base::Result<Core::Value> CoerceButtonEnabled(
+    Core::DependencyObject& object,
+    const Core::DependencyProperty&,
+    const Core::Value& value) noexcept {
+    const bool enabled = value.AsBoolean() &&
+        static_cast<ButtonBase&>(object).IsCommandEnabled();
+    return Core::Value::FromBoolean(
+        TypeOf<bool>(), enabled);
+}
+
 } // namespace
 
 Base::Result<void> Detail::PopulateControlsMetadata(
@@ -115,6 +155,17 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .EnumValue("Vertical", Orientation::Vertical)
         .TextConverter(&ConvertOrientation);
     status = orientation.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ClickMode> clickMode =
+        MetaTypeBuilder<ClickMode>::Enum(
+            context, TypeOf<std::uint32_t>());
+    clickMode
+        .EnumValue("Release", ClickMode::Release)
+        .EnumValue("Press", ClickMode::Press)
+        .EnumValue("Hover", ClickMode::Hover)
+        .TextConverter(&ConvertClickMode);
+    status = clickMode.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Panel> panel =
@@ -142,6 +193,70 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     contentControl.Content<Presentation::UIElement>(
         "Content", ContentKind::Single);
     status = contentControl.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ButtonBase> buttonBase =
+        MetaTypeBuilder<ButtonBase>::Object(
+            context, TypeFlags::Abstract);
+    if (context.RoutedEvents() != nullptr) {
+        buttonBase.RoutedEvent(
+            ButtonBase::ClickEvent,
+            "Click", TypeOf<RoutedEventArgs>(),
+            RoutingStrategy::Bubble);
+    }
+    buttonBase
+        .DependencyProperty(
+            ButtonBase::ClickModeProperty,
+            "ClickMode", TypeOf<ClickMode>(),
+            Value::FromUnsignedInteger(
+                TypeOf<ClickMode>(),
+                static_cast<std::uint64_t>(
+                    ClickMode::Release)),
+            PropertyMetadataFlags::None,
+            &ValidateClickModeValue)
+        .DependencyProperty(
+            ButtonBase::CommandProperty,
+            "Command", TypeOf<ICommand>(),
+            Value::NullObject(TypeOf<ICommand>()),
+            PropertyMetadataFlags::None)
+        .DependencyProperty(
+            ButtonBase::CommandParameterProperty,
+            "CommandParameter", TypeOf<Base::Object>(),
+            Value::NullObject(TypeOf<Base::Object>()),
+            PropertyMetadataFlags::None)
+        .DependencyProperty(
+            ButtonBase::CommandTargetProperty,
+            "CommandTarget", TypeOf<UIElement>(),
+            Value::NullObject(TypeOf<UIElement>()),
+            PropertyMetadataFlags::None)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = buttonBase.Finish();
+    if (!status) return status.GetStatus();
+    PropertyMetadata buttonEnabled;
+    buttonEnabled.defaultValue =
+        Value::FromBoolean(TypeOf<bool>(), true);
+    buttonEnabled.flags =
+        PropertyMetadataFlags::Inherits |
+        PropertyMetadataFlags::AffectsRender;
+    buttonEnabled.coerce = &CoerceButtonEnabled;
+    status = context.DependencyProperties().TryOverrideMetadata(
+        UIElement::IsEnabledProperty,
+        TypeOf<ButtonBase>(), buttonEnabled);
+    if (!status) return status.GetStatus();
+    PropertyMetadata buttonTabStop;
+    buttonTabStop.defaultValue =
+        Value::FromBoolean(TypeOf<bool>(), true);
+    status = context.DependencyProperties().TryOverrideMetadata(
+        UIElement::IsTabStopProperty,
+        TypeOf<ButtonBase>(), buttonTabStop);
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Button> button =
+        MetaTypeBuilder<Button>::Object(context);
+    button.Content<Presentation::UIElement>(
+        "Content", ContentKind::Single);
+    status = button.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =

@@ -10,6 +10,10 @@
 
 #include <cstdint>
 
+namespace Aero::Controls {
+class ControlInteractionManager;
+}
+
 namespace Aero::Presentation {
 
 using namespace Aero::Core;
@@ -357,6 +361,7 @@ private:
     friend class RoutedEventManager;
     friend class PointerInputManager;
     friend class FocusManager;
+    friend class Aero::Controls::ControlInteractionManager;
 
     struct HandlerRecord final {
         RoutedEventHandle event;

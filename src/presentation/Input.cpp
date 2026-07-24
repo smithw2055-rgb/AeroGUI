@@ -188,6 +188,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
         if (nextElement != nullptr) {
             Base::Result<void> set = nextElement->SetMouseOverState(true);
             if (!set) return set.GetStatus();
+            if (!stateChanged_.Empty()) {
+                stateChanged_.Invoke(*nextElement);
+            }
         }
     }
     if (previous.IsValid() && !HasHover(previous, index)) {
@@ -203,6 +206,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
                         nextElement->SetMouseOverState(false));
                 }
                 return cleared.GetStatus();
+            }
+            if (!stateChanged_.Empty()) {
+                stateChanged_.Invoke(*previousElement);
             }
         }
     }
@@ -241,6 +247,9 @@ Base::Result<void> PointerInputManager::UpdatePressed(
         if (nextElement != nullptr) {
             Base::Result<void> set = nextElement->SetPressedState(true);
             if (!set) return set.GetStatus();
+            if (!stateChanged_.Empty()) {
+                stateChanged_.Invoke(*nextElement);
+            }
         }
     }
     if (previous.IsValid() && !HasPressed(previous, index)) {
@@ -257,6 +266,9 @@ Base::Result<void> PointerInputManager::UpdatePressed(
                 }
                 return cleared.GetStatus();
             }
+            if (!stateChanged_.Empty()) {
+                stateChanged_.Invoke(*previousElement);
+            }
         }
     }
     states_[index].pressed = next;
@@ -272,8 +284,12 @@ UIElement* PointerInputManager::CapturedNode(std::uint32_t pointerId) noexcept {
     UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
     if (element == nullptr || !element->IsLoaded() ||
         !IsVisualDescendantOrSelf(*root_, *element)) {
+        UIElement* lost = element;
         RemoveCaptureAt(index);
         static_cast<void>(UpdatePressed(pointerId, nullptr));
+        if (!captureChanged_.Empty()) {
+            captureChanged_.Invoke(pointerId, lost, false);
+        }
         return nullptr;
     }
     return element;
@@ -295,10 +311,24 @@ Base::Result<void> PointerInputManager::CapturePointer(
     if (!local) return local.GetStatus();
     const std::uint32_t index = FindCapture(pointerId);
     if (index != UINT32_MAX) {
+        Visual* previousVisual =
+            tree->ResolveHandle(captures_[index].target);
+        UIElement* previous = previousVisual != nullptr
+            ? previousVisual->AsUIElement() : nullptr;
         captures_[index].target = handle.Value();
+        if (!captureChanged_.Empty() && previous != &target) {
+            captureChanged_.Invoke(pointerId, previous, false);
+            captureChanged_.Invoke(pointerId, &target, true);
+        }
         return {};
     }
-    return captures_.TryPushBack({pointerId, handle.Value()});
+    Base::Result<void> appended =
+        captures_.TryPushBack({pointerId, handle.Value()});
+    if (!appended) return appended.GetStatus();
+    if (!captureChanged_.Empty()) {
+        captureChanged_.Invoke(pointerId, &target, true);
+    }
+    return {};
 }
 
 Base::Result<bool> PointerInputManager::ReleasePointer(
@@ -309,7 +339,14 @@ Base::Result<bool> PointerInputManager::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
+    Visual* visual = root_->OwningTree()->ResolveHandle(
+        captures_[index].target);
+    UIElement* target =
+        visual != nullptr ? visual->AsUIElement() : nullptr;
     RemoveCaptureAt(index);
+    if (!captureChanged_.Empty()) {
+        captureChanged_.Invoke(pointerId, target, false);
+    }
     return true;
 }
 
@@ -336,6 +373,10 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     result.hit = hit.Value();
     UIElement* stateTarget = result.hit.HasTarget() &&
         result.hit.target->IsEnabled() ? result.hit.target : nullptr;
+    if (captured != nullptr && stateTarget != nullptr &&
+        !Contains(stateTarget->RenderSize(), result.hit.position)) {
+        stateTarget = nullptr;
+    }
     Base::Result<void> hover =
         UpdateHover(input.pointerId, stateTarget);
     if (!hover) return hover.GetStatus();
@@ -368,7 +409,17 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     result.routed = true;
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
-        if (index != UINT32_MAX) RemoveCaptureAt(index);
+        if (index != UINT32_MAX) {
+            Visual* visual = root_->OwningTree()->ResolveHandle(
+                captures_[index].target);
+            UIElement* target =
+                visual != nullptr ? visual->AsUIElement() : nullptr;
+            RemoveCaptureAt(index);
+            if (!captureChanged_.Empty()) {
+                captureChanged_.Invoke(
+                    input.pointerId, target, false);
+            }
+        }
     }
     return result;
 }

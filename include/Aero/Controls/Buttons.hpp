@@ -1,0 +1,172 @@
+#pragma once
+
+#include <Aero/Controls/Templates.hpp>
+#include <Aero/Presentation/Commands.hpp>
+#include <Aero/Presentation/Input.hpp>
+
+namespace Aero::Controls {
+
+enum class ClickMode : std::uint8_t {
+    Release = 0U,
+    Press,
+    Hover,
+};
+
+class ControlInteractionManager;
+
+class AERO_API ButtonBase : public ContentControl {
+    AERO_TYPED_META(ButtonBase, ContentControl)
+public:
+    inline static constexpr RoutedEventHandle ClickEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "Click");
+    UIElement::RoutedEvent_<RoutedEventHandler> Click() noexcept {
+        return {*this, ClickEvent};
+    }
+
+    ClickMode GetClickMode() const noexcept;
+    ICommand* Command() const noexcept;
+    Base::Ref<Base::Object> CommandParameter() const noexcept;
+    UIElement* CommandTarget() const noexcept;
+    bool IsCommandEnabled() const noexcept {
+        return commandEnabled_;
+    }
+
+    Base::Result<void> SetClickMode(ClickMode value) noexcept;
+    Base::Result<void> SetCommand(
+        Base::Ref<ICommand> command) noexcept;
+    Base::Result<void> SetCommandParameter(
+        Base::Ref<Base::Object> parameter) noexcept;
+    Base::Result<void> SetCommandTarget(
+        Base::Ref<UIElement> target) noexcept;
+
+    inline static constexpr DependencyPropertyHandle
+        ClickModeProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "ClickMode");
+    inline static constexpr DependencyPropertyHandle
+        CommandProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Command");
+    inline static constexpr DependencyPropertyHandle
+        CommandParameterProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "CommandParameter");
+    inline static constexpr DependencyPropertyHandle
+        CommandTargetProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "CommandTarget");
+
+protected:
+    explicit ButtonBase(TypeId runtimeType) noexcept
+        : ContentControl(runtimeType) {}
+    ~ButtonBase() override = default;
+
+private:
+    friend class ControlInteractionManager;
+    bool commandEnabled_ = true;
+};
+
+class AERO_API Button final : public ButtonBase {
+    AERO_TYPED_META(Button, ButtonBase)
+public:
+    Button() noexcept : ButtonBase(StaticTypeId()) {}
+    ~Button() override = default;
+};
+
+class AERO_API ControlInteractionManager final {
+public:
+    ControlInteractionManager(
+        ObjectTree& tree,
+        RoutedEventManager& events,
+        PointerInputManager& pointer,
+        FocusManager& focus,
+        CommandManager& commands,
+        VisualStateManager* states = nullptr) noexcept;
+    ~ControlInteractionManager() noexcept;
+
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Attach(ButtonBase& button) noexcept;
+    Base::Result<bool> Detach(ButtonBase& button) noexcept;
+    Base::Result<void> RefreshCanExecute(
+        ButtonBase& button) noexcept;
+
+private:
+    struct ButtonRecord final {
+        VisualHandle handle;
+        Base::Ref<ICommand> command;
+        std::uint32_t pointerId = 0U;
+        bool pointerDown = false;
+        bool keyboardDown = false;
+        bool wasMouseOver = false;
+    };
+
+    ObjectTree* tree_ = nullptr;
+    RoutedEventManager* events_ = nullptr;
+    PointerInputManager* pointer_ = nullptr;
+    FocusManager* focus_ = nullptr;
+    CommandManager* commands_ = nullptr;
+    VisualStateManager* states_ = nullptr;
+    Base::Vector<ButtonRecord> buttons_;
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    KeyEventHandler keyUpHandler_;
+    KeyboardFocusChangedEventHandler focusChangedHandler_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
+    PointerStateChangedHandler pointerStateChangedHandler_;
+    PointerCaptureChangedHandler captureChangedHandler_;
+    RequerySuggestedHandler requeryHandler_;
+    bool initialized_ = false;
+
+    std::uint32_t FindButton(const ButtonBase& button) const noexcept;
+    ButtonBase* ResolveButton(std::uint32_t index) noexcept;
+    Base::Result<void> SubscribeCommand(
+        ButtonBase& button,
+        ButtonRecord& record) noexcept;
+    void UnsubscribeCommand(ButtonRecord& record) noexcept;
+    void RemoveAt(std::uint32_t index) noexcept;
+    Base::Result<void> InvokeClick(ButtonBase& button) noexcept;
+    void SyncVisualState(ButtonBase& button) noexcept;
+    void OnMouseDown(
+        Base::Object* sender,
+        const MouseButtonEventArgs& args) noexcept;
+    void OnMouseUp(
+        Base::Object* sender,
+        const MouseButtonEventArgs& args) noexcept;
+    void OnKeyDown(
+        Base::Object* sender,
+        const KeyEventArgs& args) noexcept;
+    void OnKeyUp(
+        Base::Object* sender,
+        const KeyEventArgs& args) noexcept;
+    void OnFocusChanged(
+        Base::Object* sender,
+        const KeyboardFocusChangedEventArgs& args) noexcept;
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
+    void OnPointerStateChanged(UIElement& element) noexcept;
+    void OnCaptureChanged(
+        std::uint32_t pointerId,
+        UIElement* target,
+        bool captured) noexcept;
+    void OnRequerySuggested() noexcept;
+};
+
+} // namespace Aero::Controls
+
+namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Controls::ClickMode> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("ClickMode");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "ClickMode";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Core

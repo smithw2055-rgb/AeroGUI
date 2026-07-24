@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/String.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/TextBlockLayoutService.hpp>
 
