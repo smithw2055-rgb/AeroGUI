@@ -220,6 +220,7 @@ Base::Result<bool> CommandManager::Execute(
     RoutedCommand& command,
     const Core::Value& parameter,
     UIElement& target) noexcept {
+    if (!target.IsEnabled()) return false;
     Base::Result<bool> allowed =
         CanExecute(command, parameter, target);
     if (!allowed || !allowed.Value()) {
@@ -253,7 +254,8 @@ Base::Result<bool> CommandManager::Execute(
 Base::Result<bool> CommandManager::ProcessInput(
     UIElement& target,
     const KeyboardInput& input) noexcept {
-    if (input.action != KeyboardAction::Down) return false;
+    if (input.action != KeyboardAction::Down ||
+        !target.IsEnabled()) return false;
     Base::Vector<RouteBinding> route(&Base::GetDefaultAllocator());
     Base::Result<void> snapshot =
         SnapshotRoute(target, nullptr, route);

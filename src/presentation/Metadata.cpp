@@ -409,7 +409,25 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .DependencyProperty(UIElement::IsHitTestVisibleProperty,
             "IsHitTestVisible", TypeOf<bool>(),
             Value::FromBoolean(TypeOf<bool>(), true),
-            PropertyMetadataFlags::None);
+            PropertyMetadataFlags::None)
+        .DependencyProperty(UIElement::IsEnabledProperty,
+            "IsEnabled", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), true),
+            PropertyMetadataFlags::Inherits |
+                PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(UIElement::IsMouseOverProperty,
+            "IsMouseOver", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(UIElement::IsPressedProperty,
+            "IsPressed", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(
+            UIElement::IsKeyboardFocusedProperty,
+            "IsKeyboardFocused", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender);
     status = uiElement.Finish();
     if (!status) return status.GetStatus();
 

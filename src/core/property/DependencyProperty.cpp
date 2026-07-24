@@ -755,6 +755,28 @@ Base::Result<void> DependencyObject::SetCurrentValue(
     return ApplyChange(key.Property(), &key, ChangeKind::SetCurrent, &value);
 }
 
+Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
+    DependencyPropertyHandle propertyHandle,
+    const PropertyValue& value) noexcept {
+    Base::Result<void> ready = VerifyReady();
+    if (!ready) return ready.GetStatus();
+    const DependencyProperty* property = registry_->Find(propertyHandle);
+    if (property == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::NotFound,
+            "Dependency property was not found");
+    }
+    if (!property->IsReadOnly()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "Framework state update requires a read-only property");
+    }
+    DependencyPropertyKey key;
+    key.registry_ = registry_;
+    key.property_ = propertyHandle;
+    key.secret_ = property->readOnlySecret_;
+    return ApplyChange(
+        propertyHandle, &key, ChangeKind::SetCurrent, &value);
+}
+
 Base::Result<void> DependencyObject::ClearValue(
     DependencyPropertyHandle property) noexcept {
     return ApplyChange(property, nullptr, ChangeKind::Clear, nullptr);

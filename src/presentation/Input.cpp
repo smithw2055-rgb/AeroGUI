@@ -104,7 +104,8 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
 PointerInputManager::PointerInputManager(HitTestManager& hitTests,
     RoutedEventManager& events, Visual& root) noexcept
     : hitTests_(&hitTests), events_(&events), root_(&root),
-      captures_(&Base::GetDefaultAllocator()) {}
+      captures_(&Base::GetDefaultAllocator()),
+      states_(&Base::GetDefaultAllocator()) {}
 
 std::uint32_t PointerInputManager::FindCapture(
     std::uint32_t pointerId) const noexcept {
@@ -122,6 +123,146 @@ void PointerInputManager::RemoveCaptureAt(std::uint32_t index) noexcept {
     captures_.PopBack();
 }
 
+std::uint32_t PointerInputManager::FindState(
+    std::uint32_t pointerId) const noexcept {
+    for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
+        if (states_[index].pointerId == pointerId) return index;
+    }
+    return UINT32_MAX;
+}
+
+bool PointerInputManager::HasHover(
+    VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
+    if (!target.IsValid()) return false;
+    for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
+        if (index == ignoredIndex) continue;
+        if (states_[index].hover.index == target.index &&
+            states_[index].hover.generation == target.generation) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PointerInputManager::HasPressed(
+    VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
+    if (!target.IsValid()) return false;
+    for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
+        if (index == ignoredIndex) continue;
+        if (states_[index].pressed.index == target.index &&
+            states_[index].pressed.generation == target.generation) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Base::Result<void> PointerInputManager::UpdateHover(
+    std::uint32_t pointerId, UIElement* target) noexcept {
+    ObjectTree* tree = root_->OwningTree();
+    if (tree == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Pointer state requires an ObjectTree");
+    }
+    VisualHandle next;
+    if (target != nullptr && target->IsEnabled()) {
+        Base::Result<VisualHandle> handle = tree->GetHandle(*target);
+        if (!handle) return handle.GetStatus();
+        next = handle.Value();
+    }
+    std::uint32_t index = FindState(pointerId);
+    if (index == UINT32_MAX) {
+        Base::Result<void> appended =
+            states_.TryPushBack({pointerId, {}, {}});
+        if (!appended) return appended.GetStatus();
+        index = states_.Size() - 1U;
+    }
+    const VisualHandle previous = states_[index].hover;
+    if (previous.index == next.index &&
+        previous.generation == next.generation) return {};
+
+    UIElement* nextElement = nullptr;
+    if (next.IsValid() && !HasHover(next, index)) {
+        Visual* visual = tree->ResolveHandle(next);
+        nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
+        if (nextElement != nullptr) {
+            Base::Result<void> set = nextElement->SetMouseOverState(true);
+            if (!set) return set.GetStatus();
+        }
+    }
+    if (previous.IsValid() && !HasHover(previous, index)) {
+        Visual* visual = tree->ResolveHandle(previous);
+        UIElement* previousElement =
+            visual != nullptr ? visual->AsUIElement() : nullptr;
+        if (previousElement != nullptr) {
+            Base::Result<void> cleared =
+                previousElement->SetMouseOverState(false);
+            if (!cleared) {
+                if (nextElement != nullptr) {
+                    static_cast<void>(
+                        nextElement->SetMouseOverState(false));
+                }
+                return cleared.GetStatus();
+            }
+        }
+    }
+    states_[index].hover = next;
+    return {};
+}
+
+Base::Result<void> PointerInputManager::UpdatePressed(
+    std::uint32_t pointerId, UIElement* target) noexcept {
+    ObjectTree* tree = root_->OwningTree();
+    if (tree == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Pointer state requires an ObjectTree");
+    }
+    VisualHandle next;
+    if (target != nullptr && target->IsEnabled()) {
+        Base::Result<VisualHandle> handle = tree->GetHandle(*target);
+        if (!handle) return handle.GetStatus();
+        next = handle.Value();
+    }
+    std::uint32_t index = FindState(pointerId);
+    if (index == UINT32_MAX) {
+        Base::Result<void> appended =
+            states_.TryPushBack({pointerId, {}, {}});
+        if (!appended) return appended.GetStatus();
+        index = states_.Size() - 1U;
+    }
+    const VisualHandle previous = states_[index].pressed;
+    if (previous.index == next.index &&
+        previous.generation == next.generation) return {};
+
+    UIElement* nextElement = nullptr;
+    if (next.IsValid() && !HasPressed(next, index)) {
+        Visual* visual = tree->ResolveHandle(next);
+        nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
+        if (nextElement != nullptr) {
+            Base::Result<void> set = nextElement->SetPressedState(true);
+            if (!set) return set.GetStatus();
+        }
+    }
+    if (previous.IsValid() && !HasPressed(previous, index)) {
+        Visual* visual = tree->ResolveHandle(previous);
+        UIElement* previousElement =
+            visual != nullptr ? visual->AsUIElement() : nullptr;
+        if (previousElement != nullptr) {
+            Base::Result<void> cleared =
+                previousElement->SetPressedState(false);
+            if (!cleared) {
+                if (nextElement != nullptr) {
+                    static_cast<void>(
+                        nextElement->SetPressedState(false));
+                }
+                return cleared.GetStatus();
+            }
+        }
+    }
+    states_[index].pressed = next;
+    return {};
+}
+
 UIElement* PointerInputManager::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
@@ -132,6 +273,7 @@ UIElement* PointerInputManager::CapturedNode(std::uint32_t pointerId) noexcept {
     if (element == nullptr || !element->IsLoaded() ||
         !IsVisualDescendantOrSelf(*root_, *element)) {
         RemoveCaptureAt(index);
+        static_cast<void>(UpdatePressed(pointerId, nullptr));
         return nullptr;
     }
     return element;
@@ -165,6 +307,8 @@ Base::Result<bool> PointerInputManager::ReleasePointer(
     if (!access) return access.GetStatus();
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return false;
+    Base::Result<void> state = UpdatePressed(pointerId, nullptr);
+    if (!state) return state.GetStatus();
     RemoveCaptureAt(index);
     return true;
 }
@@ -190,6 +334,20 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     if (!hit) return hit.GetStatus();
     PointerDispatchResult result;
     result.hit = hit.Value();
+    UIElement* stateTarget = result.hit.HasTarget() &&
+        result.hit.target->IsEnabled() ? result.hit.target : nullptr;
+    Base::Result<void> hover =
+        UpdateHover(input.pointerId, stateTarget);
+    if (!hover) return hover.GetStatus();
+    if (input.action == PointerAction::Down) {
+        Base::Result<void> pressed =
+            UpdatePressed(input.pointerId, stateTarget);
+        if (!pressed) return pressed.GetStatus();
+    } else if (input.action == PointerAction::Up) {
+        Base::Result<void> released =
+            UpdatePressed(input.pointerId, nullptr);
+        if (!released) return released.GetStatus();
+    }
     if (!result.hit.HasTarget()) return result;
     Base::Result<void> raised;
     if (input.action == PointerAction::Move) {
@@ -230,26 +388,48 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
     if (node == nullptr) return ClearFocus();
     Base::Result<VisualHandle> next = tree_->GetHandle(*node);
     if (!next) return next.GetStatus();
-    if (!node->IsLoaded()) {
+    if (!node->IsLoaded() || !node->IsEnabled()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Keyboard focus target must be loaded");
+            "Keyboard focus target must be loaded and enabled");
     }
     UIElement* previous = FocusedNode();
     if (previous == node) return false;
     if (previous != nullptr) {
+        Base::Result<void> state =
+            previous->SetKeyboardFocusedState(false);
+        if (!state) return state.GetStatus();
         KeyboardFocusChangedEventArgs args;
         args.oldFocus = previous;
         args.newFocus = node;
         Base::Result<void> lost = events_->RaiseEvent(
             *previous, UIElement::LostKeyboardFocusEvent, &args);
-        if (!lost) return lost.GetStatus();
+        if (!lost) {
+            static_cast<void>(
+                previous->SetKeyboardFocusedState(true));
+            return lost.GetStatus();
+        }
+    }
+    Base::Result<void> state = node->SetKeyboardFocusedState(true);
+    if (!state) {
+        if (previous != nullptr) {
+            static_cast<void>(
+                previous->SetKeyboardFocusedState(true));
+        }
+        return state.GetStatus();
     }
     KeyboardFocusChangedEventArgs args;
     args.oldFocus = previous;
     args.newFocus = node;
     Base::Result<void> gained = events_->RaiseEvent(
         *node, UIElement::GotKeyboardFocusEvent, &args);
-    if (!gained) return gained.GetStatus();
+    if (!gained) {
+        static_cast<void>(node->SetKeyboardFocusedState(false));
+        if (previous != nullptr) {
+            static_cast<void>(
+                previous->SetKeyboardFocusedState(true));
+        }
+        return gained.GetStatus();
+    }
     focused_ = next.Value();
     return true;
 }
@@ -259,11 +439,18 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
     if (previous == nullptr) return false;
     Base::Result<void> access = previous->VerifyAccess();
     if (!access) return access.GetStatus();
+    Base::Result<void> state =
+        previous->SetKeyboardFocusedState(false);
+    if (!state) return state.GetStatus();
     KeyboardFocusChangedEventArgs args;
     args.oldFocus = previous;
     Base::Result<void> lost = events_->RaiseEvent(
         *previous, UIElement::LostKeyboardFocusEvent, &args);
-    if (!lost) return lost.GetStatus();
+    if (!lost) {
+        static_cast<void>(
+            previous->SetKeyboardFocusedState(true));
+        return lost.GetStatus();
+    }
     focused_ = {};
     return true;
 }
@@ -299,6 +486,12 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     KeyboardDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
+    if (!result.target->IsEnabled()) {
+        Base::Result<bool> cleared = focus_->ClearFocus();
+        if (!cleared) return cleared.GetStatus();
+        result.target = nullptr;
+        return result;
+    }
     if (!result.target->IsLoaded() || result.target->OwningTree() != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");

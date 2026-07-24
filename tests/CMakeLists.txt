@@ -216,6 +216,14 @@ set_target_properties(AeroCommandTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_R
 aero_apply_compiler_options(AeroCommandTests)
 add_test(NAME AeroCommandTests COMMAND AeroCommandTests)
 
+add_executable(AeroInteractionStateTests
+    presentation/InteractionStateTests.cpp)
+target_link_libraries(AeroInteractionStateTests PRIVATE Aero::Controls)
+target_compile_features(AeroInteractionStateTests PRIVATE cxx_std_17)
+set_target_properties(AeroInteractionStateTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroInteractionStateTests)
+add_test(NAME AeroInteractionStateTests COMMAND AeroInteractionStateTests)
+
 add_executable(AeroRenderingTests presentation/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Controls)
 target_compile_features(AeroRenderingTests PRIVATE cxx_std_17)

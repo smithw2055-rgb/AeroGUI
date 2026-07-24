@@ -100,15 +100,30 @@ private:
         std::uint32_t pointerId = 0U;
         VisualHandle target;
     };
+    struct PointerState final {
+        std::uint32_t pointerId = 0U;
+        VisualHandle hover;
+        VisualHandle pressed;
+    };
 
     HitTestManager* hitTests_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<PointerCapture> captures_;
+    Base::Vector<PointerState> states_;
 
     std::uint32_t FindCapture(
         std::uint32_t pointerId) const noexcept;
     void RemoveCaptureAt(std::uint32_t index) noexcept;
+    std::uint32_t FindState(std::uint32_t pointerId) const noexcept;
+    Base::Result<void> UpdateHover(
+        std::uint32_t pointerId, UIElement* target) noexcept;
+    Base::Result<void> UpdatePressed(
+        std::uint32_t pointerId, UIElement* target) noexcept;
+    bool HasHover(VisualHandle target,
+        std::uint32_t ignoredIndex) const noexcept;
+    bool HasPressed(VisualHandle target,
+        std::uint32_t ignoredIndex) const noexcept;
 };
 
 class AERO_API FocusManager final {

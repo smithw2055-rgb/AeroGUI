@@ -208,6 +208,27 @@ bool UIElement::IsHitTestVisible() const noexcept {
     Base::Result<Value> value = GetValue(IsHitTestVisibleProperty);
     return value ? value.Value().AsBoolean() : true;
 }
+bool UIElement::IsEnabled() const noexcept {
+    Base::Result<Value> value = GetValue(IsEnabledProperty);
+    if (value && !value.Value().AsBoolean()) return false;
+    Visual* parent = LogicalParent() != nullptr
+        ? LogicalParent() : VisualParent();
+    const UIElement* parentElement =
+        parent != nullptr ? parent->AsUIElement() : nullptr;
+    return parentElement == nullptr || parentElement->IsEnabled();
+}
+bool UIElement::IsMouseOver() const noexcept {
+    Base::Result<Value> value = GetValue(IsMouseOverProperty);
+    return value && value.Value().AsBoolean();
+}
+bool UIElement::IsPressed() const noexcept {
+    Base::Result<Value> value = GetValue(IsPressedProperty);
+    return value && value.Value().AsBoolean();
+}
+bool UIElement::IsKeyboardFocused() const noexcept {
+    Base::Result<Value> value = GetValue(IsKeyboardFocusedProperty);
+    return value && value.Value().AsBoolean();
+}
 bool FrameworkElement::UseLayoutRounding() const noexcept {
     Base::Result<Value> value = GetValue(UseLayoutRoundingProperty);
     return value ? value.Value().AsBoolean() : false;
@@ -288,6 +309,22 @@ Base::Result<void> UIElement::SetClipToBounds(bool value) noexcept {
 
 Base::Result<void> UIElement::SetHitTestVisible(bool value) noexcept {
     return SetValue(IsHitTestVisibleProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetEnabled(bool value) noexcept {
+    return SetValue(IsEnabledProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsMouseOverProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetPressedState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsPressedProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetKeyboardFocusedState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsKeyboardFocusedProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 

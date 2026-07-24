@@ -292,6 +292,10 @@ public:
     bool IsArrangeValid() const noexcept { return arrangeValid_; }
     bool ClipToBounds() const noexcept;
     bool IsHitTestVisible() const noexcept;
+    bool IsEnabled() const noexcept;
+    bool IsMouseOver() const noexcept;
+    bool IsPressed() const noexcept;
+    bool IsKeyboardFocused() const noexcept;
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
@@ -301,10 +305,24 @@ public:
     inline static constexpr Aero::Core::DependencyPropertyHandle
         IsHitTestVisibleProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "IsHitTestVisible");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsEnabledProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsEnabled");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsMouseOverProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsMouseOver");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsPressedProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsPressed");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsKeyboardFocusedProperty =
+            Aero::Core::MakeDependencyPropertyHandle(
+                StaticTypeIdValue_, "IsKeyboardFocused");
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
+    Base::Result<void> SetEnabled(bool value) noexcept;
 
 protected:
     Base::Result<void> OnPropertyInvalidated(
@@ -322,6 +340,8 @@ protected:
 private:
     friend class LayoutManager;
     friend class RoutedEventManager;
+    friend class PointerInputManager;
+    friend class FocusManager;
 
     struct HandlerRecord final {
         RoutedEventHandle event;
@@ -347,6 +367,9 @@ private:
     bool measuring_ = false;
     bool arranging_ = false;
 
+    Base::Result<void> SetMouseOverState(bool value) noexcept;
+    Base::Result<void> SetPressedState(bool value) noexcept;
+    Base::Result<void> SetKeyboardFocusedState(bool value) noexcept;
     void CleanupHandlers() noexcept;
 };
 

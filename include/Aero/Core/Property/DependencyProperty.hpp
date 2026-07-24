@@ -413,6 +413,11 @@ public:
 protected:
     explicit DependencyObject(TypeId runtimeType) noexcept;
     ~DependencyObject() override = default;
+    // Framework-owned state properties use this path so public SetValue calls
+    // remain read-only while derived runtime types can publish state changes.
+    Base::Result<void> SetReadOnlyCurrentValue(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
     virtual Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
 
