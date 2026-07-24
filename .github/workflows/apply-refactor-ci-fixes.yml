@@ -86,9 +86,24 @@ jobs:
       - name: Test
         shell: pwsh
         run: |
-          ctest --test-dir out/build -C ${{ matrix.build_type }} --output-on-failure
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ctest --test-dir out/build -C ${{ matrix.build_type }} -R "AeroD3D11.*Tests" -V
+          cmd /c "ctest --test-dir out/build -C ${{ matrix.build_type }} --output-on-failure > out\msvc-${{ matrix.build_type }}-test.log 2>&1"
+          $testExitCode = $LASTEXITCODE
+          Get-Content out/msvc-${{ matrix.build_type }}-test.log
+          if ($testExitCode -ne 0) { exit $testExitCode }
+          cmd /c "ctest --test-dir out/build -C ${{ matrix.build_type }} -R AeroD3D11.*Tests -V > out\msvc-${{ matrix.build_type }}-warp.log 2>&1"
+          $warpExitCode = $LASTEXITCODE
+          Get-Content out/msvc-${{ matrix.build_type }}-warp.log
+          exit $warpExitCode
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactor-msvc-${{ matrix.build_type }}-test-logs
+          path: |
+            out/msvc-${{ matrix.build_type }}-test.log
+            out/msvc-${{ matrix.build_type }}-warp.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   commit:
     needs: [clang, windows]
