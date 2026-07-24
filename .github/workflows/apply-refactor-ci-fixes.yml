@@ -1,0 +1,102 @@
+name: Validate and apply render CI fixes
+
+on:
+  pull_request:
+    branches:
+      - codex/m3-interactive-controls-text-opengl
+
+permissions:
+  contents: write
+
+jobs:
+  clang:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/render-backend-refactor
+      - name: Apply fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/refactor-fix/ci-fixes.patch.b64 > /tmp/ci-fixes.patch
+          echo "d0274abd15f76fa8382beec3ff4f01aa919544ab2cd8101a4321bcd1f97da520  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --check --whitespace=error /tmp/ci-fixes.patch
+          git apply --whitespace=error /tmp/ci-fixes.patch
+      - name: Configure Clang sanitizer build
+        shell: bash
+        run: |
+          CC=clang CXX=clang++ cmake -S . -B out/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined" \
+            -DAERO_BUILD_SHARED=OFF \
+            -DAERO_BUILD_TESTS=ON \
+            -DAERO_ENABLE_EXCEPTIONS=OFF \
+            -DAERO_ENABLE_RTTI=OFF \
+            -DAERO_WARNINGS_AS_ERRORS=ON \
+            -DAERO_ENABLE_D3D11_BACKEND=OFF
+      - name: Build and test
+        run: |
+          cmake --build out/build --parallel 2
+          ctest --test-dir out/build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build_type: Debug
+            shared: OFF
+          - build_type: Release
+            shared: ON
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/render-backend-refactor
+      - name: Apply fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/refactor-fix/ci-fixes.patch.b64 > /tmp/ci-fixes.patch
+          echo "d0274abd15f76fa8382beec3ff4f01aa919544ab2cd8101a4321bcd1f97da520  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --check --whitespace=error /tmp/ci-fixes.patch
+          git apply --whitespace=error /tmp/ci-fixes.patch
+      - name: Configure
+        run: cmake -S . -B out/build -A x64 -DAERO_BUILD_SHARED=${{ matrix.shared }} -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON -DAERO_ENABLE_D3D11_BACKEND=ON
+      - name: Build and test
+        shell: pwsh
+        run: |
+          cmake --build out/build --config ${{ matrix.build_type }} --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir out/build -C ${{ matrix.build_type }} --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir out/build -C ${{ matrix.build_type }} -R "AeroD3D11.*Tests" -V
+
+  commit:
+    needs: [clang, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/render-backend-refactor
+          fetch-depth: 0
+      - name: Apply and commit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/refactor-fix/ci-fixes.patch.b64 > /tmp/ci-fixes.patch
+          echo "d0274abd15f76fa8382beec3ff4f01aa919544ab2cd8101a4321bcd1f97da520  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --index --whitespace=error /tmp/ci-fixes.patch
+          rm -rf .github/refactor-fix
+          rm -f .github/workflows/apply-refactor-ci-fixes.yml
+          git add -A
+          git config user.name "aerogui-refactor-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Fix cross-platform render backend build"
+          git push origin HEAD:agent/render-backend-refactor
