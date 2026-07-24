@@ -17,12 +17,13 @@ jobs:
       - name: Package source tree
         shell: bash
         run: |
-          tar --exclude=.git --exclude=out -czf ../aerogui-source.tar.gz .
+          tar --exclude=.git --exclude=out --exclude=aerogui-source.tar.gz \
+            -czf aerogui-source.tar.gz .
       - name: Upload source tree
         uses: actions/upload-artifact@v4
         with:
           name: aerogui-source-snapshot
-          path: ../aerogui-source.tar.gz
+          path: aerogui-source.tar.gz
           if-no-files-found: error
           retention-days: 1
 
