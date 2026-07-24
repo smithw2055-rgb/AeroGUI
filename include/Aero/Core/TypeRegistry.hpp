@@ -133,15 +133,27 @@ constexpr EventFlags operator|(
         static_cast<std::uint32_t>(right));
 }
 
-constexpr bool HasTypeFlag(TypeFlags value, TypeFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
+struct TypeFlagPredicate final {
+    constexpr bool operator()(
+        TypeFlags value,
+        TypeFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) &
+            static_cast<std::uint32_t>(flag)) != 0U;
+    }
+};
 
-constexpr bool HasFieldFlag(FieldFlags value, FieldFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
-}
+inline constexpr TypeFlagPredicate HasTypeFlag{};
+
+struct FieldFlagPredicate final {
+    constexpr bool operator()(
+        FieldFlags value,
+        FieldFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) &
+            static_cast<std::uint32_t>(flag)) != 0U;
+    }
+};
+
+inline constexpr FieldFlagPredicate HasFieldFlag{};
 
 using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
 using PropertyGetCallback = Base::Result<Value> (*)(
@@ -412,10 +424,6 @@ public:
     TypeId BaseType() const noexcept { return baseType_; }
     TypeId UnderlyingType() const noexcept { return underlyingType_; }
     MetadataTypeKind Kind() const noexcept {
-        // Legacy registrations used ValueType for both scalar values and
-        // inheritable event-argument descriptors. Preserve their historical
-        // object hierarchy; explicit Struct/Enum registrations retain their
-        // distinct kinds.
         return kind_ == MetadataTypeKind::Primitive
             ? MetadataTypeKind::Object : kind_;
     }
