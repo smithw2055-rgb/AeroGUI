@@ -3,6 +3,12 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Rhi/D3D11Backend.hpp>
 
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+#include <Aero/Render/D3D11TextBlockRenderService.hpp>
+#include <Aero/Text/FreeTypeAdapter.hpp>
+#include <Aero/Text/HarfBuzzAdapter.hpp>
+#endif
+
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
@@ -41,6 +47,10 @@ using namespace Aero::Presentation;
 using namespace Aero::Controls;
 using namespace Aero::Markup;
 using namespace Aero::Rhi;
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+using namespace Aero::Render;
+using namespace Aero::Text;
+#endif
 
 #define CHECK(expression) \
     do { \
@@ -914,6 +924,135 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     return true;
 }
 
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+bool TestAutomaticTextBlockD3D11Presentation(
+    RhiDevice& device,
+    D3D11GraphicsBackend& backend,
+    SurfaceSession& surface,
+    D3D11RenderPlanBackend& renderBackend) {
+    FreeTypeAdapter fontProvider;
+    CHECK(fontProvider.Initialize());
+    HarfBuzzAdapter shaper(fontProvider);
+    FontManager fonts;
+    CHECK(fonts.Initialize());
+    CHECK(fonts.RegisterProvider(
+        {&fontProvider, &shaper, &fontProvider}));
+
+    Typeface typeface;
+    CHECK(typeface.TrySetFamily("Mplus"));
+    CHECK(typeface.TrySetLanguage("zh-CN"));
+    FontSource source;
+    source.kind = FontSourceKind::File;
+    source.identifier = AERO_TEXT_TEST_CJK_FONT;
+    FontFace face;
+    CHECK(fonts.LoadFace(
+        fontProvider.Identity().id,
+        source, typeface, face));
+
+    D3D11GlyphRunResourceRegistry registry(renderBackend);
+    TextBlockRenderService textService(
+        fonts, device, backend, registry);
+    TextBlockRenderServiceConfig config;
+    config.face = face;
+    config.pixelSize = 20.0F;
+    config.atlas.pageWidth = 256U;
+    config.atlas.pageHeight = 256U;
+    config.atlas.maxPages = 2U;
+    CHECK(textService.Initialize(config));
+
+    {
+        TextBlockLayoutServiceScope textScope(textService);
+        XamlControlFixture fixture(renderBackend);
+        CHECK(fixture.Initialize());
+        DiagnosticBag diagnostics;
+        Utf8XmlTokenizer tokenizer;
+        CHECK(tokenizer.Reset(StringView(
+            "<TextBlock xmlns=\"urn:aero\" "
+            "Text=\"A1&#x4E2D;&#x6587;\"/>"),
+            &diagnostics));
+        XamlNodeReader reader(tokenizer, &diagnostics);
+        XamlObjectWriter writer(*fixture.schema, &diagnostics);
+        Result<Ref<Object>> loaded =
+            LoadXamlVisualTreeWithActivation(
+                *fixture.visual,
+                writer,
+                reader,
+                *fixture.activation,
+                fixture.Activation());
+        CHECK(loaded && diagnostics.Size() == 0U);
+        TextBlock* text =
+            static_cast<TextBlock*>(loaded.Value().Get());
+        CHECK(text != nullptr);
+        CHECK(text->LayoutService() == &textService);
+        CHECK(text->SetForeground(
+            {0.0F, 0.0F, 1.0F, 1.0F}));
+        CHECK(fixture.visual->Mount(
+            *text, fixture.textBlockType,
+            {80.0, 48.0}));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(text->DesiredSize().width > 0.0);
+        CHECK(text->DesiredSize().height > 0.0);
+        CHECK(!text->GlyphRuns().Empty());
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::RenderCommit));
+        const D3D11RenderPlanSubmitStatistics statistics =
+            renderBackend.LastSubmitStatistics();
+        CHECK(statistics.glyphDrawCallCount >= 1U);
+        CHECK(statistics.glyphInstanceCount >= 1U);
+        CHECK(backend.WaitForFence(
+            renderBackend.LastSubmittedFence()));
+
+        Result<SurfaceFrame> frameResult =
+            surface.AcquireFrame();
+        CHECK(frameResult);
+        SurfaceFrame frame = frameResult.Value();
+        Result<ResourceHandle> target =
+            ImportD3D11ExternalRenderTarget(
+                device, backend,
+                MakeImportDescriptor(frame));
+        CHECK(target);
+        constexpr std::uint32_t Width = 80U;
+        constexpr std::uint32_t Height = 48U;
+        std::uint8_t pixels[Width * Height * 4U]{};
+        CHECK(backend.ReadbackTexture(
+            target.Value(),
+            Span<std::uint8_t>(
+                pixels,
+                static_cast<std::uint32_t>(
+                    sizeof(pixels))),
+            Width * 4U));
+        bool foundBlueCoverage = false;
+        for (std::uint32_t offset = 0U;
+             offset < sizeof(pixels);
+             offset += 4U) {
+            if (pixels[offset] > 20U &&
+                pixels[offset] > pixels[offset + 1U] &&
+                pixels[offset] > pixels[offset + 2U]) {
+                foundBlueCoverage = true;
+                break;
+            }
+        }
+        CHECK(foundBlueCoverage);
+        CHECK(surface.DiscardFrame(frame));
+        CHECK(device.DestroyResource(
+            target.Value(),
+            renderBackend.LastSubmittedFence()));
+        CHECK(fixture.visual->Unmount());
+    }
+
+    CHECK(backend.WaitForFence(
+        renderBackend.LastSubmittedFence()));
+    CHECK(textService.CollectGarbage());
+    textService.Shutdown();
+    CHECK(device.CollectGarbage());
+    CHECK(fonts.ReleaseFace(face.handle));
+    fonts.Shutdown();
+    fontProvider.Shutdown();
+    return true;
+}
+#endif
+
 bool TestOwnedBorrowedResizeAndPresentation() {
     HiddenWindow window;
     CHECK(window.Initialize());
@@ -1422,6 +1561,10 @@ bool TestOwnedBorrowedResizeAndPresentation() {
         glyphTarget.Value(), renderBackend.LastSubmittedFence()));
     CHECK(TestXamlStackPanelBorderD3D11Presentation(
         device, backend, surface, renderBackend, 1U));
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+    CHECK(TestAutomaticTextBlockD3D11Presentation(
+        device, backend, surface, renderBackend));
+#endif
     CHECK(renderBackend.UnregisterGlyphRun(1U));
     CHECK(device.DestroyResource(
         glyphVertex.Value(), renderBackend.LastSubmittedFence()));

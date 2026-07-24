@@ -124,7 +124,7 @@ Base::Result<void> ValidateRequest(
     if (!request.face.handle.IsValid() ||
         !std::isfinite(request.pixelSize) ||
         request.pixelSize <= 0.0F ||
-        request.maxWidth <= 0.0F ||
+        request.maxWidth < 0.0F ||
         std::isnan(request.maxWidth) ||
         !std::isfinite(request.lineHeight) ||
         request.lineHeight < 0.0F ||

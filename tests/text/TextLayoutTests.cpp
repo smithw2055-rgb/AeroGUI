@@ -207,6 +207,24 @@ bool TestWordAndCharacterWrapping(
     return true;
 }
 
+bool TestZeroWidthConstraint(
+    FontManager& fonts,
+    const FontFace& face) {
+    TextLayoutRequest request;
+    request.face = face;
+    request.text = "A";
+    request.pixelSize = 10.0F;
+    request.maxWidth = 0.0F;
+    request.wrapping = TextWrapping::Wrap;
+
+    TextLayout layout;
+    CHECK(layout.ShapeAndMeasure(fonts, request));
+    CHECK(layout.Lines().Size() == 1U);
+    CHECK(Near(layout.NaturalSize().width, 8.0F));
+    CHECK(Near(layout.NaturalSize().height, 10.0F));
+    return true;
+}
+
 bool TestTrimming(
     FontManager& fonts,
     const FontFace& face) {
@@ -301,6 +319,7 @@ int main() {
 
     if (!TestMixedTextAndStableMeasure(fonts, face)) return 1;
     if (!TestWordAndCharacterWrapping(fonts, face)) return 1;
+    if (!TestZeroWidthConstraint(fonts, face)) return 1;
     if (!TestTrimming(fonts, face)) return 1;
     if (!TestLineHeightAndArrange(fonts, face)) return 1;
     if (!TestValidationIsTransactional(fonts, face)) return 1;

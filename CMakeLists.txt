@@ -406,6 +406,24 @@ set_target_properties(AeroRender PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRender)
 
+add_library(AeroTextRender ${AERO_LIBRARY_TYPE}
+    src/render/TextBlockRenderService.cpp)
+add_library(Aero::TextRender ALIAS AeroTextRender)
+target_include_directories(AeroTextRender
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroTextRender
+    PUBLIC Aero::Controls Aero::Text Aero::Rhi)
+target_compile_features(AeroTextRender PUBLIC cxx_std_17)
+set_target_properties(AeroTextRender PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroTextRender)
+
 if(AERO_ENABLE_SOKOL_BACKEND)
     if(AERO_SOKOL_BRIDGE_SOURCE STREQUAL "")
         message(FATAL_ERROR
@@ -626,6 +644,24 @@ if(AERO_ENABLE_D3D11_BACKEND)
         PRIVATE AERO_D3D11_RENDER_PLAN_MAX_RECTANGLE_INSTANCES=${_aero_d3d11_render_plan_max_rectangle_instances}
         PUBLIC AERO_HAS_D3D11_BACKEND=1)
     aero_apply_compiler_options(AeroRhiD3D11)
+
+    add_library(AeroTextRenderD3D11 ${AERO_LIBRARY_TYPE}
+        src/render/d3d11/D3D11TextBlockRenderService.cpp)
+    add_library(Aero::TextRenderD3D11 ALIAS AeroTextRenderD3D11)
+    target_include_directories(AeroTextRenderD3D11
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroTextRenderD3D11
+        PUBLIC Aero::TextRender Aero::RhiD3D11)
+    target_compile_features(AeroTextRenderD3D11 PUBLIC cxx_std_17)
+    set_target_properties(AeroTextRenderD3D11 PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroTextRenderD3D11)
 else()
     target_compile_definitions(AeroRhi PUBLIC AERO_HAS_D3D11_BACKEND=0)
 endif()

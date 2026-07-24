@@ -42,6 +42,19 @@ set_target_properties(AeroGlyphAtlasTests PROPERTIES
 aero_apply_compiler_options(AeroGlyphAtlasTests)
 add_test(NAME AeroGlyphAtlasTests COMMAND AeroGlyphAtlasTests)
 
+add_executable(AeroTextBlockRenderServiceTests
+    render/TextBlockRenderServiceTests.cpp)
+target_link_libraries(AeroTextBlockRenderServiceTests
+    PRIVATE Aero::TextRender)
+target_compile_features(AeroTextBlockRenderServiceTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextBlockRenderServiceTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextBlockRenderServiceTests)
+add_test(NAME AeroTextBlockRenderServiceTests
+    COMMAND AeroTextBlockRenderServiceTests)
+
 if(TARGET AeroTextFreeType)
     if(NOT EXISTS "${AERO_TEXT_TEST_FONT}")
         message(FATAL_ERROR
@@ -417,6 +430,14 @@ if(WIN32 AND TARGET AeroRhiD3D11)
     add_executable(AeroD3D11SurfaceTests rhi/D3D11SurfaceTests.cpp)
     target_link_libraries(
         AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 d3d11 user32)
+    if(TARGET AeroTextHarfBuzz)
+        target_link_libraries(AeroD3D11SurfaceTests
+            PRIVATE Aero::TextRenderD3D11 Aero::TextHarfBuzz)
+        target_compile_definitions(AeroD3D11SurfaceTests
+            PRIVATE
+                AERO_D3D11_TEXT_RENDER_TESTS=1
+                "AERO_TEXT_TEST_CJK_FONT=\"${AERO_TEXT_TEST_CJK_FONT}\"")
+    endif()
     target_compile_features(AeroD3D11SurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11SurfaceTests PROPERTIES
         CXX_STANDARD 17
