@@ -1,10 +1,127 @@
 #include <Aero/Core/Presentation.hpp>
 #include <Aero/Core/ObjectTree.hpp>
+#include <Aero/Core/MetadataDsl.hpp>
 
 #include <utility>
 
+namespace Aero::Core::Detail {
+
+struct MetadataDslCompileInterface final {};
+
+enum class MetadataDslCompileEnum : std::uint32_t {
+    None = 0U,
+    First = 1U,
+    Second = 2U
+};
+
+struct MetadataDslCompileStruct final {
+    std::uint32_t count = 0U;
+    MetadataDslCompileEnum mode = MetadataDslCompileEnum::None;
+
+    bool operator==(const MetadataDslCompileStruct& other) const noexcept {
+        return count == other.count && mode == other.mode;
+    }
+};
+
+struct MetadataDslCompileObject final {};
+
+} // namespace Aero::Core::Detail
+
 namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Detail::MetadataDslCompileInterface> final {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId(AeroNamespaceUri(), "IMetadataDslCompile");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "IMetadataDslCompile";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Detail::MetadataDslCompileEnum> final {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId(AeroNamespaceUri(), "MetadataDslCompileEnum");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "MetadataDslCompileEnum";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Detail::MetadataDslCompileStruct> final {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId(AeroNamespaceUri(), "MetadataDslCompileStruct");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "MetadataDslCompileStruct";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Detail::MetadataDslCompileObject> final {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId(AeroNamespaceUri(), "MetadataDslCompileObject");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "MetadataDslCompileObject";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
 namespace {
+
+[[maybe_unused]] Base::Result<void> CompileMetadataDslSurface(
+    MetaRegistrationContext& context) noexcept {
+    using Interface = Detail::MetadataDslCompileInterface;
+    using Enum = Detail::MetadataDslCompileEnum;
+    using Struct = Detail::MetadataDslCompileStruct;
+    using Object = Detail::MetadataDslCompileObject;
+
+    MetaTypeBuilder<Interface> interfaceBuilder =
+        MetaTypeBuilder<Interface>::Interface(context);
+    Base::Result<void> status = interfaceBuilder.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Enum> enumBuilder = MetaTypeBuilder<Enum>::Enum(
+        context, BuiltinTypes::UnsignedInteger, TypeFlags::FlagsEnum);
+    enumBuilder
+        .EnumValue("None", Enum::None)
+        .EnumValue("First", Enum::First)
+        .EnumValue("Second", Enum::Second);
+    status = enumBuilder.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Struct> structBuilder =
+        MetaTypeBuilder<Struct>::Struct(context);
+    structBuilder
+        .Field<&Struct::count>("Count")
+        .Field<&Struct::mode>("Mode")
+        .ValueSemantics();
+    status = structBuilder.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Object> objectBuilder =
+        MetaTypeBuilder<Object>::Object(context);
+    objectBuilder.Implements<Interface>();
+    return objectBuilder.Finish();
+}
 
 Base::StringView PropertyName(Base::StringView declarationName) noexcept {
     constexpr Base::StringView suffix("Property");
