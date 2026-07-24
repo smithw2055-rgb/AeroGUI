@@ -20,9 +20,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  .github/refactor-fix/ci-fixes.patch" | sha256sum -c -
-          git apply --check --whitespace=error .github/refactor-fix/ci-fixes.patch
-          git apply --whitespace=error .github/refactor-fix/ci-fixes.patch
+          tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
+          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --check --whitespace=error /tmp/ci-fixes.patch
+          git apply --whitespace=error /tmp/ci-fixes.patch
       - name: Configure Clang sanitizer build
         shell: bash
         run: |
@@ -61,9 +62,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  .github/refactor-fix/ci-fixes.patch" | sha256sum -c -
-          git apply --check --whitespace=error .github/refactor-fix/ci-fixes.patch
-          git apply --whitespace=error .github/refactor-fix/ci-fixes.patch
+          tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
+          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --check --whitespace=error /tmp/ci-fixes.patch
+          git apply --whitespace=error /tmp/ci-fixes.patch
       - name: Configure
         run: cmake -S . -B out/build -A x64 -DAERO_BUILD_SHARED=${{ matrix.shared }} -DAERO_BUILD_TESTS=ON -DAERO_ENABLE_EXCEPTIONS=OFF -DAERO_ENABLE_RTTI=OFF -DAERO_WARNINGS_AS_ERRORS=ON -DAERO_ENABLE_D3D11_BACKEND=ON
       - name: Build
@@ -101,8 +103,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  .github/refactor-fix/ci-fixes.patch" | sha256sum -c -
-          git apply --index --whitespace=error .github/refactor-fix/ci-fixes.patch
+          tr -d '\r' < .github/refactor-fix/ci-fixes.patch > /tmp/ci-fixes.patch
+          echo "4ee7a4c4cab188d1e766f891b8293278046340d3420fe1fc9c37aebed3646729  /tmp/ci-fixes.patch" | sha256sum -c -
+          git apply --index --whitespace=error /tmp/ci-fixes.patch
           rm -rf .github/refactor-fix
           rm -f .github/workflows/apply-refactor-ci-fixes.yml
           git add -A
