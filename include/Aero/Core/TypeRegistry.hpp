@@ -166,6 +166,38 @@ using ValueMemberSetCallback = Base::Result<void> (*)(
     void* context) noexcept;
 
 struct TypeRegistration final {
+    TypeRegistration() noexcept = default;
+
+    constexpr TypeRegistration(
+        Base::StringView registeredNamespace,
+        Base::StringView registeredName,
+        TypeId registeredBase = InvalidTypeId,
+        TypeFlags registeredFlags = TypeFlags::None,
+        ObjectFactory registeredFactory = nullptr) noexcept
+        : xamlNamespace(registeredNamespace),
+          name(registeredName),
+          baseType(registeredBase),
+          flags(registeredFlags),
+          factory(registeredFactory) {}
+
+    constexpr TypeRegistration(
+        Base::StringView registeredNamespace,
+        Base::StringView registeredName,
+        TypeId registeredBase,
+        TypeFlags registeredFlags,
+        ObjectFactory registeredFactory,
+        MetadataTypeKind registeredKind,
+        TypeId registeredUnderlying = InvalidTypeId,
+        Base::Span<const TypeId> registeredInterfaces = {}) noexcept
+        : xamlNamespace(registeredNamespace),
+          name(registeredName),
+          baseType(registeredBase),
+          flags(registeredFlags),
+          factory(registeredFactory),
+          kind(registeredKind),
+          underlyingType(registeredUnderlying),
+          interfaces(registeredInterfaces) {}
+
     Base::StringView xamlNamespace;
     Base::StringView name;
     TypeId baseType = InvalidTypeId;
