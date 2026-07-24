@@ -379,7 +379,14 @@ public:
     TypeId Id() const noexcept { return id_; }
     TypeId BaseType() const noexcept { return baseType_; }
     TypeId UnderlyingType() const noexcept { return underlyingType_; }
-    MetadataTypeKind Kind() const noexcept { return kind_; }
+    MetadataTypeKind Kind() const noexcept {
+        // Legacy registrations used ValueType for both scalar values and
+        // inheritable event-argument descriptors. Preserve their historical
+        // object hierarchy; explicit Struct/Enum registrations retain their
+        // distinct kinds.
+        return kind_ == MetadataTypeKind::Primitive
+            ? MetadataTypeKind::Object : kind_;
+    }
     TypeFlags Flags() const noexcept { return flags_; }
     bool IsFlagsEnum() const noexcept {
         return kind_ == MetadataTypeKind::Enum &&
