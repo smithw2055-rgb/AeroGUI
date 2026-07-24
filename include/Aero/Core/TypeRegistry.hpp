@@ -51,7 +51,8 @@ enum class TypeFlags : std::uint32_t {
     Collection = 1U << 3U,
     MarkupExtension = 1U << 4U,
     FlagsEnum = 1U << 5U,
-    TriviallyCopyable = 1U << 6U
+    TriviallyCopyable = 1U << 6U,
+    SignedEnum = 1U << 7U
 };
 
 enum class PropertyFlags : std::uint32_t {
@@ -220,8 +221,6 @@ struct MethodRegistration final {
     void* context = nullptr;
 };
 
-// Structural Info records never own executable behavior. Registration writes
-// callbacks directly into these stable-ID keyed behavior records.
 struct TypeFactoryRegistration final {
     TypeId type = InvalidTypeId;
     ObjectFactory factory = nullptr;
@@ -253,21 +252,16 @@ class PropertyInfo final {
 public:
     PropertyInfo(PropertyInfo&&) noexcept = default;
     PropertyInfo& operator=(PropertyInfo&&) noexcept = default;
-
     PropertyInfo(const PropertyInfo&) = delete;
     PropertyInfo& operator=(const PropertyInfo&) = delete;
-
     MemberId Id() const noexcept { return id_; }
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId ValueType() const noexcept { return valueType_; }
     PropertyFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
-
 private:
     friend class TypeRegistry;
-
     PropertyInfo() noexcept = default;
-
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
     TypeId valueType_ = InvalidTypeId;
@@ -281,17 +275,14 @@ public:
     FieldInfo& operator=(FieldInfo&&) noexcept = default;
     FieldInfo(const FieldInfo&) = delete;
     FieldInfo& operator=(const FieldInfo&) = delete;
-
     MemberId Id() const noexcept { return id_; }
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId ValueType() const noexcept { return valueType_; }
     FieldFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
-
 private:
     friend class TypeRegistry;
     FieldInfo() noexcept = default;
-
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
     TypeId valueType_ = InvalidTypeId;
@@ -305,16 +296,13 @@ public:
     EnumValueInfo& operator=(EnumValueInfo&&) noexcept = default;
     EnumValueInfo(const EnumValueInfo&) = delete;
     EnumValueInfo& operator=(const EnumValueInfo&) = delete;
-
     MemberId Id() const noexcept { return id_; }
     TypeId OwnerType() const noexcept { return ownerType_; }
     std::uint64_t RawValue() const noexcept { return rawValue_; }
     Base::StringView Name() const noexcept { return name_.View(); }
-
 private:
     friend class TypeRegistry;
     EnumValueInfo() noexcept = default;
-
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
     std::uint64_t rawValue_ = 0U;
@@ -327,10 +315,8 @@ public:
     MethodParameterInfo& operator=(MethodParameterInfo&&) noexcept = default;
     MethodParameterInfo(const MethodParameterInfo&) = delete;
     MethodParameterInfo& operator=(const MethodParameterInfo&) = delete;
-
     Base::StringView Name() const noexcept { return name_.View(); }
     TypeId Type() const noexcept { return type_; }
-
 private:
     friend class TypeRegistry;
     MethodParameterInfo() noexcept = default;
@@ -344,7 +330,6 @@ public:
     MethodInfo& operator=(MethodInfo&&) noexcept = default;
     MethodInfo(const MethodInfo&) = delete;
     MethodInfo& operator=(const MethodInfo&) = delete;
-
     MemberId Id() const noexcept { return id_; }
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId ReturnType() const noexcept { return returnType_; }
@@ -353,7 +338,6 @@ public:
     Base::Span<const MethodParameterInfo> Parameters() const noexcept {
         return {parameters_.Data(), parameters_.Size()};
     }
-
 private:
     friend class TypeRegistry;
     MethodInfo() noexcept = default;
@@ -369,21 +353,16 @@ class EventInfo final {
 public:
     EventInfo(EventInfo&&) noexcept = default;
     EventInfo& operator=(EventInfo&&) noexcept = default;
-
     EventInfo(const EventInfo&) = delete;
     EventInfo& operator=(const EventInfo&) = delete;
-
     MemberId Id() const noexcept { return id_; }
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId EventArgsType() const noexcept { return eventArgsType_; }
     EventFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
-
 private:
     friend class TypeRegistry;
-
     EventInfo() noexcept = default;
-
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
     TypeId eventArgsType_ = InvalidTypeId;
@@ -395,10 +374,8 @@ class TypeInfo final {
 public:
     TypeInfo(TypeInfo&&) noexcept = default;
     TypeInfo& operator=(TypeInfo&&) noexcept = default;
-
     TypeInfo(const TypeInfo&) = delete;
     TypeInfo& operator=(const TypeInfo&) = delete;
-
     TypeId Id() const noexcept { return id_; }
     TypeId BaseType() const noexcept { return baseType_; }
     TypeId UnderlyingType() const noexcept { return underlyingType_; }
@@ -408,39 +385,18 @@ public:
         return kind_ == MetadataTypeKind::Enum &&
             HasTypeFlag(flags_, TypeFlags::FlagsEnum);
     }
-    Base::StringView XamlNamespace() const noexcept {
-        return xamlNamespace_.View();
-    }
-    Base::StringView Name() const noexcept {
-        return name_.View();
-    }
-    Base::Span<const TypeId> Interfaces() const noexcept {
-        return {interfaces_.Data(), interfaces_.Size()};
-    }
-    Base::Span<const PropertyInfo> Properties() const noexcept {
-        return {properties_.Data(), properties_.Size()};
-    }
-    Base::Span<const FieldInfo> Fields() const noexcept {
-        return {fields_.Data(), fields_.Size()};
-    }
-    Base::Span<const EnumValueInfo> EnumValues() const noexcept {
-        return {enumValues_.Data(), enumValues_.Size()};
-    }
-    Base::Span<const EventInfo> Events() const noexcept {
-        return {events_.Data(), events_.Size()};
-    }
-    Base::Span<const MethodInfo> Methods() const noexcept {
-        return {methods_.Data(), methods_.Size()};
-    }
-    MemberId ContentMember() const noexcept {
-        return contentMember_;
-    }
-
+    Base::StringView XamlNamespace() const noexcept { return xamlNamespace_.View(); }
+    Base::StringView Name() const noexcept { return name_.View(); }
+    Base::Span<const TypeId> Interfaces() const noexcept { return {interfaces_.Data(), interfaces_.Size()}; }
+    Base::Span<const PropertyInfo> Properties() const noexcept { return {properties_.Data(), properties_.Size()}; }
+    Base::Span<const FieldInfo> Fields() const noexcept { return {fields_.Data(), fields_.Size()}; }
+    Base::Span<const EnumValueInfo> EnumValues() const noexcept { return {enumValues_.Data(), enumValues_.Size()}; }
+    Base::Span<const EventInfo> Events() const noexcept { return {events_.Data(), events_.Size()}; }
+    Base::Span<const MethodInfo> Methods() const noexcept { return {methods_.Data(), methods_.Size()}; }
+    MemberId ContentMember() const noexcept { return contentMember_; }
 private:
     friend class TypeRegistry;
-
     TypeInfo() noexcept = default;
-
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
     TypeId underlyingType_ = InvalidTypeId;
@@ -457,45 +413,19 @@ private:
     MemberId contentMember_ = InvalidMemberId;
 };
 
-constexpr TypeId MakeTypeId(
-    Base::StringView xamlNamespace,
-    Base::StringView name) noexcept {
-    return Base::MakeMetaTypeId(xamlNamespace, name);
-}
+constexpr TypeId MakeTypeId(Base::StringView xamlNamespace, Base::StringView name) noexcept { return Base::MakeMetaTypeId(xamlNamespace, name); }
+constexpr Base::StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
+constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeMetaTypeId(name); }
 
-constexpr Base::StringView AeroNamespaceUri() noexcept {
-    return Base::DefaultMetadataNamespaceUri();
-}
-
-constexpr TypeId MakeTypeId(Base::StringView name) noexcept {
-    return Base::MakeMetaTypeId(name);
-}
-
-template<class T>
-struct MetaTypeTraits {
-    static constexpr TypeId Id() noexcept {
-        return T::StaticTypeId();
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return T::StaticMetadataNamespace();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return T::StaticMetadataName();
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return T::ParentClass::StaticTypeId();
-    }
+template<class T> struct MetaTypeTraits {
+    static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
+    static constexpr Base::StringView Namespace() noexcept { return T::StaticMetadataNamespace(); }
+    static constexpr Base::StringView Name() noexcept { return T::StaticMetadataName(); }
+    static constexpr TypeId BaseType() noexcept { return T::ParentClass::StaticTypeId(); }
 };
+template<class T> constexpr TypeId TypeOf() noexcept { return MetaTypeTraits<T>::Id(); }
 
-template<class T>
-constexpr TypeId TypeOf() noexcept {
-    return MetaTypeTraits<T>::Id();
-}
-
-constexpr MemberId MakeMemberId(
-    TypeId ownerType,
-    MemberKind kind,
-    Base::StringView name) noexcept {
+constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
     constexpr char domain[] = "AERO.MEMBER.V1";
     Base::Detail::StableMetadataIdBuilder builder;
     builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
@@ -504,212 +434,93 @@ constexpr MemberId MakeMemberId(
     builder.AddString(name);
     return builder.Finish();
 }
-
-AERO_API MemberId MakeMethodId(
-    TypeId ownerType,
-    Base::StringView name,
-    Base::Span<const TypeId> parameterTypes) noexcept;
+AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
 
 class AERO_API TypeRegistry final {
 public:
     TypeRegistry() noexcept;
     ~TypeRegistry() = default;
-
     TypeRegistry(const TypeRegistry&) = delete;
     TypeRegistry& operator=(const TypeRegistry&) = delete;
     TypeRegistry(TypeRegistry&&) = delete;
     TypeRegistry& operator=(TypeRegistry&&) = delete;
-
     Base::Result<void> Freeze() noexcept;
-
     bool IsFrozen() const noexcept { return frozen_; }
-    std::uint32_t TypeCount() const noexcept {
-        return types_.Size();
-    }
-    Base::Span<const TypeInfo> Types() const noexcept {
-        return {types_.Data(), types_.Size()};
-    }
-
+    std::uint32_t TypeCount() const noexcept { return types_.Size(); }
+    Base::Span<const TypeInfo> Types() const noexcept { return {types_.Data(), types_.Size()}; }
     const TypeInfo* FindType(TypeId id) const noexcept;
-    const TypeInfo* FindType(
-        Base::StringView xamlNamespace,
-        Base::StringView name) const noexcept;
-
+    const TypeInfo* FindType(Base::StringView xamlNamespace, Base::StringView name) const noexcept;
     const PropertyInfo* FindProperty(MemberId id) const noexcept;
-    const PropertyInfo* FindProperty(
-        TypeId ownerType,
-        Base::StringView name,
-        bool includeBaseTypes = true) const noexcept;
-
+    const PropertyInfo* FindProperty(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
     const FieldInfo* FindField(MemberId id) const noexcept;
-    const FieldInfo* FindField(
-        TypeId ownerType,
-        Base::StringView name) const noexcept;
-
+    const FieldInfo* FindField(TypeId ownerType, Base::StringView name) const noexcept;
     const EnumValueInfo* FindEnumValue(MemberId id) const noexcept;
-    const EnumValueInfo* FindEnumValue(
-        TypeId ownerType,
-        Base::StringView name) const noexcept;
-    const EnumValueInfo* FindEnumValue(
-        TypeId ownerType,
-        std::uint64_t rawValue) const noexcept;
-
+    const EnumValueInfo* FindEnumValue(TypeId ownerType, Base::StringView name) const noexcept;
+    const EnumValueInfo* FindEnumValue(TypeId ownerType, std::uint64_t rawValue) const noexcept;
     const EventInfo* FindEvent(MemberId id) const noexcept;
-    const EventInfo* FindEvent(
-        TypeId ownerType,
-        Base::StringView name,
-        bool includeBaseTypes = true) const noexcept;
-
+    const EventInfo* FindEvent(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
     const MethodInfo* FindMethod(MemberId id) const noexcept;
-    const MethodInfo* FindMethod(
-        TypeId ownerType,
-        Base::StringView name,
-        Base::Span<const TypeId> parameterTypes,
-        bool includeBaseTypes = true) const noexcept;
+    const MethodInfo* FindMethod(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes, bool includeBaseTypes = true) const noexcept;
     MemberId FindContentMember(TypeId type) const noexcept;
-
-    bool IsDerivedFrom(
-        TypeId type,
-        TypeId expectedBase) const noexcept;
-    bool Implements(
-        TypeId type,
-        TypeId interfaceType) const noexcept;
-    bool IsAssignableFrom(
-        TypeId targetType,
-        TypeId sourceType) const noexcept;
-    bool IsInstanceOf(
-        const Base::Object& object,
-        TypeId expectedType) const noexcept;
-
-    template<class T>
-    T* TryCast(Base::Object& object) const noexcept {
-        return IsInstanceOf(object, TypeOf<T>())
-            ? static_cast<T*>(&object) : nullptr;
-    }
-
-    template<class T>
-    const T* TryCast(const Base::Object& object) const noexcept {
-        return IsInstanceOf(object, TypeOf<T>())
-            ? static_cast<const T*>(&object) : nullptr;
-    }
-
-    Base::Result<void> BuildSnapshot(
-        Base::String& output) const noexcept;
-    Base::Result<Base::HashCode> ComputeSnapshotHash()
-        const noexcept;
-
+    bool IsDerivedFrom(TypeId type, TypeId expectedBase) const noexcept;
+    bool Implements(TypeId type, TypeId interfaceType) const noexcept;
+    bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
+    bool IsInstanceOf(const Base::Object& object, TypeId expectedType) const noexcept;
+    template<class T> T* TryCast(Base::Object& object) const noexcept { return IsInstanceOf(object, TypeOf<T>()) ? static_cast<T*>(&object) : nullptr; }
+    template<class T> const T* TryCast(const Base::Object& object) const noexcept { return IsInstanceOf(object, TypeOf<T>()) ? static_cast<const T*>(&object) : nullptr; }
+    Base::Result<void> BuildSnapshot(Base::String& output) const noexcept;
+    Base::Result<Base::HashCode> ComputeSnapshotHash() const noexcept;
 private:
     friend class MetadataRegistrationTypes;
-
-    Base::Result<TypeId> TryRegisterType(
-        MetadataBehaviorRegistrationStore& behaviors,
-        const TypeRegistration& registration) noexcept;
-    Base::Result<void> TryRegisterInterface(
-        TypeId ownerType,
-        TypeId interfaceType) noexcept;
-    Base::Result<MemberId> TryRegisterProperty(
-        MetadataBehaviorRegistrationStore& behaviors,
-        TypeId ownerType,
-        const PropertyRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterField(
-        MetadataBehaviorRegistrationStore& behaviors,
-        TypeId ownerType,
-        const FieldRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterEnumValue(
-        TypeId ownerType,
-        const EnumValueRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterEvent(
-        TypeId ownerType,
-        const EventRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterMethod(
-        MetadataBehaviorRegistrationStore& behaviors,
-        TypeId ownerType,
-        const MethodRegistration& registration) noexcept;
-    Base::Result<void> TrySetFactory(
-        MetadataBehaviorRegistrationStore& behaviors,
-        TypeId type,
-        ObjectFactory factory) noexcept;
-    Base::Result<void> TrySetContentMember(
-        TypeId type,
-        MemberId member) noexcept;
-
-    struct MemberLocation final {
-        std::uint32_t typeIndex = 0U;
-        std::uint32_t memberIndex = 0U;
-        MemberKind kind = MemberKind::Property;
-    };
-
+    Base::Result<TypeId> TryRegisterType(MetadataBehaviorRegistrationStore& behaviors, const TypeRegistration& registration) noexcept;
+    Base::Result<void> TryRegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
+    Base::Result<MemberId> TryRegisterProperty(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterField(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterMethod(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
+    Base::Result<void> TrySetFactory(MetadataBehaviorRegistrationStore& behaviors, TypeId type, ObjectFactory factory) noexcept;
+    Base::Result<void> TrySetContentMember(TypeId type, MemberId member) noexcept;
+    struct MemberLocation final { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
     bool frozen_ = false;
-
     TypeInfo* MutableType(TypeId id) noexcept;
     const TypeInfo* TypeAt(std::uint32_t index) const noexcept;
-    const PropertyInfo* PropertyAt(
-        const MemberLocation& location) const noexcept;
-    const FieldInfo* FieldAt(
-        const MemberLocation& location) const noexcept;
-    const EnumValueInfo* EnumValueAt(
-        const MemberLocation& location) const noexcept;
-    const EventInfo* EventAt(
-        const MemberLocation& location) const noexcept;
-    const MethodInfo* MethodAt(
-        const MemberLocation& location) const noexcept;
+    const PropertyInfo* PropertyAt(const MemberLocation& location) const noexcept;
+    const FieldInfo* FieldAt(const MemberLocation& location) const noexcept;
+    const EnumValueInfo* EnumValueAt(const MemberLocation& location) const noexcept;
+    const EventInfo* EventAt(const MemberLocation& location) const noexcept;
+    const MethodInfo* MethodAt(const MemberLocation& location) const noexcept;
 };
 
 } // namespace Aero::Core
 
-#define AERO_DECLARE_METADATA_NAMED( \
-    classType, parentType, metadataNamespace, metadataName) \
+#define AERO_DECLARE_METADATA_NAMED(classType, parentType, metadataNamespace, metadataName) \
 private: \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
-        Aero::Core::MakeTypeId( \
-            Aero::Base::StringView(metadataNamespace), \
-            Aero::Base::StringView(metadataName)); \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(metadataNamespace), Aero::Base::StringView(metadataName)); \
 public: \
-    using SelfClass = classType; \
-    using ParentClass = parentType; \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
-        return StaticTypeIdValue_; \
-    } \
-    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { \
-        return Aero::Base::StringView(metadataNamespace); \
-    } \
-    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { \
-        return Aero::Base::StringView(metadataName); \
-    } \
-    static Aero::Base::Result<void> TryRegisterMetadata( \
-        Aero::Core::MetaRegistrationContext& context) noexcept; \
+    using SelfClass = classType; using ParentClass = parentType; \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; } \
+    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { return Aero::Base::StringView(metadataNamespace); } \
+    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { return Aero::Base::StringView(metadataName); } \
+    static Aero::Base::Result<void> TryRegisterMetadata(Aero::Core::MetaRegistrationContext& context) noexcept; \
 private: \
-    static void StaticFillMetadata( \
-        Aero::Core::MetaRegistrationBuilder& helper) noexcept;
+    static void StaticFillMetadata(Aero::Core::MetaRegistrationBuilder& helper) noexcept;
 
 #define AERO_DECLARE_METADATA(classType, parentType) \
 private: \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
-        Aero::Core::MakeTypeId(Aero::Base::StringView(#classType)); \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(#classType)); \
 public: \
-    using SelfClass = classType; \
-    using ParentClass = parentType; \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
-        return StaticTypeIdValue_; \
-    } \
-    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { \
-        return Aero::Core::AeroNamespaceUri(); \
-    } \
-    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { \
-        return Aero::Base::StringView(#classType); \
-    } \
-    static Aero::Base::Result<void> TryRegisterMetadata( \
-        Aero::Core::MetaRegistrationContext& context) noexcept; \
+    using SelfClass = classType; using ParentClass = parentType; \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; } \
+    static constexpr Aero::Base::StringView StaticMetadataNamespace() noexcept { return Aero::Core::AeroNamespaceUri(); } \
+    static constexpr Aero::Base::StringView StaticMetadataName() noexcept { return Aero::Base::StringView(#classType); } \
+    static Aero::Base::Result<void> TryRegisterMetadata(Aero::Core::MetaRegistrationContext& context) noexcept; \
 private: \
-    static void StaticFillMetadata( \
-        Aero::Core::MetaRegistrationBuilder& helper) noexcept;
+    static void StaticFillMetadata(Aero::Core::MetaRegistrationBuilder& helper) noexcept;
 
 #define AERO_DECLARE_TYPE_ID(typeName) \
-    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
-        Aero::Core::MakeTypeId(Aero::Base::StringView(#typeName)); \
-    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
-        return StaticTypeIdValue_; \
-    }
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = Aero::Core::MakeTypeId(Aero::Base::StringView(#typeName)); \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { return StaticTypeIdValue_; }
