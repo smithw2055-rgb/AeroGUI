@@ -103,6 +103,101 @@ Base::Result<void> RepeatButton::SetInterval(
             BuiltinTypes::UnsignedInteger, value));
 }
 
+bool ToggleButton::IsChecked() const noexcept {
+    Base::Result<Value> value = GetValue(IsCheckedProperty);
+    return value && value.Value().AsBoolean();
+}
+
+bool ToggleButton::IsThreeState() const noexcept {
+    Base::Result<Value> value = GetValue(IsThreeStateProperty);
+    return value && value.Value().AsBoolean();
+}
+
+bool ToggleButton::IsIndeterminate() const noexcept {
+    Base::Result<Value> value =
+        GetValue(IsIndeterminateProperty);
+    return value && value.Value().AsBoolean();
+}
+
+ToggleState ToggleButton::GetToggleState() const noexcept {
+    if (IsIndeterminate()) return ToggleState::Indeterminate;
+    return IsChecked()
+        ? ToggleState::Checked
+        : ToggleState::Unchecked;
+}
+
+Base::Result<void> ToggleButton::SetIsChecked(
+    bool value) noexcept {
+    Base::Result<void> checked = SetValue(
+        IsCheckedProperty,
+        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    if (!checked) return checked.GetStatus();
+    return SetReadOnlyCurrentValue(
+        IsIndeterminateProperty,
+        Value::FromBoolean(BuiltinTypes::Boolean, false));
+}
+
+Base::Result<void> ToggleButton::SetIsThreeState(
+    bool value) noexcept {
+    Base::Result<void> state = SetValue(
+        IsThreeStateProperty,
+        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    if (!state || value || !IsIndeterminate()) {
+        return state;
+    }
+    return SetReadOnlyCurrentValue(
+        IsIndeterminateProperty,
+        Value::FromBoolean(BuiltinTypes::Boolean, false));
+}
+
+Base::Result<void> ToggleButton::SetToggleState(
+    ToggleState value) noexcept {
+    if (value > ToggleState::Indeterminate ||
+        (value == ToggleState::Indeterminate &&
+            !IsThreeState())) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ToggleButton state is invalid");
+    }
+    const Value enabled =
+        Value::FromBoolean(BuiltinTypes::Boolean, true);
+    const Value disabled =
+        Value::FromBoolean(BuiltinTypes::Boolean, false);
+    Base::Result<void> status;
+    switch (value) {
+    case ToggleState::Checked:
+        status = SetValue(IsCheckedProperty, enabled);
+        if (!status) return status.GetStatus();
+        return SetReadOnlyCurrentValue(
+            IsIndeterminateProperty, disabled);
+    case ToggleState::Unchecked:
+        status = SetReadOnlyCurrentValue(
+            IsIndeterminateProperty, disabled);
+        if (!status) return status.GetStatus();
+        return SetValue(IsCheckedProperty, disabled);
+    case ToggleState::Indeterminate:
+        status = SetReadOnlyCurrentValue(
+            IsIndeterminateProperty, enabled);
+        if (!status) return status.GetStatus();
+        return SetValue(IsCheckedProperty, disabled);
+    }
+    return {};
+}
+
+Base::StringView RadioButton::GroupName() const noexcept {
+    Base::Result<Value> value = GetValue(GroupNameProperty);
+    return value ? value.Value().AsString() : Base::StringView();
+}
+
+Base::Result<void> RadioButton::SetGroupName(
+    Base::StringView value) noexcept {
+    Base::Result<Value> stored =
+        Value::TryFromString(BuiltinTypes::String, value);
+    return stored
+        ? SetValue(GroupNameProperty, stored.Value())
+        : stored.GetStatus();
+}
+
 ControlInteractionManager::ControlInteractionManager(
     ObjectTree& tree,
     RoutedEventManager& events,
@@ -171,6 +266,28 @@ ControlInteractionManager::~ControlInteractionManager() noexcept {
             static_cast<void>(button->RemoveValueChangedHandler(
                 UIElement::IsEnabledProperty,
                 propertyChangedHandler_));
+            if (button->RuntimeType() ==
+                    ToggleButton::StaticTypeId() ||
+                button->RuntimeType() ==
+                    CheckBox::StaticTypeId() ||
+                button->RuntimeType() ==
+                    RadioButton::StaticTypeId()) {
+                static_cast<void>(button->RemoveValueChangedHandler(
+                    ToggleButton::IsCheckedProperty,
+                    propertyChangedHandler_));
+                static_cast<void>(button->RemoveValueChangedHandler(
+                    ToggleButton::IsThreeStateProperty,
+                    propertyChangedHandler_));
+                static_cast<void>(button->RemoveValueChangedHandler(
+                    ToggleButton::IsIndeterminateProperty,
+                    propertyChangedHandler_));
+            }
+            if (button->RuntimeType() ==
+                RadioButton::StaticTypeId()) {
+                static_cast<void>(button->RemoveValueChangedHandler(
+                    RadioButton::GroupNameProperty,
+                    propertyChangedHandler_));
+            }
         }
         UnsubscribeCommand(buttons_[index]);
         buttons_.PopBack();
@@ -269,6 +386,15 @@ Base::Result<void> ControlInteractionManager::Attach(
     ButtonRecord record;
     record.handle = handle.Value();
     record.wasMouseOver = button.IsMouseOver();
+    if (button.RuntimeType() ==
+            ToggleButton::StaticTypeId() ||
+        button.RuntimeType() ==
+            CheckBox::StaticTypeId() ||
+        button.RuntimeType() ==
+            RadioButton::StaticTypeId()) {
+        record.toggleState =
+            static_cast<ToggleButton&>(button).GetToggleState();
+    }
     Base::Result<void> appended =
         buttons_.TryPushBack(std::move(record));
     if (!appended) return appended.GetStatus();
@@ -293,6 +419,31 @@ Base::Result<void> ControlInteractionManager::Attach(
     if (result) result = button.TryAddValueChangedHandler(
         UIElement::IsEnabledProperty,
         propertyChangedHandler_);
+    const bool isToggle =
+        button.RuntimeType() == ToggleButton::StaticTypeId() ||
+        button.RuntimeType() == CheckBox::StaticTypeId() ||
+        button.RuntimeType() == RadioButton::StaticTypeId();
+    if (result && isToggle) {
+        result = button.TryAddValueChangedHandler(
+            ToggleButton::IsCheckedProperty,
+            propertyChangedHandler_);
+    }
+    if (result && isToggle) {
+        result = button.TryAddValueChangedHandler(
+            ToggleButton::IsThreeStateProperty,
+            propertyChangedHandler_);
+    }
+    if (result && isToggle) {
+        result = button.TryAddValueChangedHandler(
+            ToggleButton::IsIndeterminateProperty,
+            propertyChangedHandler_);
+    }
+    if (result &&
+        button.RuntimeType() == RadioButton::StaticTypeId()) {
+        result = button.TryAddValueChangedHandler(
+            RadioButton::GroupNameProperty,
+            propertyChangedHandler_);
+    }
     if (result) result =
         SubscribeCommand(button, buttons_.Back());
     if (!result) {
@@ -305,6 +456,12 @@ Base::Result<void> ControlInteractionManager::Attach(
         const Base::Status status = result.GetStatus();
         static_cast<void>(Detach(button));
         return status;
+    }
+    if (button.RuntimeType() == RadioButton::StaticTypeId()) {
+        auto& radio = static_cast<RadioButton&>(button);
+        if (radio.GetToggleState() == ToggleState::Checked) {
+            UncheckRadioPeers(radio);
+        }
     }
     SyncVisualState(button);
     return {};
@@ -349,6 +506,26 @@ Base::Result<bool> ControlInteractionManager::Detach(
     static_cast<void>(button.RemoveValueChangedHandler(
         UIElement::IsEnabledProperty,
         propertyChangedHandler_));
+    const bool isToggle =
+        button.RuntimeType() == ToggleButton::StaticTypeId() ||
+        button.RuntimeType() == CheckBox::StaticTypeId() ||
+        button.RuntimeType() == RadioButton::StaticTypeId();
+    if (isToggle) {
+        static_cast<void>(button.RemoveValueChangedHandler(
+            ToggleButton::IsCheckedProperty,
+            propertyChangedHandler_));
+        static_cast<void>(button.RemoveValueChangedHandler(
+            ToggleButton::IsThreeStateProperty,
+            propertyChangedHandler_));
+        static_cast<void>(button.RemoveValueChangedHandler(
+            ToggleButton::IsIndeterminateProperty,
+            propertyChangedHandler_));
+    }
+    if (button.RuntimeType() == RadioButton::StaticTypeId()) {
+        static_cast<void>(button.RemoveValueChangedHandler(
+            RadioButton::GroupNameProperty,
+            propertyChangedHandler_));
+    }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
         static_cast<void>(states_->Clear(button));
@@ -433,6 +610,27 @@ ControlInteractionManager::AdvanceTime(
 Base::Result<void> ControlInteractionManager::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.IsEnabled()) return {};
+    const TypeId type = button.RuntimeType();
+    if (type == ToggleButton::StaticTypeId() ||
+        type == CheckBox::StaticTypeId()) {
+        auto& toggle = static_cast<ToggleButton&>(button);
+        ToggleState next = ToggleState::Unchecked;
+        if (toggle.GetToggleState() == ToggleState::Unchecked) {
+            next = ToggleState::Checked;
+        } else if (toggle.GetToggleState() ==
+                ToggleState::Checked &&
+            toggle.IsThreeState()) {
+            next = ToggleState::Indeterminate;
+        }
+        Base::Result<void> changed =
+            ApplyToggleState(toggle, next);
+        if (!changed) return changed.GetStatus();
+    } else if (type == RadioButton::StaticTypeId()) {
+        auto& radio = static_cast<RadioButton&>(button);
+        Base::Result<void> changed = ApplyToggleState(
+            radio, ToggleState::Checked);
+        if (!changed) return changed.GetStatus();
+    }
     RoutedEventArgs args;
     Base::Result<void> raised = events_->RaiseEvent(
         button, ButtonBase::ClickEvent, &args);
@@ -458,6 +656,72 @@ Base::Result<void> ControlInteractionManager::InvokeClick(
     return command->Execute(*commands_, value, *target);
 }
 
+Base::Result<void> ControlInteractionManager::ApplyToggleState(
+    ToggleButton& button,
+    ToggleState state) noexcept {
+    const std::uint32_t index = FindButton(button);
+    if (index == UINT32_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "ToggleButton is not attached to interaction services");
+    }
+    ButtonRecord& record = buttons_[index];
+    record.updatingToggle = true;
+    Base::Result<void> changed =
+        button.SetToggleState(state);
+    record.updatingToggle = false;
+    if (!changed) return changed.GetStatus();
+    PublishToggleState(button, record);
+    return {};
+}
+
+void ControlInteractionManager::PublishToggleState(
+    ToggleButton& button,
+    ButtonRecord& record) noexcept {
+    const ToggleState state = button.GetToggleState();
+    if (record.toggleState == state) {
+        SyncVisualState(button);
+        return;
+    }
+    record.toggleState = state;
+    RoutedEventArgs args;
+    RoutedEventHandle event = ToggleButton::UncheckedEvent;
+    if (state == ToggleState::Checked) {
+        event = ToggleButton::CheckedEvent;
+    } else if (state == ToggleState::Indeterminate) {
+        event = ToggleButton::IndeterminateEvent;
+    }
+    static_cast<void>(events_->RaiseEvent(button, event, &args));
+    if (state == ToggleState::Checked &&
+        button.RuntimeType() == RadioButton::StaticTypeId()) {
+        UncheckRadioPeers(static_cast<RadioButton&>(button));
+    }
+    SyncVisualState(button);
+}
+
+void ControlInteractionManager::UncheckRadioPeers(
+    RadioButton& button) noexcept {
+    Visual* parent = button.LogicalParent();
+    const Base::StringView group = button.GroupName();
+    for (std::uint32_t index = 0U;
+        index < buttons_.Size(); ++index) {
+        ButtonBase* candidate = ResolveButton(index);
+        if (candidate == nullptr || candidate == &button ||
+            candidate->RuntimeType() !=
+                RadioButton::StaticTypeId()) {
+            continue;
+        }
+        auto& radio = static_cast<RadioButton&>(*candidate);
+        if (radio.LogicalParent() != parent ||
+            radio.GroupName() != group ||
+            radio.GetToggleState() != ToggleState::Checked) {
+            continue;
+        }
+        static_cast<void>(ApplyToggleState(
+            radio, ToggleState::Unchecked));
+    }
+}
+
 void ControlInteractionManager::SyncVisualState(
     ButtonBase& button) noexcept {
     if (states_ == nullptr) return;
@@ -472,6 +736,20 @@ void ControlInteractionManager::SyncVisualState(
         button.IsKeyboardFocused()
             ? Base::StringView("Focused")
             : Base::StringView("Unfocused")));
+    const TypeId type = button.RuntimeType();
+    if (type == ToggleButton::StaticTypeId() ||
+        type == CheckBox::StaticTypeId() ||
+        type == RadioButton::StaticTypeId()) {
+        const ToggleState state =
+            static_cast<ToggleButton&>(button).GetToggleState();
+        Base::StringView name = "Unchecked";
+        if (state == ToggleState::Checked) name = "Checked";
+        else if (state == ToggleState::Indeterminate) {
+            name = "Indeterminate";
+        }
+        static_cast<void>(states_->GoToState(
+            button, "CheckStates", name));
+    }
 }
 
 void ControlInteractionManager::OnMouseDown(
@@ -589,6 +867,43 @@ void ControlInteractionManager::OnPropertyChanged(
         static_cast<void>(RefreshCanExecute(button));
     } else if (args.property == UIElement::IsEnabledProperty) {
         SyncVisualState(button);
+    } else {
+        const TypeId type = button.RuntimeType();
+        const bool isToggle =
+            type == ToggleButton::StaticTypeId() ||
+            type == CheckBox::StaticTypeId() ||
+            type == RadioButton::StaticTypeId();
+        if (!isToggle) return;
+        auto& toggle = static_cast<ToggleButton&>(button);
+        ButtonRecord& record = buttons_[index];
+        if (!record.updatingToggle &&
+            args.property == ToggleButton::IsCheckedProperty &&
+            toggle.IsIndeterminate()) {
+            record.updatingToggle = true;
+            static_cast<void>(toggle.SetReadOnlyCurrentValue(
+                ToggleButton::IsIndeterminateProperty,
+                Value::FromBoolean(
+                    BuiltinTypes::Boolean, false)));
+            record.updatingToggle = false;
+        } else if (!record.updatingToggle &&
+            args.property ==
+                ToggleButton::IsThreeStateProperty &&
+            !toggle.IsThreeState() &&
+            toggle.IsIndeterminate()) {
+            record.updatingToggle = true;
+            static_cast<void>(toggle.SetReadOnlyCurrentValue(
+                ToggleButton::IsIndeterminateProperty,
+                Value::FromBoolean(
+                    BuiltinTypes::Boolean, false)));
+            record.updatingToggle = false;
+        }
+        PublishToggleState(toggle, record);
+        if (type == RadioButton::StaticTypeId() &&
+            args.property == RadioButton::GroupNameProperty &&
+            toggle.GetToggleState() == ToggleState::Checked) {
+            UncheckRadioPeers(
+                static_cast<RadioButton&>(toggle));
+        }
     }
 }
 

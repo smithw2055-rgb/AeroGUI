@@ -136,6 +136,11 @@ bool ValidateClickModeValue(
             static_cast<std::uint64_t>(ClickMode::Hover);
 }
 
+bool ValidateBooleanValue(
+    const Core::Value& value) noexcept {
+    return value.Kind() == Core::ValueKind::Boolean;
+}
+
 Base::Result<Core::Value> CoerceButtonEnabled(
     Core::DependencyObject& object,
     const Core::DependencyProperty&,
@@ -294,6 +299,71 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = context.DependencyProperties().TryOverrideMetadata(
         ButtonBase::ClickModeProperty,
         TypeOf<RepeatButton>(), repeatClickMode);
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ToggleButton> toggleButton =
+        MetaTypeBuilder<ToggleButton>::Object(context);
+    if (context.RoutedEvents() != nullptr) {
+        toggleButton
+            .RoutedEvent(
+                ToggleButton::CheckedEvent,
+                "Checked", TypeOf<RoutedEventArgs>(),
+                RoutingStrategy::Bubble)
+            .RoutedEvent(
+                ToggleButton::UncheckedEvent,
+                "Unchecked", TypeOf<RoutedEventArgs>(),
+                RoutingStrategy::Bubble)
+            .RoutedEvent(
+                ToggleButton::IndeterminateEvent,
+                "Indeterminate", TypeOf<RoutedEventArgs>(),
+                RoutingStrategy::Bubble);
+    }
+    toggleButton
+        .DependencyProperty(
+            ToggleButton::IsCheckedProperty,
+            "IsChecked", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::BindsTwoWayByDefault |
+                PropertyMetadataFlags::AffectsRender,
+            &ValidateBooleanValue)
+        .DependencyProperty(
+            ToggleButton::IsThreeStateProperty,
+            "IsThreeState", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateBooleanValue)
+        .ReadOnlyDependencyProperty(
+            ToggleButton::IsIndeterminateProperty,
+            "IsIndeterminate", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateBooleanValue)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = toggleButton.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<CheckBox> checkBox =
+        MetaTypeBuilder<CheckBox>::Object(context);
+    checkBox.Content<Presentation::UIElement>(
+        "Content", ContentKind::Single);
+    status = checkBox.Finish();
+    if (!status) return status.GetStatus();
+
+    Base::Result<Value> emptyGroup =
+        Value::TryFromString(TypeOf<Base::String>(), {});
+    if (!emptyGroup) return emptyGroup.GetStatus();
+    MetaTypeBuilder<RadioButton> radioButton =
+        MetaTypeBuilder<RadioButton>::Object(context);
+    radioButton
+        .DependencyProperty(
+            RadioButton::GroupNameProperty,
+            "GroupName", TypeOf<Base::String>(),
+            emptyGroup.Value(),
+            PropertyMetadataFlags::None)
+        .Content<Presentation::UIElement>(
+            "Content", ContentKind::Single);
+    status = radioButton.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<UserControl> userControl =

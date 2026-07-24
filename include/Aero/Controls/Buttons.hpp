@@ -12,6 +12,12 @@ enum class ClickMode : std::uint8_t {
     Hover,
 };
 
+enum class ToggleState : std::uint8_t {
+    Unchecked = 0U,
+    Checked,
+    Indeterminate,
+};
+
 class ControlInteractionManager;
 
 class AERO_API ButtonBase : public ContentControl {
@@ -88,6 +94,77 @@ public:
             StaticTypeIdValue_, "Interval");
 };
 
+class AERO_API ToggleButton : public ButtonBase {
+    AERO_TYPED_META(ToggleButton, ButtonBase)
+public:
+    ToggleButton() noexcept : ButtonBase(StaticTypeId()) {}
+    ~ToggleButton() override = default;
+
+    bool IsChecked() const noexcept;
+    bool IsThreeState() const noexcept;
+    bool IsIndeterminate() const noexcept;
+    ToggleState GetToggleState() const noexcept;
+    Base::Result<void> SetIsChecked(bool value) noexcept;
+    Base::Result<void> SetIsThreeState(bool value) noexcept;
+
+    inline static constexpr RoutedEventHandle CheckedEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "Checked");
+    inline static constexpr RoutedEventHandle UncheckedEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "Unchecked");
+    inline static constexpr RoutedEventHandle IndeterminateEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "Indeterminate");
+    UIElement::RoutedEvent_<RoutedEventHandler> Checked() noexcept {
+        return {*this, CheckedEvent};
+    }
+    UIElement::RoutedEvent_<RoutedEventHandler> Unchecked() noexcept {
+        return {*this, UncheckedEvent};
+    }
+    UIElement::RoutedEvent_<RoutedEventHandler> Indeterminate() noexcept {
+        return {*this, IndeterminateEvent};
+    }
+
+    inline static constexpr DependencyPropertyHandle
+        IsCheckedProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsChecked");
+    inline static constexpr DependencyPropertyHandle
+        IsThreeStateProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsThreeState");
+    inline static constexpr DependencyPropertyHandle
+        IsIndeterminateProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsIndeterminate");
+
+protected:
+    explicit ToggleButton(TypeId runtimeType) noexcept
+        : ButtonBase(runtimeType) {}
+
+private:
+    friend class ControlInteractionManager;
+    Base::Result<void> SetToggleState(
+        ToggleState value) noexcept;
+};
+
+class AERO_API CheckBox final : public ToggleButton {
+    AERO_TYPED_META(CheckBox, ToggleButton)
+public:
+    CheckBox() noexcept : ToggleButton(StaticTypeId()) {}
+    ~CheckBox() override = default;
+};
+
+class AERO_API RadioButton final : public ToggleButton {
+    AERO_TYPED_META(RadioButton, ToggleButton)
+public:
+    RadioButton() noexcept : ToggleButton(StaticTypeId()) {}
+    ~RadioButton() override = default;
+
+    Base::StringView GroupName() const noexcept;
+    Base::Result<void> SetGroupName(
+        Base::StringView value) noexcept;
+
+    inline static constexpr DependencyPropertyHandle
+        GroupNameProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "GroupName");
+};
+
 class AERO_API ControlInteractionManager final {
 public:
     ControlInteractionManager(
@@ -119,6 +196,8 @@ private:
         bool wasMouseOver = false;
         std::uint64_t repeatElapsed = 0U;
         std::uint64_t nextRepeat = 0U;
+        ToggleState toggleState = ToggleState::Unchecked;
+        bool updatingToggle = false;
     };
 
     ObjectTree* tree_ = nullptr;
@@ -147,6 +226,13 @@ private:
     void UnsubscribeCommand(ButtonRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
     Base::Result<void> InvokeClick(ButtonBase& button) noexcept;
+    Base::Result<void> ApplyToggleState(
+        ToggleButton& button,
+        ToggleState state) noexcept;
+    void PublishToggleState(
+        ToggleButton& button,
+        ButtonRecord& record) noexcept;
+    void UncheckRadioPeers(RadioButton& button) noexcept;
     void SyncVisualState(ButtonBase& button) noexcept;
     void OnMouseDown(
         Base::Object* sender,

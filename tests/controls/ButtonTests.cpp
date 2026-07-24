@@ -1,5 +1,7 @@
 #include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Metadata.hpp>
+#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Presentation/Metadata.hpp>
@@ -30,6 +32,27 @@ struct ClickLog final {
     std::uint32_t count = 0U;
     void OnClick(Aero::Base::Object*, const RoutedEventArgs&) noexcept {
         ++count;
+    }
+};
+
+struct ToggleEventLog final {
+    std::uint32_t checked = 0U;
+    std::uint32_t unchecked = 0U;
+    std::uint32_t indeterminate = 0U;
+    void OnChecked(
+        Aero::Base::Object*,
+        const RoutedEventArgs&) noexcept {
+        ++checked;
+    }
+    void OnUnchecked(
+        Aero::Base::Object*,
+        const RoutedEventArgs&) noexcept {
+        ++unchecked;
+    }
+    void OnIndeterminate(
+        Aero::Base::Object*,
+        const RoutedEventArgs&) noexcept {
+        ++indeterminate;
     }
 };
 
@@ -304,11 +327,162 @@ bool TestRepeatButtonClock() {
     return true;
 }
 
+bool TestToggleButtonsAndRadioGroups() {
+    Dispatcher dispatcher;
+    TypeRegistry types;
+    MetadataBehaviorRegistrationStore typeBehaviors(types);
+    MetadataRegistrationTypes typeRegistration(
+        types, typeBehaviors);
+    MetadataValueRegistrationStore valueRegistrations(types);
+    DependencyPropertyRegistry properties(types, typeBehaviors);
+    ObjectServicesScope services(
+        dispatcher, properties, valueRegistrations);
+    RoutedEventCatalog eventCatalog(types, typeBehaviors);
+    RoutedEventManager events(eventCatalog);
+    EffectiveValueEngine values(dispatcher, properties);
+    ObjectTree tree(dispatcher, values);
+    MetaRegistrationContext registration(
+        types, typeBehaviors, valueRegistrations,
+        properties, &eventCatalog);
+    CHECK(Aero::Core::Detail::PopulateCoreMetadata(registration));
+    CHECK(Aero::Presentation::Detail::
+        PopulatePresentationMetadata(registration));
+    CHECK(Aero::Controls::Detail::
+        PopulateControlsMetadata(registration));
+    CHECK(types.Freeze());
+    CHECK(typeBehaviors.Freeze());
+    CHECK(valueRegistrations.Freeze());
+    CHECK(properties.Freeze());
+    CHECK(eventCatalog.Freeze());
+    CHECK(values.Initialize());
+    CHECK(tree.Initialize());
+
+    StackPanel root;
+    CheckBox checkBox;
+    RadioButton first;
+    RadioButton second;
+    RadioButton otherGroup;
+    CHECK(tree.SetRoot(&root));
+    CHECK(tree.AttachLogical(root, checkBox));
+    CHECK(tree.AttachLogical(root, first));
+    CHECK(tree.AttachLogical(root, second));
+    CHECK(tree.AttachLogical(root, otherGroup));
+    CHECK(dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle));
+    CHECK(checkBox.IsLoaded());
+    CHECK(!checkBox.IsChecked());
+    CHECK(checkBox.GetToggleState() ==
+        ToggleState::Unchecked);
+    CHECK(first.SetGroupName("primary"));
+    CHECK(second.SetGroupName("primary"));
+    CHECK(otherGroup.SetGroupName("secondary"));
+    CHECK(first.SetIsChecked(true));
+    CHECK(second.SetIsChecked(true));
+
+    HitTestManager hitTests;
+    PointerInputManager pointer(hitTests, events, root);
+    FocusManager focus(tree, events);
+    CommandManager commands(tree);
+    ControlInteractionManager interactions(
+        tree, events, pointer, focus, commands);
+    CHECK(interactions.Attach(checkBox));
+    CHECK(interactions.Attach(first));
+    CHECK(interactions.Attach(second));
+    CHECK(interactions.Attach(otherGroup));
+    CHECK(!first.IsChecked());
+    CHECK(second.IsChecked());
+
+    ToggleEventLog toggleLog;
+    RoutedEventHandler checkedHandler(
+        &toggleLog, &ToggleEventLog::OnChecked);
+    RoutedEventHandler uncheckedHandler(
+        &toggleLog, &ToggleEventLog::OnUnchecked);
+    RoutedEventHandler indeterminateHandler(
+        &toggleLog, &ToggleEventLog::OnIndeterminate);
+    CHECK(checkBox.Checked().TryAdd(checkedHandler));
+    CHECK(checkBox.Unchecked().TryAdd(uncheckedHandler));
+    CHECK(checkBox.Indeterminate().TryAdd(
+        indeterminateHandler));
+
+    KeyboardInputManager keyboard(focus, events, tree);
+    CHECK(focus.SetFocus(&checkBox).Value());
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Down, KeyboardKeySpace, 0U, false}));
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Up, KeyboardKeySpace, 0U, false}));
+    CHECK(checkBox.GetToggleState() ==
+        ToggleState::Checked);
+    CHECK(toggleLog.checked == 1U);
+
+    CHECK(checkBox.SetIsThreeState(true));
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Down, KeyboardKeySpace, 0U, false}));
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Up, KeyboardKeySpace, 0U, false}));
+    CHECK(checkBox.GetToggleState() ==
+        ToggleState::Indeterminate);
+    CHECK(toggleLog.indeterminate == 1U);
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Down, KeyboardKeySpace, 0U, false}));
+    CHECK(keyboard.Dispatch(
+        {KeyboardAction::Up, KeyboardKeySpace, 0U, false}));
+    CHECK(checkBox.GetToggleState() ==
+        ToggleState::Unchecked);
+    CHECK(toggleLog.unchecked == 1U);
+
+    CHECK(!checkBox.SetValue(
+        ToggleButton::IsIndeterminateProperty,
+        Value::FromBoolean(BuiltinTypes::Boolean, true)));
+    CHECK(checkBox.SetIsChecked(true));
+    CHECK(toggleLog.checked == 2U);
+    CHECK(checkBox.SetIsChecked(false));
+    CHECK(toggleLog.unchecked == 2U);
+
+    CHECK(first.SetIsChecked(true));
+    CHECK(first.IsChecked());
+    CHECK(!second.IsChecked());
+    CHECK(second.SetIsChecked(true));
+    CHECK(!first.IsChecked());
+    CHECK(second.IsChecked());
+    CHECK(otherGroup.SetIsChecked(true));
+    CHECK(second.IsChecked());
+    CHECK(otherGroup.IsChecked());
+
+    CHECK(otherGroup.SetGroupName("primary"));
+    CHECK(!second.IsChecked());
+    CHECK(otherGroup.IsChecked());
+    CHECK(interactions.Detach(otherGroup).Value());
+    CHECK(tree.DetachLogical(root, otherGroup));
+    CHECK(dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle));
+    CHECK(second.SetIsChecked(true));
+    CHECK(second.IsChecked());
+
+    CHECK(checkBox.Checked().Remove(checkedHandler));
+    CHECK(checkBox.Unchecked().Remove(uncheckedHandler));
+    CHECK(checkBox.Indeterminate().Remove(
+        indeterminateHandler));
+    CHECK(interactions.Detach(second).Value());
+    CHECK(interactions.Detach(first).Value());
+    CHECK(interactions.Detach(checkBox).Value());
+    CHECK(tree.DetachLogical(root, second));
+    CHECK(tree.DetachLogical(root, first));
+    CHECK(tree.DetachLogical(root, checkBox));
+    CHECK(tree.SetRoot(nullptr));
+    CHECK(values.DetachObject(otherGroup));
+    CHECK(values.DetachObject(second));
+    CHECK(values.DetachObject(first));
+    CHECK(values.DetachObject(checkBox));
+    CHECK(values.DetachObject(root));
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestButtonInputCommandAndCapture()) return 1;
     if (!TestRepeatButtonClock()) return 1;
+    if (!TestToggleButtonsAndRadioGroups()) return 1;
     std::puts("Aero button tests passed");
     return 0;
 }

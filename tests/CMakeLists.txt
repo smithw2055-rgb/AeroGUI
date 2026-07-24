@@ -311,6 +311,13 @@ set_target_properties(AeroXamlTextBlockTests PROPERTIES CXX_STANDARD 17 CXX_STAN
 aero_apply_compiler_options(AeroXamlTextBlockTests)
 add_test(NAME AeroXamlTextBlockTests COMMAND AeroXamlTextBlockTests)
 
+add_executable(AeroXamlButtonTests markup/XamlButtonTests.cpp)
+target_link_libraries(AeroXamlButtonTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlButtonTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlButtonTests)
+add_test(NAME AeroXamlButtonTests COMMAND AeroXamlButtonTests)
+
 add_executable(AeroXamlBorderTests markup/XamlBorderTests.cpp)
 target_link_libraries(AeroXamlBorderTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlBorderTests PRIVATE cxx_std_17)
