@@ -30,7 +30,7 @@
         }
         case GraphicsCommandKind::BeginRenderPass: {
             if (impl_->inRenderPass ||
-                !Core::IsValidLayoutRect(command.renderPass.renderArea) ||
+                !Presentation::IsValidLayoutRect(command.renderPass.renderArea) ||
                 command.renderPass.colorAttachmentCount > MaxColorAttachments) {
                 return failSubmission(
                     InvalidState("D3D11 render-pass begin is invalid"));

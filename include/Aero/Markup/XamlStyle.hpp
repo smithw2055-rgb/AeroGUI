@@ -5,19 +5,19 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/DependencyProperty.hpp>
-#include <Aero/Core/Style.hpp>
+#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Presentation/Style.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
 
-// Bridges the declarative Style/Setter object model to the sealed Core::Style
+// Bridges the declarative Style/Setter object model to the sealed Presentation::Style
 // plan. Register it before XamlDependencyPropertyBridge so the configured
 // Style property uses this owner-aware adapter rather than a plain object DP.
 struct XamlStyleExtensionOptions final {
-    Core::StyleManager* styles = nullptr;
+    Presentation::StyleManager* styles = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     // Optional value type returned by XamlTypeExtension. When configured,
     // Style.TargetType accepts both a literal type name and `{x:Type ...}`.
@@ -57,7 +57,7 @@ public:
         options_.typeReferenceType = type;
     }
 
-    // Call before a DependencyObject is destroyed. This clears Core::Style
+    // Call before a DependencyObject is destroyed. This clears Presentation::Style
     // providers and releases the retained XAML Style object atomically.
     Base::Result<bool> DetachObject(
         Core::DependencyObject& object) noexcept;

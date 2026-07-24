@@ -4,7 +4,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Activation.hpp>
+#include <Aero/Core/Metadata/Activation.hpp>
 
 #include <cstdint>
 

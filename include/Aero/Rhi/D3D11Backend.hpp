@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Core/Rendering.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Rhi/Graphics.hpp>
 #include <Aero/Rhi/Surface.hpp>
 
@@ -239,10 +239,11 @@ struct D3D11RenderPlanSubmitStatistics final {
     std::uint32_t textureSamplerBindingCount = 0U;
 };
 
-// Consumes immutable Core::RenderPlan snapshots and presents them through the
+// Consumes immutable Presentation::RenderPlan snapshots and presents them through the
 // D3D11 surface presenter. The device, graphics backend, and presenter must
 // outlive this adapter.
-class AERO_API D3D11RenderPlanBackend final : public Core::IRenderBackend {
+class AERO_API D3D11RenderPlanBackend final
+    : public Presentation::IRenderBackend {
 public:
     D3D11RenderPlanBackend(
         RhiDevice& device,
@@ -260,27 +261,27 @@ public:
     // Image resources stay owned by the caller. They must remain alive until
     // no submitted frame can reference them, then be unregistered before destruction.
     Base::Result<void> RegisterImage(
-        Core::RenderImageId image,
+        Presentation::RenderImageId image,
         ResourceHandle texture,
         ResourceHandle sampler) noexcept;
     Base::Result<void> UnregisterImage(
-        Core::RenderImageId image) noexcept;
+        Presentation::RenderImageId image) noexcept;
 
     // Mesh vertex buffers use Float2 position at byte offset zero followed by
     // Float4 vertex color at byte offset eight; meshes use indexed triangles.
     Base::Result<void> RegisterMesh(
-        Core::RenderMeshId mesh,
+        Presentation::RenderMeshId mesh,
         ResourceHandle vertexBuffer,
         ResourceHandle indexBuffer,
         std::uint32_t indexCount,
         IndexType indexType = IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
-        Core::RenderMeshId mesh) noexcept;
+        Presentation::RenderMeshId mesh) noexcept;
 
     // Glyph vertices use Float2 position followed by Float2 atlas UV. The
     // sampled atlas is R8Unorm; its alpha coverage is multiplied by tint.
     Base::Result<void> RegisterGlyphRun(
-        Core::RenderGlyphRunId glyphRun,
+        Presentation::RenderGlyphRunId glyphRun,
         ResourceHandle vertexBuffer,
         ResourceHandle indexBuffer,
         std::uint32_t indexCount,
@@ -288,10 +289,10 @@ public:
         ResourceHandle sampler,
         IndexType indexType = IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterGlyphRun(
-        Core::RenderGlyphRunId glyphRun) noexcept;
+        Presentation::RenderGlyphRunId glyphRun) noexcept;
 
     Base::Result<void> Submit(
-        const Core::RenderPlan& plan) noexcept override;
+        const Presentation::RenderPlan& plan) noexcept override;
 
     bool IsInitialized() const noexcept;
     FenceValue LastSubmittedFence() const noexcept;

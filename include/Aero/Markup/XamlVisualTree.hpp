@@ -4,21 +4,21 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Controls.hpp>
-#include <Aero/Core/EffectiveValueEngine.hpp>
-#include <Aero/Core/ObjectTree.hpp>
-#include <Aero/Core/Rendering.hpp>
+#include <Aero/Controls/Controls.hpp>
+#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
 
-using XamlAsVisualCallback = Core::Visual* (*)(
+using XamlAsVisualCallback = Presentation::Visual* (*)(
     Base::Object& object, void* context) noexcept;
 using XamlSetSingleContentCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void* context) noexcept;
 using XamlClearContentCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
@@ -26,15 +26,15 @@ using XamlClearContentCallback = Base::Result<void> (*)(
 using XamlAddCollectionChildCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void* context) noexcept;
 using XamlClearCollectionCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
     void* context) noexcept;
 using XamlConfigureCollectionChildCallback = Base::Result<void> (*)(
     Base::Object& parentObject,
-    Core::UIElement& parent,
-    Core::UIElement& child,
+    Presentation::UIElement& parent,
+    Presentation::UIElement& child,
     void* context) noexcept;
 
 struct XamlVisualTreeTypeRegistration final {
@@ -62,10 +62,10 @@ struct XamlCollectionContentRegistration final {
 class AERO_API XamlVisualTreeHost final {
 public:
     XamlVisualTreeHost(
-        Core::ObjectTree& tree,
-        Core::LayoutManager& layout,
+        Presentation::ObjectTree& tree,
+        Presentation::LayoutManager& layout,
         Core::EffectiveValueEngine& values,
-        Core::RenderManager* renderer = nullptr) noexcept;
+        Presentation::RenderManager* renderer = nullptr) noexcept;
     ~XamlVisualTreeHost() noexcept;
 
     XamlVisualTreeHost(const XamlVisualTreeHost&) = delete;
@@ -82,7 +82,7 @@ public:
     Base::Result<void> Mount(
         Base::Object& root,
         Core::TypeId rootType,
-        Core::Size availableSize) noexcept;
+        Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
     Base::Result<void> DiscardStaged() noexcept;
     bool IsMounted() const noexcept { return mounted_; }
@@ -92,8 +92,8 @@ private:
     struct Edge final {
         Base::Ref<Base::Object> parentOwner;
         Base::Ref<Base::Object> childOwner;
-        Core::UIElement* parent = nullptr;
-        Core::UIElement* child = nullptr;
+        Presentation::UIElement* parent = nullptr;
+        Presentation::UIElement* child = nullptr;
         XamlClearContentCallback clearSingle = nullptr;
         XamlClearCollectionCallback clearCollection = nullptr;
         XamlConfigureCollectionChildCallback configureCollectionChild = nullptr;
@@ -104,36 +104,36 @@ private:
         bool renderAttached = false;
     };
 
-    Core::ObjectTree* tree_ = nullptr;
-    Core::LayoutManager* layout_ = nullptr;
+    Presentation::ObjectTree* tree_ = nullptr;
+    Presentation::LayoutManager* layout_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
-    Core::RenderManager* renderer_ = nullptr;
+    Presentation::RenderManager* renderer_ = nullptr;
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<XamlVisualTreeTypeRegistration> types_;
     Base::Vector<XamlSingleContentRegistration> singles_;
     Base::Vector<XamlCollectionContentRegistration> collections_;
     Base::Vector<Edge> edges_;
-    Base::Vector<Core::Visual*> nodes_;
-    Core::Visual* rootNode_ = nullptr;
-    Core::UIElement* rootLayout_ = nullptr;
-    Core::FrameworkElement* rootRender_ = nullptr;
+    Base::Vector<Presentation::Visual*> nodes_;
+    Presentation::Visual* rootNode_ = nullptr;
+    Presentation::UIElement* rootLayout_ = nullptr;
+    Presentation::FrameworkElement* rootRender_ = nullptr;
     bool mounted_ = false;
 
     const XamlVisualTreeTypeRegistration* FindType(Core::TypeId type) const noexcept;
     const XamlSingleContentRegistration* FindSingle(Core::TypeId type) const noexcept;
     const XamlCollectionContentRegistration* FindCollection(
         Core::TypeId type, Core::MemberId member) const noexcept;
-    Base::Result<Core::Visual*> ResolveVisual(
+    Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) const noexcept;
-    Base::Result<Core::UIElement*> ResolveUIElement(
+    Base::Result<Presentation::UIElement*> ResolveUIElement(
         Base::Object& object, Core::TypeId type) const noexcept;
-    Core::FrameworkElement* ResolveFrameworkElement(
+    Presentation::FrameworkElement* ResolveFrameworkElement(
         Base::Object& object, Core::TypeId type) const noexcept;
     Base::Result<void> StageContent(
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
-    Base::Result<void> AddNode(Core::Visual& node) noexcept;
+    Base::Result<void> AddNode(Presentation::Visual& node) noexcept;
     Base::Result<void> AttachEdge(Edge& edge) noexcept;
     void DetachEdge(Edge& edge) noexcept;
     void ReleaseStagedContent() noexcept;

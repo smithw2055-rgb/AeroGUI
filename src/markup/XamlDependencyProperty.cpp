@@ -1,7 +1,7 @@
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 
-#include <Aero/Core/Controls.hpp>
-#include <Aero/Core/Presentation.hpp>
+#include <Aero/Controls/Controls.hpp>
+#include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
 
@@ -13,7 +13,7 @@ constexpr const char* MessageBridgeFrozen =
 constexpr const char* MessageInvalidTypeRegistration =
     "XAML dependency-object type registration is invalid";
 constexpr const char* MessageRegistryNotReady =
-    "DependencyPropertyRegistry and TypeRegistry must be frozen before bridging";
+    "DependencyPropertyRegistry and metadata descriptors must be frozen before bridging";
 constexpr const char* MessageTargetNotDependencyObject =
     "XAML target object is not registered as a DependencyObject";
 constexpr const char* MessagePropertyNotBridged =
@@ -38,8 +38,9 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
             "Aero presentation activation services are missing");
     }
 #define AERO_ACTIVATE_CONTROL(type) \
-    if (requestedType == Core::type::StaticTypeId()) { \
-        Base::Result<Base::Ref<Core::type>> made = Base::MakeRef<Core::type>(); \
+    if (requestedType == Controls::type::StaticTypeId()) { \
+        Base::Result<Base::Ref<Controls::type>> made = \
+            Base::MakeRef<Controls::type>(); \
         if (!made) return made.GetStatus(); \
         return Base::Ref<Base::Object>(std::move(made).Value()); \
     }
@@ -55,64 +56,64 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
         "Requested type is not a constructible Aero presentation type");
 }
 
-Core::Visual* AsVisual(Base::Object& object, void*) noexcept {
-    return static_cast<Core::Visual*>(&object);
+Presentation::Visual* AsVisual(Base::Object& object, void*) noexcept {
+    return static_cast<Presentation::Visual*>(&object);
 }
 
 Base::Result<void> SetDecoratorContent(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void*) noexcept {
-    return static_cast<Core::Decorator&>(parentObject).SetOwnedChild(
+    return static_cast<Controls::Decorator&>(parentObject).SetOwnedChild(
         childObject, child);
 }
 
 Base::Result<void> ClearDecoratorContent(
     Base::Object& parentObject, void*) noexcept {
-    return static_cast<Core::Decorator&>(parentObject).SetChild(nullptr);
+    return static_cast<Controls::Decorator&>(parentObject).SetChild(nullptr);
 }
 
 Base::Result<void> SetContentControlContent(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void*) noexcept {
-    return static_cast<Core::ContentControl&>(parentObject).SetOwnedContent(
+    return static_cast<Controls::ContentControl&>(parentObject).SetOwnedContent(
         childObject, child);
 }
 
 Base::Result<void> ClearContentControlContent(
     Base::Object& parentObject, void*) noexcept {
-    return static_cast<Core::ContentControl&>(parentObject).SetContent(nullptr);
+    return static_cast<Controls::ContentControl&>(parentObject).SetContent(nullptr);
 }
 
 Base::Result<void> SetPresenterContent(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void*) noexcept {
-    return static_cast<Core::ContentPresenter&>(parentObject).SetOwnedContent(
+    return static_cast<Controls::ContentPresenter&>(parentObject).SetOwnedContent(
         childObject, child);
 }
 
 Base::Result<void> ClearPresenterContent(
     Base::Object& parentObject, void*) noexcept {
-    return static_cast<Core::ContentPresenter&>(parentObject).SetContent(nullptr);
+    return static_cast<Controls::ContentPresenter&>(parentObject).SetContent(nullptr);
 }
 
 Base::Result<void> AddPanelChild(
     Base::Object& parentObject,
     const Base::Ref<Base::Object>& childObject,
-    Core::UIElement& child,
+    Presentation::UIElement& child,
     void*) noexcept {
-    return static_cast<Core::Panel&>(parentObject).AddOwnedChild(
+    return static_cast<Controls::Panel&>(parentObject).AddOwnedChild(
         childObject, child);
 }
 
 Base::Result<void> ClearPanelChildren(
     Base::Object& parentObject, void*) noexcept {
-    return static_cast<Core::Panel&>(parentObject).ClearOwnedChildren();
+    return static_cast<Controls::Panel&>(parentObject).ClearOwnedChildren();
 }
 
 } // namespace
@@ -128,7 +129,8 @@ Base::Result<void> XamlDependencyPropertyBridge::TryRegisterType(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState, MessageBridgeFrozen);
     }
-    const Core::TypeInfo* type = schema_->Types().FindType(registration.type);
+    const Core::MetadataTypeDescriptor* type =
+        schema_->Descriptors().FindType(registration.type);
     if (type == nullptr || HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType) ||
         registration.cast == nullptr) {
         return Base::Status::Failure(
@@ -149,7 +151,7 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState, MessageBridgeFrozen);
     }
-    if (!schema_->Types().IsFrozen() || !properties_->IsFrozen()) {
+    if (!schema_->Descriptors().IsSealed() || !properties_->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState, MessageRegistryNotReady);
     }
@@ -159,12 +161,16 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
     }
 
     std::uint32_t registered = 0U;
-    for (const Core::TypeInfo& type : schema_->Types().Types()) {
-        for (const Core::PropertyInfo& member : type.Properties()) {
+    for (const Core::MetadataTypeDescriptor& type :
+         schema_->Descriptors().Types()) {
+        for (Core::MemberId memberId : type.DeclaredProperties()) {
+            const Core::MetadataPropertyDescriptor* member =
+                schema_->Descriptors().FindProperty(memberId);
+            if (member == nullptr) continue;
             const Core::DependencyProperty* property = properties_->Find(
-                type.Id(), member.Name());
+                type.Id(), member->Name());
             if (property == nullptr ||
-                schema_->FindMemberAdapter(member.Id()) != nullptr) continue;
+                schema_->FindMemberAdapter(member->Id()) != nullptr) continue;
             if (registered == UINT32_MAX) {
                 return Base::Status::Failure(Base::ErrorCode::OutOfRange,
                     "XAML dependency-property adapter count overflow");
@@ -181,7 +187,8 @@ XamlDependencyPropertyBridge::TryRegisterProperties() noexcept {
     for (const XamlDependencyObjectTypeRegistration& candidate : types_) {
         bool coversAll = true;
         for (const XamlDependencyObjectTypeRegistration& current : types_) {
-            if (!schema_->Types().IsDerivedFrom(current.type, candidate.type)) {
+            if (!schema_->Descriptors().IsDerivedFrom(
+                    current.type, candidate.type)) {
                 coversAll = false;
                 break;
             }
@@ -227,7 +234,8 @@ XamlDependencyPropertyBridge::FindTypeRegistration(
         for (const XamlDependencyObjectTypeRegistration& registration : types_) {
             if (registration.type == current) return &registration;
         }
-        const Core::TypeInfo* info = schema_->Types().FindType(current);
+        const Core::MetadataTypeDescriptor* info =
+            schema_->Descriptors().FindType(current);
         if (info == nullptr) break;
         current = info->BaseType();
     }
@@ -269,7 +277,7 @@ XamlDependencyPropertyBridge::ConvertValue(
 Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     XamlDependencyPropertyBridge& bridge) noexcept {
     Base::Result<void> type = bridge.TryRegisterType({
-        Core::BuiltinTypes::DependencyObject, &AsDependencyObject, nullptr});
+        Core::TypeOf<Core::DependencyObject>(), &AsDependencyObject, nullptr});
     if (!type) return type.GetStatus();
     return bridge.TryRegisterProperties();
 }
@@ -282,10 +290,11 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     if (!bridged) return bridged.GetStatus();
 
     const Core::TypeId activatable[] = {
-        Core::BuiltinTypes::StackPanel, Core::BuiltinTypes::Canvas,
-        Core::BuiltinTypes::Grid, Core::BuiltinTypes::Border,
-        Core::BuiltinTypes::TextBlock, Core::BuiltinTypes::ContentPresenter,
-        Core::BuiltinTypes::UserControl};
+        Core::TypeOf<Controls::StackPanel>(), Core::TypeOf<Controls::Canvas>(),
+        Core::TypeOf<Controls::Grid>(), Core::TypeOf<Controls::Border>(),
+        Core::TypeOf<Controls::TextBlock>(),
+        Core::TypeOf<Controls::ContentPresenter>(),
+        Core::TypeOf<Controls::UserControl>()};
     for (Core::TypeId type : activatable) {
         Base::Result<void> registered = activation.TryRegister({
             type, &ActivateAeroControl, nullptr});
@@ -295,26 +304,26 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     if (visualTree == nullptr) return count;
 
     Base::Result<void> registered = visualTree->TryRegisterType({
-        Core::BuiltinTypes::Visual, &AsVisual, nullptr});
+        Core::TypeOf<Presentation::Visual>(), &AsVisual, nullptr});
     if (!registered) return registered.GetStatus();
     registered = visualTree->TryRegisterSingleContent({
-        Core::BuiltinTypes::Decorator,
+        Core::TypeOf<Controls::Decorator>(),
         &SetDecoratorContent, &ClearDecoratorContent, nullptr});
     if (!registered) return registered.GetStatus();
     registered = visualTree->TryRegisterSingleContent({
-        Core::BuiltinTypes::ContentControl,
+        Core::TypeOf<Controls::ContentControl>(),
         &SetContentControlContent, &ClearContentControlContent, nullptr});
     if (!registered) return registered.GetStatus();
     registered = visualTree->TryRegisterSingleContent({
-        Core::BuiltinTypes::ContentPresenter,
+        Core::TypeOf<Controls::ContentPresenter>(),
         &SetPresenterContent, &ClearPresenterContent, nullptr});
     if (!registered) return registered.GetStatus();
 
     const Core::MemberId panelChildren = Core::MakeMemberId(
-        Core::BuiltinTypes::Panel, Core::MemberKind::Property,
+        Core::TypeOf<Controls::Panel>(), Core::MemberKind::Property,
         Base::StringView("Children"));
     registered = visualTree->TryRegisterCollectionContent({
-        Core::BuiltinTypes::Panel, panelChildren,
+        Core::TypeOf<Controls::Panel>(), panelChildren,
         &AddPanelChild, &ClearPanelChildren, nullptr, nullptr});
     if (!registered) return registered.GetStatus();
     registered = visualTree->Register(activation.Schema());

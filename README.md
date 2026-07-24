@@ -87,9 +87,9 @@ flowchart LR
     App --> Presentation[AeroPresentation]
     App --> Controls[AeroControls]
 
-    Markup --> Core[AeroCore]
-    Presentation --> Core
+    Markup --> Controls
     Controls --> Presentation
+    Presentation --> Core[AeroCore]
 
     Core --> Base[AeroBase]
     Markup --> Base
@@ -106,6 +106,22 @@ flowchart LR
 
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
 ```
+
+Public C++ APIs follow the same module boundary:
+
+```text
+Aero::Base
+  -> Aero::Core
+  -> Aero::Presentation
+  -> Aero::Controls
+  -> Aero::Markup / application integration
+```
+
+Core metadata and property-system headers live under
+`Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use
+their own include, source, and test directories. Legacy `Aero/Core/*.hpp`
+forwarding paths and old namespace aliases are not provided; callers must use
+the owning module's public include path and namespace.
 
 ## AeroBase 基础设施
 

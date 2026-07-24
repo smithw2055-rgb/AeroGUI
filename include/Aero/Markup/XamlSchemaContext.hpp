@@ -9,9 +9,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/MemberAccessor.hpp>
-#include <Aero/Core/MetadataRuntime.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 
@@ -23,27 +21,6 @@ class XamlSchemaContext;
 
 using XamlValueKind = Core::ValueKind;
 using XamlValue = Core::Value;
-
-using XamlConvertTextCallback = Base::Result<XamlValue> (*)(
-    Core::TypeId targetType,
-    Base::StringView text,
-    void* context) noexcept;
-
-// Registers attribute-text conversion once for a value type. Controls and
-// properties using that type then share the converter automatically.
-struct XamlTextConverterRegistration final {
-    Core::TypeId type = Core::InvalidTypeId;
-    XamlConvertTextCallback convert = nullptr;
-    void* context = nullptr;
-};
-
-enum class XamlScalarKind : std::uint8_t {
-    String = 0U,
-    Boolean,
-    SignedInteger,
-    UnsignedInteger,
-    Double
-};
 
 enum class XamlMemberSyntax : std::uint8_t {
     Attribute = 0U,
@@ -64,11 +41,6 @@ struct XamlResolvedMember final {
     Core::PropertyFlags propertyFlags = Core::PropertyFlags::None;
     Core::EventFlags eventFlags = Core::EventFlags::None;
     bool attached = false;
-    // Runtime schemas retain the canonical descriptor instead of requiring
-    // consumers to re-resolve copied metadata fields.
-    const Core::MetadataPropertyDescriptor* propertyDescriptor = nullptr;
-    const Core::MetadataEventDescriptor* eventDescriptor = nullptr;
-
     bool IsValid() const noexcept {
         return id != Core::InvalidMemberId &&
             ownerType != Core::InvalidTypeId &&
@@ -182,11 +154,6 @@ public:
     XamlSchemaContext(const XamlSchemaContext&) = delete;
     XamlSchemaContext& operator=(const XamlSchemaContext&) = delete;
 
-    Base::Result<void> TryRegisterScalarType(
-        Core::TypeId type,
-        XamlScalarKind kind) noexcept;
-    Base::Result<void> TryRegisterTextConverter(
-        const XamlTextConverterRegistration& registration) noexcept;
     Base::Result<void> TryRegisterMemberAdapter(
         const XamlMemberAdapterRegistration& registration) noexcept;
     Base::Result<void> TryRegisterMemberProvider(
@@ -199,16 +166,14 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
     bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
-    const Core::TypeRegistry& Types() const noexcept { return *types_; }
+    const Core::MetadataDescriptorStore& Descriptors() const noexcept {
+        return runtime_->Descriptors();
+    }
+    const Core::MetadataFacetStore& Facets() const noexcept {
+        return runtime_->Facets();
+    }
     Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
-    Core::MemberAccessor& Members() noexcept {
-        return memberAccessor_;
-    }
-    const Core::MemberAccessor& Members() const noexcept {
-        return memberAccessor_;
-    }
-
-    Base::Result<const Core::TypeInfo*> ResolveType(
+    Base::Result<const Core::MetadataTypeDescriptor*> ResolveType(
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
     Base::Result<XamlResolvedMember> ResolveMember(
@@ -218,20 +183,7 @@ public:
     Base::Result<XamlResolvedMember> ResolveContentMember(
         Core::TypeId targetType) const noexcept;
 
-    // Descriptor-backed runtime path used by the compiled object writer.
-    Base::Result<const Core::TypeInfo*> ResolveTypeRuntime(
-        Base::StringView xamlNamespace,
-        Base::StringView localName) const noexcept;
-    Base::Result<XamlResolvedMember> ResolveMemberRuntime(
-        Core::TypeId targetType,
-        const XamlQualifiedName& name,
-        XamlMemberSyntax syntax) const noexcept;
-    Base::Result<XamlResolvedMember> ResolveContentMemberRuntime(
-        Core::TypeId targetType) const noexcept;
-
     Base::Result<Base::Ref<Base::Object>> CreateObject(
-        Core::TypeId type) const noexcept;
-    Base::Result<Base::Ref<Base::Object>> CreateObjectRuntime(
         Core::TypeId type) const noexcept;
     // Internal activation seam used by the XAML object-writer translation unit.
     // Direct callers should normally use CreateObject().
@@ -240,16 +192,7 @@ public:
     Base::Result<XamlValue> ConvertText(
         Core::TypeId type,
         Base::StringView text) const noexcept;
-    Base::Result<XamlValue> ConvertTextRuntime(
-        Core::TypeId type,
-        Base::StringView text) const noexcept;
     Base::Result<void> SetMember(
-        Base::Object& object,
-        Core::TypeId objectType,
-        const XamlResolvedMember& member,
-        const XamlValue& value,
-        const XamlServiceProvider* services = nullptr) const noexcept;
-    Base::Result<void> SetMemberRuntime(
         Base::Object& object,
         Core::TypeId objectType,
         const XamlResolvedMember& member,
@@ -286,35 +229,20 @@ public:
         Core::MemberId member) const noexcept;
     XamlMemberWritePolicy ResolveMemberWritePolicy(
         const XamlResolvedMember& member) const noexcept;
-    XamlMemberWritePolicy ResolveMemberWritePolicyRuntime(
-        const XamlResolvedMember& member) const noexcept;
     const XamlTypeAdapterRegistration* FindTypeAdapter(
         Core::TypeId type) const noexcept;
     const XamlMarkupExtensionRegistration*
     FindMarkupExtension(Core::TypeId type) const noexcept;
 
 private:
-    struct ScalarRegistration final {
-        Core::TypeId type = Core::InvalidTypeId;
-        XamlScalarKind kind = XamlScalarKind::String;
-    };
-
-    const Core::TypeRegistry* types_ = nullptr;
     Core::MetadataDomain* domain_ = nullptr;
     Core::MetadataRuntime* runtime_ = nullptr;
-    Core::MemberAccessor memberAccessor_;
-    Base::Vector<ScalarRegistration> scalarTypes_;
-    Base::Vector<XamlTextConverterRegistration> textConverters_;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
     Base::Vector<XamlMemberProviderRegistration> memberProviders_;
     Base::Vector<XamlTypeAdapterRegistration> typeAdapters_;
     Base::Vector<XamlMarkupExtensionRegistration> markupExtensions_;
     bool frozen_ = false;
 
-    const ScalarRegistration* FindScalarType(
-        Core::TypeId type) const noexcept;
-    const XamlTextConverterRegistration* FindTextConverter(
-        Core::TypeId type) const noexcept;
     const XamlMemberProviderRegistration* FindMemberProvider(
         const XamlResolvedMember& member) const noexcept;
     const XamlTypeAdapterRegistration* FindTypeAdapterExact(

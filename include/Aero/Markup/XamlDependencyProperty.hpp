@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 #include <cstdint>
