@@ -39,7 +39,8 @@ Base::Result<Core::TypeId> ResolveType(
     if (!uri) {
         return uri.GetStatus();
     }
-    const Core::TypeInfo* type = services.schema->Types().FindType(
+    const Core::MetadataTypeDescriptor* type =
+        services.schema->Descriptors().FindType(
         uri.Value(), localName);
     if (type == nullptr ||
         (static_cast<std::uint32_t>(type->Flags()) &
@@ -62,7 +63,8 @@ Base::Result<void> XamlTypeExtension::Register(
             Base::ErrorCode::InvalidState,
             "x:Type extension registration is invalid");
     }
-    const Core::TypeInfo* token = schema.Types().FindType(typeReferenceType_);
+    const Core::MetadataTypeDescriptor* token =
+        schema.Descriptors().FindType(typeReferenceType_);
     if (token == nullptr ||
         (static_cast<std::uint32_t>(token->Flags()) &
             static_cast<std::uint32_t>(Core::TypeFlags::ValueType)) == 0U) {

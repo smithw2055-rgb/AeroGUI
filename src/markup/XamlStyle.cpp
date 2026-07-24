@@ -73,7 +73,8 @@ Base::Result<void> ResolveQualifiedType(
     if (!ns) {
         return ns.GetStatus();
     }
-    const Core::TypeInfo* type = services.schema->Types().FindType(
+    const Core::MetadataTypeDescriptor* type =
+        services.schema->Descriptors().FindType(
         ns.Value(), localName);
     if (type == nullptr || HasTypeFlag(type->Flags(), Core::TypeFlags::ValueType)) {
         return Base::Status::Failure(
@@ -142,8 +143,8 @@ public:
         return runtimeType_;
     }
 
-    Core::Style& Plan() noexcept { return plan_; }
-    const Core::Style& Plan() const noexcept { return plan_; }
+    Presentation::Style& Plan() noexcept { return plan_; }
+    const Presentation::Style& Plan() const noexcept { return plan_; }
 
     Base::Result<void> SetBasedOn(
         const Base::Ref<Base::Object>& value,
@@ -163,7 +164,7 @@ public:
 
 private:
     Core::TypeId runtimeType_ = Core::InvalidTypeId;
-    Core::Style plan_;
+    Presentation::Style plan_;
     Base::Ref<Base::Object> basedOn_;
     Base::Vector<Base::Ref<Base::Object>> setters_;
 };
@@ -201,28 +202,35 @@ Base::Result<void> XamlStyleExtension::Register(
         return InvalidStyleXaml("XAML Style extension registration is invalid");
     }
 
-    const Core::TypeInfo* styleInfo = schema.Types().FindType(styleType);
-    const Core::TypeInfo* setterInfo = schema.Types().FindType(setterType);
+    const Core::MetadataTypeDescriptor* styleInfo =
+        schema.Descriptors().FindType(styleType);
+    const Core::MetadataTypeDescriptor* setterInfo =
+        schema.Descriptors().FindType(setterType);
     if (styleInfo == nullptr || setterInfo == nullptr ||
         HasTypeFlag(styleInfo->Flags(), Core::TypeFlags::ValueType) ||
         HasTypeFlag(setterInfo->Flags(), Core::TypeFlags::ValueType)) {
         return InvalidStyleXaml("XAML Style and Setter must be registered object types");
     }
 
-    const Core::PropertyInfo* targetType = schema.Types().FindProperty(
+    const Core::MetadataPropertyDescriptor* targetType =
+        schema.Descriptors().FindProperty(
         styleType, Base::StringView("TargetType"), false);
-    const Core::PropertyInfo* basedOn = schema.Types().FindProperty(
+    const Core::MetadataPropertyDescriptor* basedOn =
+        schema.Descriptors().FindProperty(
         styleType, Base::StringView("BasedOn"), false);
-    const Core::PropertyInfo* setters = schema.Types().FindProperty(
+    const Core::MetadataPropertyDescriptor* setters =
+        schema.Descriptors().FindProperty(
         styleType, Base::StringView("Setters"), false);
-    const Core::PropertyInfo* property = schema.Types().FindProperty(
+    const Core::MetadataPropertyDescriptor* property =
+        schema.Descriptors().FindProperty(
         setterType, Base::StringView("Property"), false);
-    const Core::PropertyInfo* value = schema.Types().FindProperty(
+    const Core::MetadataPropertyDescriptor* value =
+        schema.Descriptors().FindProperty(
         setterType, Base::StringView("Value"), false);
     if (targetType == nullptr || basedOn == nullptr || setters == nullptr ||
         property == nullptr || value == nullptr ||
         basedOn->ValueType() != styleType || setters->ValueType() != setterType ||
-        schema.Types().FindContentMember(styleType) != setters->Id()) {
+        schema.Facets().FindContentMember(styleType) != setters->Id()) {
         return InvalidStyleXaml("XAML Style metadata members are invalid");
     }
     const Core::DependencyProperty* styleDependency = options_.properties->Find(
@@ -491,8 +499,9 @@ Base::Result<void> XamlStyleExtension::SetTargetType(
         extension->options_.typeReferenceType != Core::InvalidTypeId &&
         value.Type() == extension->options_.typeReferenceType) {
         const Core::TypeId type = value.AsUnsignedInteger();
-        const Core::TypeInfo* info = services.schema != nullptr
-            ? services.schema->Types().FindType(type) : nullptr;
+        const Core::MetadataTypeDescriptor* info =
+            services.schema != nullptr
+                ? services.schema->Descriptors().FindType(type) : nullptr;
         if (info == nullptr || HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType)) {
             return InvalidStyleXaml("Style TargetType token is invalid");
         }

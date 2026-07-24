@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Core/Rendering.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Rhi/Rhi.hpp>
 
 namespace Aero::Render {
@@ -15,7 +15,7 @@ public:
         : allocator_(allocator) {}
 
     Base::Result<Rhi::CommandBuffer> Translate(
-        const Core::RenderPlan& plan) const noexcept;
+        const Presentation::RenderPlan& plan) const noexcept;
 
 private:
     Base::IAllocator* allocator_ = nullptr;

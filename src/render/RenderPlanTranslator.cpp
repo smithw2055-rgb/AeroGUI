@@ -3,16 +3,16 @@
 namespace Aero::Render {
 
 Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
-    const Core::RenderPlan& plan) const noexcept {
-    const Base::Span<const Core::RenderCommand> commands = plan.Commands();
-    const Base::Span<const Core::RenderNodeSnapshot> nodes = plan.Nodes();
+    const Presentation::RenderPlan& plan) const noexcept {
+    const Base::Span<const Presentation::RenderCommand> commands = plan.Commands();
+    const Base::Span<const Presentation::RenderNodeSnapshot> nodes = plan.Nodes();
     Rhi::CommandBuffer output(allocator_);
     Base::Result<void> reserved = output.commands_.TryReserve(
         commands.Size() + (nodes.Size() * 2U));
     if (!reserved) return reserved.GetStatus();
 
-    for (const Core::RenderNodeSnapshot& node : nodes) {
-        if (node.id == Core::InvalidRenderNodeId ||
+    for (const Presentation::RenderNodeSnapshot& node : nodes) {
+        if (node.id == Presentation::InvalidRenderNodeId ||
             node.commandOffset > commands.Size() ||
             node.commandCount > commands.Size() - node.commandOffset) {
             return Base::Status::Failure(
@@ -28,7 +28,7 @@ Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
         if (!appended) return appended.GetStatus();
 
         for (std::uint32_t index = 0U; index < node.commandCount; ++index) {
-            const Core::RenderCommand& source =
+            const Presentation::RenderCommand& source =
                 commands[node.commandOffset + index];
             Rhi::RhiCommand translated;
             translated.rect = source.rect;
@@ -38,40 +38,40 @@ Base::Result<Rhi::CommandBuffer> RenderPlanTranslator::Translate(
             translated.nodeId = node.id;
 
             switch (source.kind) {
-            case Core::RenderCommandKind::PushClip:
+            case Presentation::RenderCommandKind::PushClip:
                 translated.kind = Rhi::RhiCommandKind::PushClip;
                 break;
-            case Core::RenderCommandKind::PopClip:
+            case Presentation::RenderCommandKind::PopClip:
                 translated.kind = Rhi::RhiCommandKind::PopClip;
                 break;
-            case Core::RenderCommandKind::PushOpacity:
+            case Presentation::RenderCommandKind::PushOpacity:
                 translated.kind = Rhi::RhiCommandKind::PushOpacity;
                 break;
-            case Core::RenderCommandKind::PopOpacity:
+            case Presentation::RenderCommandKind::PopOpacity:
                 translated.kind = Rhi::RhiCommandKind::PopOpacity;
                 break;
-            case Core::RenderCommandKind::PushTransform:
+            case Presentation::RenderCommandKind::PushTransform:
                 translated.kind = Rhi::RhiCommandKind::PushTransform;
                 break;
-            case Core::RenderCommandKind::PopTransform:
+            case Presentation::RenderCommandKind::PopTransform:
                 translated.kind = Rhi::RhiCommandKind::PopTransform;
                 break;
-            case Core::RenderCommandKind::FillRect:
+            case Presentation::RenderCommandKind::FillRect:
                 translated.kind = Rhi::RhiCommandKind::DrawFilledRect;
                 break;
-            case Core::RenderCommandKind::FillRoundedRect:
+            case Presentation::RenderCommandKind::FillRoundedRect:
                 return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support rounded rectangle commands");
-            case Core::RenderCommandKind::StrokeRect:
+            case Presentation::RenderCommandKind::StrokeRect:
                 translated.kind = Rhi::RhiCommandKind::DrawStrokedRect;
                 break;
-            case Core::RenderCommandKind::DrawImage:
+            case Presentation::RenderCommandKind::DrawImage:
                 return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support image commands");
-            case Core::RenderCommandKind::DrawMesh:
+            case Presentation::RenderCommandKind::DrawMesh:
                 return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support mesh commands");
-            case Core::RenderCommandKind::DrawGlyphRun:
+            case Presentation::RenderCommandKind::DrawGlyphRun:
                 return Base::Status::Failure(Base::ErrorCode::Unsupported,
                     "Legacy RHI does not support glyph-run commands");
             }

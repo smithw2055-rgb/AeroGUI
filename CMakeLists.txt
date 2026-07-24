@@ -72,27 +72,20 @@ target_compile_definitions(AeroBase
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
 add_library(AeroCore ${AERO_LIBRARY_TYPE}
-    src/core/Binding.cpp
-    src/core/Controls.cpp
-    src/core/DependencyProperty.cpp
+    src/core/property/DependencyProperty.cpp
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
-    src/core/EffectiveValueEngine.cpp
-    src/core/Input.cpp
-    src/core/Layout.cpp
-    src/core/MemberAccessor.cpp
-    src/core/Metadata.cpp
-    src/core/MetadataDescriptors.cpp
-    src/core/MetadataBehaviorRegistrationStore.cpp
-    src/core/MetadataDomain.cpp
-    src/core/MetadataValueFacets.cpp
-    src/core/MetadataValueRegistrationStore.cpp
-    src/core/ObjectTree.cpp
-    src/core/Presentation.cpp
-    src/core/Rendering.cpp
-    src/core/Style.cpp
-    src/core/TypeRegistry.cpp
-    src/core/Value.cpp)
+    src/core/property/EffectiveValueEngine.cpp
+    src/core/events/RoutedEventCatalog.cpp
+    src/core/metadata/CoreMetadata.cpp
+    src/core/metadata/MetadataDescriptors.cpp
+    src/core/metadata/MetadataBehaviorRegistrationStore.cpp
+    src/core/metadata/MetadataDomain.cpp
+    src/core/metadata/MetadataValueFacets.cpp
+    src/core/metadata/MetadataValueRegistrationStore.cpp
+    src/core/ObjectServices.cpp
+    src/core/metadata/TypeRegistry.cpp
+    src/core/metadata/Value.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
 
@@ -115,6 +108,51 @@ set_target_properties(AeroCore PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
 aero_apply_compiler_options(AeroCore)
+
+add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
+    src/presentation/Binding.cpp
+    src/presentation/Input.cpp
+    src/presentation/Layout.cpp
+    src/presentation/Metadata.cpp
+    src/presentation/ObjectTree.cpp
+    src/presentation/Rendering.cpp
+    src/presentation/Style.cpp)
+
+add_library(Aero::Presentation ALIAS AeroPresentation)
+
+target_include_directories(AeroPresentation
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroPresentation PUBLIC Aero::Core)
+target_compile_features(AeroPresentation PUBLIC cxx_std_17)
+set_target_properties(AeroPresentation PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroPresentation)
+
+add_library(AeroControls ${AERO_LIBRARY_TYPE}
+    src/controls/Controls.cpp
+    src/controls/Metadata.cpp)
+
+add_library(Aero::Controls ALIAS AeroControls)
+
+target_include_directories(AeroControls
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroControls PUBLIC Aero::Presentation)
+target_compile_features(AeroControls PUBLIC cxx_std_17)
+set_target_properties(AeroControls PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroControls)
 
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
@@ -139,7 +177,7 @@ target_include_directories(AeroMarkup
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(AeroMarkup PUBLIC Aero::Core)
+target_link_libraries(AeroMarkup PUBLIC Aero::Controls)
 target_compile_features(AeroMarkup PUBLIC cxx_std_17)
 set_target_properties(AeroMarkup PROPERTIES
     CXX_STANDARD 17
@@ -180,7 +218,7 @@ target_include_directories(AeroRender
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroRender PUBLIC Aero::Core Aero::Rhi)
+target_link_libraries(AeroRender PUBLIC Aero::Presentation Aero::Rhi)
 target_compile_features(AeroRender PUBLIC cxx_std_17)
 set_target_properties(AeroRender PROPERTIES
     CXX_STANDARD 17
@@ -397,7 +435,7 @@ if(AERO_ENABLE_D3D11_BACKEND)
             $<INSTALL_INTERFACE:include>
         PRIVATE "${_aero_d3d11_shader_directory}")
     target_link_libraries(AeroRhiD3D11
-        PUBLIC Aero::Rhi Aero::Core
+        PUBLIC Aero::Rhi Aero::Presentation
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRhiD3D11 PROPERTIES

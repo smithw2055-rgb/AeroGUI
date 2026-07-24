@@ -1,6 +1,7 @@
 #include <Aero/Markup/XamlActivation.hpp>
 
-#include <Aero/Core/Presentation.hpp>
+#include <Aero/Core/ObjectServices.hpp>
+#include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
@@ -40,11 +41,7 @@ private:
 XamlActivationProviderRegistry::XamlActivationProviderRegistry(
     XamlSchemaContext& schema) noexcept
     : schema_(&schema),
-      providers_(
-          schema.Types(),
-          schema.Runtime() != nullptr
-              ? &schema.Runtime()->Descriptors()
-              : nullptr) {}
+      providers_(schema.Descriptors()) {}
 
 Base::Result<void> XamlActivationProviderRegistry::TryRegister(
     const XamlActivationProviderRegistration& registration) noexcept {
@@ -84,13 +81,13 @@ XamlActivationProviderRegistry::CreateObject(
             "XAML activation context has no presentation services");
     }
 
-    Core::PresentationContextScope presentationScope(
+    Core::ObjectServicesScope presentationScope(
         *activation.dispatcher,
         *activation.dependencyProperties,
         schema_->Runtime());
 
     if (providers_.Find(requestedType) == nullptr) {
-        return schema_->CreateObjectRuntime(requestedType);
+        return schema_->CreateObject(requestedType);
     }
     return providers_.CreateObject(requestedType, activation);
 }
@@ -98,7 +95,7 @@ XamlActivationProviderRegistry::CreateObject(
 Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectActivated(
     Core::TypeId type) const noexcept {
     if (gActiveActivation.providers == nullptr) {
-        return CreateObjectRuntime(type);
+        return CreateObject(type);
     }
     if (gActiveActivation.context == nullptr ||
         &gActiveActivation.providers->Schema() != this) {
@@ -126,6 +123,10 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
             Base::ErrorCode::InvalidState,
             "XAML activation facet registry is not frozen");
     }
+    Core::ObjectServicesScope objectServices(
+        *activation.dispatcher,
+        *activation.dependencyProperties,
+        providers.Schema().Runtime());
     ActiveActivationScope scope(providers, activation);
     return writer.Load(reader);
 }

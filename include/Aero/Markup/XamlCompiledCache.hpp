@@ -3,7 +3,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/MetadataDomain.hpp>
+#include <Aero/Core/Metadata/MetadataDomain.hpp>
 
 #include <cstdint>
 

@@ -40,12 +40,8 @@ bool HasEventFlag(
 XamlSchemaContext::XamlSchemaContext(
     Core::MetadataDomain& domain,
     Core::MetadataRuntime& runtime) noexcept
-    : types_(&domain.Types()),
-      domain_(&domain),
+    : domain_(&domain),
       runtime_(&runtime),
-      memberAccessor_(runtime),
-      scalarTypes_(),
-      textConverters_(),
       memberAdapters_(),
       memberProviders_(),
       typeAdapters_(),
@@ -54,7 +50,7 @@ XamlSchemaContext::XamlSchemaContext(
     AERO_ASSERT(&runtime.Domain() == &domain);
 }
 
-Base::Result<const Core::TypeInfo*> XamlSchemaContext::ResolveTypeRuntime(
+Base::Result<const Core::MetadataTypeDescriptor*> XamlSchemaContext::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
     if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
@@ -64,16 +60,10 @@ Base::Result<const Core::TypeInfo*> XamlSchemaContext::ResolveTypeRuntime(
     const Core::MetadataTypeDescriptor* descriptor =
         runtime_->Descriptors().FindType(xamlNamespace, localName);
     if (descriptor == nullptr) return RuntimeTypeNotFound();
-    const Core::TypeInfo* registrationView = types_->FindType(descriptor->Id());
-    if (registrationView == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InternalError,
-            "Descriptor type has no matching registration view");
-    }
-    return registrationView;
+    return descriptor;
 }
 
-Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMemberRuntime(
+Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveMember(
     Core::TypeId targetType,
     const XamlQualifiedName& name,
     XamlMemberSyntax syntax) const noexcept {
@@ -160,7 +150,6 @@ XamlSchemaContext::ResolvePropertyOrEventRuntime(
         resolved.valueType = property->ValueType();
         resolved.propertyFlags = property->Flags();
         resolved.attached = attached;
-        resolved.propertyDescriptor = property;
         return resolved;
     }
 
@@ -190,14 +179,13 @@ XamlSchemaContext::ResolvePropertyOrEventRuntime(
         resolved.valueType = event->EventArgsType();
         resolved.eventFlags = event->Flags();
         resolved.attached = attached;
-        resolved.eventDescriptor = event;
         return resolved;
     }
 
     return RuntimeMemberNotFound();
 }
 
-Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMemberRuntime(
+Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMember(
     Core::TypeId targetType) const noexcept {
     if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
         return RuntimeSchemaNotReady();
@@ -226,11 +214,10 @@ Base::Result<XamlResolvedMember> XamlSchemaContext::ResolveContentMemberRuntime(
     resolved.propertyFlags = property->Flags();
     resolved.attached = HasPropertyFlag(
         property->Flags(), Core::PropertyFlags::Attached);
-    resolved.propertyDescriptor = property;
     return resolved;
 }
 
-Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectRuntime(
+Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObject(
     Core::TypeId type) const noexcept {
     if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
         return RuntimeSchemaNotReady();
@@ -238,13 +225,7 @@ Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectRuntime(
     return runtime_->CreateObject(type);
 }
 
-Base::Result<XamlValue> XamlSchemaContext::ConvertTextRuntime(
-    Core::TypeId type,
-    Base::StringView text) const noexcept {
-    return ConvertText(type, text);
-}
-
-Base::Result<void> XamlSchemaContext::SetMemberRuntime(
+Base::Result<void> XamlSchemaContext::SetMember(
     Base::Object& object,
     Core::TypeId objectType,
     const XamlResolvedMember& member,
@@ -319,7 +300,7 @@ Base::Result<void> XamlSchemaContext::SetMemberRuntime(
     return provider->set(object, value, *services, provider->context);
 }
 
-XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicyRuntime(
+XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicy(
     const XamlResolvedMember& member) const noexcept {
     if (runtime_ == nullptr || !runtime_->IsFrozen()) return {};
     const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);

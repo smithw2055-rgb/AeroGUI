@@ -2,7 +2,6 @@
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {

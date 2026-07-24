@@ -4,7 +4,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/EffectiveValueEngine.hpp>
+#include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/XamlBinding.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>

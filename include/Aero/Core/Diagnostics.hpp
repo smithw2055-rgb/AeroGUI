@@ -7,7 +7,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/TypeRegistry.hpp>
+#include <Aero/Core/Metadata/TypeRegistry.hpp>
 
 #include <cstdint>
 

@@ -46,11 +46,11 @@ Base::Result<void> ParseArguments(
     Base::StringView arguments,
     Base::StringView& elementName,
     Base::StringView& path,
-    Core::BindingMode& mode,
+    Presentation::BindingMode& mode,
     Core::UpdateSourceTrigger& updateSourceTrigger) noexcept {
     elementName = {};
     path = {};
-    mode = Core::BindingMode::OneWay;
+    mode = Presentation::BindingMode::OneWay;
     updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
 
     std::uint32_t begin = 0U;
@@ -98,13 +98,13 @@ Base::Result<void> ParseArguments(
             path = value;
         } else if (key == ModeKey) {
             if (value == OneTimeMode) {
-                mode = Core::BindingMode::OneTime;
+                mode = Presentation::BindingMode::OneTime;
             } else if (value == OneWayMode) {
-                mode = Core::BindingMode::OneWay;
+                mode = Presentation::BindingMode::OneWay;
             } else if (value == TwoWayMode) {
-                mode = Core::BindingMode::TwoWay;
+                mode = Presentation::BindingMode::TwoWay;
             } else if (value == OneWayToSourceMode) {
-                mode = Core::BindingMode::OneWayToSource;
+                mode = Presentation::BindingMode::OneWayToSource;
             } else {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
@@ -173,7 +173,7 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
 
     Base::StringView elementName;
     Base::StringView path;
-    Core::BindingMode mode = Core::BindingMode::OneWay;
+    Presentation::BindingMode mode = Presentation::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
     Base::Result<void> parsed = ParseArguments(
@@ -237,7 +237,7 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
             "Binding source path or target dependency property was not found");
     }
 
-    Base::Result<Core::BindingHandle> attached =
+    Base::Result<Presentation::BindingHandle> attached =
         extension->options_.bindings->Attach({
             source,
             sourceProperty->Handle(),

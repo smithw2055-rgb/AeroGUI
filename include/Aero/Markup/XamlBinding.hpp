@@ -3,8 +3,8 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Binding.hpp>
-#include <Aero/Core/DependencyProperty.hpp>
+#include <Aero/Presentation/Binding.hpp>
+#include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
@@ -16,7 +16,7 @@ using XamlDependencyObjectCastCallback = Core::DependencyObject* (*)(
     void* context) noexcept;
 
 struct XamlBindingExtensionOptions final {
-    Core::BindingManager* bindings = nullptr;
+    Presentation::BindingManager* bindings = nullptr;
     XamlDependencyObjectCastCallback asDependencyObject = nullptr;
     void* castContext = nullptr;
     Core::DependencyPropertyHandle dataContextProperty;

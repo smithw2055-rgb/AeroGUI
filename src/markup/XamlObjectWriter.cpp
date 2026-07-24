@@ -99,9 +99,9 @@ bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
 }
 
 bool IsValueType(
-    const Core::TypeRegistry& types,
+    const Core::MetadataDescriptorStore& descriptors,
     Core::TypeId type) noexcept {
-    const Core::TypeInfo* info = types.FindType(type);
+    const Core::MetadataTypeDescriptor* info = descriptors.FindType(type);
     return info != nullptr &&
         HasTypeFlag(info->Flags(), Core::TypeFlags::ValueType);
 }
@@ -294,9 +294,10 @@ Base::Result<void> XamlObjectWriter::StartObject(
         return StartNullObject(node, bindingStart);
     }
 
-    Base::Result<const Core::TypeInfo*> typeResult = schema_->ResolveType(
-        node.Name().NamespaceUri(),
-        node.Name().LocalName());
+    Base::Result<const Core::MetadataTypeDescriptor*> typeResult =
+        schema_->ResolveType(
+            node.Name().NamespaceUri(),
+            node.Name().LocalName());
     if (!typeResult) {
         return Failure(
             typeResult.GetStatus(),
@@ -305,7 +306,7 @@ Base::Result<void> XamlObjectWriter::StartObject(
             node.Source());
     }
 
-    const Core::TypeInfo* type = typeResult.Value();
+    const Core::MetadataTypeDescriptor* type = typeResult.Value();
     Base::Result<Base::Ref<Base::Object>> createResult =
         schema_->CreateObjectActivated(type->Id());
     if (!createResult) {
@@ -661,7 +662,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
                 node.Source());
         }
         if (markup == MarkupValueKind::Null) {
-            if (IsValueType(schema_->Types(), frame.member.valueType) &&
+            if (IsValueType(schema_->Descriptors(), frame.member.valueType) &&
                 !acceptsAnyValue) {
                 return Failure(
                     Base::Status::Failure(
@@ -761,7 +762,7 @@ Base::Result<void> XamlObjectWriter::WriteText(
     }
     if (markup == MarkupValueKind::Null) {
         if (IsValueType(
-                schema_->Types(),
+                schema_->Descriptors(),
                 contentResult.Value().valueType)) {
             return Failure(
                 Base::Status::Failure(
@@ -1134,7 +1135,7 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
         const XamlMemberWritePolicy policy =
             schema_->ResolveMemberWritePolicy(parent.member);
         const bool acceptsAnyValue = policy.acceptsAnyValue;
-        if (IsValueType(schema_->Types(), parent.member.valueType) &&
+        if (IsValueType(schema_->Descriptors(), parent.member.valueType) &&
             !acceptsAnyValue) {
             return Failure(
                 Base::Status::Failure(
@@ -1159,7 +1160,7 @@ Base::Result<void> XamlObjectWriter::WriteNullToParent(
     Base::Result<XamlResolvedMember> contentResult =
         schema_->ResolveContentMember(created_[parent.objectIndex].type);
     if (!contentResult ||
-        IsValueType(schema_->Types(), contentResult.Value().valueType)) {
+        IsValueType(schema_->Descriptors(), contentResult.Value().valueType)) {
         return Failure(
             contentResult ? Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
@@ -1751,9 +1752,10 @@ Base::Result<XamlValue> XamlObjectWriter::EvaluateMarkupExtension(
             MessageUnknownMarkupExtension,
             source);
     }
-    Base::Result<const Core::TypeInfo*> typeResult = schema_->ResolveType(
-        namespaceResult.Value(),
-        localName);
+    Base::Result<const Core::MetadataTypeDescriptor*> typeResult =
+        schema_->ResolveType(
+            namespaceResult.Value(),
+            localName);
     if (!typeResult) {
         return Failure(
             typeResult.GetStatus(),

@@ -556,8 +556,8 @@ bool CheckedLong(double value, LONG& output) noexcept {
     return true;
 }
 
-Base::Result<D3D11_RECT> ToD3DRect(Core::Rect rect) noexcept {
-    if (!Core::IsValidLayoutRect(rect)) {
+Base::Result<D3D11_RECT> ToD3DRect(Presentation::Rect rect) noexcept {
+    if (!Presentation::IsValidLayoutRect(rect)) {
         return InvalidArgument("D3D11 rectangle is invalid");
     }
 

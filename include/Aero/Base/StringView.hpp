@@ -44,6 +44,11 @@ public:
         return {offset == 0U ? data_ : data_ + offset, count};
     }
 
+    constexpr StringView Substr(std::uint32_t offset) const noexcept {
+        AERO_ASSERT(offset <= size_);
+        return Substr(offset, size_ - offset);
+    }
+
     int Compare(StringView other) const noexcept {
         const std::uint32_t common = size_ < other.size_ ? size_ : other.size_;
         if (common > 0U) {

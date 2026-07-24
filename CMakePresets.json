@@ -33,6 +33,15 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "release-shared",
+      "displayName": "C++17 Release Shared",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AERO_BUILD_SHARED": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -43,6 +52,10 @@
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "release-shared",
+      "configurePreset": "release-shared"
     }
   ],
   "testPresets": [
@@ -56,6 +69,13 @@
     {
       "name": "release",
       "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-shared",
+      "configurePreset": "release-shared",
       "output": {
         "outputOnFailure": true
       }
