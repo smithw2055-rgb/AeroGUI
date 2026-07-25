@@ -4,6 +4,16 @@
 
 #include <cstdio>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
 
 using namespace Aero::Base;
@@ -61,33 +71,41 @@ bool TestPlatformContract() noexcept {
     CompositionClient client;
 
 #if defined(_WIN32)
-    Result<void> beforeAttach =
-        adapter.SetClient(&client);
-    CHECK(!beforeAttach);
-    CHECK(beforeAttach.GetStatus().code ==
-        ErrorCode::NotInitialized);
-
-    // These lifecycle messages do not dereference the opaque window.
-    CHECK(adapter.Attach(
-        reinterpret_cast<void*>(
-            static_cast<std::uintptr_t>(1U))));
+    // RuntimeHost may bind the TextBox before the native HWND exists.
     CHECK(adapter.SetClient(&client));
+    CHECK(adapter.AttachedWindow() == nullptr);
+
+    HWND window = CreateWindowExW(
+        0U,
+        L"STATIC",
+        L"Aero IME test",
+        WS_OVERLAPPED,
+        0, 0, 64, 64,
+        nullptr, nullptr,
+        GetModuleHandleW(nullptr),
+        nullptr);
+    CHECK(window != nullptr);
+    CHECK(adapter.Attach(window));
+    CHECK(adapter.AttachedWindow() == window);
+
     CHECK(adapter.HandleMessage(
-        0x010DU, 0U, 0).Value());
+        WM_IME_STARTCOMPOSITION,
+        0U, 0).Value());
     CHECK(adapter.IsComposing());
     CHECK(client.beginCount == 1U);
     CHECK(adapter.HandleMessage(
-        0x010EU, 0U, 0).Value());
+        WM_IME_ENDCOMPOSITION,
+        0U, 0).Value());
     CHECK(!adapter.IsComposing());
     CHECK(client.cancelCount == 1U);
     CHECK(adapter.SetClient(nullptr));
     CHECK(adapter.Detach().Value());
     CHECK(!adapter.IsAttached());
+    CHECK(DestroyWindow(window) != FALSE);
 #else
-    Result<void> attached =
-        adapter.Attach(
-            reinterpret_cast<void*>(
-                static_cast<std::uintptr_t>(1U)));
+    Result<void> attached = adapter.Attach(
+        reinterpret_cast<void*>(
+            static_cast<std::uintptr_t>(1U)));
     CHECK(!attached);
     CHECK(attached.GetStatus().code ==
         ErrorCode::Unsupported);
@@ -96,9 +114,8 @@ bool TestPlatformContract() noexcept {
     CHECK(!clientResult);
     CHECK(clientResult.GetStatus().code ==
         ErrorCode::Unsupported);
-    Result<bool> message =
-        adapter.HandleMessage(
-            0x010DU, 0U, 0);
+    Result<bool> message = adapter.HandleMessage(
+        0x010DU, 0U, 0);
     CHECK(!message);
     CHECK(message.GetStatus().code ==
         ErrorCode::Unsupported);
@@ -110,9 +127,7 @@ bool TestPlatformContract() noexcept {
 } // namespace
 
 int main() {
-    if (!TestPlatformContract()) {
-        return 1;
-    }
+    if (!TestPlatformContract()) return 1;
     std::puts("IME tests passed");
     return 0;
 }
