@@ -127,6 +127,41 @@ bool TestDualParentMountAndPresentationReorder() {
     return true;
 }
 
+bool TestOptionalLayoutAndRenderParticipation() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+
+    Result<Ref<StackPanel>> rootMade = MakeRef<StackPanel>();
+    CHECK(rootMade);
+    Ref<StackPanel> root = std::move(rootMade).Value();
+    CHECK(runtime.Mount(Ref<Object>(root), {320.0, 200.0}));
+
+    MountService mounts(*runtime.Tree(), runtime.Layout(), runtime.Renderer());
+    UIElement layoutOnly(BuiltinTypes::UIElement);
+    Visual treeOnly(BuiltinTypes::Visual);
+
+    Result<MountEdgeState> layoutMount = mounts.Attach(*root, layoutOnly);
+    CHECK(layoutMount);
+    CHECK(layoutMount.Value().logicalAttached);
+    CHECK(layoutMount.Value().visualAttached);
+    CHECK(layoutMount.Value().layoutAttached);
+    CHECK(!layoutMount.Value().renderAttached);
+
+    Result<MountEdgeState> treeMount = mounts.Attach(*root, treeOnly);
+    CHECK(treeMount);
+    CHECK(treeMount.Value().logicalAttached);
+    CHECK(treeMount.Value().visualAttached);
+    CHECK(!treeMount.Value().layoutAttached);
+    CHECK(!treeMount.Value().renderAttached);
+
+    CHECK(mounts.Detach(treeMount.Value()));
+    CHECK(mounts.Detach(layoutMount.Value()));
+    CHECK(runtime.EffectiveValues()->DetachObject(treeOnly));
+    CHECK(runtime.EffectiveValues()->DetachObject(layoutOnly));
+    CHECK(runtime.Unmount());
+    return true;
+}
+
 bool TestDetachBeforeDeferredLayoutAndRenderFlush() {
     RuntimeHost runtime;
     CHECK(runtime.Initialize());
@@ -249,6 +284,7 @@ bool TestMountAllocationFailureRollbackMatrix() {
 
 int main() {
     if (!TestDualParentMountAndPresentationReorder()) return 1;
+    if (!TestOptionalLayoutAndRenderParticipation()) return 1;
     if (!TestDetachBeforeDeferredLayoutAndRenderFlush()) return 1;
     if (!TestRenderSubmissionFailureIsAtomic()) return 1;
     if (!TestMountAllocationFailureRollbackMatrix()) return 1;
