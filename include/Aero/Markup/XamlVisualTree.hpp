@@ -35,6 +35,8 @@ public:
         Base::Object& root,
         Core::TypeId rootType,
         Presentation::Size availableSize) noexcept;
+    Base::Result<void> Resize(
+        Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
     Base::Result<void> DiscardStaged() noexcept;
     bool IsMounted() const noexcept { return mounted_; }
