@@ -347,6 +347,7 @@ ItemContainerGenerator::ItemContainerGenerator(
       values_(&values),
       styles_(styles),
       renderer_(renderer),
+      mounts_(tree, &layout, renderer),
       changedHandler_(
           this,
           &ItemContainerGenerator::OnItemsChanged) {}
@@ -546,164 +547,34 @@ ItemContainerGenerator::AttachRecord(
     Record& record,
     std::uint32_t index) noexcept {
     ItemContainer& container = *record.container;
-    auto& content =
-        *static_cast<UIElement*>(record.content.Get());
-    Base::Result<void> logical =
-        tree_->AttachLogical(*owner_, container);
-    if (!logical) return logical.GetStatus();
-    Base::Result<void> visual =
-        tree_->AttachVisual(*host_, container);
-    if (!visual) {
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
-        return visual.GetStatus();
+    auto& content = *static_cast<UIElement*>(record.content.Get());
+
+    Base::Result<MountEdgeState> containerMounted =
+        mounts_.Attach(*owner_, *host_, container);
+    if (!containerMounted) return containerMounted.GetStatus();
+    record.containerMount = std::move(containerMounted).Value();
+
+    Base::Result<MountEdgeState> contentMounted = mounts_.Attach(container, content);
+    if (!contentMounted) {
+        (void)mounts_.Detach(record.containerMount);
+        return contentMounted.GetStatus();
     }
-    Base::Result<void> layout =
-        layout_->Attach(*host_, container);
-    if (!layout) {
-        static_cast<void>(
-            tree_->DetachVisual(*host_, container));
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
-        return layout.GetStatus();
-    }
-    if (renderer_ != nullptr) {
-        Base::Result<void> rendered =
-            renderer_->Attach(*host_, container);
-        if (!rendered) {
-            static_cast<void>(
-                layout_->Detach(*host_, container));
-            static_cast<void>(
-                tree_->DetachVisual(*host_, container));
-            static_cast<void>(
-                tree_->DetachLogical(*owner_, container));
-            return rendered.GetStatus();
-        }
-    }
-    Base::Result<void> contentLogical =
-        tree_->AttachLogical(container, content);
-    if (!contentLogical) {
-        if (renderer_ != nullptr) {
-            static_cast<void>(
-                renderer_->Detach(*host_, container));
-        }
-        static_cast<void>(
-            layout_->Detach(*host_, container));
-        static_cast<void>(
-            tree_->DetachVisual(*host_, container));
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
-        return contentLogical.GetStatus();
-    }
-    Base::Result<void> contentVisual =
-        tree_->AttachVisual(container, content);
-    if (!contentVisual) {
-        static_cast<void>(
-            tree_->DetachLogical(container, content));
-        if (renderer_ != nullptr) {
-            static_cast<void>(
-                renderer_->Detach(*host_, container));
-        }
-        static_cast<void>(
-            layout_->Detach(*host_, container));
-        static_cast<void>(
-            tree_->DetachVisual(*host_, container));
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
-        return contentVisual.GetStatus();
-    }
-    Base::Result<void> contentLayout =
-        layout_->Attach(container, content);
-    if (!contentLayout) {
-        static_cast<void>(
-            tree_->DetachVisual(container, content));
-        static_cast<void>(
-            tree_->DetachLogical(container, content));
-        if (renderer_ != nullptr) {
-            static_cast<void>(
-                renderer_->Detach(*host_, container));
-        }
-        static_cast<void>(
-            layout_->Detach(*host_, container));
-        static_cast<void>(
-            tree_->DetachVisual(*host_, container));
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
-        return contentLayout.GetStatus();
-    }
-    FrameworkElement* contentFramework =
-        content.AsFrameworkElement();
-    if (renderer_ != nullptr &&
-        contentFramework != nullptr) {
-        Base::Result<void> rendered =
-            renderer_->Attach(
-                container, *contentFramework);
-        if (!rendered) {
-            static_cast<void>(
-                layout_->Detach(container, content));
-            static_cast<void>(
-                tree_->DetachVisual(container, content));
-            static_cast<void>(
-                tree_->DetachLogical(container, content));
-            static_cast<void>(
-                renderer_->Detach(*host_, container));
-            static_cast<void>(
-                layout_->Detach(*host_, container));
-            static_cast<void>(
-                tree_->DetachVisual(*host_, container));
-            static_cast<void>(
-                tree_->DetachLogical(*owner_, container));
-            return rendered.GetStatus();
-        }
-    }
-    Base::Result<void> selected =
-        container.SetOwnedContent(
-            record.content, content);
+    record.contentMount = std::move(contentMounted).Value();
+
+    Base::Result<void> selected = container.SetOwnedContent(record.content, content);
     if (!selected) {
-        if (renderer_ != nullptr &&
-            contentFramework != nullptr) {
-            static_cast<void>(
-                renderer_->Detach(
-                    container, *contentFramework));
-        }
-        static_cast<void>(
-            layout_->Detach(container, content));
-        static_cast<void>(
-            tree_->DetachVisual(container, content));
-        static_cast<void>(
-            tree_->DetachLogical(container, content));
-        if (renderer_ != nullptr) {
-            static_cast<void>(
-                renderer_->Detach(*host_, container));
-        }
-        static_cast<void>(
-            layout_->Detach(*host_, container));
-        static_cast<void>(
-            tree_->DetachVisual(*host_, container));
-        static_cast<void>(
-            tree_->DetachLogical(*owner_, container));
+        (void)mounts_.Detach(record.contentMount);
+        (void)mounts_.Detach(record.containerMount);
         return selected.GetStatus();
     }
-    const Style* style =
-        owner_->ItemContainerStyle();
+    const Style* style = owner_->ItemContainerStyle();
     if (style != nullptr && styles_ != nullptr) {
-        Base::Result<void> styled =
-            styles_->Apply(container, *style);
-        if (!styled) {
-            static_cast<void>(
-                DetachRecord(record));
-            return styled.GetStatus();
-        }
+        Base::Result<void> styled = styles_->Apply(container, *style);
+        if (!styled) { (void)DetachRecord(record); return styled.GetStatus(); }
         record.appliedStyle = style;
     }
-    Base::Result<void> prepared =
-        owner_->PrepareContainer(
-            container, record.item, index);
-    if (!prepared) {
-        static_cast<void>(
-            DetachRecord(record));
-        return prepared.GetStatus();
-    }
+    Base::Result<void> prepared = owner_->PrepareContainer(container, record.item, index);
+    if (!prepared) { (void)DetachRecord(record); return prepared.GetStatus(); }
     return {};
 }
 
@@ -714,59 +585,35 @@ ItemContainerGenerator::DetachRecord(
     if (!record.container) return {};
     ItemContainer& container = *record.container;
     Base::Status firstError;
-    const auto capture =
-        [&firstError](const Base::Result<void>& result) noexcept {
-            if (!result && firstError.IsOk()) {
-                firstError = result.GetStatus();
-            }
-        };
+    const auto capture = [&firstError](const Base::Result<void>& result) noexcept {
+        if (!result && firstError.IsOk()) firstError = result.GetStatus();
+    };
     owner_->ClearContainer(container);
-    if (record.appliedStyle != nullptr &&
-        styles_ != nullptr) {
-        capture(styles_->Clear(
-            container,
-            *record.appliedStyle));
+    if (record.appliedStyle != nullptr && styles_ != nullptr) {
+        capture(styles_->Clear(container, *record.appliedStyle));
         record.appliedStyle = nullptr;
     }
     UIElement* content = container.Content();
     if (content != nullptr) {
-        if (renderer_ != nullptr &&
-            content->AsFrameworkElement() != nullptr) {
-            capture(renderer_->Detach(
-                container,
-                *content->AsFrameworkElement()));
-        }
-        capture(layout_->Detach(container, *content));
-        capture(tree_->DetachVisual(container, *content));
-        capture(tree_->DetachLogical(container, *content));
+        capture(mounts_.Detach(record.contentMount));
         capture(container.SetContent(nullptr));
         capture(values_->DetachObject(*content));
     }
-    if (renderer_ != nullptr) {
-        capture(renderer_->Detach(
-            *host_, container));
-    }
-    capture(layout_->Detach(*host_, container));
-    capture(tree_->DetachVisual(*host_, container));
-    capture(tree_->DetachLogical(*owner_, container));
+    capture(mounts_.Detach(record.containerMount));
     if (recycleContainer && firstError.IsOk()) {
-        Base::Result<void> recycled =
-            recycledContainers_.TryPushBack(
-                std::move(record.container));
+        Base::Result<void> recycled = recycledContainers_.TryPushBack(std::move(record.container));
         if (!recycled) {
             capture(values_->DetachObject(container));
-            if (firstError.IsOk()) {
-                firstError = recycled.GetStatus();
-            }
+            if (firstError.IsOk()) firstError = recycled.GetStatus();
         }
     } else {
         capture(values_->DetachObject(container));
     }
     record.item.Reset();
     record.content.Reset();
-    return firstError.IsOk()
-        ? Base::Result<void>()
-        : Base::Result<void>(firstError);
+    record.containerMount = {};
+    record.contentMount = {};
+    return firstError.IsOk() ? Base::Result<void>() : Base::Result<void>(firstError);
 }
 
 Base::Result<void>
@@ -836,24 +683,12 @@ void ItemContainerGenerator::RemoveRecordAt(
 Base::Result<void>
 ItemContainerGenerator::ReorderVisuals() noexcept {
     for (Record& record : records_) {
-        Base::Result<void> layout =
-            layout_->Detach(
-                *host_, *record.container);
-        if (!layout) return layout.GetStatus();
-        Base::Result<void> visual =
-            tree_->DetachVisual(
-                *host_, *record.container);
-        if (!visual) return visual.GetStatus();
+        Base::Result<void> detached = mounts_.DetachPresentation(record.containerMount);
+        if (!detached) return detached.GetStatus();
     }
     for (Record& record : records_) {
-        Base::Result<void> visual =
-            tree_->AttachVisual(
-                *host_, *record.container);
-        if (!visual) return visual.GetStatus();
-        Base::Result<void> layout =
-            layout_->Attach(
-                *host_, *record.container);
-        if (!layout) return layout.GetStatus();
+        Base::Result<void> attached = mounts_.AttachPresentation(record.containerMount, *host_);
+        if (!attached) return attached.GetStatus();
     }
     return {};
 }

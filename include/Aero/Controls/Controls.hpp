@@ -5,6 +5,8 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/TextBlockLayoutService.hpp>
 
+#include <cstddef>
+
 namespace Aero::Controls {
 
 using namespace Aero::Core;
@@ -191,6 +193,25 @@ public:
     UIElement* Content() const noexcept { return content_; }
     const Base::Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
     Base::Result<void> SetContent(UIElement* content) noexcept;
+
+    // Template teardown is a two-step transaction: clear the presenter-owned
+    // reference first, then detach the visual/layout/render edge through
+    // MountService. A nullptr literal selects this overload without weakening
+    // the ordinary UIElement* validation path.
+    Base::Result<void> SetContent(std::nullptr_t) noexcept {
+        Base::Result<void> access = VerifyAccess();
+        if (!access) return access.GetStatus();
+        if (content_ == nullptr) return {};
+        if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content_)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "ContentPresenter content must be its only attached layout child");
+        }
+        content_ = nullptr;
+        ownedContent_.Reset();
+        return InvalidateMeasure();
+    }
+
     Base::Result<void> SetOwnedContent(const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept;
 protected:

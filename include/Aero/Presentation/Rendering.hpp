@@ -401,7 +401,7 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     IRenderBackend* backend_ = nullptr;
     FrameworkElement* root_ = nullptr;
-    Base::Vector<FrameworkElement*> dirty_;
+    Base::Vector<Detail::VisualLease> dirty_;
     RenderPlan currentPlan_;
     DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
@@ -412,6 +412,8 @@ private:
         const FrameworkElement& element) const noexcept;
     Base::Result<void> QueueDirty(
         FrameworkElement& element) noexcept;
+    void RemoveQueued(FrameworkElement& element) noexcept;
+    void MarkCommittedSubtree(FrameworkElement& element) noexcept;
     Base::Result<void> BuildSubtree(
         FrameworkElement& element,
         RenderNodeId parentId,

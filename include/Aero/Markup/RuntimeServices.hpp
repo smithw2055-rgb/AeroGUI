@@ -6,44 +6,55 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Presentation/MountService.hpp>
 
 #include <cstdint>
 
 namespace Aero::Markup {
 
-struct MountEdgeState final {
-    Presentation::VisualHandle child;
-    bool logicalAttached = false;
-    bool visualAttached = false;
-    bool layoutAttached = false;
-    bool renderAttached = false;
-};
+using MountEdgeState = Presentation::MountEdgeState;
 
-// Single transaction path for logical, visual, layout and render attachment.
-// XAML, templates and item generation can share this service instead of
-// duplicating sequencing and rollback rules.
-class AERO_API MountTransactionService final {
+// Compatibility facade for early Slice C callers. It contains no independent
+// attachment logic; every operation delegates to Presentation::MountService.
+class MountTransactionService final {
 public:
     MountTransactionService(
         Presentation::ObjectTree& tree,
         Presentation::LayoutManager& layout,
-        Presentation::RenderManager* renderer = nullptr) noexcept;
+        Presentation::RenderManager* renderer = nullptr) noexcept
+        : service_(tree, &layout, renderer) {}
 
     Base::Result<MountEdgeState> Attach(
         Presentation::Visual& parent,
-        Presentation::Visual& child) noexcept;
+        Presentation::Visual& child) noexcept {
+        return service_.Attach(parent, child);
+    }
+
     Base::Result<void> Detach(
         Presentation::Visual& parent,
         Presentation::Visual& child,
-        MountEdgeState* state = nullptr) noexcept;
+        MountEdgeState* state = nullptr) noexcept {
+        if (state != nullptr) return service_.Detach(*state);
+
+        MountEdgeState current;
+        current.logicalParent = &parent;
+        current.visualParent = &parent;
+        current.child = &child;
+        current.childHandle = child.Handle();
+        current.logicalAttached = child.LogicalParent() == &parent;
+        current.visualAttached = child.VisualParent() == &parent;
+        current.layoutAttached = current.visualAttached &&
+            parent.AsUIElement() != nullptr &&
+            child.AsUIElement() != nullptr;
+        current.renderAttached = current.visualAttached &&
+            service_.Renderer() != nullptr &&
+            parent.AsFrameworkElement() != nullptr &&
+            child.AsFrameworkElement() != nullptr;
+        return service_.Detach(current);
+    }
 
 private:
-    Presentation::ObjectTree* tree_ = nullptr;
-    Presentation::LayoutManager* layout_ = nullptr;
-    Presentation::RenderManager* renderer_ = nullptr;
+    Presentation::MountService service_;
 };
 
 struct RuntimeObjectState final {
@@ -56,8 +67,6 @@ struct RuntimeObjectState final {
     bool renderQueued = false;
 };
 
-// Private-style sidecar storage keyed by generation handles. It permits new
-// runtime state without growing Visual/UIElement/FrameworkElement public ABI.
 class AERO_API RuntimeObjectStateStore final {
 public:
     explicit RuntimeObjectStateStore(
@@ -65,10 +74,28 @@ public:
 
     Base::Result<RuntimeObjectState*> Ensure(
         Presentation::VisualHandle handle) noexcept;
+    Base::Result<RuntimeObjectState*> Ensure(
+        const Presentation::Visual* visual) noexcept {
+        return Ensure(visual != nullptr
+            ? visual->Handle()
+            : Presentation::VisualHandle{});
+    }
     RuntimeObjectState* Find(
         Presentation::VisualHandle handle) noexcept;
+    RuntimeObjectState* Find(
+        const Presentation::Visual* visual) noexcept {
+        return Find(visual != nullptr
+            ? visual->Handle()
+            : Presentation::VisualHandle{});
+    }
     const RuntimeObjectState* Find(
         Presentation::VisualHandle handle) const noexcept;
+    const RuntimeObjectState* Find(
+        const Presentation::Visual* visual) const noexcept {
+        return Find(visual != nullptr
+            ? visual->Handle()
+            : Presentation::VisualHandle{});
+    }
     bool Remove(Presentation::VisualHandle handle) noexcept;
     std::uint32_t Prune(
         const Presentation::ObjectTree& tree) noexcept;
@@ -79,18 +106,12 @@ private:
     Base::Vector<RuntimeObjectState> states_;
 };
 
-// Platform-neutral service bundle. Native clipboard and IME adapters remain in
-// platform targets; controls consume only these contracts.
 struct HostTextServices final {
     Platform::IClipboard* clipboard = nullptr;
     Platform::ITextInputMethodHost* inputMethod = nullptr;
 
-    bool HasClipboard() const noexcept {
-        return clipboard != nullptr;
-    }
-    bool HasInputMethod() const noexcept {
-        return inputMethod != nullptr;
-    }
+    bool HasClipboard() const noexcept { return clipboard != nullptr; }
+    bool HasInputMethod() const noexcept { return inputMethod != nullptr; }
 };
 
 struct TextEditorControllerState final {

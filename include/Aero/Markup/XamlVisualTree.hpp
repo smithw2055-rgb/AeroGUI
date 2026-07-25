@@ -6,6 +6,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -98,16 +99,15 @@ private:
         XamlClearCollectionCallback clearCollection = nullptr;
         XamlConfigureCollectionChildCallback configureCollectionChild = nullptr;
         void* contentContext = nullptr;
-        bool logicalAttached = false;
-        bool visualAttached = false;
-        bool layoutAttached = false;
-        bool renderAttached = false;
+        Presentation::MountEdgeState mount;
     };
 
     Presentation::ObjectTree* tree_ = nullptr;
     Presentation::LayoutManager* layout_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
     Presentation::RenderManager* renderer_ = nullptr;
+    Presentation::MountService mounts_;
+    Presentation::MountRootState rootMount_;
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<XamlVisualTreeTypeRegistration> types_;
     Base::Vector<XamlSingleContentRegistration> singles_;

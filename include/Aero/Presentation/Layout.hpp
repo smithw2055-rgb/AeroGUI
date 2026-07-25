@@ -429,8 +429,8 @@ private:
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<UIElement*> measureQueue_;
-    Base::Vector<UIElement*> arrangeQueue_;
+    Base::Vector<Detail::VisualLease> measureQueue_;
+    Base::Vector<Detail::VisualLease> arrangeQueue_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
@@ -440,6 +440,7 @@ private:
     Base::Result<void> VerifyElement(const UIElement& element) const noexcept;
     Base::Result<void> QueueMeasure(UIElement& element) noexcept;
     Base::Result<void> QueueArrange(UIElement& element) noexcept;
+    void RemoveQueued(UIElement& element) noexcept;
     Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
     Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
     static void LayoutHook(void* context) noexcept;

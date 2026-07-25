@@ -602,23 +602,24 @@ Base::Result<void> RenderManager::VerifyElement(
     return {};
 }
 
-Base::Result<void> RenderManager::SetRoot(FrameworkElement* root) noexcept {
+Base::Result<void> RenderManager::SetRoot(
+    FrameworkElement* root) noexcept {
     if (root == nullptr) {
         Base::Result<void> access = dispatcher_->VerifyAccess();
-        if (!access) {
-            return access;
-        }
+        if (!access) return access.GetStatus();
         if (committing_) {
-            return InvalidState("Render root cannot change during commit");
+            return InvalidState(
+                "Render root cannot change during commit");
         }
         if (root_ != nullptr) {
-            auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
+            auto clear = [&](auto&& self,
+                             FrameworkElement& element) noexcept -> void {
                 for (FrameworkElement* child : element.RenderChildren()) {
                     self(self, *child);
                 }
+                RemoveQueued(element);
                 element.renderAttached_ = false;
                 element.renderManager_ = nullptr;
-                element.renderQueued_ = false;
                 element.renderValid_ = false;
                 element.nodeId_ = InvalidRenderNodeId;
             };
@@ -630,12 +631,8 @@ Base::Result<void> RenderManager::SetRoot(FrameworkElement* root) noexcept {
     }
 
     Base::Result<void> verified = VerifyElement(*root);
-    if (!verified) {
-        return verified;
-    }
-    if (root_ == root) {
-        return {};
-    }
+    if (!verified) return verified.GetStatus();
+    if (root_ == root) return {};
     if (root_ != nullptr || root->renderManager_ != nullptr ||
         root->renderAttached_ || root->VisualParent() != nullptr) {
         return InvalidState("Render root must be detached and unique");
@@ -645,113 +642,185 @@ Base::Result<void> RenderManager::SetRoot(FrameworkElement* root) noexcept {
             Base::ErrorCode::OutOfRange,
             "Render node ID space exhausted");
     }
+
+    Base::Result<Detail::VisualLease> lease =
+        Detail::VisualLease::Acquire(*root);
+    if (!lease) return lease.GetStatus();
+    Base::Result<void> reserved =
+        dirty_.TryReserve(dirty_.Size() + 1U);
+    if (!reserved) return reserved.GetStatus();
+
     root_ = root;
     root->renderManager_ = this;
     root->nodeId_ = nextNodeId_++;
     root->renderValid_ = false;
-    return QueueDirty(*root);
+    Base::Result<void> queued =
+        dirty_.TryPushBack(std::move(lease).Value());
+    AERO_ASSERT(queued);
+    (void)queued;
+    root->renderQueued_ = true;
+    return {};
 }
 
 Base::Result<void> RenderManager::Attach(
     FrameworkElement& parent,
     FrameworkElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
-    if (!verified) {
-        return verified;
-    }
-    if (parent.renderManager_ != this || child.renderManager_ != nullptr ||
-        child.renderAttached_ || child.RenderParent() != &parent) {
-        return InvalidState("Render attachment must match the visual-tree parent");
+    if (!verified) return verified.GetStatus();
+    if (parent.renderManager_ != this ||
+        child.renderManager_ != nullptr || child.renderAttached_ ||
+        child.RenderParent() != &parent) {
+        return InvalidState(
+            "Render attachment must match the visual-tree parent");
     }
     if (nextNodeId_ == InvalidRenderNodeId) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Render node ID space exhausted");
     }
+
+    Base::Result<Detail::VisualLease> childLease =
+        Detail::VisualLease::Acquire(child);
+    if (!childLease) return childLease.GetStatus();
+
+    std::uint32_t required = 1U;
+    for (FrameworkElement* current = &parent; current != nullptr;
+         current = current->renderAttached_
+             ? current->RenderParent() : nullptr) {
+        if (!current->renderQueued_) ++required;
+    }
+    Base::Result<void> reserved =
+        dirty_.TryReserve(dirty_.Size() + required);
+    if (!reserved) return reserved.GetStatus();
+
+    Base::Result<void> invalidated = Invalidate(parent);
+    if (!invalidated) return invalidated.GetStatus();
+
     child.renderAttached_ = true;
     child.renderManager_ = this;
     child.nodeId_ = nextNodeId_++;
     child.renderValid_ = false;
-    Base::Result<void> queued = QueueDirty(child);
-    if (!queued) {
-        child.renderAttached_ = false;
-        child.renderManager_ = nullptr;
-        child.nodeId_ = InvalidRenderNodeId;
-        return queued;
-    }
-    return Invalidate(parent);
+    Base::Result<void> queued = dirty_.TryPushBack(
+        std::move(childLease).Value());
+    AERO_ASSERT(queued);
+    (void)queued;
+    child.renderQueued_ = true;
+    return {};
 }
 
 Base::Result<void> RenderManager::Detach(
     FrameworkElement& parent,
     FrameworkElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (parent.renderManager_ != this || !child.renderAttached_ ||
-        child.RenderParent() != &parent || child.renderManager_ != this) {
-        return NotFound("Render parent-child relationship was not found");
+        child.RenderParent() != &parent ||
+        child.renderManager_ != this) {
+        return NotFound(
+            "Render parent-child relationship was not found");
     }
-    auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
+
+    Base::Result<void> invalidated = Invalidate(parent);
+    if (!invalidated) return invalidated.GetStatus();
+
+    auto clear = [&](auto&& self,
+                     FrameworkElement& element) noexcept -> void {
         for (FrameworkElement* descendant : element.RenderChildren()) {
             self(self, *descendant);
         }
+        RemoveQueued(element);
         element.renderAttached_ = false;
         element.renderManager_ = nullptr;
-        element.renderQueued_ = false;
         element.renderValid_ = false;
         element.nodeId_ = InvalidRenderNodeId;
     };
     clear(clear, child);
-    for (std::uint32_t index = 0U; index < dirty_.Size();) {
-        if (dirty_[index]->renderManager_ != this) {
-            for (std::uint32_t current = index + 1U;
-                 current < dirty_.Size(); ++current) {
-                dirty_[current - 1U] = dirty_[current];
-            }
-            dirty_.PopBack();
-        } else {
-            ++index;
-        }
-    }
-    return Invalidate(parent);
+    return {};
 }
 
 Base::Result<void> RenderManager::QueueDirty(
     FrameworkElement& element) noexcept {
-    if (element.renderQueued_) {
-        return {};
-    }
-    Base::Result<void> appended = dirty_.TryPushBack(&element);
-    if (!appended) {
-        return appended;
-    }
+    if (element.renderQueued_) return {};
+    Base::Result<Detail::VisualLease> lease =
+        Detail::VisualLease::Acquire(element);
+    if (!lease) return lease.GetStatus();
+    Base::Result<void> appended =
+        dirty_.TryPushBack(std::move(lease).Value());
+    if (!appended) return appended.GetStatus();
     element.renderQueued_ = true;
     return {};
+}
+
+void RenderManager::RemoveQueued(FrameworkElement& element) noexcept {
+    for (std::uint32_t index = 0U; index < dirty_.Size();) {
+        if (dirty_[index].Resolve() != &element) {
+            ++index;
+            continue;
+        }
+        for (std::uint32_t next = index + 1U;
+             next < dirty_.Size(); ++next) {
+            dirty_[next - 1U] = std::move(dirty_[next]);
+        }
+        dirty_.PopBack();
+    }
+    element.renderQueued_ = false;
+}
+
+void RenderManager::MarkCommittedSubtree(
+    FrameworkElement& element) noexcept {
+    ++element.renderRevision_;
+    element.renderValid_ = true;
+    element.renderQueued_ = false;
+    for (FrameworkElement* child : element.RenderChildren()) {
+        MarkCommittedSubtree(*child);
+    }
 }
 
 Base::Result<void> RenderManager::Invalidate(
     FrameworkElement& element) noexcept {
     Base::Result<void> verified = VerifyElement(element);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (element.renderManager_ != this) {
-        return InvalidState("FrameworkElement is not attached to this RenderManager");
+        return InvalidState(
+            "FrameworkElement is not attached to this RenderManager");
     }
-    FrameworkElement* current = &element;
-    while (current != nullptr) {
+
+    Base::Vector<FrameworkElement*> path;
+    for (FrameworkElement* current = &element; current != nullptr;
+         current = current->renderAttached_
+             ? current->RenderParent() : nullptr) {
+        Base::Result<void> currentVerified = VerifyElement(*current);
+        if (!currentVerified) return currentVerified.GetStatus();
+        Base::Result<void> appended = path.TryPushBack(current);
+        if (!appended) return appended.GetStatus();
+    }
+
+    Base::Vector<Detail::VisualLease> leases;
+    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (FrameworkElement* current : path) {
+        if (current->renderQueued_) continue;
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(*current);
+        if (!lease) return lease.GetStatus();
+        Base::Result<void> staged =
+            leases.TryPushBack(std::move(lease).Value());
+        if (!staged) return staged.GetStatus();
+    }
+    reserved = dirty_.TryReserve(dirty_.Size() + leases.Size());
+    if (!reserved) return reserved.GetStatus();
+
+    std::uint32_t leaseIndex = 0U;
+    for (FrameworkElement* current : path) {
         current->renderValid_ = false;
-        Base::Result<void> queued = QueueDirty(*current);
-        if (!queued) {
-            return queued;
-        }
-        current = current->renderAttached_ ? current->RenderParent() : nullptr;
+        if (current->renderQueued_) continue;
+        Base::Result<void> queued = dirty_.TryPushBack(
+            std::move(leases[leaseIndex++]));
+        AERO_ASSERT(queued);
+        (void)queued;
+        current->renderQueued_ = true;
     }
     return {};
 }
@@ -782,6 +851,11 @@ Base::Result<void> RenderManager::BuildSubtree(
             Base::ErrorCode::OutOfRange,
             "RenderPlan command count exceeds 32-bit range");
     }
+    if (element.renderRevision_ == UINT64_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Render element revision space exhausted");
+    }
     RenderNodeSnapshot snapshot;
     snapshot.id = element.nodeId_;
     snapshot.parentId = parentId;
@@ -802,9 +876,6 @@ Base::Result<void> RenderManager::BuildSubtree(
         return commandAppend;
     }
 
-    element.renderRevision_ = snapshot.elementRevision;
-    element.renderValid_ = true;
-    element.renderQueued_ = false;
     for (FrameworkElement* child : element.RenderChildren()) {
         Base::Result<void> childResult = BuildSubtree(*child, element.nodeId_, plan);
         if (!childResult) {
@@ -816,22 +887,25 @@ Base::Result<void> RenderManager::BuildSubtree(
 
 Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) {
-        return access.GetStatus();
-    }
+    if (!access) return access.GetStatus();
     if (!phaseHook_.IsValid()) {
-        return InvalidState("RenderManager must be initialized before commit");
+        return InvalidState(
+            "RenderManager must be initialized before commit");
     }
     if (committing_) {
         return InvalidState("Nested render commit is not allowed");
     }
     if (root_ == nullptr) {
+        for (const Detail::VisualLease& lease : dirty_) {
+            Visual* visual = lease.Resolve();
+            FrameworkElement* element = visual != nullptr
+                ? visual->AsFrameworkElement() : nullptr;
+            if (element != nullptr) element->renderQueued_ = false;
+        }
         dirty_.Clear();
         return 0U;
     }
-    if (dirty_.Empty() && currentPlan_.Version() != 0U) {
-        return 0U;
-    }
+    if (dirty_.Empty() && currentPlan_.Version() != 0U) return 0U;
 
     committing_ = true;
     RenderPlan next;
@@ -847,9 +921,11 @@ Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
         committing_ = false;
         return submitted.GetStatus();
     }
+
     const std::uint32_t committedNodes = next.nodes_.Size();
     currentPlan_ = std::move(next);
     commitVersion_ = currentPlan_.Version();
+    MarkCommittedSubtree(*root_);
     dirty_.Clear();
     committing_ = false;
     return committedNodes;

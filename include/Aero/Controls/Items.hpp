@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/Style.hpp>
 
 namespace Aero::Presentation {
@@ -293,6 +294,8 @@ private:
         Base::Ref<Base::Object> item;
         Base::Ref<ItemContainer> container;
         Base::Ref<Base::Object> content;
+        MountEdgeState containerMount;
+        MountEdgeState contentMount;
         const Style* appliedStyle = nullptr;
     };
 
@@ -301,6 +304,7 @@ private:
     EffectiveValueEngine* values_ = nullptr;
     StyleManager* styles_ = nullptr;
     RenderManager* renderer_ = nullptr;
+    MountService mounts_;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
     VirtualizingStackPanel* virtualizingHost_ = nullptr;

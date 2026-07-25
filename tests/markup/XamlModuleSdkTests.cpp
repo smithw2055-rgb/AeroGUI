@@ -10,6 +10,13 @@
 #include <cstdio>
 #include <utility>
 
+#define main AeroPhase1EmbeddedMain
+#include "../presentation/Phase1RuntimeSafetyTests.cpp"
+#undef main
+#ifdef CHECK
+#undef CHECK
+#endif
+
 namespace {
 
 using namespace Aero::Base;
@@ -312,6 +319,7 @@ int main() {
     if (!TestMutationJournalRollbackOrder()) return 1;
     if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;
     if (!TestEventRouteLifetimeSnapshot()) return 1;
+    if (AeroPhase1EmbeddedMain() != 0) return 1;
     if (!RunM1M4ClosureTests()) return 1;
     std::puts("Aero XAML module SDK tests passed");
     return 0;

@@ -313,6 +313,7 @@ add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/Input.cpp
     src/presentation/Layout.cpp
     src/presentation/Metadata.cpp
+    src/presentation/MountService.cpp
     src/presentation/ObjectTree.cpp
     src/presentation/Rendering.cpp
     src/presentation/Style.cpp)
