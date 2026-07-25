@@ -29,3 +29,7 @@ Base::Result<void> Typeface::TrySetWeight(
 }
 
 } // namespace Aero::Text
+
+// Unicode analysis is compiled into the existing AeroText target without
+// changing target topology.
+#include "UnicodeRuntime.cpp"
