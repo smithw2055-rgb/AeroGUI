@@ -10,8 +10,10 @@
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Markup/RuntimeHost.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
+#include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Presentation/Binding.hpp>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
@@ -103,11 +105,36 @@ Result<Ref<Object>> MakeVirtualizedItem(
     return Ref<Object>(std::move(text));
 }
 
+double EventScale(
+    const Platform::WindowEvent& event) noexcept {
+    return std::isfinite(event.dpiScale) && event.dpiScale > 0.0
+        ? event.dpiScale
+        : 1.0;
+}
+
+MouseButton MapButton(
+    Platform::WindowPointerButton button) noexcept {
+    switch (button) {
+    case Platform::WindowPointerButton::Right:
+        return MouseButton::Right;
+    case Platform::WindowPointerButton::Middle:
+        return MouseButton::Middle;
+    case Platform::WindowPointerButton::XButton1:
+        return MouseButton::XButton1;
+    case Platform::WindowPointerButton::XButton2:
+        return MouseButton::XButton2;
+    case Platform::WindowPointerButton::Unknown:
+    case Platform::WindowPointerButton::Left:
+    default:
+        return MouseButton::Left;
+    }
+}
 
 } // namespace
 
 struct GalleryRuntime::Impl final {
     NullRenderBackend nullBackend;
+    Platform::MemoryClipboard clipboard;
     RuntimeHost runtime;
     std::unique_ptr<XamlTheme> theme;
     Ref<Object> root;
@@ -259,11 +286,125 @@ struct GalleryRuntime::Impl final {
         return {};
     }
 
+    void UpdatePlanSnapshot() noexcept {
+        const RenderPlan& plan = runtime.Renderer()->CurrentPlan();
+        snapshot.planHash = plan.StableHash();
+        snapshot.nodeCount = plan.Nodes().Size();
+        snapshot.commandCount = plan.Commands().Size();
+    }
+
     Result<void> RunFrame() noexcept {
         Result<RuntimeFrameResult> frame = runtime.RunFrame();
-        return frame
-            ? Result<void>()
-            : Result<void>(frame.GetStatus());
+        if (!frame) {
+            return frame.GetStatus();
+        }
+        UpdatePlanSnapshot();
+        return {};
+    }
+
+    Result<bool> HandleWindowEvent(
+        const Platform::WindowEvent& event) noexcept {
+        const double scale = EventScale(event);
+        switch (event.type) {
+        case Platform::WindowEventType::CloseRequested:
+        case Platform::WindowEventType::Closed:
+            return false;
+        case Platform::WindowEventType::Exposed:
+            return true;
+        case Platform::WindowEventType::Resized:
+        case Platform::WindowEventType::ScaleChanged: {
+            if (event.width == 0U || event.height == 0U) {
+                return false;
+            }
+            Result<void> resized = runtime.Resize({
+                static_cast<double>(event.width) / scale,
+                static_cast<double>(event.height) / scale});
+            if (!resized) {
+                return resized.GetStatus();
+            }
+            Result<void> frame = RunFrame();
+            return frame
+                ? Result<bool>(true)
+                : Result<bool>(frame.GetStatus());
+        }
+        case Platform::WindowEventType::PointerMove:
+        case Platform::WindowEventType::PointerDown:
+        case Platform::WindowEventType::PointerUp:
+        case Platform::WindowEventType::PointerWheel: {
+            PointerInput input;
+            input.pointerId = 1U;
+            input.position = {
+                event.x / scale,
+                event.y / scale};
+            input.changedButton = MapButton(event.button);
+            input.wheelDeltaX = event.wheelDeltaX / 120.0;
+            input.wheelDeltaY = event.wheelDeltaY / 120.0;
+            switch (event.type) {
+            case Platform::WindowEventType::PointerDown:
+                input.action = PointerAction::Down;
+                break;
+            case Platform::WindowEventType::PointerUp:
+                input.action = PointerAction::Up;
+                break;
+            case Platform::WindowEventType::PointerWheel:
+                input.action = PointerAction::Wheel;
+                break;
+            case Platform::WindowEventType::PointerMove:
+            default:
+                input.action = PointerAction::Move;
+                break;
+            }
+            Result<PointerDispatchResult> dispatched =
+                runtime.DispatchPointer(input);
+            if (!dispatched) {
+                return dispatched.GetStatus();
+            }
+            Result<void> frame = RunFrame();
+            return frame
+                ? Result<bool>(true)
+                : Result<bool>(frame.GetStatus());
+        }
+        case Platform::WindowEventType::KeyDown:
+        case Platform::WindowEventType::KeyUp: {
+            if (event.key == 0U) {
+                return false;
+            }
+            KeyboardInput input;
+            input.action =
+                event.type == Platform::WindowEventType::KeyDown
+                ? KeyboardAction::Down
+                : KeyboardAction::Up;
+            input.key = event.key;
+            input.modifiers = event.modifiers;
+            input.isRepeat = event.repeat;
+            Result<KeyboardDispatchResult> dispatched =
+                runtime.DispatchKeyboard(input);
+            if (!dispatched) {
+                return dispatched.GetStatus();
+            }
+            Result<void> frame = RunFrame();
+            return frame
+                ? Result<bool>(true)
+                : Result<bool>(frame.GetStatus());
+        }
+        case Platform::WindowEventType::TextInput: {
+            if (event.textSize == 0U) {
+                return false;
+            }
+            Result<TextInputDispatchResult> dispatched =
+                runtime.DispatchText({event.Text()});
+            if (!dispatched) {
+                return dispatched.GetStatus();
+            }
+            Result<void> frame = RunFrame();
+            return frame
+                ? Result<bool>(true)
+                : Result<bool>(frame.GetStatus());
+        }
+        case Platform::WindowEventType::Invalid:
+        default:
+            return false;
+        }
     }
 
     void Cleanup() noexcept {
@@ -315,6 +456,7 @@ Result<void> GalleryRuntime::Initialize(
         MakeStatusBadgeModuleManifest());
     RuntimeHostOptions options;
     options.renderBackend = &state->nullBackend;
+    options.clipboard = &state->clipboard;
     if (status) status = state->runtime.Initialize(options);
     if (!status) return status.GetStatus();
 
@@ -334,10 +476,6 @@ Result<void> GalleryRuntime::Initialize(
     if (status) status = state->RunFrame();
     if (!status) return status.GetStatus();
 
-    const RenderPlan& plan = state->runtime.Renderer()->CurrentPlan();
-    state->snapshot.planHash = plan.StableHash();
-    state->snapshot.nodeCount = plan.Nodes().Size();
-    state->snapshot.commandCount = plan.Commands().Size();
     state->snapshot.namedObjectCount =
         state->Writer().DocumentNameScope().Size();
     state->snapshot.itemCount = state->items.Count();
@@ -370,6 +508,16 @@ Result<void> GalleryRuntime::Initialize(
 
     impl_ = std::move(state);
     return {};
+}
+
+Result<bool> GalleryRuntime::HandleWindowEvent(
+    const Platform::WindowEvent& event) noexcept {
+    if (!impl_) {
+        return Status::Failure(
+            ErrorCode::NotInitialized,
+            "ControlGallery runtime is not initialized");
+    }
+    return impl_->HandleWindowEvent(event);
 }
 
 void GalleryRuntime::Shutdown() noexcept {

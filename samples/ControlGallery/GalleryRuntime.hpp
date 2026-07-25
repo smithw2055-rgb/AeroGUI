@@ -4,6 +4,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Platform/Window.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <cstdint>
@@ -45,6 +46,8 @@ public:
         Base::StringView assetDirectory,
         GalleryLoadMode loadMode,
         GalleryTheme theme) noexcept;
+    Base::Result<bool> HandleWindowEvent(
+        const Platform::WindowEvent& event) noexcept;
     void Shutdown() noexcept;
 
     const GallerySnapshot& Snapshot() const noexcept;
@@ -56,7 +59,7 @@ private:
 };
 
 Base::Result<void> RunNativeGallery(
-    const Presentation::RenderPlan& plan,
+    GalleryRuntime& runtime,
     Base::StringView backend,
     bool simulateContextLoss,
     bool interactive) noexcept;

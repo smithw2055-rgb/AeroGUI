@@ -334,6 +334,7 @@ bool TestEventRouteLifetimeSnapshot() {
 
 } // namespace
 
+#include "RuntimeWindowTests.inc"
 #include "M1M4ClosureTests.inc"
 
 int main() {
@@ -341,6 +342,7 @@ int main() {
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
     if (!TestRuntimeHostHighLevelMarkupApi()) return 1;
+    if (!RunRuntimeWindowTests()) return 1;
     if (!TestMutationJournalRollbackOrder()) return 1;
     if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;
     if (!TestEventRouteLifetimeSnapshot()) return 1;

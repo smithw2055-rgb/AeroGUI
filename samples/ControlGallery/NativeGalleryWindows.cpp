@@ -1,215 +1,195 @@
 #include "GalleryRuntime.hpp"
 
+#include <Aero/Platform/Win32Window.hpp>
 #include <Aero/Rhi/D3D11Backend.hpp>
 #include <Aero/Rhi/OpenGL33Backend.hpp>
 #include <Aero/Rhi/WglSurface.hpp>
 #include <Aero/Render/D3D11RendererBackend.hpp>
 #include <Aero/Render/OpenGL33RendererBackend.hpp>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-
 namespace Aero::Samples::ControlGallery {
 namespace {
 
 using namespace Base;
+using namespace Platform;
 using namespace Rhi;
 using namespace Render;
 
-class GalleryWindow final {
-public:
-    ~GalleryWindow() noexcept {
-        if (window_ != nullptr &&
-            IsWindow(window_) != FALSE) {
-            static_cast<void>(
-                DestroyWindow(window_));
-        }
-        if (atom_ != 0U &&
-            instance_ != nullptr) {
-            static_cast<void>(
-                UnregisterClassW(
-                    ClassName, instance_));
-        }
-    }
+constexpr std::uint32_t GalleryWidth = 900U;
+constexpr std::uint32_t GalleryHeight = 640U;
 
-    Result<void> Initialize(
-        bool visible) noexcept {
-        instance_ = GetModuleHandleW(nullptr);
-        if (instance_ == nullptr) {
-            return Failure(
-                "ControlGallery cannot resolve "
-                "the Win32 module");
-        }
-        WNDCLASSEXW windowClass{};
-        windowClass.cbSize =
-            sizeof(windowClass);
-        windowClass.style = CS_OWNDC;
-        windowClass.lpfnWndProc =
-            &GalleryWindow::WindowProcedure;
-        windowClass.hInstance = instance_;
-        windowClass.hCursor =
-            LoadCursorW(
-                nullptr,
-                MAKEINTRESOURCEW(32512));
-        windowClass.lpszClassName =
-            ClassName;
-        atom_ = RegisterClassExW(
-            &windowClass);
-        if (atom_ == 0U) {
-            return Failure(
-                "ControlGallery cannot register "
-                "its Win32 window");
-        }
-        RECT bounds{
-            0, 0,
-            static_cast<LONG>(Width),
-            static_cast<LONG>(Height)};
-        static_cast<void>(AdjustWindowRect(
-            &bounds,
-            WS_OVERLAPPEDWINDOW,
-            FALSE));
-        window_ = CreateWindowExW(
-            0U,
-            ClassName,
-            L"AeroGUI ControlGallery",
-            WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            bounds.right - bounds.left,
-            bounds.bottom - bounds.top,
-            nullptr,
-            nullptr,
-            instance_,
-            nullptr);
-        if (window_ == nullptr) {
-            return Failure(
-                "ControlGallery cannot create "
-                "its Win32 window");
-        }
-        if (visible) {
-            ShowWindow(window_, SW_SHOW);
-            UpdateWindow(window_);
-        }
-        return {};
-    }
+WindowDescriptor MakeWindowDescriptor(
+    bool visible) noexcept {
+    WindowDescriptor descriptor;
+    descriptor.title = "AeroGUI ControlGallery";
+    descriptor.width = GalleryWidth;
+    descriptor.height = GalleryHeight;
+    descriptor.visible = visible;
+    descriptor.resizable = true;
+    return descriptor;
+}
 
-    void RunMessageLoop() noexcept {
-        MSG message{};
-        while (GetMessageW(
-                   &message,
-                   nullptr,
-                   0U,
-                   0U) > 0) {
-            TranslateMessage(&message);
-            DispatchMessageW(&message);
-        }
-        window_ = nullptr;
-    }
-
-    HWND Handle() const noexcept {
-        return window_;
-    }
-
-    static constexpr std::uint32_t Width =
-        900U;
-    static constexpr std::uint32_t Height =
-        640U;
-
-private:
-    static constexpr wchar_t ClassName[] =
-        L"AeroControlGalleryWindow";
-
-    static Status Failure(
-        const char* message) noexcept {
-        return Status::Failure(
-            ErrorCode::InternalError,
-            message);
-    }
-
-    static LRESULT CALLBACK WindowProcedure(
-        HWND window,
-        UINT message,
-        WPARAM word,
-        LPARAM value) noexcept {
-        if (message == WM_DESTROY) {
-            PostQuitMessage(0);
-            return 0;
-        }
-        return DefWindowProcW(
-            window, message, word, value);
-    }
-
-    HINSTANCE instance_ = nullptr;
-    ATOM atom_ = 0U;
-    HWND window_ = nullptr;
-};
-
-NativeSurfaceDescriptor
-MakeD3D11Descriptor(
+NativeSurfaceDescriptor MakeD3D11Descriptor(
     D3D11GraphicsBackend& backend,
-    HWND window) noexcept {
+    const Win32Window& window) noexcept {
     NativeSurfaceDescriptor descriptor;
-    descriptor.kind =
-        SurfaceKind::D3D11Window;
-    descriptor.ownership =
-        SurfaceOwnership::Owned;
-    descriptor.presentMode =
-        PresentMode::Immediate;
-    descriptor.width =
-        GalleryWindow::Width;
-    descriptor.height =
-        GalleryWindow::Height;
-    descriptor.colorFormat =
-        GraphicsTextureFormat::Bgra8Unorm;
+    descriptor.kind = SurfaceKind::D3D11Window;
+    descriptor.ownership = SurfaceOwnership::Owned;
+    descriptor.presentMode = PresentMode::Immediate;
+    descriptor.width = window.ClientWidth();
+    descriptor.height = window.ClientHeight();
+    descriptor.colorFormat = GraphicsTextureFormat::Bgra8Unorm;
     descriptor.depthStencilFormat =
-        GraphicsTextureFormat::
-            Depth24Stencil8;
+        GraphicsTextureFormat::Depth24Stencil8;
     descriptor.sampleCount = 1U;
-    descriptor.stableId =
-        UINT64_C(0x43474433443131);
-    descriptor.d3d11.window =
-        reinterpret_cast<std::uintptr_t>(
-            window);
-    descriptor.d3d11.device =
-        backend.NativeDevice();
+    descriptor.stableId = UINT64_C(0x43474433443131);
+    descriptor.d3d11.window = window.NativeHandle().window;
+    descriptor.d3d11.device = backend.NativeDevice();
     descriptor.d3d11.immediateContext =
         backend.NativeImmediateContext();
     return descriptor;
 }
 
-NativeSurfaceDescriptor
-MakeWglDescriptor(HWND window) noexcept {
+NativeSurfaceDescriptor MakeWglDescriptor(
+    const Win32Window& window) noexcept {
     NativeSurfaceDescriptor descriptor;
-    descriptor.kind =
-        SurfaceKind::WglWindow;
-    descriptor.ownership =
-        SurfaceOwnership::Owned;
-    descriptor.presentMode =
-        PresentMode::Immediate;
-    descriptor.width =
-        GalleryWindow::Width;
-    descriptor.height =
-        GalleryWindow::Height;
-    descriptor.colorFormat =
-        GraphicsTextureFormat::Bgra8Unorm;
-    descriptor.stableId =
-        UINT64_C(0x434757474C3333);
-    descriptor.wgl.window =
-        reinterpret_cast<std::uintptr_t>(
-            window);
+    descriptor.kind = SurfaceKind::WglWindow;
+    descriptor.ownership = SurfaceOwnership::Owned;
+    descriptor.presentMode = PresentMode::Immediate;
+    descriptor.width = window.ClientWidth();
+    descriptor.height = window.ClientHeight();
+    descriptor.colorFormat = GraphicsTextureFormat::Bgra8Unorm;
+    descriptor.depthStencilFormat =
+        GraphicsTextureFormat::Depth24Stencil8;
+    descriptor.sampleCount = 1U;
+    descriptor.stableId = UINT64_C(0x434757474C3333);
+    descriptor.wgl.window = window.NativeHandle().window;
     return descriptor;
 }
 
-Result<void> SubmitOpenGl(
+bool RequestsClose(
+    WindowEventType type) noexcept {
+    return type == WindowEventType::CloseRequested ||
+        type == WindowEventType::Closed;
+}
+
+Result<void> SubmitD3D11Frame(
+    D3D11RenderPlanBackend& renderer,
+    D3D11GraphicsBackend& backend,
+    const GalleryRuntime& runtime) noexcept {
+    Result<void> submitted = renderer.Submit(
+        runtime.Plan());
+    if (!submitted) {
+        return submitted.GetStatus();
+    }
+    return backend.WaitForFence(
+        renderer.LastSubmittedFence());
+}
+
+Result<void> RunD3D11WindowLoop(
+    Win32Window& window,
+    GalleryRuntime& runtime,
+    D3D11SurfacePresenter& presenter,
+    D3D11RenderPlanBackend& renderer,
+    D3D11GraphicsBackend& backend) noexcept {
+    while (window.IsOpen()) {
+        WindowEvent event;
+        Result<bool> received = window.WaitEvent(event);
+        if (!received) {
+            return received.GetStatus();
+        }
+        if (!received.Value() || RequestsClose(event.type)) {
+            break;
+        }
+
+        Result<bool> runtimeFrame =
+            runtime.HandleWindowEvent(event);
+        if (!runtimeFrame) {
+            return runtimeFrame.GetStatus();
+        }
+        if (event.type == WindowEventType::Resized ||
+            event.type == WindowEventType::ScaleChanged) {
+            if (event.width == 0U || event.height == 0U) {
+                continue;
+            }
+            Result<void> resized = presenter.Resize(
+                event.width, event.height);
+            if (!resized) {
+                return resized.GetStatus();
+            }
+        }
+        if (runtimeFrame.Value()) {
+            Result<void> rendered = SubmitD3D11Frame(
+                renderer, backend, runtime);
+            if (!rendered) {
+                return rendered.GetStatus();
+            }
+        }
+    }
+    return {};
+}
+
+Result<void> SubmitOpenGlFrame(
+    OpenGL33RenderPlanBackend& renderer,
+    OpenGL33GraphicsBackend& backend,
+    const GalleryRuntime& runtime) noexcept {
+    Result<void> submitted = renderer.Submit(
+        runtime.Plan());
+    if (!submitted) {
+        return submitted.GetStatus();
+    }
+    return backend.WaitForFence(
+        renderer.LastSubmittedFence());
+}
+
+Result<void> RunOpenGlWindowLoop(
+    Win32Window& window,
+    GalleryRuntime& runtime,
+    SurfaceSession& surface,
+    OpenGL33RenderPlanBackend& renderer,
+    OpenGL33GraphicsBackend& backend) noexcept {
+    while (window.IsOpen()) {
+        WindowEvent event;
+        Result<bool> received = window.WaitEvent(event);
+        if (!received) {
+            return received.GetStatus();
+        }
+        if (!received.Value() || RequestsClose(event.type)) {
+            break;
+        }
+
+        Result<bool> runtimeFrame =
+            runtime.HandleWindowEvent(event);
+        if (!runtimeFrame) {
+            return runtimeFrame.GetStatus();
+        }
+        if (event.type == WindowEventType::Resized ||
+            event.type == WindowEventType::ScaleChanged) {
+            if (event.width == 0U || event.height == 0U) {
+                continue;
+            }
+            Result<void> resized = surface.Resize(
+                event.width, event.height);
+            if (!resized) {
+                return resized.GetStatus();
+            }
+        }
+        if (runtimeFrame.Value()) {
+            Result<void> rendered = SubmitOpenGlFrame(
+                renderer, backend, runtime);
+            if (!rendered) {
+                return rendered.GetStatus();
+            }
+        }
+    }
+    return {};
+}
+
+Result<void> RunOpenGlSession(
     SurfaceSession& surface,
     WglSurfaceBackend& native,
-    const Presentation::RenderPlan&
-        plan) noexcept {
+    GalleryRuntime& runtime,
+    Win32Window* interactiveWindow) noexcept {
     Result<GlFunctionTable> functions =
         native.LoadFunctions();
     if (!functions) {
@@ -220,44 +200,41 @@ Result<void> SubmitOpenGl(
     if (!contract) {
         return contract.GetStatus();
     }
+
     OpenGL33GraphicsBackend backend(
-        functions.Value(),
-        contract.Value());
-    Result<void> initialized =
-        backend.Initialize();
-    if (!initialized) {
-        return initialized.GetStatus();
+        functions.Value(), contract.Value());
+    Result<void> result = backend.Initialize();
+    if (!result) {
+        return result.GetStatus();
     }
-    Result<void> result;
     {
         RhiDevice device(backend);
         result = device.Initialize();
         if (result) {
-            OpenGL33RenderPlanBackend
-                renderer(
-                    device,
-                    backend,
-                    surface,
-                    contract.Value().
-                        generation);
+            OpenGL33RenderPlanBackend renderer(
+                device,
+                backend,
+                surface,
+                contract.Value().generation);
             result = renderer.Initialize();
             if (result) {
-                result = renderer.Submit(
-                    plan);
+                result = SubmitOpenGlFrame(
+                    renderer, backend, runtime);
             }
-            if (result) {
-                result = backend.WaitForFence(
-                    renderer.
-                        LastSubmittedFence());
+            if (result && interactiveWindow != nullptr) {
+                result = RunOpenGlWindowLoop(
+                    *interactiveWindow,
+                    runtime,
+                    surface,
+                    renderer,
+                    backend);
             }
             renderer.Shutdown();
             if (result) {
-                Result<std::uint32_t>
-                    collected =
-                        device.CollectGarbage();
+                Result<std::uint32_t> collected =
+                    device.CollectGarbage();
                 if (!collected) {
-                    result =
-                        collected.GetStatus();
+                    result = collected.GetStatus();
                 }
             }
         }
@@ -268,20 +245,19 @@ Result<void> SubmitOpenGl(
 
 } // namespace
 
-Base::Result<void>
-RunControlGalleryD3D11(
-    const Presentation::RenderPlan& plan,
+Base::Result<void> RunControlGalleryD3D11(
+    GalleryRuntime& runtime,
     bool simulateContextLoss,
     bool interactive) noexcept {
-    GalleryWindow window;
-    Base::Result<void> status =
-        window.Initialize(interactive);
+    Win32Window window;
+    Result<void> status = window.Create(
+        MakeWindowDescriptor(interactive));
     if (!status) {
         return status.GetStatus();
     }
+
     D3D11BackendOptions options;
-    options.deviceMode =
-        interactive
+    options.deviceMode = interactive
         ? D3D11DeviceMode::Hardware
         : D3D11DeviceMode::Warp;
     options.allowWarpFallback = true;
@@ -297,14 +273,11 @@ RunControlGalleryD3D11(
             backend.Shutdown();
             return status.GetStatus();
         }
-        D3D11SwapChainSurface native(
-            backend);
+        D3D11SwapChainSurface native(backend);
         SurfaceSession surface(native);
         NativeSurfaceDescriptor descriptor =
-            MakeD3D11Descriptor(
-                backend, window.Handle());
-        status = surface.Initialize(
-            descriptor);
+            MakeD3D11Descriptor(backend, window);
+        status = surface.Initialize(descriptor);
         if (!status) {
             backend.Shutdown();
             return status.GetStatus();
@@ -318,44 +291,34 @@ RunControlGalleryD3D11(
             status = renderer.Initialize();
         }
         if (status) {
-            status = renderer.Submit(plan);
+            status = SubmitD3D11Frame(
+                renderer, backend, runtime);
         }
-        if (status) {
-            status = backend.WaitForFence(
-                renderer.LastSubmittedFence());
-        }
-        if (status &&
-            simulateContextLoss) {
+        if (status && simulateContextLoss) {
             renderer.Shutdown();
             presenter.Shutdown();
-            status =
-                surface.NotifyContextLost();
+            status = surface.NotifyContextLost();
             if (status) {
-                status =
-                    surface.Restore(
-                        descriptor);
+                status = surface.Restore(descriptor);
             }
             if (status) {
-                status =
-                    presenter.Initialize();
+                status = presenter.Initialize();
             }
             if (status) {
-                status =
-                    renderer.Initialize();
+                status = renderer.Initialize();
             }
             if (status) {
-                status =
-                    renderer.Submit(plan);
-            }
-            if (status) {
-                status =
-                    backend.WaitForFence(
-                        renderer.
-                            LastSubmittedFence());
+                status = SubmitD3D11Frame(
+                    renderer, backend, runtime);
             }
         }
         if (status && interactive) {
-            window.RunMessageLoop();
+            status = RunD3D11WindowLoop(
+                window,
+                runtime,
+                presenter,
+                renderer,
+                backend);
         }
         renderer.Shutdown();
         presenter.Shutdown();
@@ -365,39 +328,48 @@ RunControlGalleryD3D11(
     return status;
 }
 
-Base::Result<void>
-RunControlGalleryWgl(
-    const Presentation::RenderPlan& plan,
+Base::Result<void> RunControlGalleryWgl(
+    GalleryRuntime& runtime,
     bool simulateContextLoss,
     bool interactive) noexcept {
-    GalleryWindow window;
-    Base::Result<void> status =
-        window.Initialize(interactive);
+    Win32Window window;
+    Result<void> status = window.Create(
+        MakeWindowDescriptor(interactive));
     if (!status) {
         return status.GetStatus();
     }
+
     WglSurfaceBackend native;
     SurfaceSession surface(native);
     NativeSurfaceDescriptor descriptor =
-        MakeWglDescriptor(window.Handle());
+        MakeWglDescriptor(window);
     status = surface.Initialize(descriptor);
-    if (status) {
-        status = SubmitOpenGl(
-            surface, native, plan);
+    if (!status) {
+        return status.GetStatus();
     }
-    if (status && simulateContextLoss) {
-        status = surface.NotifyContextLost();
+
+    if (simulateContextLoss) {
+        status = RunOpenGlSession(
+            surface, native, runtime, nullptr);
         if (status) {
-            status = surface.Restore(
-                descriptor);
+            status = surface.NotifyContextLost();
         }
         if (status) {
-            status = SubmitOpenGl(
-                surface, native, plan);
+            status = surface.Restore(descriptor);
         }
-    }
-    if (status && interactive) {
-        window.RunMessageLoop();
+        if (status) {
+            status = RunOpenGlSession(
+                surface,
+                native,
+                runtime,
+                interactive ? &window : nullptr);
+        }
+    } else {
+        status = RunOpenGlSession(
+            surface,
+            native,
+            runtime,
+            interactive ? &window : nullptr);
     }
     surface.Shutdown();
     return status;
