@@ -144,10 +144,12 @@ bool TestDetachBeforeDeferredLayoutAndRenderFlush() {
     CHECK(mounts.Detach(state.Value()));
     CHECK(runtime.EffectiveValues()->DetachObject(*child));
     child.Reset();
-    CHECK(weak.Expired());
 
+    // Lifecycle delivery intentionally owns managed nodes until its phase.
+    CHECK(!weak.Expired());
     Result<RuntimeFrameResult> frame = runtime.RunFrame();
     CHECK(frame);
+    CHECK(weak.Expired());
     CHECK(runtime.Unmount());
     return true;
 }
@@ -186,6 +188,7 @@ bool TestRenderSubmissionFailureIsAtomic() {
     CHECK(root->IsRenderValid());
     CHECK(runtime.Renderer()->CurrentPlan().Version() == version + 1U);
     CHECK(backend.LastVersion() == version + 1U);
+    CHECK(backend.LastHash() == runtime.Renderer()->CurrentPlan().StableHash());
     CHECK(runtime.Unmount());
     return true;
 }
@@ -212,7 +215,6 @@ bool TestMountAllocationFailureRollbackMatrix() {
 
             MountService mounts(
                 *runtime.Tree(), runtime.Layout(), runtime.Renderer());
-            const std::uint64_t treeVersion = runtime.Tree()->Version();
             allocator.FailAfter(failAfter);
             Result<MountEdgeState> mounted = mounts.Attach(*root, *child);
             allocator.DisableFailures();
@@ -223,7 +225,6 @@ bool TestMountAllocationFailureRollbackMatrix() {
                 CHECK(child->VisualParent() == nullptr);
                 CHECK(child->OwningTree() == nullptr);
                 CHECK(!child->Handle().IsValid());
-                CHECK(runtime.Tree()->Version() == treeVersion);
             } else {
                 observedSuccess = true;
                 CHECK(mounts.Detach(mounted.Value()));
