@@ -6,45 +6,17 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Presentation/MountService.hpp>
 
 #include <cstdint>
 
 namespace Aero::Markup {
 
-struct MountEdgeState final {
-    Presentation::VisualHandle child;
-    bool logicalAttached = false;
-    bool visualAttached = false;
-    bool layoutAttached = false;
-    bool renderAttached = false;
-};
-
-// Single transaction path for logical, visual, layout and render attachment.
-// XAML, templates and item generation can share this service instead of
-// duplicating sequencing and rollback rules.
-class AERO_API MountTransactionService final {
-public:
-    MountTransactionService(
-        Presentation::ObjectTree& tree,
-        Presentation::LayoutManager& layout,
-        Presentation::RenderManager* renderer = nullptr) noexcept;
-
-    Base::Result<MountEdgeState> Attach(
-        Presentation::Visual& parent,
-        Presentation::Visual& child) noexcept;
-    Base::Result<void> Detach(
-        Presentation::Visual& parent,
-        Presentation::Visual& child,
-        MountEdgeState* state = nullptr) noexcept;
-
-private:
-    Presentation::ObjectTree* tree_ = nullptr;
-    Presentation::LayoutManager* layout_ = nullptr;
-    Presentation::RenderManager* renderer_ = nullptr;
-};
+// Source-compatible names retained for applications that adopted Slice C
+// before MountService moved to Presentation. All mounting now uses the single
+// Presentation implementation shared by XAML, templates and item generation.
+using MountEdgeState = Presentation::MountEdgeState;
+using MountTransactionService = Presentation::MountService;
 
 struct RuntimeObjectState final {
     Presentation::VisualHandle handle;
@@ -56,8 +28,6 @@ struct RuntimeObjectState final {
     bool renderQueued = false;
 };
 
-// Private-style sidecar storage keyed by generation handles. It permits new
-// runtime state without growing Visual/UIElement/FrameworkElement public ABI.
 class AERO_API RuntimeObjectStateStore final {
 public:
     explicit RuntimeObjectStateStore(
@@ -79,18 +49,12 @@ private:
     Base::Vector<RuntimeObjectState> states_;
 };
 
-// Platform-neutral service bundle. Native clipboard and IME adapters remain in
-// platform targets; controls consume only these contracts.
 struct HostTextServices final {
     Platform::IClipboard* clipboard = nullptr;
     Platform::ITextInputMethodHost* inputMethod = nullptr;
 
-    bool HasClipboard() const noexcept {
-        return clipboard != nullptr;
-    }
-    bool HasInputMethod() const noexcept {
-        return inputMethod != nullptr;
-    }
+    bool HasClipboard() const noexcept { return clipboard != nullptr; }
+    bool HasInputMethod() const noexcept { return inputMethod != nullptr; }
 };
 
 struct TextEditorControllerState final {
