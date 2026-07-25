@@ -1,0 +1,198 @@
+#pragma once
+
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Config.hpp>
+#include <Aero/Base/Object.hpp>
+#include <Aero/Base/Ref.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Markup/XamlModuleSdk.hpp>
+#include <Aero/Presentation/Input.hpp>
+#include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Rendering.hpp>
+
+#include <cstdint>
+
+namespace Aero::Core {
+class EffectiveValueEngine;
+class MetadataDomain;
+class MetadataRuntime;
+}
+
+namespace Aero::Controls {
+class ControlInteractionManager;
+class TemplateManager;
+class TextBoxInteractionManager;
+class VisualStateManager;
+}
+
+namespace Aero::Platform {
+class IClipboard;
+class ITextInputMethodHost;
+}
+
+namespace Aero::Presentation {
+class BindingManager;
+class CommandManager;
+class FocusManager;
+class KeyboardInputManager;
+class ObjectTree;
+class PointerInputManager;
+class RenderManager;
+class RoutedEventManager;
+class TextInputManager;
+}
+
+namespace Aero::Markup {
+
+class XamlActivationProviderRegistry;
+class XamlCompiledDocument;
+class XamlDependencyPropertyBridge;
+class XamlNodeReader;
+class XamlObjectWriter;
+class XamlSchemaContext;
+class XamlVisualTreeHost;
+
+enum class FrameQueueFullPolicy : std::uint8_t {
+    Reject = 0U,
+    DropOldest,
+};
+
+struct FrameQueueStatistics final {
+    std::uint64_t accepted = 0U;
+    std::uint64_t consumed = 0U;
+    std::uint64_t dropped = 0U;
+    std::uint64_t rejected = 0U;
+    std::uint64_t failed = 0U;
+    std::uint32_t pending = 0U;
+    std::uint32_t highWatermark = 0U;
+};
+
+// Host-driven UI/render handoff. Submit() may be called by the UI thread and
+// ConsumeOne()/Drain() by the host render thread. The class deliberately owns
+// no worker thread; frame scheduling remains under host control.
+class AERO_API QueuedRenderBackend final
+    : public Presentation::IRenderBackend {
+public:
+    explicit QueuedRenderBackend(
+        Base::IAllocator* allocator = nullptr) noexcept;
+    ~QueuedRenderBackend() noexcept override;
+
+    QueuedRenderBackend(const QueuedRenderBackend&) = delete;
+    QueuedRenderBackend& operator=(const QueuedRenderBackend&) = delete;
+
+    Base::Result<void> Initialize(
+        Presentation::IRenderBackend& downstream,
+        std::uint32_t capacity = 3U,
+        FrameQueueFullPolicy policy =
+            FrameQueueFullPolicy::DropOldest) noexcept;
+    void Shutdown() noexcept;
+
+    Base::Result<void> Submit(
+        const Presentation::RenderPlan& plan) noexcept override;
+    Base::Result<bool> ConsumeOne() noexcept;
+    Base::Result<std::uint32_t> Drain() noexcept;
+
+    bool IsInitialized() const noexcept;
+    FrameQueueStatistics Statistics() const noexcept;
+
+private:
+    struct Impl;
+    Base::IAllocator* allocator_ = nullptr;
+    Impl* impl_ = nullptr;
+};
+
+struct RuntimeHostOptions final {
+    Presentation::IRenderBackend* renderBackend = nullptr;
+    Platform::IClipboard* clipboard = nullptr;
+    Platform::ITextInputMethodHost* textInputMethodHost = nullptr;
+    void* applicationServices = nullptr;
+    void* hostContext = nullptr;
+    bool attachControlInteractions = true;
+    bool attachTextEditing = true;
+};
+
+struct RuntimeFrameResult final {
+    std::uint64_t frameNumber = 0U;
+    std::uint32_t callbackCount = 0U;
+    Presentation::LayoutDiagnostics layout;
+    Presentation::RenderDiagnostics render;
+};
+
+// Composition root for the public M1-M4 runtime. It centralizes deterministic
+// metadata startup, ObjectServices, property evaluation, logical/visual trees,
+// layout, rendering, binding, command/input services and XAML activation.
+// RuntimeHost owns no native window, GPU device, event loop or worker thread.
+class AERO_API RuntimeHost final {
+public:
+    explicit RuntimeHost(
+        Base::IAllocator* allocator = nullptr) noexcept;
+    ~RuntimeHost() noexcept;
+
+    RuntimeHost(const RuntimeHost&) = delete;
+    RuntimeHost& operator=(const RuntimeHost&) = delete;
+
+    XamlModuleCatalog& Modules() noexcept;
+    const XamlModuleCatalog& Modules() const noexcept;
+
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Initialize(
+        const RuntimeHostOptions& options) noexcept;
+    void Shutdown() noexcept;
+
+    bool IsInitialized() const noexcept;
+    bool IsMounted() const noexcept;
+
+    Base::Result<Base::Ref<Base::Object>> Load(
+        XamlNodeReader& reader) noexcept;
+    Base::Result<Base::Ref<Base::Object>> Load(
+        const XamlCompiledDocument& document) noexcept;
+    Base::Result<void> Mount(
+        Presentation::Size availableSize) noexcept;
+    Base::Result<void> Mount(
+        Base::Ref<Base::Object> root,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadAndMount(
+        XamlNodeReader& reader,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadAndMount(
+        const XamlCompiledDocument& document,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<void> Unmount() noexcept;
+
+    Base::Result<RuntimeFrameResult> RunFrame() noexcept;
+    Base::Result<Presentation::PointerDispatchResult> DispatchPointer(
+        const Presentation::PointerInput& input) noexcept;
+    Base::Result<Presentation::KeyboardDispatchResult> DispatchKeyboard(
+        const Presentation::KeyboardInput& input) noexcept;
+    Base::Result<Presentation::TextInputDispatchResult> DispatchText(
+        const Presentation::TextInput& input) noexcept;
+    Base::Result<std::uint32_t> AdvanceTime(
+        std::uint32_t elapsedMilliseconds) noexcept;
+
+    const Base::Ref<Base::Object>& Root() const noexcept;
+
+    Core::MetadataDomain* Metadata() noexcept;
+    Core::MetadataRuntime* MetadataRuntime() noexcept;
+    Core::EffectiveValueEngine* EffectiveValues() noexcept;
+    Presentation::ObjectTree* Tree() noexcept;
+    Presentation::LayoutManager* Layout() noexcept;
+    Presentation::RenderManager* Renderer() noexcept;
+    Presentation::BindingManager* Bindings() noexcept;
+    Presentation::CommandManager* Commands() noexcept;
+    Presentation::RoutedEventManager* RoutedEvents() noexcept;
+    Presentation::FocusManager* Focus() noexcept;
+    Controls::TemplateManager* Templates() noexcept;
+    Controls::VisualStateManager* VisualStates() noexcept;
+    XamlSchemaContext* Schema() noexcept;
+    XamlActivationProviderRegistry* Activation() noexcept;
+    XamlDependencyPropertyBridge* DependencyProperties() noexcept;
+    XamlVisualTreeHost* VisualTree() noexcept;
+    XamlObjectWriter* Writer() noexcept;
+
+private:
+    struct Impl;
+    Base::IAllocator* allocator_ = nullptr;
+    Impl* impl_ = nullptr;
+};
+
+} // namespace Aero::Markup
