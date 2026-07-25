@@ -250,12 +250,17 @@ Base::Result<void> XamlSchemaContext::SetMember(
     const XamlMemberAdapterRegistration* adapter = FindMemberAdapter(member.id);
     const bool runtimeWritable = adapter == nullptr &&
         runtime_->Facets().FindPropertyAccessor(member.id) != nullptr;
+    const Core::ContentFacet* content = adapter == nullptr && !runtimeWritable
+        ? runtime_->Facets().FindContentByMember(member.id) : nullptr;
+    const bool runtimeContentWritable = content != nullptr &&
+        !Core::HasContentFlag(
+            content->flags, Core::ContentFlags::Visual);
     const XamlMemberProviderRegistration* provider =
-        adapter == nullptr && !runtimeWritable
+        adapter == nullptr && !runtimeWritable && !runtimeContentWritable
             ? FindMemberProvider(member) : nullptr;
     if ((adapter == nullptr ||
          (adapter->set == nullptr && adapter->setWithServices == nullptr)) &&
-        !runtimeWritable && provider == nullptr) {
+         !runtimeWritable && !runtimeContentWritable && provider == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "XAML runtime member has no writable facet or adapter");
@@ -263,7 +268,8 @@ Base::Result<void> XamlSchemaContext::SetMember(
 
     const bool acceptsAnyValue = adapter != nullptr
         ? adapter->acceptsAnyValue
-        : (runtimeWritable ? false : provider->acceptsAnyValue);
+        : ((runtimeWritable || runtimeContentWritable)
+            ? false : provider->acceptsAnyValue);
     if (!acceptsAnyValue) {
         bool compatible = value.Type() == member.valueType;
         if (value.Kind() == XamlValueKind::Object && value.AsObject()) {
@@ -292,6 +298,17 @@ Base::Result<void> XamlSchemaContext::SetMember(
     if (runtimeWritable) {
         return runtime_->SetProperty(object, member.id, value);
     }
+    if (runtimeContentWritable) {
+        if (content->write == nullptr ||
+            value.Kind() != XamlValueKind::Object ||
+            value.IsNullObject() || !value.AsObject()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "XAML content member requires a non-null object value");
+        }
+        return content->write(
+            object, value.AsObject(), content->context);
+    }
     if (services == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -310,6 +327,16 @@ XamlMemberWritePolicy XamlSchemaContext::ResolveMemberWritePolicy(
     }
     if (runtime_->Facets().FindPropertyAccessor(member.id) != nullptr) {
         return {XamlMemberWriteMode::SetOnce, false, true};
+    }
+    const Core::ContentFacet* content =
+        runtime_->Facets().FindContentByMember(member.id);
+    if (content != nullptr && content->write != nullptr) {
+        return {
+            content->kind == Core::ContentKind::Collection
+                ? XamlMemberWriteMode::Collection
+                : XamlMemberWriteMode::SetOnce,
+            false,
+            true};
     }
     const XamlMemberProviderRegistration* provider = FindMemberProvider(member);
     if (provider != nullptr) {

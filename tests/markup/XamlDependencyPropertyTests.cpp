@@ -6,11 +6,12 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include <Aero/Core/Metadata/CoreMetadata.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -131,7 +132,6 @@ struct Fixture final {
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activations;
-    std::unique_ptr<XamlDependencyPropertyBridge> bridge;
 
     TypeId objectType = InvalidTypeId;
     TypeId booleanType = InvalidTypeId;
@@ -186,12 +186,6 @@ struct Fixture final {
         return Ref<Object>(std::move(typed));
     }
 
-    static DependencyObject* CastDependencyObject(
-        Object& object,
-        void*) noexcept {
-        return &static_cast<TestElement&>(object);
-    }
-
     static Result<void> RegisterModule(
         MetaRegistrationContext& context,
         void* userContext) noexcept {
@@ -203,12 +197,11 @@ struct Fixture final {
         DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:dp");
         const TypeRegistration registrations[] = {
-            TypeRegistration::Object(ns, "Object"),
             TypeRegistration::Primitive(ns, "Boolean"),
             TypeRegistration::Primitive(ns, "Int64"),
             TypeRegistration::Primitive(ns, "UInt64"),
             TypeRegistration::Primitive(ns, "Double"),
-            TypeRegistration::Object(ns, "Element", objectType),
+            TypeRegistration::Object(ns, "Element", BuiltinTypes::DependencyObject),
             TypeRegistration::Object(
                 ns, "Button", elementType, TypeFlags::Sealed),
             TypeRegistration::Object(ns, "Grid", objectType)
@@ -333,7 +326,7 @@ struct Fixture final {
 
     bool Build() {
         const StringView ns("urn:dp");
-        objectType = MakeTypeId(ns, StringView("Object"));
+        objectType = BuiltinTypes::Object;
         booleanType = MakeTypeId(ns, StringView("Boolean"));
         integerType = MakeTypeId(ns, StringView("Int64"));
         unsignedType = MakeTypeId(ns, StringView("UInt64"));
@@ -342,6 +335,7 @@ struct Fixture final {
         buttonType = MakeTypeId(ns, StringView("Button"));
         gridType = MakeTypeId(ns, StringView("Grid"));
 
+        CHECK(TryRegisterCoreMetadata(metadata));
         const StringView moduleName("Tests.XamlDependencyProperty");
         CHECK(metadata.TryRegisterModule({
             MakeMetadataModuleId(moduleName), moduleName, 1U,
@@ -350,17 +344,8 @@ struct Fixture final {
         runtime = std::make_unique<MetadataRuntime>(metadata);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activations = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        bridge = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
-
         CHECK(activations->TryRegister({
             elementType, &Fixture::Activate, this}));
-        CHECK(bridge->TryRegisterType({
-            elementType, &Fixture::CastDependencyObject, nullptr}));
-        Result<std::uint32_t> bridged = bridge->TryRegisterProperties();
-        CHECK(bridged);
-        CHECK(bridged.Value() >= 8U);
-        CHECK(bridge->IsTypeRegistered(buttonType));
         CHECK(runtime->Freeze());
         CHECK(schema->FindMemberAdapter(width.value) == nullptr);
         CHECK(schema->FindMemberAdapter(row.value) == nullptr);

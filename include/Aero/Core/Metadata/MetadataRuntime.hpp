@@ -147,9 +147,13 @@ public:
             if (accessor->get == nullptr) return UnsupportedProperty();
             value = accessor->get(object, accessor->context);
         } else if (accessor->access == PropertyAccessKind::Provider) {
-            const MetadataPropertyProviderRegistration* provider = FindProvider(accessor->provider);
-            if (provider == nullptr || provider->get == nullptr || !Descriptors().IsAssignableFrom(provider->objectType, object.RuntimeType())) return Base::Status::Failure(Base::ErrorCode::NotFound, "Readable metadata property provider was not found");
-            value = provider->get(object, *property, provider->context);
+            if (accessor->provider == DependencyPropertyProviderId) {
+                value = GetDependencyProperty(object, *property);
+            } else {
+                const MetadataPropertyProviderRegistration* provider = FindProvider(accessor->provider);
+                if (provider == nullptr || provider->get == nullptr || !Descriptors().IsAssignableFrom(provider->objectType, object.RuntimeType())) return Base::Status::Failure(Base::ErrorCode::NotFound, "Readable metadata property provider was not found");
+                value = provider->get(object, *property, provider->context);
+            }
         }
         if (!value) return value.GetStatus();
         if (value.Value().IsUnset() || value.Value().Type() != property->ValueType()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Metadata getter returned an incompatible value");
@@ -170,6 +174,9 @@ public:
         if (value.Type() != property->ValueType() && !objectAssignment) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Metadata property value type does not match the descriptor");
         if (accessor->access == PropertyAccessKind::Ordinary) return accessor->set != nullptr ? accessor->set(object, value, accessor->context) : Base::Result<void>(UnsupportedProperty());
         if (accessor->access == PropertyAccessKind::Provider) {
+            if (accessor->provider == DependencyPropertyProviderId) {
+                return SetDependencyProperty(object, *property, value);
+            }
             const MetadataPropertyProviderRegistration* provider = FindProvider(accessor->provider);
             if (provider == nullptr || provider->set == nullptr || !Descriptors().IsAssignableFrom(provider->objectType, object.RuntimeType())) return Base::Status::Failure(Base::ErrorCode::NotFound, "Writable metadata property provider was not found");
             return provider->set(object, *property, value, provider->context);
@@ -237,21 +244,49 @@ private:
         if (HasPropertyFlag(property.Flags(), PropertyFlags::Attached)) return object.RuntimeType() != InvalidTypeId && Descriptors().FindType(object.RuntimeType()) != nullptr ? Base::Result<void>() : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Attached metadata property target has no descriptor"));
         return Descriptors().IsAssignableFrom(property.OwnerType(), object.RuntimeType()) ? Base::Result<void>() : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Object type is incompatible with the metadata property"));
     }
+    Base::Result<Value> GetDependencyProperty(
+        const Base::Object& object,
+        const MetadataPropertyDescriptor& property) const noexcept {
+        const DependencyPropertyHandle handle{property.Id()};
+        DependencyPropertyRegistry& registry = domain_->DependencyProperties();
+        if (!Descriptors().IsAssignableFrom(
+                TypeOf<DependencyObject>(), object.RuntimeType()) ||
+            registry.Find(handle) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Dependency property metadata target is invalid");
+        }
+        const auto& dependencyObject =
+            static_cast<const DependencyObject&>(object);
+        if (&dependencyObject.PropertyRegistry() != &registry) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Dependency property registry does not match metadata domain");
+        }
+        return dependencyObject.GetValue(handle);
+    }
+    Base::Result<void> SetDependencyProperty(
+        Base::Object& object,
+        const MetadataPropertyDescriptor& property,
+        const Value& value) const noexcept {
+        const DependencyPropertyHandle handle{property.Id()};
+        DependencyPropertyRegistry& registry = domain_->DependencyProperties();
+        if (!Descriptors().IsAssignableFrom(
+                TypeOf<DependencyObject>(), object.RuntimeType()) ||
+            registry.Find(handle) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Dependency property metadata target is invalid");
+        }
+        auto& dependencyObject = static_cast<DependencyObject&>(object);
+        if (&dependencyObject.PropertyRegistry() != &registry) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Dependency property registry does not match metadata domain");
+        }
+        return dependencyObject.SetValue(handle, value);
+    }
     const MetadataPropertyProviderRegistration* FindProvider(PropertyProviderId id) const noexcept { for (const MetadataPropertyProviderRegistration& provider : providers_) if (provider.id == id) return &provider; return nullptr; }
 };
-
-inline Base::Result<Value> GetDependencyPropertyFacetValue(const Base::Object& object, const MetadataPropertyDescriptor& property, void* context) noexcept {
-    auto* registry = static_cast<DependencyPropertyRegistry*>(context);
-    if (registry == nullptr || registry->Find(DependencyPropertyHandle{property.Id()}) == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property facet was not found");
-    return static_cast<const DependencyObject&>(object).GetValue(DependencyPropertyHandle{property.Id()});
-}
-inline Base::Result<void> SetDependencyPropertyFacetValue(Base::Object& object, const MetadataPropertyDescriptor& property, const Value& value, void* context) noexcept {
-    auto* registry = static_cast<DependencyPropertyRegistry*>(context);
-    if (registry == nullptr || registry->Find(DependencyPropertyHandle{property.Id()}) == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "Dependency property facet was not found");
-    return static_cast<DependencyObject&>(object).SetValue(DependencyPropertyHandle{property.Id()}, value);
-}
-inline Base::Result<void> TryRegisterDependencyPropertyRuntimeProvider(MetadataRuntime& runtime, DependencyPropertyRegistry& properties, TypeId dependencyObjectType) noexcept {
-    return runtime.TryRegisterPropertyProvider({DependencyPropertyProviderId, dependencyObjectType, &GetDependencyPropertyFacetValue, &SetDependencyPropertyFacetValue, &properties});
-}
 
 } // namespace Aero::Core

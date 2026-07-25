@@ -10,7 +10,6 @@
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -285,7 +284,6 @@ struct RuntimeHost::Impl final {
 
     XamlSchemaContext* schema = nullptr;
     XamlActivationProviderRegistry* activation = nullptr;
-    XamlDependencyPropertyBridge* dependencyProperties = nullptr;
     XamlVisualTreeHost* visualTree = nullptr;
     XamlObjectWriter* writer = nullptr;
 
@@ -506,9 +504,6 @@ struct RuntimeHost::Impl final {
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, visualTree);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup,
-            dependencyProperties);
-        DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, activation);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, schema);
@@ -630,23 +625,10 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Markup,
-                dependencyProperties, *schema,
-                metadata.DependencyProperties());
-        }
-        if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
                 visualTree, *tree, *layout,
                 *values, renderer);
         }
-        if (status) {
-            Base::Result<std::uint32_t> registered =
-                TryRegisterAeroPresentationXaml(
-                    *dependencyProperties,
-                    *activation,
-                    visualTree);
-            if (!registered) status = registered.GetStatus();
-        }
+        if (status) status = visualTree->Register(*schema);
         if (status) {
             status = modules.ConfigureXaml(
                 *schema, *activation);
@@ -867,6 +849,31 @@ RuntimeHost::Load(
     return impl_->LoadCompiled(document);
 }
 
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::LoadXaml(
+    Base::StringView source,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Utf8XmlTokenizer tokenizer;
+    Base::Result<void> reset = tokenizer.Reset(source, diagnostics);
+    if (!reset) return reset.GetStatus();
+    XamlNodeReader reader(tokenizer, diagnostics);
+    return Load(reader);
+}
+
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::LoadCompiledXaml(
+    Base::Span<const std::uint8_t> bytes) noexcept {
+    if (!IsInitialized()) {
+        return RuntimeNotInitialized(
+            "RuntimeHost must be initialized before XAML loading");
+    }
+    Base::Result<XamlCompiledDocument> document =
+        XamlCompiledDocument::Deserialize(
+            bytes, impl_->metadata, {}, impl_->modules.ManifestHash());
+    if (!document) return document.GetStatus();
+    return Load(document.Value());
+}
+
 Base::Result<void> RuntimeHost::Mount(
     Presentation::Size availableSize) noexcept {
     if (!impl_->pendingRoot) {
@@ -903,6 +910,31 @@ RuntimeHost::LoadAndMount(
     Presentation::Size availableSize) noexcept {
     Base::Result<Base::Ref<Base::Object>> loaded =
         Load(document);
+    if (!loaded) return loaded.GetStatus();
+    Base::Result<void> mounted = Mount(availableSize);
+    if (!mounted) return mounted.GetStatus();
+    return impl_->root;
+}
+
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::LoadAndMountXaml(
+    Base::StringView source,
+    Presentation::Size availableSize,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded =
+        LoadXaml(source, diagnostics);
+    if (!loaded) return loaded.GetStatus();
+    Base::Result<void> mounted = Mount(availableSize);
+    if (!mounted) return mounted.GetStatus();
+    return impl_->root;
+}
+
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::LoadAndMountCompiledXaml(
+    Base::Span<const std::uint8_t> bytes,
+    Presentation::Size availableSize) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded =
+        LoadCompiledXaml(bytes);
     if (!loaded) return loaded.GetStatus();
     Base::Result<void> mounted = Mount(availableSize);
     if (!mounted) return mounted.GetStatus();
@@ -988,6 +1020,20 @@ RuntimeHost::Root() const noexcept {
     return impl_ != nullptr ? impl_->root : empty;
 }
 
+Base::Object* RuntimeHost::FindNamedObject(
+    Base::StringView name,
+    Core::TypeId expectedType) noexcept {
+    if (impl_ == nullptr || impl_->writer == nullptr || name.Empty()) {
+        return nullptr;
+    }
+    Base::Object* object = impl_->writer->DocumentNameScope().Find(name);
+    if (object == nullptr || expectedType == Core::InvalidTypeId) {
+        return object;
+    }
+    return impl_->metadata.Descriptors().IsAssignableFrom(
+        expectedType, object->RuntimeType()) ? object : nullptr;
+}
+
 Core::MetadataDomain* RuntimeHost::Metadata() noexcept {
     return IsInitialized() ? &impl_->metadata : nullptr;
 }
@@ -1047,13 +1093,6 @@ XamlSchemaContext* RuntimeHost::Schema() noexcept {
 XamlActivationProviderRegistry*
 RuntimeHost::Activation() noexcept {
     return impl_ != nullptr ? impl_->activation : nullptr;
-}
-
-XamlDependencyPropertyBridge*
-RuntimeHost::DependencyProperties() noexcept {
-    return impl_ != nullptr
-        ? impl_->dependencyProperties
-        : nullptr;
 }
 
 XamlVisualTreeHost* RuntimeHost::VisualTree() noexcept {

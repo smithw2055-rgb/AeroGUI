@@ -259,6 +259,101 @@ CoerceTextBoxMaximumLength(
     return value;
 }
 
+Base::Result<void> SetPanelContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Panel content child is null");
+    }
+    return static_cast<Panel&>(owner).AddOwnedChild(
+        child, *static_cast<Presentation::UIElement*>(child.Get()));
+}
+
+Base::Result<void> ClearPanelContent(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<Panel&>(owner).ClearOwnedChildren();
+}
+
+Base::Result<void> SetDecoratorContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Decorator content child is null");
+    }
+    return static_cast<Decorator&>(owner).SetOwnedChild(
+        child, *static_cast<Presentation::UIElement*>(child.Get()));
+}
+
+Base::Result<void> ClearDecoratorContent(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<Decorator&>(owner).SetChild(nullptr);
+}
+
+Base::Result<void> SetContentControlContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ContentControl content child is null");
+    }
+    return static_cast<ContentControl&>(owner).SetOwnedContent(
+        child, *static_cast<Presentation::UIElement*>(child.Get()));
+}
+
+Base::Result<void> ClearContentControlContent(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<ContentControl&>(owner).SetContent(nullptr);
+}
+
+Base::Result<void> SetContentPresenterContent(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ContentPresenter content child is null");
+    }
+    return static_cast<ContentPresenter&>(owner).SetOwnedContent(
+        child, *static_cast<Presentation::UIElement*>(child.Get()));
+}
+
+Base::Result<void> ClearContentPresenterContent(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<ContentPresenter&>(owner).SetContent(nullptr);
+}
+
+Base::Result<void> AddItemsControlItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& item,
+    void*) noexcept {
+    if (!item) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ItemsControl content item is null");
+    }
+    return static_cast<ItemsControl&>(owner).Items().Add(item);
+}
+
+Base::Result<void> ClearItemsControlItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<ItemsControl&>(owner).Items().Reset();
+    return {};
+}
+
 } // namespace
 
 Base::Result<void> Detail::PopulateControlsMetadata(
@@ -306,14 +401,18 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     MetaTypeBuilder<Panel> panel =
         MetaTypeBuilder<Panel>::Object(context, TypeFlags::Abstract);
     panel.Content<Presentation::UIElement>(
-        "Children", ContentKind::Collection);
+        "Children", ContentKind::Collection,
+        &SetPanelContent, &ClearPanelContent,
+        ContentFlags::Visual);
     status = panel.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Decorator> decorator =
         MetaTypeBuilder<Decorator>::Object(context, TypeFlags::Abstract);
     decorator.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+        "Content", ContentKind::Single,
+        &SetDecoratorContent, &ClearDecoratorContent,
+        ContentFlags::Visual);
     status = decorator.Finish();
     if (!status) return status.GetStatus();
 
@@ -326,7 +425,9 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         MetaTypeBuilder<ContentControl>::Object(
             context, TypeFlags::Abstract);
     contentControl.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+        "Content", ContentKind::Single,
+        &SetContentControlContent, &ClearContentControlContent,
+        ContentFlags::Visual);
     status = contentControl.Finish();
     if (!status) return status.GetStatus();
 
@@ -363,9 +464,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             ButtonBase::CommandTargetProperty,
             "CommandTarget", TypeOf<UIElement>(),
             Value::NullObject(TypeOf<UIElement>()),
-            PropertyMetadataFlags::None)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+            PropertyMetadataFlags::None);
     status = buttonBase.Finish();
     if (!status) return status.GetStatus();
     PropertyMetadata buttonEnabled;
@@ -389,8 +488,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     MetaTypeBuilder<Button> button =
         MetaTypeBuilder<Button>::Object(context);
-    button.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+    button.DefaultFactory();
     status = button.Finish();
     if (!status) return status.GetStatus();
 
@@ -411,8 +509,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
                 TypeOf<std::uint32_t>(), 100U),
             PropertyMetadataFlags::None,
             &ValidatePositiveUInt32)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = repeatButton.Finish();
     if (!status) return status.GetStatus();
     PropertyMetadata repeatClickMode;
@@ -462,15 +559,13 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromBoolean(TypeOf<bool>(), false),
             PropertyMetadataFlags::AffectsRender,
             &ValidateBooleanValue)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = toggleButton.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<CheckBox> checkBox =
         MetaTypeBuilder<CheckBox>::Object(context);
-    checkBox.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+    checkBox.DefaultFactory();
     status = checkBox.Finish();
     if (!status) return status.GetStatus();
 
@@ -485,15 +580,13 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             "GroupName", TypeOf<Base::String>(),
             emptyGroup.Value(),
             PropertyMetadataFlags::None)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = radioButton.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<ScrollContentPresenter> scrollPresenter =
         MetaTypeBuilder<ScrollContentPresenter>::Object(context);
-    scrollPresenter.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+    scrollPresenter.DefaultFactory();
     status = scrollPresenter.Finish();
     if (!status) return status.GetStatus();
 
@@ -561,13 +654,13 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromBoolean(TypeOf<bool>(), false),
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateBooleanValue)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = scrollViewer.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Thumb> thumb =
         MetaTypeBuilder<Thumb>::Object(context);
+    thumb.DefaultFactory();
     status = thumb.Finish();
     if (!status) return status.GetStatus();
 
@@ -608,6 +701,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromDouble(TypeOf<double>(), 0.0),
             PropertyMetadataFlags::AffectsArrange,
             &ValidateNonnegativeDouble);
+    track.DefaultFactory();
     status = track.Finish();
     if (!status) return status.GetStatus();
 
@@ -660,13 +754,13 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromDouble(TypeOf<double>(), 0.0),
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble);
+    scrollBar.DefaultFactory();
     status = scrollBar.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<ItemContainer> itemContainer =
         MetaTypeBuilder<ItemContainer>::Object(context);
-    itemContainer.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+    itemContainer.DefaultFactory();
     status = itemContainer.Finish();
     if (!status) return status.GetStatus();
 
@@ -680,14 +774,15 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         PropertyMetadataFlags::None,
         &ValidateUInt32)
         .Content<Base::Object>(
-            "Items", ContentKind::Collection);
+            "Items", ContentKind::Collection,
+            &AddItemsControlItem, &ClearItemsControlItems)
+        .DefaultFactory();
     status = itemsControl.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<ItemsPresenter> itemsPresenter =
         MetaTypeBuilder<ItemsPresenter>::Object(context);
-    itemsPresenter.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+    itemsPresenter.DefaultFactory();
     status = itemsPresenter.Finish();
     if (!status) return status.GetStatus();
 
@@ -732,6 +827,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     MetaTypeBuilder<ListBox> listBox =
         MetaTypeBuilder<ListBox>::Object(context);
+    listBox.DefaultFactory();
     status = listBox.Finish();
     if (!status) return status.GetStatus();
 
@@ -746,8 +842,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             PropertyMetadataFlags::AffectsRender |
                 PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateBooleanValue)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = listBoxItem.Finish();
     if (!status) return status.GetStatus();
 
@@ -763,6 +858,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     MetaTypeBuilder<UserControl> userControl =
         MetaTypeBuilder<UserControl>::Object(context);
+    userControl.DefaultFactory();
     status = userControl.Finish();
     if (!status) return status.GetStatus();
 
@@ -774,8 +870,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromUnsignedInteger(TypeOf<Orientation>(), 1U),
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateOrientationValue)
-        .Content<Presentation::UIElement>(
-            "Children", ContentKind::Collection);
+        .DefaultFactory();
     status = stackPanel.Finish();
     if (!status) return status.GetStatus();
 
@@ -809,7 +904,8 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             Value::FromDouble(
                 TypeOf<double>(), 24.0),
             PropertyMetadataFlags::AffectsMeasure,
-            &ValidatePositiveDouble);
+            &ValidatePositiveDouble)
+        .DefaultFactory();
     status = virtualizingStackPanel.Finish();
     if (!status) return status.GetStatus();
 
@@ -824,8 +920,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<double>(), Value::FromDouble(TypeOf<double>(), 0.0),
             PropertyMetadataFlags::AffectsParentMeasure,
             &ValidateFiniteDouble)
-        .Content<Presentation::UIElement>(
-            "Children", ContentKind::Collection);
+        .DefaultFactory();
     status = canvas.Finish();
     if (!status) return status.GetStatus();
 
@@ -840,8 +935,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<std::uint32_t>(),
             Value::FromUnsignedInteger(TypeOf<std::uint32_t>(), 0U),
             PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32)
-        .Content<Presentation::UIElement>(
-            "Children", ContentKind::Collection);
+        .DefaultFactory();
     status = grid.Finish();
     if (!status) return status.GetStatus();
 
@@ -874,8 +968,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<Presentation::Thickness>(), padding.Value(),
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateThicknessValue)
-        .Content<Presentation::UIElement>(
-            "Content", ContentKind::Single);
+        .DefaultFactory();
     status = border.Finish();
     if (!status) return status.GetStatus();
 
@@ -895,7 +988,8 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             PropertyMetadataFlags::AffectsMeasure)
         .DependencyProperty(TextBlock::ForegroundProperty, "Foreground",
             TypeOf<Presentation::Color>(), foreground.Value(),
-            PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
+            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
+        .DefaultFactory();
     status = textBlock.Finish();
     if (!status) return status.GetStatus();
 
@@ -964,7 +1058,8 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<Presentation::Color>(),
             foreground.Value(),
             PropertyMetadataFlags::AffectsRender,
-            &ValidateColorValue);
+            &ValidateColorValue)
+        .DefaultFactory();
     status = textBox.Finish();
     if (!status) return status.GetStatus();
     PropertyMetadata textBoxTabStop;
@@ -982,7 +1077,10 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     MetaTypeBuilder<ContentPresenter> contentPresenter =
         MetaTypeBuilder<ContentPresenter>::Object(context);
     contentPresenter.Content<Presentation::UIElement>(
-        "Content", ContentKind::Single);
+        "Content", ContentKind::Single,
+        &SetContentPresenterContent, &ClearContentPresenterContent,
+        ContentFlags::Visual)
+        .DefaultFactory();
     return contentPresenter.Finish();
 }
 

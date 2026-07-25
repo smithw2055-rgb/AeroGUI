@@ -28,44 +28,15 @@ Result<void> RegisterMetadata(
     MetaTypeBuilder<StatusBadge> badge =
         MetaTypeBuilder<StatusBadge>::Object(
             context);
-    badge.DependencyProperty(
-        StatusBadge::AccentProperty,
-        "Accent",
-        TypeOf<Color>(),
-        std::move(accent).Value(),
-        PropertyMetadataFlags::AffectsRender);
+    badge
+        .DefaultFactory()
+        .DependencyProperty(
+            StatusBadge::AccentProperty,
+            "Accent",
+            TypeOf<Color>(),
+            std::move(accent).Value(),
+            PropertyMetadataFlags::AffectsRender);
     return badge.Finish();
-}
-
-Result<Ref<Object>> Activate(
-    TypeId requestedType,
-    const XamlActivationContext& activation,
-    void*) noexcept {
-    if (!activation.IsCompatible() ||
-        activation.dispatcher == nullptr ||
-        activation.dependencyProperties == nullptr ||
-        requestedType != StatusBadge::StaticTypeId()) {
-        return Status::Failure(
-            ErrorCode::InvalidArgument,
-            "StatusBadge activation services are invalid");
-    }
-    Result<Ref<StatusBadge>> made =
-        MakeRef<StatusBadge>();
-    if (!made) {
-        return made.GetStatus();
-    }
-    return Ref<Object>(
-        std::move(made).Value());
-}
-
-Result<void> ConfigureXaml(
-    XamlSchemaContext&,
-    XamlActivationProviderRegistry& activation,
-    void*) noexcept {
-    return activation.TryRegister({
-        StatusBadge::StaticTypeId(),
-        &Activate,
-        nullptr});
 }
 
 } // namespace
@@ -124,9 +95,7 @@ MakeStatusBadgeModuleManifest() noexcept {
     manifest.name =
         "Aero.Samples.ControlGallery.StatusBadge";
     manifest.metadataSchemaVersion = 1U;
-    manifest.xamlSchemaVersion = 1U;
     manifest.registerMetadata = &RegisterMetadata;
-    manifest.configureXaml = &ConfigureXaml;
     return manifest;
 }
 

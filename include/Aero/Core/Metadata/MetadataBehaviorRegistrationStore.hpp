@@ -41,6 +41,8 @@ private:
 
     const TypeFactoryRegistration* FindTypeFactory(
         TypeId type) const noexcept;
+    const ContentAccessorRegistration* FindContentAccessor(
+        TypeId type) const noexcept;
     const PropertyAccessorRegistration* FindPropertyAccessor(
         MemberId member) const noexcept;
     const ValueMemberAccessorRegistration* FindValueMemberAccessor(
@@ -54,6 +56,7 @@ private:
 
     TypeRegistry* types_ = nullptr;
     Base::Vector<TypeFactoryRegistration> typeFactories_;
+    Base::Vector<ContentAccessorRegistration> contentAccessors_;
     Base::Vector<PropertyAccessorRegistration> propertyAccessors_;
     Base::Vector<ValueMemberAccessorRegistration> valueMemberAccessors_;
     Base::Vector<MethodInvokerRegistration> methodInvokers_;
@@ -99,6 +102,8 @@ public:
     Base::Result<void> TrySetContentMember(
         TypeId type,
         MemberId member) const noexcept;
+    Base::Result<void> TrySetContentAccessor(
+        const ContentAccessorRegistration& registration) const noexcept;
     Base::Result<void> TryRegisterPropertyChangeNotification(
         const PropertyChangeNotificationRegistration& registration)
         const noexcept;

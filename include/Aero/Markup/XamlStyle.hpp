@@ -8,21 +8,24 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Presentation/Style.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
 
+using XamlStyleDependencyObjectCastCallback = Core::DependencyObject* (*)(
+    Base::Object& object,
+    void* context) noexcept;
+
 // Bridges the declarative Style/Setter object model to the sealed Presentation::Style
-// plan. Register it before XamlDependencyPropertyBridge so the configured
-// Style property uses this owner-aware adapter rather than a plain object DP.
+// plan. Its exact member adapter takes precedence over the generic metadata
+// dependency-property accessor for the Style property.
 struct XamlStyleExtensionOptions final {
     Presentation::StyleManager* styles = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     // Optional value type returned by XamlTypeExtension. When configured,
     // Style.TargetType accepts both a literal type name and `{x:Type ...}`.
     Core::TypeId typeReferenceType = Core::InvalidTypeId;
-    XamlAsDependencyObjectCallback asDependencyObject = nullptr;
+    XamlStyleDependencyObjectCastCallback asDependencyObject = nullptr;
     void* castContext = nullptr;
 };
 

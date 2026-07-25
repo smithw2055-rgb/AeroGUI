@@ -9,10 +9,7 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Markup/RuntimeHost.hpp>
-#include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
 #include <Aero/Presentation/Binding.hpp>
 
 #include <cstdio>
@@ -106,13 +103,6 @@ Result<Ref<Object>> MakeVirtualizedItem(
     return Ref<Object>(std::move(text));
 }
 
-template <typename T>
-T* FindNamed(XamlObjectWriter& writer, StringView name) noexcept {
-    Object* object = writer.DocumentNameScope().Find(name);
-    return object != nullptr && object->RuntimeType() == T::StaticTypeId()
-        ? static_cast<T*>(object)
-        : nullptr;
-}
 
 } // namespace
 
@@ -143,14 +133,10 @@ struct GalleryRuntime::Impl final {
                 return Failure("ControlGallery runtime XAML is unavailable");
             }
             DiagnosticBag diagnostics;
-            Utf8XmlTokenizer tokenizer;
-            Result<void> reset = tokenizer.Reset({
+            Result<Ref<Object>> loaded = runtime.LoadXaml({
                 reinterpret_cast<const char*>(source.data()),
                 static_cast<std::uint32_t>(source.size())},
                 &diagnostics);
-            if (!reset) return reset.GetStatus();
-            XamlNodeReader reader(tokenizer, &diagnostics);
-            Result<Ref<Object>> loaded = runtime.Load(reader);
             if (!loaded) return loaded.GetStatus();
             root = std::move(loaded).Value();
             return {};
@@ -159,12 +145,8 @@ struct GalleryRuntime::Impl final {
         if (!ReadFile(assetDirectory + "/ControlGallery.axir", source)) {
             return Failure("ControlGallery compiled XAML is unavailable");
         }
-        Result<XamlCompiledDocument> document =
-            XamlCompiledDocument::Deserialize(
-                {source.data(), static_cast<std::uint32_t>(source.size())},
-                Metadata(), {}, runtime.Modules().ManifestHash());
-        if (!document) return document.GetStatus();
-        Result<Ref<Object>> loaded = runtime.Load(document.Value());
+        Result<Ref<Object>> loaded = runtime.LoadCompiledXaml(
+            {source.data(), static_cast<std::uint32_t>(source.size())});
         if (!loaded) return loaded.GetStatus();
         root = std::move(loaded).Value();
         return {};
@@ -220,8 +202,8 @@ struct GalleryRuntime::Impl final {
     }
 
     Result<void> ConfigureBinding() noexcept {
-        TextBox* input = FindNamed<TextBox>(Writer(), "Input");
-        TextBlock* mirror = FindNamed<TextBlock>(Writer(), "BindingMirror");
+        TextBox* input = runtime.FindNamed<TextBox>("Input");
+        TextBlock* mirror = runtime.FindNamed<TextBlock>("BindingMirror");
         if (input == nullptr || mirror == nullptr) {
             return Failure("ControlGallery binding endpoints are missing");
         }
@@ -244,9 +226,9 @@ struct GalleryRuntime::Impl final {
     }
 
     Result<void> ConfigureVirtualization() noexcept {
-        listBox = FindNamed<ListBox>(Writer(), "BigList");
+        listBox = runtime.FindNamed<ListBox>("BigList");
         virtualizingPanel =
-            FindNamed<VirtualizingStackPanel>(Writer(), "BigListPanel");
+            runtime.FindNamed<VirtualizingStackPanel>("BigListPanel");
         if (listBox == nullptr || virtualizingPanel == nullptr) {
             return Failure("ControlGallery virtualization endpoints are missing");
         }

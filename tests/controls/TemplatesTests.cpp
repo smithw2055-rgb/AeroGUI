@@ -74,10 +74,6 @@ bool TestControlTemplateBindingTriggerAndNameScope() {
     CHECK(TryRegisterControlsMetadata(metadata));
     CHECK(metadata.Seal());
     MetadataRuntime runtime(metadata);
-    CHECK(TryRegisterDependencyPropertyRuntimeProvider(
-        runtime,
-        metadata.DependencyProperties(),
-        BuiltinTypes::DependencyObject));
     CHECK(runtime.Freeze());
 
     Dispatcher dispatcher;

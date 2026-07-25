@@ -14,7 +14,6 @@
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -63,7 +62,6 @@ struct Fixture final {
     std::unique_ptr<RenderManager> renderer;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     std::unique_ptr<XamlVisualTreeHost> visual;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -75,9 +73,6 @@ struct Fixture final {
     TypeId canvasType = InvalidTypeId;
     TypeId gridType = InvalidTypeId;
     TypeId leafType = InvalidTypeId;
-    MemberId stackPanelChildren = InvalidMemberId;
-    MemberId canvasChildren = InvalidMemberId;
-    MemberId gridChildren = InvalidMemberId;
 
     static Result<Ref<Object>> Activate(
         TypeId requestedType,
@@ -126,13 +121,6 @@ struct Fixture final {
             &Fixture::RegisterLeafModule, this}));
         CHECK(metadata.Seal());
 
-        stackPanelChildren = MakeMemberId(
-            stackPanelType, MemberKind::Property, StringView("Children"));
-        canvasChildren = MakeMemberId(
-            canvasType, MemberKind::Property, StringView("Children"));
-        gridChildren = MakeMemberId(
-            gridType, MemberKind::Property, StringView("Children"));
-
         runtime = std::make_unique<MetadataRuntime>(metadata);
         values = std::make_unique<EffectiveValueEngine>(
             dispatcher, metadata.DependencyProperties());
@@ -141,8 +129,6 @@ struct Fixture final {
         renderer = std::make_unique<RenderManager>(dispatcher, backend);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
         visual = std::make_unique<XamlVisualTreeHost>(
             *tree, *layout, *values, renderer.get());
 
@@ -150,8 +136,7 @@ struct Fixture final {
         CHECK(tree->Initialize());
         CHECK(layout->Initialize());
         CHECK(renderer->Initialize());
-        CHECK(TryRegisterAeroPresentationXaml(
-            *dependencyProperties, *activation, visual.get()));
+        CHECK(visual->Register(*schema));
         CHECK(activation->TryRegister({leafType, &Activate, nullptr}));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());

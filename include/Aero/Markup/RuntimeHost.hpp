@@ -5,6 +5,8 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Base/StringView.hpp>
 #include <Aero/Markup/XamlModuleSdk.hpp>
 #include <Aero/Presentation/Input.hpp>
 #include <Aero/Presentation/Layout.hpp>
@@ -13,6 +15,7 @@
 #include <cstdint>
 
 namespace Aero::Core {
+class IDiagnosticSink;
 class EffectiveValueEngine;
 class MetadataDomain;
 class MetadataRuntime;
@@ -46,7 +49,6 @@ namespace Aero::Markup {
 
 class XamlActivationProviderRegistry;
 class XamlCompiledDocument;
-class XamlDependencyPropertyBridge;
 class XamlNodeReader;
 class XamlObjectWriter;
 class XamlSchemaContext;
@@ -146,6 +148,11 @@ public:
         XamlNodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> Load(
         const XamlCompiledDocument& document) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadXaml(
+        Base::StringView source,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadCompiledXaml(
+        Base::Span<const std::uint8_t> bytes) noexcept;
     Base::Result<void> Mount(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Mount(
@@ -156,6 +163,13 @@ public:
         Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMount(
         const XamlCompiledDocument& document,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
+        Base::StringView source,
+        Presentation::Size availableSize,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadAndMountCompiledXaml(
+        Base::Span<const std::uint8_t> bytes,
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
 
@@ -170,6 +184,14 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
 
     const Base::Ref<Base::Object>& Root() const noexcept;
+    Base::Object* FindNamedObject(
+        Base::StringView name,
+        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+
+    template<class T>
+    T* FindNamed(Base::StringView name) noexcept {
+        return static_cast<T*>(FindNamedObject(name, Core::TypeOf<T>()));
+    }
 
     Core::MetadataDomain* Metadata() noexcept;
     Core::MetadataRuntime* MetadataRuntime() noexcept;
@@ -185,7 +207,6 @@ public:
     Controls::VisualStateManager* VisualStates() noexcept;
     XamlSchemaContext* Schema() noexcept;
     XamlActivationProviderRegistry* Activation() noexcept;
-    XamlDependencyPropertyBridge* DependencyProperties() noexcept;
     XamlVisualTreeHost* VisualTree() noexcept;
     XamlObjectWriter* Writer() noexcept;
 

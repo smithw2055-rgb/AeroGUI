@@ -11,7 +11,6 @@
 #include <Aero/Controls/RuntimeMetadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -43,7 +42,6 @@ struct Fixture final {
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -94,10 +92,7 @@ struct Fixture final {
         runtime = std::make_unique<MetadataRuntime>(metadata);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
         CHECK(activation->TryRegister({testType, &Activate, this}));
-        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());

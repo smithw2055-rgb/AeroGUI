@@ -1,5 +1,6 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/RuntimeHost.hpp>
@@ -152,6 +153,29 @@ bool TestHostDrivenRenderQueue() {
     CHECK(after.consumed == 2U);
     CHECK(after.pending == 0U);
     queue.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostHighLevelMarkupApi() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    DiagnosticBag diagnostics;
+    Result<Ref<Object>> loaded = runtime.LoadAndMountXaml(
+        "<Border xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"RootBorder\" Width=\"240\" Height=\"120\"/>",
+        {320.0, 200.0},
+        &diagnostics);
+    CHECK(loaded);
+    CHECK(diagnostics.Size() == 0U);
+    Border* border = runtime.FindNamed<Border>("RootBorder");
+    CHECK(border != nullptr);
+    CHECK(border->Width() == 240.0);
+    CHECK(border->Height() == 120.0);
+    CHECK(runtime.FindNamed<Border>("Missing") == nullptr);
+    CHECK(runtime.RunFrame());
+    CHECK(runtime.Unmount());
+    runtime.Shutdown();
     return true;
 }
 
@@ -316,6 +340,7 @@ int main() {
     if (!TestSharedModuleCatalogAndManifestIdentity()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
+    if (!TestRuntimeHostHighLevelMarkupApi()) return 1;
     if (!TestMutationJournalRollbackOrder()) return 1;
     if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;
     if (!TestEventRouteLifetimeSnapshot()) return 1;

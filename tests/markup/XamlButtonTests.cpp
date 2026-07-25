@@ -9,7 +9,6 @@
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -41,43 +40,6 @@ struct Fixture final {
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
-
-    static Result<Ref<Object>> Activate(
-        TypeId type,
-        const XamlActivationContext& context,
-        void*) noexcept {
-        if (context.dispatcher == nullptr ||
-            context.dependencyProperties == nullptr) {
-            return Status::Failure(
-                ErrorCode::InvalidArgument,
-                "Button activation services are missing");
-        }
-        if (type == CheckBox::StaticTypeId()) {
-            Result<Ref<CheckBox>> made = MakeRef<CheckBox>();
-            if (!made) return made.GetStatus();
-            Ref<CheckBox> value = std::move(made).Value();
-            return Ref<Object>(std::move(value));
-        }
-        if (type == RadioButton::StaticTypeId()) {
-            Result<Ref<RadioButton>> made =
-                MakeRef<RadioButton>();
-            if (!made) return made.GetStatus();
-            Ref<RadioButton> value = std::move(made).Value();
-            return Ref<Object>(std::move(value));
-        }
-        if (type == TextBox::StaticTypeId()) {
-            Result<Ref<TextBox>> made =
-                MakeRef<TextBox>();
-            if (!made) return made.GetStatus();
-            Ref<TextBox> value =
-                std::move(made).Value();
-            return Ref<Object>(std::move(value));
-        }
-        return Status::Failure(
-            ErrorCode::InvalidArgument,
-            "Activation type is not a toggle control");
-    }
 
     bool Build() {
         CHECK(TryRegisterBuiltInUiMetadata(metadata));
@@ -88,17 +50,6 @@ struct Fixture final {
         activation =
             std::make_unique<XamlActivationProviderRegistry>(
                 *schema);
-        dependencyProperties =
-            std::make_unique<XamlDependencyPropertyBridge>(
-                *schema, metadata.DependencyProperties());
-        CHECK(activation->TryRegister({
-            BuiltinTypes::CheckBox, &Activate, nullptr}));
-        CHECK(activation->TryRegister({
-            BuiltinTypes::RadioButton, &Activate, nullptr}));
-        CHECK(activation->TryRegister({
-            TextBox::StaticTypeId(), &Activate, nullptr}));
-        CHECK(TryRegisterAeroPresentationXaml(
-            *dependencyProperties));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());

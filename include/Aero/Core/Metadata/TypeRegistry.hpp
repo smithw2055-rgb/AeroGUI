@@ -155,6 +155,38 @@ struct FieldFlagPredicate final {
 inline constexpr FieldFlagPredicate HasFieldFlag{};
 
 using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
+enum class ContentKind : std::uint8_t {
+    Single = 0U,
+    Collection
+};
+
+enum class ContentFlags : std::uint8_t {
+    None = 0U,
+    Visual = 1U << 0U
+};
+
+constexpr ContentFlags operator|(
+    ContentFlags left,
+    ContentFlags right) noexcept {
+    return static_cast<ContentFlags>(
+        static_cast<std::uint8_t>(left) |
+        static_cast<std::uint8_t>(right));
+}
+
+constexpr bool HasContentFlag(
+    ContentFlags value,
+    ContentFlags flag) noexcept {
+    return (static_cast<std::uint8_t>(value) &
+        static_cast<std::uint8_t>(flag)) != 0U;
+}
+
+using ContentWriteCallback = Base::Result<void> (*)(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void* context) noexcept;
+using ContentClearCallback = Base::Result<void> (*)(
+    Base::Object& owner,
+    void* context) noexcept;
 using PropertyGetCallback = Base::Result<Value> (*)(
     const Base::Object& object,
     void* context) noexcept;
@@ -344,6 +376,16 @@ struct MethodRegistration final {
 struct TypeFactoryRegistration final {
     TypeId type = InvalidTypeId;
     ObjectFactory factory = nullptr;
+};
+
+struct ContentAccessorRegistration final {
+    TypeId type = InvalidTypeId;
+    MemberId member = InvalidMemberId;
+    ContentKind kind = ContentKind::Single;
+    ContentFlags flags = ContentFlags::None;
+    ContentWriteCallback write = nullptr;
+    ContentClearCallback clear = nullptr;
+    void* context = nullptr;
 };
 
 struct PropertyAccessorRegistration final {
