@@ -23,6 +23,14 @@ option(AERO_ENABLE_D3D11_BACKEND
     "Build the native Windows D3D11 graphics backend" ${WIN32})
 option(AERO_ENABLE_WGL_SURFACE
     "Build the native Windows WGL surface adapter" ${WIN32})
+set(_aero_glx_default OFF)
+if(UNIX AND NOT APPLE)
+    set(_aero_glx_default ON)
+endif()
+option(AERO_ENABLE_GLX_SURFACE
+    "Build the native Linux/X11 GLX surface adapter"
+    ${_aero_glx_default})
+unset(_aero_glx_default)
 set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
     "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
 set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
@@ -459,6 +467,35 @@ if(AERO_ENABLE_WGL_SURFACE)
         POSITION_INDEPENDENT_CODE ON
         WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
     aero_apply_compiler_options(AeroRhiWGL)
+endif()
+
+if(AERO_ENABLE_GLX_SURFACE)
+    if(NOT UNIX OR APPLE)
+        message(FATAL_ERROR
+            "AERO_ENABLE_GLX_SURFACE is only supported on Unix/X11")
+    endif()
+    find_package(X11 REQUIRED)
+    find_package(OpenGL REQUIRED)
+    add_library(AeroRhiGLX ${AERO_LIBRARY_TYPE}
+        src/rhi/glx/GlxSurface.cpp)
+    add_library(Aero::RhiGLX ALIAS AeroRhiGLX)
+    target_include_directories(AeroRhiGLX
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroRhiGLX
+        PUBLIC Aero::RhiOpenGL33
+        PRIVATE X11::X11 OpenGL::GL Threads::Threads)
+    target_compile_features(AeroRhiGLX PUBLIC cxx_std_17)
+    target_compile_definitions(
+        AeroRhiGLX PUBLIC AERO_HAS_GLX_SURFACE=1)
+    set_target_properties(AeroRhiGLX PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroRhiGLX)
 endif()
 
 add_library(AeroRender ${AERO_LIBRARY_TYPE}

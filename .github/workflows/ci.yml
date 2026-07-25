@@ -30,6 +30,16 @@ jobs:
             sanitizer: ON
     steps:
       - uses: actions/checkout@v4
+      - name: Install X11 and GLX dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libgl1-mesa-dri \
+            libx11-dev \
+            xauth \
+            xvfb
       - name: Select compiler
         shell: bash
         run: |
@@ -77,7 +87,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          ctest --test-dir out/build --output-on-failure 2>&1 | \
+          xvfb-run -a \
+            -s "-screen 0 1024x768x24 +extension GLX" \
+            ctest --test-dir out/build --output-on-failure 2>&1 | \
             tee "out/${{ matrix.compiler }}-${{ matrix.build_type }}-test.log"
       - name: Upload Linux test log on failure
         if: failure()

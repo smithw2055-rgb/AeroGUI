@@ -468,6 +468,23 @@ if(WIN32 AND TARGET AeroRhiWGL)
         SKIP_RETURN_CODE 77)
 endif()
 
+if(UNIX AND TARGET AeroRhiGLX)
+    add_executable(AeroGlxSurfaceTests rhi/GlxSurfaceTests.cpp)
+    target_link_libraries(
+        AeroGlxSurfaceTests
+        PRIVATE Aero::RhiGLX)
+    target_compile_features(AeroGlxSurfaceTests PRIVATE cxx_std_17)
+    set_target_properties(AeroGlxSurfaceTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroGlxSurfaceTests)
+    add_test(NAME AeroGlxSurfaceTests COMMAND AeroGlxSurfaceTests)
+    set_tests_properties(AeroGlxSurfaceTests PROPERTIES
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77)
+endif()
+
 if(WIN32 AND TARGET AeroRhiD3D11)
     set(_aero_d3d11_fxc_hints
         "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")

@@ -119,11 +119,12 @@ Base::Result<void> ValidateNativeSurfaceDescriptor(
         }
         return {};
     case SurfaceKind::GlxWindow:
-        if (descriptor.glx.display == 0U ||
-            descriptor.glx.drawable == 0U ||
-            descriptor.glx.context == 0U) {
+        if (descriptor.ownership == SurfaceOwnership::Borrowed &&
+            (descriptor.glx.display == 0U ||
+             descriptor.glx.drawable == 0U ||
+             descriptor.glx.context == 0U)) {
             return InvalidArgument(
-                "GLX surface requires a display, drawable, and context");
+                "Borrowed GLX surfaces require a display, drawable, and context");
         }
         return {};
     case SurfaceKind::EglWindow:
