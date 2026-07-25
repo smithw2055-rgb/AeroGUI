@@ -22,7 +22,7 @@ class DependencyProperty;
 class DependencyPropertyRegistry;
 
 inline constexpr std::uint32_t MetadataDescriptorFormatVersion = 2U;
-inline constexpr std::uint32_t MetadataFacetFormatVersion = 6U;
+inline constexpr std::uint32_t MetadataFacetFormatVersion = 7U;
 
 enum class MetadataDescriptorKind : std::uint8_t {
     Type = 0U,
@@ -293,6 +293,11 @@ struct TypeFactoryFacet final {
 struct ContentFacet final {
     TypeId type = InvalidTypeId;
     MemberId member = InvalidMemberId;
+    ContentKind kind = ContentKind::Single;
+    ContentFlags flags = ContentFlags::None;
+    ContentWriteCallback write = nullptr;
+    ContentClearCallback clear = nullptr;
+    void* context = nullptr;
 };
 
 struct PropertyAccessorFacet final {
@@ -393,6 +398,7 @@ public:
 
     const TypeFactoryFacet* FindTypeFactory(TypeId type) const noexcept;
     const ContentFacet* FindContent(TypeId type) const noexcept;
+    const ContentFacet* FindContentByMember(MemberId member) const noexcept;
     MemberId FindContentMember(TypeId type) const noexcept;
     const PropertyAccessorFacet* FindPropertyAccessor(MemberId member) const noexcept;
     const ValueMemberAccessorFacet* FindValueMemberAccessor(MemberId member) const noexcept;
@@ -426,6 +432,7 @@ private:
 
     Base::HashMap<TypeId, std::uint32_t> factoryIndex_;
     Base::HashMap<TypeId, std::uint32_t> contentIndex_;
+    Base::HashMap<MemberId, std::uint32_t> contentMemberIndex_;
     Base::HashMap<MemberId, std::uint32_t> propertyAccessorIndex_;
     Base::HashMap<MemberId, std::uint32_t> valueMemberAccessorIndex_;
     Base::HashMap<MemberId, std::uint32_t> methodInvokerIndex_;

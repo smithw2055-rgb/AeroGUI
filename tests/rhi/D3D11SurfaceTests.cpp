@@ -18,7 +18,6 @@
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -346,7 +345,6 @@ struct XamlControlFixture final {
     std::unique_ptr<RenderManager> renderer;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     std::unique_ptr<XamlVisualTreeHost> visual;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
@@ -381,8 +379,6 @@ struct XamlControlFixture final {
             dispatcher, *renderBackend_);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
         visual = std::make_unique<XamlVisualTreeHost>(
             *tree, *layout, *values, renderer.get());
 
@@ -390,8 +386,7 @@ struct XamlControlFixture final {
         CHECK(tree->Initialize());
         CHECK(layout->Initialize());
         CHECK(renderer->Initialize());
-        CHECK(TryRegisterAeroPresentationXaml(
-            *dependencyProperties, *activation, visual.get()));
+        CHECK(visual->Register(*schema));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());

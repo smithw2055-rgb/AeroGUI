@@ -63,11 +63,6 @@ struct RuntimeFixture final {
         runtime =
             std::make_unique<MetadataRuntime>(
                 metadata);
-        CHECK(
-            TryRegisterDependencyPropertyRuntimeProvider(
-                *runtime,
-                metadata.DependencyProperties(),
-                BuiltinTypes::DependencyObject));
         CHECK(runtime->Freeze());
         services =
             std::make_unique<

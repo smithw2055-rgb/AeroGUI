@@ -21,6 +21,13 @@ bool IsValidPropertyBehavior(
     return false;
 }
 
+bool HasPropertyFlagValue(
+    PropertyFlags value,
+    PropertyFlags flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
 } // namespace
 
 Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
@@ -38,6 +45,24 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Type factory registration is invalid");
+        }
+    }
+    for (const ContentAccessorRegistration& content : contentAccessors_) {
+        const TypeInfo* type = types_->FindType(content.type);
+        const PropertyInfo* member = types_->FindProperty(content.member);
+        const bool collection = member != nullptr &&
+            HasPropertyFlagValue(
+                member->Flags(), PropertyFlags::Collection);
+        if (type == nullptr || type->Kind() != MetadataTypeKind::Object ||
+            type->ContentMember() != content.member || member == nullptr ||
+            member->OwnerType() != content.type ||
+            !HasPropertyFlagValue(
+                member->Flags(), PropertyFlags::Structural) ||
+            collection != (content.kind == ContentKind::Collection) ||
+            content.write == nullptr || content.clear == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Content accessor registration is invalid");
         }
     }
     for (const PropertyAccessorRegistration& accessor : propertyAccessors_) {
@@ -124,6 +149,15 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
 const TypeFactoryRegistration*
 MetadataBehaviorRegistrationStore::FindTypeFactory(TypeId type) const noexcept {
     for (const TypeFactoryRegistration& registration : typeFactories_) {
+        if (registration.type == type) return &registration;
+    }
+    return nullptr;
+}
+
+const ContentAccessorRegistration*
+MetadataBehaviorRegistrationStore::FindContentAccessor(
+    TypeId type) const noexcept {
+    for (const ContentAccessorRegistration& registration : contentAccessors_) {
         if (registration.type == type) return &registration;
     }
     return nullptr;
@@ -267,6 +301,33 @@ Base::Result<void> MetadataRegistrationTypes::TrySetContentMember(
     Base::Result<void> valid = ValidateRegistrationPair();
     if (!valid) return valid.GetStatus();
     return types_->TrySetContentMember(type, member);
+}
+
+Base::Result<void> MetadataRegistrationTypes::TrySetContentAccessor(
+    const ContentAccessorRegistration& registration) const noexcept {
+    Base::Result<void> valid = ValidateRegistrationPair();
+    if (!valid) return valid.GetStatus();
+    const TypeInfo* type = types_->FindType(registration.type);
+    const PropertyInfo* member = types_->FindProperty(registration.member);
+    const bool collection = member != nullptr &&
+        HasPropertyFlagValue(member->Flags(), PropertyFlags::Collection);
+    if (type == nullptr || type->Kind() != MetadataTypeKind::Object ||
+        type->ContentMember() != registration.member || member == nullptr ||
+        member->OwnerType() != registration.type ||
+        !HasPropertyFlagValue(
+            member->Flags(), PropertyFlags::Structural) ||
+        collection != (registration.kind == ContentKind::Collection) ||
+        registration.write == nullptr || registration.clear == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Content accessor registration is invalid");
+    }
+    if (behaviors_->FindContentAccessor(registration.type) != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Content accessor is already registered");
+    }
+    return behaviors_->contentAccessors_.TryPushBack(registration);
 }
 
 Base::Result<void>

@@ -10,7 +10,6 @@
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Presentation/Style.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -89,7 +88,6 @@ struct Fixture final {
     std::unique_ptr<StyleManager> styles;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dpBridge;
     std::unique_ptr<XamlStyleExtension> styleExtension;
     std::unique_ptr<XamlTypeExtension> typeExtension;
 
@@ -244,8 +242,6 @@ struct Fixture final {
         CHECK(effectiveValues->Initialize());
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dpBridge = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
         styleExtension = std::make_unique<XamlStyleExtension>(
             XamlStyleExtensionOptions{
                 styles.get(), &metadata.DependencyProperties(), InvalidTypeId,
@@ -262,9 +258,6 @@ struct Fixture final {
         CHECK(typeExtension->Register(*schema, typeExtensionType));
         CHECK(styleExtension->Register(
             *schema, *activation, styleType, setterType, style));
-        CHECK(dpBridge->TryRegisterType({
-            elementType, &AsDependencyObject, nullptr}));
-        CHECK(dpBridge->TryRegisterProperties());
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());

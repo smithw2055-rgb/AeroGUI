@@ -10,11 +10,6 @@
 
 namespace Aero::Core {
 
-enum class ContentKind : std::uint8_t {
-    Single = 0U,
-    Collection
-};
-
 template<>
 struct MetaTypeTraits<bool> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Boolean"); }
@@ -127,6 +122,19 @@ ValueTypeRegistration MakeValueTypeRegistration() noexcept {
         sizeof(T) <= Value::InlineCapacity &&
         alignof(T) <= alignof(std::max_align_t);
     return registration;
+}
+
+template<class T>
+Base::Result<Base::Ref<Base::Object>> CreateDefaultObject() noexcept {
+    static_assert(std::is_base_of_v<Base::Object, T>,
+        "Default metadata factories require Object-derived types");
+    static_assert(std::is_default_constructible_v<T>,
+        "Default metadata factories require default-constructible types");
+    static_assert(!std::is_abstract_v<T>,
+        "Default metadata factories cannot construct abstract types");
+    Base::Result<Base::Ref<T>> created = Base::MakeRef<T>();
+    if (!created) return created.GetStatus();
+    return Base::Ref<Base::Object>(std::move(created).Value());
 }
 
 template<auto Member>
@@ -346,6 +354,9 @@ public:
         if (Ok()) Record(context_->Types().TrySetFactory(type_, factory));
         return *this;
     }
+    MetaTypeBuilder& DefaultFactory() noexcept {
+        return Factory(&Detail::CreateDefaultObject<T>);
+    }
     MetaTypeBuilder& PropertyChangeNotifications(
         PropertyChangeSubscribeCallback subscribe,
         PropertyChangeUnsubscribeCallback unsubscribe,
@@ -437,19 +448,34 @@ public:
     template<class TValue>
     MetaTypeBuilder& Content(
         Base::StringView name,
-        ContentKind kind) noexcept {
-        return Content(name, TypeOf<TValue>(), kind);
+        ContentKind kind,
+        ContentWriteCallback write = nullptr,
+        ContentClearCallback clear = nullptr,
+        ContentFlags contentFlags = ContentFlags::None,
+        void* contentContext = nullptr) noexcept {
+        return Content(name, TypeOf<TValue>(), kind, write, clear,
+            contentFlags, contentContext);
     }
 
     MetaTypeBuilder& Content(
         Base::StringView name,
         TypeId valueType,
-        ContentKind kind) noexcept {
+        ContentKind kind,
+        ContentWriteCallback write = nullptr,
+        ContentClearCallback clear = nullptr,
+        ContentFlags contentFlags = ContentFlags::None,
+        void* contentContext = nullptr) noexcept {
         if (!Ok()) return *this;
         if (valueType == InvalidTypeId) {
             return Fail(Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Content property value type is invalid"));
+        }
+        if ((write == nullptr) != (clear == nullptr) ||
+            (write == nullptr && contentFlags != ContentFlags::None)) {
+            return Fail(Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Content access requires matching write and clear callbacks"));
         }
         PropertyFlags flags = PropertyFlags::Structural;
         if (kind == ContentKind::Collection) {
@@ -459,6 +485,11 @@ public:
             type_, {name, valueType, flags});
         if (!member) return Fail(member.GetStatus());
         Record(context_->Types().TrySetContentMember(type_, member.Value()));
+        if (write != nullptr) {
+            Record(context_->Types().TrySetContentAccessor({
+                type_, member.Value(), kind, contentFlags,
+                write, clear, contentContext}));
+        }
         return *this;
     }
 

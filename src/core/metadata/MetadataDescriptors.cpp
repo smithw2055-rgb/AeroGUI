@@ -632,13 +632,39 @@ Base::Result<void> MetadataFacetStore::Build(
             if (!result) return result.GetStatus();
         }
         if (type.ContentMember() != InvalidMemberId) {
+            const ContentAccessorRegistration* content =
+                behaviors.FindContentAccessor(type.Id());
+            const MetadataPropertyDescriptor* descriptor =
+                descriptors.FindProperty(type.ContentMember());
+            if (descriptor == nullptr) {
+                return InvalidState(
+                    "Content metadata references a missing property");
+            }
+            const bool collection =
+                (static_cast<std::uint32_t>(descriptor->Flags()) &
+                 static_cast<std::uint32_t>(PropertyFlags::Collection)) != 0U;
+            const ContentKind kind = content != nullptr
+                ? content->kind
+                : (collection ? ContentKind::Collection : ContentKind::Single);
             const std::uint32_t index = contents_.Size();
-            result = contents_.TryPushBack({type.Id(), type.ContentMember()});
+            result = contents_.TryPushBack({
+                type.Id(), type.ContentMember(), kind,
+                content != nullptr ? content->flags : ContentFlags::None,
+                content != nullptr ? content->write : nullptr,
+                content != nullptr ? content->clear : nullptr,
+                content != nullptr ? content->context : nullptr});
             if (!result) return result.GetStatus();
             result = InsertUnique(contentIndex_, type.Id(), index,
                 "Content facet collision");
             if (!result) return result.GetStatus();
+            result = InsertUnique(
+                contentMemberIndex_, type.ContentMember(), index,
+                "Content member facet collision");
+            if (!result) return result.GetStatus();
             result = AddTypeMask(type.Id(), MetadataFacetKind::Content);
+            if (!result) return result.GetStatus();
+            result = AddMemberMask(
+                type.ContentMember(), MetadataFacetKind::Content);
             if (!result) return result.GetStatus();
         }
         const PropertyChangeNotificationRegistration* notification =
@@ -808,6 +834,13 @@ const ContentFacet* MetadataFacetStore::FindContent(TypeId type) const noexcept 
         ? &contents_[*index] : nullptr;
 }
 
+const ContentFacet* MetadataFacetStore::FindContentByMember(
+    MemberId member) const noexcept {
+    const std::uint32_t* index = contentMemberIndex_.Find(member);
+    return index != nullptr && *index < contents_.Size()
+        ? &contents_[*index] : nullptr;
+}
+
 MemberId MetadataFacetStore::FindContentMember(TypeId type) const noexcept {
     if (descriptors_ == nullptr) return InvalidMemberId;
     TypeId current = type;
@@ -945,8 +978,13 @@ Base::Result<Base::HashCode> MetadataFacetStore::ComputeHash() const noexcept {
     if (!result) return result.GetStatus();
     builder.AddU32(order.Size());
     for (std::uint32_t index : order) {
-        builder.AddU64(contents_[index].type);
-        builder.AddU64(contents_[index].member);
+        const ContentFacet& facet = contents_[index];
+        builder.AddU64(facet.type);
+        builder.AddU64(facet.member);
+        builder.AddByte(static_cast<std::uint8_t>(facet.kind));
+        builder.AddByte(static_cast<std::uint8_t>(facet.flags));
+        builder.AddByte(facet.write != nullptr ? 1U : 0U);
+        builder.AddByte(facet.clear != nullptr ? 1U : 0U);
     }
 
     order.Clear();

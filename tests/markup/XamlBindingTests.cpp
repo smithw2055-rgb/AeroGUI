@@ -6,6 +6,8 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include <Aero/Core/Metadata/CoreMetadata.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
@@ -115,16 +117,14 @@ struct Fixture final {
         DependencyPropertyRegistry& properties = context.DependencyProperties();
         const StringView ns("urn:xaml-binding-tests");
 
-        Result<TypeId> registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Object"), InvalidTypeId, TypeFlags::None, nullptr));
-        if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed));
+        Result<TypeId> registered = types.TryRegisterType(TypeRegistration::Primitive(ns, StringView("Double"), TypeFlags::ValueType | TypeFlags::Sealed));
         if (!registered) return registered.GetStatus();
         Result<void> converter = Aero::Tests::RegisterTestTextConverter(
             context, doubleType, &Aero::Tests::ConvertTestDouble);
         if (!converter) return converter.GetStatus();
-        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Root"), objectType, TypeFlags::None, &MakeRoot));
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Root"), BuiltinTypes::DependencyObject, TypeFlags::None, &MakeRoot));
         if (!registered) return registered.GetStatus();
-        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), objectType, TypeFlags::None, &MakeElement));
+        registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Element"), BuiltinTypes::DependencyObject, TypeFlags::None, &MakeElement));
         if (!registered) return registered.GetStatus();
         registered = types.TryRegisterType(TypeRegistration::Object(ns, StringView("Brush"), objectType, TypeFlags::None, nullptr));
         if (!registered) return registered.GetStatus();
@@ -188,7 +188,7 @@ struct Fixture final {
     bool Build() {
         gFixture = this;
         const StringView ns("urn:xaml-binding-tests");
-        objectType = MakeTypeId(ns, StringView("Object"));
+        objectType = BuiltinTypes::Object;
         doubleType = MakeTypeId(ns, StringView("Double"));
         rootType = MakeTypeId(ns, StringView("Root"));
         elementType = MakeTypeId(ns, StringView("Element"));
@@ -196,6 +196,7 @@ struct Fixture final {
         bindingExtensionType = MakeTypeId(ns, StringView("Binding"));
         dynamicResourceExtensionType = MakeTypeId(ns, StringView("DynamicResource"));
 
+        CHECK(TryRegisterCoreMetadata(metadata));
         const StringView moduleName("Tests.XamlBinding");
         CHECK(metadata.TryRegisterModule({
             MakeMetadataModuleId(moduleName), moduleName, 1U,
@@ -233,8 +234,6 @@ struct Fixture final {
             XamlDynamicResourceExtensionOptions{
                 effectiveValues.get(), &resources, &AsDependencyObject, nullptr});
         CHECK(dynamicResource->Register(*schema, dynamicResourceExtensionType));
-        CHECK(TryRegisterDependencyPropertyRuntimeProvider(
-            *runtime, metadata.DependencyProperties(), objectType));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         presentation = std::make_unique<ObjectServicesScope>(

@@ -7,7 +7,6 @@
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlDependencyProperty.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -183,7 +182,7 @@ Result<void> RegisterBadgeMetadata(
     if (!defaultValue) return defaultValue.GetStatus();
 
     MetaTypeBuilder<Badge> badge = MetaTypeBuilder<Badge>::Object(context);
-    badge.DependencyProperty(Badge::CornerRadiusProperty, "CornerRadius",
+    badge.DefaultFactory().DependencyProperty(Badge::CornerRadiusProperty, "CornerRadius",
         TypeOf<CornerRadius>(), std::move(defaultValue).Value(),
         PropertyMetadataFlags::AffectsRender);
 
@@ -225,30 +224,9 @@ struct Fixture final {
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
     std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlDependencyPropertyBridge> dependencyProperties;
     TypeId badgeType = Badge::StaticTypeId();
     TypeId cornerRadiusType = MakeTypeId(
         CustomNamespace, StringView("CornerRadius"));
-
-    static Result<Ref<Object>> Activate(
-        TypeId type,
-        const XamlActivationContext& context,
-        void*) noexcept {
-        if (context.dispatcher == nullptr ||
-            context.dependencyProperties == nullptr) {
-            return Status::Failure(
-                ErrorCode::InvalidArgument,
-                "Activation services are missing");
-        }
-        if (type != Badge::StaticTypeId()) {
-            return Status::Failure(
-                ErrorCode::InvalidArgument,
-                "Activation type is not Badge");
-        }
-        Result<Ref<Badge>> made = MakeRef<Badge>();
-        if (!made) return made.GetStatus();
-        return Ref<Object>(std::move(made).Value());
-    }
 
     bool Build() {
         CHECK(metadata.IsValid());
@@ -311,8 +289,18 @@ struct Fixture final {
         CHECK(descriptors.FindType(badgeType)->BaseType() ==
             BuiltinTypes::Control);
         CHECK(descriptors.IsDerivedFrom(badgeType, BuiltinTypes::DependencyObject));
-        CHECK(facets.FindContentMember(BuiltinTypes::StackPanel) !=
-            InvalidMemberId);
+        const ContentFacet* panelContent =
+            facets.FindContent(BuiltinTypes::Panel);
+        CHECK(panelContent != nullptr &&
+            panelContent->kind == ContentKind::Collection &&
+            HasContentFlag(panelContent->flags, ContentFlags::Visual) &&
+            panelContent->write != nullptr && panelContent->clear != nullptr);
+        CHECK(facets.FindContentMember(BuiltinTypes::StackPanel) ==
+            panelContent->member);
+        CHECK(facets.FindContentByMember(panelContent->member) ==
+            panelContent);
+        CHECK(facets.FindTypeFactory(BuiltinTypes::StackPanel) != nullptr);
+        CHECK(facets.FindTypeFactory(badgeType) != nullptr);
         CHECK(facets.HasTypeFacet(
             cornerRadiusType, MetadataFacetKind::ValueSemantics));
         CHECK(facets.HasTypeFacet(
@@ -349,10 +337,6 @@ struct Fixture final {
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         CHECK(schema->UsesRuntime());
         activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        dependencyProperties = std::make_unique<XamlDependencyPropertyBridge>(
-            *schema, metadata.DependencyProperties());
-        CHECK(TryRegisterAeroPresentationXaml(*dependencyProperties));
-        CHECK(activation->TryRegister({badgeType, &Activate, nullptr}));
         CHECK(runtime->Freeze());
 
         const CornerRadius source{1.0, 2.0, 3.0, 4.0};
