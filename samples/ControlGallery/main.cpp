@@ -133,7 +133,7 @@ int RunCombination(
     }
     Result<void> presented =
         RunNativeGallery(
-            runtime.Plan(),
+            runtime,
             StringView(
                 options.backend,
                 static_cast<std::uint32_t>(
@@ -219,7 +219,8 @@ int main(int argc, char** argv) {
                 return result;
             }
         }
-        if (options.runtime &&
+        if (!options.interactive &&
+            options.runtime &&
             options.compiled &&
             (runtimeSnapshot.planHash !=
                  compiledSnapshot.planHash ||

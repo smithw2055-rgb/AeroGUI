@@ -1,3 +1,5 @@
+include_guard(GLOBAL)
+
 function(aero_apply_compiler_options target)
     if(MSVC)
         target_compile_options(${target} PRIVATE
@@ -42,3 +44,5 @@ function(aero_apply_compiler_options target)
 
     endif()
 endfunction()
+
+include("${CMAKE_CURRENT_LIST_DIR}/AeroPlatformSources.cmake")
