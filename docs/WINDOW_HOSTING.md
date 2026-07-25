@@ -47,6 +47,29 @@ The OS window reports physical client pixels. Application hosts divide pointer
 positions and client dimensions by the event DPI scale before dispatching input
 or resizing the runtime. The RHI surface continues to use physical pixels.
 
+## Win32 text services
+
+The visible Windows sample uses the existing platform contracts rather than
+adding text-specific behavior to the renderer:
+
+- `Win32Clipboard` reads and writes `CF_UNICODETEXT`, converting at the boundary
+  between UTF-8 runtime strings and UTF-16 Win32 storage;
+- `Win32ImeAdapter` subclasses the active HWND and consumes
+  `WM_IME_STARTCOMPOSITION`, `WM_IME_COMPOSITION` and
+  `WM_IME_ENDCOMPOSITION`;
+- composition updates are delivered through `ITextCompositionClient` to the
+  focused TextBox model;
+- the candidate and composition windows are positioned from the TextBox logical
+  caret rectangle using the HWND DPI;
+- the retained renderer continues to draw the normal TextBox caret, while the
+  adapter creates a Win32 native caret during active IME composition;
+- an IME update invalidates the HWND, causing the next expose event to run the
+  full RuntimeHost frame and publish a fresh RenderPlan.
+
+The IME adapter accepts its TextBox client before an HWND exists. ControlGallery
+attaches it to the active HWND on the first native event, which preserves the
+existing runtime-before-surface startup order.
+
 ## ControlGallery GUI mode
 
 The existing non-interactive smoke path is unchanged. A visible GUI instance is
@@ -67,8 +90,9 @@ In GUI mode the sample:
 6. runs the complete property/binding/layout/render frame pipeline;
 7. resizes the physical GPU surface;
 8. submits the newly published `runtime.Plan()`;
-9. preserves the existing context-loss recovery path.
+9. routes Win32 IME and native clipboard operations through `AeroPlatform`;
+10. preserves the existing context-loss recovery path.
 
-A memory clipboard is attached to the sample runtime so TextBox editing and
-standard edit commands can participate in the same window-driven interaction
-loop without coupling the runtime to an OS-specific clipboard implementation.
+Non-Windows builds keep the memory clipboard and do not attach the Win32 IME
+host. The portable runtime and headless smoke paths therefore remain independent
+of native Windows APIs.
