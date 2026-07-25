@@ -1,4 +1,4 @@
-name: Apply Windows include fixes
+name: Materialize D3D11 surface test fix
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,27 +20,9 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          renderer = Path("src/render/d3d11/D3D11RendererBackend.cpp")
-          text = renderer.read_text()
-          needle = "#include <Aero/Render/D3D11RendererBackend.hpp>\n\n#include <new>\n"
-          replacement = """#include <Aero/Render/D3D11RendererBackend.hpp>\n\n#ifndef WIN32_LEAN_AND_MEAN\n#define WIN32_LEAN_AND_MEAN\n#endif\n#ifndef NOMINMAX\n#define NOMINMAX\n#endif\n#include <windows.h>\n\n#include <new>\n"""
-          if needle not in text:
-              raise SystemExit("renderer include insertion point was not found")
-          renderer.write_text(text.replace(needle, replacement, 1))
-
-          test = Path("tests/rhi/D3D11BackendTests.cpp")
-          text = test.read_text()
-          needle = "using namespace Aero::Core;\n"
-          if needle not in text:
-              raise SystemExit("unused Core namespace line was not found")
-          test.write_text(text.replace(needle, "", 1))
-          PY
-          rm -f .github/winfix.patch.gz.b64 .github/workflows/apply-winfix.yml
-          git add -A
+          python -c 'from pathlib import Path; p=Path("tests/rhi/D3D11SurfaceTests.cpp"); s=p.read_text(); old="    CHECK(!device.CreateResource(postLossDescriptor));"; new="    CHECK(!device.CreateBuffer(postLossDescriptor.buffer));"; assert old in s; p.write_text(s.replace(old,new,1))'
+          git add tests/rhi/D3D11SurfaceTests.cpp
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Fix D3D11 Windows includes"
+          git commit -m "Fix D3D11 surface test resource creation"
           git push origin "HEAD:${{ github.head_ref }}"
