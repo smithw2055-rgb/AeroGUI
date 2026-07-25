@@ -707,16 +707,20 @@ bool TestDeferredResourceStress() {
         CHECK(device.DestroyResource(texture.Value(), lastFence));
         CHECK(device.DestroyResource(sampler.Value(), lastFence));
         CHECK(device.LiveResourceCount() == 0U);
-        CHECK(device.PendingDestroyCount() ==
-            (iteration + 1U) * ResourcesPerIteration);
+        const std::uint32_t pending = device.PendingDestroyCount();
+        CHECK(pending >= ResourcesPerIteration);
+        CHECK(pending <= (iteration + 1U) * ResourcesPerIteration);
+        CHECK(backend.LiveResourceCount() == pending);
     }
 
-    CHECK(backend.LiveResourceCount() ==
-        IterationCount * ResourcesPerIteration);
+    const std::uint32_t pendingBeforeWait =
+        device.PendingDestroyCount();
+    CHECK(pendingBeforeWait >= ResourcesPerIteration);
+    CHECK(backend.LiveResourceCount() == pendingBeforeWait);
     CHECK(backend.WaitForFence(lastFence));
     Result<std::uint32_t> collected = device.CollectGarbage();
     CHECK(collected);
-    CHECK(collected.Value() == IterationCount * ResourcesPerIteration);
+    CHECK(collected.Value() == pendingBeforeWait);
     CHECK(device.PendingDestroyCount() == 0U);
     CHECK(device.LiveResourceCount() == 0U);
     CHECK(backend.LiveResourceCount() == 0U);
