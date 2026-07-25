@@ -69,9 +69,6 @@ struct FrameQueueStatistics final {
     std::uint32_t highWatermark = 0U;
 };
 
-// Host-driven UI/render handoff. Submit() may be called by the UI thread and
-// ConsumeOne()/Drain() by the host render thread. The class deliberately owns
-// no worker thread; frame scheduling remains under host control.
 class AERO_API QueuedRenderBackend final
     : public Presentation::IRenderBackend {
 public:
@@ -120,10 +117,6 @@ struct RuntimeFrameResult final {
     Presentation::RenderDiagnostics render;
 };
 
-// Composition root for the public M1-M4 runtime. It centralizes deterministic
-// metadata startup, ObjectServices, property evaluation, logical/visual trees,
-// layout, rendering, binding, command/input services and XAML activation.
-// RuntimeHost owns no native window, GPU device, event loop or worker thread.
 class AERO_API RuntimeHost final {
 public:
     explicit RuntimeHost(
@@ -170,6 +163,8 @@ public:
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountCompiledXaml(
         Base::Span<const std::uint8_t> bytes,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<void> Resize(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
 
