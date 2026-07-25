@@ -43,8 +43,9 @@ public:
     CancelNativeComposition() noexcept = 0;
 };
 
-// Win32 Imm32 adapter. Public signatures keep HWND, WPARAM and LPARAM opaque.
-// The host forwards native window messages to HandleMessage after Attach().
+// Win32 Imm32 adapter. Public signatures keep HWND, WPARAM, LPARAM and WNDPROC
+// opaque. Attach() subclasses the supplied HWND so WM_IME_* messages reach the
+// active TextBox composition client before the normal window procedure.
 class AERO_API Win32ImeAdapter final
     : public ITextInputMethodHost {
 public:
@@ -53,9 +54,14 @@ public:
 
     Base::Result<void> Attach(
         void* window) noexcept;
+    Base::Result<bool>
+    AttachActiveWindow() noexcept;
     Base::Result<bool> Detach() noexcept;
     bool IsAttached() const noexcept {
         return window_ != nullptr;
+    }
+    void* AttachedWindow() const noexcept {
+        return window_;
     }
     bool IsComposing() const noexcept {
         return composing_;
@@ -74,9 +80,22 @@ public:
     CancelNativeComposition() noexcept override;
 
 private:
+    friend std::intptr_t DispatchWin32ImeWindowMessage(
+        void* window,
+        std::uint32_t message,
+        std::uintptr_t wParam,
+        std::intptr_t lParam) noexcept;
+
     void* window_ = nullptr;
+    void* previousProcedure_ = nullptr;
     ITextCompositionClient* client_ = nullptr;
     bool composing_ = false;
+    bool caretCreated_ = false;
+    bool caretVisible_ = false;
+    int caretWidth_ = 0;
+    int caretHeight_ = 0;
+
+    void DestroyNativeCaret() noexcept;
 };
 
 } // namespace Aero::Platform
