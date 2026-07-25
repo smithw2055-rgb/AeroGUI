@@ -8,6 +8,7 @@ project(AeroGUI
 find_package(Threads REQUIRED)
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
+option(AERO_BUILD_SAMPLES "Build AeroGUI sample applications" ON)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
@@ -840,4 +841,8 @@ endif()
 if(AERO_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+if(AERO_BUILD_SAMPLES)
+    add_subdirectory(samples/ControlGallery)
 endif()

@@ -2,6 +2,7 @@
 
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Presentation/Metadata.hpp>
+#include <Aero/Markup/XamlCompiledDocument.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
@@ -129,6 +130,29 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
         providers.Schema().Runtime());
     ActiveActivationScope scope(providers, activation);
     return writer.Load(reader);
+}
+
+Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    if (!activation.IsCompatible()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML activation context is incompatible");
+    }
+    if (!providers.IsFrozen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML activation facet registry is not frozen");
+    }
+    Core::ObjectServicesScope objectServices(
+        *activation.dispatcher,
+        *activation.dependencyProperties,
+        providers.Schema().Runtime());
+    ActiveActivationScope scope(providers, activation);
+    return writer.Load(document);
 }
 
 } // namespace Aero::Markup

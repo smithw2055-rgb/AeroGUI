@@ -1,6 +1,8 @@
 #include <Aero/Controls/Templates.hpp>
 
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 
 #include <utility>
 
@@ -68,6 +70,26 @@ Base::Result<void> TemplateBuildContext::SetRoot(
         Rollback();
         return added.GetStatus();
     }
+    if (layout_ != nullptr) {
+        Base::Result<void> layout =
+            layout_->Attach(*parent_, *rootElement_);
+        if (!layout) {
+            Rollback();
+            return layout.GetStatus();
+        }
+    }
+    FrameworkElement* rootFramework =
+        root.AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        rootFramework != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(
+                *parent_, *rootFramework);
+        if (!rendered) {
+            Rollback();
+            return rendered.GetStatus();
+        }
+    }
     return {};
 }
 
@@ -113,6 +135,37 @@ Base::Result<void> TemplateBuildContext::AddPart(
         (void)tree_->DetachLogical(parent, part);
         return added.GetStatus();
     }
+    UIElement* parentElement =
+        parent.AsUIElement();
+    UIElement* partElement =
+        part.AsUIElement();
+    if (layout_ != nullptr &&
+        parentElement != nullptr &&
+        partElement != nullptr) {
+        Base::Result<void> layout =
+            layout_->Attach(
+                *parentElement, *partElement);
+        if (!layout) {
+            Rollback();
+            return layout.GetStatus();
+        }
+    }
+    FrameworkElement* parentFramework =
+        parent.AsFrameworkElement();
+    FrameworkElement* partFramework =
+        part.AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        parentFramework != nullptr &&
+        partFramework != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(
+                *parentFramework,
+                *partFramework);
+        if (!rendered) {
+            Rollback();
+            return rendered.GetStatus();
+        }
+    }
     return {};
 }
 
@@ -155,10 +208,72 @@ Base::Result<bool> TemplateBuildContext::ProjectContent(
         projection.attachedLogical = true;
     }
     if (projection.originalVisualParent != nullptr) {
+        FrameworkElement* originalFramework =
+            projection.originalVisualParent->
+                AsFrameworkElement();
+        FrameworkElement* contentFramework =
+            content->AsFrameworkElement();
+        if (renderer_ != nullptr &&
+            originalFramework != nullptr &&
+            contentFramework != nullptr) {
+            Base::Result<void> detached =
+                renderer_->Detach(
+                    *originalFramework,
+                    *contentFramework);
+            if (!detached) {
+                if (projection.attachedLogical) {
+                    static_cast<void>(
+                        tree_->DetachLogical(
+                            owner, *content));
+                }
+                return detached.GetStatus();
+            }
+            projection.detachedOriginalRender =
+                true;
+        }
+        UIElement* originalElement =
+            projection.originalVisualParent->
+                AsUIElement();
+        if (layout_ != nullptr &&
+            originalElement != nullptr) {
+            Base::Result<void> detached =
+                layout_->Detach(
+                    *originalElement, *content);
+            if (!detached) {
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *originalFramework,
+                            *contentFramework));
+                }
+                if (projection.attachedLogical) {
+                    static_cast<void>(
+                        tree_->DetachLogical(
+                            owner, *content));
+                }
+                return detached.GetStatus();
+            }
+            projection.detachedOriginalLayout =
+                true;
+        }
         Base::Result<void> detached =
             tree_->DetachVisual(
                 *projection.originalVisualParent, *content);
         if (!detached) {
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *content->AsFrameworkElement()));
+            }
             if (projection.attachedLogical) {
                 static_cast<void>(
                     tree_->DetachLogical(owner, *content));
@@ -179,14 +294,123 @@ Base::Result<bool> TemplateBuildContext::ProjectContent(
         }
         return visual.GetStatus();
     }
+    if (layout_ != nullptr) {
+        Base::Result<void> attached =
+            layout_->Attach(presenter, *content);
+        if (!attached) {
+            static_cast<void>(
+                tree_->DetachVisual(
+                    presenter, *content));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(
+                    tree_->AttachVisual(
+                        *projection.originalVisualParent,
+                        *content));
+                if (projection.detachedOriginalLayout) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *content));
+                }
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *content->
+                                AsFrameworkElement()));
+                }
+            }
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(
+                        owner, *content));
+            }
+            return attached.GetStatus();
+        }
+        projection.attachedProjectedLayout =
+            true;
+    }
+    FrameworkElement* projectedContent =
+        content->AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        projectedContent != nullptr) {
+        Base::Result<void> attached =
+            renderer_->Attach(
+                presenter, *projectedContent);
+        if (!attached) {
+            if (projection.attachedProjectedLayout) {
+                static_cast<void>(
+                    layout_->Detach(
+                        presenter, *content));
+            }
+            static_cast<void>(
+                tree_->DetachVisual(
+                    presenter, *content));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(
+                    tree_->AttachVisual(
+                        *projection.originalVisualParent,
+                        *content));
+                if (projection.detachedOriginalLayout) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *content));
+                }
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *projectedContent));
+                }
+            }
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(
+                        owner, *content));
+            }
+            return attached.GetStatus();
+        }
+        projection.attachedProjectedRender =
+            true;
+    }
     Base::Result<void> selected =
         presenter.SetContent(content);
     if (!selected) {
+        if (projection.attachedProjectedRender) {
+            static_cast<void>(
+                renderer_->Detach(
+                    presenter,
+                    *projectedContent));
+        }
+        if (projection.attachedProjectedLayout) {
+            static_cast<void>(
+                layout_->Detach(
+                    presenter, *content));
+        }
         static_cast<void>(
             tree_->DetachVisual(presenter, *content));
         if (projection.originalVisualParent != nullptr) {
             static_cast<void>(tree_->AttachVisual(
                 *projection.originalVisualParent, *content));
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projectedContent));
+            }
         }
         if (projection.attachedLogical) {
             static_cast<void>(
@@ -197,12 +421,37 @@ Base::Result<bool> TemplateBuildContext::ProjectContent(
     Base::Result<void> tracked =
         projections_.TryPushBack(projection);
     if (!tracked) {
+        if (projection.attachedProjectedRender) {
+            static_cast<void>(
+                renderer_->Detach(
+                    presenter,
+                    *projectedContent));
+        }
+        if (projection.attachedProjectedLayout) {
+            static_cast<void>(
+                layout_->Detach(
+                    presenter, *content));
+        }
         static_cast<void>(
             tree_->DetachVisual(presenter, *content));
         static_cast<void>(presenter.SetContent(nullptr));
         if (projection.originalVisualParent != nullptr) {
             static_cast<void>(tree_->AttachVisual(
                 *projection.originalVisualParent, *content));
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projectedContent));
+            }
         }
         if (projection.attachedLogical) {
             static_cast<void>(
@@ -242,6 +491,23 @@ void TemplateBuildContext::Rollback() noexcept {
             projections_[index - 1U];
         if (projection.presenter != nullptr &&
             projection.content != nullptr) {
+            if (projection.attachedProjectedRender &&
+                renderer_ != nullptr &&
+                projection.content->
+                    AsFrameworkElement() != nullptr) {
+                static_cast<void>(
+                    renderer_->Detach(
+                        *projection.presenter,
+                        *projection.content->
+                            AsFrameworkElement()));
+            }
+            if (projection.attachedProjectedLayout &&
+                layout_ != nullptr) {
+                static_cast<void>(
+                    layout_->Detach(
+                        *projection.presenter,
+                        *projection.content));
+            }
             static_cast<void>(tree_->DetachVisual(
                 *projection.presenter, *projection.content));
             static_cast<void>(
@@ -250,6 +516,23 @@ void TemplateBuildContext::Rollback() noexcept {
                 static_cast<void>(tree_->AttachVisual(
                     *projection.originalVisualParent,
                     *projection.content));
+                if (projection.detachedOriginalLayout &&
+                    layout_ != nullptr) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *projection.content));
+                }
+                if (projection.detachedOriginalRender &&
+                    renderer_ != nullptr) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *projection.content->
+                                AsFrameworkElement()));
+                }
             }
             if (projection.attachedLogical &&
                 projection.owner != nullptr) {
@@ -259,6 +542,31 @@ void TemplateBuildContext::Rollback() noexcept {
         }
     }
     projections_.Clear();
+    for (std::uint32_t index = parts_.Size();
+        index > 0U; --index) {
+        TemplatePart& part = parts_[index - 1U];
+        Visual* parent =
+            part.visual != nullptr
+            ? part.visual->VisualParent()
+            : nullptr;
+        if (parent == nullptr) continue;
+        if (renderer_ != nullptr &&
+            parent->AsFrameworkElement() != nullptr &&
+            part.frameworkElement != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(
+                    *parent->AsFrameworkElement(),
+                    *part.frameworkElement));
+        }
+        if (layout_ != nullptr &&
+            parent->AsUIElement() != nullptr &&
+            part.visual->AsUIElement() != nullptr) {
+            static_cast<void>(
+                layout_->Detach(
+                    *parent->AsUIElement(),
+                    *part.visual->AsUIElement()));
+        }
+    }
     for (TemplatePart& part : parts_) {
         if (part.frameworkElement != nullptr) {
             (void)part.frameworkElement->SetTemplatedParent(nullptr);
@@ -498,7 +806,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
             "Template handle sequence is exhausted");
     }
 
-    TemplateBuildContext context(*tree_, control);
+    TemplateBuildContext context(
+        *tree_, control, layout_, renderer_);
     Base::Result<void> built =
         plan.Factory()(context, plan.FactoryContext());
     if (!built || context.RootVisual() == nullptr) {
@@ -842,6 +1151,29 @@ Base::Result<void> TemplateManager::ClearAt(
             projection.content == nullptr) {
             continue;
         }
+        if (projection.attachedProjectedRender &&
+            renderer_ != nullptr &&
+            projection.content->
+                AsFrameworkElement() != nullptr) {
+            Base::Result<void> renderDetached =
+                renderer_->Detach(
+                    *projection.presenter,
+                    *projection.content->
+                        AsFrameworkElement());
+            if (!renderDetached) {
+                return renderDetached.GetStatus();
+            }
+        }
+        if (projection.attachedProjectedLayout &&
+            layout_ != nullptr) {
+            Base::Result<void> layoutDetached =
+                layout_->Detach(
+                    *projection.presenter,
+                    *projection.content);
+            if (!layoutDetached) {
+                return layoutDetached.GetStatus();
+            }
+        }
         Base::Result<void> contentDetached =
             tree_->DetachVisual(
                 *projection.presenter,
@@ -860,6 +1192,29 @@ Base::Result<void> TemplateManager::ClearAt(
                     *projection.originalVisualParent,
                     *projection.content);
             if (!restored) return restored.GetStatus();
+            if (projection.detachedOriginalLayout &&
+                layout_ != nullptr) {
+                Base::Result<void> layoutRestored =
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *projection.content);
+                if (!layoutRestored) {
+                    return layoutRestored.GetStatus();
+                }
+            }
+            if (projection.detachedOriginalRender &&
+                renderer_ != nullptr) {
+                Base::Result<void> renderRestored =
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projection.content->
+                            AsFrameworkElement());
+                if (!renderRestored) {
+                    return renderRestored.GetStatus();
+                }
+            }
         }
         if (projection.attachedLogical &&
             projection.owner != nullptr) {
@@ -869,6 +1224,39 @@ Base::Result<void> TemplateManager::ClearAt(
                     *projection.content);
             if (!logicalDetached) {
                 return logicalDetached.GetStatus();
+            }
+        }
+    }
+    for (std::uint32_t partIndex =
+            instance.parts.Size();
+        partIndex > 0U; --partIndex) {
+        TemplatePart& part =
+            instance.parts[partIndex - 1U];
+        Visual* parent =
+            part.visual != nullptr
+            ? part.visual->VisualParent()
+            : nullptr;
+        if (parent == nullptr) continue;
+        if (renderer_ != nullptr &&
+            parent->AsFrameworkElement() != nullptr &&
+            part.frameworkElement != nullptr) {
+            Base::Result<void> renderDetached =
+                renderer_->Detach(
+                    *parent->AsFrameworkElement(),
+                    *part.frameworkElement);
+            if (!renderDetached) {
+                return renderDetached.GetStatus();
+            }
+        }
+        if (layout_ != nullptr &&
+            parent->AsUIElement() != nullptr &&
+            part.visual->AsUIElement() != nullptr) {
+            Base::Result<void> layoutDetached =
+                layout_->Detach(
+                    *parent->AsUIElement(),
+                    *part.visual->AsUIElement());
+            if (!layoutDetached) {
+                return layoutDetached.GetStatus();
             }
         }
     }

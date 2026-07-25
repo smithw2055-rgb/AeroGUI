@@ -3,6 +3,10 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Presentation/Style.hpp>
 
+namespace Aero::Presentation {
+class RenderManager;
+}
+
 namespace Aero::Controls {
 
 enum class ItemsChangeAction : std::uint8_t {
@@ -247,7 +251,8 @@ public:
         ObjectTree& tree,
         LayoutManager& layout,
         EffectiveValueEngine& values,
-        StyleManager* styles = nullptr) noexcept;
+        StyleManager* styles = nullptr,
+        RenderManager* renderer = nullptr) noexcept;
     ~ItemContainerGenerator() noexcept;
 
     Base::Result<void> Attach(
@@ -295,6 +300,7 @@ private:
     LayoutManager* layout_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     StyleManager* styles_ = nullptr;
+    RenderManager* renderer_ = nullptr;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
     VirtualizingStackPanel* virtualizingHost_ = nullptr;

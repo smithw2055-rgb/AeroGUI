@@ -2,6 +2,7 @@
 #include <Aero/Controls/Virtualization.hpp>
 
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include <Aero/Presentation/Rendering.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -339,11 +340,13 @@ ItemContainerGenerator::ItemContainerGenerator(
     ObjectTree& tree,
     LayoutManager& layout,
     EffectiveValueEngine& values,
-    StyleManager* styles) noexcept
+    StyleManager* styles,
+    RenderManager* renderer) noexcept
     : tree_(&tree),
       layout_(&layout),
       values_(&values),
       styles_(styles),
+      renderer_(renderer),
       changedHandler_(
           this,
           &ItemContainerGenerator::OnItemsChanged) {}
@@ -564,9 +567,26 @@ ItemContainerGenerator::AttachRecord(
             tree_->DetachLogical(*owner_, container));
         return layout.GetStatus();
     }
+    if (renderer_ != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(*host_, container);
+        if (!rendered) {
+            static_cast<void>(
+                layout_->Detach(*host_, container));
+            static_cast<void>(
+                tree_->DetachVisual(*host_, container));
+            static_cast<void>(
+                tree_->DetachLogical(*owner_, container));
+            return rendered.GetStatus();
+        }
+    }
     Base::Result<void> contentLogical =
         tree_->AttachLogical(container, content);
     if (!contentLogical) {
+        if (renderer_ != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(*host_, container));
+        }
         static_cast<void>(
             layout_->Detach(*host_, container));
         static_cast<void>(
@@ -580,6 +600,10 @@ ItemContainerGenerator::AttachRecord(
     if (!contentVisual) {
         static_cast<void>(
             tree_->DetachLogical(container, content));
+        if (renderer_ != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(*host_, container));
+        }
         static_cast<void>(
             layout_->Detach(*host_, container));
         static_cast<void>(
@@ -595,6 +619,10 @@ ItemContainerGenerator::AttachRecord(
             tree_->DetachVisual(container, content));
         static_cast<void>(
             tree_->DetachLogical(container, content));
+        if (renderer_ != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(*host_, container));
+        }
         static_cast<void>(
             layout_->Detach(*host_, container));
         static_cast<void>(
@@ -603,16 +631,51 @@ ItemContainerGenerator::AttachRecord(
             tree_->DetachLogical(*owner_, container));
         return contentLayout.GetStatus();
     }
+    FrameworkElement* contentFramework =
+        content.AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        contentFramework != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(
+                container, *contentFramework);
+        if (!rendered) {
+            static_cast<void>(
+                layout_->Detach(container, content));
+            static_cast<void>(
+                tree_->DetachVisual(container, content));
+            static_cast<void>(
+                tree_->DetachLogical(container, content));
+            static_cast<void>(
+                renderer_->Detach(*host_, container));
+            static_cast<void>(
+                layout_->Detach(*host_, container));
+            static_cast<void>(
+                tree_->DetachVisual(*host_, container));
+            static_cast<void>(
+                tree_->DetachLogical(*owner_, container));
+            return rendered.GetStatus();
+        }
+    }
     Base::Result<void> selected =
         container.SetOwnedContent(
             record.content, content);
     if (!selected) {
+        if (renderer_ != nullptr &&
+            contentFramework != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(
+                    container, *contentFramework));
+        }
         static_cast<void>(
             layout_->Detach(container, content));
         static_cast<void>(
             tree_->DetachVisual(container, content));
         static_cast<void>(
             tree_->DetachLogical(container, content));
+        if (renderer_ != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(*host_, container));
+        }
         static_cast<void>(
             layout_->Detach(*host_, container));
         static_cast<void>(
@@ -667,11 +730,21 @@ ItemContainerGenerator::DetachRecord(
     }
     UIElement* content = container.Content();
     if (content != nullptr) {
+        if (renderer_ != nullptr &&
+            content->AsFrameworkElement() != nullptr) {
+            capture(renderer_->Detach(
+                container,
+                *content->AsFrameworkElement()));
+        }
         capture(layout_->Detach(container, *content));
         capture(tree_->DetachVisual(container, *content));
         capture(tree_->DetachLogical(container, *content));
         capture(container.SetContent(nullptr));
         capture(values_->DetachObject(*content));
+    }
+    if (renderer_ != nullptr) {
+        capture(renderer_->Detach(
+            *host_, container));
     }
     capture(layout_->Detach(*host_, container));
     capture(tree_->DetachVisual(*host_, container));

@@ -5,6 +5,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -72,6 +73,7 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
     AERO_ACTIVATE_CONTROL(ItemsPresenter)
     AERO_ACTIVATE_CONTROL(ListBox)
     AERO_ACTIVATE_CONTROL(ListBoxItem)
+    AERO_ACTIVATE_CONTROL(TextBox)
 #undef AERO_ACTIVATE_CONTROL
     return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Requested type is not a constructible Aero presentation type");
@@ -348,13 +350,14 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
         Core::TypeOf<Controls::ItemsControl>(),
         Core::TypeOf<Controls::ItemsPresenter>(),
         Core::TypeOf<Controls::ListBox>(),
-        Core::TypeOf<Controls::ListBoxItem>()};
+        Core::TypeOf<Controls::ListBoxItem>(),
+        Core::TypeOf<Controls::TextBox>()};
     for (Core::TypeId type : activatable) {
         Base::Result<void> registered = activation.TryRegister({
             type, &ActivateAeroControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
-    std::uint32_t count = bridged.Value() + 23U;
+    std::uint32_t count = bridged.Value() + 24U;
     if (visualTree == nullptr) return count;
 
     Base::Result<void> registered = visualTree->TryRegisterType({

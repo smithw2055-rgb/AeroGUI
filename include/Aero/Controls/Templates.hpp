@@ -8,6 +8,11 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 
+namespace Aero::Presentation {
+class LayoutManager;
+class RenderManager;
+}
+
 namespace Aero::Controls {
 
 using namespace Aero::Core;
@@ -36,6 +41,10 @@ struct TemplateContentProjection final {
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
     bool attachedLogical = false;
+    bool detachedOriginalLayout = false;
+    bool detachedOriginalRender = false;
+    bool attachedProjectedLayout = false;
+    bool attachedProjectedRender = false;
 };
 
 class AERO_API TemplateBuildContext final {
@@ -72,8 +81,13 @@ private:
 
     TemplateBuildContext(
         ObjectTree& tree,
-        Control& parent) noexcept
-        : tree_(&tree), parent_(&parent) {}
+        Control& parent,
+        LayoutManager* layout,
+        RenderManager* renderer) noexcept
+        : tree_(&tree),
+          layout_(layout),
+          renderer_(renderer),
+          parent_(&parent) {}
 
     DependencyObject* FindObject(
         Base::StringView name) const noexcept;
@@ -84,6 +98,8 @@ private:
     void Rollback() noexcept;
 
     ObjectTree* tree_ = nullptr;
+    LayoutManager* layout_ = nullptr;
+    RenderManager* renderer_ = nullptr;
     Control* parent_ = nullptr;
     Visual* rootVisual_ = nullptr;
     UIElement* rootElement_ = nullptr;
@@ -191,10 +207,14 @@ public:
     TemplateManager(
         ObjectTree& tree,
         EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties) noexcept
+        DependencyPropertyRegistry& properties,
+        LayoutManager* layout = nullptr,
+        RenderManager* renderer = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
           properties_(&properties),
+          layout_(layout),
+          renderer_(renderer),
           propertyChangedHandler_(
               this, &TemplateManager::OnPropertyChanged) {}
     ~TemplateManager() noexcept;
@@ -228,6 +248,8 @@ private:
     ObjectTree* tree_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
+    LayoutManager* layout_ = nullptr;
+    RenderManager* renderer_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;

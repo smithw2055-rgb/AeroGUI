@@ -772,12 +772,19 @@ Base::Result<CommandList> Renderer::Record(
     };
 
     impl_->nodes.Clear();
-    Presentation::RenderNodeId previousId = Presentation::InvalidRenderNodeId;
     const Presentation::Rect targetClip = {
         0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
     const Base::Span<const Presentation::RenderCommand> commands = plan.Commands();
     for (const Presentation::RenderNodeSnapshot& node : plan.Nodes()) {
-        if (node.id == Presentation::InvalidRenderNodeId || node.id <= previousId ||
+        bool duplicateId = false;
+        for (const NodeState& existing :
+            impl_->nodes) {
+            duplicateId =
+                duplicateId ||
+                existing.id == node.id;
+        }
+        if (node.id == Presentation::InvalidRenderNodeId ||
+            duplicateId ||
             !Presentation::IsValidLayoutRect(node.layoutSlot) ||
             !Presentation::IsValidLayoutRect(node.clip) ||
             !Presentation::IsValidLayoutSize(node.renderSize) ||
@@ -786,7 +793,6 @@ Base::Result<CommandList> Renderer::Record(
             encoded = InvalidArgument("Renderer contains an invalid node snapshot");
             break;
         }
-        previousId = node.id;
 
         Presentation::Transform2D parentTransform = IdentityTransform();
         Presentation::Rect parentClip = targetClip;

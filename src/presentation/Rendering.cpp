@@ -403,14 +403,38 @@ Base::Result<void> NullRenderBackend::Submit(
     std::uint32_t clipDepth = 0U;
     std::uint32_t opacityDepth = 0U;
     std::uint32_t transformDepth = 0U;
-    RenderNodeId previousId = InvalidRenderNodeId;
-
     const Base::Span<const RenderCommand> commands = plan.Commands();
-    for (const RenderNodeSnapshot& node : plan.Nodes()) {
-        if (node.id == InvalidRenderNodeId || node.id <= previousId) {
-            return InvalidState("RenderPlan node IDs must be nonzero and ordered");
+    const Base::Span<const RenderNodeSnapshot> nodes =
+        plan.Nodes();
+    for (std::uint32_t nodeIndex = 0U;
+        nodeIndex < nodes.Size(); ++nodeIndex) {
+        const RenderNodeSnapshot& node =
+            nodes[nodeIndex];
+        if (node.id == InvalidRenderNodeId) {
+            return InvalidState(
+                "RenderPlan node IDs must be nonzero");
         }
-        previousId = node.id;
+        for (std::uint32_t previous = 0U;
+            previous < nodeIndex; ++previous) {
+            if (nodes[previous].id == node.id) {
+                return InvalidState(
+                    "RenderPlan node IDs must be unique");
+            }
+        }
+        if (node.parentId != InvalidRenderNodeId) {
+            bool parentPrecedesChild = false;
+            for (std::uint32_t previous = 0U;
+                previous < nodeIndex; ++previous) {
+                parentPrecedesChild =
+                    parentPrecedesChild ||
+                    nodes[previous].id ==
+                        node.parentId;
+            }
+            if (!parentPrecedesChild) {
+                return InvalidState(
+                    "RenderPlan parent must precede its child");
+            }
+        }
         if (!IsValidLayoutRect(node.layoutSlot) ||
             !IsValidLayoutRect(node.clip) ||
             !IsValidLayoutSize(node.renderSize) ||

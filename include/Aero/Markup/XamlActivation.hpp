@@ -13,6 +13,7 @@ namespace Aero::Markup {
 class XamlNodeReader;
 class XamlObjectWriter;
 class XamlSchemaContext;
+class XamlCompiledDocument;
 
 inline constexpr std::uint32_t XamlActivationAbiVersion =
     Core::ObjectActivationAbiVersion;
@@ -66,6 +67,13 @@ AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlWithActivation(
     XamlObjectWriter& writer,
     XamlNodeReader& reader,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
+AERO_API Base::Result<Base::Ref<Base::Object>>
+LoadXamlWithActivation(
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
     XamlActivationProviderRegistry& providers,
     const XamlActivationContext& activation) noexcept;
 
