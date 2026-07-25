@@ -95,6 +95,7 @@ target_compile_definitions(AeroBase
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
 add_library(AeroText ${AERO_LIBRARY_TYPE}
+    src/text/EditableText.cpp
     src/text/FontManager.cpp
     src/text/GlyphAtlas.cpp
     src/text/TextLayout.cpp
