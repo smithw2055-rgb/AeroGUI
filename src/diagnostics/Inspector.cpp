@@ -1,0 +1,224 @@
+#include <Aero/Diagnostics/Inspector.hpp>
+
+#include <Aero/Controls/ControlPrimitives.hpp>
+
+namespace Aero::Diagnostics {
+namespace {
+
+using namespace Aero::Base;
+using namespace Aero::Controls;
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
+enum class TreeKind : std::uint8_t {
+    Logical = 0U,
+    Visual,
+};
+
+Result<void> AppendTree(
+    Visual& node,
+    VisualHandle parent,
+    std::uint32_t depth,
+    TreeKind kind,
+    std::uint32_t maxNodes,
+    Vector<InspectorTreeNode>&
+        output) noexcept {
+    if (output.Size() >= maxNodes) {
+        return Status::Failure(
+            ErrorCode::OutOfRange,
+            "Inspector tree node limit "
+            "was reached");
+    }
+    InspectorTreeNode record;
+    record.node = &node;
+    record.handle = node.Handle();
+    record.parent = parent;
+    record.runtimeType =
+        node.RuntimeType();
+    record.depth = depth;
+    Result<void> appended =
+        output.TryPushBack(record);
+    if (!appended) {
+        return appended.GetStatus();
+    }
+    const Span<Visual* const> children =
+        kind == TreeKind::Logical
+        ? node.LogicalChildren()
+        : node.VisualChildren();
+    for (Visual* child : children) {
+        if (child == nullptr) {
+            return Status::Failure(
+                ErrorCode::InvalidState,
+                "Inspector tree contains "
+                "a null child");
+        }
+        Result<void> childResult =
+            AppendTree(
+                *child,
+                record.handle,
+                depth + 1U,
+                kind,
+                maxNodes,
+                output);
+        if (!childResult) {
+            return childResult.GetStatus();
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+Base::Result<void>
+InspectorEndpoint::Capture(
+    Presentation::Visual& target,
+    InspectorSnapshot& output,
+    std::uint32_t maxTreeNodes)
+    const noexcept {
+    using namespace Aero::Base;
+    using namespace Aero::Controls;
+    using namespace Aero::Core;
+    using namespace Aero::Presentation;
+
+    if (tree_ == nullptr ||
+        values_ == nullptr ||
+        bindings_ == nullptr ||
+        renderer_ == nullptr ||
+        maxTreeNodes == 0U ||
+        target.OwningTree() != tree_) {
+        return Status::Failure(
+            ErrorCode::InvalidArgument,
+            "Inspector endpoint target "
+            "is invalid");
+    }
+
+    output = InspectorSnapshot{};
+    output.target = &target;
+    Visual* root = tree_->Root();
+    if (root == nullptr) {
+        return Status::Failure(
+            ErrorCode::InvalidState,
+            "Inspector object tree has "
+            "no root");
+    }
+    Result<void> logical = AppendTree(
+        *root,
+        {},
+        0U,
+        TreeKind::Logical,
+        maxTreeNodes,
+        output.logicalTree);
+    if (!logical) {
+        return logical.GetStatus();
+    }
+    Result<void> visual = AppendTree(
+        *root,
+        {},
+        0U,
+        TreeKind::Visual,
+        maxTreeNodes,
+        output.visualTree);
+    if (!visual) {
+        return visual.GetStatus();
+    }
+
+    for (const DependencyProperty&
+        property :
+        target.PropertyRegistry().
+            Properties()) {
+        if (property.MetadataFor(
+                target.RuntimeType()) ==
+            nullptr) {
+            continue;
+        }
+        Result<PropertyValue> value =
+            target.GetValue(
+                property.Handle());
+        if (!value) {
+            return value.GetStatus();
+        }
+        Result<EffectiveValueSource> source =
+            target.GetValueSource(
+                property.Handle());
+        if (!source) {
+            return source.GetStatus();
+        }
+        InspectorProperty inspected;
+        inspected.property =
+            property.Handle();
+        inspected.value =
+            value.Value();
+        inspected.valueSource =
+            source.Value();
+        Result<EffectiveValueDiagnostics>
+            diagnostics =
+                values_->Diagnostics(
+                    target,
+                    property.Handle());
+        if (diagnostics) {
+            inspected.diagnostics =
+                diagnostics.Value();
+            inspected.
+                hasEngineDiagnostics = true;
+        } else if (
+            diagnostics.GetStatus().code !=
+                ErrorCode::NotFound) {
+            return diagnostics.GetStatus();
+        }
+        Result<void> appended =
+            output.effectiveProperties.
+                TryPushBack(
+                    std::move(inspected));
+        if (!appended) {
+            return appended.GetStatus();
+        }
+    }
+
+    Result<std::uint32_t> bindings =
+        bindings_->InspectBindings(
+            target,
+            output.activeBindings);
+    if (!bindings) {
+        return bindings.GetStatus();
+    }
+
+    FrameworkElement* element =
+        target.AsFrameworkElement();
+    if (element != nullptr) {
+        Result<Ref<Object>> context =
+            element->GetDataContext();
+        if (!context) {
+            return context.GetStatus();
+        }
+        output.dataContext =
+            std::move(context).Value();
+        output.layoutRect =
+            element->LayoutSlot();
+        output.layoutClip =
+            element->LayoutClip();
+        output.renderSize =
+            element->RenderSize();
+    }
+    if (styles_ != nullptr) {
+        output.appliedStyle =
+            styles_->AppliedStyle(target);
+    }
+    if (templates_ != nullptr &&
+        target.PropertyRegistry().
+            Types().IsDerivedFrom(
+                target.RuntimeType(),
+                Control::StaticTypeId())) {
+        output.appliedTemplate =
+            templates_->AppliedHandle(
+                static_cast<Control&>(
+                    target));
+    }
+    output.render =
+        renderer_->Diagnostics();
+    output.frameTimings =
+        target.GetDispatcher().
+            FrameTimings();
+    return {};
+}
+
+} // namespace Aero::Diagnostics

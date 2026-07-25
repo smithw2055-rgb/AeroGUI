@@ -304,6 +304,12 @@ public:
     std::uint32_t PropertyCount() const noexcept {
         return properties_.Size();
     }
+    Base::Span<const DependencyProperty>
+    Properties() const noexcept {
+        return {
+            properties_.Data(),
+            properties_.Size()};
+    }
     const TypeRegistry& Types() const noexcept {
         return *typeRegistry_;
     }

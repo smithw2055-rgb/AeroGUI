@@ -314,6 +314,16 @@ Base::Result<bool> StyleManager::DetachObject(
     return true;
 }
 
+const Style* StyleManager::AppliedStyle(
+    const DependencyObject& object)
+    const noexcept {
+    const std::uint32_t application =
+        FindApplication(object);
+    return application != UINT32_MAX
+        ? applications_[application].style
+        : nullptr;
+}
+
 std::uint32_t StyleManager::FindApplication(
     const DependencyObject& object) const noexcept {
     for (std::uint32_t index = 0U; index < applications_.Size(); ++index) {

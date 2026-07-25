@@ -43,6 +43,18 @@ enum class DispatcherFramePhase : std::uint8_t {
     Count
 };
 
+inline constexpr std::uint32_t
+    DispatcherFramePhaseCount =
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::Count);
+
+struct DispatcherFrameTimings final {
+    std::uint64_t frameSequence = 0U;
+    DispatcherTime totalMicroseconds = 0U;
+    DispatcherTime phaseMicroseconds[
+        DispatcherFramePhaseCount]{};
+};
+
 struct DispatcherTaskHandle final {
     std::uint64_t value = 0U;
 
@@ -192,6 +204,8 @@ public:
     // are deferred until the next invocation of that phase.
     Base::Result<std::uint32_t> RunFramePhase(
         DispatcherFramePhase phase) noexcept;
+    DispatcherFrameTimings
+    FrameTimings() const noexcept;
 
     Base::Result<DispatcherReentrancyGuard>
     EnterReentrancyGuard() noexcept;
@@ -249,6 +263,7 @@ private:
     std::uint64_t nextHookSequence_ = 1U;
     DispatcherFrameHookHandle activeHook_;
     std::uint32_t guardDepth_ = 0U;
+    DispatcherFrameTimings frameTimings_;
     bool pumping_ = false;
     bool phaseActive_ = false;
     bool shuttingDown_ = false;

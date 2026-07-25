@@ -366,6 +366,26 @@ set_target_properties(AeroControls PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroControls)
 
+add_library(AeroInspector ${AERO_LIBRARY_TYPE}
+    src/diagnostics/Inspector.cpp)
+add_library(Aero::Inspector ALIAS
+    AeroInspector)
+target_include_directories(AeroInspector
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroInspector
+    PUBLIC Aero::Controls)
+target_compile_features(AeroInspector
+    PUBLIC cxx_std_17)
+set_target_properties(AeroInspector PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroInspector)
+
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
     src/markup/XamlCompiledCache.cpp

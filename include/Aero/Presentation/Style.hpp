@@ -98,6 +98,9 @@ public:
     // Tree/object ownership code calls this before destroying an object.
     Base::Result<bool> DetachObject(
         DependencyObject& object) noexcept;
+    const Style* AppliedStyle(
+        const DependencyObject& object)
+        const noexcept;
 
 private:
     EffectiveValueEngine* values_ = nullptr;

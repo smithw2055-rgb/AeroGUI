@@ -481,13 +481,15 @@ struct GalleryRuntime::Impl final {
 
     Result<void> RunFrame() noexcept {
         const DispatcherFramePhase phases[] = {
+            DispatcherFramePhase::BeginFrame,
             DispatcherFramePhase::
                 PropertyChanges,
             DispatcherFramePhase::DataBind,
             DispatcherFramePhase::Lifecycle,
             DispatcherFramePhase::Layout,
             DispatcherFramePhase::
-                RenderCommit};
+                RenderCommit,
+            DispatcherFramePhase::EndFrame};
         for (DispatcherFramePhase phase :
              phases) {
             Result<std::uint32_t> ran =

@@ -1298,6 +1298,44 @@ Base::Result<void> OpenGL33GraphicsBackend::ConfigureSampler(
     return {};
 }
 
+Base::Result<void>
+ValidateOpenGL33PipelineDescriptor(
+    const PipelineDescriptor& descriptor) noexcept {
+    const ShaderDescriptor& vertex =
+        descriptor.vertexShader;
+    const ShaderDescriptor& fragment =
+        descriptor.fragmentShader;
+    if (vertex.stage != ShaderStage::Vertex ||
+        fragment.stage != ShaderStage::Fragment ||
+        vertex.language != ShaderLanguage::Glsl330 ||
+        fragment.language != ShaderLanguage::Glsl330) {
+        return InvalidArgument(
+            "OpenGL pipeline requires vertex and fragment GLSL 330 shaders");
+    }
+    if (vertex.bytecode == nullptr ||
+        fragment.bytecode == nullptr ||
+        vertex.bytecodeSize == 0U ||
+        fragment.bytecodeSize == 0U ||
+        vertex.entryPoint.Empty() ||
+        fragment.entryPoint.Empty() ||
+        vertex.stableId == 0U ||
+        fragment.stableId == 0U ||
+        vertex.stableId == fragment.stableId) {
+        return InvalidArgument(
+            "OpenGL shader package metadata is incomplete");
+    }
+    if (vertex.bytecodeSize >
+            static_cast<std::uint32_t>(
+                std::numeric_limits<GlInt>::max()) ||
+        fragment.bytecodeSize >
+            static_cast<std::uint32_t>(
+                std::numeric_limits<GlInt>::max())) {
+        return OutOfRange(
+            "OpenGL shader source exceeds GLint length");
+    }
+    return {};
+}
+
 Base::Result<void> OpenGL33GraphicsBackend::ConfigurePipeline(
     ResourceHandle handle,
     const PipelineDescriptor& descriptor) noexcept {
@@ -1312,20 +1350,15 @@ Base::Result<void> OpenGL33GraphicsBackend::ConfigurePipeline(
     Impl::ResourceRecord* record = impl_->Find(handle);
     if (record == nullptr ||
         handle.type != ResourceType::Pipeline ||
-        record->configured ||
-        descriptor.vertexShader.language != ShaderLanguage::Glsl330 ||
-        descriptor.fragmentShader.language != ShaderLanguage::Glsl330) {
+        record->configured) {
         return InvalidArgument(
             "OpenGL pipeline requires unconfigured GLSL 330 shaders");
     }
-    if (descriptor.vertexShader.bytecodeSize >
-            static_cast<std::uint32_t>(
-                std::numeric_limits<GlInt>::max()) ||
-        descriptor.fragmentShader.bytecodeSize >
-            static_cast<std::uint32_t>(
-                std::numeric_limits<GlInt>::max())) {
-        return OutOfRange(
-            "OpenGL shader source exceeds GLint length");
+    Base::Result<void> valid =
+        ValidateOpenGL33PipelineDescriptor(
+            descriptor);
+    if (!valid) {
+        return valid.GetStatus();
     }
 
     Base::Result<void> scope = impl_->BeginStateScope();

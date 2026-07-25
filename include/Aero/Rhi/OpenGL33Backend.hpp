@@ -34,6 +34,10 @@ struct OpenGL33ExternalTextureDescriptor final {
     std::uint64_t stableId = 0U;
 };
 
+AERO_API Base::Result<void>
+ValidateOpenGL33PipelineDescriptor(
+    const PipelineDescriptor& descriptor) noexcept;
+
 class AERO_API OpenGL33GraphicsBackend final
     : public IGraphicsBackend {
 public:

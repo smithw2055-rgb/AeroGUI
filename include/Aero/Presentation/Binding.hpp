@@ -78,6 +78,20 @@ struct BindingDescriptor final {
     void* diagnosticContext = nullptr;
 };
 
+struct BindingInspection final {
+    BindingHandle handle;
+    Base::Object* source = nullptr;
+    DependencyObject* target = nullptr;
+    DependencyPropertyHandle sourceProperty;
+    DependencyPropertyHandle targetProperty;
+    BindingMode mode = BindingMode::OneWay;
+    UpdateSourceTrigger updateSourceTrigger =
+        UpdateSourceTrigger::PropertyChanged;
+    Base::String path;
+    bool usesDataContext = false;
+    bool applied = false;
+};
+
 // Metadata-path binding source. A non-null source selects an explicit source
 // (including ElementName); otherwise the source is resolved from target's
 // DataContext property. Text is compiled once per concrete source type and the
@@ -135,6 +149,11 @@ public:
     // Flush is also exposed for deterministic headless tests. Normal hosts run
     // it through the DataBind frame phase registered by Initialize().
     Base::Result<std::uint32_t> Flush() noexcept;
+    Base::Result<std::uint32_t>
+    InspectBindings(
+        const DependencyObject& object,
+        Base::Vector<BindingInspection>&
+            output) const noexcept;
 
     bool IsInitialized() const noexcept {
         return hook_.IsValid();

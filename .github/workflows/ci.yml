@@ -99,6 +99,14 @@ jobs:
           path: out/${{ matrix.compiler }}-${{ matrix.build_type }}-test.log
           if-no-files-found: ignore
           retention-days: 7
+      - name: M3.5 quality gates
+        if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
+        shell: bash
+        run: |
+          xvfb-run -a \
+            -s "-screen 0 1024x768x24 +extension GLX" \
+            ctest --test-dir out/build --output-on-failure \
+              -L "performance|fuzz|memory|longrun|context-loss|conformance"
       - name: Public header C++17 self-containment
         if: matrix.compiler == 'gcc' && matrix.build_type == 'Debug'
         shell: bash
@@ -156,5 +164,8 @@ jobs:
           path: out/msvc-${{ matrix.build_type }}-test.log
           if-no-files-found: ignore
           retention-days: 7
+      - name: M3.5 quality gates
+        if: matrix.build_type == 'Debug'
+        run: ctest --test-dir out/build -C Debug --output-on-failure -L "performance|fuzz|memory|longrun|context-loss|conformance"
       - name: D3D11 WARP pixel and swap-chain conformance
         run: ctest --test-dir out/build -C ${{ matrix.build_type }} -R "AeroD3D11.*Tests" -V

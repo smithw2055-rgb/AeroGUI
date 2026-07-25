@@ -166,6 +166,20 @@ set_target_properties(AeroDiagnosticsTests PROPERTIES CXX_STANDARD 17 CXX_STANDA
 aero_apply_compiler_options(AeroDiagnosticsTests)
 add_test(NAME AeroDiagnosticsTests COMMAND AeroDiagnosticsTests)
 
+add_executable(AeroInspectorTests
+    diagnostics/InspectorTests.cpp)
+target_link_libraries(AeroInspectorTests
+    PRIVATE Aero::Inspector)
+target_compile_features(AeroInspectorTests
+    PRIVATE cxx_std_17)
+set_target_properties(AeroInspectorTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroInspectorTests)
+add_test(NAME AeroInspectorTests
+    COMMAND AeroInspectorTests)
+
 add_executable(AeroDispatcherTests core/DispatcherTests.cpp)
 target_link_libraries(AeroDispatcherTests PRIVATE Aero::Core)
 target_compile_features(AeroDispatcherTests PRIVATE cxx_std_17)
@@ -662,3 +676,143 @@ else()
     target_compile_options(AeroCAbiSmoke PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion $<$<BOOL:${AERO_WARNINGS_AS_ERRORS}>:-Werror>)
 endif()
 add_test(NAME AeroCAbiSmoke COMMAND AeroCAbiSmoke)
+
+add_executable(
+    AeroQualityBenchmarks
+    quality/QualityBenchmarks.cpp)
+target_link_libraries(
+    AeroQualityBenchmarks
+    PRIVATE Aero::Inspector Aero::Text)
+target_compile_features(
+    AeroQualityBenchmarks
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroQualityBenchmarks PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroQualityBenchmarks)
+
+set(_aero_quality_benchmarks
+    EmptyFrameBenchmark
+    TextLayoutBenchmark
+    BindingUpdateBenchmark
+    ButtonInteractionBenchmark
+    ItemsGenerationBenchmark
+    RenderPlanTranslationBenchmark
+    GlyphAtlasBenchmark)
+foreach(_benchmark IN LISTS
+        _aero_quality_benchmarks)
+    add_test(
+        NAME ${_benchmark}
+        COMMAND AeroQualityBenchmarks
+            ${_benchmark})
+    set_tests_properties(
+        ${_benchmark} PROPERTIES
+        LABELS "performance"
+        TIMEOUT 30)
+endforeach()
+add_test(
+    NAME VirtualizedScrollBenchmark
+    COMMAND AeroVirtualizationBenchmark)
+set_tests_properties(
+    VirtualizedScrollBenchmark PROPERTIES
+    LABELS "performance"
+    TIMEOUT 30)
+
+add_executable(
+    AeroRobustnessFuzzTests
+    quality/RobustnessFuzzTests.cpp)
+target_link_libraries(
+    AeroRobustnessFuzzTests
+    PRIVATE
+        Aero::Markup
+        Aero::RhiOpenGL33)
+target_compile_features(
+    AeroRobustnessFuzzTests
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroRobustnessFuzzTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroRobustnessFuzzTests)
+
+set(_aero_fuzz_domains
+    BindingPath
+    CompiledXamlDecoder
+    TextLayout
+    FontProviderBoundary
+    ItemsCollectionDelta
+    TemplateInstantiation
+    GlShaderMetadata)
+foreach(_domain IN LISTS
+        _aero_fuzz_domains)
+    add_test(
+        NAME ${_domain}Fuzz
+        COMMAND AeroRobustnessFuzzTests
+            ${_domain})
+    set_tests_properties(
+        ${_domain}Fuzz PROPERTIES
+        LABELS "fuzz"
+        TIMEOUT 30)
+endforeach()
+
+add_executable(
+    AeroStabilityGateTests
+    quality/StabilityGateTests.cpp)
+target_link_libraries(
+    AeroStabilityGateTests
+    PRIVATE Aero::Core)
+target_compile_features(
+    AeroStabilityGateTests
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroStabilityGateTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroStabilityGateTests)
+add_test(
+    NAME MemoryStabilityGate
+    COMMAND AeroStabilityGateTests memory)
+add_test(
+    NAME LongRunStabilityGate
+    COMMAND AeroStabilityGateTests longrun)
+set_tests_properties(
+    MemoryStabilityGate PROPERTIES
+    LABELS "memory"
+    TIMEOUT 30)
+set_tests_properties(
+    LongRunStabilityGate PROPERTIES
+    LABELS "longrun"
+    TIMEOUT 30)
+
+# These probes encode the WPF-observable ordering and state transitions that
+# the focused subsystem tests assert. Keeping explicit conformance test names
+# makes the release gate discoverable without duplicating the fixtures.
+add_test(
+    NAME WpfObservableBehaviorProbe
+    COMMAND AeroButtonTests)
+add_test(
+    NAME InputEventOrderConformance
+    COMMAND AeroInputTests)
+add_test(
+    NAME FocusCaptureConformance
+    COMMAND AeroButtonTests)
+add_test(
+    NAME ContainerRecyclingConformance
+    COMMAND AeroVirtualizationTests)
+set_tests_properties(
+    WpfObservableBehaviorProbe
+    InputEventOrderConformance
+    FocusCaptureConformance
+    ContainerRecyclingConformance
+    AeroBindingTests
+    AeroStyleTests
+    AeroTemplateTests
+    AeroInspectorTests
+    PROPERTIES LABELS "conformance")

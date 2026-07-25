@@ -132,6 +132,7 @@ if(AERO_BUILD_TESTS)
             --simulate-context-loss)
     set_tests_properties(
         AeroControlGallerySmoke PROPERTIES
+        LABELS "conformance"
         TIMEOUT 60)
     if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
             AND AERO_ENABLE_WGL_SURFACE)
@@ -152,7 +153,9 @@ if(AERO_BUILD_TESTS)
         set_tests_properties(
             AeroControlGalleryD3D11Smoke
             AeroControlGalleryWglSmoke
-            PROPERTIES TIMEOUT 60)
+            PROPERTIES
+                LABELS "context-loss"
+                TIMEOUT 60)
         set_tests_properties(
             AeroControlGalleryWglSmoke
             PROPERTIES SKIP_RETURN_CODE 77)
@@ -166,7 +169,9 @@ if(AERO_BUILD_TESTS)
                 --simulate-context-loss)
         set_tests_properties(
             AeroControlGalleryGlxSmoke
-            PROPERTIES TIMEOUT 60
+            PROPERTIES
+            LABELS "context-loss"
+            TIMEOUT 60
             SKIP_RETURN_CODE 77)
     endif()
 endif()
