@@ -88,8 +88,6 @@ constexpr GlEnum GlCounterClockwise = 0x0901U;
 constexpr GlEnum GlFill = 0x1B02U;
 constexpr GlEnum GlLine = 0x1B01U;
 
-constexpr GlEnum GlDepthAttachment = 0x8D00U;
-constexpr GlEnum GlStencilAttachment = 0x8D20U;
 constexpr GlEnum GlDepthStencilAttachment = 0x821AU;
 constexpr GlEnum GlColor = 0x1800U;
 constexpr GlEnum GlDepth = 0x1801U;
