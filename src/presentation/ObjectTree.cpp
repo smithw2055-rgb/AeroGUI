@@ -675,8 +675,9 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
         return InvalidState(
             "RoutedEventCatalog must be frozen before dispatch");
     }
-    if (raising_) {
-        return InvalidState("Nested routed event dispatch is deferred to a later slice");
+    if (raiseDepth_ == 64U) {
+        return InvalidState(
+            "Routed event nesting limit was exceeded");
     }
     const RoutedEventCatalog::Definition* definition = catalog_->Find(event);
     if (definition == nullptr) {
@@ -701,11 +702,11 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
         args.originalSource = &source;
     }
 
-    raising_ = true;
+    ++raiseDepth_;
     for (Visual* node : route) {
         InvokeNode(*node, args);
     }
-    raising_ = false;
+    --raiseDepth_;
     return {};
 }
 

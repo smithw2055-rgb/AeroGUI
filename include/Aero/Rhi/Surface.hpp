@@ -12,7 +12,7 @@
 namespace Aero::Rhi {
 
 constexpr std::uint32_t SurfaceAbiVersion = 1U;
-constexpr std::uint32_t HostedGraphicsAbiVersion = 1U;
+constexpr std::uint32_t HostedGraphicsAbiVersion = 2U;
 
 enum class SurfaceKind : std::uint8_t {
     Invalid = 0U,
@@ -178,6 +178,20 @@ public:
     virtual bool IsSurfaceLost() const noexcept = 0;
 };
 
+struct SurfaceFrameCapture final {
+    GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
+    FenceValue signalFence = 0U;
+    std::uint64_t surfaceGeneration = 0U;
+    std::uint64_t frameSerial = 0U;
+    std::uint64_t targetStableId = 0U;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+    std::uint32_t commandCount = 0U;
+    std::uint32_t uploadByteCount = 0U;
+    std::uint64_t commandHash = 0U;
+    bool presented = false;
+};
+
 class AERO_API SurfaceSession final {
 public:
     explicit SurfaceSession(ISurfaceBackend& backend) noexcept
@@ -196,6 +210,10 @@ public:
     Base::Result<void> Present(
         SurfaceFrame& frame,
         FenceValue signalFence) noexcept;
+    Base::Result<FenceValue> SubmitAndPresent(
+        RhiDevice& device,
+        SurfaceFrame& frame,
+        const CommandList& commands) noexcept;
     Base::Result<void> DiscardFrame(
         SurfaceFrame& frame) noexcept;
     Base::Result<void> NotifyContextLost() noexcept;
@@ -216,6 +234,9 @@ public:
     const SurfaceCapabilities& Capabilities() const noexcept {
         return capabilities_;
     }
+    const SurfaceFrameCapture& LastCapture() const noexcept {
+        return lastCapture_;
+    }
     bool IsCurrentFrame(
         const SurfaceFrame& frame) const noexcept;
 
@@ -227,51 +248,10 @@ private:
     std::uint64_t generation_ = 0U;
     std::uint64_t nextFrameSerial_ = 1U;
     std::uint64_t activeFrameSerial_ = 0U;
+    SurfaceFrameCapture lastCapture_;
 
     Base::Result<void> VerifyReady() noexcept;
     Base::Result<void> AdvanceGeneration() noexcept;
-};
-
-struct SurfaceFrameCapture final {
-    GraphicsBackendKind backend = GraphicsBackendKind::Invalid;
-    FenceValue signalFence = 0U;
-    std::uint64_t surfaceGeneration = 0U;
-    std::uint64_t frameSerial = 0U;
-    std::uint64_t targetStableId = 0U;
-    std::uint32_t width = 0U;
-    std::uint32_t height = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint32_t uploadByteCount = 0U;
-    std::uint64_t commandHash = 0U;
-    bool presented = false;
-};
-
-class AERO_API SurfaceGraphicsQueue final {
-public:
-    SurfaceGraphicsQueue(
-        IGraphicsBackend& backend,
-        SurfaceSession& surface) noexcept
-        : backend_(&backend), surface_(&surface) {}
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<FenceValue> SubmitAndPresent(
-        SurfaceFrame& frame,
-        const GraphicsCommandBuffer& commands) noexcept;
-
-    FenceValue LastSubmittedFence() const noexcept {
-        return lastSubmittedFence_;
-    }
-    const SurfaceFrameCapture& LastCapture() const noexcept {
-        return lastCapture_;
-    }
-
-private:
-    IGraphicsBackend* backend_ = nullptr;
-    SurfaceSession* surface_ = nullptr;
-    GraphicsCapabilities capabilities_;
-    FenceValue lastSubmittedFence_ = 0U;
-    SurfaceFrameCapture lastCapture_;
-    bool initialized_ = false;
 };
 
 struct HostedGraphicsApi final {
@@ -293,39 +273,8 @@ struct HostedGraphicsApi final {
         void*, ResourceHandle, const SamplerDescriptor&) noexcept = nullptr;
     Base::Result<void> (*configurePipeline)(
         void*, ResourceHandle, const PipelineDescriptor&) noexcept = nullptr;
-    Base::Result<void> (*submitLegacy)(
-        void*, const CommandBuffer&, FenceValue) noexcept = nullptr;
-
-    Base::Result<void> (*uploadBuffer)(
-        void*, ResourceHandle, std::uint64_t,
-        Base::Span<const std::uint8_t>) noexcept = nullptr;
-    Base::Result<void> (*uploadTexture)(
-        void*, ResourceHandle, const TextureRegion&,
-        Base::Span<const std::uint8_t>) noexcept = nullptr;
-    Base::Result<void> (*beginRenderPass)(
-        void*, const RenderPassDescriptor&) noexcept = nullptr;
-    Base::Result<void> (*endRenderPass)(void*) noexcept = nullptr;
-    Base::Result<void> (*bindPipeline)(
-        void*, ResourceHandle) noexcept = nullptr;
-    Base::Result<void> (*bindVertexBuffer)(
-        void*, std::uint32_t, ResourceHandle, std::uint64_t) noexcept = nullptr;
-    Base::Result<void> (*bindIndexBuffer)(
-        void*, ResourceHandle, IndexType, std::uint64_t) noexcept = nullptr;
-    Base::Result<void> (*bindUniformBuffer)(
-        void*, std::uint32_t, ResourceHandle,
-        std::uint64_t, std::uint32_t) noexcept = nullptr;
-    Base::Result<void> (*bindTextureSampler)(
-        void*, std::uint32_t, ResourceHandle, ResourceHandle) noexcept = nullptr;
-    Base::Result<void> (*setScissor)(
-        void*, Base::Rect) noexcept = nullptr;
-    Base::Result<void> (*draw)(
-        void*, std::uint32_t, std::uint32_t,
-        std::uint32_t, std::uint32_t) noexcept = nullptr;
-    Base::Result<void> (*drawIndexed)(
-        void*, std::uint32_t, std::uint32_t,
-        std::uint32_t, std::int32_t, std::uint32_t) noexcept = nullptr;
-    Base::Result<void> (*signalFence)(
-        void*, FenceValue) noexcept = nullptr;
+    Base::Result<void> (*submit)(
+        void*, const CommandList&, FenceValue) noexcept = nullptr;
     FenceValue (*completedFence)(void*) noexcept = nullptr;
     bool (*isDeviceLost)(void*) noexcept = nullptr;
 
@@ -377,10 +326,7 @@ public:
         ResourceHandle handle,
         const PipelineDescriptor& descriptor) noexcept override;
     Base::Result<void> Submit(
-        const CommandBuffer& commands,
-        FenceValue signalFence) noexcept override;
-    Base::Result<void> SubmitGraphics(
-        const GraphicsCommandBuffer& commands,
+        const CommandList& commands,
         FenceValue signalFence) noexcept override;
     FenceValue LastSubmittedFence() const noexcept override {
         return lastSubmittedFence_;

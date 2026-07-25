@@ -442,10 +442,10 @@ std::uint64_t StablePipelineHash(
     return hash;
 }
 
-std::uint64_t GraphicsCommandBuffer::StableHash() const noexcept {
+std::uint64_t CommandList::StableHash() const noexcept {
     std::uint64_t hash = HashOffset;
     HashValue(hash, commands_.Size());
-    for (const GraphicsCommand& command : commands_) {
+    for (const Command& command : commands_) {
         HashValue(hash, command.kind);
         HashResource(hash, command.resource0);
         HashResource(hash, command.resource1);
@@ -477,14 +477,14 @@ std::uint64_t GraphicsCommandBuffer::StableHash() const noexcept {
     return hash;
 }
 
-Base::Result<void> GraphicsCommandEncoder::VerifyRecording() const noexcept {
+Base::Result<void> CommandEncoder::VerifyRecording() const noexcept {
     return finished_
         ? Base::Result<void>(InvalidState("Graphics command encoder is finished"))
         : Base::Result<void>();
 }
 
-Base::Result<void> GraphicsCommandEncoder::Append(
-    const GraphicsCommand& command) noexcept {
+Base::Result<void> CommandEncoder::Append(
+    const Command& command) noexcept {
     Base::Result<void> recording = VerifyRecording();
     if (!recording) {
         return recording;
@@ -492,8 +492,8 @@ Base::Result<void> GraphicsCommandEncoder::Append(
     return buffer_.commands_.TryPushBack(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::AppendUpload(
-    GraphicsCommand& command,
+Base::Result<void> CommandEncoder::AppendUpload(
+    Command& command,
     Base::Span<const std::uint8_t> data) noexcept {
     if (data.Empty()) {
         return InvalidArgument("Upload payload must not be empty");
@@ -520,7 +520,7 @@ Base::Result<void> GraphicsCommandEncoder::AppendUpload(
     return {};
 }
 
-Base::Result<void> GraphicsCommandEncoder::UploadBuffer(
+Base::Result<void> CommandEncoder::UploadBuffer(
     ResourceHandle buffer,
     std::uint64_t destinationOffset,
     Base::Span<const std::uint8_t> data) noexcept {
@@ -531,15 +531,15 @@ Base::Result<void> GraphicsCommandEncoder::UploadBuffer(
     if (!buffer.IsValid() || buffer.type != ResourceType::Buffer) {
         return InvalidState("Buffer uploads require a valid buffer");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::UploadBuffer;
+    Command command;
+    command.kind = CommandKind::UploadBuffer;
     command.resource0 = buffer;
     command.resourceOffset = destinationOffset;
     command.resourceSize = data.Size();
     return AppendUpload(command, data);
 }
 
-Base::Result<void> GraphicsCommandEncoder::UploadTexture(
+Base::Result<void> CommandEncoder::UploadTexture(
     ResourceHandle texture,
     TextureRegion region,
     Base::Span<const std::uint8_t> data) noexcept {
@@ -554,14 +554,14 @@ Base::Result<void> GraphicsCommandEncoder::UploadTexture(
         region.bytesPerRow == 0U) {
         return InvalidState("Texture uploads require a valid region outside a render pass");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::UploadTexture;
+    Command command;
+    command.kind = CommandKind::UploadTexture;
     command.resource0 = texture;
     command.textureRegion = region;
     return AppendUpload(command, data);
 }
 
-Base::Result<void> GraphicsCommandEncoder::BeginRenderPass(
+Base::Result<void> CommandEncoder::BeginRenderPass(
     const RenderPassDescriptor& descriptor) noexcept {
     Base::Result<void> recording = VerifyRecording();
     if (!recording) {
@@ -574,8 +574,8 @@ Base::Result<void> GraphicsCommandEncoder::BeginRenderPass(
     if (!valid) {
         return valid;
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BeginRenderPass;
+    Command command;
+    command.kind = CommandKind::BeginRenderPass;
     command.renderPass = descriptor;
     Base::Result<void> appended = Append(command);
     if (appended) {
@@ -584,7 +584,7 @@ Base::Result<void> GraphicsCommandEncoder::BeginRenderPass(
     return appended;
 }
 
-Base::Result<void> GraphicsCommandEncoder::EndRenderPass() noexcept {
+Base::Result<void> CommandEncoder::EndRenderPass() noexcept {
     Base::Result<void> recording = VerifyRecording();
     if (!recording) {
         return recording;
@@ -592,8 +592,8 @@ Base::Result<void> GraphicsCommandEncoder::EndRenderPass() noexcept {
     if (!inRenderPass_) {
         return InvalidState("No render pass is active");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::EndRenderPass;
+    Command command;
+    command.kind = CommandKind::EndRenderPass;
     Base::Result<void> appended = Append(command);
     if (appended) {
         inRenderPass_ = false;
@@ -601,19 +601,19 @@ Base::Result<void> GraphicsCommandEncoder::EndRenderPass() noexcept {
     return appended;
 }
 
-Base::Result<void> GraphicsCommandEncoder::BindPipeline(
+Base::Result<void> CommandEncoder::BindPipeline(
     ResourceHandle pipeline) noexcept {
     if (!inRenderPass_ || !pipeline.IsValid() ||
         pipeline.type != ResourceType::Pipeline) {
         return InvalidState("Pipeline binding requires an active render pass");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BindPipeline;
+    Command command;
+    command.kind = CommandKind::BindPipeline;
     command.resource0 = pipeline;
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::BindVertexBuffer(
+Base::Result<void> CommandEncoder::BindVertexBuffer(
     std::uint32_t slot,
     ResourceHandle buffer,
     std::uint64_t offset) noexcept {
@@ -621,15 +621,15 @@ Base::Result<void> GraphicsCommandEncoder::BindVertexBuffer(
         !buffer.IsValid() || buffer.type != ResourceType::Buffer) {
         return InvalidState("Vertex-buffer binding is invalid");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BindVertexBuffer;
+    Command command;
+    command.kind = CommandKind::BindVertexBuffer;
     command.resource0 = buffer;
     command.resourceOffset = offset;
     command.slot = slot;
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::BindIndexBuffer(
+Base::Result<void> CommandEncoder::BindIndexBuffer(
     ResourceHandle buffer,
     IndexType type,
     std::uint64_t offset) noexcept {
@@ -637,15 +637,15 @@ Base::Result<void> GraphicsCommandEncoder::BindIndexBuffer(
         buffer.type != ResourceType::Buffer) {
         return InvalidState("Index-buffer binding is invalid");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BindIndexBuffer;
+    Command command;
+    command.kind = CommandKind::BindIndexBuffer;
     command.resource0 = buffer;
     command.resourceOffset = offset;
     command.indexType = type;
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::BindUniformBuffer(
+Base::Result<void> CommandEncoder::BindUniformBuffer(
     std::uint32_t slot,
     ResourceHandle buffer,
     std::uint64_t offset,
@@ -654,8 +654,8 @@ Base::Result<void> GraphicsCommandEncoder::BindUniformBuffer(
         buffer.type != ResourceType::Buffer || size == 0U) {
         return InvalidState("Uniform-buffer binding is invalid");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BindUniformBuffer;
+    Command command;
+    command.kind = CommandKind::BindUniformBuffer;
     command.resource0 = buffer;
     command.resourceOffset = offset;
     command.resourceSize = size;
@@ -663,7 +663,7 @@ Base::Result<void> GraphicsCommandEncoder::BindUniformBuffer(
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::BindTextureSampler(
+Base::Result<void> CommandEncoder::BindTextureSampler(
     std::uint32_t slot,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
@@ -672,26 +672,26 @@ Base::Result<void> GraphicsCommandEncoder::BindTextureSampler(
         sampler.type != ResourceType::Sampler) {
         return InvalidState("Texture-sampler binding is invalid");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::BindTextureSampler;
+    Command command;
+    command.kind = CommandKind::BindTextureSampler;
     command.resource0 = texture;
     command.resource1 = sampler;
     command.slot = slot;
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::SetScissor(
+Base::Result<void> CommandEncoder::SetScissor(
     Base::Rect rect) noexcept {
     if (!inRenderPass_ || !Base::IsValidRect(rect)) {
         return InvalidState("Scissor state requires a valid rectangle in a render pass");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::SetScissor;
+    Command command;
+    command.kind = CommandKind::SetScissor;
     command.rect = rect;
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::Draw(
+Base::Result<void> CommandEncoder::Draw(
     std::uint32_t vertexCount,
     std::uint32_t instanceCount,
     std::uint32_t firstVertex,
@@ -699,8 +699,8 @@ Base::Result<void> GraphicsCommandEncoder::Draw(
     if (!inRenderPass_ || vertexCount == 0U || instanceCount == 0U) {
         return InvalidState("Draw requires an active render pass and non-zero counts");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::Draw;
+    Command command;
+    command.kind = CommandKind::Draw;
     command.first = firstVertex;
     command.count = vertexCount;
     command.instanceCount = instanceCount;
@@ -708,7 +708,7 @@ Base::Result<void> GraphicsCommandEncoder::Draw(
     return Append(command);
 }
 
-Base::Result<void> GraphicsCommandEncoder::DrawIndexed(
+Base::Result<void> CommandEncoder::DrawIndexed(
     std::uint32_t indexCount,
     std::uint32_t instanceCount,
     std::uint32_t firstIndex,
@@ -717,8 +717,8 @@ Base::Result<void> GraphicsCommandEncoder::DrawIndexed(
     if (!inRenderPass_ || indexCount == 0U || instanceCount == 0U) {
         return InvalidState("Indexed draw requires an active render pass and non-zero counts");
     }
-    GraphicsCommand command;
-    command.kind = GraphicsCommandKind::DrawIndexed;
+    Command command;
+    command.kind = CommandKind::DrawIndexed;
     command.first = firstIndex;
     command.count = indexCount;
     command.instanceCount = instanceCount;
@@ -727,7 +727,7 @@ Base::Result<void> GraphicsCommandEncoder::DrawIndexed(
     return Append(command);
 }
 
-Base::Result<GraphicsCommandBuffer> GraphicsCommandEncoder::Finish() noexcept {
+Base::Result<CommandList> CommandEncoder::Finish() noexcept {
     Base::Result<void> recording = VerifyRecording();
     if (!recording) {
         return recording.GetStatus();
@@ -773,166 +773,13 @@ Base::Result<IGraphicsBackend*> SelectGraphicsBackend(
     return Unsupported("No graphics backend satisfies the requested capabilities");
 }
 
-void GraphicsResourceFactory::Rollback(ResourceHandle handle) noexcept {
-    if (!handle.IsValid()) {
-        return;
-    }
-    (void)device_->DestroyResource(handle, 0U);
-    (void)device_->CollectGarbage();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateBuffer(
-    const BufferDescriptor& descriptor) noexcept {
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Buffer;
-    resource.buffer = descriptor;
-    return device_->CreateResource(resource);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateTextureInternal(
-    const TextureResourceDescriptor& descriptor,
-    ResourceType resourceType) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidateTextureDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    if (resourceType == ResourceType::RenderTarget &&
-        !HasTextureUsage(descriptor.usage, TextureUsage::RenderTarget)) {
-        return InvalidArgument("Render-target resources require RenderTarget usage");
-    }
-
-    ResourceDescriptor resource;
-    resource.type = resourceType;
-    resource.texture.width = descriptor.width;
-    resource.texture.height = descriptor.height;
-    resource.texture.format = ToBaseTextureFormat(descriptor.format);
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigureTexture(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateTexture(
-    const TextureResourceDescriptor& descriptor) noexcept {
-    return CreateTextureInternal(descriptor, ResourceType::Texture);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateRenderTarget(
-    const TextureResourceDescriptor& descriptor) noexcept {
-    return CreateTextureInternal(descriptor, ResourceType::RenderTarget);
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreateSampler(
-    const SamplerDescriptor& descriptor) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidateSamplerDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Sampler;
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigureSampler(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<ResourceHandle> GraphicsResourceFactory::CreatePipeline(
-    const PipelineDescriptor& descriptor) noexcept {
-    const GraphicsCapabilities capabilities =
-        backend_->QueryGraphicsCapabilities();
-    Base::Result<void> valid = ValidatePipelineDescriptor(
-        descriptor, capabilities);
-    if (!valid) {
-        return valid.GetStatus();
-    }
-    ResourceDescriptor resource;
-    resource.type = ResourceType::Pipeline;
-    Base::Result<ResourceHandle> created = device_->CreateResource(resource);
-    if (!created) {
-        return created.GetStatus();
-    }
-    Base::Result<void> configured = backend_->ConfigurePipeline(
-        created.Value(), descriptor);
-    if (!configured) {
-        const ResourceHandle handle = created.Value();
-        Rollback(handle);
-        return configured.GetStatus();
-    }
-    return created.Value();
-}
-
-Base::Result<void> GraphicsQueue::Initialize() noexcept {
-    if (initialized_) {
-        return {};
-    }
-    if (backend_ == nullptr || backend_->IsDeviceLost() ||
-        backend_->Capabilities().abiVersion != RhiAbiVersion) {
-        return InvalidState("Graphics queue backend is unavailable");
-    }
-    capabilities_ = backend_->QueryGraphicsCapabilities();
-    if (!IsValidGraphicsCapabilities(capabilities_)) {
-        return Unsupported("Graphics backend capabilities are incompatible");
-    }
-    lastSubmittedFence_ = backend_->LastSubmittedFence();
-    initialized_ = true;
-    return {};
-}
-
-Base::Result<FenceValue> GraphicsQueue::Submit(
-    const GraphicsCommandBuffer& commands) noexcept {
-    if (!initialized_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Graphics queue is not initialized");
-    }
-    if (backend_->IsDeviceLost()) {
-        return InvalidState("Graphics backend device is lost");
-    }
-    const FenceValue backendFence = backend_->LastSubmittedFence();
-    if (backendFence == UINT64_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Graphics queue fence space is exhausted");
-    }
-    const FenceValue signalFence = backendFence + 1U;
-    Base::Result<void> submitted = backend_->SubmitGraphics(
-        commands, signalFence);
-    if (!submitted) {
-        return submitted.GetStatus();
-    }
-    lastSubmittedFence_ = signalFence;
-    lastCapture_.backend = backend_->Kind();
-    lastCapture_.signalFence = signalFence;
-    lastCapture_.commandCount = commands.CommandCount();
-    lastCapture_.uploadByteCount = commands.UploadByteCount();
-    lastCapture_.commandHash = commands.StableHash();
-    return signalFence;
-}
-
 DeviceCapabilities NullGraphicsBackend::Capabilities() const noexcept {
-    return base_.Capabilities();
+    DeviceCapabilities capabilities;
+    capabilities.abiVersion = RhiAbiVersion;
+    capabilities.maxFramesInFlight = 3U;
+    capabilities.maxTextureDimension = 8192U;
+    capabilities.supportsTimestampQueries = false;
+    return capabilities;
 }
 
 GraphicsCapabilities
@@ -966,22 +813,20 @@ NullGraphicsBackend::QueryGraphicsCapabilities() const noexcept {
 Base::Result<void> NullGraphicsBackend::CreateResource(
     ResourceHandle handle,
     const ResourceDescriptor& descriptor) noexcept {
-    if (IsDeviceLost()) {
+    if (deviceLost_) {
         return InvalidState("Null graphics device is lost");
     }
-    Base::Result<void> created = base_.CreateResource(handle, descriptor);
-    if (!created) {
-        return created;
+    if (!handle.IsValid() || handle.type != descriptor.type) {
+        return InvalidArgument(
+            "Backend resource handle does not match descriptor");
+    }
+    if (Find(handle) != nullptr) {
+        return InvalidState("Backend resource handle already exists");
     }
     ResourceRecord record;
     record.handle = handle;
     record.descriptor = descriptor;
-    Base::Result<void> appended = resources_.TryPushBack(record);
-    if (!appended) {
-        base_.DestroyResource(handle);
-        return appended;
-    }
-    return {};
+    return resources_.TryPushBack(record);
 }
 
 void NullGraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {
@@ -996,7 +841,6 @@ void NullGraphicsBackend::DestroyResource(ResourceHandle handle) noexcept {
             break;
         }
     }
-    base_.DestroyResource(handle);
 }
 
 NullGraphicsBackend::ResourceRecord* NullGraphicsBackend::Find(
@@ -1087,35 +931,17 @@ Base::Result<void> NullGraphicsBackend::ConfigurePipeline(
     return {};
 }
 
-Base::Result<void> NullGraphicsBackend::Submit(
-    const CommandBuffer& commands,
-    FenceValue signalFence) noexcept {
-    if (IsDeviceLost()) {
-        return InvalidState("Null graphics device is lost");
-    }
-    if (signalFence <= lastSubmittedFence_) {
-        return InvalidArgument("Submission fence must increase monotonically");
-    }
-    Base::Result<void> submitted = base_.Submit(commands, signalFence);
-    if (!submitted) {
-        return submitted;
-    }
-    lastSubmittedFence_ = signalFence;
-    ++submissionCount_;
-    return {};
-}
-
-Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
-    const GraphicsCommandBuffer& commands) const noexcept {
+Base::Result<void> NullGraphicsBackend::ValidateCommands(
+    const CommandList& commands) const noexcept {
     const GraphicsCapabilities capabilities = QueryGraphicsCapabilities();
     const Base::Span<const std::uint8_t> uploadBytes = commands.UploadBytes();
     bool inPass = false;
     bool pipelineBound = false;
     bool indexBufferBound = false;
 
-    for (const GraphicsCommand& command : commands.Commands()) {
+    for (const Command& command : commands.Commands()) {
         switch (command.kind) {
-        case GraphicsCommandKind::UploadBuffer: {
+        case CommandKind::UploadBuffer: {
             Base::Result<void> uploadRange = ValidateUploadRange(
                 command.uploadOffset, command.uploadSize, uploadBytes.Size());
             if (!uploadRange) {
@@ -1134,7 +960,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             }
             break;
         }
-        case GraphicsCommandKind::UploadTexture: {
+        case CommandKind::UploadTexture: {
             if (inPass) {
                 return InvalidState("Texture upload is not allowed inside a render pass");
             }
@@ -1173,7 +999,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             }
             break;
         }
-        case GraphicsCommandKind::BeginRenderPass: {
+        case CommandKind::BeginRenderPass: {
             if (inPass) {
                 return InvalidState("Nested render passes are not allowed");
             }
@@ -1215,7 +1041,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             indexBufferBound = false;
             break;
         }
-        case GraphicsCommandKind::EndRenderPass:
+        case CommandKind::EndRenderPass:
             if (!inPass) {
                 return InvalidState("Render pass end has no matching begin");
             }
@@ -1223,14 +1049,14 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             pipelineBound = false;
             indexBufferBound = false;
             break;
-        case GraphicsCommandKind::BindPipeline:
+        case CommandKind::BindPipeline:
             if (!inPass || !IsConfigured(
                     command.resource0, ConfigurationKind::Pipeline)) {
                 return InvalidState("Pipeline binding is invalid");
             }
             pipelineBound = true;
             break;
-        case GraphicsCommandKind::BindVertexBuffer: {
+        case CommandKind::BindVertexBuffer: {
             const ResourceRecord* record = Find(command.resource0);
             if (!inPass || command.slot >= MaxVertexBuffers ||
                 record == nullptr ||
@@ -1241,7 +1067,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             }
             break;
         }
-        case GraphicsCommandKind::BindIndexBuffer: {
+        case CommandKind::BindIndexBuffer: {
             const ResourceRecord* record = Find(command.resource0);
             if (!inPass || record == nullptr ||
                 record->descriptor.type != ResourceType::Buffer ||
@@ -1252,7 +1078,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             indexBufferBound = true;
             break;
         }
-        case GraphicsCommandKind::BindUniformBuffer: {
+        case CommandKind::BindUniformBuffer: {
             const ResourceRecord* record = Find(command.resource0);
             if (!inPass || record == nullptr ||
                 record->descriptor.type != ResourceType::Buffer ||
@@ -1266,7 +1092,7 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             }
             break;
         }
-        case GraphicsCommandKind::BindTextureSampler: {
+        case CommandKind::BindTextureSampler: {
             const ResourceRecord* texture = Find(command.resource0);
             if (!inPass || command.slot >= capabilities.maxSampledTextures ||
                 texture == nullptr ||
@@ -1277,20 +1103,20 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
             }
             break;
         }
-        case GraphicsCommandKind::SetScissor:
+        case CommandKind::SetScissor:
             if (!inPass || !Base::IsValidRect(command.rect) ||
                 !HasAllFeatures(capabilities.features,
                     FeatureBit(GraphicsFeature::Scissor))) {
                 return InvalidState("Scissor command is invalid");
             }
             break;
-        case GraphicsCommandKind::Draw:
+        case CommandKind::Draw:
             if (!inPass || !pipelineBound || command.count == 0U ||
                 command.instanceCount == 0U) {
                 return InvalidState("Draw command is missing required state");
             }
             break;
-        case GraphicsCommandKind::DrawIndexed:
+        case CommandKind::DrawIndexed:
             if (!inPass || !pipelineBound || !indexBufferBound ||
                 command.count == 0U || command.instanceCount == 0U) {
                 return InvalidState("Indexed draw command is missing required state");
@@ -1304,8 +1130,8 @@ Base::Result<void> NullGraphicsBackend::ValidateGraphicsCommands(
     return {};
 }
 
-Base::Result<void> NullGraphicsBackend::SubmitGraphics(
-    const GraphicsCommandBuffer& commands,
+Base::Result<void> NullGraphicsBackend::Submit(
+    const CommandList& commands,
     FenceValue signalFence) noexcept {
     if (IsDeviceLost()) {
         return InvalidState("Null graphics device is lost");
@@ -1313,7 +1139,7 @@ Base::Result<void> NullGraphicsBackend::SubmitGraphics(
     if (signalFence <= lastSubmittedFence_) {
         return InvalidArgument("Submission fence must increase monotonically");
     }
-    Base::Result<void> valid = ValidateGraphicsCommands(commands);
+    Base::Result<void> valid = ValidateCommands(commands);
     if (!valid) {
         return valid;
     }
@@ -1330,12 +1156,10 @@ void NullGraphicsBackend::CompleteThrough(FenceValue fence) noexcept {
     if (fence > completedFence_) {
         completedFence_ = fence;
     }
-    base_.CompleteThrough(fence);
 }
 
 void NullGraphicsBackend::SimulateDeviceLoss() noexcept {
     deviceLost_ = true;
-    base_.SimulateDeviceLoss();
 }
 
 bool SokolBackendAdapter::IsValid() const noexcept {
@@ -1349,7 +1173,6 @@ bool SokolBackendAdapter::IsValid() const noexcept {
         api_.configureSampler != nullptr &&
         api_.configurePipeline != nullptr &&
         api_.submit != nullptr &&
-        api_.submitGraphics != nullptr &&
         api_.completedFence != nullptr &&
         api_.isDeviceLost != nullptr;
 }
@@ -1410,26 +1233,13 @@ Base::Result<void> SokolBackendAdapter::ConfigurePipeline(
 }
 
 Base::Result<void> SokolBackendAdapter::Submit(
-    const CommandBuffer& commands,
-    FenceValue signalFence) noexcept {
-    if (!IsValid()) {
-        return Unsupported("Sokol backend function table is invalid");
-    }
-    Base::Result<void> submitted = api_.submit(api_.context, commands, signalFence);
-    if (submitted) {
-        lastSubmittedFence_ = signalFence;
-    }
-    return submitted;
-}
-
-Base::Result<void> SokolBackendAdapter::SubmitGraphics(
-    const GraphicsCommandBuffer& commands,
+    const CommandList& commands,
     FenceValue signalFence) noexcept {
     if (!IsValid()) {
         return Unsupported("Sokol backend function table is invalid");
     }
     Base::Result<void> submitted =
-        api_.submitGraphics(api_.context, commands, signalFence);
+        api_.submit(api_.context, commands, signalFence);
     if (submitted) {
         lastSubmittedFence_ = signalFence;
     }

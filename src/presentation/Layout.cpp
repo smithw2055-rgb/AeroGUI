@@ -208,6 +208,42 @@ bool UIElement::IsHitTestVisible() const noexcept {
     Base::Result<Value> value = GetValue(IsHitTestVisibleProperty);
     return value ? value.Value().AsBoolean() : true;
 }
+bool UIElement::IsEnabled() const noexcept {
+    Base::Result<Value> value = GetValue(IsEnabledProperty);
+    if (value && !value.Value().AsBoolean()) return false;
+    Visual* parent = LogicalParent() != nullptr
+        ? LogicalParent() : VisualParent();
+    const UIElement* parentElement =
+        parent != nullptr ? parent->AsUIElement() : nullptr;
+    return parentElement == nullptr || parentElement->IsEnabled();
+}
+bool UIElement::IsMouseOver() const noexcept {
+    Base::Result<Value> value = GetValue(IsMouseOverProperty);
+    return value && value.Value().AsBoolean();
+}
+bool UIElement::IsPressed() const noexcept {
+    Base::Result<Value> value = GetValue(IsPressedProperty);
+    return value && value.Value().AsBoolean();
+}
+bool UIElement::IsKeyboardFocused() const noexcept {
+    Base::Result<Value> value = GetValue(IsKeyboardFocusedProperty);
+    return value && value.Value().AsBoolean();
+}
+bool UIElement::IsTabStop() const noexcept {
+    Base::Result<Value> value = GetValue(IsTabStopProperty);
+    return value && value.Value().AsBoolean();
+}
+std::uint32_t UIElement::TabIndex() const noexcept {
+    Base::Result<Value> value = GetValue(TabIndexProperty);
+    return value
+        ? static_cast<std::uint32_t>(
+            value.Value().AsUnsignedInteger())
+        : 0U;
+}
+bool UIElement::IsFocusScope() const noexcept {
+    Base::Result<Value> value = GetValue(IsFocusScopeProperty);
+    return value && value.Value().AsBoolean();
+}
 bool FrameworkElement::UseLayoutRounding() const noexcept {
     Base::Result<Value> value = GetValue(UseLayoutRoundingProperty);
     return value ? value.Value().AsBoolean() : false;
@@ -288,6 +324,35 @@ Base::Result<void> UIElement::SetClipToBounds(bool value) noexcept {
 
 Base::Result<void> UIElement::SetHitTestVisible(bool value) noexcept {
     return SetValue(IsHitTestVisibleProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetEnabled(bool value) noexcept {
+    return SetValue(IsEnabledProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetTabStop(bool value) noexcept {
+    return SetValue(IsTabStopProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetTabIndex(std::uint32_t value) noexcept {
+    return SetValue(TabIndexProperty,
+        Value::FromUnsignedInteger(
+            PresentationType("UInt32"), value));
+}
+Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
+    return SetValue(IsFocusScopeProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsMouseOverProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetPressedState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsPressedProperty,
+        Value::FromBoolean(PresentationType("Boolean"), value));
+}
+Base::Result<void> UIElement::SetKeyboardFocusedState(bool value) noexcept {
+    return SetReadOnlyCurrentValue(IsKeyboardFocusedProperty,
         Value::FromBoolean(PresentationType("Boolean"), value));
 }
 

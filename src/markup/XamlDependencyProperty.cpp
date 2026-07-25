@@ -1,6 +1,12 @@
 #include <Aero/Markup/XamlDependencyProperty.hpp>
 
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Controls/Scroll.hpp>
+#include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
@@ -45,12 +51,29 @@ Base::Result<Base::Ref<Base::Object>> ActivateAeroControl(
         return Base::Ref<Base::Object>(std::move(made).Value()); \
     }
     AERO_ACTIVATE_CONTROL(StackPanel)
+    AERO_ACTIVATE_CONTROL(VirtualizingStackPanel)
     AERO_ACTIVATE_CONTROL(Canvas)
     AERO_ACTIVATE_CONTROL(Grid)
     AERO_ACTIVATE_CONTROL(Border)
     AERO_ACTIVATE_CONTROL(TextBlock)
     AERO_ACTIVATE_CONTROL(ContentPresenter)
     AERO_ACTIVATE_CONTROL(UserControl)
+    AERO_ACTIVATE_CONTROL(Button)
+    AERO_ACTIVATE_CONTROL(RepeatButton)
+    AERO_ACTIVATE_CONTROL(ToggleButton)
+    AERO_ACTIVATE_CONTROL(CheckBox)
+    AERO_ACTIVATE_CONTROL(RadioButton)
+    AERO_ACTIVATE_CONTROL(ScrollContentPresenter)
+    AERO_ACTIVATE_CONTROL(ScrollViewer)
+    AERO_ACTIVATE_CONTROL(ScrollBar)
+    AERO_ACTIVATE_CONTROL(Track)
+    AERO_ACTIVATE_CONTROL(Thumb)
+    AERO_ACTIVATE_CONTROL(ItemContainer)
+    AERO_ACTIVATE_CONTROL(ItemsControl)
+    AERO_ACTIVATE_CONTROL(ItemsPresenter)
+    AERO_ACTIVATE_CONTROL(ListBox)
+    AERO_ACTIVATE_CONTROL(ListBoxItem)
+    AERO_ACTIVATE_CONTROL(TextBox)
 #undef AERO_ACTIVATE_CONTROL
     return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Requested type is not a constructible Aero presentation type");
@@ -114,6 +137,22 @@ Base::Result<void> AddPanelChild(
 Base::Result<void> ClearPanelChildren(
     Base::Object& parentObject, void*) noexcept {
     return static_cast<Controls::Panel&>(parentObject).ClearOwnedChildren();
+}
+
+Base::Result<void> AddItemsControlItem(
+    Base::Object& object,
+    const XamlValue& value,
+    const XamlServiceProvider& services,
+    void*) noexcept {
+    if (services.targetObject != &object ||
+        value.Kind() != XamlValueKind::Object ||
+        value.IsNullObject() || !value.AsObject()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ItemsControl Items requires a non-null object");
+    }
+    return static_cast<Controls::ItemsControl&>(object)
+        .Items().Add(value.AsObject());
 }
 
 } // namespace
@@ -290,17 +329,35 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     if (!bridged) return bridged.GetStatus();
 
     const Core::TypeId activatable[] = {
-        Core::TypeOf<Controls::StackPanel>(), Core::TypeOf<Controls::Canvas>(),
+        Core::TypeOf<Controls::StackPanel>(),
+        Core::TypeOf<Controls::VirtualizingStackPanel>(),
+        Core::TypeOf<Controls::Canvas>(),
         Core::TypeOf<Controls::Grid>(), Core::TypeOf<Controls::Border>(),
         Core::TypeOf<Controls::TextBlock>(),
         Core::TypeOf<Controls::ContentPresenter>(),
-        Core::TypeOf<Controls::UserControl>()};
+        Core::TypeOf<Controls::UserControl>(),
+        Core::TypeOf<Controls::Button>(),
+        Core::TypeOf<Controls::RepeatButton>(),
+        Core::TypeOf<Controls::ToggleButton>(),
+        Core::TypeOf<Controls::CheckBox>(),
+        Core::TypeOf<Controls::RadioButton>(),
+        Core::TypeOf<Controls::ScrollContentPresenter>(),
+        Core::TypeOf<Controls::ScrollViewer>(),
+        Core::TypeOf<Controls::ScrollBar>(),
+        Core::TypeOf<Controls::Track>(),
+        Core::TypeOf<Controls::Thumb>(),
+        Core::TypeOf<Controls::ItemContainer>(),
+        Core::TypeOf<Controls::ItemsControl>(),
+        Core::TypeOf<Controls::ItemsPresenter>(),
+        Core::TypeOf<Controls::ListBox>(),
+        Core::TypeOf<Controls::ListBoxItem>(),
+        Core::TypeOf<Controls::TextBox>()};
     for (Core::TypeId type : activatable) {
         Base::Result<void> registered = activation.TryRegister({
             type, &ActivateAeroControl, nullptr});
         if (!registered) return registered.GetStatus();
     }
-    std::uint32_t count = bridged.Value() + 7U;
+    std::uint32_t count = bridged.Value() + 24U;
     if (visualTree == nullptr) return count;
 
     Base::Result<void> registered = visualTree->TryRegisterType({
@@ -328,7 +385,21 @@ Base::Result<std::uint32_t> TryRegisterAeroPresentationXaml(
     if (!registered) return registered.GetStatus();
     registered = visualTree->Register(activation.Schema());
     if (!registered) return registered.GetStatus();
-    return count + 5U;
+    const Core::MemberId itemsMember =
+        Core::MakeMemberId(
+            Core::TypeOf<Controls::ItemsControl>(),
+            Core::MemberKind::Property,
+            Base::StringView("Items"));
+    registered =
+        activation.Schema().TryRegisterMemberAdapter({
+            itemsMember,
+            XamlMemberWriteMode::Collection,
+            nullptr,
+            nullptr,
+            &AddItemsControlItem,
+            false});
+    if (!registered) return registered.GetStatus();
+    return count + 6U;
 }
 
 bool XamlDependencyPropertyBridge::HandlesDependencyProperty(

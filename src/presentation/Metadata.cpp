@@ -2,12 +2,12 @@
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <cctype>
-#include <cerrno>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -49,44 +49,6 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
             "Text is not a finite number");
     }
     return value;
-}
-
-Base::Result<Value> ConvertBoolean(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "true")) return Value::FromBoolean(type, true);
-    if (EqualsAsciiInsensitive(value, "false")) return Value::FromBoolean(type, false);
-    return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "Boolean text must be true or false");
-}
-
-Base::Result<Value> ConvertUnsigned(TypeId type, Base::StringView text,
-    void*) noexcept {
-    Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
-    if (!assigned) return assigned.GetStatus();
-    char* end = nullptr;
-    errno = 0;
-    const unsigned long long value = std::strtoull(buffer.CStr(), &end, 10);
-    if (end == buffer.CStr() || *end != '\0' || errno == ERANGE ||
-        value > static_cast<unsigned long long>(UINT32_MAX) ||
-        (!buffer.Empty() && buffer.View()[0] == '-')) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Text is not an unsigned integer");
-    }
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(value));
-}
-
-Base::Result<Value> ConvertDoubleValue(TypeId type, Base::StringView text,
-    void*) noexcept {
-    Base::Result<double> value = ParseDouble(text);
-    return value ? Base::Result<Value>(Value::FromDouble(type, value.Value()))
-                 : Base::Result<Value>(value.GetStatus());
-}
-
-Base::Result<Value> ConvertString(TypeId type, Base::StringView text,
-    void*) noexcept {
-    return Value::TryFromString(type, text);
 }
 
 Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
@@ -248,24 +210,16 @@ bool ValidateNonnegativeDouble(const Value& value) noexcept {
     return value.Kind() == ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
 }
-bool ValidateFiniteDouble(const Value& value) noexcept {
-    return value.Kind() == ValueKind::Double && std::isfinite(value.AsDouble());
+bool ValidateUInt32(const Value& value) noexcept {
+    return value.Kind() == ValueKind::UnsignedInteger &&
+        value.AsUnsignedInteger() <=
+            std::numeric_limits<std::uint32_t>::max();
 }
 bool ValidateThicknessValue(const Value& value) noexcept {
     if (value.Kind() != ValueKind::Custom) return false;
     const Thickness& t = *static_cast<const Thickness*>(value.AsCustom());
     return IsFinite(t) && t.left >= 0.0 && t.top >= 0.0 &&
         t.right >= 0.0 && t.bottom >= 0.0;
-}
-bool ValidateColorValue(const Value& value) noexcept {
-    if (value.Kind() != ValueKind::Custom) return false;
-    const Color& color = *static_cast<const Color*>(value.AsCustom());
-    return std::isfinite(color.red) && std::isfinite(color.green) &&
-        std::isfinite(color.blue) && std::isfinite(color.alpha) &&
-        color.red >= 0.0F && color.red <= 1.0F &&
-        color.green >= 0.0F && color.green <= 1.0F &&
-        color.blue >= 0.0F && color.blue <= 1.0F &&
-        color.alpha >= 0.0F && color.alpha <= 1.0F;
 }
 bool ValidateHorizontalValue(const Value& value) noexcept {
     return value.Kind() == ValueKind::UnsignedInteger &&
@@ -275,11 +229,6 @@ bool ValidateVerticalValue(const Value& value) noexcept {
     return value.Kind() == ValueKind::UnsignedInteger &&
         value.AsUnsignedInteger() <= static_cast<std::uint64_t>(VerticalAlignment::Bottom);
 }
-bool ValidateUInt32(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= std::numeric_limits<std::uint32_t>::max();
-}
-
 Base::Result<Value> CheckMinimum(DependencyObject& object,
     const Value& value, DependencyPropertyHandle maximum) noexcept {
     Base::Result<Value> other = object.GetValue(maximum);
@@ -333,6 +282,10 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         MetaTypeBuilder<MouseButtonEventArgs>::Struct(context);
     status = mouseButtonEventArgs.Finish();
     if (!status) return status.GetStatus();
+    MetaTypeBuilder<MouseWheelEventArgs> mouseWheelEventArgs =
+        MetaTypeBuilder<MouseWheelEventArgs>::Struct(context);
+    status = mouseWheelEventArgs.Finish();
+    if (!status) return status.GetStatus();
     MetaTypeBuilder<KeyEventArgs> keyEventArgs =
         MetaTypeBuilder<KeyEventArgs>::Struct(context);
     status = keyEventArgs.Finish();
@@ -344,6 +297,14 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     MetaTypeBuilder<KeyboardFocusChangedEventArgs> focusEventArgs =
         MetaTypeBuilder<KeyboardFocusChangedEventArgs>::Struct(context);
     status = focusEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<CanExecuteRoutedEventArgs> canExecuteEventArgs =
+        MetaTypeBuilder<CanExecuteRoutedEventArgs>::Struct(context);
+    status = canExecuteEventArgs.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<ExecutedRoutedEventArgs> executedEventArgs =
+        MetaTypeBuilder<ExecutedRoutedEventArgs>::Struct(context);
+    status = executedEventArgs.Finish();
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<Length> length =
@@ -404,6 +365,23 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = vertical.Finish();
     if (!status) return status.GetStatus();
 
+    MetaTypeBuilder<ICommand> command =
+        MetaTypeBuilder<ICommand>::Object(context, TypeFlags::Abstract);
+    status = command.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<InputGesture> inputGesture =
+        MetaTypeBuilder<InputGesture>::Object(context, TypeFlags::Abstract);
+    status = inputGesture.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<KeyGesture> keyGesture =
+        MetaTypeBuilder<KeyGesture>::Object(context);
+    status = keyGesture.Finish();
+    if (!status) return status.GetStatus();
+    MetaTypeBuilder<RoutedCommand> routedCommand =
+        MetaTypeBuilder<RoutedCommand>::Object(context);
+    status = routedCommand.Finish();
+    if (!status) return status.GetStatus();
+
     MetaTypeBuilder<Visual> visual =
         MetaTypeBuilder<Visual>::Object(context, TypeFlags::Abstract);
     status = visual.Finish();
@@ -419,6 +397,8 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
                 TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
             .RoutedEvent(UIElement::MouseUpEvent, "MouseUp",
                 TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
+            .RoutedEvent(UIElement::MouseWheelEvent, "MouseWheel",
+                TypeOf<MouseWheelEventArgs>(), RoutingStrategy::Bubble)
             .RoutedEvent(UIElement::GotKeyboardFocusEvent,
                 "GotKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
                 RoutingStrategy::Bubble)
@@ -441,6 +421,37 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .DependencyProperty(UIElement::IsHitTestVisibleProperty,
             "IsHitTestVisible", TypeOf<bool>(),
             Value::FromBoolean(TypeOf<bool>(), true),
+            PropertyMetadataFlags::None)
+        .DependencyProperty(UIElement::IsEnabledProperty,
+            "IsEnabled", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), true),
+            PropertyMetadataFlags::Inherits |
+                PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(UIElement::IsMouseOverProperty,
+            "IsMouseOver", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(UIElement::IsPressedProperty,
+            "IsPressed", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender)
+        .ReadOnlyDependencyProperty(
+            UIElement::IsKeyboardFocusedProperty,
+            "IsKeyboardFocused", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsRender)
+        .DependencyProperty(UIElement::IsTabStopProperty,
+            "IsTabStop", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::None)
+        .DependencyProperty(UIElement::TabIndexProperty,
+            "TabIndex", TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(), 0U),
+            PropertyMetadataFlags::None, &ValidateUInt32)
+        .DependencyProperty(UIElement::IsFocusScopeProperty,
+            "IsFocusScope", TypeOf<bool>(),
+            Value::FromBoolean(TypeOf<bool>(), false),
             PropertyMetadataFlags::None);
     status = uiElement.Finish();
     if (!status) return status.GetStatus();

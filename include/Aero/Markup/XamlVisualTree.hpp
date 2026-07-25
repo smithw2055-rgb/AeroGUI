@@ -153,4 +153,12 @@ LoadXamlVisualTreeWithActivation(
     XamlActivationProviderRegistry& providers,
     const XamlActivationContext& activation) noexcept;
 
+AERO_API Base::Result<Base::Ref<Base::Object>>
+LoadXamlVisualTreeWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
 } // namespace Aero::Markup

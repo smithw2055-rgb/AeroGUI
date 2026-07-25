@@ -15,6 +15,130 @@ set_target_properties(AeroContainerTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroContainerTests)
 add_test(NAME AeroContainerTests COMMAND AeroContainerTests)
 
+add_executable(AeroClipboardTests
+    platform/ClipboardTests.cpp)
+target_link_libraries(AeroClipboardTests
+    PRIVATE Aero::Platform)
+target_compile_features(AeroClipboardTests PRIVATE cxx_std_17)
+set_target_properties(AeroClipboardTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroClipboardTests)
+add_test(NAME AeroClipboardTests COMMAND AeroClipboardTests)
+
+add_executable(AeroImeTests
+    platform/ImeTests.cpp)
+target_link_libraries(AeroImeTests
+    PRIVATE Aero::Platform)
+target_compile_features(AeroImeTests PRIVATE cxx_std_17)
+set_target_properties(AeroImeTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroImeTests)
+add_test(NAME AeroImeTests COMMAND AeroImeTests)
+
+add_executable(AeroTextProviderTests text/TextProviderTests.cpp)
+target_link_libraries(AeroTextProviderTests PRIVATE Aero::Text)
+target_compile_features(AeroTextProviderTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextProviderTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextProviderTests)
+add_test(NAME AeroTextProviderTests COMMAND AeroTextProviderTests)
+
+add_executable(AeroEditableTextTests text/EditableTextTests.cpp)
+target_link_libraries(AeroEditableTextTests PRIVATE Aero::Text)
+target_compile_features(AeroEditableTextTests PRIVATE cxx_std_17)
+set_target_properties(AeroEditableTextTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroEditableTextTests)
+add_test(NAME AeroEditableTextTests COMMAND AeroEditableTextTests)
+
+add_executable(AeroTextLayoutTests text/TextLayoutTests.cpp)
+target_link_libraries(AeroTextLayoutTests PRIVATE Aero::Text)
+target_compile_features(AeroTextLayoutTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextLayoutTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextLayoutTests)
+add_test(NAME AeroTextLayoutTests COMMAND AeroTextLayoutTests)
+
+add_executable(AeroGlyphAtlasTests text/GlyphAtlasTests.cpp)
+target_link_libraries(AeroGlyphAtlasTests PRIVATE Aero::Text)
+target_compile_features(AeroGlyphAtlasTests PRIVATE cxx_std_17)
+set_target_properties(AeroGlyphAtlasTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroGlyphAtlasTests)
+add_test(NAME AeroGlyphAtlasTests COMMAND AeroGlyphAtlasTests)
+
+add_executable(AeroTextBlockRenderServiceTests
+    render/TextBlockRenderServiceTests.cpp)
+target_link_libraries(AeroTextBlockRenderServiceTests
+    PRIVATE Aero::TextRender)
+target_compile_features(AeroTextBlockRenderServiceTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextBlockRenderServiceTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextBlockRenderServiceTests)
+add_test(NAME AeroTextBlockRenderServiceTests
+    COMMAND AeroTextBlockRenderServiceTests)
+
+if(TARGET AeroTextFreeType)
+    if(NOT EXISTS "${AERO_TEXT_TEST_FONT}")
+        message(FATAL_ERROR
+            "AeroFreeTypeAdapterTests require AERO_TEXT_TEST_FONT")
+    endif()
+    add_executable(AeroFreeTypeAdapterTests
+        text/FreeTypeAdapterTests.cpp)
+    target_link_libraries(AeroFreeTypeAdapterTests
+        PRIVATE Aero::TextFreeType)
+    target_compile_definitions(AeroFreeTypeAdapterTests
+        PRIVATE
+            "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\"")
+    target_compile_features(AeroFreeTypeAdapterTests PRIVATE cxx_std_17)
+    set_target_properties(AeroFreeTypeAdapterTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroFreeTypeAdapterTests)
+    add_test(NAME AeroFreeTypeAdapterTests
+        COMMAND AeroFreeTypeAdapterTests)
+endif()
+
+if(TARGET AeroTextHarfBuzz)
+    foreach(_aero_text_test_font IN ITEMS
+            "${AERO_TEXT_TEST_CJK_FONT}"
+            "${AERO_TEXT_TEST_ARABIC_FONT}")
+        if(NOT EXISTS "${_aero_text_test_font}")
+            message(FATAL_ERROR
+                "AeroHarfBuzzAdapterTests require CJK and Arabic test fonts")
+        endif()
+    endforeach()
+    add_executable(AeroHarfBuzzAdapterTests
+        text/HarfBuzzAdapterTests.cpp)
+    target_link_libraries(AeroHarfBuzzAdapterTests
+        PRIVATE Aero::TextHarfBuzz)
+    target_compile_definitions(AeroHarfBuzzAdapterTests
+        PRIVATE
+            "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\""
+            "AERO_TEXT_TEST_CJK_FONT=\"${AERO_TEXT_TEST_CJK_FONT}\""
+            "AERO_TEXT_TEST_ARABIC_FONT=\"${AERO_TEXT_TEST_ARABIC_FONT}\"")
+    target_compile_features(AeroHarfBuzzAdapterTests PRIVATE cxx_std_17)
+    set_target_properties(AeroHarfBuzzAdapterTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroHarfBuzzAdapterTests)
+    add_test(NAME AeroHarfBuzzAdapterTests
+        COMMAND AeroHarfBuzzAdapterTests)
+endif()
+
 add_executable(AeroCoreTests core/TypeRegistryTests.cpp)
 target_link_libraries(AeroCoreTests PRIVATE Aero::Presentation)
 target_compile_features(AeroCoreTests PRIVATE cxx_std_17)
@@ -41,6 +165,20 @@ target_compile_features(AeroDiagnosticsTests PRIVATE cxx_std_17)
 set_target_properties(AeroDiagnosticsTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroDiagnosticsTests)
 add_test(NAME AeroDiagnosticsTests COMMAND AeroDiagnosticsTests)
+
+add_executable(AeroInspectorTests
+    diagnostics/InspectorTests.cpp)
+target_link_libraries(AeroInspectorTests
+    PRIVATE Aero::Inspector)
+target_compile_features(AeroInspectorTests
+    PRIVATE cxx_std_17)
+set_target_properties(AeroInspectorTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroInspectorTests)
+add_test(NAME AeroInspectorTests
+    COMMAND AeroInspectorTests)
 
 add_executable(AeroDispatcherTests core/DispatcherTests.cpp)
 target_link_libraries(AeroDispatcherTests PRIVATE Aero::Core)
@@ -118,6 +256,95 @@ target_compile_features(AeroInputTests PRIVATE cxx_std_17)
 set_target_properties(AeroInputTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroInputTests)
 add_test(NAME AeroInputTests COMMAND AeroInputTests)
+
+add_executable(AeroCommandTests presentation/CommandTests.cpp)
+target_link_libraries(AeroCommandTests PRIVATE Aero::Controls)
+target_compile_features(AeroCommandTests PRIVATE cxx_std_17)
+set_target_properties(AeroCommandTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroCommandTests)
+add_test(NAME AeroCommandTests COMMAND AeroCommandTests)
+
+add_executable(AeroInteractionStateTests
+    presentation/InteractionStateTests.cpp)
+target_link_libraries(AeroInteractionStateTests PRIVATE Aero::Controls)
+target_compile_features(AeroInteractionStateTests PRIVATE cxx_std_17)
+set_target_properties(AeroInteractionStateTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroInteractionStateTests)
+add_test(NAME AeroInteractionStateTests COMMAND AeroInteractionStateTests)
+
+add_executable(AeroButtonTests
+    controls/ButtonTests.cpp)
+target_link_libraries(AeroButtonTests PRIVATE Aero::Controls)
+target_compile_features(AeroButtonTests PRIVATE cxx_std_17)
+set_target_properties(AeroButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroButtonTests)
+add_test(NAME AeroButtonTests COMMAND AeroButtonTests)
+
+add_executable(AeroTextBoxTests
+    controls/TextBoxTests.cpp)
+target_link_libraries(AeroTextBoxTests
+    PRIVATE Aero::Controls)
+target_compile_features(AeroTextBoxTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextBoxTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextBoxTests)
+add_test(NAME AeroTextBoxTests COMMAND AeroTextBoxTests)
+
+add_executable(AeroScrollTests
+    controls/ScrollTests.cpp)
+target_link_libraries(AeroScrollTests PRIVATE Aero::Controls)
+target_compile_features(AeroScrollTests PRIVATE cxx_std_17)
+set_target_properties(AeroScrollTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroScrollTests)
+add_test(NAME AeroScrollTests COMMAND AeroScrollTests)
+
+add_executable(AeroItemsTests
+    controls/ItemsTests.cpp)
+target_link_libraries(AeroItemsTests PRIVATE Aero::Controls)
+target_compile_features(AeroItemsTests PRIVATE cxx_std_17)
+set_target_properties(AeroItemsTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroItemsTests)
+add_test(NAME AeroItemsTests COMMAND AeroItemsTests)
+
+add_executable(AeroSelectionTests
+    controls/SelectionTests.cpp)
+target_link_libraries(AeroSelectionTests PRIVATE Aero::Controls)
+target_compile_features(AeroSelectionTests PRIVATE cxx_std_17)
+set_target_properties(AeroSelectionTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroSelectionTests)
+add_test(NAME AeroSelectionTests COMMAND AeroSelectionTests)
+
+add_executable(AeroVirtualizationTests
+    controls/VirtualizationTests.cpp)
+target_link_libraries(AeroVirtualizationTests
+    PRIVATE Aero::Controls)
+target_compile_features(AeroVirtualizationTests
+    PRIVATE cxx_std_17)
+set_target_properties(AeroVirtualizationTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroVirtualizationTests)
+add_test(NAME AeroVirtualizationTests
+    COMMAND AeroVirtualizationTests)
+
+add_executable(AeroVirtualizationBenchmark
+    controls/VirtualizationTests.cpp)
+target_link_libraries(AeroVirtualizationBenchmark
+    PRIVATE Aero::Controls)
+target_compile_definitions(AeroVirtualizationBenchmark
+    PRIVATE AERO_RUN_VIRTUALIZATION_BENCHMARK=1)
+target_compile_features(AeroVirtualizationBenchmark
+    PRIVATE cxx_std_17)
+set_target_properties(AeroVirtualizationBenchmark PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroVirtualizationBenchmark)
+add_test(NAME AeroVirtualizationBenchmark
+    COMMAND AeroVirtualizationBenchmark)
 
 add_executable(AeroRenderingTests presentation/RenderingTests.cpp)
 target_link_libraries(AeroRenderingTests PRIVATE Aero::Controls)
@@ -198,6 +425,22 @@ set_target_properties(AeroXamlTextBlockTests PROPERTIES CXX_STANDARD 17 CXX_STAN
 aero_apply_compiler_options(AeroXamlTextBlockTests)
 add_test(NAME AeroXamlTextBlockTests COMMAND AeroXamlTextBlockTests)
 
+add_executable(AeroXamlButtonTests markup/XamlButtonTests.cpp)
+target_link_libraries(AeroXamlButtonTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlButtonTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlButtonTests)
+add_test(NAME AeroXamlButtonTests COMMAND AeroXamlButtonTests)
+
+add_executable(AeroXamlThemeTests markup/XamlThemeTests.cpp)
+target_link_libraries(AeroXamlThemeTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlThemeTests PRIVATE cxx_std_17)
+target_compile_definitions(AeroXamlThemeTests PRIVATE
+    AERO_THEME_SOURCE_DIR="${CMAKE_SOURCE_DIR}/themes")
+set_target_properties(AeroXamlThemeTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlThemeTests)
+add_test(NAME AeroXamlThemeTests COMMAND AeroXamlThemeTests)
+
 add_executable(AeroXamlBorderTests markup/XamlBorderTests.cpp)
 target_link_libraries(AeroXamlBorderTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlBorderTests PRIVATE cxx_std_17)
@@ -239,6 +482,71 @@ target_compile_features(AeroSurfaceBackendTests PRIVATE cxx_std_17)
 set_target_properties(AeroSurfaceBackendTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroSurfaceBackendTests)
 add_test(NAME AeroSurfaceBackendTests COMMAND AeroSurfaceBackendTests)
+
+add_executable(
+    AeroOpenGL33StateTests
+    rhi/OpenGL33StateTests.cpp)
+target_link_libraries(
+    AeroOpenGL33StateTests
+    PRIVATE Aero::RhiOpenGL33)
+target_compile_features(AeroOpenGL33StateTests PRIVATE cxx_std_17)
+set_target_properties(AeroOpenGL33StateTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroOpenGL33StateTests)
+add_test(NAME AeroOpenGL33StateTests COMMAND AeroOpenGL33StateTests)
+
+add_executable(
+    AeroOpenGL33BackendTests
+    rhi/OpenGL33BackendTests.cpp)
+target_link_libraries(
+    AeroOpenGL33BackendTests
+    PRIVATE Aero::RhiOpenGL33)
+target_compile_features(AeroOpenGL33BackendTests PRIVATE cxx_std_17)
+set_target_properties(AeroOpenGL33BackendTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroOpenGL33BackendTests)
+add_test(NAME AeroOpenGL33BackendTests COMMAND AeroOpenGL33BackendTests)
+
+if(WIN32 AND TARGET AeroRhiWGL)
+    add_executable(AeroWglSurfaceTests rhi/WglSurfaceTests.cpp)
+    target_link_libraries(
+        AeroWglSurfaceTests
+        PRIVATE
+            Aero::RhiWGL
+            Aero::RenderOpenGL33
+            user32)
+    target_compile_features(AeroWglSurfaceTests PRIVATE cxx_std_17)
+    set_target_properties(AeroWglSurfaceTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroWglSurfaceTests)
+    add_test(NAME AeroWglSurfaceTests COMMAND AeroWglSurfaceTests)
+    set_tests_properties(AeroWglSurfaceTests PROPERTIES
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77)
+endif()
+
+if(UNIX AND TARGET AeroRhiGLX)
+    add_executable(AeroGlxSurfaceTests rhi/GlxSurfaceTests.cpp)
+    target_link_libraries(
+        AeroGlxSurfaceTests
+        PRIVATE Aero::RhiGLX Aero::RenderOpenGL33)
+    target_compile_features(AeroGlxSurfaceTests PRIVATE cxx_std_17)
+    set_target_properties(AeroGlxSurfaceTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroGlxSurfaceTests)
+    add_test(NAME AeroGlxSurfaceTests COMMAND AeroGlxSurfaceTests)
+    set_tests_properties(AeroGlxSurfaceTests PROPERTIES
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77)
+endif()
 
 if(WIN32 AND TARGET AeroRhiD3D11)
     set(_aero_d3d11_fxc_hints
@@ -339,7 +647,16 @@ if(WIN32 AND TARGET AeroRhiD3D11)
 
     add_executable(AeroD3D11SurfaceTests rhi/D3D11SurfaceTests.cpp)
     target_link_libraries(
-        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RhiD3D11 d3d11 user32)
+        AeroD3D11SurfaceTests PRIVATE Aero::Markup Aero::RenderD3D11 d3d11 user32)
+    if(TARGET AeroTextHarfBuzz)
+        target_link_libraries(AeroD3D11SurfaceTests
+            PRIVATE Aero::TextRenderD3D11 Aero::TextHarfBuzz)
+        target_compile_definitions(AeroD3D11SurfaceTests
+            PRIVATE
+                AERO_D3D11_TEXT_RENDER_TESTS=1
+                "AERO_TEXT_TEST_FONT=\"${AERO_TEXT_TEST_FONT}\""
+                "AERO_TEXT_TEST_CJK_FONT=\"${AERO_TEXT_TEST_CJK_FONT}\"")
+    endif()
     target_compile_features(AeroD3D11SurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroD3D11SurfaceTests PROPERTIES
         CXX_STANDARD 17
@@ -359,3 +676,143 @@ else()
     target_compile_options(AeroCAbiSmoke PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion $<$<BOOL:${AERO_WARNINGS_AS_ERRORS}>:-Werror>)
 endif()
 add_test(NAME AeroCAbiSmoke COMMAND AeroCAbiSmoke)
+
+add_executable(
+    AeroQualityBenchmarks
+    quality/QualityBenchmarks.cpp)
+target_link_libraries(
+    AeroQualityBenchmarks
+    PRIVATE Aero::Inspector Aero::Text)
+target_compile_features(
+    AeroQualityBenchmarks
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroQualityBenchmarks PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroQualityBenchmarks)
+
+set(_aero_quality_benchmarks
+    EmptyFrameBenchmark
+    TextLayoutBenchmark
+    BindingUpdateBenchmark
+    ButtonInteractionBenchmark
+    ItemsGenerationBenchmark
+    RenderPlanTranslationBenchmark
+    GlyphAtlasBenchmark)
+foreach(_benchmark IN LISTS
+        _aero_quality_benchmarks)
+    add_test(
+        NAME ${_benchmark}
+        COMMAND AeroQualityBenchmarks
+            ${_benchmark})
+    set_tests_properties(
+        ${_benchmark} PROPERTIES
+        LABELS "performance"
+        TIMEOUT 30)
+endforeach()
+add_test(
+    NAME VirtualizedScrollBenchmark
+    COMMAND AeroVirtualizationBenchmark)
+set_tests_properties(
+    VirtualizedScrollBenchmark PROPERTIES
+    LABELS "performance"
+    TIMEOUT 30)
+
+add_executable(
+    AeroRobustnessFuzzTests
+    quality/RobustnessFuzzTests.cpp)
+target_link_libraries(
+    AeroRobustnessFuzzTests
+    PRIVATE
+        Aero::Markup
+        Aero::RhiOpenGL33)
+target_compile_features(
+    AeroRobustnessFuzzTests
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroRobustnessFuzzTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroRobustnessFuzzTests)
+
+set(_aero_fuzz_domains
+    BindingPath
+    CompiledXamlDecoder
+    TextLayout
+    FontProviderBoundary
+    ItemsCollectionDelta
+    TemplateInstantiation
+    GlShaderMetadata)
+foreach(_domain IN LISTS
+        _aero_fuzz_domains)
+    add_test(
+        NAME ${_domain}Fuzz
+        COMMAND AeroRobustnessFuzzTests
+            ${_domain})
+    set_tests_properties(
+        ${_domain}Fuzz PROPERTIES
+        LABELS "fuzz"
+        TIMEOUT 30)
+endforeach()
+
+add_executable(
+    AeroStabilityGateTests
+    quality/StabilityGateTests.cpp)
+target_link_libraries(
+    AeroStabilityGateTests
+    PRIVATE Aero::Core)
+target_compile_features(
+    AeroStabilityGateTests
+    PRIVATE cxx_std_17)
+set_target_properties(
+    AeroStabilityGateTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(
+    AeroStabilityGateTests)
+add_test(
+    NAME MemoryStabilityGate
+    COMMAND AeroStabilityGateTests memory)
+add_test(
+    NAME LongRunStabilityGate
+    COMMAND AeroStabilityGateTests longrun)
+set_tests_properties(
+    MemoryStabilityGate PROPERTIES
+    LABELS "memory"
+    TIMEOUT 30)
+set_tests_properties(
+    LongRunStabilityGate PROPERTIES
+    LABELS "longrun"
+    TIMEOUT 30)
+
+# These probes encode the WPF-observable ordering and state transitions that
+# the focused subsystem tests assert. Keeping explicit conformance test names
+# makes the release gate discoverable without duplicating the fixtures.
+add_test(
+    NAME WpfObservableBehaviorProbe
+    COMMAND AeroButtonTests)
+add_test(
+    NAME InputEventOrderConformance
+    COMMAND AeroInputTests)
+add_test(
+    NAME FocusCaptureConformance
+    COMMAND AeroButtonTests)
+add_test(
+    NAME ContainerRecyclingConformance
+    COMMAND AeroVirtualizationTests)
+set_tests_properties(
+    WpfObservableBehaviorProbe
+    InputEventOrderConformance
+    FocusCaptureConformance
+    ContainerRecyclingConformance
+    AeroBindingTests
+    AeroStyleTests
+    AeroTemplateTests
+    AeroInspectorTests
+    PROPERTIES LABELS "conformance")

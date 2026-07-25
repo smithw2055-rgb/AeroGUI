@@ -1,7 +1,9 @@
 #pragma once
 
 #include <Aero/Base/String.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
+#include <Aero/Controls/TextBlockLayoutService.hpp>
 
 namespace Aero::Controls {
 
@@ -144,12 +146,25 @@ class AERO_API TextBlock final : public FrameworkElement {
     AERO_TYPED_META(TextBlock, FrameworkElement)
 public:
     TextBlock() noexcept;
+    ~TextBlock() override;
     Base::StringView Text() const noexcept;
     Color Foreground() const noexcept;
-    RenderGlyphRunId GlyphRun() const noexcept { return glyphRun_; }
+    RenderGlyphRunId GlyphRun() const noexcept {
+        return glyphRuns_.Empty()
+            ? InvalidRenderGlyphRunId
+            : glyphRuns_[0];
+    }
+    Base::Span<const RenderGlyphRunId> GlyphRuns() const noexcept {
+        return glyphRuns_.AsSpan();
+    }
     Size GlyphRunSize() const noexcept { return glyphRunSize_; }
+    ITextBlockLayoutService* LayoutService() const noexcept {
+        return layoutService_;
+    }
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
+    Base::Result<void> SetLayoutService(
+        ITextBlockLayoutService* service) noexcept;
     inline static constexpr Aero::Core::DependencyPropertyHandle
         TextProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "Text");
@@ -161,8 +176,12 @@ protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
 private:
-    RenderGlyphRunId glyphRun_ = InvalidRenderGlyphRunId;
+    void ReleaseServiceGlyphRun() noexcept;
+
+    ITextBlockLayoutService* layoutService_ = nullptr;
+    Base::Vector<RenderGlyphRunId> glyphRuns_;
     Size glyphRunSize_;
+    bool serviceOwnsGlyphRun_ = false;
 };
 
 class AERO_API ContentPresenter final : public FrameworkElement {

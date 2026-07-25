@@ -1,5 +1,9 @@
 #include <Aero/Controls/Templates.hpp>
 
+#include <Aero/Controls/Controls.hpp>
+#include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Rendering.hpp>
+
 #include <utility>
 
 namespace Aero::Controls {
@@ -66,6 +70,26 @@ Base::Result<void> TemplateBuildContext::SetRoot(
         Rollback();
         return added.GetStatus();
     }
+    if (layout_ != nullptr) {
+        Base::Result<void> layout =
+            layout_->Attach(*parent_, *rootElement_);
+        if (!layout) {
+            Rollback();
+            return layout.GetStatus();
+        }
+    }
+    FrameworkElement* rootFramework =
+        root.AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        rootFramework != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(
+                *parent_, *rootFramework);
+        if (!rendered) {
+            Rollback();
+            return rendered.GetStatus();
+        }
+    }
     return {};
 }
 
@@ -111,7 +135,331 @@ Base::Result<void> TemplateBuildContext::AddPart(
         (void)tree_->DetachLogical(parent, part);
         return added.GetStatus();
     }
+    UIElement* parentElement =
+        parent.AsUIElement();
+    UIElement* partElement =
+        part.AsUIElement();
+    if (layout_ != nullptr &&
+        parentElement != nullptr &&
+        partElement != nullptr) {
+        Base::Result<void> layout =
+            layout_->Attach(
+                *parentElement, *partElement);
+        if (!layout) {
+            Rollback();
+            return layout.GetStatus();
+        }
+    }
+    FrameworkElement* parentFramework =
+        parent.AsFrameworkElement();
+    FrameworkElement* partFramework =
+        part.AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        parentFramework != nullptr &&
+        partFramework != nullptr) {
+        Base::Result<void> rendered =
+            renderer_->Attach(
+                *parentFramework,
+                *partFramework);
+        if (!rendered) {
+            Rollback();
+            return rendered.GetStatus();
+        }
+    }
     return {};
+}
+
+Base::Result<bool> TemplateBuildContext::ProjectContent(
+    ContentControl& owner,
+    ContentPresenter& presenter) noexcept {
+    if (tree_ == nullptr || parent_ == nullptr ||
+        &owner != parent_ || rootVisual_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template content projection owner is invalid");
+    }
+    UIElement* content = owner.Content();
+    if (content == nullptr) return false;
+    bool presenterIsPart = false;
+    for (const TemplatePart& part : parts_) {
+        presenterIsPart =
+            presenterIsPart || part.visual == &presenter;
+    }
+    if (!presenterIsPart ||
+        (content->LogicalParent() != nullptr &&
+            content->LogicalParent() != &owner) ||
+        (content->VisualParent() != nullptr &&
+            content->VisualParent() != &owner)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Template content cannot be projected");
+    }
+
+    TemplateContentProjection projection;
+    projection.owner = &owner;
+    projection.presenter = &presenter;
+    projection.content = content;
+    projection.originalVisualParent =
+        content->VisualParent();
+    if (content->LogicalParent() == nullptr) {
+        Base::Result<void> logical =
+            tree_->AttachLogical(owner, *content);
+        if (!logical) return logical.GetStatus();
+        projection.attachedLogical = true;
+    }
+    if (projection.originalVisualParent != nullptr) {
+        FrameworkElement* originalFramework =
+            projection.originalVisualParent->
+                AsFrameworkElement();
+        FrameworkElement* contentFramework =
+            content->AsFrameworkElement();
+        if (renderer_ != nullptr &&
+            originalFramework != nullptr &&
+            contentFramework != nullptr) {
+            Base::Result<void> detached =
+                renderer_->Detach(
+                    *originalFramework,
+                    *contentFramework);
+            if (!detached) {
+                if (projection.attachedLogical) {
+                    static_cast<void>(
+                        tree_->DetachLogical(
+                            owner, *content));
+                }
+                return detached.GetStatus();
+            }
+            projection.detachedOriginalRender =
+                true;
+        }
+        UIElement* originalElement =
+            projection.originalVisualParent->
+                AsUIElement();
+        if (layout_ != nullptr &&
+            originalElement != nullptr) {
+            Base::Result<void> detached =
+                layout_->Detach(
+                    *originalElement, *content);
+            if (!detached) {
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *originalFramework,
+                            *contentFramework));
+                }
+                if (projection.attachedLogical) {
+                    static_cast<void>(
+                        tree_->DetachLogical(
+                            owner, *content));
+                }
+                return detached.GetStatus();
+            }
+            projection.detachedOriginalLayout =
+                true;
+        }
+        Base::Result<void> detached =
+            tree_->DetachVisual(
+                *projection.originalVisualParent, *content);
+        if (!detached) {
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *content->AsFrameworkElement()));
+            }
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(owner, *content));
+            }
+            return detached.GetStatus();
+        }
+    }
+    Base::Result<void> visual =
+        tree_->AttachVisual(presenter, *content);
+    if (!visual) {
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return visual.GetStatus();
+    }
+    if (layout_ != nullptr) {
+        Base::Result<void> attached =
+            layout_->Attach(presenter, *content);
+        if (!attached) {
+            static_cast<void>(
+                tree_->DetachVisual(
+                    presenter, *content));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(
+                    tree_->AttachVisual(
+                        *projection.originalVisualParent,
+                        *content));
+                if (projection.detachedOriginalLayout) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *content));
+                }
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *content->
+                                AsFrameworkElement()));
+                }
+            }
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(
+                        owner, *content));
+            }
+            return attached.GetStatus();
+        }
+        projection.attachedProjectedLayout =
+            true;
+    }
+    FrameworkElement* projectedContent =
+        content->AsFrameworkElement();
+    if (renderer_ != nullptr &&
+        projectedContent != nullptr) {
+        Base::Result<void> attached =
+            renderer_->Attach(
+                presenter, *projectedContent);
+        if (!attached) {
+            if (projection.attachedProjectedLayout) {
+                static_cast<void>(
+                    layout_->Detach(
+                        presenter, *content));
+            }
+            static_cast<void>(
+                tree_->DetachVisual(
+                    presenter, *content));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(
+                    tree_->AttachVisual(
+                        *projection.originalVisualParent,
+                        *content));
+                if (projection.detachedOriginalLayout) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *content));
+                }
+                if (projection.detachedOriginalRender) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *projectedContent));
+                }
+            }
+            if (projection.attachedLogical) {
+                static_cast<void>(
+                    tree_->DetachLogical(
+                        owner, *content));
+            }
+            return attached.GetStatus();
+        }
+        projection.attachedProjectedRender =
+            true;
+    }
+    Base::Result<void> selected =
+        presenter.SetContent(content);
+    if (!selected) {
+        if (projection.attachedProjectedRender) {
+            static_cast<void>(
+                renderer_->Detach(
+                    presenter,
+                    *projectedContent));
+        }
+        if (projection.attachedProjectedLayout) {
+            static_cast<void>(
+                layout_->Detach(
+                    presenter, *content));
+        }
+        static_cast<void>(
+            tree_->DetachVisual(presenter, *content));
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projectedContent));
+            }
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return selected.GetStatus();
+    }
+    Base::Result<void> tracked =
+        projections_.TryPushBack(projection);
+    if (!tracked) {
+        if (projection.attachedProjectedRender) {
+            static_cast<void>(
+                renderer_->Detach(
+                    presenter,
+                    *projectedContent));
+        }
+        if (projection.attachedProjectedLayout) {
+            static_cast<void>(
+                layout_->Detach(
+                    presenter, *content));
+        }
+        static_cast<void>(
+            tree_->DetachVisual(presenter, *content));
+        static_cast<void>(presenter.SetContent(nullptr));
+        if (projection.originalVisualParent != nullptr) {
+            static_cast<void>(tree_->AttachVisual(
+                *projection.originalVisualParent, *content));
+            if (projection.detachedOriginalLayout) {
+                static_cast<void>(
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *content));
+            }
+            if (projection.detachedOriginalRender) {
+                static_cast<void>(
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projectedContent));
+            }
+        }
+        if (projection.attachedLogical) {
+            static_cast<void>(
+                tree_->DetachLogical(owner, *content));
+        }
+        return tracked.GetStatus();
+    }
+    return true;
 }
 
 DependencyObject* TemplateBuildContext::FindObject(
@@ -137,6 +485,88 @@ Base::Result<void> TemplateBuildContext::AddOwnedPart(
 }
 
 void TemplateBuildContext::Rollback() noexcept {
+    for (std::uint32_t index = projections_.Size();
+        index > 0U; --index) {
+        TemplateContentProjection& projection =
+            projections_[index - 1U];
+        if (projection.presenter != nullptr &&
+            projection.content != nullptr) {
+            if (projection.attachedProjectedRender &&
+                renderer_ != nullptr &&
+                projection.content->
+                    AsFrameworkElement() != nullptr) {
+                static_cast<void>(
+                    renderer_->Detach(
+                        *projection.presenter,
+                        *projection.content->
+                            AsFrameworkElement()));
+            }
+            if (projection.attachedProjectedLayout &&
+                layout_ != nullptr) {
+                static_cast<void>(
+                    layout_->Detach(
+                        *projection.presenter,
+                        *projection.content));
+            }
+            static_cast<void>(tree_->DetachVisual(
+                *projection.presenter, *projection.content));
+            static_cast<void>(
+                projection.presenter->SetContent(nullptr));
+            if (projection.originalVisualParent != nullptr) {
+                static_cast<void>(tree_->AttachVisual(
+                    *projection.originalVisualParent,
+                    *projection.content));
+                if (projection.detachedOriginalLayout &&
+                    layout_ != nullptr) {
+                    static_cast<void>(
+                        layout_->Attach(
+                            *projection.originalVisualParent->
+                                AsUIElement(),
+                            *projection.content));
+                }
+                if (projection.detachedOriginalRender &&
+                    renderer_ != nullptr) {
+                    static_cast<void>(
+                        renderer_->Attach(
+                            *projection.originalVisualParent->
+                                AsFrameworkElement(),
+                            *projection.content->
+                                AsFrameworkElement()));
+                }
+            }
+            if (projection.attachedLogical &&
+                projection.owner != nullptr) {
+                static_cast<void>(tree_->DetachLogical(
+                    *projection.owner, *projection.content));
+            }
+        }
+    }
+    projections_.Clear();
+    for (std::uint32_t index = parts_.Size();
+        index > 0U; --index) {
+        TemplatePart& part = parts_[index - 1U];
+        Visual* parent =
+            part.visual != nullptr
+            ? part.visual->VisualParent()
+            : nullptr;
+        if (parent == nullptr) continue;
+        if (renderer_ != nullptr &&
+            parent->AsFrameworkElement() != nullptr &&
+            part.frameworkElement != nullptr) {
+            static_cast<void>(
+                renderer_->Detach(
+                    *parent->AsFrameworkElement(),
+                    *part.frameworkElement));
+        }
+        if (layout_ != nullptr &&
+            parent->AsUIElement() != nullptr &&
+            part.visual->AsUIElement() != nullptr) {
+            static_cast<void>(
+                layout_->Detach(
+                    *parent->AsUIElement(),
+                    *part.visual->AsUIElement()));
+        }
+    }
     for (TemplatePart& part : parts_) {
         if (part.frameworkElement != nullptr) {
             (void)part.frameworkElement->SetTemplatedParent(nullptr);
@@ -192,6 +622,68 @@ Base::Result<void> FrameworkTemplate::TryAddPropertyTrigger(
     return triggers_.TryPushBack(std::move(trigger));
 }
 
+Base::Result<void> FrameworkTemplate::TryAddVisualStateGroup(
+    VisualStateGroup group) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    if (group.name.Empty() || group.states.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Visual state group requires a name and at least one state");
+    }
+    for (const VisualStateGroup& existing : visualStateGroups_) {
+        if (existing.name.View() == group.name.View()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Visual state group name is duplicated");
+        }
+    }
+    for (std::uint32_t stateIndex = 0U;
+        stateIndex < group.states.Size(); ++stateIndex) {
+        const VisualState& state = group.states[stateIndex];
+        if (state.name.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Visual state requires a name");
+        }
+        for (std::uint32_t previous = 0U;
+            previous < stateIndex; ++previous) {
+            if (group.states[previous].name.View() ==
+                state.name.View()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::AlreadyExists,
+                    "Visual state name is duplicated in its group");
+            }
+        }
+        for (std::uint32_t setterIndex = 0U;
+            setterIndex < state.setters.Size(); ++setterIndex) {
+            const VisualStateSetter& setter =
+                state.setters[setterIndex];
+            if (!setter.property.IsValid() ||
+                setter.value.IsUnset()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Visual state setter is incomplete");
+            }
+            for (std::uint32_t previous = 0U;
+                previous < setterIndex; ++previous) {
+                const VisualStateSetter& candidate =
+                    state.setters[previous];
+                if (candidate.property == setter.property &&
+                    candidate.targetName.View() ==
+                        setter.targetName.View()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::AlreadyExists,
+                        "Visual state setter target is duplicated");
+                }
+            }
+        }
+    }
+    return visualStateGroups_.TryPushBack(std::move(group));
+}
+
 Base::Result<void> FrameworkTemplate::Seal(
     const DependencyPropertyRegistry& properties) noexcept {
     if (sealed_) return {};
@@ -237,6 +729,46 @@ Base::Result<void> FrameworkTemplate::Seal(
             }
         }
     }
+    for (std::uint32_t groupIndex = 0U;
+        groupIndex < visualStateGroups_.Size(); ++groupIndex) {
+        const VisualStateGroup& group =
+            visualStateGroups_[groupIndex];
+        for (const VisualState& state : group.states) {
+            for (const VisualStateSetter& setter : state.setters) {
+                const DependencyProperty* property =
+                    properties.Find(setter.property);
+                if (property == nullptr || property->IsReadOnly()) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidArgument,
+                        "Visual state setter property is invalid");
+                }
+                Base::Result<void> valid =
+                    properties.ValidateValueFor(
+                        setter.property,
+                        property->RegisteredOwnerType(),
+                        setter.value);
+                if (!valid) return valid.GetStatus();
+                for (std::uint32_t otherIndex = 0U;
+                    otherIndex < groupIndex; ++otherIndex) {
+                    for (const VisualState& otherState :
+                        visualStateGroups_[otherIndex].states) {
+                        for (const VisualStateSetter& otherSetter :
+                            otherState.setters) {
+                            if (otherSetter.property ==
+                                    setter.property &&
+                                otherSetter.targetName.View() ==
+                                    setter.targetName.View()) {
+                                return Base::Status::Failure(
+                                    Base::ErrorCode::InvalidState,
+                                    "Visual state groups cannot target "
+                                    "the same property");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     sealed_ = true;
     return {};
 }
@@ -274,7 +806,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
             "Template handle sequence is exhausted");
     }
 
-    TemplateBuildContext context(*tree_, control);
+    TemplateBuildContext context(
+        *tree_, control, layout_, renderer_);
     Base::Result<void> built =
         plan.Factory()(context, plan.FactoryContext());
     if (!built || context.RootVisual() == nullptr) {
@@ -292,6 +825,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     instance.rootVisual = context.rootVisual_;
     instance.rootElement = context.rootElement_;
     instance.parts = std::move(context.parts_);
+    instance.projections =
+        std::move(context.projections_);
     context.rootVisual_ = nullptr;
     context.rootElement_ = nullptr;
     Base::Result<void> tracked =
@@ -299,6 +834,8 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     if (!tracked) {
         --nextHandle_;
         context.parts_ = std::move(instance.parts);
+        context.projections_ =
+            std::move(instance.projections);
         context.rootVisual_ = instance.rootVisual;
         context.rootElement_ = instance.rootElement;
         context.Rollback();
@@ -351,6 +888,20 @@ DependencyObject* TemplateManager::FindName(
     return index != UINT32_MAX
         ? FindTarget(instances_[index], name)
         : nullptr;
+}
+
+TemplateHandle TemplateManager::AppliedHandle(
+    const Control& control) const noexcept {
+    const std::uint32_t index = FindInstance(control);
+    return index != UINT32_MAX
+        ? instances_[index].handle : TemplateHandle{};
+}
+
+const ControlTemplate* TemplateManager::AppliedTemplate(
+    TemplateHandle handle) const noexcept {
+    const std::uint32_t index = FindInstance(handle);
+    return index != UINT32_MAX
+        ? instances_[index].plan : nullptr;
 }
 
 std::uint32_t TemplateManager::FindInstance(
@@ -591,9 +1142,133 @@ Base::Result<void> TemplateManager::ClearAt(
     Base::Result<void> child =
         instance.parent->SetTemplateChild(nullptr);
     if (!child) return child.GetStatus();
+    for (std::uint32_t projectionIndex =
+            instance.projections.Size();
+        projectionIndex > 0U; --projectionIndex) {
+        TemplateContentProjection& projection =
+            instance.projections[projectionIndex - 1U];
+        if (projection.presenter == nullptr ||
+            projection.content == nullptr) {
+            continue;
+        }
+        if (projection.attachedProjectedRender &&
+            renderer_ != nullptr &&
+            projection.content->
+                AsFrameworkElement() != nullptr) {
+            Base::Result<void> renderDetached =
+                renderer_->Detach(
+                    *projection.presenter,
+                    *projection.content->
+                        AsFrameworkElement());
+            if (!renderDetached) {
+                return renderDetached.GetStatus();
+            }
+        }
+        if (projection.attachedProjectedLayout &&
+            layout_ != nullptr) {
+            Base::Result<void> layoutDetached =
+                layout_->Detach(
+                    *projection.presenter,
+                    *projection.content);
+            if (!layoutDetached) {
+                return layoutDetached.GetStatus();
+            }
+        }
+        Base::Result<void> contentDetached =
+            tree_->DetachVisual(
+                *projection.presenter,
+                *projection.content);
+        if (!contentDetached) {
+            return contentDetached.GetStatus();
+        }
+        Base::Result<void> presenterCleared =
+            projection.presenter->SetContent(nullptr);
+        if (!presenterCleared) {
+            return presenterCleared.GetStatus();
+        }
+        if (projection.originalVisualParent != nullptr) {
+            Base::Result<void> restored =
+                tree_->AttachVisual(
+                    *projection.originalVisualParent,
+                    *projection.content);
+            if (!restored) return restored.GetStatus();
+            if (projection.detachedOriginalLayout &&
+                layout_ != nullptr) {
+                Base::Result<void> layoutRestored =
+                    layout_->Attach(
+                        *projection.originalVisualParent->
+                            AsUIElement(),
+                        *projection.content);
+                if (!layoutRestored) {
+                    return layoutRestored.GetStatus();
+                }
+            }
+            if (projection.detachedOriginalRender &&
+                renderer_ != nullptr) {
+                Base::Result<void> renderRestored =
+                    renderer_->Attach(
+                        *projection.originalVisualParent->
+                            AsFrameworkElement(),
+                        *projection.content->
+                            AsFrameworkElement());
+                if (!renderRestored) {
+                    return renderRestored.GetStatus();
+                }
+            }
+        }
+        if (projection.attachedLogical &&
+            projection.owner != nullptr) {
+            Base::Result<void> logicalDetached =
+                tree_->DetachLogical(
+                    *projection.owner,
+                    *projection.content);
+            if (!logicalDetached) {
+                return logicalDetached.GetStatus();
+            }
+        }
+    }
+    for (std::uint32_t partIndex =
+            instance.parts.Size();
+        partIndex > 0U; --partIndex) {
+        TemplatePart& part =
+            instance.parts[partIndex - 1U];
+        Visual* parent =
+            part.visual != nullptr
+            ? part.visual->VisualParent()
+            : nullptr;
+        if (parent == nullptr) continue;
+        if (renderer_ != nullptr &&
+            parent->AsFrameworkElement() != nullptr &&
+            part.frameworkElement != nullptr) {
+            Base::Result<void> renderDetached =
+                renderer_->Detach(
+                    *parent->AsFrameworkElement(),
+                    *part.frameworkElement);
+            if (!renderDetached) {
+                return renderDetached.GetStatus();
+            }
+        }
+        if (layout_ != nullptr &&
+            parent->AsUIElement() != nullptr &&
+            part.visual->AsUIElement() != nullptr) {
+            Base::Result<void> layoutDetached =
+                layout_->Detach(
+                    *parent->AsUIElement(),
+                    *part.visual->AsUIElement());
+            if (!layoutDetached) {
+                return layoutDetached.GetStatus();
+            }
+        }
+    }
     Base::Result<void> detached =
         tree_->DetachNode(*instance.rootVisual);
     if (!detached) return detached.GetStatus();
+    for (TemplatePart& part : instance.parts) {
+        if (part.object == nullptr) continue;
+        Base::Result<void> untracked =
+            values_->DetachObject(*part.object);
+        if (!untracked) return untracked.GetStatus();
+    }
     if (index + 1U != instances_.Size()) {
         instances_[index] =
             std::move(instances_[instances_.Size() - 1U]);

@@ -117,6 +117,49 @@ bool TestControlTemplateBindingTriggerAndNameScope() {
     setter.value = triggerValue.Value();
     CHECK(trigger.setters.TryPushBack(std::move(setter)));
     CHECK(plan.TryAddPropertyTrigger(std::move(trigger)));
+
+    VisualStateGroup commonStates;
+    CHECK(commonStates.name.TryAssign("CommonStates"));
+    VisualState normal;
+    CHECK(normal.name.TryAssign("Normal"));
+    CHECK(commonStates.states.TryPushBack(std::move(normal)));
+    VisualState pressed;
+    CHECK(pressed.name.TryAssign("Pressed"));
+    VisualStateSetter pressedWidth;
+    CHECK(pressedWidth.targetName.TryAssign("PART_Content"));
+    pressedWidth.property = FrameworkElement::WidthProperty;
+    Length widthEighty = Length::Pixels(80.0);
+    Result<Value> pressedValue = runtime.TryCreateValue(
+        TypeOf<Length>(), &widthEighty);
+    CHECK(pressedValue);
+    pressedWidth.value = pressedValue.Value();
+    CHECK(pressed.setters.TryPushBack(std::move(pressedWidth)));
+    CHECK(commonStates.states.TryPushBack(std::move(pressed)));
+    VisualState broken;
+    CHECK(broken.name.TryAssign("Broken"));
+    VisualStateSetter missingTarget;
+    CHECK(missingTarget.targetName.TryAssign("PART_Missing"));
+    missingTarget.property = FrameworkElement::WidthProperty;
+    missingTarget.value = pressedValue.Value();
+    CHECK(broken.setters.TryPushBack(std::move(missingTarget)));
+    CHECK(commonStates.states.TryPushBack(std::move(broken)));
+    CHECK(plan.TryAddVisualStateGroup(std::move(commonStates)));
+
+    VisualStateGroup focusStates;
+    CHECK(focusStates.name.TryAssign("FocusStates"));
+    VisualState focused;
+    CHECK(focused.name.TryAssign("Focused"));
+    VisualStateSetter focusedMinimum;
+    CHECK(focusedMinimum.targetName.TryAssign("PART_Content"));
+    focusedMinimum.property = FrameworkElement::MinWidthProperty;
+    focusedMinimum.value =
+        Value::FromDouble(BuiltinTypes::Double, 10.0);
+    CHECK(focused.setters.TryPushBack(std::move(focusedMinimum)));
+    CHECK(focusStates.states.TryPushBack(std::move(focused)));
+    VisualState unfocused;
+    CHECK(unfocused.name.TryAssign("Unfocused"));
+    CHECK(focusStates.states.TryPushBack(std::move(unfocused)));
+    CHECK(plan.TryAddVisualStateGroup(std::move(focusStates)));
     CHECK(plan.Seal(metadata.DependencyProperties()));
 
     TemplateManager templates(
@@ -156,6 +199,56 @@ bool TestControlTemplateBindingTriggerAndNameScope() {
     CHECK(control.SetHeight(6.0));
     CHECK(RunPropertyChanges(dispatcher));
     CHECK(!content->HasHeight());
+
+    VisualStateManager states(values, templates);
+    CHECK(states.CurrentState(control, "CommonStates").Empty());
+    Result<bool> normalState = states.GoToState(
+        control, "CommonStates", "Normal");
+    CHECK(normalState && normalState.Value());
+    CHECK(states.CurrentState(
+        control, "CommonStates") == "Normal");
+    Result<bool> pressedState = states.GoToState(
+        control, "CommonStates", "Pressed");
+    CHECK(pressedState && pressedState.Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(content->Width() == 80.0);
+    CHECK(values.Diagnostics(
+        *content,
+        FrameworkElement::WidthProperty).Value().provider ==
+        EffectiveValueProvider::Animation);
+    pressedState = states.GoToState(
+        control, "CommonStates", "Pressed");
+    CHECK(pressedState && !pressedState.Value());
+    Result<bool> brokenState = states.GoToState(
+        control, "CommonStates", "Broken");
+    CHECK(!brokenState);
+    CHECK(brokenState.GetStatus().code == ErrorCode::NotFound);
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(content->Width() == 80.0);
+    CHECK(states.CurrentState(
+        control, "CommonStates") == "Pressed");
+    normalState = states.GoToState(
+        control, "CommonStates", "Normal");
+    CHECK(normalState && normalState.Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(content->Width() == 99.0);
+
+    Result<bool> focusedState = states.GoToState(
+        control, "FocusStates", "Focused");
+    CHECK(focusedState && focusedState.Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(content->MinSize().width == 10.0);
+    Result<bool> clearedFocus = states.ClearState(
+        control, "FocusStates");
+    CHECK(clearedFocus && clearedFocus.Value());
+    CHECK(RunPropertyChanges(dispatcher));
+    CHECK(content->MinSize().width == 0.0);
+    Result<bool> missingState = states.GoToState(
+        control, "CommonStates", "Missing");
+    CHECK(!missingState);
+    CHECK(missingState.GetStatus().code == ErrorCode::NotFound);
+    Result<std::uint32_t> clearedStates = states.Clear(control);
+    CHECK(clearedStates && clearedStates.Value() == 1U);
 
     CHECK(templates.Clear(applied.Value()).Value());
     CHECK(control.TemplateChild() == nullptr);

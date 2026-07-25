@@ -1,8 +1,20 @@
 # Quality、测试与路线图规范
 
-- **状态**：Architecture Baseline
+- **状态**：Runtime Vertical Slice / M3.5 in progress
 - **语言**：C++17-only
 - **生产 renderer**：AeroRHI native GPU / WebGL 2；不支持 Skia
+
+当前已验证基线：
+
+- M0/M1 的架构、Foundation、Core、ABI 和严格 C++17 构建约束已落地主线；
+- M2 的 runtime XAML、布局、RenderTransaction/RenderPlan、AeroRHI_Null 与 Windows D3D11/WARP 垂直切片已落地；
+- M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；
+- Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
+- M3.5 文本垂直切片已完成 provider-neutral `AeroText` 合同、FreeType/HarfBuzz adapter、glyph atlas、TextLayout 与 atlas-backed TextBlock/D3D11 接入；完整 Unicode line breaking/bidi 仍是后续增量；
+- Command、统一交互状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton 与 Generic/Light/Dark 主题已完成并有 XAML/交互回归；
+- ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox 与 recycling VirtualizingStackPanel 基线已完成，10k realization-window benchmark 已进入 CTest；
+- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、state cache、完整 AeroRHI 资源/提交/GLsync/读回/外部导入，以及 Windows/WGL 和 Linux/X11/GLX owned/borrowed context/surface 切片已完成，并由 fake-GL 与 hidden-window 真 WGL/GLX conformance 覆盖；backend-neutral RenderPlan lowering 已接入 GLSL 330，D3D11/WARP、WGL 与 GLX 共用固定计划 hash、rectangle/image/mesh/glyph 像素 fixture，并验证 borrowed GL host state 恢复。TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
 
 ## 1. Diagnostics
 
@@ -561,6 +573,8 @@ Fuzz targets：
 
 ### M2 — Vertical slice
 
+状态：**完成（主线 runtime vertical-slice 基线）**。
+
 交付：
 
 - runtime XAML、StaticResource、NameScope；
@@ -571,6 +585,8 @@ Fuzz targets：
 - XAML → layout → GPU image sample。
 
 ### M3 — Application model 与桌面/移动兼容
+
+状态：**进行中（M3.5）**。Binding/DataContext、Style/Template、compiled XAML、D3D11 基线、文本栈、Command/controls、Items/virtualization、OpenGL 3.3/WGL/GLX，以及共享 D3D11/GL conformance 已完成；TextBox/IME、ControlGallery 与最终质量门禁尚未完成。
 
 交付：
 

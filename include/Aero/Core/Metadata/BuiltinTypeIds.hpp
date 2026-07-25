@@ -21,6 +21,42 @@ inline constexpr TypeId ContentControl =
     MakeTypeId(Base::StringView("ContentControl"));
 inline constexpr TypeId UserControl =
     MakeTypeId(Base::StringView("UserControl"));
+inline constexpr TypeId ButtonBase =
+    MakeTypeId(Base::StringView("ButtonBase"));
+inline constexpr TypeId Button =
+    MakeTypeId(Base::StringView("Button"));
+inline constexpr TypeId RepeatButton =
+    MakeTypeId(Base::StringView("RepeatButton"));
+inline constexpr TypeId ToggleButton =
+    MakeTypeId(Base::StringView("ToggleButton"));
+inline constexpr TypeId CheckBox =
+    MakeTypeId(Base::StringView("CheckBox"));
+inline constexpr TypeId RadioButton =
+    MakeTypeId(Base::StringView("RadioButton"));
+inline constexpr TypeId ScrollContentPresenter =
+    MakeTypeId(Base::StringView("ScrollContentPresenter"));
+inline constexpr TypeId ScrollViewer =
+    MakeTypeId(Base::StringView("ScrollViewer"));
+inline constexpr TypeId ScrollBar =
+    MakeTypeId(Base::StringView("ScrollBar"));
+inline constexpr TypeId Track =
+    MakeTypeId(Base::StringView("Track"));
+inline constexpr TypeId Thumb =
+    MakeTypeId(Base::StringView("Thumb"));
+inline constexpr TypeId ItemContainer =
+    MakeTypeId(Base::StringView("ItemContainer"));
+inline constexpr TypeId ItemsControl =
+    MakeTypeId(Base::StringView("ItemsControl"));
+inline constexpr TypeId ItemsPresenter =
+    MakeTypeId(Base::StringView("ItemsPresenter"));
+inline constexpr TypeId Selector =
+    MakeTypeId(Base::StringView("Selector"));
+inline constexpr TypeId ListBox =
+    MakeTypeId(Base::StringView("ListBox"));
+inline constexpr TypeId ListBoxItem =
+    MakeTypeId(Base::StringView("ListBoxItem"));
+inline constexpr TypeId VirtualizingStackPanel =
+    MakeTypeId(Base::StringView("VirtualizingStackPanel"));
 
 inline constexpr TypeId StackPanel = MakeTypeId(Base::StringView("StackPanel"));
 inline constexpr TypeId Canvas = MakeTypeId(Base::StringView("Canvas"));
@@ -52,11 +88,15 @@ inline constexpr TypeId MouseEventArgs =
     MakeTypeId(Base::StringView("MouseEventArgs"));
 inline constexpr TypeId MouseButtonEventArgs =
     MakeTypeId(Base::StringView("MouseButtonEventArgs"));
+inline constexpr TypeId MouseWheelEventArgs =
+    MakeTypeId(Base::StringView("MouseWheelEventArgs"));
 inline constexpr TypeId KeyEventArgs =
     MakeTypeId(Base::StringView("KeyEventArgs"));
 inline constexpr TypeId TextCompositionEventArgs =
     MakeTypeId(Base::StringView("TextCompositionEventArgs"));
 inline constexpr TypeId KeyboardFocusChangedEventArgs =
     MakeTypeId(Base::StringView("KeyboardFocusChangedEventArgs"));
+inline constexpr TypeId ScrollChangedEventArgs =
+    MakeTypeId(Base::StringView("ScrollChangedEventArgs"));
 
 } // namespace Aero::Core::BuiltinTypes

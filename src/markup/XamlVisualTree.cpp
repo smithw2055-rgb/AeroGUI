@@ -454,4 +454,22 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlVisualTreeWithActivation(
     return std::move(loaded).Value();
 }
 
+Base::Result<Base::Ref<Base::Object>> LoadXamlVisualTreeWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    Base::Result<void> discarded = host.DiscardStaged();
+    if (!discarded) return discarded.GetStatus();
+    Base::Result<Base::Ref<Base::Object>> loaded =
+        LoadXamlWithActivation(
+            writer, document, providers, activation);
+    if (!loaded) {
+        static_cast<void>(host.DiscardStaged());
+        return loaded.GetStatus();
+    }
+    return std::move(loaded).Value();
+}
+
 } // namespace Aero::Markup

@@ -393,6 +393,19 @@ public:
             DependencyPropertyFlags::Attached, validate, coerce);
     }
 
+    MetaTypeBuilder& ReadOnlyDependencyProperty(
+        DependencyPropertyHandle declaredHandle,
+        Base::StringView name,
+        TypeId valueType,
+        Value defaultValue,
+        PropertyMetadataFlags metadataFlags,
+        ValidateValueCallback validate = nullptr,
+        CoerceValueCallback coerce = nullptr) noexcept {
+        return RegisterDependencyProperty(declaredHandle, name, valueType,
+            std::move(defaultValue), metadataFlags,
+            DependencyPropertyFlags::ReadOnly, validate, coerce);
+    }
+
     MetaTypeBuilder& RoutedEvent(
         RoutedEventHandle declaredHandle,
         Base::StringView name,

@@ -10,6 +10,10 @@
 
 #include <cstdint>
 
+namespace Aero::Controls {
+class ControlInteractionManager;
+}
+
 namespace Aero::Presentation {
 
 using namespace Aero::Core;
@@ -220,6 +224,12 @@ public:
         return {*this, MouseUpEvent};
     }
 
+    inline static constexpr RoutedEventHandle MouseWheelEvent =
+        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseWheel");
+    RoutedEvent_<MouseWheelEventHandler> MouseWheel() noexcept {
+        return {*this, MouseWheelEvent};
+    }
+
     inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
         MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
     RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
@@ -292,6 +302,13 @@ public:
     bool IsArrangeValid() const noexcept { return arrangeValid_; }
     bool ClipToBounds() const noexcept;
     bool IsHitTestVisible() const noexcept;
+    bool IsEnabled() const noexcept;
+    bool IsMouseOver() const noexcept;
+    bool IsPressed() const noexcept;
+    bool IsKeyboardFocused() const noexcept;
+    bool IsTabStop() const noexcept;
+    std::uint32_t TabIndex() const noexcept;
+    bool IsFocusScope() const noexcept;
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
@@ -301,10 +318,36 @@ public:
     inline static constexpr Aero::Core::DependencyPropertyHandle
         IsHitTestVisibleProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "IsHitTestVisible");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsEnabledProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsEnabled");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsMouseOverProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsMouseOver");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsPressedProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsPressed");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsKeyboardFocusedProperty =
+            Aero::Core::MakeDependencyPropertyHandle(
+                StaticTypeIdValue_, "IsKeyboardFocused");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsTabStopProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsTabStop");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        TabIndexProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "TabIndex");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        IsFocusScopeProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "IsFocusScope");
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
+    Base::Result<void> SetEnabled(bool value) noexcept;
+    Base::Result<void> SetTabStop(bool value) noexcept;
+    Base::Result<void> SetTabIndex(std::uint32_t value) noexcept;
+    Base::Result<void> SetFocusScope(bool value) noexcept;
 
 protected:
     Base::Result<void> OnPropertyInvalidated(
@@ -322,6 +365,9 @@ protected:
 private:
     friend class LayoutManager;
     friend class RoutedEventManager;
+    friend class PointerInputManager;
+    friend class FocusManager;
+    friend class Aero::Controls::ControlInteractionManager;
 
     struct HandlerRecord final {
         RoutedEventHandle event;
@@ -347,6 +393,9 @@ private:
     bool measuring_ = false;
     bool arranging_ = false;
 
+    Base::Result<void> SetMouseOverState(bool value) noexcept;
+    Base::Result<void> SetPressedState(bool value) noexcept;
+    Base::Result<void> SetKeyboardFocusedState(bool value) noexcept;
     void CleanupHandlers() noexcept;
 };
 

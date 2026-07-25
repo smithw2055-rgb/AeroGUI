@@ -4,6 +4,7 @@
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Metadata.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 
 #include <algorithm>
@@ -96,6 +97,43 @@ class TestBorder final : public Border {
 public:
     explicit TestBorder(TypeId type) noexcept : Border(type) {}
     using Border::BuildDisplayList;
+};
+
+class MockTextBlockLayoutService final
+    : public ITextBlockLayoutService {
+public:
+    Result<void> ShapeAndPrepare(
+        const TextBlockLayoutRequest& request,
+        TextBlockLayoutResult& output) noexcept override {
+        ++prepareCount;
+        lastTextBytes = request.text.SizeBytes();
+        lastDpiScale = request.dpiScale;
+        Result<void> appended =
+            output.glyphRuns.TryPushBack(100U + prepareCount);
+        if (!appended) return appended.GetStatus();
+        appended = output.glyphRuns.TryPushBack(
+            200U + prepareCount);
+        if (!appended) return appended.GetStatus();
+        output.desiredSize.width = std::min(
+            request.availableSize.width,
+            static_cast<double>(request.text.SizeBytes()) * 5.0);
+        output.desiredSize.height = std::min(
+            request.availableSize.height,
+            8.0 * request.dpiScale);
+        return {};
+    }
+
+    void ReleaseGlyphRun(
+        RenderGlyphRunId glyphRun) noexcept override {
+        ++releaseCount;
+        lastReleased = glyphRun;
+    }
+
+    std::uint32_t prepareCount = 0U;
+    std::uint32_t releaseCount = 0U;
+    std::uint32_t lastTextBytes = 0U;
+    double lastDpiScale = 0.0;
+    RenderGlyphRunId lastReleased = InvalidRenderGlyphRunId;
 };
 
 struct Fixture final {
@@ -321,6 +359,134 @@ bool TestTextBlockGlyphRunRendering() {
     return true;
 }
 
+bool TestTextBlockAutomaticLayoutService() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    NullRenderBackend backend;
+    RenderManager renderer(fixture.dispatcher, backend);
+    CHECK(renderer.Initialize());
+
+    MockTextBlockLayoutService service;
+    {
+        TextBlockLayoutServiceScope serviceScope(service);
+        TextBlock text;
+        CHECK(text.LayoutService() == &service);
+        CHECK(text.SetText("Hello"));
+        CHECK(tree.SetRoot(&text));
+        CHECK(layout.SetRoot(&text, {100.0, 40.0}));
+        CHECK(renderer.SetRoot(&text));
+
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(service.prepareCount == 1U);
+        CHECK(service.lastTextBytes == 5U);
+        CHECK(service.lastDpiScale == 1.0);
+        CHECK(text.GlyphRun() == 101U);
+        CHECK(text.DesiredSize().width == 25.0);
+        CHECK(text.DesiredSize().height == 8.0);
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::RenderCommit));
+        CHECK(renderer.CurrentPlan().Commands().Size() == 2U);
+        CHECK(renderer.CurrentPlan().Commands()[0].glyphRun == 101U);
+        CHECK(renderer.CurrentPlan().Commands()[1].glyphRun == 201U);
+
+        CHECK(text.SetText("Hello!"));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(service.prepareCount == 2U);
+        CHECK(service.releaseCount == 2U);
+        CHECK(service.lastReleased == 201U);
+        CHECK(text.GlyphRun() == 102U);
+
+        CHECK(text.SetLayoutRounding(true, 2.0));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(service.prepareCount == 3U);
+        CHECK(service.lastDpiScale == 2.0);
+        CHECK(service.releaseCount == 4U);
+        CHECK(service.lastReleased == 202U);
+        CHECK(text.DesiredSize().height == 16.0);
+
+        CHECK(renderer.SetRoot(nullptr));
+        CHECK(layout.SetRoot(nullptr, {0.0, 0.0}));
+        CHECK(tree.SetRoot(nullptr));
+        CHECK(values.DetachObject(text));
+    }
+    CHECK(service.releaseCount == 6U);
+    CHECK(service.lastReleased == 203U);
+    return true;
+}
+
+bool TestTextBoxSelectionAndGlyphRendering() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(
+        fixture.dispatcher,
+        fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(
+        fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    NullRenderBackend backend;
+    RenderManager renderer(
+        fixture.dispatcher, backend);
+    CHECK(renderer.Initialize());
+
+    MockTextBlockLayoutService service;
+    {
+        TextBlockLayoutServiceScope scope(service);
+        TextBox textBox;
+        CHECK(textBox.SetText(
+            StringView("Hello")));
+        CHECK(textBox.SetSelection(1U, 4U));
+        CHECK(tree.SetRoot(&textBox));
+        CHECK(layout.SetRoot(
+            &textBox, {100.0, 24.0}));
+        CHECK(renderer.SetRoot(&textBox));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::RenderCommit));
+
+        const RenderPlan& plan =
+            renderer.CurrentPlan();
+        CHECK(plan.Nodes().Size() == 1U);
+        CHECK(plan.Commands().Size() == 7U);
+        CHECK(plan.Commands()[0].kind ==
+            RenderCommandKind::PushClip);
+        CHECK(plan.Commands()[1].kind ==
+            RenderCommandKind::PushTransform);
+        CHECK(plan.Commands()[2].kind ==
+            RenderCommandKind::FillRect);
+        CHECK(plan.Commands()[3].kind ==
+            RenderCommandKind::DrawGlyphRun);
+        CHECK(plan.Commands()[4].kind ==
+            RenderCommandKind::DrawGlyphRun);
+        CHECK(plan.Commands()[5].kind ==
+            RenderCommandKind::PopTransform);
+        CHECK(plan.Commands()[6].kind ==
+            RenderCommandKind::PopClip);
+        CHECK(plan.Commands()[3].glyphRun == 101U);
+        CHECK(plan.Commands()[4].glyphRun == 201U);
+
+        CHECK(renderer.SetRoot(nullptr));
+        CHECK(layout.SetRoot(
+            nullptr, {0.0, 0.0}));
+        CHECK(tree.SetRoot(nullptr));
+        CHECK(values.DetachObject(textBox));
+    }
+    CHECK(service.releaseCount == 2U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -329,6 +495,8 @@ int main() {
     if (!TestRenderCommitAndInvalidation()) return 1;
     if (!TestRenderRequiresArrange()) return 1;
     if (!TestTextBlockGlyphRunRendering()) return 1;
+    if (!TestTextBlockAutomaticLayoutService()) return 1;
+    if (!TestTextBoxSelectionAndGlyphRendering()) return 1;
     std::puts("Aero rendering tests passed");
     return 0;
 }

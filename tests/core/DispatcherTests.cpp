@@ -644,6 +644,71 @@ bool TestDestructorCleanup() {
     return true;
 }
 
+void AdvanceClock(void* context) noexcept {
+    static_cast<ManualClock*>(context)->
+        now.fetch_add(
+            3U,
+            std::memory_order_release);
+}
+
+bool TestFrameTimings() {
+    ManualClock clock;
+    DispatcherOptions options;
+    options.now = &ManualClock::Read;
+    options.clockContext = &clock;
+    Dispatcher dispatcher(options);
+    const DispatcherFramePhase measured[] = {
+        DispatcherFramePhase::BeginFrame,
+        DispatcherFramePhase::Layout,
+        DispatcherFramePhase::EndFrame};
+    for (DispatcherFramePhase phase :
+         measured) {
+        CHECK(dispatcher.RegisterFrameHook(
+            phase,
+            &AdvanceClock,
+            &clock));
+    }
+    for (std::uint32_t index = 0U;
+         index < DispatcherFramePhaseCount;
+         ++index) {
+        CHECK(dispatcher.RunFramePhase(
+            static_cast<
+                DispatcherFramePhase>(
+                    index)));
+    }
+    DispatcherFrameTimings timings =
+        dispatcher.FrameTimings();
+    CHECK(timings.frameSequence == 1U);
+    CHECK(timings.totalMicroseconds == 9U);
+    CHECK(timings.phaseMicroseconds[
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::
+                BeginFrame)] == 3U);
+    CHECK(timings.phaseMicroseconds[
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::
+                Layout)] == 3U);
+    CHECK(timings.phaseMicroseconds[
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::
+                EndFrame)] == 3U);
+
+    CHECK(dispatcher.RunFramePhase(
+        DispatcherFramePhase::BeginFrame));
+    timings = dispatcher.FrameTimings();
+    CHECK(timings.frameSequence == 1U);
+    CHECK(timings.totalMicroseconds == 0U);
+    CHECK(timings.phaseMicroseconds[
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::
+                BeginFrame)] == 3U);
+    CHECK(timings.phaseMicroseconds[
+        static_cast<std::uint32_t>(
+            DispatcherFramePhase::
+                Layout)] == 0U);
+    return true;
+}
+
 struct TestCase final {
     const char* name;
     bool (*run)();
@@ -667,6 +732,8 @@ int main() {
          &TestFrameHooksAndSnapshotSemantics},
         {"Destructor cleanup",
          &TestDestructorCleanup},
+        {"Frame timings",
+         &TestFrameTimings},
     };
 
     for (const TestCase& test : tests) {

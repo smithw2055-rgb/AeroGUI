@@ -8,10 +8,17 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 
+namespace Aero::Presentation {
+class LayoutManager;
+class RenderManager;
+}
+
 namespace Aero::Controls {
 
 using namespace Aero::Core;
 using namespace Aero::Presentation;
+
+class ContentPresenter;
 
 struct TemplateHandle final {
     std::uint64_t value = 0U;
@@ -28,6 +35,18 @@ struct TemplatePart final {
     FrameworkElement* frameworkElement = nullptr;
 };
 
+struct TemplateContentProjection final {
+    ContentControl* owner = nullptr;
+    ContentPresenter* presenter = nullptr;
+    UIElement* content = nullptr;
+    Visual* originalVisualParent = nullptr;
+    bool attachedLogical = false;
+    bool detachedOriginalLayout = false;
+    bool detachedOriginalRender = false;
+    bool attachedProjectedLayout = false;
+    bool attachedProjectedRender = false;
+};
+
 class AERO_API TemplateBuildContext final {
 public:
     Base::Result<void> SetRoot(
@@ -38,6 +57,11 @@ public:
         Visual& parent,
         Base::Ref<Base::Object> owner,
         Visual& part) noexcept;
+    // Projects a ContentControl's logical content into a template-owned
+    // ContentPresenter without changing the logical parent.
+    Base::Result<bool> ProjectContent(
+        ContentControl& owner,
+        ContentPresenter& presenter) noexcept;
 
     Control& TemplatedParent() const noexcept {
         return *parent_;
@@ -57,8 +81,13 @@ private:
 
     TemplateBuildContext(
         ObjectTree& tree,
-        Control& parent) noexcept
-        : tree_(&tree), parent_(&parent) {}
+        Control& parent,
+        LayoutManager* layout,
+        RenderManager* renderer) noexcept
+        : tree_(&tree),
+          layout_(layout),
+          renderer_(renderer),
+          parent_(&parent) {}
 
     DependencyObject* FindObject(
         Base::StringView name) const noexcept;
@@ -69,10 +98,13 @@ private:
     void Rollback() noexcept;
 
     ObjectTree* tree_ = nullptr;
+    LayoutManager* layout_ = nullptr;
+    RenderManager* renderer_ = nullptr;
     Control* parent_ = nullptr;
     Visual* rootVisual_ = nullptr;
     UIElement* rootElement_ = nullptr;
     Base::Vector<TemplatePart> parts_;
+    Base::Vector<TemplateContentProjection> projections_;
 };
 
 using TemplateFactoryCallback = Base::Result<void> (*)(
@@ -97,6 +129,22 @@ struct TemplatePropertyTrigger final {
     Base::Vector<TemplateTriggerSetter> setters;
 };
 
+struct VisualStateSetter final {
+    Base::String targetName;
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
+struct VisualState final {
+    Base::String name;
+    Base::Vector<VisualStateSetter> setters;
+};
+
+struct VisualStateGroup final {
+    Base::String name;
+    Base::Vector<VisualState> states;
+};
+
 class AERO_API FrameworkTemplate {
 public:
     FrameworkTemplate(
@@ -116,6 +164,8 @@ public:
         DependencyPropertyHandle targetProperty) noexcept;
     Base::Result<void> TryAddPropertyTrigger(
         TemplatePropertyTrigger trigger) noexcept;
+    Base::Result<void> TryAddVisualStateGroup(
+        VisualStateGroup group) noexcept;
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 
@@ -133,6 +183,9 @@ public:
     Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
         return {triggers_.Data(), triggers_.Size()};
     }
+    Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
+        return {visualStateGroups_.Data(), visualStateGroups_.Size()};
+    }
 
 private:
     TypeId targetType_ = InvalidTypeId;
@@ -140,6 +193,7 @@ private:
     void* factoryContext_ = nullptr;
     Base::Vector<TemplateBindingPlan> bindings_;
     Base::Vector<TemplatePropertyTrigger> triggers_;
+    Base::Vector<VisualStateGroup> visualStateGroups_;
     bool sealed_ = false;
 };
 
@@ -153,10 +207,14 @@ public:
     TemplateManager(
         ObjectTree& tree,
         EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties) noexcept
+        DependencyPropertyRegistry& properties,
+        LayoutManager* layout = nullptr,
+        RenderManager* renderer = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
           properties_(&properties),
+          layout_(layout),
+          renderer_(renderer),
           propertyChangedHandler_(
               this, &TemplateManager::OnPropertyChanged) {}
     ~TemplateManager() noexcept;
@@ -171,6 +229,10 @@ public:
     DependencyObject* FindName(
         TemplateHandle handle,
         Base::StringView name) const noexcept;
+    TemplateHandle AppliedHandle(
+        const Control& control) const noexcept;
+    const ControlTemplate* AppliedTemplate(
+        TemplateHandle handle) const noexcept;
 
 private:
     struct Instance final {
@@ -180,11 +242,14 @@ private:
         Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
         Base::Vector<TemplatePart> parts;
+        Base::Vector<TemplateContentProjection> projections;
     };
 
     ObjectTree* tree_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
+    LayoutManager* layout_ = nullptr;
+    RenderManager* renderer_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -212,6 +277,60 @@ private:
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
+};
+
+// Applies setter-only visual states through the Animation provider. State
+// changes are immediate; animated transitions intentionally remain a later
+// extension. A sealed template rejects property conflicts between groups so
+// clearing one group cannot disturb another.
+class AERO_API VisualStateManager final {
+public:
+    VisualStateManager(
+        EffectiveValueEngine& values,
+        TemplateManager& templates) noexcept
+        : values_(&values), templates_(&templates) {}
+
+    Base::Result<bool> GoToState(
+        Control& control,
+        Base::StringView groupName,
+        Base::StringView stateName) noexcept;
+    Base::Result<bool> ClearState(
+        Control& control,
+        Base::StringView groupName) noexcept;
+    Base::Result<std::uint32_t> Clear(
+        Control& control) noexcept;
+    Base::StringView CurrentState(
+        const Control& control,
+        Base::StringView groupName) const noexcept;
+
+private:
+    struct ActiveGroup final {
+        std::uint64_t templateValue = 0U;
+        Base::String groupName;
+        Base::String stateName;
+    };
+
+    EffectiveValueEngine* values_ = nullptr;
+    TemplateManager* templates_ = nullptr;
+    Base::Vector<ActiveGroup> active_;
+
+    std::uint32_t FindActive(
+        TemplateHandle handle,
+        Base::StringView groupName) const noexcept;
+    static const VisualStateGroup* FindGroup(
+        const ControlTemplate& plan,
+        Base::StringView groupName) noexcept;
+    static const VisualState* FindState(
+        const VisualStateGroup& group,
+        Base::StringView stateName) noexcept;
+    Base::Result<void> ApplyState(
+        TemplateHandle handle,
+        const VisualState& state) noexcept;
+    Base::Result<void> ClearStateValues(
+        TemplateHandle handle,
+        const VisualState& state) noexcept;
+    void PruneStale() noexcept;
+    void RemoveActiveAt(std::uint32_t index) noexcept;
 };
 
 } // namespace Aero::Controls

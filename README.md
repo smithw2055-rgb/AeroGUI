@@ -3,7 +3,7 @@
 > 一个面向 C++17 的、跨平台的 WPF/XAML 语义运行时与原生 GPU UI 引擎。  
 > A clean-room, cross-platform WPF-style XAML runtime and native GPU UI engine for C++17.
 
-[![Status: Architecture Baseline](https://img.shields.io/badge/status-architecture%20baseline-blue)](#项目状态)
+[![Status: Runtime Vertical Slice](https://img.shields.io/badge/status-runtime%20vertical%20slice-blue)](#项目状态)
 [![Language: C++17](https://img.shields.io/badge/language-C%2B%2B17-blue)](#技术基线)
 [![Renderer: Native GPU](https://img.shields.io/badge/renderer-native%20GPU-purple)](#原生-gpu-渲染)
 [![Web: WebGL 2](https://img.shields.io/badge/web-WebGL%202-orange)](#浏览器与-webgl-2)
@@ -11,7 +11,22 @@
 
 AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI、Moonlight 或其他产品的内部实现。项目以 **WPF 的公开行为与 XAML 语义**为主要兼容基准，采用 clean-room 方法，以 C++17 自主实现对象系统、属性系统、XAML、布局、绑定、控件和原生 GPU 渲染器。
 
-本仓库当前处于 **architecture-first / specification-first** 阶段。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
+本仓库当前处于 **runtime vertical slice** 阶段。架构基线、C++17 runtime、metadata-driven XAML、Binding/DataContext、Style/Template、compiled XAML、D3D11/WARP 垂直切片和模块 SDK 已落地主线；当前 M3.5 聚焦文本栈、交互控件、滚动/Items、OpenGL 3.3 与真实 ControlGallery。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
+
+## 项目状态
+
+- 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK 和 `aero-xamlc`。
+- 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
+- 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed RHI 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
+- 已完成交互/集合基础切片：Command、统一 hover/pressed/focus/capture 状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton、Generic/Light/Dark 主题、ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox，以及带 realization window、overscan、recycling 和 10k benchmark 的 VirtualizingStackPanel。
+- 已完成 OpenGL 3.3 基础合同、RHI 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。`AeroRenderOpenGL33` 复用 backend-neutral `Renderer` 完成 RenderPlan lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
+- 已完成独立 UTF-8 可编辑文本模型：gap buffer 避免逐次输入复制全文，公共位置统一使用 grapheme cluster 索引，并覆盖 caret/selection、range replacement、undo/redo、最大长度、只读模式、行模型和 UTF-8 边界诊断。
+- 已完成 TextBox 与剪贴板切片：`Text` 默认 TwoWay、UTF-8 文本输入、selection/caret 绘制、指针拖选、键盘导航与编辑、undo/redo、平台中立剪贴板、Win32 `CF_UNICODETEXT`、独立密码显示/复制策略，以及 `IScrollInfo`/ScrollViewer 接入均已有跨平台测试。
+- 已完成平台中立 IME host seam 与 Win32 Imm32 adapter：支持 composition 开始、预编辑、提交、取消和 DPI-aware candidate window；预编辑不会提前写回 Binding source，失焦、禁用、只读、宿主切换和控件销毁均安全终止 composition。
+- 已完成真实 `ControlGallery` 应用：同一份 XAML 支持 runtime/compiled 两条加载路径与等价性校验，覆盖 Light/Dark、基础控件、Binding、自定义模块和 10k recycling virtualization；Windows 可切换 D3D11/WARP 与 OpenGL 3.3/WGL，Linux 使用 OpenGL 3.3/GLX，并为两类原生后端提供 context/device-loss 恢复 smoke。
+- 尚未完成：完整 Unicode line breaking/bidi 与最终性能/稳健性门禁。TextBlock 渲染服务已支持在 loss 后放弃旧 handles、重绑定宿主重建的 device/backend，并由下一次布局重建 atlas 与 glyph runs。
 
 ## 已确定的技术方向
 
@@ -90,8 +105,10 @@ flowchart LR
     Markup --> Controls
     Controls --> Presentation
     Presentation --> Core[AeroCore]
+    Controls -. text services .-> Text[AeroText]
 
     Core --> Base[AeroBase]
+    Text --> Base
     Markup --> Base
     Presentation --> Base
 
@@ -115,7 +132,14 @@ Aero::Base
   -> Aero::Presentation
   -> Aero::Controls
   -> Aero::Markup / application integration
+
+Aero::Text
+  -> Aero::Base
 ```
+
+`Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
+
+本地 source 模式通过 `AERO_THIRD_PARTY_ROOT` 指向同时包含 `freetype/` 与 `harfbuzz/` 的目录，并显式启用 `AERO_WITH_FREETYPE` / `AERO_WITH_HARFBUZZ`。FreeType-only profile 提供有限的 simple-text shaping；组合 profile 分别导出 `Aero::TextFreeType` 与 `Aero::TextHarfBuzz`，宿主可将同一个 FreeType provider 与 HarfBuzz shaper 注册到 `FontManager`。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use
@@ -288,6 +312,17 @@ C++17 Runtime
 - 所有跨线程数据必须是不可变值、冻结资源或显式同步句柄；
 - native backend shader 使用离线 binary/package；GL/GLES/WebGL 使用离线生成和验证后的固定 GLSL source package；
 - WebGL 运行时 compile/link 是浏览器 API 所要求的显式例外。
+
+## ControlGallery
+
+`AERO_BUILD_SAMPLES=ON`（默认）会构建 `AeroControlGallery`，并在构建阶段用样例模块目录生成 compiled XAML 资产。以下命令启动真实窗口；去掉 `--interactive` 可用于无人值守 smoke：
+
+```powershell
+out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=d3d11 --xaml=compiled --theme=light --interactive
+out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=opengl --xaml=compiled --theme=dark --interactive
+```
+
+Linux 使用同一 `--backend=opengl` 命令并通过 GLX 呈现。`--xaml=both --theme=both --simulate-context-loss` 会同时验证 runtime/compiled 等价性、两套默认主题和后端恢复路径。
 
 ## 计划目录
 

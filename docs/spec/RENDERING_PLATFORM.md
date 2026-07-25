@@ -428,13 +428,20 @@ GL/GLES/WebGL 是“不运行时编译 shader binary”规则的显式 API 例�
 ```text
 IUnicodeService
 ITextBreaker
+FontManager
+IFontProvider
 ITextShaper
-IFontDatabase
-IFontFace
-IGlyphOutlineProvider
 IGlyphRasterizer
 IGlyphAtlas
 ```
+
+`AeroText` 公共合同层只依赖 `AeroBase`。`IFontProvider`、`ITextShaper` 和
+`IGlyphRasterizer` 通过同一个 `FontProviderIdentity { id, version }`
+注册到 `FontManager`；face handle 同时携带 provider identity、face ID 和
+generation，因此 provider 重载、缓存失效或关闭后的陈旧 face 会被明确拒绝。
+Manager 不拥有 provider 对象，宿主必须保证注册对象存活到 unregister 或
+shutdown。所有字体路径、语言和 shaping 输入使用 UTF-8，所有输出容器使用宿主
+可注入的 `AeroBase` allocator。
 
 图像边界：
 

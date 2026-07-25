@@ -598,7 +598,7 @@ D3D11SurfacePresenter::AcquireFrame() noexcept {
 
 Base::Result<FenceValue> D3D11SurfacePresenter::SubmitAndPresent(
     D3D11SurfaceFrame& frame,
-    const GraphicsCommandBuffer& commands) noexcept {
+    const CommandList& commands) noexcept {
     if (!initialized_) {
         return NotInitialized("D3D11 surface presenter is not initialized");
     }
@@ -607,17 +607,7 @@ Base::Result<FenceValue> D3D11SurfacePresenter::SubmitAndPresent(
     }
 
     const ResourceHandle renderTarget = frame.renderTarget;
-    const FenceValue backendFence = backend_->LastSubmittedFence();
-    if (backendFence == UINT64_MAX) {
-        static_cast<void>(surface_->DiscardFrame(frame.surface));
-        static_cast<void>(RetireRenderTarget(renderTarget, 0U));
-        ClearFrame(frame);
-        return OutOfRange("D3D11 graphics fence space is exhausted");
-    }
-
-    const FenceValue signalFence = backendFence + 1U;
-    Base::Result<void> submitted = backend_->SubmitGraphics(
-        commands, signalFence);
+    Base::Result<FenceValue> submitted = device_->Submit(commands);
     if (!submitted) {
         static_cast<void>(surface_->DiscardFrame(frame.surface));
         Base::Result<void> retired = RetireRenderTarget(renderTarget, 0U);
@@ -625,6 +615,7 @@ Base::Result<FenceValue> D3D11SurfacePresenter::SubmitAndPresent(
         return retired ? submitted.GetStatus() : retired.GetStatus();
     }
 
+    const FenceValue signalFence = submitted.Value();
     lastSubmittedFence_ = signalFence;
     Base::Result<void> presented = surface_->Present(
         frame.surface, signalFence);

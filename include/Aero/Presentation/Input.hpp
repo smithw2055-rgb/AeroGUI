@@ -11,6 +11,8 @@ namespace Aero::Presentation {
 
 using namespace Aero::Core;
 
+class CommandManager;
+
 struct HitTestResult final {
     UIElement* target = nullptr;
     Point position;
@@ -44,12 +46,20 @@ struct PointerInput final {
     PointerAction action = PointerAction::Move;
     Point position;
     MouseButton changedButton = MouseButton::Left;
+    double wheelDeltaX = 0.0;
+    double wheelDeltaY = 0.0;
 };
 
 struct PointerDispatchResult final {
     HitTestResult hit;
     bool routed = false;
 };
+
+using PointerStateChangedHandler =
+    Base::Delegate<void(UIElement&)>;
+using PointerCaptureChangedHandler =
+    Base::Delegate<void(
+        std::uint32_t, UIElement*, bool)>;
 
 // The platform host normalizes native keyboard input into this small value
 // type. key is a non-zero platform-neutral key identifier; text composition
@@ -61,9 +71,42 @@ struct KeyboardInput final {
     bool isRepeat = false;
 };
 
+inline constexpr std::uint32_t KeyboardKeyTab = 9U;
+inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
+inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
+inline constexpr std::uint32_t KeyboardKeySpace = 32U;
+inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
+inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;
+inline constexpr std::uint32_t KeyboardKeyLeft = 0x25U;
+inline constexpr std::uint32_t KeyboardKeyUp = 0x26U;
+inline constexpr std::uint32_t KeyboardKeyRight = 0x27U;
+inline constexpr std::uint32_t KeyboardKeyDown = 0x28U;
+inline constexpr std::uint32_t KeyboardKeyDelete = 0x2EU;
+inline constexpr std::uint32_t KeyboardKeyA = 0x41U;
+inline constexpr std::uint32_t KeyboardKeyC = 0x43U;
+inline constexpr std::uint32_t KeyboardKeyV = 0x56U;
+inline constexpr std::uint32_t KeyboardKeyX = 0x58U;
+inline constexpr std::uint32_t KeyboardKeyY = 0x59U;
+inline constexpr std::uint32_t KeyboardKeyZ = 0x5AU;
+
+enum class KeyboardModifiers : std::uint32_t {
+    None = 0U,
+    Shift = 1U << 0U,
+    Control = 1U << 1U,
+    Alt = 1U << 2U,
+};
+
+constexpr bool HasKeyboardModifier(
+    std::uint32_t modifiers,
+    KeyboardModifiers value) noexcept {
+    return (modifiers & static_cast<std::uint32_t>(value)) != 0U;
+}
+
 struct KeyboardDispatchResult final {
     UIElement* target = nullptr;
     bool routed = false;
+    bool commandExecuted = false;
+    bool focusMoved = false;
 };
 
 // Text is delivered separately from physical/logical keyboard events. The
@@ -91,21 +134,59 @@ public:
         std::uint32_t pointerId) noexcept;
     UIElement* CapturedNode(
         std::uint32_t pointerId) noexcept;
+    Base::Result<void> TryAddStateChanged(
+        const PointerStateChangedHandler& handler) noexcept {
+        return stateChanged_.TryAdd(handler);
+    }
+    bool RemoveStateChanged(
+        const PointerStateChangedHandler& handler) noexcept {
+        return stateChanged_.Remove(handler);
+    }
+    Base::Result<void> TryAddCaptureChanged(
+        const PointerCaptureChangedHandler& handler) noexcept {
+        return captureChanged_.TryAdd(handler);
+    }
+    bool RemoveCaptureChanged(
+        const PointerCaptureChangedHandler& handler) noexcept {
+        return captureChanged_.Remove(handler);
+    }
 
 private:
     struct PointerCapture final {
         std::uint32_t pointerId = 0U;
         VisualHandle target;
     };
+    struct PointerState final {
+        std::uint32_t pointerId = 0U;
+        VisualHandle hover;
+        VisualHandle pressed;
+    };
 
     HitTestManager* hitTests_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<PointerCapture> captures_;
+    Base::Vector<PointerState> states_;
+    PointerStateChangedHandler stateChanged_;
+    PointerCaptureChangedHandler captureChanged_;
 
     std::uint32_t FindCapture(
         std::uint32_t pointerId) const noexcept;
     void RemoveCaptureAt(std::uint32_t index) noexcept;
+    std::uint32_t FindState(std::uint32_t pointerId) const noexcept;
+    Base::Result<void> UpdateHover(
+        std::uint32_t pointerId, UIElement* target) noexcept;
+    Base::Result<void> UpdatePressed(
+        std::uint32_t pointerId, UIElement* target) noexcept;
+    bool HasHover(VisualHandle target,
+        std::uint32_t ignoredIndex) const noexcept;
+    bool HasPressed(VisualHandle target,
+        std::uint32_t ignoredIndex) const noexcept;
+};
+
+enum class FocusNavigationDirection : std::uint8_t {
+    Next,
+    Previous,
 };
 
 class AERO_API FocusManager final {
@@ -113,13 +194,35 @@ public:
     FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
 
     UIElement* FocusedNode() noexcept;
+    UIElement* FocusedElement(UIElement& scope) noexcept;
     Base::Result<bool> SetFocus(UIElement* node) noexcept;
     Base::Result<bool> ClearFocus() noexcept;
+    Base::Result<bool> MoveFocus(
+        FocusNavigationDirection direction,
+        bool wrap = true) noexcept;
 
 private:
+    struct ScopeFocus final {
+        VisualHandle scope;
+        VisualHandle focused;
+    };
+    struct FocusCandidate final {
+        UIElement* element = nullptr;
+        std::uint32_t tabIndex = 0U;
+        std::uint32_t order = 0U;
+    };
+
     ObjectTree* tree_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     VisualHandle focused_;
+    Base::Vector<ScopeFocus> scopeFocus_;
+
+    UIElement* FindNavigationScope(UIElement* node) noexcept;
+    Base::Result<void> RememberFocus(UIElement& node) noexcept;
+    Base::Result<void> CollectCandidates(
+        Visual& parent,
+        Base::Vector<FocusCandidate>& candidates,
+        std::uint32_t& order) noexcept;
 };
 
 // UI-thread keyboard router. It delivers KeyDown/KeyUp to the current focus
@@ -128,6 +231,12 @@ class AERO_API KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
         ObjectTree& tree) noexcept;
+    KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
+        ObjectTree& tree, CommandManager* commands) noexcept;
+
+    void SetCommandManager(CommandManager* commands) noexcept {
+        commands_ = commands;
+    }
 
     Base::Result<KeyboardDispatchResult> Dispatch(
         const KeyboardInput& input) noexcept;
@@ -136,6 +245,7 @@ private:
     FocusManager* focus_ = nullptr;
     RoutedEventManager* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
+    CommandManager* commands_ = nullptr;
 };
 
 class AERO_API TextInputManager final {

@@ -556,8 +556,8 @@ bool CheckedLong(double value, LONG& output) noexcept {
     return true;
 }
 
-Base::Result<D3D11_RECT> ToD3DRect(Presentation::Rect rect) noexcept {
-    if (!Presentation::IsValidLayoutRect(rect)) {
+Base::Result<D3D11_RECT> ToD3DRect(Base::Rect rect) noexcept {
+    if (!Base::IsValidRect(rect)) {
         return InvalidArgument("D3D11 rectangle is invalid");
     }
 
@@ -844,7 +844,7 @@ struct D3D11GraphicsBackend::Impl final {
         }
     };
 
-    // The intentionally bounded state set changed by SubmitGraphics(). It is
+    // The intentionally bounded state set changed by Submit(). It is
     // used only by the explicit PreserveRequiredState integration contract;
     // HostResetsState avoids the Get* calls entirely.
     struct RequiredStateSnapshot final {

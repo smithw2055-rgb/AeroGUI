@@ -2,6 +2,15 @@
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Rhi/D3D11Backend.hpp>
+#include <Aero/Render/D3D11RendererBackend.hpp>
+
+#include "../render/SharedRenderPlanFixture.hpp"
+
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+#include <Aero/Render/D3D11TextBlockRenderService.hpp>
+#include <Aero/Text/FreeTypeAdapter.hpp>
+#include <Aero/Text/HarfBuzzAdapter.hpp>
+#endif
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
@@ -41,6 +50,10 @@ using namespace Aero::Presentation;
 using namespace Aero::Controls;
 using namespace Aero::Markup;
 using namespace Aero::Rhi;
+using namespace Aero::Render;
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+using namespace Aero::Text;
+#endif
 
 #define CHECK(expression) \
     do { \
@@ -705,7 +718,7 @@ Result<GraphicsCommandBuffer> MakeClearCommands(
 }
 
 Result<FenceValue> UploadTestImage(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle texture) noexcept {
     static constexpr std::uint8_t Pixels[] = {
         255U, 0U, 0U, 255U,
@@ -723,12 +736,7 @@ Result<FenceValue> UploadTestImage(
     if (!commands) {
         return commands.GetStatus();
     }
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) {
-        return initialized.GetStatus();
-    }
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 struct TestMeshVertex final {
@@ -748,7 +756,7 @@ struct TestGlyphVertex final {
 };
 
 Result<FenceValue> UploadTestMesh(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer) noexcept {
     static constexpr TestMeshVertex Vertices[] = {
@@ -768,14 +776,11 @@ Result<FenceValue> UploadTestMesh(
     if (!uploaded) return uploaded.GetStatus();
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
     if (!commands) return commands.GetStatus();
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) return initialized.GetStatus();
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 Result<FenceValue> UploadTestGlyph(
-    D3D11GraphicsBackend& backend,
+    RhiDevice& device,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
     ResourceHandle atlasTexture) noexcept {
@@ -801,10 +806,7 @@ Result<FenceValue> UploadTestGlyph(
     if (!uploaded) return uploaded.GetStatus();
     Result<GraphicsCommandBuffer> commands = encoder.Finish();
     if (!commands) return commands.GetStatus();
-    GraphicsQueue queue(backend);
-    Result<void> initialized = queue.Initialize();
-    if (!initialized) return initialized.GetStatus();
-    return queue.Submit(commands.Value());
+    return device.Submit(commands.Value());
 }
 
 bool VerifySolidGreen(
@@ -914,6 +916,172 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     return true;
 }
 
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+bool TestAutomaticTextBlockD3D11Presentation(
+    RhiDevice& device,
+    D3D11GraphicsBackend& backend,
+    SurfaceSession& surface,
+    D3D11RenderPlanBackend& renderBackend) {
+    FreeTypeAdapter fontProvider;
+    CHECK(fontProvider.Initialize());
+    HarfBuzzAdapter shaper(fontProvider);
+    FontManager fonts;
+    CHECK(fonts.Initialize());
+    CHECK(fonts.RegisterProvider(
+        {&fontProvider, &shaper, &fontProvider}));
+
+    Typeface latinTypeface;
+    CHECK(latinTypeface.TrySetFamily("Roboto"));
+    CHECK(latinTypeface.TrySetLanguage("en"));
+    FontSource latinSource;
+    latinSource.kind = FontSourceKind::File;
+    latinSource.identifier = AERO_TEXT_TEST_FONT;
+    FontFace latinFace;
+    CHECK(fonts.LoadFace(
+        fontProvider.Identity().id,
+        latinSource, latinTypeface, latinFace));
+
+    Typeface cjkTypeface;
+    CHECK(cjkTypeface.TrySetFamily("Mplus"));
+    CHECK(cjkTypeface.TrySetLanguage("zh-CN"));
+    FontSource cjkSource;
+    cjkSource.kind = FontSourceKind::File;
+    cjkSource.identifier = AERO_TEXT_TEST_CJK_FONT;
+    FontFace cjkFace;
+    CHECK(fonts.LoadFace(
+        fontProvider.Identity().id,
+        cjkSource, cjkTypeface, cjkFace));
+
+    D3D11GlyphRunResourceRegistry registry(renderBackend);
+    TextBlockRenderService textService(
+        fonts, device, backend, registry);
+    TextBlockRenderServiceConfig config;
+    config.face = latinFace;
+    config.fallbackFaces = {&cjkFace, 1U};
+    config.pixelSize = 20.0F;
+    config.atlas.pageWidth = 256U;
+    config.atlas.pageHeight = 256U;
+    config.atlas.maxPages = 2U;
+    CHECK(textService.Initialize(config));
+
+    {
+        TextBlockLayoutServiceScope textScope(textService);
+        XamlControlFixture fixture(renderBackend);
+        CHECK(fixture.Initialize());
+        DiagnosticBag diagnostics;
+        Utf8XmlTokenizer tokenizer;
+        CHECK(tokenizer.Reset(StringView(
+            "<TextBlock xmlns=\"urn:aero\" "
+            "Text=\"A1&#x4E2D;&#x6587;\"/>"),
+            &diagnostics));
+        XamlNodeReader reader(tokenizer, &diagnostics);
+        XamlObjectWriter writer(*fixture.schema, &diagnostics);
+        Result<Ref<Object>> loaded =
+            LoadXamlVisualTreeWithActivation(
+                *fixture.visual,
+                writer,
+                reader,
+                *fixture.activation,
+                fixture.Activation());
+        CHECK(loaded && diagnostics.Size() == 0U);
+        TextBlock* text =
+            static_cast<TextBlock*>(loaded.Value().Get());
+        CHECK(text != nullptr);
+        CHECK(text->LayoutService() == &textService);
+        CHECK(text->SetForeground(
+            {0.0F, 0.0F, 1.0F, 1.0F}));
+        CHECK(fixture.visual->Mount(
+            *text, fixture.textBlockType,
+            {80.0, 48.0}));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(text->DesiredSize().width > 0.0);
+        CHECK(text->DesiredSize().height > 0.0);
+        CHECK(!text->GlyphRuns().Empty());
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::RenderCommit));
+        const D3D11RenderPlanSubmitStatistics statistics =
+            renderBackend.LastSubmitStatistics();
+        CHECK(statistics.glyphDrawCallCount >= 1U);
+        CHECK(statistics.glyphInstanceCount >= 1U);
+        CHECK(backend.WaitForFence(
+            renderBackend.LastSubmittedFence()));
+
+        Result<SurfaceFrame> frameResult =
+            surface.AcquireFrame();
+        CHECK(frameResult);
+        SurfaceFrame frame = frameResult.Value();
+        Result<ResourceHandle> target =
+            ImportD3D11ExternalRenderTarget(
+                device, backend,
+                MakeImportDescriptor(frame));
+        CHECK(target);
+        constexpr std::uint32_t Width = 80U;
+        constexpr std::uint32_t Height = 48U;
+        std::uint8_t pixels[Width * Height * 4U]{};
+        CHECK(backend.ReadbackTexture(
+            target.Value(),
+            Span<std::uint8_t>(
+                pixels,
+                static_cast<std::uint32_t>(
+                    sizeof(pixels))),
+            Width * 4U));
+        bool foundBlueCoverage = false;
+        for (std::uint32_t offset = 0U;
+             offset < sizeof(pixels);
+             offset += 4U) {
+            if (pixels[offset] > 20U &&
+                pixels[offset] > pixels[offset + 1U] &&
+                pixels[offset] > pixels[offset + 2U]) {
+                foundBlueCoverage = true;
+                break;
+            }
+        }
+        CHECK(foundBlueCoverage);
+        CHECK(surface.DiscardFrame(frame));
+        CHECK(device.DestroyResource(
+            target.Value(),
+            renderBackend.LastSubmittedFence()));
+        CHECK(fixture.visual->Unmount());
+    }
+
+    CHECK(backend.WaitForFence(
+        renderBackend.LastSubmittedFence()));
+    CHECK(textService.CollectGarbage());
+    textService.Shutdown();
+    CHECK(device.CollectGarbage());
+    CHECK(fonts.ReleaseFace(latinFace.handle));
+    CHECK(fonts.ReleaseFace(cjkFace.handle));
+    fonts.Shutdown();
+    fontProvider.Shutdown();
+    return true;
+}
+#endif
+
+bool TestSharedRenderPlanConformance(
+    RhiDevice& device,
+    D3D11GraphicsBackend& backend) noexcept {
+    return Aero::Tests::RunSharedRenderPlanConformance(
+        device, backend, MakeD3D11RendererShaderSet());
+}
+
+bool TestD3D11SharedRenderPlanConformance() noexcept {
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Warp;
+    options.allowWarpFallback = false;
+    D3D11GraphicsBackend backend(options);
+    CHECK(backend.Initialize());
+    {
+        RhiDevice device(backend);
+        CHECK(device.Initialize());
+        CHECK(TestSharedRenderPlanConformance(device, backend));
+        CHECK(device.LiveResourceCount() == 0U);
+    }
+    CHECK(backend.LiveResourceCount() == 0U);
+    backend.Shutdown();
+    return true;
+}
+
 bool TestOwnedBorrowedResizeAndPresentation() {
     HiddenWindow window;
     CHECK(window.Initialize());
@@ -957,9 +1125,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(clearCommands);
     CHECK(clearCommands.Value().CommandCount() == 2U);
 
-    GraphicsQueue queue(backend);
-    CHECK(queue.Initialize());
-    Result<FenceValue> submitted = queue.Submit(clearCommands.Value());
+    Result<FenceValue> submitted = device.Submit(clearCommands.Value());
     CHECK(submitted);
     CHECK(submitted.Value() == 1U);
     CHECK(backend.WaitForFence(submitted.Value()));
@@ -1007,7 +1173,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
 
     RenderPlan renderPlan;
     CHECK(BuildPlan(renderPlan, 80U, 48U));
-    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    D3D11RenderPlanBackend renderBackend(device, presenter);
     CHECK(renderBackend.Initialize());
     CHECK(renderBackend.Submit(renderPlan));
     const D3D11RenderPlanSubmitStatistics firstPlanStatistics =
@@ -1216,24 +1382,23 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     CHECK(device.DestroyResource(
         roundedFillTarget.Value(), renderBackend.LastSubmittedFence()));
 
-    GraphicsResourceFactory resources(device, backend);
     TextureResourceDescriptor imageDescriptor;
     imageDescriptor.width = 2U;
     imageDescriptor.height = 2U;
     imageDescriptor.format = GraphicsTextureFormat::Rgba8Unorm;
     imageDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> imageTexture = resources.CreateTexture(imageDescriptor);
+    Result<ResourceHandle> imageTexture = device.CreateTexture(imageDescriptor);
     CHECK(imageTexture);
     SamplerDescriptor imageSamplerDescriptor;
     imageSamplerDescriptor.minFilter = FilterMode::Nearest;
     imageSamplerDescriptor.magFilter = FilterMode::Nearest;
     imageSamplerDescriptor.mipFilter = FilterMode::Nearest;
     Result<ResourceHandle> imageSampler =
-        resources.CreateSampler(imageSamplerDescriptor);
+        device.CreateSampler(imageSamplerDescriptor);
     CHECK(imageSampler);
     Result<FenceValue> imageUpload = UploadTestImage(
-        backend, imageTexture.Value());
+        device, imageTexture.Value());
     CHECK(imageUpload);
     CHECK(imageUpload.Value() == 8U);
     CHECK(backend.WaitForFence(imageUpload.Value()));
@@ -1300,15 +1465,15 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     BufferDescriptor meshVertexDescriptor;
     meshVertexDescriptor.sizeBytes = sizeof(TestMeshVertex) * 3U;
     meshVertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> meshVertex = resources.CreateBuffer(meshVertexDescriptor);
+    Result<ResourceHandle> meshVertex = device.CreateBuffer(meshVertexDescriptor);
     CHECK(meshVertex);
     BufferDescriptor meshIndexDescriptor;
     meshIndexDescriptor.sizeBytes = sizeof(std::uint32_t) * 3U;
     meshIndexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> meshIndex = resources.CreateBuffer(meshIndexDescriptor);
+    Result<ResourceHandle> meshIndex = device.CreateBuffer(meshIndexDescriptor);
     CHECK(meshIndex);
     Result<FenceValue> meshUpload = UploadTestMesh(
-        backend, meshVertex.Value(), meshIndex.Value());
+        device, meshVertex.Value(), meshIndex.Value());
     CHECK(meshUpload && meshUpload.Value() == 11U);
     CHECK(backend.WaitForFence(meshUpload.Value()));
     CHECK(renderBackend.RegisterMesh(
@@ -1362,12 +1527,12 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     BufferDescriptor glyphVertexDescriptor;
     glyphVertexDescriptor.sizeBytes = sizeof(TestGlyphVertex) * 3U;
     glyphVertexDescriptor.usage = BufferUsage::Vertex;
-    Result<ResourceHandle> glyphVertex = resources.CreateBuffer(glyphVertexDescriptor);
+    Result<ResourceHandle> glyphVertex = device.CreateBuffer(glyphVertexDescriptor);
     CHECK(glyphVertex);
     BufferDescriptor glyphIndexDescriptor;
     glyphIndexDescriptor.sizeBytes = sizeof(std::uint16_t) * 3U;
     glyphIndexDescriptor.usage = BufferUsage::Index;
-    Result<ResourceHandle> glyphIndex = resources.CreateBuffer(glyphIndexDescriptor);
+    Result<ResourceHandle> glyphIndex = device.CreateBuffer(glyphIndexDescriptor);
     CHECK(glyphIndex);
     TextureResourceDescriptor glyphAtlasDescriptor;
     glyphAtlasDescriptor.width = 1U;
@@ -1375,10 +1540,10 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     glyphAtlasDescriptor.format = GraphicsTextureFormat::R8Unorm;
     glyphAtlasDescriptor.usage = TextureUsageBit(TextureUsage::Sampled) |
         TextureUsageBit(TextureUsage::CopyDestination);
-    Result<ResourceHandle> glyphAtlas = resources.CreateTexture(glyphAtlasDescriptor);
+    Result<ResourceHandle> glyphAtlas = device.CreateTexture(glyphAtlasDescriptor);
     CHECK(glyphAtlas);
     Result<FenceValue> glyphUpload = UploadTestGlyph(
-        backend, glyphVertex.Value(), glyphIndex.Value(), glyphAtlas.Value());
+        device, glyphVertex.Value(), glyphIndex.Value(), glyphAtlas.Value());
     CHECK(glyphUpload && glyphUpload.Value() == 14U);
     CHECK(backend.WaitForFence(glyphUpload.Value()));
     CHECK(renderBackend.RegisterGlyphRun(1U, glyphVertex.Value(), glyphIndex.Value(),
@@ -1422,6 +1587,10 @@ bool TestOwnedBorrowedResizeAndPresentation() {
         glyphTarget.Value(), renderBackend.LastSubmittedFence()));
     CHECK(TestXamlStackPanelBorderD3D11Presentation(
         device, backend, surface, renderBackend, 1U));
+#if defined(AERO_D3D11_TEXT_RENDER_TESTS)
+    CHECK(TestAutomaticTextBlockD3D11Presentation(
+        device, backend, surface, renderBackend));
+#endif
     CHECK(renderBackend.UnregisterGlyphRun(1U));
     CHECK(device.DestroyResource(
         glyphVertex.Value(), renderBackend.LastSubmittedFence()));
@@ -1513,7 +1682,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     postLossDescriptor.type = ResourceType::Buffer;
     postLossDescriptor.buffer.sizeBytes = 16U;
     postLossDescriptor.buffer.usage = BufferUsage::Upload;
-    CHECK(!device.CreateResource(postLossDescriptor));
+    CHECK(!device.CreateBuffer(postLossDescriptor.buffer));
     terminalSurface.Shutdown();
 
     surface.Shutdown();
@@ -1563,7 +1732,7 @@ bool TestFl10RenderPlanSurfaceSubmission() {
         backend, window.Handle(), 64U, 48U)));
     D3D11SurfacePresenter presenter(device, backend, surface);
     CHECK(presenter.Initialize());
-    D3D11RenderPlanBackend renderBackend(device, backend, presenter);
+    D3D11RenderPlanBackend renderBackend(device, presenter);
     CHECK(renderBackend.Initialize());
 
     // Initialization creates every packaged SM4 RenderPlan pipeline, and the
@@ -1593,6 +1762,7 @@ bool TestFl10RenderPlanSurfaceSubmission() {
 } // namespace
 
 int main() {
+    if (!TestD3D11SharedRenderPlanConformance()) return 1;
     if (!TestOwnedBorrowedResizeAndPresentation()) return 1;
     if (!TestFl10RenderPlanSurfaceSubmission()) return 1;
     std::puts("Aero D3D11 swap-chain surface tests passed");

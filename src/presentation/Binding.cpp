@@ -510,6 +510,66 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
     return updated;
 }
 
+Base::Result<std::uint32_t>
+BindingManager::InspectBindings(
+    const DependencyObject& object,
+    Base::Vector<BindingInspection>&
+        output) const noexcept {
+    output.Clear();
+    for (const BindingRecord& record :
+        bindings_) {
+        Base::Object* source =
+            record.sourceKind ==
+                BindingSourceKind::
+                    DependencyProperty
+            ? static_cast<Base::Object*>(
+                record.descriptor.source)
+            : record.metadataSource;
+        if (source != &object &&
+            record.descriptor.target !=
+                &object) {
+            continue;
+        }
+        BindingInspection inspection;
+        inspection.handle = record.handle;
+        inspection.source = source;
+        inspection.target =
+            record.descriptor.target;
+        inspection.sourceProperty =
+            record.descriptor.
+                sourceProperty;
+        inspection.targetProperty =
+            record.descriptor.
+                targetProperty;
+        inspection.mode =
+            record.descriptor.mode;
+        inspection.updateSourceTrigger =
+            record.descriptor.
+                updateSourceTrigger;
+        inspection.usesDataContext =
+            record.sourceKind ==
+                BindingSourceKind::
+                    DataContext;
+        inspection.applied =
+            record.applied;
+        Base::Result<void> assigned =
+            inspection.path.TryAssign(
+                record.path.View());
+        if (!assigned) {
+            output.Clear();
+            return assigned.GetStatus();
+        }
+        Base::Result<void> appended =
+            output.TryPushBack(
+                std::move(inspection));
+        if (!appended) {
+            output.Clear();
+            return appended.GetStatus();
+        }
+    }
+    return output.Size();
+}
+
 void BindingManager::DataBindHook(void* context) noexcept {
     BindingManager* manager = static_cast<BindingManager*>(context);
     if (manager != nullptr) {

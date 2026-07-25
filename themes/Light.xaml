@@ -1,0 +1,14 @@
+<ResourceDictionary
+    xmlns="urn:aero/themes"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Variant="Light">
+  <Color x:Key="Transparent" Value="#00000000"/>
+  <Color x:Key="ControlBackground" Value="#FFF7F7F7"/>
+  <Color x:Key="ControlHoverBackground" Value="#FFE8F1FB"/>
+  <Color x:Key="ControlPressedBackground" Value="#FFD4E7FA"/>
+  <Color x:Key="DisabledBackground" Value="#FFE6E6E6"/>
+  <Color x:Key="ControlBorder" Value="#FF707070"/>
+  <Color x:Key="AccentBorder" Value="#FF0067C0"/>
+  <Color x:Key="AccentFill" Value="#FF0067C0"/>
+  <Color x:Key="IndeterminateFill" Value="#FF5A9BD5"/>
+</ResourceDictionary>

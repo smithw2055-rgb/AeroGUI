@@ -611,6 +611,8 @@ Base::Result<std::uint32_t> Dispatcher::RunFramePhase(
         return access.GetStatus();
     }
 
+    const DispatcherTime phaseStart =
+        NowMicroseconds();
     std::uint32_t hookLimit = 0U;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -623,6 +625,15 @@ Base::Result<std::uint32_t> Dispatcher::RunFramePhase(
         phaseActive_ = true;
         activeHook_ = {};
         hookLimit = hooks_.Size();
+        if (phase ==
+            DispatcherFramePhase::BeginFrame) {
+            const std::uint64_t sequence =
+                frameTimings_.frameSequence;
+            frameTimings_ =
+                DispatcherFrameTimings{};
+            frameTimings_.frameSequence =
+                sequence;
+        }
     }
 
     std::uint32_t invoked = 0U;
@@ -675,13 +686,52 @@ Base::Result<std::uint32_t> Dispatcher::RunFramePhase(
         }
     }
 
+    const DispatcherTime phaseEnd =
+        NowMicroseconds();
     {
         std::lock_guard<std::mutex> lock(mutex_);
         activeHook_ = {};
         phaseActive_ = false;
+        const std::uint32_t phaseIndex =
+            static_cast<std::uint32_t>(
+                phase);
+        frameTimings_.phaseMicroseconds[
+            phaseIndex] =
+                phaseEnd >= phaseStart
+                ? phaseEnd - phaseStart
+                : 0U;
+        if (phase ==
+            DispatcherFramePhase::EndFrame) {
+            frameTimings_.totalMicroseconds =
+                0U;
+            for (DispatcherTime duration :
+                frameTimings_.
+                    phaseMicroseconds) {
+                if (UINT64_MAX -
+                        frameTimings_.
+                            totalMicroseconds <
+                    duration) {
+                    frameTimings_.
+                        totalMicroseconds =
+                            UINT64_MAX;
+                    break;
+                }
+                frameTimings_.
+                    totalMicroseconds +=
+                        duration;
+            }
+            ++frameTimings_.frameSequence;
+        }
         CompactHooksLocked();
     }
     return invoked;
+}
+
+DispatcherFrameTimings
+Dispatcher::FrameTimings() const noexcept {
+    std::lock_guard<std::mutex> lock(
+        mutex_);
+    return frameTimings_;
 }
 
 Base::Result<DispatcherReentrancyGuard>
