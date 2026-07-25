@@ -3,6 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -11,6 +12,7 @@
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <cstdint>
+#include <utility>
 
 namespace Aero::Diagnostics {
 
