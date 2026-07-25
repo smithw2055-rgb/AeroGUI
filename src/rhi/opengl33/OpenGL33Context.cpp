@@ -66,6 +66,9 @@ Base::Result<GlFunctionTable> LoadGlFunctionTable(
     AERO_GL_LOAD(colorMask, ColorMaskProc, "glColorMask");
     AERO_GL_LOAD(depthFunc, DepthFuncProc, "glDepthFunc");
     AERO_GL_LOAD(depthMask, DepthMaskProc, "glDepthMask");
+    AERO_GL_LOAD(cullFace, CullFaceProc, "glCullFace");
+    AERO_GL_LOAD(frontFace, FrontFaceProc, "glFrontFace");
+    AERO_GL_LOAD(polygonMode, PolygonModeProc, "glPolygonMode");
     AERO_GL_LOAD(
         stencilFuncSeparate,
         StencilFuncSeparateProc,
@@ -199,6 +202,9 @@ Base::Result<GlFunctionTable> LoadGlFunctionTable(
     AERO_GL_LOAD(clearDepth, ClearDepthProc, "glClearDepth");
     AERO_GL_LOAD(clearStencil, ClearStencilProc, "glClearStencil");
     AERO_GL_LOAD(clear, ClearProc, "glClear");
+    AERO_GL_LOAD(clearBufferfv, ClearBufferfvProc, "glClearBufferfv");
+    AERO_GL_LOAD(clearBufferiv, ClearBufferivProc, "glClearBufferiv");
+    AERO_GL_LOAD(clearBufferfi, ClearBufferfiProc, "glClearBufferfi");
     AERO_GL_LOAD(drawBuffers, DrawBuffersProc, "glDrawBuffers");
     AERO_GL_LOAD(readBuffer, ReadBufferProc, "glReadBuffer");
     AERO_GL_LOAD(drawArrays, DrawArraysProc, "glDrawArrays");
@@ -211,6 +217,14 @@ Base::Result<GlFunctionTable> LoadGlFunctionTable(
         drawElementsInstanced,
         DrawElementsInstancedProc,
         "glDrawElementsInstanced");
+    AERO_GL_LOAD(
+        drawElementsBaseVertex,
+        DrawElementsBaseVertexProc,
+        "glDrawElementsBaseVertex");
+    AERO_GL_LOAD(
+        drawElementsInstancedBaseVertex,
+        DrawElementsInstancedBaseVertexProc,
+        "glDrawElementsInstancedBaseVertex");
     AERO_GL_LOAD(fenceSync, FenceSyncProc, "glFenceSync");
     AERO_GL_LOAD(deleteSync, DeleteSyncProc, "glDeleteSync");
     AERO_GL_LOAD(
@@ -256,6 +270,9 @@ Base::Result<void> ValidateGlFunctionTable(
     AERO_GL_REQUIRE(colorMask);
     AERO_GL_REQUIRE(depthFunc);
     AERO_GL_REQUIRE(depthMask);
+    AERO_GL_REQUIRE(cullFace);
+    AERO_GL_REQUIRE(frontFace);
+    AERO_GL_REQUIRE(polygonMode);
     AERO_GL_REQUIRE(stencilFuncSeparate);
     AERO_GL_REQUIRE(stencilOpSeparate);
     AERO_GL_REQUIRE(stencilMaskSeparate);
@@ -323,12 +340,17 @@ Base::Result<void> ValidateGlFunctionTable(
     AERO_GL_REQUIRE(clearDepth);
     AERO_GL_REQUIRE(clearStencil);
     AERO_GL_REQUIRE(clear);
+    AERO_GL_REQUIRE(clearBufferfv);
+    AERO_GL_REQUIRE(clearBufferiv);
+    AERO_GL_REQUIRE(clearBufferfi);
     AERO_GL_REQUIRE(drawBuffers);
     AERO_GL_REQUIRE(readBuffer);
     AERO_GL_REQUIRE(drawArrays);
     AERO_GL_REQUIRE(drawElements);
     AERO_GL_REQUIRE(drawArraysInstanced);
     AERO_GL_REQUIRE(drawElementsInstanced);
+    AERO_GL_REQUIRE(drawElementsBaseVertex);
+    AERO_GL_REQUIRE(drawElementsInstancedBaseVertex);
     AERO_GL_REQUIRE(fenceSync);
     AERO_GL_REQUIRE(deleteSync);
     AERO_GL_REQUIRE(clientWaitSync);
@@ -404,20 +426,28 @@ Base::Result<GlCapabilities> QueryGlCapabilities(
     }
 
     GlInt maxTextureSize = 0;
+    GlInt maxArrayTextureLayers = 0;
     GlInt maxTextureUnits = 0;
     GlInt maxVertexAttributes = 0;
     GlInt maxUniformBlockSize = 0;
+    GlInt maxUniformBufferBindings = 0;
     GlInt uniformAlignment = 0;
     GlInt maxSamples = 0;
     GlInt maxColorAttachments = 0;
     functions.getIntegerv(
         GlConstant::MaxTextureSize, &maxTextureSize);
     functions.getIntegerv(
+        GlConstant::MaxArrayTextureLayers,
+        &maxArrayTextureLayers);
+    functions.getIntegerv(
         GlConstant::MaxCombinedTextureImageUnits, &maxTextureUnits);
     functions.getIntegerv(
         GlConstant::MaxVertexAttribs, &maxVertexAttributes);
     functions.getIntegerv(
         GlConstant::MaxUniformBlockSize, &maxUniformBlockSize);
+    functions.getIntegerv(
+        GlConstant::MaxUniformBufferBindings,
+        &maxUniformBufferBindings);
     functions.getIntegerv(
         GlConstant::UniformBufferOffsetAlignment, &uniformAlignment);
     functions.getIntegerv(GlConstant::MaxSamples, &maxSamples);
@@ -440,12 +470,16 @@ Base::Result<GlCapabilities> QueryGlCapabilities(
     capabilities.supportsInstancing = true;
     capabilities.limits.maxTextureSize =
         PositiveValue(maxTextureSize);
+    capabilities.limits.maxArrayTextureLayers =
+        PositiveValue(maxArrayTextureLayers);
     capabilities.limits.maxCombinedTextureUnits =
         PositiveValue(maxTextureUnits);
     capabilities.limits.maxVertexAttributes =
         PositiveValue(maxVertexAttributes);
     capabilities.limits.maxUniformBlockSize =
         PositiveValue(maxUniformBlockSize);
+    capabilities.limits.maxUniformBufferBindings =
+        PositiveValue(maxUniformBufferBindings);
     capabilities.limits.uniformBufferOffsetAlignment =
         PositiveValue(uniformAlignment);
     capabilities.limits.maxSamples = PositiveValue(maxSamples);
@@ -454,9 +488,11 @@ Base::Result<GlCapabilities> QueryGlCapabilities(
 
     const GlLimits& limits = capabilities.limits;
     if (limits.maxTextureSize == 0U ||
+        limits.maxArrayTextureLayers == 0U ||
         limits.maxCombinedTextureUnits == 0U ||
         limits.maxVertexAttributes == 0U ||
         limits.maxUniformBlockSize == 0U ||
+        limits.maxUniformBufferBindings == 0U ||
         limits.uniformBufferOffsetAlignment == 0U ||
         limits.maxColorAttachments == 0U) {
         return InvalidState(

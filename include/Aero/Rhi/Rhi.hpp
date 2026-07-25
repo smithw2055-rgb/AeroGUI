@@ -145,6 +145,10 @@ public:
         const BufferDescriptor& descriptor) noexcept;
     Base::Result<ResourceHandle> CreateTexture(
         const TextureResourceDescriptor& descriptor) noexcept;
+    // Reserves a sampled-texture handle without creating native storage.
+    // Backend-specific import APIs attach a host-owned texture afterwards.
+    Base::Result<ResourceHandle> CreateExternalTexture(
+        const TextureResourceDescriptor& descriptor) noexcept;
     Base::Result<ResourceHandle> CreateRenderTarget(
         const TextureResourceDescriptor& descriptor) noexcept;
     // Reserves a render-target handle and backend record without creating

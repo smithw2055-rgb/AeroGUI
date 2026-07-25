@@ -208,6 +208,24 @@ Base::Result<ResourceHandle> RhiDevice::CreateTexture(
     return created.Value();
 }
 
+Base::Result<ResourceHandle> RhiDevice::CreateExternalTexture(
+    const TextureResourceDescriptor& descriptor) noexcept {
+    Base::Result<void> valid = ValidateTextureDescriptor(
+        descriptor, backend_->QueryGraphicsCapabilities());
+    if (!valid) return valid.GetStatus();
+    if (!HasTextureUsage(descriptor.usage, TextureUsage::Sampled)) {
+        return InvalidArgument(
+            "External textures require Sampled usage");
+    }
+
+    ResourceDescriptor resource;
+    resource.type = ResourceType::Texture;
+    resource.texture.width = descriptor.width;
+    resource.texture.height = descriptor.height;
+    resource.texture.format = ToBaseTextureFormat(descriptor.format);
+    return CreateResource(resource);
+}
+
 Base::Result<ResourceHandle> RhiDevice::CreateRenderTarget(
     const TextureResourceDescriptor& descriptor) noexcept {
     Base::Result<void> valid = ValidateTextureDescriptor(

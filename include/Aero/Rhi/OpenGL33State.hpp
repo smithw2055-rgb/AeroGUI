@@ -37,6 +37,13 @@ struct GlDepthState final {
     bool writeEnabled = true;
 };
 
+struct GlRasterState final {
+    bool cullEnabled = false;
+    GlEnum cullFace = 0U;
+    GlEnum frontFace = 0U;
+    GlEnum polygonMode = 0U;
+};
+
 struct GlStencilFaceState final {
     GlEnum function = 0U;
     GlInt reference = 0;
@@ -89,6 +96,7 @@ public:
     Base::Result<void> BindElementArrayBuffer(GlUInt buffer) noexcept;
     Base::Result<void> BindUniformBuffer(GlUInt buffer) noexcept;
     Base::Result<void> BindDrawFramebuffer(GlUInt framebuffer) noexcept;
+    Base::Result<void> BindReadFramebuffer(GlUInt framebuffer) noexcept;
     Base::Result<void> SetViewport(
         const GlRectangleState& viewport) noexcept;
     Base::Result<void> SetScissor(
@@ -98,10 +106,13 @@ public:
         const GlBlendState& state) noexcept;
     Base::Result<void> SetDepthState(
         const GlDepthState& state) noexcept;
+    Base::Result<void> SetRasterState(
+        const GlRasterState& state) noexcept;
     Base::Result<void> SetStencilState(
         const GlStencilState& state) noexcept;
     Base::Result<void> BindTextureSampler(
         std::uint32_t unit,
+        GlEnum target,
         GlUInt texture,
         GlUInt sampler) noexcept;
     Base::Result<void> SetPixelUnpack(
@@ -118,6 +129,7 @@ public:
 private:
     struct TextureUnitState final {
         GlUInt texture2D = 0U;
+        GlUInt texture2DArray = 0U;
         GlUInt sampler = 0U;
     };
 
@@ -128,11 +140,13 @@ private:
         GlUInt elementArrayBuffer = 0U;
         GlUInt uniformBuffer = 0U;
         GlUInt drawFramebuffer = 0U;
+        GlUInt readFramebuffer = 0U;
         GlRectangleState viewport;
         bool scissorEnabled = false;
         GlRectangleState scissor;
         GlBlendState blend;
         GlDepthState depth;
+        GlRasterState raster;
         GlStencilState stencil;
         std::uint32_t activeTextureUnit = 0U;
         TextureUnitState textureUnits[MaxCachedGlTextureUnits]{};
@@ -146,10 +160,12 @@ private:
         bool elementArrayBuffer = false;
         bool uniformBuffer = false;
         bool drawFramebuffer = false;
+        bool readFramebuffer = false;
         bool viewport = false;
         bool scissor = false;
         bool blend = false;
         bool depth = false;
+        bool raster = false;
         bool stencil = false;
         bool activeTextureUnit = false;
         bool textureUnits[MaxCachedGlTextureUnits]{};

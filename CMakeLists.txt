@@ -412,6 +412,7 @@ set_target_properties(AeroRhi PROPERTIES
 aero_apply_compiler_options(AeroRhi)
 
 add_library(AeroRhiOpenGL33 ${AERO_LIBRARY_TYPE}
+    src/rhi/opengl33/OpenGL33Backend.cpp
     src/rhi/opengl33/OpenGL33Context.cpp
     src/rhi/opengl33/OpenGL33StateCache.cpp)
 add_library(Aero::RhiOpenGL33 ALIAS AeroRhiOpenGL33)
@@ -421,6 +422,8 @@ target_include_directories(AeroRhiOpenGL33
         $<INSTALL_INTERFACE:include>)
 target_link_libraries(AeroRhiOpenGL33 PUBLIC Aero::Rhi)
 target_compile_features(AeroRhiOpenGL33 PUBLIC cxx_std_17)
+target_compile_definitions(
+    AeroRhiOpenGL33 PUBLIC AERO_HAS_OPENGL33_BACKEND=1)
 set_target_properties(AeroRhiOpenGL33 PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES

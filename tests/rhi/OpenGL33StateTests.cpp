@@ -23,6 +23,8 @@ constexpr GlEnum Zero = 0U;
 constexpr GlEnum Less = 0x0201U;
 constexpr GlEnum Always = 0x0207U;
 constexpr GlEnum Keep = 0x1E00U;
+constexpr GlEnum CounterClockwise = 0x0901U;
+constexpr GlEnum Fill = 0x1B02U;
 
 struct FakeGlState final {
     GlInt major = 3;
@@ -30,9 +32,11 @@ struct FakeGlState final {
     GlInt profile = GlConstant::ContextCoreProfileBit;
     GlInt contextFlags = GlConstant::ContextFlagDebugBit;
     GlInt maxTextureSize = 8192;
+    GlInt maxArrayTextureLayers = 256;
     GlInt maxTextureUnits = 4;
     GlInt maxVertexAttributes = 16;
     GlInt maxUniformBlockSize = 65536;
+    GlInt maxUniformBufferBindings = 36;
     GlInt uniformAlignment = 256;
     GlInt maxSamples = 8;
     GlInt maxColorAttachments = 4;
@@ -43,6 +47,7 @@ struct FakeGlState final {
     GlUInt elementArrayBuffer = 4U;
     GlUInt uniformBuffer = 5U;
     GlUInt drawFramebuffer = 6U;
+    GlUInt readFramebuffer = 7U;
     GlRectangleState viewport{1, 2, 640, 480};
     bool scissorEnabled = true;
     GlRectangleState scissor{3, 4, 320, 240};
@@ -50,12 +55,14 @@ struct FakeGlState final {
         true, FuncAdd, FuncAdd, One, Zero, One, Zero,
         true, false, true, false};
     GlDepthState depth{true, Less, false};
+    GlRasterState raster{true, GlConstant::Back, CounterClockwise, Fill};
     GlStencilState stencil{
         true,
         {Always, 7, 0x7FU, Keep, Keep, Keep, 0x3FU},
         {Always, 8, 0x6FU, Keep, Keep, Keep, 0x2FU}};
     std::uint32_t activeTextureUnit = 1U;
     GlUInt textures[MaxCachedGlTextureUnits]{};
+    GlUInt textureArrays[MaxCachedGlTextureUnits]{};
     GlUInt samplers[MaxCachedGlTextureUnits]{};
     GlPixelUnpackState unpack{4, 12, 2, 3};
 
@@ -113,6 +120,9 @@ void MockGetIntegerv(GlEnum name, GlInt* value) {
     case GlConstant::MaxTextureSize:
         value[0] = state.maxTextureSize;
         break;
+    case GlConstant::MaxArrayTextureLayers:
+        value[0] = state.maxArrayTextureLayers;
+        break;
     case GlConstant::MaxCombinedTextureImageUnits:
         value[0] = state.maxTextureUnits;
         break;
@@ -121,6 +131,9 @@ void MockGetIntegerv(GlEnum name, GlInt* value) {
         break;
     case GlConstant::MaxUniformBlockSize:
         value[0] = state.maxUniformBlockSize;
+        break;
+    case GlConstant::MaxUniformBufferBindings:
+        value[0] = state.maxUniformBufferBindings;
         break;
     case GlConstant::UniformBufferOffsetAlignment:
         value[0] = state.uniformAlignment;
@@ -148,6 +161,9 @@ void MockGetIntegerv(GlEnum name, GlInt* value) {
         break;
     case GlConstant::DrawFramebufferBinding:
         value[0] = static_cast<GlInt>(state.drawFramebuffer);
+        break;
+    case GlConstant::ReadFramebufferBinding:
+        value[0] = static_cast<GlInt>(state.readFramebuffer);
         break;
     case GlConstant::Viewport:
         value[0] = state.viewport.x;
@@ -181,6 +197,16 @@ void MockGetIntegerv(GlEnum name, GlInt* value) {
         break;
     case GlConstant::DepthFunc:
         value[0] = static_cast<GlInt>(state.depth.function);
+        break;
+    case GlConstant::CullFaceMode:
+        value[0] = static_cast<GlInt>(state.raster.cullFace);
+        break;
+    case GlConstant::FrontFace:
+        value[0] = static_cast<GlInt>(state.raster.frontFace);
+        break;
+    case GlConstant::PolygonMode:
+        value[0] = static_cast<GlInt>(state.raster.polygonMode);
+        value[1] = static_cast<GlInt>(state.raster.polygonMode);
         break;
     case GlConstant::StencilFunc:
         value[0] = static_cast<GlInt>(state.stencil.front.function);
@@ -232,6 +258,10 @@ void MockGetIntegerv(GlEnum name, GlInt* value) {
         value[0] = static_cast<GlInt>(
             state.textures[state.activeTextureUnit]);
         break;
+    case GlConstant::TextureBinding2DArray:
+        value[0] = static_cast<GlInt>(
+            state.textureArrays[state.activeTextureUnit]);
+        break;
     case GlConstant::SamplerBinding:
         value[0] = static_cast<GlInt>(
             state.samplers[state.activeTextureUnit]);
@@ -282,6 +312,9 @@ GlBoolean MockIsEnabled(GlEnum name) {
     if (name == GlConstant::StencilTest) {
         return state.stencil.enabled ? 1U : 0U;
     }
+    if (name == GlConstant::CullFace) {
+        return state.raster.cullEnabled ? 1U : 0U;
+    }
     return 0U;
 }
 
@@ -295,6 +328,8 @@ void MockSetEnabled(GlEnum name, bool enabled) {
         state.depth.enabled = enabled;
     } else if (name == GlConstant::StencilTest) {
         state.stencil.enabled = enabled;
+    } else if (name == GlConstant::CullFace) {
+        state.raster.cullEnabled = enabled;
     }
     ++state.stateCalls;
 }
@@ -329,8 +364,15 @@ void MockBindBuffer(GlEnum target, GlUInt buffer) {
     ++ActiveFake->stateCalls;
 }
 
-void MockBindFramebuffer(GlEnum, GlUInt framebuffer) {
-    ActiveFake->drawFramebuffer = framebuffer;
+void MockBindFramebuffer(GlEnum target, GlUInt framebuffer) {
+    if (target == GlConstant::DrawFramebuffer) {
+        ActiveFake->drawFramebuffer = framebuffer;
+    } else if (target == GlConstant::ReadFramebuffer) {
+        ActiveFake->readFramebuffer = framebuffer;
+    } else {
+        ActiveFake->drawFramebuffer = framebuffer;
+        ActiveFake->readFramebuffer = framebuffer;
+    }
     ++ActiveFake->stateCalls;
 }
 
@@ -384,6 +426,21 @@ void MockDepthMask(GlBoolean enabled) {
     ++ActiveFake->stateCalls;
 }
 
+void MockCullFace(GlEnum face) {
+    ActiveFake->raster.cullFace = face;
+    ++ActiveFake->stateCalls;
+}
+
+void MockFrontFace(GlEnum face) {
+    ActiveFake->raster.frontFace = face;
+    ++ActiveFake->stateCalls;
+}
+
+void MockPolygonMode(GlEnum, GlEnum mode) {
+    ActiveFake->raster.polygonMode = mode;
+    ++ActiveFake->stateCalls;
+}
+
 GlStencilFaceState& StencilFace(GlEnum face) {
     return face == GlConstant::Back
         ? ActiveFake->stencil.back
@@ -425,8 +482,14 @@ void MockActiveTexture(GlEnum texture) {
     ++ActiveFake->stateCalls;
 }
 
-void MockBindTexture(GlEnum, GlUInt texture) {
-    ActiveFake->textures[ActiveFake->activeTextureUnit] = texture;
+void MockBindTexture(GlEnum target, GlUInt texture) {
+    if (target == GlConstant::Texture2DArray) {
+        ActiveFake->textureArrays[
+            ActiveFake->activeTextureUnit] = texture;
+    } else {
+        ActiveFake->textures[
+            ActiveFake->activeTextureUnit] = texture;
+    }
     ++ActiveFake->stateCalls;
 }
 
@@ -473,6 +536,9 @@ GlFunctionTable MakeFunctions(FakeGlState& state) {
     functions.colorMask = &MockColorMask;
     functions.depthFunc = &MockDepthFunc;
     functions.depthMask = &MockDepthMask;
+    functions.cullFace = &MockCullFace;
+    functions.frontFace = &MockFrontFace;
+    functions.polygonMode = &MockPolygonMode;
     functions.stencilFuncSeparate = &MockStencilFunc;
     functions.stencilOpSeparate = &MockStencilOp;
     functions.stencilMaskSeparate = &MockStencilMask;
@@ -540,7 +606,9 @@ bool TestCapabilityQuery() {
     CHECK(queried.Value().debugContext);
     CHECK(queried.Value().contextGeneration == 5U);
     CHECK(queried.Value().limits.maxTextureSize == 8192U);
+    CHECK(queried.Value().limits.maxArrayTextureLayers == 256U);
     CHECK(queried.Value().limits.maxCombinedTextureUnits == 4U);
+    CHECK(queried.Value().limits.maxUniformBufferBindings == 36U);
     CHECK(queried.Value().limits.uniformBufferOffsetAlignment == 256U);
 
     state.profile = GlConstant::ContextCompatibilityProfileBit;
@@ -586,6 +654,7 @@ bool TestHostResetStateCachingAndGeneration() {
     CHECK(cache.BindElementArrayBuffer(12U));
     CHECK(cache.BindUniformBuffer(13U));
     CHECK(cache.BindDrawFramebuffer(14U));
+    CHECK(cache.BindReadFramebuffer(15U));
     CHECK(cache.SetViewport({0, 0, 800, 600}));
     CHECK(cache.SetScissor(true, {5, 6, 100, 120}));
 
@@ -599,9 +668,13 @@ bool TestHostResetStateCachingAndGeneration() {
         {Always, 2, 0xFFU, Keep, Keep, Keep, 0xFFU}};
     CHECK(cache.SetBlendState(blend));
     CHECK(cache.SetDepthState(depth));
+    CHECK(cache.SetRasterState(
+        {true, GlConstant::Back, CounterClockwise, Fill}));
     CHECK(cache.SetStencilState(stencil));
-    CHECK(cache.BindTextureSampler(2U, 21U, 22U));
-    CHECK(!cache.BindTextureSampler(4U, 1U, 1U));
+    CHECK(cache.BindTextureSampler(
+        2U, GlConstant::Texture2D, 21U, 22U));
+    CHECK(!cache.BindTextureSampler(
+        4U, GlConstant::Texture2D, 1U, 1U));
     CHECK(cache.SetPixelUnpack({1, 20, 0, 1}));
     CHECK(cache.End());
 
@@ -620,6 +693,7 @@ bool TestPreserveAndRestore() {
     FakeGlState state;
     for (std::uint32_t unit = 0U; unit < 4U; ++unit) {
         state.textures[unit] = 100U + unit;
+        state.textureArrays[unit] = 150U + unit;
         state.samplers[unit] = 200U + unit;
     }
     const FakeGlState original = state;
@@ -636,17 +710,21 @@ bool TestPreserveAndRestore() {
     CHECK(cache.BindElementArrayBuffer(34U));
     CHECK(cache.BindUniformBuffer(35U));
     CHECK(cache.BindDrawFramebuffer(36U));
+    CHECK(cache.BindReadFramebuffer(37U));
     CHECK(cache.SetViewport({0, 0, 1280, 720}));
     CHECK(cache.SetScissor(false, {0, 0, 1280, 720}));
     CHECK(cache.SetBlendState(
         {false, FuncAdd, FuncAdd, Zero, One, Zero, One,
          false, false, false, false}));
     CHECK(cache.SetDepthState({false, Always, true}));
+    CHECK(cache.SetRasterState(
+        {false, GlConstant::Front, CounterClockwise, Fill}));
     CHECK(cache.SetStencilState({
         false,
         {Always, 0, 0U, Keep, Keep, Keep, 0U},
         {Always, 0, 0U, Keep, Keep, Keep, 0U}}));
-    CHECK(cache.BindTextureSampler(3U, 333U, 444U));
+    CHECK(cache.BindTextureSampler(
+        3U, GlConstant::Texture2D, 333U, 444U));
     CHECK(cache.SetPixelUnpack({8, 0, 0, 0}));
     CHECK(cache.End());
 
@@ -656,6 +734,7 @@ bool TestPreserveAndRestore() {
     CHECK(state.elementArrayBuffer == original.elementArrayBuffer);
     CHECK(state.uniformBuffer == original.uniformBuffer);
     CHECK(state.drawFramebuffer == original.drawFramebuffer);
+    CHECK(state.readFramebuffer == original.readFramebuffer);
     CHECK(state.viewport.x == original.viewport.x);
     CHECK(state.viewport.width == original.viewport.width);
     CHECK(state.scissorEnabled == original.scissorEnabled);
@@ -663,12 +742,15 @@ bool TestPreserveAndRestore() {
     CHECK(state.blend.writeGreen == original.blend.writeGreen);
     CHECK(state.depth.enabled == original.depth.enabled);
     CHECK(state.depth.writeEnabled == original.depth.writeEnabled);
+    CHECK(state.raster.cullEnabled == original.raster.cullEnabled);
+    CHECK(state.raster.cullFace == original.raster.cullFace);
     CHECK(state.stencil.front.reference ==
         original.stencil.front.reference);
     CHECK(state.stencil.back.reference ==
         original.stencil.back.reference);
     CHECK(state.activeTextureUnit == original.activeTextureUnit);
     CHECK(state.textures[3] == original.textures[3]);
+    CHECK(state.textureArrays[3] == original.textureArrays[3]);
     CHECK(state.samplers[3] == original.samplers[3]);
     CHECK(state.unpack.alignment == original.unpack.alignment);
     CHECK(state.unpack.rowLength == original.unpack.rowLength);

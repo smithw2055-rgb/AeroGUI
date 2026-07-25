@@ -437,6 +437,20 @@ set_target_properties(AeroOpenGL33StateTests PROPERTIES
 aero_apply_compiler_options(AeroOpenGL33StateTests)
 add_test(NAME AeroOpenGL33StateTests COMMAND AeroOpenGL33StateTests)
 
+add_executable(
+    AeroOpenGL33BackendTests
+    rhi/OpenGL33BackendTests.cpp)
+target_link_libraries(
+    AeroOpenGL33BackendTests
+    PRIVATE Aero::RhiOpenGL33)
+target_compile_features(AeroOpenGL33BackendTests PRIVATE cxx_std_17)
+set_target_properties(AeroOpenGL33BackendTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroOpenGL33BackendTests)
+add_test(NAME AeroOpenGL33BackendTests COMMAND AeroOpenGL33BackendTests)
+
 if(WIN32 AND TARGET AeroRhiD3D11)
     set(_aero_d3d11_fxc_hints
         "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")

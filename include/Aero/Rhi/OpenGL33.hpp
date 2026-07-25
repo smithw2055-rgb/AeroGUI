@@ -8,7 +8,7 @@
 
 namespace Aero::Rhi {
 
-constexpr std::uint32_t GlFunctionTableAbiVersion = 1U;
+constexpr std::uint32_t GlFunctionTableAbiVersion = 2U;
 constexpr std::uint32_t GlContextContractAbiVersion = 1U;
 
 using GlBoolean = std::uint8_t;
@@ -58,9 +58,11 @@ constexpr GlInt ContextCompatibilityProfileBit = 0x00000002;
 constexpr GlInt ContextFlagDebugBit = 0x00000002;
 
 constexpr GlEnum MaxTextureSize = 0x0D33U;
+constexpr GlEnum MaxArrayTextureLayers = 0x88FFU;
 constexpr GlEnum MaxCombinedTextureImageUnits = 0x8B4DU;
 constexpr GlEnum MaxVertexAttribs = 0x8869U;
 constexpr GlEnum MaxUniformBlockSize = 0x8A30U;
+constexpr GlEnum MaxUniformBufferBindings = 0x8A2FU;
 constexpr GlEnum UniformBufferOffsetAlignment = 0x8A34U;
 constexpr GlEnum MaxSamples = 0x8D57U;
 constexpr GlEnum MaxColorAttachments = 0x8CDFU;
@@ -75,6 +77,8 @@ constexpr GlEnum UniformBuffer = 0x8A11U;
 constexpr GlEnum UniformBufferBinding = 0x8A28U;
 constexpr GlEnum DrawFramebuffer = 0x8CA9U;
 constexpr GlEnum DrawFramebufferBinding = 0x8CA6U;
+constexpr GlEnum ReadFramebuffer = 0x8CA8U;
+constexpr GlEnum ReadFramebufferBinding = 0x8CAAU;
 constexpr GlEnum Framebuffer = 0x8D40U;
 constexpr GlEnum FramebufferComplete = 0x8CD5U;
 constexpr GlEnum ColorAttachment0 = 0x8CE0U;
@@ -110,16 +114,34 @@ constexpr GlEnum StencilBackValueMask = 0x8CA4U;
 constexpr GlEnum StencilBackWritemask = 0x8CA5U;
 constexpr GlEnum Front = 0x0404U;
 constexpr GlEnum Back = 0x0405U;
+constexpr GlEnum FrontAndBack = 0x0408U;
+constexpr GlEnum CullFace = 0x0B44U;
+constexpr GlEnum CullFaceMode = 0x0B45U;
+constexpr GlEnum FrontFace = 0x0B46U;
+constexpr GlEnum PolygonMode = 0x0B40U;
 
 constexpr GlEnum ActiveTexture = 0x84E0U;
 constexpr GlEnum Texture0 = 0x84C0U;
 constexpr GlEnum Texture2D = 0x0DE1U;
 constexpr GlEnum TextureBinding2D = 0x8069U;
+constexpr GlEnum Texture2DArray = 0x8C1AU;
+constexpr GlEnum TextureBinding2DArray = 0x8C1DU;
 constexpr GlEnum SamplerBinding = 0x8919U;
 constexpr GlEnum UnpackAlignment = 0x0CF5U;
 constexpr GlEnum UnpackRowLength = 0x0CF2U;
 constexpr GlEnum UnpackSkipRows = 0x0CF3U;
 constexpr GlEnum UnpackSkipPixels = 0x0CF4U;
+constexpr GlEnum PackAlignment = 0x0D05U;
+constexpr GlEnum PackRowLength = 0x0D02U;
+constexpr GlEnum PackSkipRows = 0x0D03U;
+constexpr GlEnum PackSkipPixels = 0x0D04U;
+
+constexpr GlEnum AlreadySignaled = 0x911AU;
+constexpr GlEnum TimeoutExpired = 0x911BU;
+constexpr GlEnum ConditionSatisfied = 0x911CU;
+constexpr GlEnum WaitFailed = 0x911DU;
+constexpr GlEnum SyncGpuCommandsComplete = 0x9117U;
+constexpr GlBitfield SyncFlushCommandsBit = 0x00000001U;
 
 } // namespace GlConstant
 
@@ -130,9 +152,11 @@ enum class GlEmbeddingMode : std::uint8_t {
 
 struct GlLimits final {
     std::uint32_t maxTextureSize = 0U;
+    std::uint32_t maxArrayTextureLayers = 0U;
     std::uint32_t maxCombinedTextureUnits = 0U;
     std::uint32_t maxVertexAttributes = 0U;
     std::uint32_t maxUniformBlockSize = 0U;
+    std::uint32_t maxUniformBufferBindings = 0U;
     std::uint32_t uniformBufferOffsetAlignment = 0U;
     std::uint32_t maxSamples = 0U;
     std::uint32_t maxColorAttachments = 0U;
@@ -188,6 +212,9 @@ struct GlFunctionTable final {
         void (AERO_GL_CALL*)(GlBoolean, GlBoolean, GlBoolean, GlBoolean);
     using DepthFuncProc = void (AERO_GL_CALL*)(GlEnum);
     using DepthMaskProc = void (AERO_GL_CALL*)(GlBoolean);
+    using CullFaceProc = void (AERO_GL_CALL*)(GlEnum);
+    using FrontFaceProc = void (AERO_GL_CALL*)(GlEnum);
+    using PolygonModeProc = void (AERO_GL_CALL*)(GlEnum, GlEnum);
     using StencilFuncSeparateProc =
         void (AERO_GL_CALL*)(GlEnum, GlEnum, GlInt, GlUInt);
     using StencilOpSeparateProc =
@@ -295,6 +322,12 @@ struct GlFunctionTable final {
     using ClearDepthProc = void (AERO_GL_CALL*)(double);
     using ClearStencilProc = void (AERO_GL_CALL*)(GlInt);
     using ClearProc = void (AERO_GL_CALL*)(GlBitfield);
+    using ClearBufferfvProc =
+        void (AERO_GL_CALL*)(GlEnum, GlInt, const GlFloat*);
+    using ClearBufferivProc =
+        void (AERO_GL_CALL*)(GlEnum, GlInt, const GlInt*);
+    using ClearBufferfiProc =
+        void (AERO_GL_CALL*)(GlEnum, GlInt, GlFloat, GlInt);
     using DrawBuffersProc =
         void (AERO_GL_CALL*)(GlSize, const GlEnum*);
     using ReadBufferProc = void (AERO_GL_CALL*)(GlEnum);
@@ -307,6 +340,12 @@ struct GlFunctionTable final {
     using DrawElementsInstancedProc =
         void (AERO_GL_CALL*)(
             GlEnum, GlSize, GlEnum, const void*, GlSize);
+    using DrawElementsBaseVertexProc =
+        void (AERO_GL_CALL*)(
+            GlEnum, GlSize, GlEnum, const void*, GlInt);
+    using DrawElementsInstancedBaseVertexProc =
+        void (AERO_GL_CALL*)(
+            GlEnum, GlSize, GlEnum, const void*, GlSize, GlInt);
     using FenceSyncProc = GlSync (AERO_GL_CALL*)(GlEnum, GlBitfield);
     using DeleteSyncProc = void (AERO_GL_CALL*)(GlSync);
     using ClientWaitSyncProc =
@@ -335,6 +374,9 @@ struct GlFunctionTable final {
     ColorMaskProc colorMask = nullptr;
     DepthFuncProc depthFunc = nullptr;
     DepthMaskProc depthMask = nullptr;
+    CullFaceProc cullFace = nullptr;
+    FrontFaceProc frontFace = nullptr;
+    PolygonModeProc polygonMode = nullptr;
     StencilFuncSeparateProc stencilFuncSeparate = nullptr;
     StencilOpSeparateProc stencilOpSeparate = nullptr;
     StencilMaskSeparateProc stencilMaskSeparate = nullptr;
@@ -406,12 +448,18 @@ struct GlFunctionTable final {
     ClearDepthProc clearDepth = nullptr;
     ClearStencilProc clearStencil = nullptr;
     ClearProc clear = nullptr;
+    ClearBufferfvProc clearBufferfv = nullptr;
+    ClearBufferivProc clearBufferiv = nullptr;
+    ClearBufferfiProc clearBufferfi = nullptr;
     DrawBuffersProc drawBuffers = nullptr;
     ReadBufferProc readBuffer = nullptr;
     DrawArraysProc drawArrays = nullptr;
     DrawElementsProc drawElements = nullptr;
     DrawArraysInstancedProc drawArraysInstanced = nullptr;
     DrawElementsInstancedProc drawElementsInstanced = nullptr;
+    DrawElementsBaseVertexProc drawElementsBaseVertex = nullptr;
+    DrawElementsInstancedBaseVertexProc
+        drawElementsInstancedBaseVertex = nullptr;
     FenceSyncProc fenceSync = nullptr;
     DeleteSyncProc deleteSync = nullptr;
     ClientWaitSyncProc clientWaitSync = nullptr;

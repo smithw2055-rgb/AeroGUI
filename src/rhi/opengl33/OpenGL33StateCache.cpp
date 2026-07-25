@@ -49,6 +49,15 @@ bool Equal(
 }
 
 bool Equal(
+    const GlRasterState& left,
+    const GlRasterState& right) noexcept {
+    return left.cullEnabled == right.cullEnabled &&
+        left.cullFace == right.cullFace &&
+        left.frontFace == right.frontFace &&
+        left.polygonMode == right.polygonMode;
+}
+
+bool Equal(
     const GlStencilFaceState& left,
     const GlStencilFaceState& right) noexcept {
     return left.function == right.function &&
@@ -213,6 +222,9 @@ Base::Result<void> GlStateCache::Capture() noexcept {
     functions_.getIntegerv(
         GlConstant::DrawFramebufferBinding, &value);
     snapshot_.drawFramebuffer = ToUInt(value);
+    functions_.getIntegerv(
+        GlConstant::ReadFramebufferBinding, &value);
+    snapshot_.readFramebuffer = ToUInt(value);
 
     GlInt rectangle[4]{};
     functions_.getIntegerv(GlConstant::Viewport, rectangle);
@@ -253,6 +265,16 @@ Base::Result<void> GlStateCache::Capture() noexcept {
     functions_.getBooleanv(
         GlConstant::DepthWritemask, &booleanValue);
     snapshot_.depth.writeEnabled = ToBool(booleanValue);
+
+    snapshot_.raster.cullEnabled =
+        ToBool(functions_.isEnabled(GlConstant::CullFace));
+    functions_.getIntegerv(GlConstant::CullFaceMode, &value);
+    snapshot_.raster.cullFace = ToUInt(value);
+    functions_.getIntegerv(GlConstant::FrontFace, &value);
+    snapshot_.raster.frontFace = ToUInt(value);
+    GlInt polygonModes[2]{};
+    functions_.getIntegerv(GlConstant::PolygonMode, polygonModes);
+    snapshot_.raster.polygonMode = ToUInt(polygonModes[0]);
 
     snapshot_.stencil.enabled =
         ToBool(functions_.isEnabled(GlConstant::StencilTest));
@@ -309,6 +331,9 @@ Base::Result<void> GlStateCache::Capture() noexcept {
             GlConstant::TextureBinding2D, &value);
         snapshot_.textureUnits[unit].texture2D = ToUInt(value);
         functions_.getIntegerv(
+            GlConstant::TextureBinding2DArray, &value);
+        snapshot_.textureUnits[unit].texture2DArray = ToUInt(value);
+        functions_.getIntegerv(
             GlConstant::SamplerBinding, &value);
         snapshot_.textureUnits[unit].sampler = ToUInt(value);
     }
@@ -332,10 +357,12 @@ Base::Result<void> GlStateCache::Capture() noexcept {
     known_.elementArrayBuffer = true;
     known_.uniformBuffer = true;
     known_.drawFramebuffer = true;
+    known_.readFramebuffer = true;
     known_.viewport = true;
     known_.scissor = true;
     known_.blend = true;
     known_.depth = true;
+    known_.raster = true;
     known_.stencil = true;
     known_.activeTextureUnit = true;
     known_.pixelUnpack = true;
@@ -365,6 +392,9 @@ void GlStateCache::Restore() noexcept {
     MarkCall();
     functions_.bindFramebuffer(
         GlConstant::DrawFramebuffer, snapshot_.drawFramebuffer);
+    MarkCall();
+    functions_.bindFramebuffer(
+        GlConstant::ReadFramebuffer, snapshot_.readFramebuffer);
     MarkCall();
     functions_.viewport(
         snapshot_.viewport.x,
@@ -422,6 +452,21 @@ void GlStateCache::Restore() noexcept {
             : GlConstant::False);
     MarkCall();
 
+    if (snapshot_.raster.cullEnabled) {
+        functions_.enable(GlConstant::CullFace);
+    } else {
+        functions_.disable(GlConstant::CullFace);
+    }
+    MarkCall();
+    functions_.cullFace(snapshot_.raster.cullFace);
+    MarkCall();
+    functions_.frontFace(snapshot_.raster.frontFace);
+    MarkCall();
+    functions_.polygonMode(
+        GlConstant::FrontAndBack,
+        snapshot_.raster.polygonMode);
+    MarkCall();
+
     if (snapshot_.stencil.enabled) {
         functions_.enable(GlConstant::StencilTest);
     } else {
@@ -472,6 +517,10 @@ void GlStateCache::Restore() noexcept {
         functions_.bindTexture(
             GlConstant::Texture2D,
             snapshot_.textureUnits[unit].texture2D);
+        MarkCall();
+        functions_.bindTexture(
+            GlConstant::Texture2DArray,
+            snapshot_.textureUnits[unit].texture2DArray);
         MarkCall();
         functions_.bindSampler(
             unit, snapshot_.textureUnits[unit].sampler);
@@ -609,6 +658,25 @@ Base::Result<void> GlStateCache::BindDrawFramebuffer(
     MarkCall();
     current_.drawFramebuffer = framebuffer;
     known_.drawFramebuffer = true;
+    return {};
+}
+
+Base::Result<void> GlStateCache::BindReadFramebuffer(
+    GlUInt framebuffer) noexcept {
+    Base::Result<void> ready = VerifyActive();
+    if (!ready) {
+        return ready.GetStatus();
+    }
+    if (known_.readFramebuffer &&
+        current_.readFramebuffer == framebuffer) {
+        MarkRedundant();
+        return {};
+    }
+    functions_.bindFramebuffer(
+        GlConstant::ReadFramebuffer, framebuffer);
+    MarkCall();
+    current_.readFramebuffer = framebuffer;
+    known_.readFramebuffer = true;
     return {};
 }
 
@@ -825,8 +893,50 @@ Base::Result<void> GlStateCache::SetStencilState(
     return {};
 }
 
+Base::Result<void> GlStateCache::SetRasterState(
+    const GlRasterState& state) noexcept {
+    Base::Result<void> ready = VerifyActive();
+    if (!ready) {
+        return ready.GetStatus();
+    }
+    if (known_.raster && Equal(current_.raster, state)) {
+        MarkRedundant();
+        return {};
+    }
+    if (!known_.raster ||
+        current_.raster.cullEnabled != state.cullEnabled) {
+        if (state.cullEnabled) {
+            functions_.enable(GlConstant::CullFace);
+        } else {
+            functions_.disable(GlConstant::CullFace);
+        }
+        MarkCall();
+    }
+    if (!known_.raster ||
+        current_.raster.cullFace != state.cullFace) {
+        functions_.cullFace(state.cullFace);
+        MarkCall();
+    }
+    if (!known_.raster ||
+        current_.raster.frontFace != state.frontFace) {
+        functions_.frontFace(state.frontFace);
+        MarkCall();
+    }
+    if (!known_.raster ||
+        current_.raster.polygonMode != state.polygonMode) {
+        functions_.polygonMode(
+            GlConstant::FrontAndBack,
+            state.polygonMode);
+        MarkCall();
+    }
+    current_.raster = state;
+    known_.raster = true;
+    return {};
+}
+
 Base::Result<void> GlStateCache::BindTextureSampler(
     std::uint32_t unit,
+    GlEnum target,
     GlUInt texture,
     GlUInt sampler) noexcept {
     Base::Result<void> ready = VerifyActive();
@@ -841,6 +951,11 @@ Base::Result<void> GlStateCache::BindTextureSampler(
             Base::ErrorCode::OutOfRange,
             "OpenGL texture unit exceeds the cache capability");
     }
+    if (target != GlConstant::Texture2D &&
+        target != GlConstant::Texture2DArray) {
+        return InvalidArgument(
+            "OpenGL state cache supports only 2D and 2D-array textures");
+    }
 
     bool changed = false;
     if (!known_.activeTextureUnit ||
@@ -851,11 +966,15 @@ Base::Result<void> GlStateCache::BindTextureSampler(
         known_.activeTextureUnit = true;
         changed = true;
     }
+    GlUInt& currentTexture =
+        target == GlConstant::Texture2D
+        ? current_.textureUnits[unit].texture2D
+        : current_.textureUnits[unit].texture2DArray;
     if (!known_.textureUnits[unit] ||
-        current_.textureUnits[unit].texture2D != texture) {
-        functions_.bindTexture(GlConstant::Texture2D, texture);
+        currentTexture != texture) {
+        functions_.bindTexture(target, texture);
         MarkCall();
-        current_.textureUnits[unit].texture2D = texture;
+        currentTexture = texture;
         changed = true;
     }
     if (!known_.textureUnits[unit] ||
