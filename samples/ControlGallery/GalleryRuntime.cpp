@@ -11,6 +11,7 @@
 #include <Aero/Markup/RuntimeHost.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
 #include <Aero/Platform/Clipboard.hpp>
+#include <Aero/Platform/Ime.hpp>
 #include <Aero/Presentation/Binding.hpp>
 
 #include <cmath>
@@ -32,7 +33,8 @@ using namespace Markup;
 using namespace Presentation;
 
 Status Failure(const char* message) noexcept {
-    return Status::Failure(ErrorCode::InvalidState, message);
+    return Status::Failure(
+        ErrorCode::InvalidState, message);
 }
 
 bool ReadFile(
@@ -42,14 +44,16 @@ bool ReadFile(
     if (!stream) return false;
     stream.seekg(0, std::ios::end);
     const std::streamoff length = stream.tellg();
-    if (length < 0 || static_cast<std::uint64_t>(length) > UINT32_MAX) {
+    if (length < 0 ||
+        static_cast<std::uint64_t>(length) > UINT32_MAX) {
         return false;
     }
     stream.seekg(0, std::ios::beg);
     output.resize(static_cast<std::size_t>(length));
-    return output.empty() || static_cast<bool>(stream.read(
-        reinterpret_cast<char*>(output.data()),
-        static_cast<std::streamsize>(length)));
+    return output.empty() || static_cast<bool>(
+        stream.read(
+            reinterpret_cast<char*>(output.data()),
+            static_cast<std::streamsize>(length)));
 }
 
 class GalleryItem final : public Object {
@@ -65,16 +69,21 @@ public:
 class GalleryItemsSource final : public IItemsSource {
 public:
     Result<void> Initialize() noexcept {
-        Result<Ref<GalleryItem>> made = MakeRef<GalleryItem>();
+        Result<Ref<GalleryItem>> made =
+            MakeRef<GalleryItem>();
         if (!made) return made.GetStatus();
         item_ = Ref<Object>(std::move(made).Value());
         return {};
     }
 
-    std::uint32_t Count() const noexcept override { return 10000U; }
+    std::uint32_t Count() const noexcept override {
+        return 10000U;
+    }
 
-    Ref<Object> ItemAt(std::uint32_t index) const noexcept override {
-        return index < Count() ? item_ : Ref<Object>();
+    Ref<Object> ItemAt(
+        std::uint32_t index) const noexcept override {
+        return index < Count()
+            ? item_ : Ref<Object>();
     }
 
     Result<void> TryAddItemsChanged(
@@ -98,7 +107,8 @@ Result<Ref<Object>> MakeVirtualizedItem(
     Result<Ref<TextBlock>> made = MakeRef<TextBlock>();
     if (!made) return made.GetStatus();
     Ref<TextBlock> text = std::move(made).Value();
-    Result<void> configured = text->SetText("Virtualized gallery item");
+    Result<void> configured =
+        text->SetText("Virtualized gallery item");
     if (configured) configured = text->SetHeight(24.0);
     if (configured) configured = text->SetWidth(340.0);
     if (!configured) return configured.GetStatus();
@@ -107,7 +117,8 @@ Result<Ref<Object>> MakeVirtualizedItem(
 
 double EventScale(
     const Platform::WindowEvent& event) noexcept {
-    return std::isfinite(event.dpiScale) && event.dpiScale > 0.0
+    return std::isfinite(event.dpiScale) &&
+        event.dpiScale > 0.0
         ? event.dpiScale
         : 1.0;
 }
@@ -134,13 +145,19 @@ MouseButton MapButton(
 
 struct GalleryRuntime::Impl final {
     NullRenderBackend nullBackend;
+#if defined(_WIN32)
+    Platform::Win32Clipboard clipboard;
+    Platform::Win32ImeAdapter inputMethod;
+#else
     Platform::MemoryClipboard clipboard;
+#endif
     RuntimeHost runtime;
     std::unique_ptr<XamlTheme> theme;
     Ref<Object> root;
     Vector<Control*> themedControls;
     GalleryItemsSource items;
-    DataTemplate itemTemplate{&MakeVirtualizedItem, nullptr};
+    DataTemplate itemTemplate{
+        &MakeVirtualizedItem, nullptr};
     std::unique_ptr<ItemContainerGenerator> generator;
     ListBox* listBox = nullptr;
     VirtualizingStackPanel* virtualizingPanel = nullptr;
@@ -148,32 +165,51 @@ struct GalleryRuntime::Impl final {
 
     ~Impl() { Cleanup(); }
 
-    MetadataDomain& Metadata() noexcept { return *runtime.Metadata(); }
-    XamlObjectWriter& Writer() noexcept { return *runtime.Writer(); }
+    MetadataDomain& Metadata() noexcept {
+        return *runtime.Metadata();
+    }
+
+    XamlObjectWriter& Writer() noexcept {
+        return *runtime.Writer();
+    }
 
     Result<void> LoadDocument(
         const std::string& assetDirectory,
         GalleryLoadMode mode) noexcept {
         std::vector<std::uint8_t> source;
         if (mode == GalleryLoadMode::Runtime) {
-            if (!ReadFile(assetDirectory + "/ControlGallery.xaml", source)) {
-                return Failure("ControlGallery runtime XAML is unavailable");
+            if (!ReadFile(
+                    assetDirectory +
+                    "/ControlGallery.xaml",
+                    source)) {
+                return Failure(
+                    "ControlGallery runtime XAML is unavailable");
             }
             DiagnosticBag diagnostics;
-            Result<Ref<Object>> loaded = runtime.LoadXaml({
-                reinterpret_cast<const char*>(source.data()),
-                static_cast<std::uint32_t>(source.size())},
-                &diagnostics);
+            Result<Ref<Object>> loaded =
+                runtime.LoadXaml({
+                    reinterpret_cast<const char*>(
+                        source.data()),
+                    static_cast<std::uint32_t>(
+                        source.size())},
+                    &diagnostics);
             if (!loaded) return loaded.GetStatus();
             root = std::move(loaded).Value();
             return {};
         }
 
-        if (!ReadFile(assetDirectory + "/ControlGallery.axir", source)) {
-            return Failure("ControlGallery compiled XAML is unavailable");
+        if (!ReadFile(
+                assetDirectory +
+                "/ControlGallery.axir",
+                source)) {
+            return Failure(
+                "ControlGallery compiled XAML is unavailable");
         }
-        Result<Ref<Object>> loaded = runtime.LoadCompiledXaml(
-            {source.data(), static_cast<std::uint32_t>(source.size())});
+        Result<Ref<Object>> loaded =
+            runtime.LoadCompiledXaml({
+                source.data(),
+                static_cast<std::uint32_t>(
+                    source.size())});
         if (!loaded) return loaded.GetStatus();
         root = std::move(loaded).Value();
         return {};
@@ -184,20 +220,30 @@ struct GalleryRuntime::Impl final {
         GalleryTheme requested) noexcept {
         std::vector<std::uint8_t> generic;
         std::vector<std::uint8_t> palette;
-        if (!ReadFile(assetDirectory + "/themes/Generic.xaml", generic) ||
-            !ReadFile(assetDirectory +
+        if (!ReadFile(
+                assetDirectory +
+                "/themes/Generic.xaml",
+                generic) ||
+            !ReadFile(
+                assetDirectory +
                 (requested == GalleryTheme::Light
                     ? "/themes/Light.xaml"
                     : "/themes/Dark.xaml"),
                 palette)) {
-            return Failure("ControlGallery theme assets are unavailable");
+            return Failure(
+                "ControlGallery theme assets are unavailable");
         }
-        Result<std::unique_ptr<XamlTheme>> loaded = XamlTheme::Load(
-            {reinterpret_cast<const char*>(generic.data()),
-             static_cast<std::uint32_t>(generic.size())},
-            {reinterpret_cast<const char*>(palette.data()),
-             static_cast<std::uint32_t>(palette.size())},
-            Metadata().DependencyProperties());
+        Result<std::unique_ptr<XamlTheme>> loaded =
+            XamlTheme::Load(
+                {reinterpret_cast<const char*>(
+                     generic.data()),
+                 static_cast<std::uint32_t>(
+                     generic.size())},
+                {reinterpret_cast<const char*>(
+                     palette.data()),
+                 static_cast<std::uint32_t>(
+                     palette.size())},
+                Metadata().DependencyProperties());
         if (!loaded) return loaded.GetStatus();
         theme = std::move(loaded).Value();
         return {};
@@ -211,43 +257,62 @@ struct GalleryRuntime::Impl final {
             "DarkChoice",
             "BigList"};
         for (StringView name : names) {
-            Object* object = Writer().DocumentNameScope().Find(name);
+            Object* object =
+                Writer().DocumentNameScope().Find(name);
             if (object == nullptr ||
                 !Metadata().Descriptors().IsDerivedFrom(
-                    object->RuntimeType(), Control::StaticTypeId())) {
-                return Failure("ControlGallery themed control is missing");
+                    object->RuntimeType(),
+                    Control::StaticTypeId())) {
+                return Failure(
+                    "ControlGallery themed control is missing");
             }
             auto* control = static_cast<Control*>(object);
-            if (theme->FindTemplate(control->RuntimeType()) == nullptr) continue;
+            if (theme->FindTemplate(
+                    control->RuntimeType()) == nullptr) {
+                continue;
+            }
             Result<TemplateHandle> applied =
-                theme->Apply(*runtime.Templates(), *control);
+                theme->Apply(
+                    *runtime.Templates(), *control);
             if (!applied) return applied.GetStatus();
-            Result<void> tracked = themedControls.TryPushBack(control);
+            Result<void> tracked =
+                themedControls.TryPushBack(control);
             if (!tracked) return tracked.GetStatus();
         }
         return {};
     }
 
     Result<void> ConfigureBinding() noexcept {
-        TextBox* input = runtime.FindNamed<TextBox>("Input");
-        TextBlock* mirror = runtime.FindNamed<TextBlock>("BindingMirror");
+        TextBox* input =
+            runtime.FindNamed<TextBox>("Input");
+        TextBlock* mirror =
+            runtime.FindNamed<TextBlock>(
+                "BindingMirror");
         if (input == nullptr || mirror == nullptr) {
-            return Failure("ControlGallery binding endpoints are missing");
+            return Failure(
+                "ControlGallery binding endpoints are missing");
         }
         BindingDescriptor descriptor;
         descriptor.source = input;
-        descriptor.sourceProperty = TextBox::TextProperty;
+        descriptor.sourceProperty =
+            TextBox::TextProperty;
         descriptor.target = mirror;
-        descriptor.targetProperty = TextBlock::TextProperty;
+        descriptor.targetProperty =
+            TextBlock::TextProperty;
         descriptor.mode = BindingMode::OneWay;
-        Result<BindingHandle> attached = runtime.Bindings()->Attach(descriptor);
+        Result<BindingHandle> attached =
+            runtime.Bindings()->Attach(descriptor);
         if (!attached) return attached.GetStatus();
-        Result<void> changed = input->SetText("Binding validation passed");
+        Result<void> changed =
+            input->SetText(
+                "Binding validation passed");
         if (!changed) return changed.GetStatus();
-        Result<std::uint32_t> flushed = runtime.Bindings()->Flush();
+        Result<std::uint32_t> flushed =
+            runtime.Bindings()->Flush();
         if (!flushed) return flushed.GetStatus();
         if (mirror->Text() != input->Text()) {
-            return Failure("ControlGallery binding validation failed");
+            return Failure(
+                "ControlGallery binding validation failed");
         }
         return {};
     }
@@ -255,73 +320,111 @@ struct GalleryRuntime::Impl final {
     Result<void> ConfigureVirtualization() noexcept {
         listBox = runtime.FindNamed<ListBox>("BigList");
         virtualizingPanel =
-            runtime.FindNamed<VirtualizingStackPanel>("BigListPanel");
-        if (listBox == nullptr || virtualizingPanel == nullptr) {
-            return Failure("ControlGallery virtualization endpoints are missing");
+            runtime.FindNamed<VirtualizingStackPanel>(
+                "BigListPanel");
+        if (listBox == nullptr ||
+            virtualizingPanel == nullptr) {
+            return Failure(
+                "ControlGallery virtualization endpoints are missing");
         }
         Result<void> initialized = items.Initialize();
         if (!initialized) return initialized.GetStatus();
         listBox->SetItemTemplate(&itemTemplate);
-        Result<void> source = listBox->SetItemsSource(&items);
+        Result<void> source =
+            listBox->SetItemsSource(&items);
         if (!source) return source.GetStatus();
         Result<void> extent =
-            virtualizingPanel->SetEstimatedItemExtent(24.0);
-        if (extent) extent = virtualizingPanel->SetOverscanCount(2U);
+            virtualizingPanel->SetEstimatedItemExtent(
+                24.0);
+        if (extent) {
+            extent = virtualizingPanel->SetOverscanCount(
+                2U);
+        }
         if (!extent) return extent.GetStatus();
         Result<bool> viewport =
-            virtualizingPanel->SetViewport({360.0, 120.0});
+            virtualizingPanel->SetViewport(
+                {360.0, 120.0});
         if (!viewport) return viewport.GetStatus();
-        generator = std::make_unique<ItemContainerGenerator>(
-            *runtime.Tree(),
-            *runtime.Layout(),
-            *runtime.EffectiveValues(),
-            nullptr,
-            runtime.Renderer());
-        Result<void> attached = generator->AttachVirtualized(
-            *listBox, *virtualizingPanel);
+        generator =
+            std::make_unique<ItemContainerGenerator>(
+                *runtime.Tree(),
+                *runtime.Layout(),
+                *runtime.EffectiveValues(),
+                nullptr,
+                runtime.Renderer());
+        Result<void> attached =
+            generator->AttachVirtualized(
+                *listBox, *virtualizingPanel);
         if (!attached) return attached.GetStatus();
         Result<bool> scrolled =
-            virtualizingPanel->SetVerticalOffset(4800.0);
+            virtualizingPanel->SetVerticalOffset(
+                4800.0);
         if (!scrolled) return scrolled.GetStatus();
         return {};
     }
 
     void UpdatePlanSnapshot() noexcept {
-        const RenderPlan& plan = runtime.Renderer()->CurrentPlan();
+        const RenderPlan& plan =
+            runtime.Renderer()->CurrentPlan();
         snapshot.planHash = plan.StableHash();
         snapshot.nodeCount = plan.Nodes().Size();
-        snapshot.commandCount = plan.Commands().Size();
+        snapshot.commandCount =
+            plan.Commands().Size();
     }
 
     Result<void> RunFrame() noexcept {
-        Result<RuntimeFrameResult> frame = runtime.RunFrame();
-        if (!frame) {
-            return frame.GetStatus();
-        }
+        Result<RuntimeFrameResult> frame =
+            runtime.RunFrame();
+        if (!frame) return frame.GetStatus();
         UpdatePlanSnapshot();
+        return {};
+    }
+
+    Result<void> EnsureNativeTextServices() noexcept {
+#if defined(_WIN32)
+        Result<bool> attached =
+            inputMethod.AttachActiveWindow();
+        if (!attached) return attached.GetStatus();
+        if (inputMethod.IsAttached()) {
+            clipboard.SetOwnerWindow(
+                inputMethod.AttachedWindow());
+        }
+#endif
         return {};
     }
 
     Result<bool> HandleWindowEvent(
         const Platform::WindowEvent& event) noexcept {
+        if (event.type !=
+                Platform::WindowEventType::CloseRequested &&
+            event.type !=
+                Platform::WindowEventType::Closed) {
+            Result<void> native =
+                EnsureNativeTextServices();
+            if (!native) return native.GetStatus();
+        }
+
         const double scale = EventScale(event);
         switch (event.type) {
         case Platform::WindowEventType::CloseRequested:
         case Platform::WindowEventType::Closed:
             return false;
-        case Platform::WindowEventType::Exposed:
-            return true;
+        case Platform::WindowEventType::Exposed: {
+            Result<void> frame = RunFrame();
+            return frame
+                ? Result<bool>(true)
+                : Result<bool>(frame.GetStatus());
+        }
         case Platform::WindowEventType::Resized:
         case Platform::WindowEventType::ScaleChanged: {
-            if (event.width == 0U || event.height == 0U) {
+            if (event.width == 0U ||
+                event.height == 0U) {
                 return false;
             }
             Result<void> resized = runtime.Resize({
                 static_cast<double>(event.width) / scale,
                 static_cast<double>(event.height) / scale});
-            if (!resized) {
-                return resized.GetStatus();
-            }
+            if (!resized) return resized.GetStatus();
             Result<void> frame = RunFrame();
             return frame
                 ? Result<bool>(true)
@@ -336,9 +439,12 @@ struct GalleryRuntime::Impl final {
             input.position = {
                 event.x / scale,
                 event.y / scale};
-            input.changedButton = MapButton(event.button);
-            input.wheelDeltaX = event.wheelDeltaX / 120.0;
-            input.wheelDeltaY = event.wheelDeltaY / 120.0;
+            input.changedButton =
+                MapButton(event.button);
+            input.wheelDeltaX =
+                event.wheelDeltaX / 120.0;
+            input.wheelDeltaY =
+                event.wheelDeltaY / 120.0;
             switch (event.type) {
             case Platform::WindowEventType::PointerDown:
                 input.action = PointerAction::Down;
@@ -366,12 +472,11 @@ struct GalleryRuntime::Impl final {
         }
         case Platform::WindowEventType::KeyDown:
         case Platform::WindowEventType::KeyUp: {
-            if (event.key == 0U) {
-                return false;
-            }
+            if (event.key == 0U) return false;
             KeyboardInput input;
             input.action =
-                event.type == Platform::WindowEventType::KeyDown
+                event.type ==
+                    Platform::WindowEventType::KeyDown
                 ? KeyboardAction::Down
                 : KeyboardAction::Up;
             input.key = event.key;
@@ -388,9 +493,7 @@ struct GalleryRuntime::Impl final {
                 : Result<bool>(frame.GetStatus());
         }
         case Platform::WindowEventType::TextInput: {
-            if (event.textSize == 0U) {
-                return false;
-            }
+            if (event.textSize == 0U) return false;
             Result<TextInputDispatchResult> dispatched =
                 runtime.DispatchText({event.Text()});
             if (!dispatched) {
@@ -409,11 +512,12 @@ struct GalleryRuntime::Impl final {
 
     void Cleanup() noexcept {
         if (generator) {
-            (void)generator->Detach();
+            static_cast<void>(generator->Detach());
             generator.reset();
         }
         if (listBox != nullptr) {
-            (void)listBox->SetItemsSource(nullptr);
+            static_cast<void>(
+                listBox->SetItemsSource(nullptr));
             listBox->SetItemTemplate(nullptr);
         }
         listBox = nullptr;
@@ -421,14 +525,22 @@ struct GalleryRuntime::Impl final {
         if (runtime.Templates() != nullptr) {
             for (Control* control : themedControls) {
                 if (control != nullptr) {
-                    (void)runtime.Templates()->Clear(*control);
+                    static_cast<void>(
+                        runtime.Templates()->Clear(
+                            *control));
                 }
             }
         }
         themedControls.Clear();
-        if (runtime.IsMounted()) (void)runtime.Unmount();
+        if (runtime.IsMounted()) {
+            static_cast<void>(runtime.Unmount());
+        }
         root.Reset();
         runtime.Shutdown();
+#if defined(_WIN32)
+        static_cast<void>(inputMethod.Detach());
+        clipboard.SetOwnerWindow(nullptr);
+#endif
     }
 };
 
@@ -443,7 +555,8 @@ Result<void> GalleryRuntime::Initialize(
     GalleryLoadMode loadMode,
     GalleryTheme requestedTheme) noexcept {
     if (impl_) {
-        return Failure("ControlGallery runtime is already initialized");
+        return Failure(
+            "ControlGallery runtime is already initialized");
     }
     if (assetDirectory.Empty()) {
         return Status::Failure(
@@ -451,23 +564,38 @@ Result<void> GalleryRuntime::Initialize(
             "ControlGallery asset directory is empty");
     }
 
-    std::unique_ptr<Impl> state = std::make_unique<Impl>();
-    Result<void> status = state->runtime.Modules().TryAdd(
-        MakeStatusBadgeModuleManifest());
+    std::unique_ptr<Impl> state =
+        std::make_unique<Impl>();
+    Result<void> status =
+        state->runtime.Modules().TryAdd(
+            MakeStatusBadgeModuleManifest());
     RuntimeHostOptions options;
     options.renderBackend = &state->nullBackend;
     options.clipboard = &state->clipboard;
-    if (status) status = state->runtime.Initialize(options);
+#if defined(_WIN32)
+    options.textInputMethodHost =
+        &state->inputMethod;
+#endif
+    if (status) {
+        status = state->runtime.Initialize(options);
+    }
     if (!status) return status.GetStatus();
 
     const std::string assetPath(
-        assetDirectory.Data(), assetDirectory.SizeBytes());
-    status = state->LoadTheme(assetPath, requestedTheme);
-    if (status) status = state->LoadDocument(assetPath, loadMode);
+        assetDirectory.Data(),
+        assetDirectory.SizeBytes());
+    status = state->LoadTheme(
+        assetPath, requestedTheme);
+    if (status) {
+        status = state->LoadDocument(
+            assetPath, loadMode);
+    }
     if (!status) return status.GetStatus();
     if (!state->root ||
-        state->root->RuntimeType() != Border::StaticTypeId()) {
-        return Failure("ControlGallery root is not a Border");
+        state->root->RuntimeType() !=
+            Border::StaticTypeId()) {
+        return Failure(
+            "ControlGallery root is not a Border");
     }
     status = state->runtime.Mount({900.0, 640.0});
     if (status) status = state->ApplyTheme();
@@ -491,7 +619,8 @@ Result<void> GalleryRuntime::Initialize(
         state->snapshot.namedObjectCount < 10U ||
         state->snapshot.itemCount != 10000U ||
         state->snapshot.realizedItemCount == 0U ||
-        state->snapshot.realizedItemCount >= state->snapshot.itemCount ||
+        state->snapshot.realizedItemCount >=
+            state->snapshot.itemCount ||
         state->snapshot.createdContainerCount > 16U) {
         std::fprintf(
             stderr,
@@ -503,7 +632,8 @@ Result<void> GalleryRuntime::Initialize(
             state->snapshot.itemCount,
             state->snapshot.realizedItemCount,
             state->snapshot.createdContainerCount);
-        return Failure("ControlGallery acceptance metrics are invalid");
+        return Failure(
+            "ControlGallery acceptance metrics are invalid");
     }
 
     impl_ = std::move(state);
@@ -524,14 +654,17 @@ void GalleryRuntime::Shutdown() noexcept {
     impl_.reset();
 }
 
-const GallerySnapshot& GalleryRuntime::Snapshot() const noexcept {
+const GallerySnapshot&
+GalleryRuntime::Snapshot() const noexcept {
     static const GallerySnapshot empty;
     return impl_ ? impl_->snapshot : empty;
 }
 
-const RenderPlan& GalleryRuntime::Plan() const noexcept {
+const RenderPlan&
+GalleryRuntime::Plan() const noexcept {
     static const RenderPlan empty;
-    return impl_ && impl_->runtime.Renderer() != nullptr
+    return impl_ &&
+        impl_->runtime.Renderer() != nullptr
         ? impl_->runtime.Renderer()->CurrentPlan()
         : empty;
 }
