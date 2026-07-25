@@ -94,6 +94,25 @@ target_compile_definitions(AeroBase
     PRIVATE
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
+add_library(AeroPlatform ${AERO_LIBRARY_TYPE}
+    src/platform/Clipboard.cpp)
+
+add_library(Aero::Platform ALIAS AeroPlatform)
+
+target_include_directories(AeroPlatform
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroPlatform PUBLIC Aero::Base)
+target_compile_features(AeroPlatform PUBLIC cxx_std_17)
+set_target_properties(AeroPlatform PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroPlatform)
+
 add_library(AeroText ${AERO_LIBRARY_TYPE}
     src/text/EditableText.cpp
     src/text/FontManager.cpp
@@ -316,6 +335,7 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Metadata.cpp
     src/controls/Scroll.cpp
     src/controls/Selection.cpp
+    src/controls/TextBox.cpp
     src/controls/TextBlockLayoutService.cpp
     src/controls/Templates.cpp
     src/controls/Virtualization.cpp
@@ -327,7 +347,11 @@ target_include_directories(AeroControls
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroControls PUBLIC Aero::Presentation)
+target_link_libraries(AeroControls
+    PUBLIC
+        Aero::Presentation
+        Aero::Platform
+        Aero::Text)
 target_compile_features(AeroControls PUBLIC cxx_std_17)
 set_target_properties(AeroControls PROPERTIES
     CXX_STANDARD 17

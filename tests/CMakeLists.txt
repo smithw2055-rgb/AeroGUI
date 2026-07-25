@@ -15,6 +15,18 @@ set_target_properties(AeroContainerTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD
 aero_apply_compiler_options(AeroContainerTests)
 add_test(NAME AeroContainerTests COMMAND AeroContainerTests)
 
+add_executable(AeroClipboardTests
+    platform/ClipboardTests.cpp)
+target_link_libraries(AeroClipboardTests
+    PRIVATE Aero::Platform)
+target_compile_features(AeroClipboardTests PRIVATE cxx_std_17)
+set_target_properties(AeroClipboardTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroClipboardTests)
+add_test(NAME AeroClipboardTests COMMAND AeroClipboardTests)
+
 add_executable(AeroTextProviderTests text/TextProviderTests.cpp)
 target_link_libraries(AeroTextProviderTests PRIVATE Aero::Text)
 target_compile_features(AeroTextProviderTests PRIVATE cxx_std_17)
@@ -241,6 +253,18 @@ target_compile_features(AeroButtonTests PRIVATE cxx_std_17)
 set_target_properties(AeroButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
 aero_apply_compiler_options(AeroButtonTests)
 add_test(NAME AeroButtonTests COMMAND AeroButtonTests)
+
+add_executable(AeroTextBoxTests
+    controls/TextBoxTests.cpp)
+target_link_libraries(AeroTextBoxTests
+    PRIVATE Aero::Controls)
+target_compile_features(AeroTextBoxTests PRIVATE cxx_std_17)
+set_target_properties(AeroTextBoxTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroTextBoxTests)
+add_test(NAME AeroTextBoxTests COMMAND AeroTextBoxTests)
 
 add_executable(AeroScrollTests
     controls/ScrollTests.cpp)

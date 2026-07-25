@@ -3,6 +3,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
@@ -65,6 +66,14 @@ struct Fixture final {
             Ref<RadioButton> value = std::move(made).Value();
             return Ref<Object>(std::move(value));
         }
+        if (type == TextBox::StaticTypeId()) {
+            Result<Ref<TextBox>> made =
+                MakeRef<TextBox>();
+            if (!made) return made.GetStatus();
+            Ref<TextBox> value =
+                std::move(made).Value();
+            return Ref<Object>(std::move(value));
+        }
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Activation type is not a toggle control");
@@ -86,6 +95,8 @@ struct Fixture final {
             BuiltinTypes::CheckBox, &Activate, nullptr}));
         CHECK(activation->TryRegister({
             BuiltinTypes::RadioButton, &Activate, nullptr}));
+        CHECK(activation->TryRegister({
+            TextBox::StaticTypeId(), &Activate, nullptr}));
         CHECK(TryRegisterAeroPresentationXaml(
             *dependencyProperties));
         CHECK(runtime->Freeze());
@@ -158,10 +169,34 @@ bool TestTogglePropertiesFromXaml() {
     return true;
 }
 
+bool TestTextBoxPropertiesFromXaml() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+
+    DiagnosticBag diagnostics;
+    Result<Ref<Object>> loaded = Load(
+        fixture,
+        "<TextBox xmlns=\"urn:aero\" "
+        "Text=\"hello\" MaximumLength=\"12\" "
+        "AcceptsReturn=\"True\" IsReadOnly=\"True\"/>",
+        diagnostics);
+    CHECK(loaded && diagnostics.Size() == 0U);
+    auto* textBox =
+        static_cast<TextBox*>(
+            loaded.Value().Get());
+    CHECK(textBox->Text() ==
+        StringView("hello"));
+    CHECK(textBox->MaximumLength() == 12U);
+    CHECK(textBox->AcceptsReturn());
+    CHECK(textBox->IsReadOnly());
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestTogglePropertiesFromXaml()) return 1;
+    if (!TestTextBoxPropertiesFromXaml()) return 1;
     std::puts("Aero XAML button tests passed");
     return 0;
 }

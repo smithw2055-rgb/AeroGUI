@@ -5,6 +5,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
@@ -215,6 +216,47 @@ Base::Result<Core::Value> CoerceButtonEnabled(
         static_cast<ButtonBase&>(object).IsCommandEnabled();
     return Core::Value::FromBoolean(
         TypeOf<bool>(), enabled);
+}
+
+Base::Result<Core::Value> CoerceTextBoxText(
+    Core::DependencyObject& object,
+    const Core::DependencyProperty&,
+    const Core::Value& value) noexcept {
+    Text::EditableTextModel validation;
+    Base::Result<void> limited =
+        validation.SetMaximumLength(
+            static_cast<TextBox&>(object).
+                MaximumLength());
+    if (limited) {
+        limited = validation.SetText(
+            value.AsString());
+    }
+    if (!limited) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "TextBox text exceeds its UTF-8 or maximum-length contract");
+    }
+    return value;
+}
+
+Base::Result<Core::Value>
+CoerceTextBoxMaximumLength(
+    Core::DependencyObject& object,
+    const Core::DependencyProperty&,
+    const Core::Value& value) noexcept {
+    Text::EditableTextModel validation;
+    Base::Result<void> text =
+        validation.SetText(
+            static_cast<TextBox&>(object).
+                Text());
+    if (!text ||
+        validation.GraphemeCount() >
+            value.AsUnsignedInteger()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "TextBox maximum length is shorter than its current text");
+    }
+    return value;
 }
 
 } // namespace
@@ -855,6 +897,86 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<Presentation::Color>(), foreground.Value(),
             PropertyMetadataFlags::AffectsRender, &ValidateColorValue);
     status = textBlock.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<TextBox> textBox =
+        MetaTypeBuilder<TextBox>::Object(context);
+    const Presentation::Color selection{
+        0.18F, 0.48F, 0.95F, 0.45F};
+    Base::Result<Value> selectionBrush =
+        context.Values().TryCreateValue(
+            TypeOf<Presentation::Color>(),
+            &selection);
+    if (!selectionBrush) {
+        return selectionBrush.GetStatus();
+    }
+    textBox
+        .DependencyProperty(
+            TextBox::TextProperty,
+            "Text", TypeOf<Base::String>(),
+            text.Value(),
+            PropertyMetadataFlags::AffectsMeasure |
+                PropertyMetadataFlags::
+                    BindsTwoWayByDefault,
+            nullptr,
+            &CoerceTextBoxText)
+        .DependencyProperty(
+            TextBox::IsReadOnlyProperty,
+            "IsReadOnly", TypeOf<bool>(),
+            Value::FromBoolean(
+                TypeOf<bool>(), false),
+            PropertyMetadataFlags::None,
+            &ValidateBooleanValue)
+        .DependencyProperty(
+            TextBox::MaximumLengthProperty,
+            "MaximumLength",
+            TypeOf<std::uint32_t>(),
+            Value::FromUnsignedInteger(
+                TypeOf<std::uint32_t>(),
+                UINT32_MAX),
+            PropertyMetadataFlags::None,
+            &ValidateUInt32,
+            &CoerceTextBoxMaximumLength)
+        .DependencyProperty(
+            TextBox::AcceptsReturnProperty,
+            "AcceptsReturn", TypeOf<bool>(),
+            Value::FromBoolean(
+                TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateBooleanValue)
+        .DependencyProperty(
+            TextBox::ForegroundProperty,
+            "Foreground",
+            TypeOf<Presentation::Color>(),
+            foreground.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue)
+        .DependencyProperty(
+            TextBox::SelectionBrushProperty,
+            "SelectionBrush",
+            TypeOf<Presentation::Color>(),
+            selectionBrush.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue)
+        .DependencyProperty(
+            TextBox::CaretBrushProperty,
+            "CaretBrush",
+            TypeOf<Presentation::Color>(),
+            foreground.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue);
+    status = textBox.Finish();
+    if (!status) return status.GetStatus();
+    PropertyMetadata textBoxTabStop;
+    textBoxTabStop.defaultValue =
+        Value::FromBoolean(
+            TypeOf<bool>(), true);
+    status =
+        context.DependencyProperties().
+            TryOverrideMetadata(
+                UIElement::IsTabStopProperty,
+                TypeOf<TextBox>(),
+                textBoxTabStop);
     if (!status) return status.GetStatus();
 
     MetaTypeBuilder<ContentPresenter> contentPresenter =

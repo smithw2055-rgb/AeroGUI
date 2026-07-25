@@ -72,12 +72,22 @@ struct KeyboardInput final {
 };
 
 inline constexpr std::uint32_t KeyboardKeyTab = 9U;
+inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
 inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
 inline constexpr std::uint32_t KeyboardKeySpace = 32U;
 inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
 inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;
+inline constexpr std::uint32_t KeyboardKeyLeft = 0x25U;
 inline constexpr std::uint32_t KeyboardKeyUp = 0x26U;
+inline constexpr std::uint32_t KeyboardKeyRight = 0x27U;
 inline constexpr std::uint32_t KeyboardKeyDown = 0x28U;
+inline constexpr std::uint32_t KeyboardKeyDelete = 0x2EU;
+inline constexpr std::uint32_t KeyboardKeyA = 0x41U;
+inline constexpr std::uint32_t KeyboardKeyC = 0x43U;
+inline constexpr std::uint32_t KeyboardKeyV = 0x56U;
+inline constexpr std::uint32_t KeyboardKeyX = 0x58U;
+inline constexpr std::uint32_t KeyboardKeyY = 0x59U;
+inline constexpr std::uint32_t KeyboardKeyZ = 0x5AU;
 
 enum class KeyboardModifiers : std::uint32_t {
     None = 0U,

@@ -4,6 +4,7 @@
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Metadata.hpp>
+#include <Aero/Controls/TextBox.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 
 #include <algorithm>
@@ -422,6 +423,70 @@ bool TestTextBlockAutomaticLayoutService() {
     return true;
 }
 
+bool TestTextBoxSelectionAndGlyphRendering() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(
+        fixture.dispatcher,
+        fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(
+        fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LayoutManager layout(fixture.dispatcher);
+    CHECK(layout.Initialize());
+    NullRenderBackend backend;
+    RenderManager renderer(
+        fixture.dispatcher, backend);
+    CHECK(renderer.Initialize());
+
+    MockTextBlockLayoutService service;
+    {
+        TextBlockLayoutServiceScope scope(service);
+        TextBox textBox;
+        CHECK(textBox.SetText(
+            StringView("Hello")));
+        CHECK(textBox.SetSelection(1U, 4U));
+        CHECK(tree.SetRoot(&textBox));
+        CHECK(layout.SetRoot(
+            &textBox, {100.0, 24.0}));
+        CHECK(renderer.SetRoot(&textBox));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::Layout));
+        CHECK(fixture.dispatcher.RunFramePhase(
+            DispatcherFramePhase::RenderCommit));
+
+        const RenderPlan& plan =
+            renderer.CurrentPlan();
+        CHECK(plan.Nodes().Size() == 1U);
+        CHECK(plan.Commands().Size() == 7U);
+        CHECK(plan.Commands()[0].kind ==
+            RenderCommandKind::PushClip);
+        CHECK(plan.Commands()[1].kind ==
+            RenderCommandKind::PushTransform);
+        CHECK(plan.Commands()[2].kind ==
+            RenderCommandKind::FillRect);
+        CHECK(plan.Commands()[3].kind ==
+            RenderCommandKind::DrawGlyphRun);
+        CHECK(plan.Commands()[4].kind ==
+            RenderCommandKind::DrawGlyphRun);
+        CHECK(plan.Commands()[5].kind ==
+            RenderCommandKind::PopTransform);
+        CHECK(plan.Commands()[6].kind ==
+            RenderCommandKind::PopClip);
+        CHECK(plan.Commands()[3].glyphRun == 101U);
+        CHECK(plan.Commands()[4].glyphRun == 201U);
+
+        CHECK(renderer.SetRoot(nullptr));
+        CHECK(layout.SetRoot(
+            nullptr, {0.0, 0.0}));
+        CHECK(tree.SetRoot(nullptr));
+        CHECK(values.DetachObject(textBox));
+    }
+    CHECK(service.releaseCount == 2U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -431,6 +496,7 @@ int main() {
     if (!TestRenderRequiresArrange()) return 1;
     if (!TestTextBlockGlyphRunRendering()) return 1;
     if (!TestTextBlockAutomaticLayoutService()) return 1;
+    if (!TestTextBoxSelectionAndGlyphRendering()) return 1;
     std::puts("Aero rendering tests passed");
     return 0;
 }
