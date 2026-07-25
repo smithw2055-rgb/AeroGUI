@@ -1,5 +1,8 @@
 #include <Aero/Rhi/OpenGL33Backend.hpp>
 #include <Aero/Rhi/WglSurface.hpp>
+#include <Aero/Render/OpenGL33RendererBackend.hpp>
+
+#include "../render/SharedRenderPlanFixture.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -143,6 +146,10 @@ bool TestBorrowedContext(
     Result<GlFunctionTable> functions =
         borrowed.LoadFunctions();
     CHECK(functions);
+    CHECK(Aero::Tests::RunBorrowedOpenGLStateConformance(
+        functions.Value(),
+        contract.Value(),
+        Aero::Render::MakeOpenGL33RendererShaderSet()));
     borrowed.DestroySurface();
     CHECK(owned.MakeCurrent());
     return true;
@@ -224,6 +231,28 @@ bool TestOwnedContextAndRendering(
             target.Value(), fence.Value()));
         CHECK(device.DestroyResource(
             pipeline.Value(), fence.Value()));
+        CHECK(device.CollectGarbage());
+
+        CHECK(Aero::Tests::RunSharedRenderPlanConformance(
+            device,
+            backend,
+            Aero::Render::MakeOpenGL33RendererShaderSet()));
+        Aero::Presentation::RenderPlan plan;
+        CHECK(Aero::Tests::BuildSharedRenderPlan(plan));
+        Aero::Render::OpenGL33RenderPlanBackend surfaceRenderer(
+            device,
+            backend,
+            session,
+            contract.Value().generation);
+        CHECK(surfaceRenderer.Initialize());
+        CHECK(surfaceRenderer.Submit(plan));
+        CHECK(surfaceRenderer.LastSubmitStatistics().
+            renderPassCount == 1U);
+        CHECK(surfaceRenderer.LastSubmitStatistics().
+            drawCallCount == 3U);
+        CHECK(backend.WaitForFence(
+            surfaceRenderer.LastSubmittedFence()));
+        surfaceRenderer.Shutdown();
         CHECK(device.CollectGarbage());
     }
     backend.Shutdown();

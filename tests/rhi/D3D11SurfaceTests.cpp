@@ -4,6 +4,8 @@
 #include <Aero/Rhi/D3D11Backend.hpp>
 #include <Aero/Render/D3D11RendererBackend.hpp>
 
+#include "../render/SharedRenderPlanFixture.hpp"
+
 #if defined(AERO_D3D11_TEXT_RENDER_TESTS)
 #include <Aero/Render/D3D11TextBlockRenderService.hpp>
 #include <Aero/Text/FreeTypeAdapter.hpp>
@@ -1056,6 +1058,30 @@ bool TestAutomaticTextBlockD3D11Presentation(
 }
 #endif
 
+bool TestSharedRenderPlanConformance(
+    RhiDevice& device,
+    D3D11GraphicsBackend& backend) noexcept {
+    return Aero::Tests::RunSharedRenderPlanConformance(
+        device, backend, MakeD3D11RendererShaderSet());
+}
+
+bool TestD3D11SharedRenderPlanConformance() noexcept {
+    D3D11BackendOptions options;
+    options.deviceMode = D3D11DeviceMode::Warp;
+    options.allowWarpFallback = false;
+    D3D11GraphicsBackend backend(options);
+    CHECK(backend.Initialize());
+    {
+        RhiDevice device(backend);
+        CHECK(device.Initialize());
+        CHECK(TestSharedRenderPlanConformance(device, backend));
+        CHECK(device.LiveResourceCount() == 0U);
+    }
+    CHECK(backend.LiveResourceCount() == 0U);
+    backend.Shutdown();
+    return true;
+}
+
 bool TestOwnedBorrowedResizeAndPresentation() {
     HiddenWindow window;
     CHECK(window.Initialize());
@@ -1736,6 +1762,7 @@ bool TestFl10RenderPlanSurfaceSubmission() {
 } // namespace
 
 int main() {
+    if (!TestD3D11SharedRenderPlanConformance()) return 1;
     if (!TestOwnedBorrowedResizeAndPresentation()) return 1;
     if (!TestFl10RenderPlanSurfaceSubmission()) return 1;
     std::puts("Aero D3D11 swap-chain surface tests passed");

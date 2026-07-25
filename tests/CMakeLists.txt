@@ -455,7 +455,10 @@ if(WIN32 AND TARGET AeroRhiWGL)
     add_executable(AeroWglSurfaceTests rhi/WglSurfaceTests.cpp)
     target_link_libraries(
         AeroWglSurfaceTests
-        PRIVATE Aero::RhiWGL user32)
+        PRIVATE
+            Aero::RhiWGL
+            Aero::RenderOpenGL33
+            user32)
     target_compile_features(AeroWglSurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroWglSurfaceTests PROPERTIES
         CXX_STANDARD 17
@@ -472,7 +475,7 @@ if(UNIX AND TARGET AeroRhiGLX)
     add_executable(AeroGlxSurfaceTests rhi/GlxSurfaceTests.cpp)
     target_link_libraries(
         AeroGlxSurfaceTests
-        PRIVATE Aero::RhiGLX)
+        PRIVATE Aero::RhiGLX Aero::RenderOpenGL33)
     target_compile_features(AeroGlxSurfaceTests PRIVATE cxx_std_17)
     set_target_properties(AeroGlxSurfaceTests PROPERTIES
         CXX_STANDARD 17

@@ -1,5 +1,8 @@
 #include <Aero/Rhi/GlxSurface.hpp>
 #include <Aero/Rhi/OpenGL33Backend.hpp>
+#include <Aero/Render/OpenGL33RendererBackend.hpp>
+
+#include "../render/SharedRenderPlanFixture.hpp"
 
 #include <cstdio>
 
@@ -77,7 +80,13 @@ bool TestBorrowedContext(GlxSurfaceBackend& owned) noexcept {
     CHECK(contract.Value().embeddingMode ==
         GlEmbeddingMode::PreserveAndRestore);
     CHECK(ValidateGlContextContract(contract.Value()));
-    CHECK(borrowed.LoadFunctions());
+    Result<GlFunctionTable> functions =
+        borrowed.LoadFunctions();
+    CHECK(functions);
+    CHECK(Aero::Tests::RunBorrowedOpenGLStateConformance(
+        functions.Value(),
+        contract.Value(),
+        Aero::Render::MakeOpenGL33RendererShaderSet()));
     borrowed.DestroySurface();
     CHECK(owned.MakeCurrent());
     return true;
@@ -156,6 +165,44 @@ bool TestOwnedContextAndRendering(
     return true;
 }
 
+bool TestSharedRenderPlan(
+    RhiDevice& device,
+    OpenGL33GraphicsBackend& backend,
+    SurfaceSession& surface,
+    GlContextGeneration contextGeneration) noexcept {
+    CHECK(Aero::Tests::RunSharedRenderPlanConformance(
+        device,
+        backend,
+        Aero::Render::MakeOpenGL33RendererShaderSet()));
+    Aero::Presentation::RenderPlan fullPlan;
+    CHECK(Aero::Tests::BuildSharedRenderPlan(
+        fullPlan,
+        Aero::Tests::SharedFullRenderPlanOptions()));
+    std::printf(
+        "Shared RenderPlan hashes: rectangle=0x%016llX full=0x%016llX\n",
+        static_cast<unsigned long long>(
+            Aero::Tests::SharedRenderPlanHash),
+        static_cast<unsigned long long>(
+            Aero::Tests::SharedFullRenderPlanHash));
+
+    Aero::Presentation::RenderPlan plan;
+    CHECK(Aero::Tests::BuildSharedRenderPlan(plan));
+    Aero::Render::OpenGL33RenderPlanBackend surfaceRenderer(
+        device, backend, surface, contextGeneration);
+    CHECK(surfaceRenderer.Initialize());
+    CHECK(surfaceRenderer.Submit(plan));
+    const Aero::Render::OpenGL33RenderPlanSubmitStatistics statistics =
+        surfaceRenderer.LastSubmitStatistics();
+    CHECK(statistics.renderPassCount == 1U);
+    CHECK(statistics.drawCallCount == 3U);
+    CHECK(statistics.rectangleInstanceCount == 3U);
+    CHECK(backend.WaitForFence(
+        surfaceRenderer.LastSubmittedFence()));
+    surfaceRenderer.Shutdown();
+    CHECK(device.CollectGarbage());
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -209,6 +256,17 @@ int main() {
         restoredFunctions.Value(), restoredContract.Value());
     if (!restoredBackend.Initialize()) {
         return 1;
+    }
+    {
+        RhiDevice restoredDevice(restoredBackend);
+        if (!restoredDevice.Initialize() ||
+            !TestSharedRenderPlan(
+                restoredDevice,
+                restoredBackend,
+                session,
+                restoredContract.Value().generation)) {
+            return 1;
+        }
     }
     restoredBackend.Shutdown();
 

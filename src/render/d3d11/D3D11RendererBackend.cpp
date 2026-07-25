@@ -53,7 +53,9 @@ Rhi::ShaderDescriptor Shader(
     return descriptor;
 }
 
-RendererShaderSet MakeShaderSet() noexcept {
+} // namespace
+
+RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
     RendererShaderSet shaders;
     shaders.rectangleVertex = Shader(
         Rhi::ShaderStage::Vertex,
@@ -99,13 +101,14 @@ RendererShaderSet MakeShaderSet() noexcept {
     return shaders;
 }
 
-} // namespace
-
 struct D3D11RenderPlanBackend::Impl final {
     Impl(
         Rhi::RhiDevice& device,
         Base::IAllocator* allocator) noexcept
-        : renderer(device, MakeShaderSet(), allocator) {}
+        : renderer(
+              device,
+              MakeD3D11RendererShaderSet(),
+              allocator) {}
 
     Renderer renderer;
     Rhi::FenceValue lastSubmittedFence = 0U;

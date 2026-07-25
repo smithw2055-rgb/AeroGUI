@@ -515,6 +515,24 @@ set_target_properties(AeroRender PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRender)
 
+add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
+    src/render/opengl33/OpenGL33RendererBackend.cpp)
+add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
+target_include_directories(AeroRenderOpenGL33
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroRenderOpenGL33
+    PUBLIC Aero::Render Aero::RhiOpenGL33)
+target_compile_features(AeroRenderOpenGL33 PUBLIC cxx_std_17)
+set_target_properties(AeroRenderOpenGL33 PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroRenderOpenGL33)
+
 add_library(AeroTextRender ${AERO_LIBRARY_TYPE}
     src/render/TextBlockRenderService.cpp)
 add_library(Aero::TextRender ALIAS AeroTextRender)

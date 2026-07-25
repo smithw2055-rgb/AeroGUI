@@ -1570,8 +1570,7 @@ Base::Result<void> OpenGL33GraphicsBackend::Submit(
         case CommandKind::UploadBuffer: {
             Impl::ResourceRecord* record =
                 impl_->Find(command.resource0);
-            if (impl_->inRenderPass ||
-                record == nullptr || record->buffer == 0U ||
+            if (record == nullptr || record->buffer == 0U ||
                 command.uploadOffset > uploadBytes.Size() ||
                 command.uploadSize >
                     uploadBytes.Size() - command.uploadOffset ||

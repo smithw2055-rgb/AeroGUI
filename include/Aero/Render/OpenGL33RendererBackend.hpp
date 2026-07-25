@@ -1,29 +1,30 @@
 #pragma once
 
 #include <Aero/Render/Renderer.hpp>
-#include <Aero/Rhi/D3D11Backend.hpp>
+#include <Aero/Rhi/OpenGL33Backend.hpp>
+#include <Aero/Rhi/Surface.hpp>
 
 namespace Aero::Render {
 
-using D3D11RenderPlanSubmitStatistics = RendererStatistics;
+using OpenGL33RenderPlanSubmitStatistics = RendererStatistics;
 
-AERO_API RendererShaderSet MakeD3D11RendererShaderSet() noexcept;
+AERO_API RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
-// Thin compatibility adapter from Presentation::IRenderBackend to the shared
-// backend-neutral Renderer. D3D11 owns only surface import/present and command
-// execution; all RenderPlan traversal, state resolution, and batching live in
-// AeroRender.
-class AERO_API D3D11RenderPlanBackend final
+class AERO_API OpenGL33RenderPlanBackend final
     : public Presentation::IRenderBackend {
 public:
-    D3D11RenderPlanBackend(
+    OpenGL33RenderPlanBackend(
         Rhi::RhiDevice& device,
-        Rhi::D3D11SurfacePresenter& presenter,
+        Rhi::OpenGL33GraphicsBackend& graphicsBackend,
+        Rhi::SurfaceSession& surface,
+        Rhi::GlContextGeneration contextGeneration,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~D3D11RenderPlanBackend() noexcept override;
+    ~OpenGL33RenderPlanBackend() noexcept override;
 
-    D3D11RenderPlanBackend(const D3D11RenderPlanBackend&) = delete;
-    D3D11RenderPlanBackend& operator=(const D3D11RenderPlanBackend&) = delete;
+    OpenGL33RenderPlanBackend(
+        const OpenGL33RenderPlanBackend&) = delete;
+    OpenGL33RenderPlanBackend& operator=(
+        const OpenGL33RenderPlanBackend&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -34,7 +35,6 @@ public:
         Rhi::ResourceHandle sampler) noexcept;
     Base::Result<void> UnregisterImage(
         Presentation::RenderImageId image) noexcept;
-
     Base::Result<void> RegisterMesh(
         Presentation::RenderMeshId mesh,
         Rhi::ResourceHandle vertexBuffer,
@@ -43,7 +43,6 @@ public:
         Rhi::IndexType indexType = Rhi::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
         Presentation::RenderMeshId mesh) noexcept;
-
     Base::Result<void> RegisterGlyphRun(
         Presentation::RenderGlyphRunId glyphRun,
         Rhi::ResourceHandle vertexBuffer,
@@ -60,14 +59,16 @@ public:
 
     bool IsInitialized() const noexcept;
     Rhi::FenceValue LastSubmittedFence() const noexcept;
-    D3D11RenderPlanSubmitStatistics
+    OpenGL33RenderPlanSubmitStatistics
     LastSubmitStatistics() const noexcept;
 
 private:
     struct Impl;
 
     Rhi::RhiDevice* device_ = nullptr;
-    Rhi::D3D11SurfacePresenter* presenter_ = nullptr;
+    Rhi::OpenGL33GraphicsBackend* graphicsBackend_ = nullptr;
+    Rhi::SurfaceSession* surface_ = nullptr;
+    Rhi::GlContextGeneration contextGeneration_ = 0U;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
