@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <utility>
 
 namespace Aero::Render {
 
@@ -39,8 +40,6 @@ struct ProductionPassDescriptor final {
     bool offscreen = false;
 };
 
-// Immutable cross-thread packet copied from the UI-thread RenderPlan. No UI
-// object pointer is retained; packets can safely live in the M4 render queue.
 class AERO_API FrozenRenderPacket final {
 public:
     explicit FrozenRenderPacket(
@@ -59,11 +58,9 @@ public:
             &nodes_.Allocator());
         Base::Vector<Presentation::RenderCommand> commands(
             &commands_.Allocator());
-        Base::Result<void> copiedNodes =
-            nodes.TryAssign(plan.Nodes());
+        Base::Result<void> copiedNodes = nodes.TryAssign(plan.Nodes());
         if (!copiedNodes) return copiedNodes.GetStatus();
-        Base::Result<void> copiedCommands =
-            commands.TryAssign(plan.Commands());
+        Base::Result<void> copiedCommands = commands.TryAssign(plan.Commands());
         if (!copiedCommands) return copiedCommands.GetStatus();
         nodes_ = std::move(nodes);
         commands_ = std::move(commands);
