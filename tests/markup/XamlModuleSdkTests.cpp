@@ -303,6 +303,8 @@ bool TestEventRouteLifetimeSnapshot() {
 
 } // namespace
 
+#include "M1M4ClosureTests.inc"
+
 int main() {
     if (!TestSharedModuleCatalogAndManifestIdentity()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
@@ -310,6 +312,7 @@ int main() {
     if (!TestMutationJournalRollbackOrder()) return 1;
     if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;
     if (!TestEventRouteLifetimeSnapshot()) return 1;
+    if (!RunM1M4ClosureTests()) return 1;
     std::puts("Aero XAML module SDK tests passed");
     return 0;
 }
