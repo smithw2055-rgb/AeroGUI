@@ -2,6 +2,8 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <cstdint>
@@ -27,10 +29,8 @@ struct GallerySnapshot final {
     std::uint32_t itemCount = 0U;
     std::uint32_t realizedItemCount = 0U;
     std::uint32_t createdContainerCount = 0U;
-    GalleryLoadMode loadMode =
-        GalleryLoadMode::Runtime;
-    GalleryTheme theme =
-        GalleryTheme::Light;
+    GalleryLoadMode loadMode = GalleryLoadMode::Runtime;
+    GalleryTheme theme = GalleryTheme::Light;
 };
 
 class GalleryRuntime final {
@@ -38,10 +38,8 @@ public:
     GalleryRuntime() noexcept;
     ~GalleryRuntime();
 
-    GalleryRuntime(
-        const GalleryRuntime&) = delete;
-    GalleryRuntime& operator=(
-        const GalleryRuntime&) = delete;
+    GalleryRuntime(const GalleryRuntime&) = delete;
+    GalleryRuntime& operator=(const GalleryRuntime&) = delete;
 
     Base::Result<void> Initialize(
         Base::StringView assetDirectory,
@@ -49,10 +47,8 @@ public:
         GalleryTheme theme) noexcept;
     void Shutdown() noexcept;
 
-    const GallerySnapshot& Snapshot()
-        const noexcept;
-    const Presentation::RenderPlan&
-    Plan() const noexcept;
+    const GallerySnapshot& Snapshot() const noexcept;
+    const Presentation::RenderPlan& Plan() const noexcept;
 
 private:
     struct Impl;
