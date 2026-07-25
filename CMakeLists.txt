@@ -411,6 +411,24 @@ set_target_properties(AeroRhi PROPERTIES
 
 aero_apply_compiler_options(AeroRhi)
 
+add_library(AeroRhiOpenGL33 ${AERO_LIBRARY_TYPE}
+    src/rhi/opengl33/OpenGL33Context.cpp
+    src/rhi/opengl33/OpenGL33StateCache.cpp)
+add_library(Aero::RhiOpenGL33 ALIAS AeroRhiOpenGL33)
+target_include_directories(AeroRhiOpenGL33
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroRhiOpenGL33 PUBLIC Aero::Rhi)
+target_compile_features(AeroRhiOpenGL33 PUBLIC cxx_std_17)
+set_target_properties(AeroRhiOpenGL33 PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroRhiOpenGL33)
+
 add_library(AeroRender ${AERO_LIBRARY_TYPE}
     src/render/Renderer.cpp)
 add_library(Aero::Render ALIAS AeroRender)

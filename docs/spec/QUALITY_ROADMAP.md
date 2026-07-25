@@ -11,8 +11,10 @@
 - M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v3；
 - Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
-- M3.5 的 provider-neutral `AeroText` 合同层已完成；FreeType/HarfBuzz adapter、glyph atlas、TextLayout 算法与 TextBlock 接入仍未完成；
-- 交互控件、Items/virtualization、OpenGL 3.3、TextBox/IME、ControlGallery 和质量门禁仍按本路线图验收，不因框架代码存在而提前标记完成。
+- M3.5 文本垂直切片已完成 provider-neutral `AeroText` 合同、FreeType/HarfBuzz adapter、glyph atlas、TextLayout 与 atlas-backed TextBlock/D3D11 接入；完整 Unicode line breaking/bidi 仍是后续增量；
+- Command、统一交互状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton 与 Generic/Light/Dark 主题已完成并有 XAML/交互回归；
+- ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox 与 recycling VirtualizingStackPanel 基线已完成，10k realization-window benchmark 已进入 CTest；
+- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、capability/limits 查询与 `HostReset`/`PreserveAndRestore` state cache 已完成；实际 OpenGL RHI、WGL/GLX、共享像素 conformance、TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
 
 ## 1. Diagnostics
 
