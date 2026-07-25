@@ -41,12 +41,6 @@ public:
         const ImeCandidateWindow& value) noexcept = 0;
     virtual Base::Result<void>
     CancelNativeComposition() noexcept = 0;
-
-    // Most hosts let AeroGUI render the caret. A native host can opt in so the
-    // TextBox suppresses its retained caret while composition is active.
-    virtual bool UsesNativeCaret() const noexcept {
-        return false;
-    }
 };
 
 // Win32 Imm32 adapter. Public signatures keep HWND, WPARAM, LPARAM and WNDPROC
@@ -84,9 +78,6 @@ public:
         const ImeCandidateWindow& value) noexcept override;
     Base::Result<void>
     CancelNativeComposition() noexcept override;
-    bool UsesNativeCaret() const noexcept override {
-        return true;
-    }
 
 private:
     friend std::intptr_t DispatchWin32ImeWindowMessage(
