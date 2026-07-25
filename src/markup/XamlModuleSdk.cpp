@@ -98,3 +98,7 @@ Base::HashCode XamlModuleCatalog::ManifestHash() const noexcept {
 }
 
 } // namespace Aero::Markup
+
+// Kept as an implementation include so the new public runtime host is built by
+// the existing AeroMarkup target without changing downstream target topology.
+#include "RuntimeHost.inc"
