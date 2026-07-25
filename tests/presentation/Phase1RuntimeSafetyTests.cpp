@@ -31,7 +31,10 @@ using namespace Aero::Presentation;
 class FailingAllocator final : public IAllocator {
 public:
     void* Allocate(const AllocationRequest& request) noexcept override {
-        if (remaining_ == 0U) return nullptr;
+        if (remaining_ == 0U) {
+            remaining_ = UINT32_MAX;
+            return nullptr;
+        }
         if (remaining_ != UINT32_MAX) --remaining_;
         void* memory = upstream_.Allocate(request);
         if (memory != nullptr) ++active_;
@@ -145,7 +148,6 @@ bool TestDetachBeforeDeferredLayoutAndRenderFlush() {
     CHECK(runtime.EffectiveValues()->DetachObject(*child));
     child.Reset();
 
-    // Lifecycle delivery intentionally owns managed nodes until its phase.
     CHECK(!weak.Expired());
     Result<RuntimeFrameResult> frame = runtime.RunFrame();
     CHECK(frame);
