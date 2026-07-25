@@ -17,6 +17,7 @@ XamlVisualTreeHost::XamlVisualTreeHost(
     Presentation::ObjectTree& tree, Presentation::LayoutManager& layout,
     Core::EffectiveValueEngine& values, Presentation::RenderManager* renderer) noexcept
     : tree_(&tree), layout_(&layout), values_(&values), renderer_(renderer),
+      mounts_(tree, &layout, renderer), rootMount_(),
       types_(), singles_(), collections_(), edges_(), nodes_() {}
 
 XamlVisualTreeHost::~XamlVisualTreeHost() noexcept { AERO_ASSERT(!mounted_); }
@@ -272,98 +273,75 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
 }
 
 Base::Result<void> XamlVisualTreeHost::AttachEdge(Edge& edge) noexcept {
-    Base::Result<void> logical = tree_->AttachLogical(*edge.parent, *edge.child);
-    if (!logical) return logical.GetStatus();
-    edge.logicalAttached = true;
-    Base::Result<void> visual = tree_->AttachVisual(*edge.parent, *edge.child);
-    if (!visual) { DetachEdge(edge); return visual.GetStatus(); }
-    edge.visualAttached = true;
-    Base::Result<void> layout = layout_->Attach(*edge.parent, *edge.child);
-    if (!layout) { DetachEdge(edge); return layout.GetStatus(); }
-    edge.layoutAttached = true;
+    Base::Result<Presentation::MountEdgeState> mounted =
+        mounts_.Attach(*edge.parent, *edge.child);
+    if (!mounted) return mounted.GetStatus();
+    edge.mount = std::move(mounted).Value();
+
     if (edge.configureCollectionChild != nullptr) {
-        Base::Result<void> configured = edge.configureCollectionChild(
-            *edge.parentOwner.Get(), *edge.parent, *edge.child,
-            edge.contentContext);
-        if (!configured) { DetachEdge(edge); return configured.GetStatus(); }
-    }
-    if (renderer_ != nullptr) {
-        Presentation::FrameworkElement* parentRender = ResolveFrameworkElement(
-            *edge.parentOwner.Get(), edge.parent->RuntimeType());
-        Presentation::FrameworkElement* childRender = ResolveFrameworkElement(
-            *edge.childOwner.Get(), edge.child->RuntimeType());
-        if (parentRender != nullptr && childRender != nullptr) {
-            Base::Result<void> render = renderer_->Attach(*parentRender, *childRender);
-            if (!render) { DetachEdge(edge); return render.GetStatus(); }
-            edge.renderAttached = true;
+        Base::Result<void> configured =
+            edge.configureCollectionChild(
+                *edge.parentOwner.Get(),
+                *edge.parent,
+                *edge.child,
+                edge.contentContext);
+        if (!configured) {
+            (void)mounts_.Detach(edge.mount);
+            return configured.GetStatus();
         }
     }
     return {};
 }
 
 void XamlVisualTreeHost::DetachEdge(Edge& edge) noexcept {
-    if (edge.renderAttached) {
-        Presentation::FrameworkElement* parent = ResolveFrameworkElement(
-            *edge.parentOwner.Get(), edge.parent->RuntimeType());
-        Presentation::FrameworkElement* child = ResolveFrameworkElement(
-            *edge.childOwner.Get(), edge.child->RuntimeType());
-        if (parent != nullptr && child != nullptr)
-            (void)renderer_->Detach(*parent, *child);
-        edge.renderAttached = false;
-    }
-    if (edge.layoutAttached) {
-        (void)layout_->Detach(*edge.parent, *edge.child);
-        edge.layoutAttached = false;
-    }
-    if (edge.visualAttached) {
-        (void)tree_->DetachVisual(*edge.parent, *edge.child);
-        edge.visualAttached = false;
-    }
-    if (edge.logicalAttached) {
-        (void)tree_->DetachLogical(*edge.parent, *edge.child);
-        edge.logicalAttached = false;
-    }
+    (void)mounts_.Detach(edge.mount);
 }
 
 Base::Result<void> XamlVisualTreeHost::Mount(
-    Base::Object& root, Core::TypeId rootType,
+    Base::Object& root,
+    Core::TypeId rootType,
     Presentation::Size availableSize) noexcept {
     if (mounted_ || schema_ == nullptr ||
         !Presentation::IsValidLayoutSize(availableSize)) {
         return InvalidVisualTreeState(
             "XAML visual tree cannot mount in its current state");
     }
-    Base::Result<Presentation::Visual*> rootNode = ResolveVisual(root, rootType);
+    Base::Result<Presentation::Visual*> rootNode =
+        ResolveVisual(root, rootType);
     if (!rootNode) return rootNode.GetStatus();
-    Base::Result<Presentation::UIElement*> rootLayout = ResolveUIElement(root, rootType);
+    Base::Result<Presentation::UIElement*> rootLayout =
+        ResolveUIElement(root, rootType);
     if (!rootLayout) return rootLayout.GetStatus();
     Base::Result<void> added = AddNode(*rootNode.Value());
     if (!added) return added.GetStatus();
+
     rootNode_ = rootNode.Value();
     rootLayout_ = rootLayout.Value();
     rootRender_ = ResolveFrameworkElement(root, rootType);
-    Base::Result<void> treeRoot = tree_->SetRoot(rootNode_);
-    if (!treeRoot) return treeRoot.GetStatus();
-    Base::Result<void> layoutRoot = layout_->SetRoot(rootLayout_, availableSize);
-    if (!layoutRoot) {
-        (void)tree_->SetRoot(nullptr);
-        return layoutRoot.GetStatus();
+
+    Base::Result<Presentation::MountRootState> rootMounted =
+        mounts_.AttachRoot(*rootNode_, availableSize);
+    if (!rootMounted) {
+        rootNode_ = nullptr;
+        rootLayout_ = nullptr;
+        rootRender_ = nullptr;
+        return rootMounted.GetStatus();
     }
-    if (renderer_ != nullptr && rootRender_ != nullptr) {
-        Base::Result<void> renderRoot = renderer_->SetRoot(rootRender_);
-        if (!renderRoot) {
-            (void)layout_->SetRoot(nullptr, {});
-            (void)tree_->SetRoot(nullptr);
-            return renderRoot.GetStatus();
-        }
-    }
+    rootMount_ = std::move(rootMounted).Value();
+
     std::uint32_t attached = 0U;
     while (attached < edges_.Size()) {
         bool progressed = false;
         for (Edge& edge : edges_) {
-            if (edge.logicalAttached || edge.parent->OwningTree() != tree_) continue;
+            if (edge.mount.logicalAttached ||
+                edge.parent->OwningTree() != tree_) {
+                continue;
+            }
             Base::Result<void> result = AttachEdge(edge);
-            if (!result) { (void)Unmount(); return result.GetStatus(); }
+            if (!result) {
+                (void)Unmount();
+                return result.GetStatus();
+            }
             ++attached;
             progressed = true;
         }
@@ -397,16 +375,20 @@ void XamlVisualTreeHost::ReleaseStagedContent() noexcept {
 
 Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     if (!mounted_ && rootNode_ == nullptr) return {};
-    for (std::uint32_t index = edges_.Size(); index > 0U; --index)
-        DetachEdge(edges_[index - 1U]);
-    if (renderer_ != nullptr && rootRender_ != nullptr)
-        (void)renderer_->SetRoot(nullptr);
-    if (rootLayout_ != nullptr) (void)layout_->SetRoot(nullptr, {});
-    // Edge teardown is deliberately best-effort so shutdown can continue. A
-    // final DetachNode pass removes any residual logical/visual edge before
-    // ownership references are released, preventing partially detached trees.
-    if (rootNode_ != nullptr && tree_->Root() == rootNode_)
-        (void)tree_->DetachNode(*rootNode_);
+
+    Base::Status firstError;
+    for (std::uint32_t index = edges_.Size(); index > 0U; --index) {
+        Base::Result<void> detached =
+            mounts_.Detach(edges_[index - 1U].mount);
+        if (!detached && firstError.IsOk()) {
+            firstError = detached.GetStatus();
+        }
+    }
+    Base::Result<void> rootDetached = mounts_.DetachRoot(rootMount_);
+    if (!rootDetached && firstError.IsOk()) {
+        firstError = rootDetached.GetStatus();
+    }
+
     for (Presentation::Visual* node : nodes_) {
         if (node != nullptr) (void)values_->DetachObject(*node);
     }
@@ -416,8 +398,11 @@ Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     rootNode_ = nullptr;
     rootLayout_ = nullptr;
     rootRender_ = nullptr;
+    rootMount_ = {};
     mounted_ = false;
-    return {};
+    return firstError.IsOk()
+        ? Base::Result<void>()
+        : Base::Result<void>(firstError);
 }
 
 Base::Result<void> XamlVisualTreeHost::DiscardStaged() noexcept {
