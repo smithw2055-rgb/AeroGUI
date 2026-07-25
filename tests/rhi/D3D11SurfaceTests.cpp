@@ -1656,7 +1656,7 @@ bool TestOwnedBorrowedResizeAndPresentation() {
     postLossDescriptor.type = ResourceType::Buffer;
     postLossDescriptor.buffer.sizeBytes = 16U;
     postLossDescriptor.buffer.usage = BufferUsage::Upload;
-    CHECK(!device.CreateResource(postLossDescriptor));
+    CHECK(!device.CreateBuffer(postLossDescriptor.buffer));
     terminalSurface.Shutdown();
 
     surface.Shutdown();
