@@ -95,7 +95,8 @@ target_compile_definitions(AeroBase
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
 
 add_library(AeroPlatform ${AERO_LIBRARY_TYPE}
-    src/platform/Clipboard.cpp)
+    src/platform/Clipboard.cpp
+    src/platform/Ime.cpp)
 
 add_library(Aero::Platform ALIAS AeroPlatform)
 
@@ -112,6 +113,9 @@ set_target_properties(AeroPlatform PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroPlatform)
+if(WIN32)
+    target_link_libraries(AeroPlatform PRIVATE imm32)
+endif()
 
 add_library(AeroText ${AERO_LIBRARY_TYPE}
     src/text/EditableText.cpp

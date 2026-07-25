@@ -3,6 +3,7 @@
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/TextBlockLayoutService.hpp>
 #include <Aero/Platform/Clipboard.hpp>
+#include <Aero/Platform/Ime.hpp>
 #include <Aero/Text/EditableText.hpp>
 
 namespace Aero::Controls {
@@ -61,7 +62,8 @@ class TextBoxInteractionManager;
 
 class AERO_API TextBox final
     : public FrameworkElement,
-      public IScrollInfo {
+      public IScrollInfo,
+      public Platform::ITextCompositionClient {
     AERO_TYPED_META(TextBox, FrameworkElement)
 public:
     TextBox() noexcept;
@@ -89,12 +91,8 @@ public:
     Base::Result<void> SetCaretBrush(
         Color value) noexcept;
 
-    Text::TextSelection Selection() const noexcept {
-        return model_.Selection();
-    }
-    std::uint32_t Caret() const noexcept {
-        return model_.Caret();
-    }
+    Text::TextSelection Selection() const noexcept;
+    std::uint32_t Caret() const noexcept;
     Base::Result<void> SetSelection(
         std::uint32_t anchor,
         std::uint32_t caret) noexcept;
@@ -114,6 +112,27 @@ public:
     }
     Base::Result<void> AttachScrollViewer(
         ScrollViewer* viewer) noexcept;
+    Base::Result<void> SetInputMethodHost(
+        Platform::ITextInputMethodHost* host) noexcept;
+    Platform::ITextInputMethodHost*
+    InputMethodHost() const noexcept {
+        return inputMethodHost_;
+    }
+    bool IsComposing() const noexcept {
+        return compositionActive_;
+    }
+    Base::StringView CompositionText() const noexcept {
+        return compositionText_.View();
+    }
+
+    Base::Result<void>
+    BeginComposition() noexcept override;
+    Base::Result<void> UpdateComposition(
+        Base::StringView text) noexcept override;
+    Base::Result<void> CommitComposition(
+        Base::StringView text) noexcept override;
+    Base::Result<void>
+    CancelComposition() noexcept override;
 
     Rect CaretRectangle() const noexcept;
     std::uint32_t HitTestText(
@@ -178,17 +197,23 @@ private:
     };
 
     Text::EditableTextModel model_;
+    Text::EditableTextModel compositionModel_;
     ITextBlockLayoutService* layoutService_ = nullptr;
     ITextDisplayPolicy* displayPolicy_ = nullptr;
     PlainTextDisplayPolicy plainPolicy_;
     Base::String displayText_;
+    Base::String compositionText_;
     Base::Vector<RenderGlyphRunId> glyphRuns_;
     Base::Vector<CaretStop> caretStops_;
     Size textSize_;
     ScrollData scroll_;
     ScrollViewer* scrollViewer_ = nullptr;
+    Platform::ITextInputMethodHost*
+        inputMethodHost_ = nullptr;
+    Text::TextSelection compositionSelection_;
     bool serviceOwnsGlyphRuns_ = false;
     bool updatingTextProperty_ = false;
+    bool compositionActive_ = false;
 
     Base::Result<void> SynchronizeModel() noexcept;
     Base::Result<void> CommitModelText() noexcept;
@@ -217,6 +242,12 @@ private:
         Base::String& output) const noexcept;
     void ReleaseGlyphRuns() noexcept;
     double LineHeight() const noexcept;
+    const Text::EditableTextModel&
+    ActiveModel() const noexcept;
+    Base::Result<void>
+    UpdateCandidateWindow() noexcept;
+    Base::Result<void>
+    CancelCompositionForFocusLoss() noexcept;
 };
 
 class AERO_API TextBoxInteractionManager final {
@@ -243,7 +274,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    [[maybe_unused]] RoutedEventManager* events_ = nullptr;
     PointerInputManager* pointer_ = nullptr;
     FocusManager* focus_ = nullptr;
     Platform::IClipboard* clipboard_ = nullptr;

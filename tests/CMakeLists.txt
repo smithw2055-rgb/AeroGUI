@@ -27,6 +27,18 @@ set_target_properties(AeroClipboardTests PROPERTIES
 aero_apply_compiler_options(AeroClipboardTests)
 add_test(NAME AeroClipboardTests COMMAND AeroClipboardTests)
 
+add_executable(AeroImeTests
+    platform/ImeTests.cpp)
+target_link_libraries(AeroImeTests
+    PRIVATE Aero::Platform)
+target_compile_features(AeroImeTests PRIVATE cxx_std_17)
+set_target_properties(AeroImeTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroImeTests)
+add_test(NAME AeroImeTests COMMAND AeroImeTests)
+
 add_executable(AeroTextProviderTests text/TextProviderTests.cpp)
 target_link_libraries(AeroTextProviderTests PRIVATE Aero::Text)
 target_compile_features(AeroTextProviderTests PRIVATE cxx_std_17)

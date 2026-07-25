@@ -53,6 +53,19 @@ Point ToLocalPoint(
     return point;
 }
 
+Rect ToRootRect(
+    const UIElement& element,
+    Rect rect) noexcept {
+    const UIElement* current = &element;
+    while (current != nullptr) {
+        const Rect slot = current->LayoutSlot();
+        rect.x += slot.x;
+        rect.y += slot.y;
+        current = current->LayoutParent();
+    }
+    return rect;
+}
+
 } // namespace
 
 Base::Result<void>
@@ -149,12 +162,34 @@ TextBox::TextBox() noexcept
       displayPolicy_(&plainPolicy_) {}
 
 TextBox::~TextBox() {
+    if (inputMethodHost_ != nullptr) {
+        static_cast<void>(
+            inputMethodHost_->
+                SetClient(nullptr));
+        inputMethodHost_ = nullptr;
+    }
     if (scrollViewer_ != nullptr &&
         scrollViewer_->ContentScrollInfo() == this) {
         static_cast<void>(
             scrollViewer_->SetContentScrollInfo(nullptr));
     }
     ReleaseGlyphRuns();
+}
+
+const Text::EditableTextModel&
+TextBox::ActiveModel() const noexcept {
+    return compositionActive_
+        ? compositionModel_
+        : model_;
+}
+
+Text::TextSelection
+TextBox::Selection() const noexcept {
+    return ActiveModel().Selection();
+}
+
+std::uint32_t TextBox::Caret() const noexcept {
+    return ActiveModel().Caret();
 }
 
 Base::StringView TextBox::Text() const noexcept {
@@ -201,6 +236,13 @@ bool TextBox::IsReadOnly() const noexcept {
 
 Base::Result<void> TextBox::SetReadOnly(
     bool value) noexcept {
+    if (value && compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> changed = SetValue(
         IsReadOnlyProperty,
         Value::FromBoolean(
@@ -222,6 +264,13 @@ std::uint32_t TextBox::MaximumLength() const noexcept {
 
 Base::Result<void> TextBox::SetMaximumLength(
     std::uint32_t value) noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> limited =
         model_.SetMaximumLength(value);
     if (!limited) {
@@ -326,6 +375,13 @@ Base::Result<void> TextBox::SetCaretBrush(
 Base::Result<void> TextBox::SetSelection(
     std::uint32_t anchor,
     std::uint32_t caret) noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> changed =
         model_.SetSelection(anchor, caret);
     if (!changed) {
@@ -340,6 +396,13 @@ Base::Result<void> TextBox::SetSelection(
 }
 
 Base::Result<void> TextBox::SelectAll() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> selected =
         model_.SelectAll();
     if (!selected) {
@@ -354,6 +417,13 @@ Base::Result<void> TextBox::SelectAll() noexcept {
 }
 
 Base::Result<void> TextBox::Undo() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> undone = model_.Undo();
     if (!undone) {
         return undone;
@@ -362,6 +432,13 @@ Base::Result<void> TextBox::Undo() noexcept {
 }
 
 Base::Result<void> TextBox::Redo() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> redone = model_.Redo();
     if (!redone) {
         return redone;
@@ -438,7 +515,239 @@ Base::Result<void> TextBox::AttachScrollViewer(
     return viewer->SetCanContentScroll(true);
 }
 
+Base::Result<void> TextBox::SetInputMethodHost(
+    Platform::ITextInputMethodHost* host) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) {
+        return access;
+    }
+    if (host == inputMethodHost_) {
+        return {};
+    }
+    if (inputMethodHost_ != nullptr) {
+        Base::Result<void> detached =
+            inputMethodHost_->
+                SetClient(nullptr);
+        if (!detached) {
+            return detached;
+        }
+    }
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelComposition();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
+    inputMethodHost_ = nullptr;
+    if (host == nullptr) {
+        return {};
+    }
+    Base::Result<void> attached =
+        host->SetClient(this);
+    if (!attached) {
+        return attached;
+    }
+    inputMethodHost_ = host;
+    return UpdateCandidateWindow();
+}
+
+Base::Result<void>
+TextBox::BeginComposition() noexcept {
+    if (compositionActive_) {
+        return {};
+    }
+    if (IsReadOnly() || !IsEnabled()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            "TextBox cannot begin composition while disabled or read-only");
+    }
+    Base::String snapshot;
+    Base::Result<void> copied =
+        model_.Snapshot(snapshot);
+    if (!copied) {
+        return copied;
+    }
+    Base::Result<void> limited =
+        compositionModel_.SetMaximumLength(
+            model_.MaximumLength());
+    if (!limited) {
+        return limited;
+    }
+    Base::Result<void> text =
+        compositionModel_.SetText(
+            snapshot.View());
+    if (!text) {
+        return text;
+    }
+    compositionSelection_ =
+        model_.Selection();
+    Base::Result<void> selected =
+        compositionModel_.SetSelection(
+            compositionSelection_.anchor,
+            compositionSelection_.caret);
+    if (!selected) {
+        return selected;
+    }
+    compositionText_.Clear();
+    compositionActive_ = true;
+    Base::Result<void> measure =
+        InvalidateMeasure();
+    if (!measure) {
+        compositionActive_ = false;
+        return measure;
+    }
+    Base::Result<void> render =
+        InvalidateRender();
+    if (!render) {
+        compositionActive_ = false;
+        return render;
+    }
+    return UpdateCandidateWindow();
+}
+
+Base::Result<void> TextBox::UpdateComposition(
+    Base::StringView text) noexcept {
+    if (!compositionActive_) {
+        Base::Result<void> begun =
+            BeginComposition();
+        if (!begun) {
+            return begun;
+        }
+    }
+    Base::String filtered;
+    Base::Result<void> sanitized =
+        SanitizeInput(text, filtered);
+    if (!sanitized) {
+        return sanitized;
+    }
+    Base::String snapshot;
+    Base::Result<void> copied =
+        model_.Snapshot(snapshot);
+    if (!copied) {
+        return copied;
+    }
+    Base::Result<void> reset =
+        compositionModel_.SetText(
+            snapshot.View());
+    if (!reset) {
+        return reset;
+    }
+    reset = compositionModel_.SetSelection(
+        compositionSelection_.anchor,
+        compositionSelection_.caret);
+    if (!reset) {
+        return reset;
+    }
+    reset = compositionModel_.ReplaceSelection(
+        filtered.View());
+    if (!reset) {
+        return reset;
+    }
+    Base::Result<void> stored =
+        compositionText_.TryAssign(
+            filtered.View());
+    if (!stored) {
+        return stored;
+    }
+    Base::Result<void> measure =
+        InvalidateMeasure();
+    if (!measure) {
+        return measure;
+    }
+    Base::Result<void> render =
+        InvalidateRender();
+    if (!render) {
+        return render;
+    }
+    return UpdateCandidateWindow();
+}
+
+Base::Result<void> TextBox::CommitComposition(
+    Base::StringView text) noexcept {
+    if (!compositionActive_) {
+        Base::Result<void> begun =
+            BeginComposition();
+        if (!begun) {
+            return begun;
+        }
+    }
+    Base::String filtered;
+    Base::Result<void> sanitized =
+        SanitizeInput(text, filtered);
+    if (!sanitized) {
+        return sanitized;
+    }
+    if (filtered.Empty() && !text.Empty()) {
+        return CancelComposition();
+    }
+    Base::Result<void> selected =
+        model_.SetSelection(
+            compositionSelection_.anchor,
+            compositionSelection_.caret);
+    if (!selected) {
+        return selected;
+    }
+    Base::Result<void> replaced =
+        model_.ReplaceSelection(
+            filtered.View());
+    if (!replaced) {
+        return replaced;
+    }
+    compositionActive_ = false;
+    compositionText_.Clear();
+    Base::Result<void> committed =
+        CommitModelText();
+    if (!committed) {
+        return committed;
+    }
+    return UpdateCandidateWindow();
+}
+
+Base::Result<void>
+TextBox::CancelComposition() noexcept {
+    if (!compositionActive_) {
+        return {};
+    }
+    compositionActive_ = false;
+    compositionText_.Clear();
+    Base::Result<void> measure =
+        InvalidateMeasure();
+    if (!measure) {
+        return measure;
+    }
+    Base::Result<void> render =
+        InvalidateRender();
+    if (!render) {
+        return render;
+    }
+    return EnsureCaretVisible();
+}
+
+Base::Result<void>
+TextBox::CancelCompositionForFocusLoss() noexcept {
+    if (!compositionActive_) {
+        return {};
+    }
+    if (inputMethodHost_ != nullptr) {
+        Base::Result<void> native =
+            inputMethodHost_->
+                CancelNativeComposition();
+        if (!native) {
+            return native;
+        }
+    }
+    return CancelComposition();
+}
+
 Base::Result<void> TextBox::SynchronizeModel() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> maximum =
         model_.SetMaximumLength(
             MaximumLength());
@@ -532,6 +841,13 @@ Base::Result<void> TextBox::SanitizeInput(
 
 Base::Result<void> TextBox::ReplaceSelection(
     Base::StringView text) noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::String filtered;
     Base::Result<void> sanitized =
         SanitizeInput(text, filtered);
@@ -551,6 +867,13 @@ Base::Result<void> TextBox::ReplaceSelection(
 }
 
 Base::Result<void> TextBox::DeleteBackward() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> removed =
         model_.DeleteBackward();
     if (!removed) {
@@ -560,6 +883,13 @@ Base::Result<void> TextBox::DeleteBackward() noexcept {
 }
 
 Base::Result<void> TextBox::DeleteForward() noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     Base::Result<void> removed =
         model_.DeleteForward();
     if (!removed) {
@@ -622,6 +952,13 @@ Base::Result<void> TextBox::CopySelection(
 
 Base::Result<void> TextBox::CutSelection(
     Platform::IClipboard& clipboard) noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     if (!displayPolicy_->AllowsCut()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
@@ -652,6 +989,13 @@ Base::Result<void> TextBox::CutSelection(
 
 Base::Result<void> TextBox::Paste(
     Platform::IClipboard& clipboard) noexcept {
+    if (compositionActive_) {
+        Base::Result<void> cancelled =
+            CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return cancelled;
+        }
+    }
     if (IsReadOnly()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
@@ -742,7 +1086,7 @@ Rect TextBox::CaretRectangle() const noexcept {
     }
     const std::uint32_t index =
         std::min(
-            model_.Caret(),
+            ActiveModel().Caret(),
             caretStops_.Size() - 1U);
     const CaretStop& stop =
         caretStops_[index];
@@ -789,8 +1133,10 @@ std::uint32_t TextBox::HitTestText(
 Base::Result<void>
 TextBox::RebuildCaretStops() noexcept {
     caretStops_.Clear();
+    const Text::EditableTextModel&
+        active = ActiveModel();
     const std::uint32_t graphemes =
-        model_.GraphemeCount();
+        active.GraphemeCount();
     Base::Result<void> capacity =
         caretStops_.TryReserve(
             graphemes + 1U);
@@ -798,12 +1144,12 @@ TextBox::RebuildCaretStops() noexcept {
         return capacity;
     }
     const std::uint32_t lines =
-        std::max(1U, model_.LineCount());
+        std::max(1U, active.LineCount());
     std::uint32_t maximumLineLength = 0U;
     for (std::uint32_t line = 0U;
          line < lines; ++line) {
         Base::Result<Text::TextRange> range =
-            model_.LineRange(line);
+            active.LineRange(line);
         if (!range) {
             return range.GetStatus();
         }
@@ -836,7 +1182,7 @@ TextBox::RebuildCaretStops() noexcept {
     for (std::uint32_t line = 0U;
          line < lines; ++line) {
         Base::Result<Text::TextRange> range =
-            model_.LineRange(line);
+            active.LineRange(line);
         if (!range) {
             return range.GetStatus();
         }
@@ -871,7 +1217,7 @@ Base::Result<Size> TextBox::MeasureOverride(
     Size availableSize) noexcept {
     Base::Result<void> display =
         displayPolicy_->BuildDisplayText(
-            model_, displayText_);
+            ActiveModel(), displayText_);
     if (!display) {
         return display.GetStatus();
     }
@@ -914,11 +1260,13 @@ Base::Result<Size> TextBox::MeasureOverride(
         textSize_ = result.desiredSize;
     } else {
         std::uint32_t maximumLine = 0U;
+        const Text::EditableTextModel&
+            active = ActiveModel();
         for (std::uint32_t line = 0U;
-             line < model_.LineCount();
+             line < active.LineCount();
              ++line) {
             Base::Result<Text::TextRange> range =
-                model_.LineRange(line);
+                active.LineRange(line);
             if (!range) {
                 return range.GetStatus();
             }
@@ -931,7 +1279,7 @@ Base::Result<Size> TextBox::MeasureOverride(
                 DefaultAdvance /
                 std::max(1.0, DpiScale()),
             static_cast<double>(
-                model_.LineCount()) *
+                active.LineCount()) *
                 DefaultLineHeight /
                 std::max(1.0, DpiScale())};
     }
@@ -956,6 +1304,8 @@ Base::Result<Size> TextBox::MeasureOverride(
     if (!visible) {
         return visible.GetStatus();
     }
+    static_cast<void>(
+        UpdateCandidateWindow());
     const double minimumWidth =
         DefaultAdvance /
         std::max(1.0, DpiScale());
@@ -975,6 +1325,13 @@ Base::Result<Size> TextBox::ArrangeOverride(
     if (!viewport) {
         return viewport.GetStatus();
     }
+    Base::Result<void> visible =
+        EnsureCaretVisible();
+    if (!visible) {
+        return visible.GetStatus();
+    }
+    static_cast<void>(
+        UpdateCandidateWindow());
     return finalSize;
 }
 
@@ -997,7 +1354,7 @@ Base::Result<void> TextBox::BuildDisplayList(
         return transform;
     }
     const Text::TextSelection selection =
-        model_.Selection();
+        ActiveModel().Selection();
     if (!selection.Empty() &&
         !caretStops_.Empty()) {
         const std::uint32_t begin =
@@ -1231,6 +1588,20 @@ TextBox::EnsureCaretVisible() noexcept {
     return {};
 }
 
+Base::Result<void>
+TextBox::UpdateCandidateWindow() noexcept {
+    if (inputMethodHost_ == nullptr ||
+        !compositionActive_) {
+        return {};
+    }
+    Platform::ImeCandidateWindow candidate;
+    candidate.caret =
+        ToRootRect(*this, CaretRectangle());
+    candidate.dpiScale = DpiScale();
+    return inputMethodHost_->
+        SetCandidateWindow(candidate);
+}
+
 TextBoxInteractionManager::
 TextBoxInteractionManager(
     ObjectTree& tree,
@@ -1410,6 +1781,12 @@ TextBoxInteractionManager::Attach(
                 TextBox::MaximumLengthProperty,
                 propertyChangedHandler_);
     }
+    if (result) {
+        result =
+            textBox.TryAddValueChangedHandler(
+                UIElement::IsEnabledProperty,
+                propertyChangedHandler_);
+    }
     if (!result) {
         const Base::Status failure =
             result.GetStatus();
@@ -1464,6 +1841,10 @@ TextBoxInteractionManager::Detach(
     static_cast<void>(
         textBox.RemoveValueChangedHandler(
             TextBox::MaximumLengthProperty,
+            propertyChangedHandler_));
+    static_cast<void>(
+        textBox.RemoveValueChangedHandler(
+            UIElement::IsEnabledProperty,
             propertyChangedHandler_));
     RemoveAt(index);
     if (records_.Empty() &&
@@ -1655,6 +2036,14 @@ void TextBoxInteractionManager::OnTextInput(
         textBox.IsReadOnly()) {
         return;
     }
+    if (textBox.IsComposing()) {
+        Base::Result<void> cancelled =
+            textBox.
+                CancelCompositionForFocusLoss();
+        if (!cancelled) {
+            return;
+        }
+    }
     Base::Result<void> inserted =
         textBox.ReplaceSelection(args.text);
     if (inserted) {
@@ -1670,6 +2059,9 @@ void TextBoxInteractionManager::OnFocusChanged(
     if (args.newFocus == &textBox) {
         return;
     }
+    static_cast<void>(
+        textBox.
+            CancelCompositionForFocusLoss());
     const std::uint32_t index =
         Find(textBox);
     if (index == UINT32_MAX ||
@@ -1694,16 +2086,30 @@ void TextBoxInteractionManager::OnPropertyChanged(
             textBox.SynchronizeModel());
     } else if (args.property ==
             TextBox::IsReadOnlyProperty) {
+        if (args.newValue.AsBoolean()) {
+            static_cast<void>(
+                textBox.
+                    CancelCompositionForFocusLoss());
+        }
         static_cast<void>(
             textBox.model_.SetReadOnly(
                 args.newValue.AsBoolean()));
     } else if (args.property ==
             TextBox::MaximumLengthProperty) {
         static_cast<void>(
+            textBox.
+                CancelCompositionForFocusLoss());
+        static_cast<void>(
             textBox.model_.SetMaximumLength(
                 static_cast<std::uint32_t>(
                     args.newValue.
                         AsUnsignedInteger())));
+    } else if (args.property ==
+                   UIElement::IsEnabledProperty &&
+               !args.newValue.AsBoolean()) {
+        static_cast<void>(
+            textBox.
+                CancelCompositionForFocusLoss());
     }
 }
 

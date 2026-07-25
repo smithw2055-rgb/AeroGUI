@@ -75,6 +75,36 @@ struct Fixture final {
     }
 };
 
+class TestInputMethodHost final
+    : public ITextInputMethodHost {
+public:
+    Result<void> SetClient(
+        ITextCompositionClient* value) noexcept override {
+        client = value;
+        ++clientChangeCount;
+        return {};
+    }
+
+    Result<void> SetCandidateWindow(
+        const ImeCandidateWindow& value) noexcept override {
+        candidate = value;
+        ++candidateCount;
+        return {};
+    }
+
+    Result<void>
+    CancelNativeComposition() noexcept override {
+        ++cancelCount;
+        return {};
+    }
+
+    ITextCompositionClient* client = nullptr;
+    ImeCandidateWindow candidate;
+    std::uint32_t clientChangeCount = 0U;
+    std::uint32_t candidateCount = 0U;
+    std::uint32_t cancelCount = 0U;
+};
+
 bool DispatchKey(
     KeyboardInputManager& keyboard,
     std::uint32_t key,
@@ -391,6 +421,144 @@ bool TestMaximumLengthAndMetadata() {
     return true;
 }
 
+bool TestImePreviewCommitCancelAndLifetime() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    TextBox textBox;
+    TextBox source;
+    CHECK(textBox.SetWidth(120.0));
+    CHECK(textBox.SetHeight(28.0));
+    CHECK(textBox.SetLayoutRounding(
+        true, 2.0));
+    CHECK(source.SetText(StringView("base")));
+
+    BindingManager bindings(fixture.dispatcher);
+    CHECK(bindings.Initialize());
+    BindingDescriptor binding;
+    binding.source = &source;
+    binding.sourceProperty = TextBox::TextProperty;
+    binding.target = &textBox;
+    binding.targetProperty = TextBox::TextProperty;
+    binding.mode = BindingMode::TwoWay;
+    Result<BindingHandle> bindingHandle =
+        bindings.Attach(binding);
+    CHECK(bindingHandle);
+    CHECK(bindings.Flush().Value() == 1U);
+
+    CHECK(fixture.tree.SetRoot(&textBox));
+    CHECK(fixture.layout.SetRoot(
+        &textBox, {120.0, 28.0}));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle));
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+
+    HitTestManager hitTests;
+    PointerInputManager pointer(
+        hitTests, fixture.events, textBox);
+    FocusManager focus(
+        fixture.tree, fixture.events);
+    MemoryClipboard clipboard;
+    TextBoxInteractionManager interactions(
+        fixture.tree, fixture.events,
+        pointer, focus, clipboard);
+    CHECK(interactions.Attach(textBox));
+    CHECK(focus.SetFocus(&textBox).Value());
+
+    TestInputMethodHost inputMethod;
+    CHECK(textBox.SetInputMethodHost(&inputMethod));
+    CHECK(inputMethod.client == &textBox);
+    CHECK(textBox.SetSelection(4U, 4U));
+    CHECK(inputMethod.client->BeginComposition());
+    CHECK(inputMethod.client->UpdateComposition(
+        StringView(u8"中")));
+    CHECK(textBox.IsComposing());
+    CHECK(textBox.CompositionText() ==
+        StringView(u8"中"));
+    CHECK(textBox.Text() == StringView("base"));
+    CHECK(source.Text() == StringView("base"));
+    CHECK(textBox.Caret() == 5U);
+    CHECK(fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Layout));
+    CHECK(inputMethod.candidateCount > 0U);
+    CHECK(inputMethod.candidate.dpiScale == 2.0);
+    CHECK(std::isfinite(
+        inputMethod.candidate.caret.x));
+    CHECK(inputMethod.candidate.caret.height > 0.0);
+
+    CHECK(inputMethod.client->CommitComposition(
+        StringView(u8"中文")));
+    CHECK(!textBox.IsComposing());
+    CHECK(textBox.Text() ==
+        StringView(u8"base中文"));
+    CHECK(source.Text() == StringView("base"));
+    CHECK(bindings.Flush().Value() == 1U);
+    CHECK(source.Text() ==
+        StringView(u8"base中文"));
+    CHECK(textBox.Undo());
+    CHECK(bindings.Flush().Value() == 1U);
+    CHECK(textBox.Text() == StringView("base"));
+    CHECK(source.Text() == StringView("base"));
+    CHECK(textBox.Redo());
+    CHECK(bindings.Flush().Value() == 1U);
+    CHECK(textBox.Text() ==
+        StringView(u8"base中文"));
+    CHECK(source.Text() ==
+        StringView(u8"base中文"));
+
+    CHECK(inputMethod.client->BeginComposition());
+    CHECK(inputMethod.client->UpdateComposition(
+        StringView(u8"取消")));
+    CHECK(inputMethod.client->CancelComposition());
+    CHECK(!textBox.IsComposing());
+    CHECK(textBox.Text() ==
+        StringView(u8"base中文"));
+
+    CHECK(inputMethod.client->BeginComposition());
+    CHECK(inputMethod.client->UpdateComposition(
+        StringView(u8"焦点")));
+    CHECK(focus.ClearFocus().Value());
+    CHECK(!textBox.IsComposing());
+    CHECK(inputMethod.cancelCount == 1U);
+    CHECK(textBox.Text() ==
+        StringView(u8"base中文"));
+
+    CHECK(focus.SetFocus(&textBox).Value());
+    CHECK(inputMethod.client->BeginComposition());
+    CHECK(inputMethod.client->UpdateComposition(
+        StringView(u8"只读")));
+    CHECK(textBox.SetReadOnly(true));
+    CHECK(!textBox.IsComposing());
+    CHECK(inputMethod.cancelCount == 2U);
+    CHECK(!inputMethod.client->BeginComposition());
+    CHECK(textBox.SetReadOnly(false));
+
+    CHECK(textBox.SetInputMethodHost(nullptr));
+    CHECK(inputMethod.client == nullptr);
+    CHECK(interactions.Detach(textBox).Value());
+    CHECK(bindings.Detach(
+        bindingHandle.Value()).Value());
+    CHECK(fixture.layout.SetRoot(nullptr, {}));
+    CHECK(fixture.tree.SetRoot(nullptr));
+    CHECK(fixture.values.DetachObject(textBox));
+    CHECK(fixture.values.DetachObject(source));
+
+    TestInputMethodHost lifetimeHost;
+    {
+        TextBox lifetime;
+        CHECK(lifetime.SetInputMethodHost(
+            &lifetimeHost));
+        CHECK(lifetime.SetText(StringView("x")));
+        CHECK(lifetime.SetSelection(1U, 1U));
+        CHECK(lifetime.BeginComposition());
+        CHECK(lifetime.UpdateComposition(
+            StringView(u8"析构")));
+    }
+    CHECK(lifetimeHost.client == nullptr);
+    CHECK(lifetimeHost.clientChangeCount == 2U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -401,6 +569,9 @@ int main() {
         return 1;
     }
     if (!TestMaximumLengthAndMetadata()) {
+        return 1;
+    }
+    if (!TestImePreviewCommitCancelAndLifetime()) {
         return 1;
     }
     std::puts("TextBox tests passed");
