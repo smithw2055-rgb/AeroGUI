@@ -5,6 +5,7 @@
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Events/RoutedEventCatalog.hpp>
@@ -114,6 +115,23 @@ using KeyboardFocusChangedEventHandler =
     Base::Delegate<void(Base::Object*, const KeyboardFocusChangedEventArgs&)>;
 
 namespace Detail {
+
+// A separately allocated lifetime cell is used for stack/embedded Visuals that
+// cannot participate in intrusive ownership. Managed Visuals are retained by a
+// strong Ref; unmanaged Visuals invalidate this cell from their destructor.
+class VisualLifetime final : public Base::Object {
+public:
+    explicit VisualLifetime(Visual& node) noexcept : node_(&node) {}
+    ~VisualLifetime() override = default;
+
+    Visual* Node() const noexcept { return node_; }
+    void Invalidate() noexcept { node_ = nullptr; }
+
+private:
+    Visual* node_ = nullptr;
+};
+
+struct VisualLease;
 
 class RoutedHandlerStorage final {
 public:
@@ -234,6 +252,12 @@ public:
 
 private:
     friend class ObjectTree;
+    friend class RoutedEventManager;
+    friend struct Detail::VisualLease;
+
+    Base::Result<Base::Ref<Detail::VisualLifetime>>
+    AcquireLifetime() noexcept;
+
     ObjectTree* tree_ = nullptr;
     Visual* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
@@ -241,8 +265,24 @@ private:
     Base::Vector<Visual*> visualChildren_;
     bool loaded_ = false;
     VisualHandle handle_;
+    Base::Ref<Detail::VisualLifetime> lifetime_;
 
 };
+
+namespace Detail {
+
+struct VisualLease final {
+    Base::Ref<Visual> strong;
+    Base::Ref<VisualLifetime> lifetime;
+
+    static Base::Result<VisualLease> Acquire(Visual& node) noexcept;
+    Visual* Resolve() const noexcept {
+        return strong ? strong.Get()
+                      : (lifetime ? lifetime->Node() : nullptr);
+    }
+};
+
+} // namespace Detail
 
 class AERO_API ObjectTree final {
 public:
@@ -286,7 +326,7 @@ public:
 
 private:
     struct LifecycleRecord final {
-        Visual* node = nullptr;
+        Detail::VisualLease node;
         bool loaded = false;
         std::uint64_t sequence = 0U;
         std::uint64_t treeVersion = 0U;
@@ -318,12 +358,17 @@ private:
     bool IsVisualAncestor(
         const Visual& possibleAncestor,
         const Visual& node) const noexcept;
-    Base::Result<void> QueueLifecycleSubtree(
+    Base::Result<void> CollectLogicalSubtree(
         Visual& node,
-        bool loaded) noexcept;
-    Base::Result<void> SetLoadedSubtree(
+        Base::Vector<Visual*>& nodes) noexcept;
+    Base::Result<void> StageLifecycleSubtree(
         Visual& node,
-        bool loaded) noexcept;
+        bool loaded,
+        Base::Vector<LifecycleRecord>& staged) noexcept;
+    void PublishLifecycle(
+        Base::Vector<LifecycleRecord>& staged) noexcept;
+    void ApplyLoadedSubtree(Visual& node, bool loaded) noexcept;
+    void SetTreeSubtree(Visual& node, ObjectTree* tree) noexcept;
     Base::Result<std::uint32_t> FlushLifecycle() noexcept;
     Base::Result<void> RegisterHandleSubtree(Visual& node) noexcept;
     void InvalidateHandleSubtree(Visual& node) noexcept;
@@ -370,7 +415,7 @@ private:
     Base::Result<void> BuildRoute(
         Visual& source,
         RoutingStrategy strategy,
-        Base::Vector<Visual*>& route) noexcept;
+        Base::Vector<Detail::VisualLease>& route) noexcept;
     void InvokeNode(Visual& node, RoutedEventArgs& args) noexcept;
     void CleanupClassHandlers() noexcept;
 };

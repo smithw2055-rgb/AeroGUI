@@ -90,6 +90,31 @@ Visual::~Visual() {
     AERO_ASSERT(visualParent_ == nullptr);
     AERO_ASSERT(logicalChildren_.Empty());
     AERO_ASSERT(visualChildren_.Empty());
+    if (lifetime_) lifetime_->Invalidate();
+}
+
+Base::Result<Base::Ref<Detail::VisualLifetime>>
+Visual::AcquireLifetime() noexcept {
+    if (!lifetime_) {
+        Base::Result<Base::Ref<Detail::VisualLifetime>> created =
+            Base::MakeRef<Detail::VisualLifetime>(*this);
+        if (!created) return created.GetStatus();
+        lifetime_ = std::move(created).Value();
+    }
+    return lifetime_;
+}
+
+Base::Result<Detail::VisualLease> Detail::VisualLease::Acquire(
+    Visual& node) noexcept {
+    VisualLease lease;
+    lease.strong = Base::Ref<Visual>::TryFromBorrowed(node);
+    if (lease.strong) return lease;
+
+    Base::Result<Base::Ref<VisualLifetime>> lifetime =
+        node.AcquireLifetime();
+    if (!lifetime) return lifetime.GetStatus();
+    lease.lifetime = std::move(lifetime).Value();
+    return lease;
 }
 
 ObjectTree::ObjectTree(
@@ -151,26 +176,73 @@ Visual* ObjectTree::ResolveHandle(VisualHandle handle) const noexcept {
     return entry.generation == handle.generation ? entry.node : nullptr;
 }
 
+Base::Result<void> ObjectTree::CollectLogicalSubtree(
+    Visual& node,
+    Base::Vector<Visual*>& nodes) noexcept {
+    Base::Result<void> appended = nodes.TryPushBack(&node);
+    if (!appended) return appended.GetStatus();
+    for (Visual* child : node.logicalChildren_) {
+        if (child == nullptr) continue;
+        Base::Result<void> collected =
+            CollectLogicalSubtree(*child, nodes);
+        if (!collected) return collected.GetStatus();
+    }
+    return {};
+}
+
 Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
-    if (!node.handle_.IsValid()) {
-        HandleEntry entry;
-        entry.node = &node;
-        Base::Result<void> appended = handles_.TryPushBack(entry);
-        if (!appended) return appended.GetStatus();
-        node.handle_ = {handles_.Size() - 1U, entry.generation};
-        Base::Result<void> tracked = TrackInheritedValues(node);
-        if (!tracked) {
-            handles_.Back().node = nullptr;
-            ++handles_.Back().generation;
-            node.handle_ = {};
-            return tracked.GetStatus();
+    Base::Vector<Visual*> nodes;
+    Base::Result<void> collected = CollectLogicalSubtree(node, nodes);
+    if (!collected) return collected.GetStatus();
+
+    std::uint32_t required = 0U;
+    for (Visual* current : nodes) {
+        if (current->handle_.IsValid()) {
+            if (current->handle_.index >= handles_.Size()) {
+                return InvalidState("ObjectTree node has an invalid pre-existing handle");
+            }
+            const HandleEntry& entry = handles_[current->handle_.index];
+            if (entry.node != current ||
+                entry.generation != current->handle_.generation) {
+                return InvalidState("ObjectTree node has a stale pre-existing handle");
+            }
+        } else {
+            ++required;
         }
     }
-    for (Visual* child : node.logicalChildren_) {
-        if (child != nullptr) {
-            Base::Result<void> registered = RegisterHandleSubtree(*child);
-            if (!registered) return registered;
+
+    Base::Result<void> reserved =
+        handles_.TryReserve(handles_.Size() + required);
+    if (!reserved) return reserved.GetStatus();
+
+    Base::Vector<Visual*> added;
+    reserved = added.TryReserve(required);
+    if (!reserved) return reserved.GetStatus();
+
+    for (Visual* current : nodes) {
+        if (current->handle_.IsValid()) continue;
+
+        HandleEntry entry;
+        entry.node = current;
+        Base::Result<void> appended = handles_.TryPushBack(entry);
+        AERO_ASSERT(appended);
+        current->handle_ = {handles_.Size() - 1U, entry.generation};
+
+        Base::Result<void> tracked = TrackInheritedValues(*current);
+        if (!tracked) {
+            current->handle_ = {};
+            handles_.PopBack();
+            while (!added.Empty()) {
+                Visual* rollback = added.Back();
+                UntrackInheritedValues(*rollback);
+                rollback->handle_ = {};
+                handles_.PopBack();
+                added.PopBack();
+            }
+            return tracked.GetStatus();
         }
+        Base::Result<void> remembered = added.TryPushBack(current);
+        AERO_ASSERT(remembered);
     }
     return {};
 }
@@ -283,107 +355,114 @@ bool ObjectTree::IsVisualAncestor(
     return false;
 }
 
-Base::Result<void> ObjectTree::QueueLifecycleSubtree(
+Base::Result<void> ObjectTree::StageLifecycleSubtree(
     Visual& node,
-    bool loaded) noexcept {
-    LifecycleRecord record;
-    record.node = &node;
-    record.loaded = loaded;
-    record.sequence = nextLifecycleSequence_++;
-    record.treeVersion = version_;
-    Base::Result<void> appended = lifecycleQueue_.TryPushBack(record);
-    if (!appended) {
-        return appended;
+    bool loaded,
+    Base::Vector<LifecycleRecord>& staged) noexcept {
+    if (node.loaded_ != loaded) {
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(node);
+        if (!lease) return lease.GetStatus();
+
+        LifecycleRecord record;
+        record.node = std::move(lease).Value();
+        record.loaded = loaded;
+        Base::Result<void> appended =
+            staged.TryPushBack(std::move(record));
+        if (!appended) return appended.GetStatus();
     }
     for (Visual* child : node.logicalChildren_) {
-        Base::Result<void> childResult = QueueLifecycleSubtree(*child, loaded);
-        if (!childResult) {
-            return childResult;
-        }
+        if (child == nullptr) continue;
+        Base::Result<void> childResult =
+            StageLifecycleSubtree(*child, loaded, staged);
+        if (!childResult) return childResult.GetStatus();
     }
     return {};
 }
 
-Base::Result<void> ObjectTree::SetLoadedSubtree(
-    Visual& node,
-    bool loaded) noexcept {
-    if (node.loaded_ == loaded) {
-        return {};
+void ObjectTree::PublishLifecycle(
+    Base::Vector<LifecycleRecord>& staged) noexcept {
+    for (LifecycleRecord& record : staged) {
+        record.sequence = nextLifecycleSequence_++;
+        record.treeVersion = version_;
+        Base::Result<void> appended =
+            lifecycleQueue_.TryPushBack(std::move(record));
+        AERO_ASSERT(appended);
     }
+    staged.Clear();
+}
 
-    LifecycleRecord record;
-    record.node = &node;
-    record.loaded = loaded;
-    record.sequence = nextLifecycleSequence_++;
-    record.treeVersion = version_;
-    Base::Result<void> appended = lifecycleQueue_.TryPushBack(record);
-    if (!appended) {
-        return appended;
-    }
-
+void ObjectTree::ApplyLoadedSubtree(Visual& node, bool loaded) noexcept {
     node.loaded_ = loaded;
     for (Visual* child : node.logicalChildren_) {
-        Base::Result<void> childResult = SetLoadedSubtree(*child, loaded);
-        if (!childResult) {
-            return childResult;
-        }
+        if (child != nullptr) ApplyLoadedSubtree(*child, loaded);
     }
-    return {};
+}
+
+void ObjectTree::SetTreeSubtree(
+    Visual& node, ObjectTree* tree) noexcept {
+    node.tree_ = tree;
+    for (Visual* child : node.logicalChildren_) {
+        if (child != nullptr) SetTreeSubtree(*child, tree);
+    }
 }
 
 Base::Result<void> ObjectTree::SetRoot(Visual* root) noexcept {
-    if (root == root_) {
-        return {};
-    }
-    if (root == nullptr && root_ == nullptr) {
-        return {};
-    }
+    if (root == root_) return {};
+    if (root == nullptr && root_ == nullptr) return {};
 
     Visual& verificationNode = root != nullptr ? *root : *root_;
     Base::Result<void> verified = VerifyMutation(verificationNode, root_);
-    if (!verified) {
-        return verified;
+    if (!verified) return verified.GetStatus();
+
+    if (root != nullptr &&
+        (root->logicalParent_ != nullptr ||
+         root->visualParent_ != nullptr ||
+         root->tree_ != nullptr)) {
+        return InvalidState("ObjectTree root must be fully detached");
     }
-    if (root != nullptr && (root->logicalParent_ != nullptr ||
-        (root->tree_ != nullptr && root->tree_ != this))) {
-        return InvalidState("ObjectTree root must be detached");
+
+    Base::Vector<LifecycleRecord> staged;
+    if (root_ != nullptr) {
+        Base::Result<void> prepared =
+            StageLifecycleSubtree(*root_, false, staged);
+        if (!prepared) return prepared.GetStatus();
+    }
+    if (root != nullptr) {
+        Base::Result<void> prepared =
+            StageLifecycleSubtree(*root, true, staged);
+        if (!prepared) return prepared.GetStatus();
+    }
+    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+        lifecycleQueue_.Size() + staged.Size());
+    if (!queueReserved) return queueReserved.GetStatus();
+
+    if (root != nullptr) {
+        Base::Result<void> registered = RegisterHandleSubtree(*root);
+        if (!registered) return registered.GetStatus();
+        Base::Result<void> inherited =
+            values_->SetInheritanceParent(*root, nullptr);
+        if (!inherited) {
+            InvalidateHandleSubtree(*root);
+            return inherited.GetStatus();
+        }
     }
 
     mutating_ = true;
     Visual* oldRoot = root_;
-    if (oldRoot != nullptr) {
-        Base::Result<void> unloaded = SetLoadedSubtree(*oldRoot, false);
-        if (!unloaded) {
-            mutating_ = false;
-            return unloaded;
-        }
-        InvalidateHandleSubtree(*oldRoot);
-        oldRoot->tree_ = nullptr;
-        (void)values_->SetInheritanceParent(*oldRoot, nullptr);
-    }
-    root_ = root;
     ++version_;
-    if (root_ != nullptr) {
-        Base::Result<void> registered = RegisterHandleSubtree(*root_);
-        if (!registered) {
-            root_ = oldRoot;
-            if (oldRoot != nullptr) oldRoot->tree_ = this;
-            mutating_ = false;
-            return registered;
-        }
-        root_->tree_ = this;
-        Base::Result<void> loaded = SetLoadedSubtree(*root_, true);
-        if (!loaded) {
-            root_->tree_ = nullptr;
-            root_ = oldRoot;
-            if (oldRoot != nullptr) {
-                oldRoot->tree_ = this;
-                (void)SetLoadedSubtree(*oldRoot, true);
-            }
-            mutating_ = false;
-            return loaded;
-        }
+    if (oldRoot != nullptr) {
+        ApplyLoadedSubtree(*oldRoot, false);
+        InvalidateHandleSubtree(*oldRoot);
+        SetTreeSubtree(*oldRoot, nullptr);
     }
+
+    root_ = root;
+    if (root_ != nullptr) {
+        SetTreeSubtree(*root_, this);
+        ApplyLoadedSubtree(*root_, true);
+    }
+    PublishLifecycle(staged);
     mutating_ = false;
     return {};
 }
@@ -392,58 +471,50 @@ Base::Result<void> ObjectTree::AttachLogical(
     Visual& parent,
     Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (&parent == &child || IsLogicalAncestor(child, parent)) {
         return Base::Status::Failure(
             Base::ErrorCode::CycleDetected,
             "Logical tree attachment would create a cycle");
     }
-    if (child.logicalParent_ != nullptr ||
-        (child.tree_ != nullptr && child.tree_ != this) ||
-        (parent.tree_ != nullptr && parent.tree_ != this)) {
-        return InvalidState("Logical child or parent belongs to another tree");
-    }
-    if (parent.tree_ == nullptr && &parent != root_) {
-        return InvalidState("Logical parent must already belong to this tree");
+    if (child.logicalParent_ != nullptr || child.tree_ != nullptr ||
+        parent.tree_ != this) {
+        return InvalidState(
+            "Logical child must be detached and parent must belong to this tree");
     }
 
-    Base::Result<void> reserve = parent.logicalChildren_.TryReserve(
+    Base::Result<void> childReserved = parent.logicalChildren_.TryReserve(
         parent.logicalChildren_.Size() + 1U);
-    if (!reserve) {
-        return reserve;
-    }
-    Base::Result<void> registered = RegisterHandleSubtree(child);
-    if (!registered) return registered;
-    mutating_ = true;
-    Base::Result<void> inherited = values_->SetInheritanceParent(child, &parent);
-    if (!inherited) {
-        mutating_ = false;
-        return inherited;
-    }
-    Base::Result<void> appended = parent.logicalChildren_.TryPushBack(&child);
-    if (!appended) {
-        (void)values_->SetInheritanceParent(child, nullptr);
-        InvalidateHandleSubtree(child);
-        mutating_ = false;
-        return appended.GetStatus();
-    }
-    child.logicalParent_ = &parent;
-    child.tree_ = this;
-    ++version_;
+    if (!childReserved) return childReserved.GetStatus();
+
+    Base::Vector<LifecycleRecord> staged;
     if (parent.loaded_) {
-        Base::Result<void> loaded = SetLoadedSubtree(child, true);
-        if (!loaded) {
-            child.logicalParent_ = nullptr;
-            child.tree_ = nullptr;
-            InvalidateHandleSubtree(child);
-            parent.logicalChildren_.PopBack();
-            (void)values_->SetInheritanceParent(child, nullptr);
-            mutating_ = false;
-            return loaded;
-        }
+        Base::Result<void> prepared =
+            StageLifecycleSubtree(child, true, staged);
+        if (!prepared) return prepared.GetStatus();
     }
+    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+        lifecycleQueue_.Size() + staged.Size());
+    if (!queueReserved) return queueReserved.GetStatus();
+
+    Base::Result<void> registered = RegisterHandleSubtree(child);
+    if (!registered) return registered.GetStatus();
+    Base::Result<void> inherited =
+        values_->SetInheritanceParent(child, &parent);
+    if (!inherited) {
+        InvalidateHandleSubtree(child);
+        return inherited.GetStatus();
+    }
+
+    mutating_ = true;
+    Base::Result<void> appended =
+        parent.logicalChildren_.TryPushBack(&child);
+    AERO_ASSERT(appended);
+    child.logicalParent_ = &parent;
+    SetTreeSubtree(child, this);
+    ++version_;
+    if (parent.loaded_) ApplyLoadedSubtree(child, true);
+    PublishLifecycle(staged);
     mutating_ = false;
     return {};
 }
@@ -467,27 +538,33 @@ Base::Result<void> ObjectTree::DetachLogical(
     Visual& parent,
     Visual& child) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (child.logicalParent_ != &parent || child.tree_ != this) {
         return NotFound("Logical parent-child relationship was not found");
     }
 
-    mutating_ = true;
+    Base::Vector<LifecycleRecord> staged;
     if (child.loaded_) {
-        Base::Result<void> unloaded = SetLoadedSubtree(child, false);
-        if (!unloaded) {
-            mutating_ = false;
-            return unloaded;
-        }
+        Base::Result<void> prepared =
+            StageLifecycleSubtree(child, false, staged);
+        if (!prepared) return prepared.GetStatus();
     }
+    Base::Result<void> queueReserved = lifecycleQueue_.TryReserve(
+        lifecycleQueue_.Size() + staged.Size());
+    if (!queueReserved) return queueReserved.GetStatus();
+
+    Base::Result<void> inherited =
+        values_->SetInheritanceParent(child, nullptr);
+    if (!inherited) return inherited.GetStatus();
+
+    mutating_ = true;
+    if (child.loaded_) ApplyLoadedSubtree(child, false);
     RemoveChild(parent.logicalChildren_, child);
     child.logicalParent_ = nullptr;
-    child.tree_ = nullptr;
+    SetTreeSubtree(child, nullptr);
     InvalidateHandleSubtree(child);
-    (void)values_->SetInheritanceParent(child, nullptr);
     ++version_;
+    PublishLifecycle(staged);
     mutating_ = false;
     return {};
 }
@@ -569,27 +646,22 @@ Base::Result<void> ObjectTree::DetachNode(Visual& node) noexcept {
 
 Base::Result<std::uint32_t> ObjectTree::FlushLifecycle() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) {
-        return access.GetStatus();
-    }
+    if (!access) return access.GetStatus();
+
     Base::Vector<LifecycleRecord> snapshot;
     Base::Result<void> assigned = snapshot.TryAssign(
         Base::Span<const LifecycleRecord>(
             lifecycleQueue_.Data(), lifecycleQueue_.Size()));
-    if (!assigned) {
-        return assigned.GetStatus();
-    }
+    if (!assigned) return assigned.GetStatus();
     lifecycleQueue_.Clear();
+
     std::uint32_t count = 0U;
     for (const LifecycleRecord& record : snapshot) {
-        if (record.node == nullptr) {
-            continue;
-        }
+        Visual* node = record.node.Resolve();
+        if (node == nullptr) continue;
         if (lifecycleHandler_ != nullptr) {
             const ObjectTreeLifecycleEvent event{
-                record.node,
-                record.loaded,
-                record.treeVersion};
+                node, record.loaded, record.treeVersion};
             lifecycleHandler_(event, lifecycleContext_);
         }
         ++count;
@@ -614,16 +686,22 @@ RoutedEventManager::~RoutedEventManager() noexcept {
 Base::Result<void> RoutedEventManager::BuildRoute(
     Visual& source,
     RoutingStrategy strategy,
-    Base::Vector<Visual*>& route) noexcept {
+    Base::Vector<Detail::VisualLease>& route) noexcept {
     if (strategy == RoutingStrategy::Direct) {
-        return route.TryPushBack(&source);
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(source);
+        if (!lease) return lease.GetStatus();
+        return route.TryPushBack(std::move(lease).Value());
     }
+
     Visual* current = &source;
     while (current != nullptr) {
-        Base::Result<void> appended = route.TryPushBack(current);
-        if (!appended) {
-            return appended;
-        }
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(*current);
+        if (!lease) return lease.GetStatus();
+        Base::Result<void> appended =
+            route.TryPushBack(std::move(lease).Value());
+        if (!appended) return appended.GetStatus();
         current = current->LogicalParent() != nullptr
             ? current->LogicalParent()
             : current->VisualParent();
@@ -631,9 +709,9 @@ Base::Result<void> RoutedEventManager::BuildRoute(
     if (strategy == RoutingStrategy::Tunnel) {
         for (std::uint32_t left = 0U, right = route.Size() - 1U;
              left < right; ++left, --right) {
-            Visual* temporary = route[left];
-            route[left] = route[right];
-            route[right] = temporary;
+            Detail::VisualLease temporary = std::move(route[left]);
+            route[left] = std::move(route[right]);
+            route[right] = std::move(temporary);
         }
     }
     return {};
@@ -684,7 +762,7 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
         return NotFound("Routed event was not found");
     }
 
-    Base::Vector<Visual*> route;
+    Base::Vector<Detail::VisualLease> route;
     Base::Result<void> built =
         BuildRoute(source, definition->strategy, route);
     if (!built) {
@@ -703,8 +781,9 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
     }
 
     ++raiseDepth_;
-    for (Visual* node : route) {
-        InvokeNode(*node, args);
+    for (const Detail::VisualLease& lease : route) {
+        Visual* node = lease.Resolve();
+        if (node != nullptr) InvokeNode(*node, args);
     }
     --raiseDepth_;
     return {};

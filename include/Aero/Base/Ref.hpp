@@ -86,6 +86,18 @@ public:
         return Ref(&value, Detail::AdoptRef);
     }
 
+    // Returns an empty reference for stack/embedded Objects that do not have an
+    // intrusive control block. This lets snapshot code strongly retain managed
+    // objects while remaining source-compatible with stack-based test hosts.
+    static Ref TryFromBorrowed(T& value) noexcept {
+        Detail::ObjectControlBlock* control =
+            static_cast<Object&>(value).ControlBlock();
+        if (control == nullptr || !Detail::TryAddStrong(control)) {
+            return {};
+        }
+        return Ref(&value, Detail::AdoptRef);
+    }
+
     void Reset() noexcept {
         T* value = value_;
         value_ = nullptr;

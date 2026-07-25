@@ -289,6 +289,124 @@ bool TestClassHandlersAndRegistrationRules() {
     return true;
 }
 
+
+class ManagedElement final : public UIElement {
+public:
+    ManagedElement(TypeId type, std::uint32_t* destroyed) noexcept
+        : UIElement(type), destroyed_(destroyed) {}
+    ~ManagedElement() override {
+        if (destroyed_ != nullptr) ++*destroyed_;
+    }
+private:
+    std::uint32_t* destroyed_ = nullptr;
+};
+
+struct RouteTeardownContext final {
+    ObjectTree* tree = nullptr;
+    EffectiveValueEngine* values = nullptr;
+    Ref<ManagedElement>* root = nullptr;
+    Ref<ManagedElement>* child = nullptr;
+    Ref<ManagedElement>* leaf = nullptr;
+    RouteLog* log = nullptr;
+    bool tornDown = false;
+};
+
+struct TearDownDuringRoute final {
+    RouteTeardownContext* context = nullptr;
+    void operator()(Object* sender, const RoutedEventArgs&) const noexcept {
+        if (context->log->count < 32U) {
+            context->log->nodes[context->log->count++] =
+                static_cast<Visual*>(sender);
+        }
+        if (context->tornDown) return;
+        context->tornDown = true;
+        (void)context->tree->DetachLogical(
+            **context->child, **context->leaf);
+        (void)context->tree->DetachLogical(
+            **context->root, **context->child);
+        (void)context->tree->SetRoot(nullptr);
+        (void)context->values->DetachObject(**context->root);
+        (void)context->values->DetachObject(**context->child);
+        (void)context->values->DetachObject(**context->leaf);
+        context->root->Reset();
+        context->child->Reset();
+        context->leaf->Reset();
+    }
+};
+
+bool TestLifecycleLeaseSkipsDestroyedStackVisual() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+    LifecycleLog lifecycle;
+    tree.SetLifecycleHandler(&RecordLifecycle, &lifecycle);
+
+    {
+        Visual transient(fixture.visualType);
+        CHECK(tree.SetRoot(&transient));
+        CHECK(tree.SetRoot(nullptr));
+        CHECK(values.DetachObject(transient));
+    }
+
+    Result<std::uint32_t> phase = fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle);
+    CHECK(phase);
+    CHECK(lifecycle.count == 0U);
+    return true;
+}
+
+bool TestRouteSnapshotRetainsManagedNodesDuringTeardown() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    EffectiveValueEngine values(fixture.dispatcher, fixture.properties);
+    CHECK(values.Initialize());
+    ObjectTree tree(fixture.dispatcher, values);
+    CHECK(tree.Initialize());
+
+    std::uint32_t destroyed = 0U;
+    Result<Ref<ManagedElement>> rootMade =
+        MakeRef<ManagedElement>(fixture.elementType, &destroyed);
+    Result<Ref<ManagedElement>> childMade =
+        MakeRef<ManagedElement>(fixture.controlType, &destroyed);
+    Result<Ref<ManagedElement>> leafMade =
+        MakeRef<ManagedElement>(fixture.controlType, &destroyed);
+    CHECK(rootMade && childMade && leafMade);
+    Ref<ManagedElement> root = std::move(rootMade).Value();
+    Ref<ManagedElement> child = std::move(childMade).Value();
+    Ref<ManagedElement> leaf = std::move(leafMade).Value();
+
+    CHECK(tree.SetRoot(root.Get()));
+    CHECK(tree.AttachLogical(*root, *child));
+    CHECK(tree.AttachLogical(*child, *leaf));
+
+    RouteLog log;
+    RouteTeardownContext context{
+        &tree, &values, &root, &child, &leaf, &log, false};
+    CHECK(leaf->TryAddHandler(
+        fixture.bubble,
+        RoutedEventHandler(TearDownDuringRoute{&context})));
+    CHECK(child->TryAddHandler(
+        fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&log})));
+    CHECK(root->TryAddHandler(
+        fixture.bubble,
+        RoutedEventHandler(RouteRecorder{&log})));
+
+    CHECK(fixture.events.RaiseEvent(*leaf, fixture.bubble));
+    CHECK(log.count == 3U);
+    CHECK(!root && !child && !leaf);
+    CHECK(destroyed == 0U);
+
+    Result<std::uint32_t> phase = fixture.dispatcher.RunFramePhase(
+        DispatcherFramePhase::Lifecycle);
+    CHECK(phase);
+    CHECK(destroyed == 3U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -298,7 +416,9 @@ int main() {
     } tests[] = {
         {"logical-visual-tree-lifecycle", &TestLogicalVisualTreeAndLifecycle},
         {"bubble-tunnel-direct-handled", &TestBubbleTunnelDirectAndHandledEventsToo},
-        {"class-handlers-registration", &TestClassHandlersAndRegistrationRules}
+        {"class-handlers-registration", &TestClassHandlersAndRegistrationRules},
+        {"lifecycle-lease-destroyed-stack", &TestLifecycleLeaseSkipsDestroyedStackVisual},
+        {"route-snapshot-managed-teardown", &TestRouteSnapshotRetainsManagedNodesDuringTeardown}
     };
 
     for (const TestCase& test : tests) {
