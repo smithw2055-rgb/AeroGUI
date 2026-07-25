@@ -14,7 +14,7 @@
 - M3.5 文本垂直切片已完成 provider-neutral `AeroText` 合同、FreeType/HarfBuzz adapter、glyph atlas、TextLayout 与 atlas-backed TextBlock/D3D11 接入；完整 Unicode line breaking/bidi 仍是后续增量；
 - Command、统一交互状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton 与 Generic/Light/Dark 主题已完成并有 XAML/交互回归；
 - ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox 与 recycling VirtualizingStackPanel 基线已完成，10k realization-window benchmark 已进入 CTest；
-- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、capability/limits 查询、`HostReset`/`PreserveAndRestore` state cache 与完整 AeroRHI 资源/提交/GLsync/读回/外部导入切片已完成，并由注入式 fake-GL conformance 覆盖；RenderPlan lowering、WGL/GLX 真实 context/surface、共享像素 conformance、TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
+- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、state cache、完整 AeroRHI 资源/提交/GLsync/读回/外部导入与 Windows/WGL owned/borrowed context/surface 切片已完成，并由 fake-GL 及 hidden-window 真 WGL conformance 覆盖；RenderPlan lowering、Linux GLX、共享像素 conformance、TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
 
 ## 1. Diagnostics
 

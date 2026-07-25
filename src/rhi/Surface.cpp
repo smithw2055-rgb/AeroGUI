@@ -109,10 +109,13 @@ Base::Result<void> ValidateNativeSurfaceDescriptor(
         }
         return {};
     case SurfaceKind::WglWindow:
-        if (descriptor.wgl.deviceContext == 0U ||
-            descriptor.wgl.renderContext == 0U) {
+        if ((descriptor.ownership == SurfaceOwnership::Owned &&
+             descriptor.wgl.window == 0U) ||
+            (descriptor.ownership == SurfaceOwnership::Borrowed &&
+             (descriptor.wgl.deviceContext == 0U ||
+              descriptor.wgl.renderContext == 0U))) {
             return InvalidArgument(
-                "WGL surface requires a device context and rendering context");
+                "Owned WGL surfaces require a window; borrowed surfaces require a device and rendering context");
         }
         return {};
     case SurfaceKind::GlxWindow:

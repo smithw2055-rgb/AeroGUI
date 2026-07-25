@@ -24,6 +24,7 @@ struct OpenGL33ExternalRenderTargetDescriptor final {
     TextureResourceDescriptor texture;
     GlContextGeneration contextGeneration = 0U;
     std::uint64_t stableId = 0U;
+    bool defaultFramebuffer = false;
 };
 
 struct OpenGL33ExternalTextureDescriptor final {

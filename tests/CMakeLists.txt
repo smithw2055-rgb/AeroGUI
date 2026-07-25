@@ -451,6 +451,23 @@ set_target_properties(AeroOpenGL33BackendTests PROPERTIES
 aero_apply_compiler_options(AeroOpenGL33BackendTests)
 add_test(NAME AeroOpenGL33BackendTests COMMAND AeroOpenGL33BackendTests)
 
+if(WIN32 AND TARGET AeroRhiWGL)
+    add_executable(AeroWglSurfaceTests rhi/WglSurfaceTests.cpp)
+    target_link_libraries(
+        AeroWglSurfaceTests
+        PRIVATE Aero::RhiWGL user32)
+    target_compile_features(AeroWglSurfaceTests PRIVATE cxx_std_17)
+    set_target_properties(AeroWglSurfaceTests PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(AeroWglSurfaceTests)
+    add_test(NAME AeroWglSurfaceTests COMMAND AeroWglSurfaceTests)
+    set_tests_properties(AeroWglSurfaceTests PROPERTIES
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77)
+endif()
+
 if(WIN32 AND TARGET AeroRhiD3D11)
     set(_aero_d3d11_fxc_hints
         "$ENV{WindowsSdkDir}bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")

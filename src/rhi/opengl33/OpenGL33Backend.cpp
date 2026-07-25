@@ -481,6 +481,7 @@ struct OpenGL33GraphicsBackend::Impl final {
         GlEnum textureTarget = GlConstant::Texture2D;
         bool configured = false;
         bool external = false;
+        bool externalDefaultFramebuffer = false;
     };
 
     struct PendingFence final {
@@ -1458,7 +1459,11 @@ OpenGL33GraphicsBackend::ImportExternalRenderTarget(
         record->configured ||
         descriptor.contextGeneration != impl_->context.generation ||
         (descriptor.framebuffer == 0U &&
-         descriptor.colorTexture == 0U) ||
+         descriptor.colorTexture == 0U &&
+         !descriptor.defaultFramebuffer) ||
+        (descriptor.defaultFramebuffer &&
+         (descriptor.framebuffer != 0U ||
+          descriptor.colorTexture != 0U)) ||
         descriptor.texture.width !=
             record->baseDescriptor.texture.width ||
         descriptor.texture.height !=
@@ -1480,6 +1485,8 @@ OpenGL33GraphicsBackend::ImportExternalRenderTarget(
     record->externalDepthStencilTexture =
         descriptor.depthStencilTexture;
     record->external = true;
+    record->externalDefaultFramebuffer =
+        descriptor.defaultFramebuffer;
     record->configured = true;
     return {};
 }
@@ -1732,7 +1739,9 @@ Base::Result<void> OpenGL33GraphicsBackend::Submit(
                 pass.colorAttachmentCount == 1U &&
                 !pass.hasDepthStencil &&
                 firstColor != nullptr &&
-                firstColor->externalFramebuffer != 0U;
+                firstColor->external &&
+                (firstColor->externalFramebuffer != 0U ||
+                 firstColor->externalDefaultFramebuffer);
             GlUInt framebuffer = directExternal
                 ? firstColor->externalFramebuffer
                 : impl_->submissionFramebuffer;

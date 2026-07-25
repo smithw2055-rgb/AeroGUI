@@ -21,6 +21,8 @@ option(AERO_ENABLE_SOKOL_BACKEND
     "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
     "Build the native Windows D3D11 graphics backend" ${WIN32})
+option(AERO_ENABLE_WGL_SURFACE
+    "Build the native Windows WGL surface adapter" ${WIN32})
 set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
     "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
 set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
@@ -431,6 +433,33 @@ set_target_properties(AeroRhiOpenGL33 PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRhiOpenGL33)
+
+if(AERO_ENABLE_WGL_SURFACE)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
+    endif()
+    add_library(AeroRhiWGL ${AERO_LIBRARY_TYPE}
+        src/rhi/wgl/WglSurface.cpp)
+    add_library(Aero::RhiWGL ALIAS AeroRhiWGL)
+    target_include_directories(AeroRhiWGL
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(AeroRhiWGL
+        PUBLIC Aero::RhiOpenGL33
+        PRIVATE gdi32 opengl32 user32)
+    target_compile_features(AeroRhiWGL PUBLIC cxx_std_17)
+    target_compile_definitions(
+        AeroRhiWGL PUBLIC AERO_HAS_WGL_SURFACE=1)
+    set_target_properties(AeroRhiWGL PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+    aero_apply_compiler_options(AeroRhiWGL)
+endif()
 
 add_library(AeroRender ${AERO_LIBRARY_TYPE}
     src/render/Renderer.cpp)
