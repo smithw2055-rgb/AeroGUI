@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cxx17-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     name: Linux (${{ matrix.compiler }}, ${{ matrix.build_type }}, shared=${{ matrix.shared }})
