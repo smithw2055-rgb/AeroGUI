@@ -99,8 +99,7 @@ Base::HashCode XamlModuleCatalog::ManifestHash() const noexcept {
 
 } // namespace Aero::Markup
 
-// Implementation includes keep application-integration facilities in the
-// existing AeroMarkup target without introducing reverse dependencies.
 #include "RuntimeHost.inc"
+#include "RuntimeWindow.inc"
 #include "RuntimeSafety.inc"
 #include "RuntimeServices.inc"
