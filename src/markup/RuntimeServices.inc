@@ -4,7 +4,7 @@ namespace Aero::Markup {
 
 namespace {
 
-Base::Status InvalidArgument(const char* message) noexcept {
+Base::Status ServicesInvalidArgument(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument, message);
 }
@@ -22,7 +22,7 @@ MountTransactionService::Attach(
     Presentation::Visual& parent,
     Presentation::Visual& child) noexcept {
     if (&parent == &child) {
-        return InvalidArgument(
+        return ServicesInvalidArgument(
             "Mount edge cannot attach a node to itself");
     }
 
@@ -200,7 +200,7 @@ Base::Result<RuntimeObjectState*>
 RuntimeObjectStateStore::Ensure(
     Presentation::VisualHandle handle) noexcept {
     if (!handle.IsValid()) {
-        return InvalidArgument(
+        return ServicesInvalidArgument(
             "Runtime sidecar requires a valid generation handle");
     }
     RuntimeObjectState* existing = Find(handle);
