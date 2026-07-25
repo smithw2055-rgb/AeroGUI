@@ -18,12 +18,9 @@ Base::Result<void> MountService::AttachLayout(
     bool& attached) noexcept {
     UIElement* parentElement = parent.AsUIElement();
     UIElement* childElement = child.AsUIElement();
-    if (layout_ == nullptr) return {};
-    if ((parentElement == nullptr) != (childElement == nullptr)) {
-        return InvalidState(
-            "Mount requires matching UIElement participation");
+    if (layout_ == nullptr || parentElement == nullptr || childElement == nullptr) {
+        return {};
     }
-    if (parentElement == nullptr) return {};
     Base::Result<void> result =
         layout_->Attach(*parentElement, *childElement);
     if (!result) return result.GetStatus();
@@ -37,12 +34,9 @@ Base::Result<void> MountService::AttachRender(
     bool& attached) noexcept {
     FrameworkElement* parentElement = parent.AsFrameworkElement();
     FrameworkElement* childElement = child.AsFrameworkElement();
-    if (renderer_ == nullptr) return {};
-    if ((parentElement == nullptr) != (childElement == nullptr)) {
-        return InvalidState(
-            "Mount requires matching FrameworkElement participation");
+    if (renderer_ == nullptr || parentElement == nullptr || childElement == nullptr) {
+        return {};
     }
-    if (parentElement == nullptr) return {};
     Base::Result<void> result =
         renderer_->Attach(*parentElement, *childElement);
     if (!result) return result.GetStatus();
