@@ -68,6 +68,11 @@ public:
         Visual& visualParent,
         Visual& child) noexcept;
     Base::Result<void> Detach(MountEdgeState& state) noexcept;
+    Base::Result<void> DetachPresentation(
+        MountEdgeState& state) noexcept;
+    Base::Result<void> AttachPresentation(
+        MountEdgeState& state,
+        Visual& newVisualParent) noexcept;
 
     Base::Result<PresentationMountState> AttachPresentation(
         Visual& visualParent,

@@ -196,6 +196,40 @@ Base::Result<void> MountService::Detach(MountEdgeState& state) noexcept {
     return {};
 }
 
+Base::Result<void> MountService::DetachPresentation(
+    MountEdgeState& state) noexcept {
+    PresentationMountState presentation;
+    presentation.visualParent = state.visualParent;
+    presentation.child = state.child;
+    presentation.visualAttached = state.visualAttached;
+    presentation.layoutAttached = state.layoutAttached;
+    presentation.renderAttached = state.renderAttached;
+    Base::Result<void> detached = DetachPresentation(presentation);
+    state.visualAttached = presentation.visualAttached;
+    state.layoutAttached = presentation.layoutAttached;
+    state.renderAttached = presentation.renderAttached;
+    return detached;
+}
+
+Base::Result<void> MountService::AttachPresentation(
+    MountEdgeState& state,
+    Visual& newVisualParent) noexcept {
+    if (state.child == nullptr || state.visualAttached ||
+        state.layoutAttached || state.renderAttached) {
+        return InvalidState(
+            "Mount edge is not ready for presentation attachment");
+    }
+    Base::Result<PresentationMountState> attached =
+        AttachPresentation(newVisualParent, *state.child);
+    if (!attached) return attached.GetStatus();
+    PresentationMountState presentation = std::move(attached).Value();
+    state.visualParent = presentation.visualParent;
+    state.visualAttached = presentation.visualAttached;
+    state.layoutAttached = presentation.layoutAttached;
+    state.renderAttached = presentation.renderAttached;
+    return {};
+}
+
 Base::Result<PresentationMountState> MountService::AttachPresentation(
     Visual& visualParent,
     Visual& child) noexcept {
