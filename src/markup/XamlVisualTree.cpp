@@ -269,7 +269,7 @@ Base::Result<void> XamlVisualTreeHost::StageContent(
     if (!childAdded) return childAdded.GetStatus();
     return edges_.TryPushBack({std::move(parentOwner), value.AsObject(),
         parentResult.Value(), childResult.Value(), clearSingle, clearCollection,
-        configure, contentContext});
+        configure, contentContext, {}});
 }
 
 Base::Result<void> XamlVisualTreeHost::AttachEdge(Edge& edge) noexcept {
@@ -376,18 +376,38 @@ void XamlVisualTreeHost::ReleaseStagedContent() noexcept {
 Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     if (!mounted_ && rootNode_ == nullptr) return {};
 
-    Base::Status firstError;
-    for (std::uint32_t index = edges_.Size(); index > 0U; --index) {
-        Base::Result<void> detached =
-            mounts_.Detach(edges_[index - 1U].mount);
-        if (!detached && firstError.IsOk()) {
-            firstError = detached.GetStatus();
+    std::uint32_t remaining = 0U;
+    for (const Edge& edge : edges_) {
+        if (edge.mount.IsAttached()) ++remaining;
+    }
+    while (remaining > 0U) {
+        bool progressed = false;
+        for (Edge& edge : edges_) {
+            if (!edge.mount.IsAttached()) continue;
+
+            bool hasMountedChild = false;
+            for (const Edge& candidate : edges_) {
+                if (candidate.mount.IsAttached() &&
+                    candidate.parent == edge.child) {
+                    hasMountedChild = true;
+                    break;
+                }
+            }
+            if (hasMountedChild) continue;
+
+            Base::Result<void> detached = mounts_.Detach(edge.mount);
+            if (!detached) return detached.GetStatus();
+            --remaining;
+            progressed = true;
+        }
+        if (!progressed) {
+            return InvalidVisualTreeState(
+                "XAML mounted edge graph cannot be detached leaf-first");
         }
     }
+
     Base::Result<void> rootDetached = mounts_.DetachRoot(rootMount_);
-    if (!rootDetached && firstError.IsOk()) {
-        firstError = rootDetached.GetStatus();
-    }
+    if (!rootDetached) return rootDetached.GetStatus();
 
     for (Presentation::Visual* node : nodes_) {
         if (node != nullptr) (void)values_->DetachObject(*node);
@@ -400,9 +420,7 @@ Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     rootRender_ = nullptr;
     rootMount_ = {};
     mounted_ = false;
-    return firstError.IsOk()
-        ? Base::Result<void>()
-        : Base::Result<void>(firstError);
+    return {};
 }
 
 Base::Result<void> XamlVisualTreeHost::DiscardStaged() noexcept {
