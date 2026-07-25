@@ -1,0 +1,36 @@
+name: Phase 1 Patch Runner
+
+on:
+  push:
+    branches:
+      - agent/phase1-runtime-migration-safety
+    paths:
+      - tools/phase1_apply.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/phase1-runtime-migration-safety
+          fetch-depth: 0
+      - name: Apply Phase 1 patch
+        run: python3 tools/phase1_apply.py
+      - name: Validate patch
+        run: git diff --check
+      - name: Commit generated changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "apply Phase 1 runtime safety slice"
+          git push origin HEAD:agent/phase1-runtime-migration-safety
