@@ -226,6 +226,7 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
         entry.node = current;
         Base::Result<void> appended = handles_.TryPushBack(entry);
         AERO_ASSERT(appended);
+        (void)appended;
         current->handle_ = {handles_.Size() - 1U, entry.generation};
 
         Base::Result<void> tracked = TrackInheritedValues(*current);
@@ -243,6 +244,7 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
         }
         Base::Result<void> remembered = added.TryPushBack(current);
         AERO_ASSERT(remembered);
+        (void)remembered;
     }
     return {};
 }
@@ -388,6 +390,7 @@ void ObjectTree::PublishLifecycle(
         Base::Result<void> appended =
             lifecycleQueue_.TryPushBack(std::move(record));
         AERO_ASSERT(appended);
+        (void)appended;
     }
     staged.Clear();
 }
@@ -510,6 +513,7 @@ Base::Result<void> ObjectTree::AttachLogical(
     Base::Result<void> appended =
         parent.logicalChildren_.TryPushBack(&child);
     AERO_ASSERT(appended);
+    (void)appended;
     child.logicalParent_ = &parent;
     SetTreeSubtree(child, this);
     ++version_;

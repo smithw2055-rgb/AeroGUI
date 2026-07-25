@@ -402,7 +402,11 @@ Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     if (renderer_ != nullptr && rootRender_ != nullptr)
         (void)renderer_->SetRoot(nullptr);
     if (rootLayout_ != nullptr) (void)layout_->SetRoot(nullptr, {});
-    if (rootNode_ != nullptr) (void)tree_->SetRoot(nullptr);
+    // Edge teardown is deliberately best-effort so shutdown can continue. A
+    // final DetachNode pass removes any residual logical/visual edge before
+    // ownership references are released, preventing partially detached trees.
+    if (rootNode_ != nullptr && tree_->Root() == rootNode_)
+        (void)tree_->DetachNode(*rootNode_);
     for (Presentation::Visual* node : nodes_) {
         if (node != nullptr) (void)values_->DetachObject(*node);
     }
