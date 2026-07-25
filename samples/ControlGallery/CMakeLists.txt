@@ -153,6 +153,9 @@ if(AERO_BUILD_TESTS)
             AeroControlGalleryD3D11Smoke
             AeroControlGalleryWglSmoke
             PROPERTIES TIMEOUT 60)
+        set_tests_properties(
+            AeroControlGalleryWglSmoke
+            PROPERTIES SKIP_RETURN_CODE 77)
     elseif(AERO_ENABLE_GLX_SURFACE)
         add_test(
             NAME AeroControlGalleryGlxSmoke

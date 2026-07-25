@@ -107,7 +107,9 @@ int Fail(Status status) noexcept {
         status.message != nullptr
             ? status.message
             : "operation failed");
-    return 1;
+    return status.code == ErrorCode::Unsupported
+        ? 77
+        : 1;
 }
 
 int RunCombination(
