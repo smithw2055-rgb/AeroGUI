@@ -3,6 +3,7 @@
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/Markup/RuntimeSafety.hpp>
 #include <Aero/Markup/XamlCompiledCache.hpp>
 #include <Aero/Markup/XamlModuleSdk.hpp>
 
@@ -181,12 +182,134 @@ bool TestRuntimeHostLifecycle() {
     return true;
 }
 
+struct RollbackOrder final {
+    std::uint32_t entries[4]{};
+    std::uint32_t count = 0U;
+};
+
+struct RollbackContext final {
+    RollbackOrder* order = nullptr;
+    std::uint32_t marker = 0U;
+};
+
+void RecordRollback(void* context) noexcept {
+    auto* item = static_cast<RollbackContext*>(context);
+    item->order->entries[item->order->count++] = item->marker;
+}
+
+class TrackedVisual final : public Visual {
+public:
+    explicit TrackedVisual(
+        std::uint32_t* destroyed) noexcept
+        : Visual(BuiltinTypes::Visual),
+          destroyed_(destroyed) {}
+    ~TrackedVisual() override {
+        if (destroyed_ != nullptr) {
+            ++*destroyed_;
+        }
+    }
+private:
+    std::uint32_t* destroyed_ = nullptr;
+};
+
+Result<void> CountDeferred(
+    Object&,
+    void* context) noexcept {
+    ++*static_cast<std::uint32_t*>(context);
+    return {};
+}
+
+bool TestMutationJournalRollbackOrder() {
+    RollbackOrder order;
+    RollbackContext first{&order, 1U};
+    RollbackContext second{&order, 2U};
+    {
+        MutationJournal mutation;
+        CHECK(mutation.TryAddRollback(
+            &RecordRollback, &first));
+        CHECK(mutation.TryAddRollback(
+            &RecordRollback, &second));
+        CHECK(mutation.ActionCount() == 2U);
+    }
+    CHECK(order.count == 2U);
+    CHECK(order.entries[0] == 2U);
+    CHECK(order.entries[1] == 1U);
+
+    order.count = 0U;
+    {
+        MutationJournal mutation;
+        CHECK(mutation.TryAddRollback(
+            &RecordRollback, &first));
+        mutation.Commit();
+    }
+    CHECK(order.count == 0U);
+    return true;
+}
+
+bool TestSafeDeferredWorkSkipsDestroyedObjects() {
+    SafeDeferredWorkQueue queue;
+    std::uint32_t destroyed = 0U;
+    std::uint32_t invoked = 0U;
+
+    Result<Ref<TrackedVisual>> expiredMade =
+        MakeRef<TrackedVisual>(&destroyed);
+    CHECK(expiredMade);
+    Ref<TrackedVisual> expired =
+        std::move(expiredMade).Value();
+    CHECK(queue.Enqueue(
+        *expired, &CountDeferred, &invoked));
+    expired.Reset();
+    CHECK(destroyed == 1U);
+
+    Result<Ref<TrackedVisual>> liveMade =
+        MakeRef<TrackedVisual>(&destroyed);
+    CHECK(liveMade);
+    Ref<TrackedVisual> live =
+        std::move(liveMade).Value();
+    CHECK(queue.Enqueue(
+        *live, &CountDeferred, &invoked));
+
+    Result<std::uint32_t> flushed = queue.Flush();
+    CHECK(flushed);
+    CHECK(flushed.Value() == 1U);
+    CHECK(invoked == 1U);
+    DeferredWorkStatistics statistics = queue.Statistics();
+    CHECK(statistics.queued == 2U);
+    CHECK(statistics.executed == 1U);
+    CHECK(statistics.expired == 1U);
+    CHECK(statistics.pending == 0U);
+    return true;
+}
+
+bool TestEventRouteLifetimeSnapshot() {
+    std::uint32_t destroyed = 0U;
+    Result<Ref<TrackedVisual>> made =
+        MakeRef<TrackedVisual>(&destroyed);
+    CHECK(made);
+    Ref<TrackedVisual> visual =
+        std::move(made).Value();
+
+    EventRouteLifetimeSnapshot route;
+    CHECK(route.TryAdd(*visual));
+    CHECK(route.Size() == 1U);
+    CHECK(visual->UseCount() == 2U);
+    visual.Reset();
+    CHECK(destroyed == 0U);
+    CHECK(route[0] != nullptr);
+    route.Clear();
+    CHECK(destroyed == 1U);
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestSharedModuleCatalogAndManifestIdentity()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
+    if (!TestMutationJournalRollbackOrder()) return 1;
+    if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;
+    if (!TestEventRouteLifetimeSnapshot()) return 1;
     std::puts("Aero XAML module SDK tests passed");
     return 0;
 }
