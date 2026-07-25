@@ -50,7 +50,9 @@ struct MountRootState final {
 
 // Canonical transaction path for logical, visual, layout and render ownership.
 // Logical and visual parents are intentionally separate so item generation and
-// content projection do not need bespoke attachment sequences.
+// content projection do not need bespoke attachment sequences. Layout and
+// Render participation are optional: an edge joins a subsystem only when the
+// service exists and both endpoints expose the corresponding element type.
 class AERO_API MountService final {
 public:
     MountService(
