@@ -80,3 +80,5 @@ text = replace_section(text,
     """Base::Result<void>\nItemContainerGenerator::ReorderVisuals() noexcept {\n    for (Record& record : records_) {\n        Base::Result<void> detached = mounts_.DetachPresentation(record.containerMount);\n        if (!detached) return detached.GetStatus();\n    }\n    for (Record& record : records_) {\n        Base::Result<void> attached = mounts_.AttachPresentation(record.containerMount, *host_);\n        if (!attached) return attached.GetStatus();\n    }\n    return {};\n}\n""",
     "Items unified visual reorder")
 write(path, text)
+
+# retry: observable runner records the exact failed structural match.
