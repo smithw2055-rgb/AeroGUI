@@ -103,3 +103,4 @@ Base::HashCode XamlModuleCatalog::ManifestHash() const noexcept {
 // existing AeroMarkup target without introducing reverse dependencies.
 #include "RuntimeHost.inc"
 #include "RuntimeSafety.inc"
+#include "RuntimeServices.inc"
