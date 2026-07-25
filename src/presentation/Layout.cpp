@@ -521,131 +521,210 @@ Base::Result<void> LayoutManager::Attach(
     UIElement& parent,
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (&parent == &child || child.layoutAttached_) {
-        return InvalidState("Layout child is already attached or self-referential");
+        return InvalidState(
+            "Layout child is already attached or self-referential");
     }
     if (child.LayoutParent() != &parent) {
-        return InvalidState("Layout attachment must match the visual tree parent");
+        return InvalidState(
+            "Layout attachment must match the visual tree parent");
     }
+
+    // Queue all parent invalidation work before publishing the child state.
+    Base::Result<void> invalidated = InvalidateMeasure(parent);
+    if (!invalidated) return invalidated.GetStatus();
+
     parent.manager_ = this;
     child.manager_ = this;
     child.layoutAttached_ = true;
-    return InvalidateMeasure(parent);
+    child.measureValid_ = false;
+    child.arrangeValid_ = false;
+    return {};
 }
 
 Base::Result<void> LayoutManager::Detach(
     UIElement& parent,
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) {
-        return verified;
-    }
+    if (!verified) return verified.GetStatus();
     if (!child.layoutAttached_ || child.LayoutParent() != &parent ||
         child.manager_ != this) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Layout parent-child relationship was not found");
     }
+
+    Base::Result<void> invalidated = InvalidateMeasure(parent);
+    if (!invalidated) return invalidated.GetStatus();
+
+    RemoveQueued(child);
     child.layoutAttached_ = false;
     child.manager_ = nullptr;
     child.measureValid_ = false;
     child.arrangeValid_ = false;
-    return InvalidateMeasure(parent);
+    return {};
 }
 
 Base::Result<void> LayoutManager::SetRoot(
     UIElement* root,
     Size availableSize) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) {
-        return access;
-    }
+    if (!access) return access.GetStatus();
     if (!IsValidLayoutSize(availableSize)) {
-        return InvalidArgument("Root layout size must be finite and nonnegative");
+        return InvalidArgument(
+            "Root layout size must be finite and nonnegative");
     }
     if (root != nullptr) {
         Base::Result<void> verified = VerifyElement(*root);
-        if (!verified) {
-            return verified;
-        }
+        if (!verified) return verified.GetStatus();
         if (root->layoutAttached_ || root->VisualParent() != nullptr) {
-            return InvalidState("Layout root cannot have a visual or layout parent");
+            return InvalidState(
+                "Layout root cannot have a visual or layout parent");
         }
+        Base::Result<void> invalidated = InvalidateMeasure(*root);
+        if (!invalidated) return invalidated.GetStatus();
     }
+
     if (root_ != nullptr && root_ != root) {
+        RemoveQueued(*root_);
         root_->manager_ = nullptr;
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
-    if (root_ == nullptr) {
-        return {};
-    }
-    root_->manager_ = this;
-    return InvalidateMeasure(*root_);
+    if (root_ != nullptr) root_->manager_ = this;
+    return {};
 }
 
-Base::Result<void> LayoutManager::QueueMeasure(UIElement& element) noexcept {
-    if (element.measureQueued_) {
-        return {};
-    }
-    Base::Result<void> appended = measureQueue_.TryPushBack(&element);
-    if (!appended) {
-        return appended;
-    }
+Base::Result<void> LayoutManager::QueueMeasure(
+    UIElement& element) noexcept {
+    if (element.measureQueued_) return {};
+    Base::Result<Detail::VisualLease> lease =
+        Detail::VisualLease::Acquire(element);
+    if (!lease) return lease.GetStatus();
+    Base::Result<void> appended =
+        measureQueue_.TryPushBack(std::move(lease).Value());
+    if (!appended) return appended.GetStatus();
     element.measureQueued_ = true;
     return {};
 }
 
-Base::Result<void> LayoutManager::QueueArrange(UIElement& element) noexcept {
-    if (element.arrangeQueued_) {
-        return {};
-    }
-    Base::Result<void> appended = arrangeQueue_.TryPushBack(&element);
-    if (!appended) {
-        return appended;
-    }
+Base::Result<void> LayoutManager::QueueArrange(
+    UIElement& element) noexcept {
+    if (element.arrangeQueued_) return {};
+    Base::Result<Detail::VisualLease> lease =
+        Detail::VisualLease::Acquire(element);
+    if (!lease) return lease.GetStatus();
+    Base::Result<void> appended =
+        arrangeQueue_.TryPushBack(std::move(lease).Value());
+    if (!appended) return appended.GetStatus();
     element.arrangeQueued_ = true;
     return {};
 }
 
-Base::Result<void> LayoutManager::InvalidateMeasure(UIElement& element) noexcept {
-    Base::Result<void> verified = VerifyElement(element);
-    if (!verified) {
-        return verified;
+void LayoutManager::RemoveQueued(UIElement& element) noexcept {
+    auto remove = [&](Base::Vector<Detail::VisualLease>& queue) noexcept {
+        for (std::uint32_t index = 0U; index < queue.Size();) {
+            if (queue[index].Resolve() != &element) {
+                ++index;
+                continue;
+            }
+            for (std::uint32_t next = index + 1U;
+                 next < queue.Size(); ++next) {
+                queue[next - 1U] = std::move(queue[next]);
+            }
+            queue.PopBack();
+        }
+    };
+    remove(measureQueue_);
+    remove(arrangeQueue_);
+    element.measureQueued_ = false;
+    element.arrangeQueued_ = false;
+}
+
+Base::Result<void> LayoutManager::InvalidateMeasure(
+    UIElement& element) noexcept {
+    Base::Vector<UIElement*> path;
+    UIElement* current = &element;
+    while (current != nullptr) {
+        Base::Result<void> verified = VerifyElement(*current);
+        if (!verified) return verified.GetStatus();
+        Base::Result<void> appended = path.TryPushBack(current);
+        if (!appended) return appended.GetStatus();
+        current = current->layoutAttached_
+            ? current->LayoutParent() : nullptr;
     }
-    element.measureValid_ = false;
-    element.arrangeValid_ = false;
-    Base::Result<void> queued = QueueMeasure(element);
-    if (!queued) {
-        return queued;
+
+    Base::Vector<Detail::VisualLease> leases;
+    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (UIElement* item : path) {
+        if (item->measureQueued_) continue;
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(*item);
+        if (!lease) return lease.GetStatus();
+        Base::Result<void> staged =
+            leases.TryPushBack(std::move(lease).Value());
+        if (!staged) return staged.GetStatus();
     }
-    UIElement* parent = element.layoutAttached_ ? element.LayoutParent() : nullptr;
-    if (parent != nullptr) {
-        return InvalidateMeasure(*parent);
+    reserved = measureQueue_.TryReserve(
+        measureQueue_.Size() + leases.Size());
+    if (!reserved) return reserved.GetStatus();
+
+    std::uint32_t leaseIndex = 0U;
+    for (UIElement* item : path) {
+        item->measureValid_ = false;
+        item->arrangeValid_ = false;
+        if (item->measureQueued_) continue;
+        Base::Result<void> queued = measureQueue_.TryPushBack(
+            std::move(leases[leaseIndex++]));
+        AERO_ASSERT(queued);
+        (void)queued;
+        item->measureQueued_ = true;
     }
     return {};
 }
 
-Base::Result<void> LayoutManager::InvalidateArrange(UIElement& element) noexcept {
-    Base::Result<void> verified = VerifyElement(element);
-    if (!verified) {
-        return verified;
+Base::Result<void> LayoutManager::InvalidateArrange(
+    UIElement& element) noexcept {
+    Base::Vector<UIElement*> path;
+    UIElement* current = &element;
+    while (current != nullptr) {
+        Base::Result<void> verified = VerifyElement(*current);
+        if (!verified) return verified.GetStatus();
+        Base::Result<void> appended = path.TryPushBack(current);
+        if (!appended) return appended.GetStatus();
+        current = current->layoutAttached_
+            ? current->LayoutParent() : nullptr;
     }
-    element.arrangeValid_ = false;
-    Base::Result<void> queued = QueueArrange(element);
-    if (!queued) {
-        return queued;
+
+    Base::Vector<Detail::VisualLease> leases;
+    Base::Result<void> reserved = leases.TryReserve(path.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (UIElement* item : path) {
+        if (item->arrangeQueued_) continue;
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(*item);
+        if (!lease) return lease.GetStatus();
+        Base::Result<void> staged =
+            leases.TryPushBack(std::move(lease).Value());
+        if (!staged) return staged.GetStatus();
     }
-    UIElement* parent = element.layoutAttached_ ? element.LayoutParent() : nullptr;
-    if (parent != nullptr) {
-        return InvalidateArrange(*parent);
+    reserved = arrangeQueue_.TryReserve(
+        arrangeQueue_.Size() + leases.Size());
+    if (!reserved) return reserved.GetStatus();
+
+    std::uint32_t leaseIndex = 0U;
+    for (UIElement* item : path) {
+        item->arrangeValid_ = false;
+        if (item->arrangeQueued_) continue;
+        Base::Result<void> queued = arrangeQueue_.TryPushBack(
+            std::move(leases[leaseIndex++]));
+        AERO_ASSERT(queued);
+        (void)queued;
+        item->arrangeQueued_ = true;
     }
     return {};
 }
@@ -662,6 +741,19 @@ Base::Result<void> LayoutManager::MeasureElement(
     if (element.measureValid_ && SameSize(element.previousMeasureConstraint_, constraint)) {
         return {};
     }
+
+    Detail::VisualLease pendingArrange;
+    const bool queueArrange = !element.arrangeQueued_;
+    if (queueArrange) {
+        Base::Result<Detail::VisualLease> lease =
+            Detail::VisualLease::Acquire(element);
+        if (!lease) return lease.GetStatus();
+        pendingArrange = std::move(lease).Value();
+        Base::Result<void> reserved = arrangeQueue_.TryReserve(
+            arrangeQueue_.Size() + 1U);
+        if (!reserved) return reserved.GetStatus();
+    }
+
     const FrameworkElement* framework = element.AsFrameworkElement();
     const Thickness margin = framework != nullptr
         ? framework->Margin() : Thickness{};
@@ -710,7 +802,14 @@ Base::Result<void> LayoutManager::MeasureElement(
     element.measureQueued_ = false;
     ++element.layoutRevision_;
     ++measuredCount_;
-    return QueueArrange(element);
+    if (queueArrange) {
+        Base::Result<void> queued = arrangeQueue_.TryPushBack(
+            std::move(pendingArrange));
+        AERO_ASSERT(queued);
+        (void)queued;
+        element.arrangeQueued_ = true;
+    }
+    return {};
 }
 
 Base::Result<void> LayoutManager::ArrangeElement(
@@ -810,60 +909,90 @@ Base::Result<void> LayoutManager::ArrangeElement(
 
 Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) {
-        return access.GetStatus();
-    }
-    if (flushing_) {
-        return InvalidState("Nested layout flush is not allowed");
-    }
+    if (!access) return access.GetStatus();
+    if (flushing_) return InvalidState("Nested layout flush is not allowed");
+
     flushing_ = true;
     measuredCount_ = 0U;
     arrangedCount_ = 0U;
 
-    if (root_ != nullptr && (!root_->measureValid_ || !root_->arrangeValid_)) {
-        Base::Result<void> measured = MeasureElement(*root_, rootAvailableSize_);
+    if (root_ != nullptr &&
+        (!root_->measureValid_ || !root_->arrangeValid_)) {
+        Base::Result<void> measured =
+            MeasureElement(*root_, rootAvailableSize_);
         if (!measured) {
             flushing_ = false;
             return measured.GetStatus();
         }
         Base::Result<void> arranged = ArrangeElement(
-            *root_, {0.0, 0.0, rootAvailableSize_.width, rootAvailableSize_.height});
+            *root_, {0.0, 0.0,
+                     rootAvailableSize_.width, rootAvailableSize_.height});
         if (!arranged) {
             flushing_ = false;
             return arranged.GetStatus();
         }
     }
 
-    for (UIElement* element : measureQueue_) {
-        if (element != nullptr && element != root_ && !element->measureValid_) {
-            UIElement* parent = element->layoutAttached_
-                ? element->LayoutParent() : nullptr;
-            const Size constraint = parent != nullptr
-                ? parent->renderSize_ : rootAvailableSize_;
-            Base::Result<void> measured = MeasureElement(*element, constraint);
-            if (!measured) {
-                flushing_ = false;
-                return measured.GetStatus();
-            }
-        }
+    Base::Vector<Detail::VisualLease> measure =
+        std::move(measureQueue_);
+    measureQueue_ = Base::Vector<Detail::VisualLease>();
+    for (const Detail::VisualLease& lease : measure) {
+        Visual* visual = lease.Resolve();
+        UIElement* element = visual != nullptr
+            ? visual->AsUIElement() : nullptr;
+        if (element != nullptr) element->measureQueued_ = false;
     }
-    for (UIElement* element : arrangeQueue_) {
-        if (element != nullptr && element != root_ && !element->arrangeValid_) {
-            Rect slot = element->layoutSlot_;
-            if (slot.width == 0.0 && slot.height == 0.0) {
-                slot.width = element->desiredSize_.width;
-                slot.height = element->desiredSize_.height;
-            }
-            Base::Result<void> arranged = ArrangeElement(*element, slot);
-            if (!arranged) {
-                flushing_ = false;
-                return arranged.GetStatus();
-            }
+    for (const Detail::VisualLease& lease : measure) {
+        Visual* visual = lease.Resolve();
+        UIElement* element = visual != nullptr
+            ? visual->AsUIElement() : nullptr;
+        if (element == nullptr || element == root_ ||
+            element->manager_ != this || element->measureValid_) {
+            continue;
+        }
+        UIElement* parent = element->layoutAttached_
+            ? element->LayoutParent() : nullptr;
+        const Size constraint = parent != nullptr
+            ? parent->renderSize_ : rootAvailableSize_;
+        Base::Result<void> measured =
+            MeasureElement(*element, constraint);
+        if (!measured) {
+            (void)QueueMeasure(*element);
+            flushing_ = false;
+            return measured.GetStatus();
         }
     }
 
-    measureQueue_.Clear();
-    arrangeQueue_.Clear();
+    Base::Vector<Detail::VisualLease> arrange =
+        std::move(arrangeQueue_);
+    arrangeQueue_ = Base::Vector<Detail::VisualLease>();
+    for (const Detail::VisualLease& lease : arrange) {
+        Visual* visual = lease.Resolve();
+        UIElement* element = visual != nullptr
+            ? visual->AsUIElement() : nullptr;
+        if (element != nullptr) element->arrangeQueued_ = false;
+    }
+    for (const Detail::VisualLease& lease : arrange) {
+        Visual* visual = lease.Resolve();
+        UIElement* element = visual != nullptr
+            ? visual->AsUIElement() : nullptr;
+        if (element == nullptr || element == root_ ||
+            element->manager_ != this || element->arrangeValid_) {
+            continue;
+        }
+        Rect slot = element->layoutSlot_;
+        if (slot.width == 0.0 && slot.height == 0.0) {
+            slot.width = element->desiredSize_.width;
+            slot.height = element->desiredSize_.height;
+        }
+        Base::Result<void> arranged = ArrangeElement(*element, slot);
+        if (!arranged) {
+            (void)QueueArrange(*element);
+            flushing_ = false;
+            return arranged.GetStatus();
+        }
+    }
+
     ++passVersion_;
     flushing_ = false;
     return measuredCount_ + arrangedCount_;
