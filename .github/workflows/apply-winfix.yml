@@ -1,4 +1,4 @@
-name: Materialize D3D11 surface test fix
+name: Materialize deferred-resource lifecycle test
 
 on:
   pull_request:
@@ -20,9 +20,44 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
-          python -c 'from pathlib import Path; p=Path("tests/rhi/D3D11SurfaceTests.cpp"); s=p.read_text(); old="    CHECK(!device.CreateResource(postLossDescriptor));"; new="    CHECK(!device.CreateBuffer(postLossDescriptor.buffer));"; assert old in s; p.write_text(s.replace(old,new,1))'
-          git add tests/rhi/D3D11SurfaceTests.cpp
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/rhi/D3D11BackendTests.cpp")
+          text = path.read_text()
+          old = """        CHECK(device.LiveResourceCount() == 0U);
+                  CHECK(device.PendingDestroyCount() ==
+                      (iteration + 1U) * ResourcesPerIteration);
+              }
+
+              CHECK(backend.LiveResourceCount() ==
+                  IterationCount * ResourcesPerIteration);
+              CHECK(backend.WaitForFence(lastFence));
+              Result<std::uint32_t> collected = device.CollectGarbage();
+              CHECK(collected);
+              CHECK(collected.Value() == IterationCount * ResourcesPerIteration);
+          """
+          new = """        CHECK(device.LiveResourceCount() == 0U);
+                  const std::uint32_t pending = device.PendingDestroyCount();
+                  CHECK(pending >= ResourcesPerIteration);
+                  CHECK(pending <= (iteration + 1U) * ResourcesPerIteration);
+                  CHECK(backend.LiveResourceCount() == pending);
+              }
+
+              const std::uint32_t pendingBeforeWait =
+                  device.PendingDestroyCount();
+              CHECK(pendingBeforeWait >= ResourcesPerIteration);
+              CHECK(backend.LiveResourceCount() == pendingBeforeWait);
+              CHECK(backend.WaitForFence(lastFence));
+              Result<std::uint32_t> collected = device.CollectGarbage();
+              CHECK(collected);
+              CHECK(collected.Value() == pendingBeforeWait);
+          """
+          if old not in text:
+              raise SystemExit("deferred-resource assertion block was not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git add tests/rhi/D3D11BackendTests.cpp
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Fix D3D11 surface test resource creation"
+          git commit -m "Update deferred resource lifecycle expectations"
           git push origin "HEAD:${{ github.head_ref }}"
