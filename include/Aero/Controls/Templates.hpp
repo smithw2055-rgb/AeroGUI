@@ -6,6 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
+#include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 
 namespace Aero::Presentation {
@@ -33,6 +34,7 @@ struct TemplatePart final {
     Visual* visual = nullptr;
     DependencyObject* object = nullptr;
     FrameworkElement* frameworkElement = nullptr;
+    MountEdgeState mount;
 };
 
 struct TemplateContentProjection final {
@@ -40,11 +42,9 @@ struct TemplateContentProjection final {
     ContentPresenter* presenter = nullptr;
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
+    PresentationMountState projectedMount;
     bool attachedLogical = false;
-    bool detachedOriginalLayout = false;
-    bool detachedOriginalRender = false;
-    bool attachedProjectedLayout = false;
-    bool attachedProjectedRender = false;
+    bool detachedOriginalPresentation = false;
 };
 
 class AERO_API TemplateBuildContext final {
@@ -87,6 +87,7 @@ private:
         : tree_(&tree),
           layout_(layout),
           renderer_(renderer),
+          mounts_(tree, layout, renderer),
           parent_(&parent) {}
 
     DependencyObject* FindObject(
@@ -94,12 +95,14 @@ private:
     Base::Result<void> AddOwnedPart(
         Base::StringView name,
         Base::Ref<Base::Object> owner,
-        Visual& visual) noexcept;
+        Visual& visual,
+        MountEdgeState mount) noexcept;
     void Rollback() noexcept;
 
     ObjectTree* tree_ = nullptr;
     LayoutManager* layout_ = nullptr;
     RenderManager* renderer_ = nullptr;
+    MountService mounts_;
     Control* parent_ = nullptr;
     Visual* rootVisual_ = nullptr;
     UIElement* rootElement_ = nullptr;
@@ -215,6 +218,7 @@ public:
           properties_(&properties),
           layout_(layout),
           renderer_(renderer),
+          mounts_(tree, layout, renderer),
           propertyChangedHandler_(
               this, &TemplateManager::OnPropertyChanged) {}
     ~TemplateManager() noexcept;
@@ -250,6 +254,7 @@ private:
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutManager* layout_ = nullptr;
     RenderManager* renderer_ = nullptr;
+    MountService mounts_;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
