@@ -1,4 +1,4 @@
-commit=6456cac8670098a8300d964abbfa9e65abd2bdbf
+commit=5d23bfd1b7067afa53e0ee23825a52cf0003b46e
 Traceback (most recent call last):
   File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 797, in <module>
     raise RuntimeError("markup refactor document boundary text was not found")
