@@ -1,7 +1,15 @@
+#pragma once
+
+#include <Aero/Base/Object.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataDescriptors.hpp>
+#include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Presentation/VisualTreeMount.hpp>
+
+namespace Aero::Markup {
+
 struct XamlVisualContentEdge final {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
@@ -33,8 +41,13 @@ struct XamlVisualContentPlan final {
     }
 };
 
+// Ownership returned by a successful XAML load. The object writer remains a
 // short-lived loading session; mounted runtimes keep names, resources, and the
 // visual content plan here instead of reaching back into Markup services.
+struct XamlLoadResult final {
+    Base::Ref<Base::Object> root;
+    NameScope names;
+    ResourceDictionary resources;
     XamlVisualContentPlan visualContent;
 
     void Clear() noexcept {
@@ -44,3 +57,6 @@ struct XamlVisualContentPlan final {
         visualContent.ReleaseContent();
         visualContent.Clear();
     }
+};
+
+} // namespace Aero::Markup
