@@ -1,5 +1,7 @@
 #include <Aero/Markup/XamlVisualTree.hpp>
 
+#include <Aero/Base/Assert.hpp>
+
 namespace Aero::Markup {
 namespace {
 
@@ -13,19 +15,24 @@ Base::Status InvalidVisualTreeState(const char* message) noexcept {
 
 } // namespace
 
-XamlVisualTreeHost::XamlVisualTreeHost(
-    Presentation::ObjectTree& tree, Presentation::LayoutManager& layout,
-    Core::EffectiveValueEngine& values, Presentation::RenderManager* renderer) noexcept
-    : values_(&values), mount_(tree, layout, renderer), stagedContent_() {}
+namespace {
 
-XamlVisualTreeHost::~XamlVisualTreeHost() noexcept { AERO_ASSERT(!mount_.IsMounted()); }
+Base::Status InvalidContent(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
+}
 
-Base::Result<void> XamlVisualTreeHost::Register(
+Base::Status InvalidContentState(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
+}
+
+} // namespace
+
+Base::Result<void> XamlContentWriter::Register(
     XamlSchemaContext& schema) noexcept {
-    if (schema_ != nullptr || schema.IsFrozen() ||
+    if (plan_ == nullptr || schema_ != nullptr || schema.IsFrozen() ||
         !schema.Descriptors().IsSealed() || !schema.Facets().IsSealed()) {
-        return InvalidVisualTreeState(
-            "XAML visual-tree metadata is not ready");
+        return InvalidContentState(
+            "XAML content writer metadata is not ready");
     }
 
     schema_ = &schema;
@@ -39,6 +46,161 @@ Base::Result<void> XamlVisualTreeHost::Register(
         schema_ = nullptr;
         return registered.GetStatus();
     }
+    return {};
+}
+
+Base::Result<void> XamlContentWriter::Discard() noexcept {
+    if (plan_ == nullptr) {
+        return InvalidContentState(
+            "XAML content writer has no target plan");
+    }
+    plan_->ReleaseContent();
+    plan_->Clear();
+    return {};
+}
+
+Base::Result<Presentation::Visual*> XamlContentWriter::ResolveVisual(
+    Base::Object& object, Core::TypeId type) const noexcept {
+    if (schema_ == nullptr || object.RuntimeType() != type ||
+        !schema_->Descriptors().IsDerivedFrom(
+            type, Presentation::Visual::StaticTypeId())) {
+        return InvalidContent(
+            "XAML object metadata is not compatible with Visual");
+    }
+    return static_cast<Presentation::Visual*>(&object);
+}
+
+Base::Result<Presentation::UIElement*> XamlContentWriter::ResolveUIElement(
+    Base::Object& object, Core::TypeId type) const noexcept {
+    Base::Result<Presentation::Visual*> visual = ResolveVisual(object, type);
+    if (!visual) return visual.GetStatus();
+    Presentation::UIElement* element = visual.Value()->AsUIElement();
+    if (element == nullptr) {
+        return InvalidContent("XAML object is not a UIElement");
+    }
+    return element;
+}
+
+Base::Result<void> XamlContentWriter::StageContent(
+    Base::Object& object,
+    const XamlValue& value,
+    const XamlServiceProvider& services) noexcept {
+    if (plan_ == nullptr || schema_ == nullptr ||
+        services.targetObject != &object ||
+        value.Kind() != XamlValueKind::Object || value.IsNullObject() ||
+        !value.AsObject()) {
+        return InvalidContentState(
+            "XAML visual content requires a non-null object");
+    }
+
+    const Core::ContentFacet* content =
+        schema_->Facets().FindContentByMember(services.targetMember);
+    if (content == nullptr || content->write == nullptr ||
+        content->clear == nullptr ||
+        !Core::HasContentFlag(content->flags, Core::ContentFlags::Visual) ||
+        !schema_->Descriptors().IsDerivedFrom(
+            services.targetObjectType, content->type)) {
+        return InvalidContent(
+            "XAML content target has no visual content facet");
+    }
+
+    Base::Result<Presentation::UIElement*> parentResult = ResolveUIElement(
+        object, services.targetObjectType);
+    if (!parentResult) return parentResult.GetStatus();
+
+    Base::Object* childObject = value.AsObject().Get();
+    Base::Result<Presentation::UIElement*> childResult = ResolveUIElement(
+        *childObject, value.Type());
+    if (!childResult) return childResult.GetStatus();
+
+    Base::Result<void> reserved = plan_->TryReserve(
+        plan_->contentEdges.Size() + 1U,
+        plan_->mountEdges.Size() + 1U,
+        plan_->nodes.Size() + 2U);
+    if (!reserved) return reserved.GetStatus();
+
+    Base::Result<Presentation::Visual*> parentNode = ResolveVisual(
+        object, services.targetObjectType);
+    if (!parentNode) return parentNode.GetStatus();
+    Base::Result<Presentation::Visual*> childNode = ResolveVisual(
+        *childObject, value.Type());
+    if (!childNode) return childNode.GetStatus();
+
+    Base::Result<void> parentAdded =
+        plan_->TryAddNode(*parentNode.Value());
+    if (!parentAdded) return parentAdded.GetStatus();
+    Base::Result<void> childAdded =
+        plan_->TryAddNode(*childNode.Value());
+    if (!childAdded) return childAdded.GetStatus();
+
+    Base::Ref<Base::Object> parentOwner =
+        Base::Ref<Base::Object>::FromBorrowed(object);
+    Base::Result<void> tracked = plan_->contentEdges.TryPushBack({
+        std::move(parentOwner), value.AsObject(),
+        content->clear, content->context});
+    if (!tracked) return tracked.GetStatus();
+
+    tracked = plan_->mountEdges.TryPushBack({
+        parentResult.Value(), childResult.Value(), {}});
+    if (!tracked) {
+        plan_->contentEdges.PopBack();
+        return tracked.GetStatus();
+    }
+
+    Base::Result<void> written = content->write(
+        object, value.AsObject(), content->context);
+    if (!written) {
+        plan_->mountEdges.PopBack();
+        plan_->contentEdges.PopBack();
+        return written.GetStatus();
+    }
+    return {};
+}
+
+bool XamlContentWriter::HandlesContentMember(
+    const XamlResolvedMember& member,
+    void* context) noexcept {
+    auto* writer = static_cast<XamlContentWriter*>(context);
+    if (writer == nullptr || writer->schema_ == nullptr ||
+        member.kind != Core::MemberKind::Property) {
+        return false;
+    }
+    const Core::ContentFacet* content =
+        writer->schema_->Facets().FindContentByMember(member.id);
+    return content != nullptr && content->write != nullptr &&
+        Core::HasContentFlag(content->flags, Core::ContentFlags::Visual);
+}
+
+Base::Result<void> XamlContentWriter::SetContentMember(
+    Base::Object& object,
+    const XamlValue& value,
+    const XamlServiceProvider& services,
+    void* context) noexcept {
+    auto* writer = static_cast<XamlContentWriter*>(context);
+    return writer != nullptr ? writer->StageContent(object, value, services)
+        : Base::Result<void>(InvalidContentState(
+            "XAML content writer is unavailable"));
+}
+
+XamlVisualTreeHost::XamlVisualTreeHost(
+    Presentation::ObjectTree& tree, Presentation::LayoutManager& layout,
+    Core::EffectiveValueEngine& values, Presentation::RenderManager* renderer) noexcept
+    : values_(&values),
+      mount_(tree, layout, renderer),
+      stagedContent_(),
+      contentWriter_(stagedContent_) {}
+
+XamlVisualTreeHost::~XamlVisualTreeHost() noexcept { AERO_ASSERT(!mount_.IsMounted()); }
+
+Base::Result<void> XamlVisualTreeHost::Register(
+    XamlSchemaContext& schema) noexcept {
+    if (schema_ != nullptr) {
+        return InvalidVisualTreeState(
+            "XAML visual-tree metadata is already registered");
+    }
+    Base::Result<void> registered = contentWriter_.Register(schema);
+    if (!registered) return registered.GetStatus();
+    schema_ = &schema;
     return {};
 }
 
@@ -67,83 +229,6 @@ Presentation::FrameworkElement* XamlVisualTreeHost::ResolveFrameworkElement(
     Base::Object& object, Core::TypeId type) const noexcept {
     Base::Result<Presentation::Visual*> visual = ResolveVisual(object, type);
     return visual ? visual.Value()->AsFrameworkElement() : nullptr;
-}
-
-Base::Result<void> XamlVisualTreeHost::StageContent(
-    Base::Object& object, const XamlValue& value,
-    const XamlServiceProvider& services) noexcept {
-    if (mount_.IsMounted() || schema_ == nullptr || services.targetObject != &object ||
-        value.Kind() != XamlValueKind::Object || value.IsNullObject() ||
-        !value.AsObject()) {
-        return InvalidVisualTreeState(
-            "XAML visual content requires a non-null object before mount");
-    }
-
-    const Core::ContentFacet* content =
-        schema_->Facets().FindContentByMember(services.targetMember);
-    if (content == nullptr || content->write == nullptr ||
-        content->clear == nullptr ||
-        !Core::HasContentFlag(content->flags, Core::ContentFlags::Visual) ||
-        !schema_->Descriptors().IsDerivedFrom(
-            services.targetObjectType, content->type)) {
-        return InvalidVisualTree(
-            "XAML content target has no visual content facet");
-    }
-
-    Base::Result<Presentation::UIElement*> parentResult = ResolveUIElement(
-        object, services.targetObjectType);
-    if (!parentResult) return parentResult.GetStatus();
-    Base::Object* childObject = value.AsObject().Get();
-    Base::Result<Presentation::UIElement*> childResult = ResolveUIElement(
-        *childObject, value.Type());
-    if (!childResult) return childResult.GetStatus();
-
-    // Reserve every container that will grow before mutating the control. This
-    // keeps content writes failure-atomic even under allocator exhaustion.
-    Base::Result<void> reserved = stagedContent_.TryReserve(
-        stagedContent_.contentEdges.Size() + 1U,
-        stagedContent_.mountEdges.Size() + 1U,
-        stagedContent_.nodes.Size() + 2U);
-    if (!reserved) return reserved.GetStatus();
-
-    Base::Result<Presentation::Visual*> parentNode = ResolveVisual(
-        object, services.targetObjectType);
-    if (!parentNode) return parentNode.GetStatus();
-    Base::Result<Presentation::Visual*> childNode = ResolveVisual(
-        *childObject, value.Type());
-    if (!childNode) return childNode.GetStatus();
-
-    Base::Result<void> parentAdded =
-        stagedContent_.TryAddNode(*parentNode.Value());
-    if (!parentAdded) return parentAdded.GetStatus();
-    Base::Result<void> childAdded =
-        stagedContent_.TryAddNode(*childNode.Value());
-    if (!childAdded) return childAdded.GetStatus();
-
-    Base::Ref<Base::Object> parentOwner =
-        Base::Ref<Base::Object>::FromBorrowed(object);
-    Base::Result<void> tracked = stagedContent_.contentEdges.TryPushBack({
-        std::move(parentOwner), value.AsObject(),
-        content->clear, content->context});
-    if (!tracked) return tracked.GetStatus();
-    tracked = stagedContent_.mountEdges.TryPushBack({
-        parentResult.Value(), childResult.Value(), {}});
-    if (!tracked) {
-        stagedContent_.contentEdges.PopBack();
-        return tracked.GetStatus();
-    }
-
-    // All graph bookkeeping is now committed. Content callbacks are required
-    // to be failure-atomic; if one rejects the child, remove the staged edge
-    // without clearing content that may have existed before this write.
-    Base::Result<void> written = content->write(
-        object, value.AsObject(), content->context);
-    if (!written) {
-        stagedContent_.mountEdges.PopBack();
-        stagedContent_.contentEdges.PopBack();
-        return written.GetStatus();
-    }
-    return {};
 }
 
 Base::Result<void> XamlVisualTreeHost::Mount(
@@ -183,43 +268,19 @@ Base::Result<void> XamlVisualTreeHost::Unmount() noexcept {
     stagedContent_.Clear();
     return {};
 }
+
 Base::Result<void> XamlVisualTreeHost::DiscardStaged() noexcept {
     if (mount_.IsMounted()) {
         return InvalidVisualTreeState(
             "Mounted XAML visual tree must be unmounted before discarding it");
     }
-    stagedContent_.ReleaseContent();
-    stagedContent_.Clear();
-    return {};
+    return contentWriter_.Discard();
 }
 
 XamlVisualContentPlan XamlVisualTreeHost::TakeStagedContent() noexcept {
     XamlVisualContentPlan result = std::move(stagedContent_);
     stagedContent_.Clear();
     return result;
-}
-
-bool XamlVisualTreeHost::HandlesContentMember(
-    const XamlResolvedMember& member,
-    void* context) noexcept {
-    auto* host = static_cast<XamlVisualTreeHost*>(context);
-    if (host == nullptr || host->schema_ == nullptr ||
-        member.kind != Core::MemberKind::Property) {
-        return false;
-    }
-    const Core::ContentFacet* content =
-        host->schema_->Facets().FindContentByMember(member.id);
-    return content != nullptr && content->write != nullptr &&
-        Core::HasContentFlag(content->flags, Core::ContentFlags::Visual);
-}
-
-Base::Result<void> XamlVisualTreeHost::SetContentMember(
-    Base::Object& object, const XamlValue& value,
-    const XamlServiceProvider& services, void* context) noexcept {
-    auto* host = static_cast<XamlVisualTreeHost*>(context);
-    return host != nullptr ? host->StageContent(object, value, services)
-        : Base::Result<void>(InvalidVisualTreeState(
-            "XAML visual-tree host is unavailable"));
 }
 
 Base::Result<Base::Ref<Base::Object>> LoadXamlVisualTreeWithActivation(
