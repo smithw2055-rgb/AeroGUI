@@ -49,9 +49,7 @@ namespace Aero::Markup {
 class XamlActivationProviderRegistry;
 class XamlCompiledDocument;
 class XamlNodeReader;
-class XamlObjectWriter;
 class XamlSchemaContext;
-class XamlVisualTreeHost;
 }
 
 namespace Aero {
@@ -138,6 +136,7 @@ public:
     Base::Object* FindNamedObject(
         Base::StringView name,
         Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+    std::uint32_t NamedObjectCount() const noexcept;
 
     template<class T>
     T* FindNamed(Base::StringView name) noexcept {
@@ -158,8 +157,6 @@ public:
     Controls::VisualStateManager* VisualStates() noexcept;
     Markup::XamlSchemaContext* Schema() noexcept;
     Markup::XamlActivationProviderRegistry* Activation() noexcept;
-    Markup::XamlVisualTreeHost* VisualTree() noexcept;
-    Markup::XamlObjectWriter* Writer() noexcept;
 
 private:
     struct Impl;

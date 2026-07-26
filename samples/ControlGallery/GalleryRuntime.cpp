@@ -169,10 +169,6 @@ struct GalleryRuntime::Impl final {
         return *runtime.Metadata();
     }
 
-    XamlObjectWriter& Writer() noexcept {
-        return *runtime.Writer();
-    }
-
     Result<void> LoadDocument(
         const std::string& assetDirectory,
         GalleryLoadMode mode) noexcept {
@@ -257,12 +253,9 @@ struct GalleryRuntime::Impl final {
             "DarkChoice",
             "BigList"};
         for (StringView name : names) {
-            Object* object =
-                Writer().DocumentNameScope().Find(name);
-            if (object == nullptr ||
-                !Metadata().Descriptors().IsDerivedFrom(
-                    object->RuntimeType(),
-                    Control::StaticTypeId())) {
+            Object* object = runtime.FindNamedObject(
+                name, Control::StaticTypeId());
+            if (object == nullptr) {
                 return Failure(
                     "ControlGallery themed control is missing");
             }
@@ -605,7 +598,7 @@ Result<void> GalleryRuntime::Initialize(
     if (!status) return status.GetStatus();
 
     state->snapshot.namedObjectCount =
-        state->Writer().DocumentNameScope().Size();
+        state->runtime.NamedObjectCount();
     state->snapshot.itemCount = state->items.Count();
     state->snapshot.realizedItemCount =
         state->generator->GeneratedCount();

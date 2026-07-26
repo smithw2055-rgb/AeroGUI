@@ -117,4 +117,34 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
     return writer.Load(document, context);
 }
 
+Base::Result<XamlLoadResult> LoadXamlDocumentWithActivation(
+    XamlObjectWriter& writer,
+    XamlNodeReader& reader,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    Base::Result<void> valid = ValidateLoadActivation(providers, activation);
+    if (!valid) return valid.GetStatus();
+    Core::ObjectServicesScope objectServices(
+        *activation.dispatcher,
+        *activation.dependencyProperties,
+        providers.Schema().Runtime());
+    XamlLoadContext context{&providers, &activation};
+    return writer.LoadDocument(reader, context);
+}
+
+Base::Result<XamlLoadResult> LoadXamlDocumentWithActivation(
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    Base::Result<void> valid = ValidateLoadActivation(providers, activation);
+    if (!valid) return valid.GetStatus();
+    Core::ObjectServicesScope objectServices(
+        *activation.dispatcher,
+        *activation.dependencyProperties,
+        providers.Schema().Runtime());
+    XamlLoadContext context{&providers, &activation};
+    return writer.LoadDocument(document, context);
+}
+
 } // namespace Aero::Markup

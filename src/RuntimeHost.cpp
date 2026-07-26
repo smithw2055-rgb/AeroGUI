@@ -110,7 +110,7 @@ struct RuntimeHost::Impl final {
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
 
-    Base::Ref<Base::Object> pendingRoot;
+    XamlLoadResult loadedDocument;
     Base::Ref<Base::Object> root;
     std::uint64_t frameNumber = 0U;
     bool initialized = false;
@@ -133,6 +133,12 @@ struct RuntimeHost::Impl final {
             options.applicationServices;
         context.hostContext = options.hostContext;
         return context;
+    }
+
+    void ClearLoadedDocument() noexcept {
+        loadedDocument.root.Reset();
+        loadedDocument.names.Clear();
+        loadedDocument.resources.Clear();
     }
 
     Presentation::Visual* RootVisual() noexcept {
@@ -311,7 +317,7 @@ struct RuntimeHost::Impl final {
         }
         mounted = false;
         root.Reset();
-        pendingRoot.Reset();
+        ClearLoadedDocument();
         if (writer != nullptr) writer->Reset();
 
         DestroyRuntimeObject(
@@ -467,14 +473,14 @@ struct RuntimeHost::Impl final {
             return RuntimeNotInitialized(
                 "RuntimeHost must be initialized before XAML loading");
         }
-        if (mounted || root || pendingRoot) {
+        if (mounted || root || loadedDocument.root) {
             return RuntimeInvalidState(
                 "RuntimeHost already owns a loaded document");
         }
         writer->Reset();
         static_cast<void>(visualTree->DiscardStaged());
-        Base::Result<Base::Ref<Base::Object>> loaded =
-            LoadXamlVisualTreeWithActivation(
+        Base::Result<XamlLoadResult> loaded =
+            LoadXamlVisualTreeDocumentWithActivation(
                 *visualTree, *writer, reader,
                 *activation, ActivationContext());
         if (!loaded) {
@@ -482,8 +488,8 @@ struct RuntimeHost::Impl final {
             writer->Reset();
             return loaded.GetStatus();
         }
-        pendingRoot = loaded.Value();
-        return pendingRoot;
+        loadedDocument = std::move(loaded).Value();
+        return loadedDocument.root;
     }
 
     Base::Result<Base::Ref<Base::Object>> LoadCompiled(
@@ -492,14 +498,14 @@ struct RuntimeHost::Impl final {
             return RuntimeNotInitialized(
                 "RuntimeHost must be initialized before XAML loading");
         }
-        if (mounted || root || pendingRoot) {
+        if (mounted || root || loadedDocument.root) {
             return RuntimeInvalidState(
                 "RuntimeHost already owns a loaded document");
         }
         writer->Reset();
         static_cast<void>(visualTree->DiscardStaged());
-        Base::Result<Base::Ref<Base::Object>> loaded =
-            LoadXamlVisualTreeWithActivation(
+        Base::Result<XamlLoadResult> loaded =
+            LoadXamlVisualTreeDocumentWithActivation(
                 *visualTree, *writer, document,
                 *activation, ActivationContext());
         if (!loaded) {
@@ -507,8 +513,8 @@ struct RuntimeHost::Impl final {
             writer->Reset();
             return loaded.GetStatus();
         }
-        pendingRoot = loaded.Value();
-        return pendingRoot;
+        loadedDocument = std::move(loaded).Value();
+        return loadedDocument.root;
     }
 
     Base::Result<void> MountRoot(
@@ -527,8 +533,8 @@ struct RuntimeHost::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "RuntimeHost root must not be null");
         }
-        if (pendingRoot &&
-            pendingRoot.Get() != requestedRoot.Get()) {
+        if (loadedDocument.root &&
+            loadedDocument.root.Get() != requestedRoot.Get()) {
             return RuntimeInvalidState(
                 "Mounted root does not match the staged XAML document");
         }
@@ -546,7 +552,6 @@ struct RuntimeHost::Impl final {
                 availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
-        pendingRoot.Reset();
         mounted = true;
         Base::Result<void> interactions =
             CreateInteractions();
@@ -555,6 +560,7 @@ struct RuntimeHost::Impl final {
             static_cast<void>(visualTree->Unmount());
             mounted = false;
             root.Reset();
+            ClearLoadedDocument();
             writer->Reset();
             return interactions.GetStatus();
         }
@@ -564,9 +570,9 @@ struct RuntimeHost::Impl final {
     Base::Result<void> UnmountRoot() noexcept {
         if (!initialized) return {};
         if (!mounted) {
-            if (pendingRoot) {
+            if (loadedDocument.root) {
                 static_cast<void>(visualTree->DiscardStaged());
-                pendingRoot.Reset();
+                ClearLoadedDocument();
                 writer->Reset();
             }
             return {};
@@ -577,7 +583,7 @@ struct RuntimeHost::Impl final {
             visualTree->Unmount();
         mounted = false;
         root.Reset();
-        pendingRoot.Reset();
+        ClearLoadedDocument();
         writer->Reset();
         bindings->Shutdown();
         Base::Result<void> bindingsReady =
@@ -687,13 +693,13 @@ RuntimeHost::LoadCompiledXaml(
 
 Base::Result<void> RuntimeHost::Mount(
     Presentation::Size availableSize) noexcept {
-    if (!impl_->pendingRoot) {
+    if (!impl_->loadedDocument.root) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "RuntimeHost has no staged XAML root");
     }
     return impl_->MountRoot(
-        impl_->pendingRoot, availableSize);
+        impl_->loadedDocument.root, availableSize);
 }
 
 Base::Result<void> RuntimeHost::Mount(
@@ -845,10 +851,10 @@ RuntimeHost::Root() const noexcept {
 Base::Object* RuntimeHost::FindNamedObject(
     Base::StringView name,
     Core::TypeId expectedType) noexcept {
-    if (impl_ == nullptr || impl_->writer == nullptr || name.Empty()) {
+    if (impl_ == nullptr || name.Empty()) {
         return nullptr;
     }
-    Base::Object* object = impl_->writer->DocumentNameScope().Find(name);
+    Base::Object* object = impl_->loadedDocument.names.Find(name);
     if (object == nullptr || expectedType == Core::InvalidTypeId) {
         return object;
     }
@@ -917,12 +923,8 @@ RuntimeHost::Activation() noexcept {
     return impl_ != nullptr ? impl_->activation : nullptr;
 }
 
-XamlVisualTreeHost* RuntimeHost::VisualTree() noexcept {
-    return impl_ != nullptr ? impl_->visualTree : nullptr;
-}
-
-XamlObjectWriter* RuntimeHost::Writer() noexcept {
-    return impl_ != nullptr ? impl_->writer : nullptr;
+std::uint32_t RuntimeHost::NamedObjectCount() const noexcept {
+    return impl_ != nullptr ? impl_->loadedDocument.names.Size() : 0U;
 }
 
 } // namespace Aero

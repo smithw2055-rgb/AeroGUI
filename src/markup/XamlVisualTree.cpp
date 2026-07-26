@@ -277,6 +277,40 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlVisualTreeWithActivation(
     return std::move(loaded).Value();
 }
 
+Base::Result<XamlLoadResult> LoadXamlVisualTreeDocumentWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    XamlNodeReader& reader,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    Base::Result<void> discarded = host.DiscardStaged();
+    if (!discarded) return discarded.GetStatus();
+    Base::Result<XamlLoadResult> loaded = LoadXamlDocumentWithActivation(
+        writer, reader, providers, activation);
+    if (!loaded) {
+        (void)host.DiscardStaged();
+        return loaded.GetStatus();
+    }
+    return std::move(loaded).Value();
+}
+
+Base::Result<XamlLoadResult> LoadXamlVisualTreeDocumentWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    Base::Result<void> discarded = host.DiscardStaged();
+    if (!discarded) return discarded.GetStatus();
+    Base::Result<XamlLoadResult> loaded = LoadXamlDocumentWithActivation(
+        writer, document, providers, activation);
+    if (!loaded) {
+        (void)host.DiscardStaged();
+        return loaded.GetStatus();
+    }
+    return std::move(loaded).Value();
+}
+
 Base::Result<void> XamlVisualTreeHost::Resize(
     Presentation::Size availableSize) noexcept {
     return mount_.Resize(availableSize);

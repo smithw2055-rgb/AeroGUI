@@ -148,6 +148,52 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     return result;
 }
 
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    XamlNodeReader& reader) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(reader);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    XamlNodeReader& reader,
+    const XamlLoadContext& context) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(reader, context);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    const XamlCompiledDocument& document) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(document);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    const XamlCompiledDocument& document,
+    const XamlLoadContext& context) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(document, context);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
 Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::LoadReaderCore(
     XamlNodeReader& reader) noexcept {
     if (loading_) {

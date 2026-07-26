@@ -9,6 +9,7 @@
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlLoadResult.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
@@ -89,6 +90,22 @@ LoadXamlVisualTreeWithActivation(
 
 AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlVisualTreeWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
+AERO_API Base::Result<XamlLoadResult>
+LoadXamlVisualTreeDocumentWithActivation(
+    XamlVisualTreeHost& host,
+    XamlObjectWriter& writer,
+    XamlNodeReader& reader,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
+AERO_API Base::Result<XamlLoadResult>
+LoadXamlVisualTreeDocumentWithActivation(
     XamlVisualTreeHost& host,
     XamlObjectWriter& writer,
     const XamlCompiledDocument& document,

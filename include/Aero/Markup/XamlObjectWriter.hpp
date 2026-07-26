@@ -8,6 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Markup/XamlLoadResult.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -94,6 +95,17 @@ public:
     Base::Result<Base::Ref<Base::Object>> Load(
         const XamlCompiledDocument& document) noexcept;
     Base::Result<Base::Ref<Base::Object>> Load(
+        const XamlCompiledDocument& document,
+        const XamlLoadContext& context) noexcept;
+
+    Base::Result<XamlLoadResult> LoadDocument(
+        XamlNodeReader& reader) noexcept;
+    Base::Result<XamlLoadResult> LoadDocument(
+        XamlNodeReader& reader,
+        const XamlLoadContext& context) noexcept;
+    Base::Result<XamlLoadResult> LoadDocument(
+        const XamlCompiledDocument& document) noexcept;
+    Base::Result<XamlLoadResult> LoadDocument(
         const XamlCompiledDocument& document,
         const XamlLoadContext& context) noexcept;
     void Reset() noexcept;
