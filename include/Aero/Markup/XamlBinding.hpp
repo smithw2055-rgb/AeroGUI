@@ -12,8 +12,7 @@ namespace Aero::Markup {
 
 struct XamlBindingExtensionOptions final {
     Presentation::BindingManager* bindings = nullptr;
-    XamlDependencyObjectCastCallback asDependencyObject = nullptr;
-    void* castContext = nullptr;
+    XamlDependencyObjectResolver targetResolver;
     Core::DependencyPropertyHandle dataContextProperty;
 };
 
