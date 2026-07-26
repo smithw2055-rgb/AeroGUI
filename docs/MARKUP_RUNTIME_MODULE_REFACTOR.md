@@ -16,7 +16,7 @@ Implemented boundaries:
 12. `XamlStyleExtension` now exposes a complete Style/Setter/Trigger object-model entry point. `Setter.Value` and `Trigger.Value` accept normal `XamlValue` payloads, so object-valued setters, template resources, and trigger setters flow through the same metadata/property validation path as scalar setters.
 13. `ResourceDictionary` stores `Core::Value`, so scalar, custom-value, null-object, and object resources share one lookup contract. Local document resources override the optional application/module dictionary supplied through `XamlLoadContext`.
 14. The built-in theme parser and DTOs are private implementation details. They are compiled as a normal translation unit; public `ThemeResourceDictionaryObject` and `.cpp` inclusion shortcuts are prohibited by architecture checks.
-15. Built-in palette XAML (`Light.xaml` and `Dark.xaml`) is loaded by `XamlObjectWriter` through private metadata-registered `ResourceDictionary` and `Color` objects. `x:Key`, resource scopes, member conversion, and duplicate-key validation are no longer implemented by the theme parser.
+15. Built-in palette XAML (`Light.xaml` and `Dark.xaml`) is loaded by `XamlObjectWriter` through private metadata-registered `ResourceDictionary` and `Color` objects. `x:Key`, resource scopes, member conversion, and duplicate-key validation are no longer implemented by the theme parser. The resulting objects are immediately reduced to the existing materialization data and do not become a second public runtime model.
 
 Remaining theme work must remove the private bootstrap parser incrementally:
 
