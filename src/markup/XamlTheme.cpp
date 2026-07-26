@@ -6,9 +6,11 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/ObjectServices.hpp>
+#include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <new>
@@ -21,20 +23,20 @@ using namespace Aero::Core;
 using namespace Aero::Controls;
 using namespace Aero::Presentation;
 
-struct XmlAttributeValue final {
+struct ThemeXamlAttribute final {
     Base::String name;
     Base::String value;
 };
 
-struct XmlElement final {
+struct ThemeXamlElement final {
     Base::String name;
-    Base::Vector<XmlAttributeValue> attributes;
+    Base::Vector<ThemeXamlAttribute> attributes;
     Base::Vector<std::uint32_t> children;
     std::uint32_t parent = UINT32_MAX;
 };
 
-struct XmlDocument final {
-    Base::Vector<XmlElement> elements;
+struct ThemeXamlDocument final {
+    Base::Vector<ThemeXamlElement> elements;
     std::uint32_t root = UINT32_MAX;
 };
 
@@ -82,9 +84,9 @@ Base::Status InvalidTheme(const char* message) noexcept {
 }
 
 Base::StringView Attribute(
-    const XmlElement& element,
+    const ThemeXamlElement& element,
     Base::StringView name) noexcept {
-    for (const XmlAttributeValue& attribute :
+    for (const ThemeXamlAttribute& attribute :
         element.attributes) {
         if (attribute.name.View() == name) {
             return attribute.value.View();
@@ -95,7 +97,7 @@ Base::StringView Attribute(
 
 bool IsWhitespace(Base::StringView value) noexcept {
     for (std::uint32_t index = 0U;
-        index < value.SizeBytes(); ++index) {
+         index < value.SizeBytes(); ++index) {
         const char c = value[index];
         if (c != ' ' && c != '\t' &&
             c != '\r' && c != '\n') {
@@ -105,93 +107,132 @@ bool IsWhitespace(Base::StringView value) noexcept {
     return true;
 }
 
-Base::Result<XmlDocument> ParseXml(
+Base::Result<void> AssignQualifiedName(
+    Base::String& output,
+    const XamlQualifiedName& name,
+    bool includePrefix) noexcept {
+    output.Clear();
+    if (includePrefix && !name.Prefix().Empty()) {
+        Base::Result<void> assigned = output.TryAssign(name.Prefix());
+        if (!assigned) return assigned.GetStatus();
+        assigned = output.TryAppend(Base::StringView(":"));
+        if (!assigned) return assigned.GetStatus();
+        return output.TryAppend(name.LocalName());
+    }
+    return output.TryAssign(name.LocalName());
+}
+
+Base::Result<void> AddAttributeFromMember(
+    ThemeXamlElement& element,
+    const XamlNode& member,
+    XamlNodeReader& reader) noexcept {
+    ThemeXamlAttribute attribute;
+    Base::Result<void> named = AssignQualifiedName(
+        attribute.name, member.Name(), true);
+    if (!named) return named.GetStatus();
+
+    XamlNode value;
+    Base::Result<XamlNodeKind> read = reader.Read(value);
+    if (!read) return read.GetStatus();
+    if (read.Value() != XamlNodeKind::Value ||
+        !value.IsFromAttribute()) {
+        return InvalidTheme(
+            "Built-in theme XAML members must be attribute values");
+    }
+    Base::Result<void> assigned = attribute.value.TryAssign(value.Value());
+    if (!assigned) return assigned.GetStatus();
+
+    XamlNode end;
+    read = reader.Read(end);
+    if (!read) return read.GetStatus();
+    if (read.Value() != XamlNodeKind::EndMember ||
+        !end.IsFromAttribute()) {
+        return InvalidTheme(
+            "Built-in theme XAML attribute member is incomplete");
+    }
+    return element.attributes.TryPushBack(std::move(attribute));
+}
+
+Base::Result<ThemeXamlDocument> ReadThemeXaml(
     Base::StringView text) noexcept {
     Utf8XmlTokenizer tokenizer;
     Base::Result<void> reset = tokenizer.Reset(text);
     if (!reset) return reset.GetStatus();
 
-    XmlDocument document;
+    XamlNodeReader reader(tokenizer);
+    ThemeXamlDocument document;
     Base::Vector<std::uint32_t> stack;
-    XmlToken token;
+    XamlNode node;
+
     for (;;) {
-        Base::Result<XmlTokenKind> read =
-            tokenizer.Read(token);
+        Base::Result<XamlNodeKind> read = reader.Read(node);
         if (!read) return read.GetStatus();
-        if (read.Value() == XmlTokenKind::EndOfDocument) {
+        switch (read.Value()) {
+        case XamlNodeKind::NamespaceDeclaration:
+            break;
+        case XamlNodeKind::StartObject: {
+            ThemeXamlElement element;
+            Base::Result<void> named = AssignQualifiedName(
+                element.name, node.Name(), false);
+            if (!named) return named.GetStatus();
+            element.parent = stack.Empty()
+                ? UINT32_MAX : stack.Back();
+            const std::uint32_t index = document.elements.Size();
+            Base::Result<void> appended = document.elements.TryPushBack(
+                std::move(element));
+            if (!appended) return appended.GetStatus();
+            if (document.elements[index].parent == UINT32_MAX) {
+                if (document.root != UINT32_MAX) {
+                    return InvalidTheme(
+                        "Theme XAML requires one document root");
+                }
+                document.root = index;
+            } else {
+                appended = document.elements[
+                    document.elements[index].parent]
+                    .children.TryPushBack(index);
+                if (!appended) return appended.GetStatus();
+            }
+            appended = stack.TryPushBack(index);
+            if (!appended) return appended.GetStatus();
             break;
         }
-        if (read.Value() == XmlTokenKind::Text) {
-            if (!IsWhitespace(token.Text())) {
+        case XamlNodeKind::StartMember:
+            if (stack.Empty()) {
+                return InvalidTheme(
+                    "Theme XAML attribute member has no owner");
+            }
+            reset = AddAttributeFromMember(
+                document.elements[stack.Back()], node, reader);
+            if (!reset) return reset.GetStatus();
+            break;
+        case XamlNodeKind::Value:
+            if (!IsWhitespace(node.Value())) {
                 return InvalidTheme(
                     "Theme elements do not accept text content");
             }
-            continue;
-        }
-        if (read.Value() == XmlTokenKind::EndElement) {
+            break;
+        case XamlNodeKind::EndObject:
             if (stack.Empty()) {
                 return InvalidTheme(
-                    "Theme XML element stack is invalid");
+                    "Theme XAML element stack is invalid");
             }
             stack.PopBack();
-            continue;
-        }
-        if (read.Value() != XmlTokenKind::StartElement) {
-            continue;
-        }
-
-        XmlElement element;
-        Base::Result<void> named =
-            element.name.TryAssign(token.Name());
-        if (!named) return named.GetStatus();
-        element.parent =
-            stack.Empty() ? UINT32_MAX : stack.Back();
-        for (const XmlAttribute& source :
-            token.Attributes()) {
-            if (source.Name() == Base::StringView("xmlns") ||
-                source.Name() ==
-                    Base::StringView("xmlns:x")) {
-                continue;
-            }
-            XmlAttributeValue attribute;
-            Base::Result<void> assigned =
-                attribute.name.TryAssign(source.Name());
-            if (assigned) {
-                assigned =
-                    attribute.value.TryAssign(source.Value());
-            }
-            if (!assigned) return assigned.GetStatus();
-            assigned = element.attributes.TryPushBack(
-                std::move(attribute));
-            if (!assigned) return assigned.GetStatus();
-        }
-        const std::uint32_t index =
-            document.elements.Size();
-        Base::Result<void> appended =
-            document.elements.TryPushBack(std::move(element));
-        if (!appended) return appended.GetStatus();
-        if (document.elements[index].parent == UINT32_MAX) {
-            if (document.root != UINT32_MAX) {
+            break;
+        case XamlNodeKind::EndMember:
+            return InvalidTheme(
+                "Theme XAML encountered an unmatched member end");
+        case XamlNodeKind::EndOfDocument:
+            if (document.root == UINT32_MAX || !stack.Empty()) {
                 return InvalidTheme(
-                    "Theme XML requires one document root");
+                    "Theme XAML document is incomplete");
             }
-            document.root = index;
-        } else {
-            appended = document.elements[
-                document.elements[index].parent]
-                .children.TryPushBack(index);
-            if (!appended) return appended.GetStatus();
-        }
-        if (!token.IsEmptyElement()) {
-            appended = stack.TryPushBack(index);
-            if (!appended) return appended.GetStatus();
+            return document;
+        case XamlNodeKind::None:
+            return InvalidTheme(
+                "Theme XAML node stream is invalid");
         }
     }
-    if (document.root == UINT32_MAX || !stack.Empty()) {
-        return InvalidTheme(
-            "Theme XML document is incomplete");
-    }
-    return document;
 }
 
 std::uint8_t HexNibble(char value) noexcept {
@@ -272,9 +313,9 @@ const PaletteEntry* FindPalette(
 }
 
 Base::Result<Base::Vector<PaletteEntry>> ParsePalette(
-    const XmlDocument& document,
+    const ThemeXamlDocument& document,
     ThemeVariant& variant) noexcept {
-    const XmlElement& root =
+    const ThemeXamlElement& root =
         document.elements[document.root];
     if (root.name.View() !=
         Base::StringView("ResourceDictionary")) {
@@ -296,7 +337,7 @@ Base::Result<Base::Vector<PaletteEntry>> ParsePalette(
     Base::Vector<PaletteEntry> palette;
     for (std::uint32_t childIndex :
         root.children) {
-        const XmlElement& child =
+        const ThemeXamlElement& child =
             document.elements[childIndex];
         if (child.name.View() !=
             Base::StringView("Color")) {
@@ -372,7 +413,7 @@ Base::Result<ThemeNodeKind> NodeKindFromName(
 }
 
 Base::Result<void> ResolveColorAttribute(
-    const XmlElement& element,
+    const ThemeXamlElement& element,
     Base::StringView attribute,
     const Base::Vector<PaletteEntry>& palette,
     Color& output,
@@ -392,12 +433,12 @@ Base::Result<void> ResolveColorAttribute(
 }
 
 Base::Result<void> ParseVisualNode(
-    const XmlDocument& document,
+    const ThemeXamlDocument& document,
     std::uint32_t elementIndex,
     std::uint32_t parent,
     const Base::Vector<PaletteEntry>& palette,
     ThemeBlueprint& blueprint) noexcept {
-    const XmlElement& element =
+    const ThemeXamlElement& element =
         document.elements[elementIndex];
     Base::Result<ThemeNodeKind> kind =
         NodeKindFromName(element.name.View());
@@ -504,8 +545,8 @@ Base::Result<DependencyPropertyHandle> SetterProperty(
 }
 
 Base::Result<VisualStateGroup> ParseStateGroup(
-    const XmlDocument& document,
-    const XmlElement& groupElement,
+    const ThemeXamlDocument& document,
+    const ThemeXamlElement& groupElement,
     const Base::Vector<PaletteEntry>& palette,
     const ThemeBlueprint& blueprint) noexcept {
     VisualStateGroup group;
@@ -519,7 +560,7 @@ Base::Result<VisualStateGroup> ParseStateGroup(
     }
     for (std::uint32_t stateIndex :
         groupElement.children) {
-        const XmlElement& stateElement =
+        const ThemeXamlElement& stateElement =
             document.elements[stateIndex];
         if (stateElement.name.View() !=
             Base::StringView("VisualState")) {
@@ -537,7 +578,7 @@ Base::Result<VisualStateGroup> ParseStateGroup(
         }
         for (std::uint32_t setterIndex :
             stateElement.children) {
-            const XmlElement& setterElement =
+            const ThemeXamlElement& setterElement =
                 document.elements[setterIndex];
             if (setterElement.name.View() !=
                 Base::StringView("Setter")) {
@@ -624,7 +665,7 @@ Base::Result<void> BuildThemeTemplate(
     }
     Base::Vector<Visual*> visuals;
     for (std::uint32_t index = 0U;
-        index < blueprint->nodes.Size(); ++index) {
+         index < blueprint->nodes.Size(); ++index) {
         const ThemeNode& node =
             blueprint->nodes[index];
         Base::Ref<Base::Object> owner;
@@ -690,7 +731,7 @@ Base::Result<void> BuildThemeTemplate(
         if (!added) return added.GetStatus();
     }
     for (std::uint32_t index = 0U;
-        index < blueprint->nodes.Size(); ++index) {
+         index < blueprint->nodes.Size(); ++index) {
         if (blueprint->nodes[index].kind !=
             ThemeNodeKind::ContentPresenter) {
             continue;
@@ -725,11 +766,11 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
     Base::StringView genericXaml,
     Base::StringView paletteXaml,
     DependencyPropertyRegistry& properties) noexcept {
-    Base::Result<XmlDocument> generic =
-        ParseXml(genericXaml);
+    Base::Result<ThemeXamlDocument> generic =
+        ReadThemeXaml(genericXaml);
     if (!generic) return generic.GetStatus();
-    Base::Result<XmlDocument> paletteDocument =
-        ParseXml(paletteXaml);
+    Base::Result<ThemeXamlDocument> paletteDocument =
+        ReadThemeXaml(paletteXaml);
     if (!paletteDocument) {
         return paletteDocument.GetStatus();
     }
@@ -746,8 +787,8 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
     if (!palette) return palette.GetStatus();
     impl->palette = std::move(palette).Value();
 
-    const XmlDocument& document = generic.Value();
-    const XmlElement& root =
+    const ThemeXamlDocument& document = generic.Value();
+    const ThemeXamlElement& root =
         document.elements[document.root];
     if (root.name.View() !=
         Base::StringView("ResourceDictionary")) {
@@ -756,7 +797,7 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
     }
     for (std::uint32_t templateIndex :
         root.children) {
-        const XmlElement& templateElement =
+        const ThemeXamlElement& templateElement =
             document.elements[templateIndex];
         if (templateElement.name.View() !=
             Base::StringView("ControlTemplate")) {
@@ -777,11 +818,11 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
                     "Theme template TargetType is duplicated");
             }
         }
-        const XmlElement* visualTree = nullptr;
-        const XmlElement* stateGroups = nullptr;
+        const ThemeXamlElement* visualTree = nullptr;
+        const ThemeXamlElement* stateGroups = nullptr;
         for (std::uint32_t childIndex :
             templateElement.children) {
-            const XmlElement& child =
+            const ThemeXamlElement& child =
                 document.elements[childIndex];
             if (child.name.View() ==
                 Base::StringView("VisualTree")) {
@@ -811,7 +852,7 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
     }
 
     for (std::uint32_t entryIndex = 0U;
-        entryIndex < impl->entries.Size(); ++entryIndex) {
+         entryIndex < impl->entries.Size(); ++entryIndex) {
         ThemeEntry& entry = impl->entries[entryIndex];
         entry.plan.reset(new (std::nothrow)
             ControlTemplate(
@@ -823,12 +864,12 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
                 Base::ErrorCode::OutOfMemory,
                 "Theme template allocation failed");
         }
-        const XmlElement& templateElement =
+        const ThemeXamlElement& templateElement =
             document.elements[root.children[entryIndex]];
-        const XmlElement* stateGroups = nullptr;
+        const ThemeXamlElement* stateGroups = nullptr;
         for (std::uint32_t childIndex :
             templateElement.children) {
-            const XmlElement& child =
+            const ThemeXamlElement& child =
                 document.elements[childIndex];
             if (child.name.View() ==
                 Base::StringView("VisualStateGroups")) {
@@ -838,7 +879,7 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
         }
         for (std::uint32_t groupIndex :
             stateGroups->children) {
-            const XmlElement& groupElement =
+            const ThemeXamlElement& groupElement =
                 document.elements[groupIndex];
             if (groupElement.name.View() !=
                 Base::StringView("VisualStateGroup")) {
