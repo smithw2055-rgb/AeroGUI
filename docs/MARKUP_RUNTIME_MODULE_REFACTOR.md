@@ -14,6 +14,13 @@ Implemented boundaries:
 10. Runtime-oriented tests now live under `tests/runtime` and architecture checks reject the removed Markup/Runtime compatibility headers and `.inc` files.
 11. Binding, DynamicResource, and Style providers share `XamlDependencyObjectResolver` instead of each provider carrying its own ad-hoc DependencyObject callback contract.
 12. `XamlStyleExtension` now exposes a complete Style/Setter/Trigger object-model entry point. `Setter.Value` and `Trigger.Value` accept normal `XamlValue` payloads, so object-valued setters, template resources, and trigger setters flow through the same metadata/property validation path as scalar setters.
-13. Built-in themes are documented as ResourceDictionary-shaped XAML inputs. The remaining template materialization code is a bootstrap adapter for the current built-in controls; new theme behavior must be represented by normal XAML objects, resources, styles, setters, triggers, and templates rather than adding more ad-hoc XML rules.
+13. `ResourceDictionary` stores `Core::Value`, so scalar, custom-value, null-object, and object resources share one lookup contract. Local document resources override the optional application/module dictionary supplied through `XamlLoadContext`.
+14. The built-in theme parser and DTOs are private implementation details. They are compiled as a normal translation unit; public `ThemeResourceDictionaryObject` and `.cpp` inclusion shortcuts are prohibited by architecture checks.
 
-Remaining behavior-level work after this refactor is limited to expanding the catalog of built-in theme objects and richer template factories. That work should add metadata-modeled theme objects instead of reintroducing runtime/module or provider-local Markup responsibilities.
+Remaining theme work must remove the private bootstrap parser incrementally:
+
+1. model `Style`, `Setter`, `Trigger`, `ControlTemplate`, visual states, and template content as metadata-created objects;
+2. load `Generic.xaml` through `XamlObjectWriter` and the same `ResourceDictionary/Core::Value` pipeline as application XAML;
+3. delete `XamlThemeResources.cpp` once the built-in catalog no longer needs materialization DTOs.
+
+Migration invariant: `XamlObjectWriter`, metadata facets, and `Core::Value` remain the only object construction, member assignment, and resource-value pipeline. Theme code may adapt the resulting object graph, but must not introduce a parallel parser, writer, property system, or resource wrapper.

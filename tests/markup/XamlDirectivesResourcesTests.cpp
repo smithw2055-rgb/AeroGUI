@@ -9,6 +9,7 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlNamesResources.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
@@ -438,8 +439,9 @@ Result<void> SetProbe(
     }
     Result<XamlResourceValue> resource = services.resources.Lookup(
         StringView("resource"));
-    if (!resource || !resource.Value().object ||
-        resource.Value().type != fixture->leafType) {
+    if (!resource || resource.Value().Kind() != ValueKind::Object ||
+        !resource.Value().AsObject() ||
+        resource.Value().Type() != fixture->leafType) {
         return Status::Failure(
             ErrorCode::ValidationFailed,
             "Service provider resource lookup is invalid");
@@ -531,9 +533,11 @@ bool TestNamesResourcesStaticResourceAndServices() {
         Result<XamlResourceValue> resource = root->Resources().Lookup(
             StringView("resource"));
         CHECK(resource);
-        CHECK(resource.Value().type == fixture.leafType);
-        CHECK(resource.Value().object.Get() == consumer->Reference().Get());
-        CHECK(static_cast<DirectiveNode*>(resource.Value().object.Get())->Title() ==
+        CHECK(resource.Value().Type() == fixture.leafType);
+        CHECK(resource.Value().Kind() == ValueKind::Object);
+        CHECK(resource.Value().AsObject().Get() == consumer->Reference().Get());
+        CHECK(static_cast<DirectiveNode*>(
+            resource.Value().AsObject().Get())->Title() ==
             StringView("Resource"));
 
         CHECK(root->Names().Find(StringView("root")) == root);
@@ -543,7 +547,8 @@ bool TestNamesResourcesStaticResourceAndServices() {
         Result<XamlResourceValue> committed =
             writer.DocumentResources().Lookup(StringView("resource"));
         CHECK(committed);
-        CHECK(committed.Value().object.Get() == resource.Value().object.Get());
+        CHECK(committed.Value().AsObject().Get() ==
+            resource.Value().AsObject().Get());
         CHECK(DirectiveNode::LiveCount() == 3U);
     }
     CHECK(DirectiveNode::LiveCount() == 0U);
@@ -720,6 +725,52 @@ bool TestTypedMarkupExtensionAndLiteralEscape() {
     return true;
 }
 
+bool TestExternalScalarStaticResource() {
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+
+        Result<Value> title = Value::TryFromString(
+            fixture.stringType, StringView("Shared title"));
+        CHECK(title);
+        ResourceDictionary resources;
+        CHECK(resources.TryAdd(
+            StringView("sharedTitle"), title.Value()));
+
+        Result<XamlResourceValue> stored = resources.Lookup(
+            StringView("sharedTitle"));
+        CHECK(stored);
+        CHECK(stored.Value().Type() == fixture.stringType);
+        CHECK(stored.Value().Kind() == ValueKind::String);
+        CHECK(stored.Value().AsString() == StringView("Shared title"));
+
+        XamlLoadContext context;
+        context.resources = &resources;
+        DiagnosticBag diagnostics;
+        Utf8XmlTokenizer tokenizer;
+        CHECK(tokenizer.Reset(
+            StringView(
+                "<Root xmlns=\"urn:directives\">"
+                "<Leaf Title=\"{StaticResource sharedTitle}\"/>"
+                "</Root>"),
+            &diagnostics));
+        XamlNodeReader reader(tokenizer, &diagnostics);
+        XamlObjectWriter writer(*fixture.schema, &diagnostics);
+        Result<Ref<Object>> loaded = writer.Load(reader, context);
+        CHECK(loaded);
+        CHECK(diagnostics.Size() == 0U);
+
+        Ref<Object> rootObject = std::move(loaded).Value();
+        DirectiveNode* root = static_cast<DirectiveNode*>(rootObject.Get());
+        CHECK(root->Children().Size() == 1U);
+        CHECK(static_cast<DirectiveNode*>(
+            root->Children()[0].Get())->Title() == StringView("Shared title"));
+    }
+    CHECK(DirectiveNode::LiveCount() == 0U);
+    return true;
+}
+
 bool TestMarkupExtensionDiagnosticsAndRollback() {
     DirectiveNode::ResetCounters();
     {
@@ -792,6 +843,7 @@ int main() {
     if (!TestStaticResourceForwardReferenceRejected()) return 1;
     if (!TestInvalidDirectiveAndRootKey()) return 1;
     if (!TestTypedMarkupExtensionAndLiteralEscape()) return 1;
+    if (!TestExternalScalarStaticResource()) return 1;
     if (!TestMarkupExtensionDiagnosticsAndRollback()) return 1;
     std::puts("Aero XAML directives and resources tests passed");
     return 0;

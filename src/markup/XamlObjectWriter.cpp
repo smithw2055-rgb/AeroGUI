@@ -839,10 +839,8 @@ Base::Result<void> XamlObjectWriter::WriteText(
                     MessageStaticResourceNotFound,
                     node.Source());
             }
-            XamlValue value = XamlValue::FromObject(
-                resource.Value().type,
-                resource.Value().object);
-            return WriteValueToMember(frame, std::move(value), node.Source());
+            return WriteValueToMember(
+                frame, std::move(resource).Value(), node.Source());
         }
 
         if (markup == MarkupValueKind::Extension) {
@@ -944,13 +942,10 @@ Base::Result<void> XamlObjectWriter::WriteText(
                 MessageStaticResourceNotFound,
                 node.Source());
         }
-        XamlValue value = XamlValue::FromObject(
-            resource.Value().type,
-            resource.Value().object);
         return WriteValue(
             frame.objectIndex,
             contentResult.Value(),
-            std::move(value),
+            std::move(resource).Value(),
             node.Source());
     }
 
@@ -1612,6 +1607,16 @@ Base::Result<XamlResourceValue> XamlObjectWriter::LookupResource(
         }
         Base::Result<XamlResourceValue> value =
             resourceScopes_[frame.resourceScopeIndex].resources.Lookup(key);
+        if (value) {
+            return value;
+        }
+        if (value.GetStatus().code != Base::ErrorCode::NotFound) {
+            return value.GetStatus();
+        }
+    }
+    if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
+        Base::Result<XamlResourceValue> value =
+            loadContext_->resources->Lookup(key);
         if (value) {
             return value;
         }

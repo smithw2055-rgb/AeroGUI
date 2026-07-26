@@ -1,4 +1,4 @@
-#include <Aero/Markup/XamlThemeResources.hpp>
+#include "XamlThemeResources.hpp"
 
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
@@ -513,28 +513,6 @@ const ThemeColorResource* ThemeResourceDictionary::FindColor(
         if (entry.key.View() == key) return &entry;
     }
     return nullptr;
-}
-
-ThemeResourceDictionaryObject::ThemeResourceDictionaryObject(
-    Base::MetaTypeId runtimeType) noexcept
-    : runtimeType_(runtimeType), dictionary_() {}
-
-Base::MetaTypeId ThemeResourceDictionaryObject::RuntimeType() const noexcept {
-    return runtimeType_;
-}
-
-Base::Result<void> ThemeResourceDictionaryObject::AddColor(
-    ThemeColorResource color) noexcept {
-    return dictionary_.colors.TryPushBack(std::move(color));
-}
-
-Base::Result<void> ThemeResourceDictionaryObject::AddTemplate(
-    ThemeControlTemplateResource controlTemplate) noexcept {
-    return dictionary_.templates.TryPushBack(std::move(controlTemplate));
-}
-
-ThemeResourceDictionary ThemeResourceDictionaryObject::TakeDictionary() noexcept {
-    return std::move(dictionary_);
 }
 
 Base::Result<ThemeResourceDictionary> LoadThemeResourceDictionary(

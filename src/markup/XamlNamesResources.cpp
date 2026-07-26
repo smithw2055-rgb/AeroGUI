@@ -10,7 +10,7 @@ constexpr const char* MessageInvalidName =
 constexpr const char* MessageDuplicateName =
     "XAML name is already registered in this name scope";
 constexpr const char* MessageInvalidResource =
-    "XAML resource requires a non-empty key, registered type, and object value";
+    "XAML resource requires a non-empty key and typed value";
 constexpr const char* MessageDuplicateResource =
     "XAML resource key is already present in this dictionary";
 constexpr const char* MessageResourceNotFound =
@@ -97,11 +97,10 @@ ResourceDictionary::ResourceDictionary() noexcept = default;
 
 Base::Result<void> ResourceDictionary::TryAdd(
     Base::StringView key,
-    Core::TypeId type,
-    const Base::Ref<Base::Object>& object,
+    const XamlResourceValue& value,
     Core::SourceSpan source) noexcept {
     if (key.Empty() || key.Data() == nullptr ||
-        type == Core::InvalidTypeId || !object) {
+        value.Type() == Core::InvalidTypeId || value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
@@ -117,8 +116,7 @@ Base::Result<void> ResourceDictionary::TryAdd(
     if (!assignResult) {
         return assignResult.GetStatus();
     }
-    entry.type = type;
-    entry.object = object;
+    entry.value = value;
     entry.source = source;
     Base::Result<void> appended = entries_.TryPushBack(std::move(entry));
     if (!appended) {
@@ -133,8 +131,35 @@ Base::Result<void> ResourceDictionary::TrySet(
     Core::TypeId type,
     const Base::Ref<Base::Object>& object,
     Core::SourceSpan source) noexcept {
+    if (type == Core::InvalidTypeId || !object) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            MessageInvalidResource);
+    }
+    return TrySet(
+        key, Core::Value::FromObject(type, object), source);
+}
+
+Base::Result<void> ResourceDictionary::TryAdd(
+    Base::StringView key,
+    Core::TypeId type,
+    const Base::Ref<Base::Object>& object,
+    Core::SourceSpan source) noexcept {
+    if (type == Core::InvalidTypeId || !object) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            MessageInvalidResource);
+    }
+    return TryAdd(
+        key, Core::Value::FromObject(type, object), source);
+}
+
+Base::Result<void> ResourceDictionary::TrySet(
+    Base::StringView key,
+    const XamlResourceValue& value,
+    Core::SourceSpan source) noexcept {
     if (key.Empty() || key.Data() == nullptr ||
-        type == Core::InvalidTypeId || !object) {
+        value.Type() == Core::InvalidTypeId || value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             MessageInvalidResource);
@@ -144,8 +169,7 @@ Base::Result<void> ResourceDictionary::TrySet(
         if (entry.key.View() != key) {
             continue;
         }
-        entry.type = type;
-        entry.object = object;
+        entry.value = value;
         entry.source = source;
         NotifyChanged(key, ResourceChangeKind::Replaced);
         return {};
@@ -156,8 +180,7 @@ Base::Result<void> ResourceDictionary::TrySet(
     if (!assignResult) {
         return assignResult.GetStatus();
     }
-    entry.type = type;
-    entry.object = object;
+    entry.value = value;
     entry.source = source;
     Base::Result<void> appended = entries_.TryPushBack(std::move(entry));
     if (!appended) {
@@ -201,7 +224,7 @@ Base::Result<XamlResourceValue> ResourceDictionary::Lookup(
             Base::ErrorCode::NotFound,
             MessageResourceNotFound);
     }
-    return XamlResourceValue{entry->type, entry->object};
+    return entry->value;
 }
 
 bool ResourceDictionary::Contains(Base::StringView key) const noexcept {
