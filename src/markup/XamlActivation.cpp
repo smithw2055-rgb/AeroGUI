@@ -9,33 +9,27 @@
 namespace Aero::Markup {
 namespace {
 
-struct ActiveActivation final {
-    XamlActivationProviderRegistry* providers = nullptr;
-    const XamlActivationContext* context = nullptr;
-};
-
-thread_local ActiveActivation gActiveActivation;
-
-class ActiveActivationScope final {
-public:
-    ActiveActivationScope(
-        XamlActivationProviderRegistry& providers,
-        const XamlActivationContext& context) noexcept
-        : previous_(gActiveActivation) {
-        gActiveActivation.providers = &providers;
-        gActiveActivation.context = &context;
+Base::Result<void> ValidateLoadActivation(
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept {
+    if (!activation.IsCompatible()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML activation context is incompatible");
     }
-
-    ~ActiveActivationScope() {
-        gActiveActivation = previous_;
+    if (!providers.IsFrozen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML activation facet registry is not frozen");
     }
-
-    ActiveActivationScope(const ActiveActivationScope&) = delete;
-    ActiveActivationScope& operator=(const ActiveActivationScope&) = delete;
-
-private:
-    ActiveActivation previous_;
-};
+    if (activation.dispatcher == nullptr ||
+        activation.dependencyProperties == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML activation context has no presentation services");
+    }
+    return {};
+}
 
 } // namespace
 
@@ -93,43 +87,19 @@ XamlActivationProviderRegistry::CreateObject(
     return providers_.CreateObject(requestedType, activation);
 }
 
-Base::Result<Base::Ref<Base::Object>> XamlSchemaContext::CreateObjectActivated(
-    Core::TypeId type) const noexcept {
-    if (gActiveActivation.providers == nullptr) {
-        return CreateObject(type);
-    }
-    if (gActiveActivation.context == nullptr ||
-        &gActiveActivation.providers->Schema() != this) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Active XAML activation provider belongs to another schema");
-    }
-    return gActiveActivation.providers->CreateObject(
-        type,
-        *gActiveActivation.context);
-}
-
 Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
     XamlObjectWriter& writer,
     XamlNodeReader& reader,
     XamlActivationProviderRegistry& providers,
     const XamlActivationContext& activation) noexcept {
-    if (!activation.IsCompatible()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML activation context is incompatible");
-    }
-    if (!providers.IsFrozen()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML activation facet registry is not frozen");
-    }
+    Base::Result<void> valid = ValidateLoadActivation(providers, activation);
+    if (!valid) return valid.GetStatus();
     Core::ObjectServicesScope objectServices(
         *activation.dispatcher,
         *activation.dependencyProperties,
         providers.Schema().Runtime());
-    ActiveActivationScope scope(providers, activation);
-    return writer.Load(reader);
+    XamlLoadContext context{&providers, &activation};
+    return writer.Load(reader, context);
 }
 
 Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
@@ -137,22 +107,14 @@ Base::Result<Base::Ref<Base::Object>> LoadXamlWithActivation(
     const XamlCompiledDocument& document,
     XamlActivationProviderRegistry& providers,
     const XamlActivationContext& activation) noexcept {
-    if (!activation.IsCompatible()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML activation context is incompatible");
-    }
-    if (!providers.IsFrozen()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "XAML activation facet registry is not frozen");
-    }
+    Base::Result<void> valid = ValidateLoadActivation(providers, activation);
+    if (!valid) return valid.GetStatus();
     Core::ObjectServicesScope objectServices(
         *activation.dispatcher,
         *activation.dependencyProperties,
         providers.Schema().Runtime());
-    ActiveActivationScope scope(providers, activation);
-    return writer.Load(document);
+    XamlLoadContext context{&providers, &activation};
+    return writer.Load(document, context);
 }
 
 } // namespace Aero::Markup

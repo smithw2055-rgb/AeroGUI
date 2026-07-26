@@ -315,7 +315,9 @@ add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/Metadata.cpp
     src/presentation/MountService.cpp
     src/presentation/ObjectTree.cpp
+    src/presentation/QueuedRenderBackend.cpp
     src/presentation/Rendering.cpp
+    src/presentation/VisualTreeMount.cpp
     src/presentation/Style.cpp)
 
 add_library(Aero::Presentation ALIAS AeroPresentation)
@@ -426,7 +428,6 @@ add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/Module.cpp
     src/BuiltinModules.cpp
     src/RuntimeHost.cpp
-    src/RuntimeWindow.cpp
     src/RuntimeSafety.cpp
     src/RuntimeServices.cpp)
 add_library(Aero::Runtime ALIAS AeroRuntime)

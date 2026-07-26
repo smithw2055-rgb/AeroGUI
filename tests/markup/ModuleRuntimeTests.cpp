@@ -4,6 +4,7 @@
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/RuntimeHost.hpp>
+#include <Aero/Presentation/QueuedRenderBackend.hpp>
 #include <Aero/RuntimeSafety.hpp>
 #include <Aero/Markup/XamlCompiledCache.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
@@ -113,17 +114,17 @@ public:
 
 bool TestHostDrivenRenderQueue() {
     ProbeRenderBackend downstream;
-    QueuedRenderBackend queue;
+    Presentation::QueuedRenderBackend queue;
     CHECK(queue.Initialize(
         downstream,
         2U,
-        FrameQueueFullPolicy::DropOldest));
+        Presentation::FrameQueueFullPolicy::DropOldest));
 
     RenderPlan plan;
     CHECK(queue.Submit(plan));
     CHECK(queue.Submit(plan));
     CHECK(queue.Submit(plan));
-    FrameQueueStatistics before = queue.Statistics();
+    Presentation::FrameQueueStatistics before = queue.Statistics();
     CHECK(before.accepted == 3U);
     CHECK(before.dropped == 1U);
     CHECK(before.pending == 2U);
@@ -133,7 +134,7 @@ bool TestHostDrivenRenderQueue() {
     CHECK(drained);
     CHECK(drained.Value() == 2U);
     CHECK(downstream.submissions == 2U);
-    FrameQueueStatistics after = queue.Statistics();
+    Presentation::FrameQueueStatistics after = queue.Statistics();
     CHECK(after.consumed == 2U);
     CHECK(after.pending == 0U);
     queue.Shutdown();

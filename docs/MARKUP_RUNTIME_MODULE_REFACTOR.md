@@ -1,1 +1,26 @@
-# Markup, Runtime, and Module Composition Refactor## StatusAccepted and partially implemented.This document records the architectural direction for simplifying `Aero::Markup`and moving framework composition to root-level Aero entry points.## Decision`Aero::Markup` is only responsible for the declarative loading pipeline:```textXML tokenizer  -> XAML node reader  -> schema/type/member resolution  -> object writer  -> compiled XAML document/cache validation```It must not own the application/runtime composition root, platform windowing,render queues, control interaction wiring, or module registration policy.The root-level Aero API owns those concerns:```textinclude/Aero/RuntimeHost.hppinclude/Aero/Module.hppinclude/Aero/BuiltinModules.hpp```The implementation lives directly under `src/`:```textsrc/RuntimeHost.cppsrc/RuntimeWindow.cppsrc/RuntimeSafety.cppsrc/RuntimeServices.cppsrc/Module.cppsrc/BuiltinModules.cpp```No `include/Aero/Runtime/` directory and no `Aero::Runtime` namespace are used.`RuntimeHost`, `ModuleRegistration`, and `ModuleCatalog` are direct `Aero::*`types.## Module registration modelThe former XAML-specific module surface is removed:```textXamlModuleManifestXamlModuleCatalogXamlModuleConfigureCallbackconfigureXaml()xamlSchemaVersion```The replacement is a root Aero module catalog:```cppAero::ModuleRegistrationAero::ModuleCatalog```Modules register metadata descriptors and facets once through`Core::MetadataDomain`. Markup then consumes the sealed descriptor/facet graph.There is no second XAML module pass.## Compiled XAML identityCompiled XAML compatibility is now keyed by the metadata schema hash only:```textcacheFormatVersiontypeIdAlgorithmVersiondescriptorFormatVersionfacetFormatVersionmetadataSchemaHash```The old `moduleManifestHash` is removed because the sealed metadata schema hashalready includes module IDs, module schema versions, descriptors, and facets.This avoids a second identity path that can drift away from the runtime schema.The cache format version is incremented to reject stale cache files.## Runtime host placement`RuntimeHost` is now a root `Aero::RuntimeHost`, compiled in the `AeroRuntime`target. The target links against `Aero::Markup` and the lower-level frameworklibraries, which makes ownership explicit:```textAeroMarkup      -> declarative loadingAeroRuntime     -> full UI runtime composition```The high-level runtime module API is:```cppAero::RuntimeHost runtime;runtime.AddModule(MyModule());runtime.Initialize(options);```Modules must be added before initialization. Runtime startup freezes the modulecatalog and then seals the metadata domain.## Built-in modulesBuilt-in Core, Presentation, and Controls metadata remain registered as part ofthe runtime metadata composition path. The root `BuiltinModules` entry point isreserved for that policy and keeps the dependency out of `Aero::Markup`.## Remaining simplification workThe current implementation intentionally keeps behavior stable before deeperrewrites. The next slices should complete:1. Split `XamlVisualTreeHost` into a Markup content plan and a   Presentation-owned tree mount service.2. Convert Binding, DynamicResource, Style, and activation adapters into   descriptor/facet-driven registrations where practical.3. Replace the dedicated `XamlTheme` XML parser with standard XAML or compiled   XAML loading.4. Delete or relocate slice-era compatibility helpers once their production   references are gone.
+Accepted and implemented through the second refactor slice.
+## Implemented migration slices
+
+The current codebase implements these changes:
+
+1. `RuntimeHost`, `ModuleRegistration`, and `ModuleCatalog` are root `Aero::*`
+   APIs.
+2. Runtime implementation files live directly under `src/` and are compiled by
+   the `AeroRuntime` target.
+3. `XamlModuleManifest`, `XamlModuleCatalog`, `configureXaml()`,
+   `xamlSchemaVersion`, and `moduleManifestHash` are removed.
+4. `QueuedRenderBackend` is now a Presentation service instead of a Runtime or
+   Markup type.
+5. `XamlVisualTreeHost` keeps Markup-time content staging only; Presentation
+   owns logical, visual, layout, render, resize, and detach sequencing through
+   `Presentation::VisualTreeMount`.
+6. XAML activation now uses an explicit `XamlLoadContext` passed to
+   `XamlObjectWriter`; the previous thread-local active activation state is
+   removed.
+
+The next slices should complete:
+1. Make `XamlObjectWriter` return a first-class `XamlLoadResult` that owns the
+   root, NameScope, resources, and visual content plan, so RuntimeHost no longer
+   exposes long-lived writer/visual-tree internals.
+2. Convert Binding, DynamicResource, Style, and remaining activation adapters
+   into descriptor/facet-driven registrations where practical.

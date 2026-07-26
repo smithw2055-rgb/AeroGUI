@@ -1,4 +1,5 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlCompiledDocument.hpp>
 
 #include <utility>
@@ -130,6 +131,25 @@ XamlObjectWriter::~XamlObjectWriter() noexcept {
 
 Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     XamlNodeReader& reader) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = nullptr;
+    Base::Result<Base::Ref<Base::Object>> result = LoadReaderCore(reader);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
+    XamlNodeReader& reader,
+    const XamlLoadContext& context) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = &context;
+    Base::Result<Base::Ref<Base::Object>> result = LoadReaderCore(reader);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::LoadReaderCore(
+    XamlNodeReader& reader) noexcept {
     if (loading_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -190,6 +210,25 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
 
 Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     const XamlCompiledDocument& document) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = nullptr;
+    Base::Result<Base::Ref<Base::Object>> result = LoadCompiledCore(document);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
+    const XamlCompiledDocument& document,
+    const XamlLoadContext& context) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = &context;
+    Base::Result<Base::Ref<Base::Object>> result = LoadCompiledCore(document);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::LoadCompiledCore(
+    const XamlCompiledDocument& document) noexcept {
     if (loading_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -240,6 +279,21 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     ClearTransaction();
     loading_ = false;
     return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::CreateObject(
+    Core::TypeId type) const noexcept {
+    if (loadContext_ != nullptr &&
+        loadContext_->activationProviders != nullptr) {
+        if (loadContext_->activation == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML load context has activation providers but no activation data");
+        }
+        return loadContext_->activationProviders->CreateObject(
+            type, *loadContext_->activation);
+    }
+    return schema_->CreateObject(type);
 }
 
 void XamlObjectWriter::Reset() noexcept {
@@ -363,7 +417,7 @@ Base::Result<void> XamlObjectWriter::StartObject(
 
     const Core::MetadataTypeDescriptor* type = typeResult.Value();
     Base::Result<Base::Ref<Base::Object>> createResult =
-        schema_->CreateObjectActivated(type->Id());
+        CreateObject(type->Id());
     if (!createResult) {
         const bool nonConstructible =
             createResult.GetStatus().code == Base::ErrorCode::Unsupported;

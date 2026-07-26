@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Presentation/MountService.hpp>
+#include <Aero/Presentation/VisualTreeMount.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
@@ -13,10 +13,9 @@
 
 namespace Aero::Markup {
 
-// Stages visual content declared through Core::ContentFacet and then mounts the
-// resulting graph through Presentation::MountService. The host deliberately has
-// no control-specific registration surface; custom controls participate by
-// registering metadata factories and content accessors.
+// Stages visual content declared through Core::ContentFacet. Presentation owns
+// the actual logical, visual, layout, render, resize, and detach sequence via
+// VisualTreeMount; custom controls participate by registering metadata facets.
 class AERO_API XamlVisualTreeHost final {
 public:
     XamlVisualTreeHost(
@@ -39,33 +38,23 @@ public:
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
     Base::Result<void> DiscardStaged() noexcept;
-    bool IsMounted() const noexcept { return mounted_; }
+    bool IsMounted() const noexcept { return mount_.IsMounted(); }
     std::uint32_t StagedContentCount() const noexcept { return edges_.Size(); }
 
 private:
     struct Edge final {
         Base::Ref<Base::Object> parentOwner;
         Base::Ref<Base::Object> childOwner;
-        Presentation::UIElement* parent = nullptr;
-        Presentation::UIElement* child = nullptr;
         Core::ContentClearCallback clearContent = nullptr;
         void* contentContext = nullptr;
-        Presentation::MountEdgeState mount;
     };
 
-    Presentation::ObjectTree* tree_ = nullptr;
-    Presentation::LayoutManager* layout_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
-    Presentation::RenderManager* renderer_ = nullptr;
-    Presentation::MountService mounts_;
-    Presentation::MountRootState rootMount_;
+    Presentation::VisualTreeMount mount_;
     XamlSchemaContext* schema_ = nullptr;
     Base::Vector<Edge> edges_;
+    Base::Vector<Presentation::VisualTreeMountEdge> mountEdges_;
     Base::Vector<Presentation::Visual*> nodes_;
-    Presentation::Visual* rootNode_ = nullptr;
-    Presentation::UIElement* rootLayout_ = nullptr;
-    Presentation::FrameworkElement* rootRender_ = nullptr;
-    bool mounted_ = false;
 
     Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) const noexcept;
@@ -78,7 +67,6 @@ private:
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
     Base::Result<void> AddNode(Presentation::Visual& node) noexcept;
-    Base::Result<void> AttachEdge(Edge& edge) noexcept;
     void ReleaseStagedContent() noexcept;
 
     static bool HandlesContentMember(

@@ -17,6 +17,7 @@
 namespace Aero::Markup {
 
 class XamlCompiledDocument;
+struct XamlLoadContext;
 
 namespace XamlObjectWriterDiagnosticCodes {
 inline constexpr Core::DiagnosticCode UnknownType =
@@ -88,7 +89,13 @@ public:
     Base::Result<Base::Ref<Base::Object>> Load(
         XamlNodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> Load(
+        XamlNodeReader& reader,
+        const XamlLoadContext& context) noexcept;
+    Base::Result<Base::Ref<Base::Object>> Load(
         const XamlCompiledDocument& document) noexcept;
+    Base::Result<Base::Ref<Base::Object>> Load(
+        const XamlCompiledDocument& document,
+        const XamlLoadContext& context) noexcept;
     void Reset() noexcept;
 
     const NameScope& DocumentNameScope() const noexcept {
@@ -232,6 +239,14 @@ private:
     std::uint32_t documentResourceScopeIndex_ = InvalidIndex;
     bool loading_ = false;
     bool ended_ = false;
+    const XamlLoadContext* loadContext_ = nullptr;
+
+    Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
+        XamlNodeReader& reader) noexcept;
+    Base::Result<Base::Ref<Base::Object>> LoadCompiledCore(
+        const XamlCompiledDocument& document) noexcept;
+    Base::Result<Base::Ref<Base::Object>> CreateObject(
+        Core::TypeId type) const noexcept;
 
     Base::Result<void> ProcessNode(
         const XamlNode& node) noexcept;

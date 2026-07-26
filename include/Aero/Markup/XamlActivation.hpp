@@ -23,6 +23,13 @@ using XamlActivateObjectCallback = Core::ObjectActivateCallback;
 using XamlActivationProviderRegistration =
     Core::ObjectActivationProviderRegistration;
 
+class XamlActivationProviderRegistry;
+
+struct XamlLoadContext final {
+    XamlActivationProviderRegistry* activationProviders = nullptr;
+    const XamlActivationContext* activation = nullptr;
+};
+
 // Schema-bound XAML integration over the shared Core activation registry.
 // Provider storage, inheritance lookup and runtime-type validation remain
 // single-sourced in Core::ActivationProviderRegistry.

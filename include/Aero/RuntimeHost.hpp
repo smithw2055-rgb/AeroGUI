@@ -56,52 +56,6 @@ class XamlVisualTreeHost;
 
 namespace Aero {
 
-enum class FrameQueueFullPolicy : std::uint8_t {
-    Reject = 0U,
-    DropOldest,
-};
-
-struct FrameQueueStatistics final {
-    std::uint64_t accepted = 0U;
-    std::uint64_t consumed = 0U;
-    std::uint64_t dropped = 0U;
-    std::uint64_t rejected = 0U;
-    std::uint64_t failed = 0U;
-    std::uint32_t pending = 0U;
-    std::uint32_t highWatermark = 0U;
-};
-
-class AERO_API QueuedRenderBackend final
-    : public Presentation::IRenderBackend {
-public:
-    explicit QueuedRenderBackend(
-        Base::IAllocator* allocator = nullptr) noexcept;
-    ~QueuedRenderBackend() noexcept override;
-
-    QueuedRenderBackend(const QueuedRenderBackend&) = delete;
-    QueuedRenderBackend& operator=(const QueuedRenderBackend&) = delete;
-
-    Base::Result<void> Initialize(
-        Presentation::IRenderBackend& downstream,
-        std::uint32_t capacity = 3U,
-        FrameQueueFullPolicy policy =
-            FrameQueueFullPolicy::DropOldest) noexcept;
-    void Shutdown() noexcept;
-
-    Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override;
-    Base::Result<bool> ConsumeOne() noexcept;
-    Base::Result<std::uint32_t> Drain() noexcept;
-
-    bool IsInitialized() const noexcept;
-    FrameQueueStatistics Statistics() const noexcept;
-
-private:
-    struct Impl;
-    Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
-};
-
 struct RuntimeHostOptions final {
     Presentation::IRenderBackend* renderBackend = nullptr;
     Platform::IClipboard* clipboard = nullptr;
