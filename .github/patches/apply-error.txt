@@ -1,10 +1,10 @@
-commit=a3858ab153d07b54714e09fe220c81bb1cc36d47
+commit=5e18f774e96f886859c9ee814665f72dcc7b84b2
 Traceback (most recent call last):
-  File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 355, in <module>
+  File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 743, in <module>
     replace_once(
   File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 10, in replace_once
     raise RuntimeError(f"{path}: expected one match, found {count}")
-RuntimeError: src/markup/XamlObjectWriter.cpp: expected one match, found 2
+RuntimeError: samples/ControlGallery/GalleryRuntime.cpp: expected one match, found 0
 --- prepared script context ---
    330	    "    const XamlNode& node) noexcept {\n"
    331	    "    if (frames_.Empty()) {\n"
@@ -33,37 +33,37 @@ RuntimeError: src/markup/XamlObjectWriter.cpp: expected one match, found 2
    354	)
    355	replace_once(
    356	    "src/markup/XamlObjectWriter.cpp",
-   357	    "    if (frames_.Empty() || frames_.Back().kind != FrameKind::Object) {\n",
-   358	    "    if (frames_.Empty() ||\n"
-   359	    "        (frames_.Back().kind != FrameKind::Object &&\n"
-   360	    "         frames_.Back().kind != FrameKind::ValueObject)) {\n",
-   361	)
-   362	# Insert the value-member branch after the shared record bounds check.
-   363	replace_once(
-   364	    "src/markup/XamlObjectWriter.cpp",
-   365	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
-   366	    "        return Failure(\n"
-   367	    "            InvalidStateStatus(),\n"
-   368	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   369	    "            MessageInvalidWriterState,\n"
-   370	    "            node.Source());\n"
-   371	    "    }\n\n"
-   372	    "    if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n",
-   373	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
-   374	    "        return Failure(\n"
-   375	    "            InvalidStateStatus(),\n"
-   376	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   377	    "            MessageInvalidWriterState,\n"
-   378	    "            node.Source());\n"
-   379	    "    }\n\n"
-   380	    "    if (objectFrame.kind == FrameKind::ValueObject) {\n"
-   381	    "        if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n"
-   382	    "            if (IsXamlDirective(node.Name(), DirectiveKey)) {\n"
-   383	    "                return StartDirective(\n"
-   384	    "                    node, DirectiveKind::Key, objectFrame.objectIndex);\n"
-   385	    "            }\n"
-   386	    "            return Failure(\n"
-   387	    "                Base::Status::Failure(\n"
-   388	    "                    Base::ErrorCode::Unsupported,\n"
-   389	    "                    MessageInvalidDirective.Data()),\n"
-   390	    "                XamlObjectWriterDiagnosticCodes::InvalidDirective,\n"
+   357	    "Base::Result<void> XamlObjectWriter::StartMember(\n"
+   358	    "    const XamlNode& node) noexcept {\n"
+   359	    "    if (frames_.Empty() || frames_.Back().kind != FrameKind::Object) {\n",
+   360	    "Base::Result<void> XamlObjectWriter::StartMember(\n"
+   361	    "    const XamlNode& node) noexcept {\n"
+   362	    "    if (frames_.Empty() ||\n"
+   363	    "        (frames_.Back().kind != FrameKind::Object &&\n"
+   364	    "         frames_.Back().kind != FrameKind::ValueObject)) {\n",
+   365	)
+   366	# Insert the value-member branch after the shared record bounds check.
+   367	replace_once(
+   368	    "src/markup/XamlObjectWriter.cpp",
+   369	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
+   370	    "        return Failure(\n"
+   371	    "            InvalidStateStatus(),\n"
+   372	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
+   373	    "            MessageInvalidWriterState,\n"
+   374	    "            node.Source());\n"
+   375	    "    }\n\n"
+   376	    "    if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n",
+   377	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
+   378	    "        return Failure(\n"
+   379	    "            InvalidStateStatus(),\n"
+   380	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
+   381	    "            MessageInvalidWriterState,\n"
+   382	    "            node.Source());\n"
+   383	    "    }\n\n"
+   384	    "    if (objectFrame.kind == FrameKind::ValueObject) {\n"
+   385	    "        if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n"
+   386	    "            if (IsXamlDirective(node.Name(), DirectiveKey)) {\n"
+   387	    "                return StartDirective(\n"
+   388	    "                    node, DirectiveKind::Key, objectFrame.objectIndex);\n"
+   389	    "            }\n"
+   390	    "            return Failure(\n"
