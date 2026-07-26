@@ -10,6 +10,8 @@ namespace Aero::Controls {
 using namespace Aero::Core;
 using namespace Aero::Presentation;
 
+class ControlTemplate;
+
 class AERO_API Panel : public FrameworkElement {
     AERO_TYPED_META(Panel, FrameworkElement)
 public:
@@ -131,6 +133,10 @@ private:
 class AERO_API Control : public FrameworkElement {
     AERO_TYPED_META(Control, FrameworkElement)
 public:
+    inline static constexpr DependencyPropertyHandle
+        TemplateProperty = MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Template");
+
     UIElement* TemplateChild() const noexcept {
         return templateChild_;
     }

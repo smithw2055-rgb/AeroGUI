@@ -175,35 +175,162 @@ Base::Result<void> ItemsCollection::Reset(
     return {};
 }
 
+Base::Result<void> DeferredObjectProgram::Configure(
+    DeferredObjectFactory factory,
+    void* context) noexcept {
+    return Configure(factory, context, {});
+}
+
+Base::Result<void> DeferredObjectProgram::Configure(
+    DeferredObjectFactory factory,
+    void* context,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    if (sealed_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred object program is sealed");
+    }
+    if (factory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Deferred object factory is null");
+    }
+    factory_ = factory;
+    context_ = context;
+    factoryOwner_ = std::move(factoryOwner);
+    return {};
+}
+
+Base::Result<void> DeferredObjectProgram::SetBaseUri(
+    const Base::ResourceUri& value) noexcept {
+    if (sealed_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred object program is sealed");
+    }
+    baseUri_ = value;
+    return {};
+}
+
+Base::Result<void> DeferredObjectProgram::Seal() noexcept {
+    if (factory_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred object program has no factory");
+    }
+    sealed_ = true;
+    return {};
+}
+
+Base::Result<Base::Ref<Base::Object>>
+DeferredObjectProgram::Instantiate(
+    const Base::Ref<Base::Object>& payload) const noexcept {
+    if (factory_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred object program is not ready");
+    }
+    Base::Result<Base::Ref<Base::Object>> result =
+        factory_(payload, context_);
+    if (!result || result.Value()) return result;
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState,
+        "Deferred object factory returned null");
+}
+
 Base::Result<Base::Ref<Base::Object>>
 DataTemplate::Instantiate(
     const Base::Ref<Base::Object>& item) const noexcept {
-    if (factory_ == nullptr || !item) {
+    if (!program_.IsValid() || !item) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "DataTemplate is not ready");
     }
     Base::Result<Base::Ref<Base::Object>> result =
-        factory_(item, context_);
+        program_.Instantiate(item);
     if (!result || result.Value()) return result;
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "DataTemplate returned null");
 }
 
+Base::Result<void> DataTemplate::Configure(
+    DataTemplateFactory factory,
+    void* context,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    return program_.Configure(
+        factory, context, std::move(factoryOwner));
+}
+
+Base::Result<void> DataTemplate::SetDataType(
+    TypeId value) noexcept {
+    if (program_.IsSealed() ||
+        value == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "DataTemplate DataType is invalid");
+    }
+    dataType_ = value;
+    return {};
+}
+
+Base::Result<void> DataTemplate::SetAuthoredVisualTree(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (program_.IsSealed() || !value ||
+        authoredVisualTree_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DataTemplate VisualTree assignment is invalid");
+    }
+    authoredVisualTree_ = value;
+    return {};
+}
+
+Base::Result<void> DataTemplate::Seal() noexcept {
+    Base::Result<void> program = program_.Seal();
+    if (!program) return program.GetStatus();
+    return resources_.Seal();
+}
+
 Base::Result<Base::Ref<Base::Object>>
 ItemsPanelTemplate::Instantiate() const noexcept {
-    if (factory_ == nullptr) {
+    if (!program_.IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemsPanelTemplate is not ready");
     }
     Base::Result<Base::Ref<Base::Object>> result =
-        factory_(context_);
+        program_.Instantiate();
     if (!result || result.Value()) return result;
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "ItemsPanelTemplate returned null");
+}
+
+Base::Result<void> ItemsPanelTemplate::Configure(
+    DeferredObjectFactory factory,
+    void* context,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    return program_.Configure(
+        factory, context, std::move(factoryOwner));
+}
+
+Base::Result<void> ItemsPanelTemplate::SetAuthoredVisualTree(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (program_.IsSealed() || !value ||
+        authoredVisualTree_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "ItemsPanelTemplate VisualTree assignment is invalid");
+    }
+    authoredVisualTree_ = value;
+    return {};
+}
+
+Base::Result<void> ItemsPanelTemplate::Seal() noexcept {
+    Base::Result<void> program = program_.Seal();
+    if (!program) return program.GetStatus();
+    return resources_.Seal();
 }
 
 ItemsControl::ItemsControl() noexcept

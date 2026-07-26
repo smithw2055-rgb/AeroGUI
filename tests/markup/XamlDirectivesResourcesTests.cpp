@@ -9,12 +9,12 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNamesResources.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Resources/XamlNamesResources.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include "TestMetadataConverters.hpp"
 
@@ -138,7 +138,7 @@ Result<void> SetProbe(
     const XamlValue& value,
     const XamlServiceProvider& services,
     void* context) noexcept;
-Result<XamlValue> ProvideEcho(
+Result<XamlProvidedValue> ProvideEcho(
     StringView arguments,
     const XamlServiceProvider& services,
     void* context) noexcept;
@@ -448,7 +448,7 @@ Result<void> SetProbe(
     return {};
 }
 
-Result<XamlValue> ProvideEcho(
+Result<XamlProvidedValue> ProvideEcho(
     StringView arguments,
     const XamlServiceProvider& services,
     void* context) noexcept {
@@ -476,7 +476,13 @@ Result<XamlValue> ProvideEcho(
             ErrorCode::ValidationFailed,
             "Echo extension failure requested by test");
     }
-    return XamlValue::TryFromString(fixture->stringType, arguments);
+    Result<XamlValue> value =
+        XamlValue::TryFromString(fixture->stringType, arguments);
+    return value
+        ? Result<XamlProvidedValue>(
+              XamlProvidedValue::FromValue(
+                  std::move(value).Value()))
+        : Result<XamlProvidedValue>(value.GetStatus());
 }
 
 Result<Ref<Object>> LoadDocument(
@@ -490,7 +496,10 @@ Result<Ref<Object>> LoadDocument(
     }
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    return writer.Load(reader);
+    Result<XamlLoadResult> loaded =
+        writer.LoadDocument(reader);
+    if (!loaded) return loaded.GetStatus();
+    return loaded.Value().root;
 }
 
 bool TestNamesResourcesStaticResourceAndServices() {
@@ -512,11 +521,14 @@ bool TestNamesResourcesStaticResourceAndServices() {
         CHECK(tokenizer.Reset(xaml, &diagnostics));
         XamlNodeReader reader(tokenizer, &diagnostics);
         XamlObjectWriter writer(*fixture.schema, &diagnostics);
-        Result<Ref<Object>> loaded = writer.Load(reader);
+        Result<XamlLoadResult> loaded =
+            writer.LoadDocument(reader);
         CHECK(loaded);
         CHECK(diagnostics.Size() == 0U);
 
-        Ref<Object> rootObject = std::move(loaded).Value();
+        XamlLoadResult document =
+            std::move(loaded).Value();
+        Ref<Object> rootObject = document.root;
         DirectiveNode* root = static_cast<DirectiveNode*>(rootObject.Get());
         CHECK(root != nullptr && root->IsRoot());
         CHECK(root->Children().Size() == 1U);
@@ -539,10 +551,10 @@ bool TestNamesResourcesStaticResourceAndServices() {
 
         CHECK(root->Names().Find(StringView("root")) == root);
         CHECK(root->Names().Find(StringView("consumer")) == consumer);
-        CHECK(writer.DocumentNameScope().Find(StringView("root")) == root);
-        CHECK(writer.DocumentNameScope().Find(StringView("consumer")) == consumer);
+        CHECK(document.names.Find(StringView("root")) == root);
+        CHECK(document.names.Find(StringView("consumer")) == consumer);
         Result<XamlResourceValue> committed =
-            writer.DocumentResources().Lookup(StringView("resource"));
+            document.resources.Lookup(StringView("resource"));
         CHECK(committed);
         CHECK(committed.Value().AsObject().Get() ==
             resource.Value().AsObject().Get());
@@ -786,11 +798,13 @@ bool TestExternalScalarStaticResource() {
             &diagnostics));
         XamlNodeReader reader(tokenizer, &diagnostics);
         XamlObjectWriter writer(*fixture.schema, &diagnostics);
-        Result<Ref<Object>> loaded = writer.Load(reader, context);
+        Result<XamlLoadResult> loaded =
+            writer.LoadDocument(reader, context);
         CHECK(loaded);
         CHECK(diagnostics.Size() == 0U);
 
-        Ref<Object> rootObject = std::move(loaded).Value();
+        Ref<Object> rootObject =
+            std::move(loaded).Value().root;
         DirectiveNode* root = static_cast<DirectiveNode*>(rootObject.Get());
         CHECK(root->Children().Size() == 1U);
         CHECK(static_cast<DirectiveNode*>(

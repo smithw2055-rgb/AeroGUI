@@ -509,7 +509,8 @@ Base::Result<void> Win32Window::Create(
     windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
     windowClass.lpfnWndProc = &Impl::WindowProcedure;
     windowClass.hInstance = impl_->instance;
-    windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    windowClass.hCursor =
+        LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     windowClass.lpszClassName = Win32WindowClassName();
     if (RegisterClassExW(&windowClass) == 0U &&
         GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {

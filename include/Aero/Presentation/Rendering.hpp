@@ -6,10 +6,13 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Resources.hpp>
 
 #include <cstdint>
 
 namespace Aero::Presentation {
+
+class Style;
 
 using namespace Aero::Core;
 
@@ -215,6 +218,12 @@ public:
     Size MaxSize() const noexcept;
     Thickness Margin() const noexcept;
     Base::Result<Base::Ref<Base::Object>> GetDataContext() const noexcept;
+    ResourceDictionary& Resources() noexcept {
+        return resources_;
+    }
+    const ResourceDictionary& Resources() const noexcept {
+        return resources_;
+    }
     DependencyObject* TemplatedParent() const noexcept {
         return templatedParent_;
     }
@@ -224,6 +233,9 @@ public:
     inline static constexpr Aero::Core::DependencyPropertyHandle
         DataContextProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "DataContext");
+    inline static constexpr Aero::Core::DependencyPropertyHandle
+        StyleProperty = Aero::Core::MakeDependencyPropertyHandle(
+            StaticTypeIdValue_, "Style");
     inline static constexpr Aero::Core::DependencyPropertyHandle
         WidthProperty = Aero::Core::MakeDependencyPropertyHandle(
             StaticTypeIdValue_, "Width");
@@ -303,6 +315,7 @@ private:
     bool renderQueued_ = false;
     bool buildingDisplayList_ = false;
     DependencyObject* templatedParent_ = nullptr;
+    ResourceDictionary resources_;
 };
 
 struct RenderNodeSnapshot final {

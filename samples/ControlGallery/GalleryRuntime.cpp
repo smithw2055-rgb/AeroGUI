@@ -9,7 +9,6 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/RuntimeHost.hpp>
-#include <Aero/Markup/XamlTheme.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Presentation/Binding.hpp>
@@ -152,9 +151,7 @@ struct GalleryRuntime::Impl final {
     Platform::MemoryClipboard clipboard;
 #endif
     RuntimeHost runtime;
-    std::unique_ptr<XamlTheme> theme;
     Ref<Object> root;
-    Vector<Control*> themedControls;
     GalleryItemsSource items;
     DataTemplate itemTemplate{
         &MakeVirtualizedItem, nullptr};
@@ -183,11 +180,12 @@ struct GalleryRuntime::Impl final {
             }
             DiagnosticBag diagnostics;
             Result<Ref<Object>> loaded =
-                runtime.LoadXaml({
+                runtime.ParseXaml({
                     reinterpret_cast<const char*>(
                         source.data()),
                     static_cast<std::uint32_t>(
                         source.size())},
+                    {},
                     &diagnostics);
             if (!loaded) return loaded.GetStatus();
             root = std::move(loaded).Value();
@@ -212,67 +210,12 @@ struct GalleryRuntime::Impl final {
     }
 
     Result<void> LoadTheme(
-        const std::string& assetDirectory,
+        const std::string&,
         GalleryTheme requested) noexcept {
-        std::vector<std::uint8_t> generic;
-        std::vector<std::uint8_t> palette;
-        if (!ReadFile(
-                assetDirectory +
-                "/themes/Generic.xaml",
-                generic) ||
-            !ReadFile(
-                assetDirectory +
-                (requested == GalleryTheme::Light
-                    ? "/themes/Light.xaml"
-                    : "/themes/Dark.xaml"),
-                palette)) {
-            return Failure(
-                "ControlGallery theme assets are unavailable");
-        }
-        Result<std::unique_ptr<XamlTheme>> loaded =
-            XamlTheme::Load(
-                {reinterpret_cast<const char*>(
-                     generic.data()),
-                 static_cast<std::uint32_t>(
-                     generic.size())},
-                {reinterpret_cast<const char*>(
-                     palette.data()),
-                 static_cast<std::uint32_t>(
-                     palette.size())},
-                *runtime.MetadataRuntime());
-        if (!loaded) return loaded.GetStatus();
-        theme = std::move(loaded).Value();
-        return {};
-    }
-
-    Result<void> ApplyTheme() noexcept {
-        const StringView names[] = {
-            "PrimaryButton",
-            "FeatureCheck",
-            "LightChoice",
-            "DarkChoice",
-            "BigList"};
-        for (StringView name : names) {
-            Object* object = runtime.FindNamedObject(
-                name, Control::StaticTypeId());
-            if (object == nullptr) {
-                return Failure(
-                    "ControlGallery themed control is missing");
-            }
-            auto* control = static_cast<Control*>(object);
-            if (theme->FindTemplate(
-                    control->RuntimeType()) == nullptr) {
-                continue;
-            }
-            Result<TemplateHandle> applied =
-                theme->Apply(
-                    *runtime.Templates(), *control);
-            if (!applied) return applied.GetStatus();
-            Result<void> tracked =
-                themedControls.TryPushBack(control);
-            if (!tracked) return tracked.GetStatus();
-        }
-        return {};
+        return runtime.LoadBuiltInTheme(
+            requested == GalleryTheme::Light
+            ? BuiltInTheme::Light
+            : BuiltInTheme::Dark);
     }
 
     Result<void> ConfigureBinding() noexcept {
@@ -515,16 +458,6 @@ struct GalleryRuntime::Impl final {
         }
         listBox = nullptr;
         virtualizingPanel = nullptr;
-        if (runtime.Templates() != nullptr) {
-            for (Control* control : themedControls) {
-                if (control != nullptr) {
-                    static_cast<void>(
-                        runtime.Templates()->Clear(
-                            *control));
-                }
-            }
-        }
-        themedControls.Clear();
         if (runtime.IsMounted()) {
             static_cast<void>(runtime.Unmount());
         }
@@ -591,7 +524,6 @@ Result<void> GalleryRuntime::Initialize(
             "ControlGallery root is not a Border");
     }
     status = state->runtime.Mount({900.0, 640.0});
-    if (status) status = state->ApplyTheme();
     if (status) status = state->ConfigureBinding();
     if (status) status = state->ConfigureVirtualization();
     if (status) status = state->RunFrame();

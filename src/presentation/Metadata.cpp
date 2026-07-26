@@ -6,11 +6,14 @@
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Presentation/Style.hpp>
 
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 namespace Aero::Presentation {
 
@@ -256,11 +259,167 @@ Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyPropert
 Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
     const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinHeightProperty); }
 
+Base::Result<void> SetFrameworkElementResources(
+    Base::Object& object,
+    const Value& value,
+    void*) noexcept {
+    if (value.Kind() != ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject() ||
+        value.AsObject()->RuntimeType() !=
+            ResourceDictionary::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkElement Resources expects a ResourceDictionary");
+    }
+    auto& source = static_cast<ResourceDictionary&>(
+        *value.AsObject());
+    auto& target =
+        static_cast<FrameworkElement&>(object).Resources();
+    if (target.Size() != 0U ||
+        target.MergedDictionaryCount() != 0U ||
+        !target.Source().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "FrameworkElement Resources is already assigned");
+    }
+    target = std::move(source);
+    return {};
+}
+
+Base::Result<void> SetStyleResources(
+    Base::Object& object,
+    const Value& value,
+    void*) noexcept {
+    if (value.Kind() != ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject() ||
+        value.AsObject()->RuntimeType() !=
+            ResourceDictionary::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Style Resources expects a ResourceDictionary");
+    }
+    auto& target = static_cast<Style&>(object).Resources();
+    if (target.Size() != 0U ||
+        target.MergedDictionaryCount() != 0U ||
+        !target.Source().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Style Resources is already assigned");
+    }
+    auto& source = static_cast<ResourceDictionary&>(
+        *value.AsObject());
+    target = std::move(source);
+    return {};
+}
+
+PropertyRegistration OrdinaryProperty(
+    Base::StringView name,
+    TypeId type,
+    PropertyGetCallback get,
+    PropertySetCallback set,
+    PropertyFlags flags =
+        PropertyFlags::None) noexcept {
+    PropertyRegistration registration;
+    registration.name = name;
+    registration.valueType = type;
+    registration.flags = flags;
+    registration.access =
+        PropertyAccessKind::Ordinary;
+    registration.get = get;
+    registration.set = set;
+    return registration;
+}
+
 } // namespace
 
 Base::Result<void> Detail::PopulatePresentationMetadata(
     Core::MetaRegistrationContext& context) noexcept {
     Base::Result<void> status;
+
+    MetaTypeBuilder<ResourceDictionary> resourceDictionary =
+        MetaTypeBuilder<ResourceDictionary>::Object(context);
+    resourceDictionary
+        .Property({
+            "Source",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property({
+            "MergedDictionaries",
+            ResourceDictionary::StaticTypeId(),
+            PropertyFlags::Structural |
+                PropertyFlags::Collection})
+        .Content<Base::Object>(
+            "Entries",
+            ContentKind::Collection)
+        .DefaultFactory();
+    status = resourceDictionary.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Setter> setter =
+        MetaTypeBuilder<Setter>::Object(context);
+    setter
+        .Property({
+            "TargetName",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property({
+            "Property",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property({
+            "Value",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .DefaultFactory();
+    status = setter.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<PropertyTrigger> trigger =
+        MetaTypeBuilder<PropertyTrigger>::Object(context);
+    trigger
+        .Property({
+            "Property",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property({
+            "Value",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Content<Setter>(
+            "Setters",
+            ContentKind::Collection)
+        .DefaultFactory();
+    status = trigger.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<Style> style =
+        MetaTypeBuilder<Style>::Object(context);
+    style
+        .Property({
+            "TargetType",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property({
+            "BasedOn",
+            Style::StaticTypeId(),
+            PropertyFlags::None})
+        .Property(OrdinaryProperty(
+            "Resources",
+            ResourceDictionary::StaticTypeId(),
+            nullptr,
+            &SetStyleResources,
+            PropertyFlags::Structural))
+        .Property({
+            "Triggers",
+            PropertyTrigger::StaticTypeId(),
+            PropertyFlags::Structural |
+                PropertyFlags::Collection})
+        .Content<Setter>(
+            "Setters",
+            ContentKind::Collection)
+        .DefaultFactory();
+    status = style.Finish();
+    if (!status) return status.GetStatus();
 
     MetaTypeBuilder<EventArgs> eventArgs =
         MetaTypeBuilder<EventArgs>::Struct(context);
@@ -468,10 +627,20 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         TypeOf<Thickness>(), &zero);
     if (!margin) return margin.GetStatus();
     frameworkElement
+        .Property(OrdinaryProperty(
+            "Resources",
+            ResourceDictionary::StaticTypeId(),
+            nullptr,
+            &SetFrameworkElementResources,
+            PropertyFlags::Structural))
         .DependencyProperty(FrameworkElement::DataContextProperty,
             "DataContext", TypeOf<Base::Object>(),
             Value::NullObject(TypeOf<Base::Object>()),
             PropertyMetadataFlags::Inherits)
+        .DependencyProperty(FrameworkElement::StyleProperty,
+            "Style", Style::StaticTypeId(),
+            Value::NullObject(Style::StaticTypeId()),
+            PropertyMetadataFlags::None)
         .DependencyProperty(FrameworkElement::WidthProperty, "Width",
             TypeOf<Length>(), automatic.Value(),
             PropertyMetadataFlags::AffectsMeasure, &ValidateLength)

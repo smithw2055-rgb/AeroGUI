@@ -4,6 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
+#include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -15,6 +16,7 @@
 #include <cstdint>
 
 namespace Aero::Core {
+class ActivationProviderRegistry;
 class IDiagnosticSink;
 class EffectiveValueEngine;
 class MetadataDomain;
@@ -41,18 +43,36 @@ class KeyboardInputManager;
 class ObjectTree;
 class PointerInputManager;
 class RenderManager;
+class ResourceDictionary;
 class RoutedEventManager;
+class StyleManager;
 class TextInputManager;
 }
 
 namespace Aero::Markup {
-class XamlActivationProviderRegistry;
-class XamlCompiledDocument;
-class XamlNodeReader;
+class EmbeddedXamlSourceProvider;
+class IXamlSourceProvider;
 class XamlSchemaContext;
+class XamlSourceProviderRegistry;
 }
 
 namespace Aero {
+
+enum class BuiltInTheme : std::uint8_t {
+    Light = 0U,
+    Dark
+};
+
+enum class RuntimeResourceLayer : std::uint8_t {
+    Application = 0U,
+    Theme,
+    System
+};
+
+enum class RuntimeResourceLoadMode : std::uint8_t {
+    Replace = 0U,
+    Merge
+};
 
 struct RuntimeHostOptions final {
     Presentation::IRenderBackend* renderBackend = nullptr;
@@ -91,33 +111,54 @@ public:
     bool IsInitialized() const noexcept;
     bool IsMounted() const noexcept;
 
-    Base::Result<Base::Ref<Base::Object>> Load(
-        Markup::XamlNodeReader& reader) noexcept;
-    Base::Result<Base::Ref<Base::Object>> Load(
-        const Markup::XamlCompiledDocument& document) noexcept;
+    // Loads a document through the URI/provider pipeline.
     Base::Result<Base::Ref<Base::Object>> LoadXaml(
+        Base::StringView uri,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    // Parses caller-owned text. baseUri controls relative resource resolution.
+    Base::Result<Base::Ref<Base::Object>> ParseXaml(
         Base::StringView source,
+        const Base::ResourceUri& baseUri = {},
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadCompiledXaml(
-        Base::Span<const std::uint8_t> bytes) noexcept;
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri = {}) noexcept;
+    Base::Result<void> RegisterXamlSourceProvider(
+        Markup::IXamlSourceProvider& provider,
+        Base::StringView scheme = {},
+        Base::StringView assembly = {}) noexcept;
+    Base::Result<void> LoadResources(
+        RuntimeResourceLayer layer,
+        Base::StringView uri,
+        RuntimeResourceLoadMode mode =
+            RuntimeResourceLoadMode::Replace,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<void> LoadCompiledResources(
+        RuntimeResourceLayer layer,
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri,
+        RuntimeResourceLoadMode mode =
+            RuntimeResourceLoadMode::Replace) noexcept;
+    Base::Result<void> LoadBuiltInTheme(
+        BuiltInTheme theme) noexcept;
     Base::Result<void> Mount(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Mount(
         Base::Ref<Base::Object> root,
         Presentation::Size availableSize) noexcept;
-    Base::Result<Base::Ref<Base::Object>> LoadAndMount(
-        Markup::XamlNodeReader& reader,
-        Presentation::Size availableSize) noexcept;
-    Base::Result<Base::Ref<Base::Object>> LoadAndMount(
-        const Markup::XamlCompiledDocument& document,
-        Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
+        Base::StringView uri,
+        Presentation::Size availableSize,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<Base::Ref<Base::Object>> ParseAndMountXaml(
         Base::StringView source,
+        const Base::ResourceUri& baseUri,
         Presentation::Size availableSize,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountCompiledXaml(
         Base::Span<const std::uint8_t> bytes,
-        Presentation::Size availableSize) noexcept;
+        Presentation::Size availableSize,
+        const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> Resize(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
@@ -156,7 +197,13 @@ public:
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;
     Markup::XamlSchemaContext* Schema() noexcept;
-    Markup::XamlActivationProviderRegistry* Activation() noexcept;
+    Core::ActivationProviderRegistry* ActivationFacets() noexcept;
+    Markup::XamlSourceProviderRegistry* XamlSources() noexcept;
+    Markup::EmbeddedXamlSourceProvider* EmbeddedXamlSources() noexcept;
+    Presentation::ResourceDictionary* ApplicationResources() noexcept;
+    Presentation::ResourceDictionary* ThemeResources() noexcept;
+    Presentation::ResourceDictionary* SystemResources() noexcept;
+    Presentation::StyleManager* Styles() noexcept;
 
 private:
     struct Impl;

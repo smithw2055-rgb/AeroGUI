@@ -74,7 +74,8 @@ foreach(removed_path IN ITEMS
     "src/markup/RuntimeSafety.inc"
     "src/markup/RuntimeServices.inc"
     "src/markup/XamlThemeResources.hpp"
-    "src/markup/XamlThemeResources.cpp")
+    "src/markup/XamlThemeResources.cpp"
+    "include/Aero/Markup/Extensions/XamlDependencyObjectResolver.hpp")
     if(EXISTS "${AERO_SOURCE_DIR}/${removed_path}")
         message(FATAL_ERROR
             "Removed runtime/markup compatibility file still exists: ${removed_path}")
@@ -104,6 +105,21 @@ if(legacy_includes)
         "Code must not include removed legacy Core headers: ${legacy_includes}")
 endif()
 
+
+file(GLOB_RECURSE markup_kernel_files
+    "${AERO_SOURCE_DIR}/src/markup/parsing/*.cpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Markup/Parsing/*.hpp"
+    "${AERO_SOURCE_DIR}/src/markup/compiled/XamlCompiledCache.cpp"
+    "${AERO_SOURCE_DIR}/src/markup/compiled/XamlCompiledDocument.cpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Markup/Compiled/XamlCompiledCache.hpp")
+aero_collect_matches(markup_kernel_reverse
+    "#[ \t]*include[ \t]*<Aero/(Presentation|Controls|Markup/(Runtime|Resources|Schema|Extensions))/"
+    ${markup_kernel_files})
+if(markup_kernel_reverse)
+    message(FATAL_ERROR
+        "Markup kernel must not depend on UI/runtime integration: ${markup_kernel_reverse}")
+endif()
+
 file(GLOB_RECURSE markup_translation_units
     "${AERO_SOURCE_DIR}/src/markup/*.cpp")
 aero_collect_matches(markup_source_includes
@@ -124,7 +140,7 @@ endif()
 
 
 set(removed_runtime_include_pattern
-    "#[ \t]*include[ \t]*<Aero/(Markup/(RuntimeHost|XamlModuleSdk)|RuntimeServices)\.hpp>")
+    "#[ \t]*include[ \t]*<Aero/(Markup/(RuntimeHost|XamlModuleSdk)|RuntimeServices)[.]hpp>")
 aero_collect_matches(removed_runtime_includes
     "${removed_runtime_include_pattern}" ${current_code})
 if(removed_runtime_includes)

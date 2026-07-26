@@ -1,13 +1,17 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Templates.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/RuntimeHost.hpp>
 #include <Aero/Presentation/QueuedRenderBackend.hpp>
 #include <Aero/RuntimeSafety.hpp>
-#include <Aero/Markup/XamlCompiledCache.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Markup/Compiled/XamlCompiledCache.hpp>
+#include <Aero/Markup/Runtime/XamlLoader.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Presentation/Style.hpp>
 #include <Aero/Module.hpp>
 
 #include <cstdio>
@@ -145,12 +149,19 @@ bool TestRuntimeHostHighLevelMarkupApi() {
     RuntimeHost runtime;
     CHECK(runtime.Initialize());
     DiagnosticBag diagnostics;
-    Result<Ref<Object>> loaded = runtime.LoadAndMountXaml(
+    Result<Ref<Object>> loaded = runtime.ParseAndMountXaml(
         "<Border xmlns=\"urn:aero\" "
         "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
         "x:Name=\"RootBorder\" Width=\"240\" Height=\"120\"/>",
+        {},
         {320.0, 200.0},
         &diagnostics);
+    if (!loaded) {
+        std::fprintf(
+            stderr,
+            "ParseAndMountXaml failed: %s\n",
+            loaded.GetStatus().message);
+    }
     CHECK(loaded);
     CHECK(diagnostics.Size() == 0U);
     Border* border = runtime.FindNamed<Border>("RootBorder");
@@ -159,6 +170,349 @@ bool TestRuntimeHostHighLevelMarkupApi() {
     CHECK(border->Height() == 120.0);
     CHECK(runtime.FindNamed<Border>("Missing") == nullptr);
     CHECK(runtime.RunFrame());
+    CHECK(runtime.Unmount());
+    runtime.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostResourceDictionaryDependencies() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    EmbeddedXamlSourceProvider* embedded =
+        runtime.EmbeddedXamlSources();
+    CHECK(embedded != nullptr);
+
+    Result<ResourceUri> rootUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Themes/Root.xaml");
+    Result<ResourceUri> firstUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Themes/First.xaml");
+    Result<ResourceUri> secondUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Themes/Second.xaml");
+    CHECK(rootUri && firstUri && secondUri);
+    CHECK(embedded->TryAddText(
+        firstUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Color x:Key=\"FirstOnly\" Value=\"#FFFF0000\"/>"
+        "<Color x:Key=\"Shared\" Value=\"#FFFF0000\"/>"
+        "</ResourceDictionary>"));
+    CHECK(embedded->TryAddText(
+        secondUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Color x:Key=\"Shared\" Value=\"#FF0000FF\"/>"
+        "</ResourceDictionary>"));
+    CHECK(embedded->TryAddText(
+        rootUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\">"
+        "<ResourceDictionary.MergedDictionaries>"
+        "<ResourceDictionary Source=\"First.xaml\"/>"
+        "<ResourceDictionary Source=\"Second.xaml\"/>"
+        "</ResourceDictionary.MergedDictionaries>"
+        "</ResourceDictionary>"));
+
+    DiagnosticBag diagnostics;
+    Result<Ref<Object>> loaded = runtime.LoadXaml(
+        rootUri.Value().Canonical(),
+        &diagnostics);
+    if (!loaded) {
+        std::fprintf(
+            stderr,
+            "Resource dictionary load failed: %s\n",
+            loaded.GetStatus().message);
+    }
+    CHECK(loaded);
+    CHECK(diagnostics.Size() == 0U);
+    CHECK(loaded.Value()->RuntimeType() ==
+        ResourceDictionary::StaticTypeId());
+    auto& dictionary =
+        static_cast<ResourceDictionary&>(
+            *loaded.Value());
+    CHECK(dictionary.MergedDictionaryCount() == 2U);
+    Result<ResourceValue> first =
+        dictionary.Lookup("FirstOnly");
+    Result<ResourceValue> shared =
+        dictionary.Lookup("Shared");
+    CHECK(first && shared);
+    CHECK(first.Value().Type() == TypeOf<Color>());
+    CHECK(shared.Value().Type() == TypeOf<Color>());
+    const auto* firstColor =
+        static_cast<const Color*>(
+            first.Value().AsCustom());
+    const auto* sharedColor =
+        static_cast<const Color*>(
+            shared.Value().AsCustom());
+    CHECK(firstColor != nullptr && sharedColor != nullptr);
+    CHECK(firstColor->red == 1.0F &&
+        firstColor->blue == 0.0F);
+    CHECK(sharedColor->red == 0.0F &&
+        sharedColor->blue == 1.0F);
+    runtime.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostImplicitAndExplicitStyles() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    DiagnosticBag diagnostics;
+    Result<Ref<Object>> loaded = runtime.ParseXaml(
+        "<Grid xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid.Resources><ResourceDictionary>"
+        "<Style TargetType=\"Border\">"
+        "<Setter Property=\"Width\" Value=\"123\"/>"
+        "</Style>"
+        "<Style x:Key=\"ExplicitBorder\" TargetType=\"Border\">"
+        "<Setter Property=\"Height\" Value=\"77\"/>"
+        "</Style>"
+        "</ResourceDictionary></Grid.Resources>"
+        "<Border x:Name=\"ImplicitBorder\"/>"
+        "<Border x:Name=\"ExplicitBorderTarget\" "
+        "Style=\"{StaticResource ExplicitBorder}\"/>"
+        "</Grid>",
+        {},
+        &diagnostics);
+    if (!loaded) {
+        std::fprintf(
+            stderr,
+            "Style integration load failed: %s\n",
+            loaded.GetStatus().message);
+    }
+    CHECK(loaded);
+    CHECK(runtime.Mount({400.0, 240.0}));
+    CHECK(diagnostics.Size() == 0U);
+    Border* implicit =
+        runtime.FindNamed<Border>("ImplicitBorder");
+    Border* explicitTarget =
+        runtime.FindNamed<Border>(
+            "ExplicitBorderTarget");
+    CHECK(implicit != nullptr &&
+        explicitTarget != nullptr);
+    CHECK(implicit->Width() == 123.0);
+    CHECK(!implicit->HasHeight());
+    CHECK(explicitTarget->Height() == 77.0);
+    CHECK(!explicitTarget->HasWidth());
+    CHECK(runtime.Styles()->AppliedStyle(*implicit) != nullptr);
+    CHECK(runtime.Styles()->AppliedStyle(*explicitTarget) != nullptr);
+    CHECK(runtime.Unmount());
+
+    diagnostics.Clear();
+    loaded = runtime.ParseXaml(
+        "<Border xmlns=\"urn:aero\" Width=\"32\"/>",
+        {},
+        &diagnostics);
+    CHECK(loaded);
+    CHECK(runtime.Mount({100.0, 100.0}));
+    CHECK(diagnostics.Size() == 0U);
+    CHECK(runtime.Unmount());
+    runtime.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostResourceLayers() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    EmbeddedXamlSourceProvider* embedded =
+        runtime.EmbeddedXamlSources();
+    CHECK(embedded != nullptr);
+
+    Result<ResourceUri> systemUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Layers/System.xaml");
+    Result<ResourceUri> themeUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Layers/Theme.xaml");
+    Result<ResourceUri> applicationUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Layers/Application.xaml");
+    CHECK(systemUri && themeUri && applicationUri);
+    CHECK(embedded->TryAddText(
+        systemUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\">"
+        "<Style TargetType=\"Border\">"
+        "<Setter Property=\"Width\" Value=\"10\"/>"
+        "</Style>"
+        "</ResourceDictionary>"));
+    CHECK(embedded->TryAddText(
+        themeUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\">"
+        "<Style TargetType=\"Border\">"
+        "<Setter Property=\"Width\" Value=\"20\"/>"
+        "</Style>"
+        "</ResourceDictionary>"));
+    CHECK(embedded->TryAddText(
+        applicationUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Color x:Key=\"LayerColor\" Value=\"#FFFF0000\"/>"
+        "<Style TargetType=\"Border\">"
+        "<Setter Property=\"Width\" Value=\"30\"/>"
+        "</Style>"
+        "</ResourceDictionary>"));
+
+    CHECK(runtime.LoadResources(
+        RuntimeResourceLayer::System,
+        systemUri.Value().Canonical()));
+    CHECK(runtime.LoadResources(
+        RuntimeResourceLayer::Theme,
+        themeUri.Value().Canonical()));
+    CHECK(runtime.LoadResources(
+        RuntimeResourceLayer::Application,
+        applicationUri.Value().Canonical()));
+    Result<Ref<Object>> loaded = runtime.ParseXaml(
+        "<Border xmlns=\"urn:aero\" "
+        "Background=\"{StaticResource LayerColor}\"/>");
+    CHECK(loaded);
+    CHECK(runtime.Mount({100.0, 100.0}));
+    auto* border =
+        static_cast<Border*>(loaded.Value().Get());
+    CHECK(border->Width() == 30.0);
+    const Color background = border->Background();
+    CHECK(background.red == 1.0F &&
+        background.green == 0.0F &&
+        background.blue == 0.0F);
+    CHECK(runtime.Unmount());
+    runtime.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostDynamicResourceChain() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    EmbeddedXamlSourceProvider* embedded =
+        runtime.EmbeddedXamlSources();
+    CHECK(embedded != nullptr);
+    Result<ResourceUri> applicationUri =
+        ResourceUri::Parse(
+            "pack://application:,,,/Aero.Tests;component/Dynamic/Application.xaml");
+    CHECK(applicationUri);
+    CHECK(embedded->TryAddText(
+        applicationUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Color x:Key=\"AppAccent\" Value=\"#FF0000FF\"/>"
+        "</ResourceDictionary>"));
+    CHECK(runtime.LoadResources(
+        RuntimeResourceLayer::Application,
+        applicationUri.Value().Canonical()));
+
+    Result<Ref<Object>> loaded = runtime.ParseXaml(
+        "<Grid xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Root\">"
+        "<Grid.Resources><ResourceDictionary>"
+        "<Color x:Key=\"LocalAccent\" Value=\"#FFFF0000\"/>"
+        "</ResourceDictionary></Grid.Resources>"
+        "<Border x:Name=\"LocalTarget\" "
+        "Background=\"{DynamicResource LocalAccent}\"/>"
+        "<Border x:Name=\"ApplicationTarget\" "
+        "Background=\"{DynamicResource AppAccent}\"/>"
+        "</Grid>");
+    CHECK(loaded);
+    CHECK(runtime.Mount({200.0, 120.0}));
+    Grid* root = runtime.FindNamed<Grid>("Root");
+    Border* local =
+        runtime.FindNamed<Border>("LocalTarget");
+    Border* application =
+        runtime.FindNamed<Border>(
+            "ApplicationTarget");
+    CHECK(root != nullptr && local != nullptr &&
+        application != nullptr);
+    CHECK(local->Background().red == 1.0F);
+    CHECK(application->Background().blue == 1.0F);
+
+    Result<Value> green =
+        runtime.MetadataRuntime()->TryConvertText(
+            TypeOf<Color>(),
+            "#FF00FF00");
+    CHECK(green);
+    CHECK(root->Resources().TrySet(
+        "LocalAccent", green.Value()));
+    CHECK(runtime.RunFrame());
+    CHECK(local->Background().red == 0.0F &&
+        local->Background().green == 1.0F);
+
+    Result<Value> white =
+        runtime.MetadataRuntime()->TryConvertText(
+            TypeOf<Color>(),
+            "#FFFFFFFF");
+    CHECK(white);
+    CHECK(runtime.ApplicationResources()->TrySet(
+        "AppAccent", white.Value()));
+    CHECK(runtime.RunFrame());
+    CHECK(application->Background().red == 1.0F &&
+        application->Background().green == 1.0F &&
+        application->Background().blue == 1.0F);
+
+    CHECK(runtime.Unmount());
+    runtime.Shutdown();
+    return true;
+}
+
+bool TestRuntimeHostXamlTemplate() {
+    RuntimeHost runtime;
+    CHECK(runtime.Initialize());
+    DiagnosticBag diagnostics;
+    Result<Ref<Object>> loaded = runtime.ParseXaml(
+        "<Grid xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Grid.Resources><ResourceDictionary>"
+        "<Style TargetType=\"Button\">"
+        "<Setter Property=\"Template\">"
+        "<Setter.Value>"
+        "<ControlTemplate TargetType=\"Button\">"
+        "<ControlTemplate.VisualTree>"
+        "<Border x:Name=\"Chrome\" Width=\"55\">"
+        "<ContentPresenter x:Name=\"Presenter\"/>"
+        "</Border>"
+        "</ControlTemplate.VisualTree>"
+        "</ControlTemplate>"
+        "</Setter.Value>"
+        "</Setter>"
+        "</Style>"
+        "</ResourceDictionary></Grid.Resources>"
+        "<Button x:Name=\"TemplatedButton\">"
+        "<TextBlock x:Name=\"ButtonContent\" Text=\"Run\"/>"
+        "</Button>"
+        "</Grid>",
+        {},
+        &diagnostics);
+    if (!loaded) {
+        std::fprintf(
+            stderr,
+            "Template integration load failed: %s\n",
+            loaded.GetStatus().message);
+    }
+    CHECK(loaded);
+    CHECK(diagnostics.Size() == 0U);
+    CHECK(runtime.Mount({300.0, 180.0}));
+    Button* button =
+        runtime.FindNamed<Button>(
+            "TemplatedButton");
+    TextBlock* content =
+        runtime.FindNamed<TextBlock>(
+            "ButtonContent");
+    CHECK(button != nullptr && content != nullptr);
+    CHECK(button->TemplateChild() != nullptr);
+    const TemplateHandle handle =
+        runtime.Templates()->AppliedHandle(*button);
+    CHECK(handle.IsValid());
+    const ControlTemplate* appliedTemplate =
+        runtime.Templates()->AppliedTemplate(handle);
+    CHECK(appliedTemplate != nullptr);
+    CHECK(appliedTemplate->IsSealed());
+    auto* chrome = static_cast<Border*>(
+        runtime.Templates()->FindName(
+            handle,
+            "Chrome"));
+    auto* presenter =
+        static_cast<ContentPresenter*>(
+            runtime.Templates()->FindName(
+                handle,
+                "Presenter"));
+    CHECK(chrome != nullptr &&
+        presenter != nullptr);
+    CHECK(chrome->Width() == 55.0);
+    CHECK(presenter->Content() == content);
+    CHECK(content->LogicalParent() == button);
+    CHECK(content->VisualParent() == presenter);
     CHECK(runtime.Unmount());
     runtime.Shutdown();
     return true;
@@ -327,6 +681,11 @@ int main() {
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
     if (!TestRuntimeHostHighLevelMarkupApi()) return 1;
+    if (!TestRuntimeHostResourceDictionaryDependencies()) return 1;
+    if (!TestRuntimeHostImplicitAndExplicitStyles()) return 1;
+    if (!TestRuntimeHostResourceLayers()) return 1;
+    if (!TestRuntimeHostDynamicResourceChain()) return 1;
+    if (!TestRuntimeHostXamlTemplate()) return 1;
     if (!RunRuntimeWindowTests()) return 1;
     if (!TestMutationJournalRollbackOrder()) return 1;
     if (!TestSafeDeferredWorkSkipsDestroyedObjects()) return 1;

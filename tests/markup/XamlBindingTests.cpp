@@ -11,13 +11,13 @@
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
-#include <Aero/Markup/XamlBinding.hpp>
-#include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlDynamicResource.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Extensions/XamlBinding.hpp>
+#include <Aero/Markup/Compiled/XamlCompiledDocument.hpp>
+#include <Aero/Markup/Extensions/XamlDynamicResource.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include "TestMetadataConverters.hpp"
 
@@ -81,7 +81,6 @@ Result<void> AddChild(
     Object& object,
     const XamlValue& value,
     void*) noexcept;
-DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
 
 struct Fixture final {
     Dispatcher dispatcher;
@@ -227,12 +226,12 @@ struct Fixture final {
 
         extension = std::make_unique<XamlBindingExtension>(
             XamlBindingExtensionOptions{
-                &bindings, &AsDependencyObject, nullptr, {}});
+                &bindings, {}});
         extension->SetDataContextProperty(dataContext);
         CHECK(extension->Register(*schema, bindingExtensionType));
         dynamicResource = std::make_unique<XamlDynamicResourceExtension>(
             XamlDynamicResourceExtensionOptions{
-                effectiveValues.get(), &resources, &AsDependencyObject, nullptr});
+                effectiveValues.get(), &resources});
         CHECK(dynamicResource->Register(*schema, dynamicResourceExtensionType));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
@@ -323,8 +322,14 @@ Result<void> AddChild(
     return static_cast<BindableNode&>(object).AddChild(value.AsObject());
 }
 
-DependencyObject* AsDependencyObject(Object& object, void*) noexcept {
-    return static_cast<BindableNode*>(&object);
+template<class T>
+Result<Ref<Object>> LoadRootForTest(
+    XamlObjectWriter& writer,
+    T& input) noexcept {
+    Result<XamlLoadResult> loaded =
+        writer.LoadDocument(input);
+    if (!loaded) return loaded.GetStatus();
+    return loaded.Value().root;
 }
 
 bool TestElementNameOneWayBinding() {
@@ -342,7 +347,8 @@ bool TestElementNameOneWayBinding() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded = writer.Load(reader);
+    Result<Ref<Object>> loaded =
+        LoadRootForTest(writer, reader);
     CHECK(loaded);
 
     BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
@@ -381,7 +387,8 @@ bool TestBindingArgumentsAreValidated() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded = writer.Load(reader);
+    Result<Ref<Object>> loaded =
+        LoadRootForTest(writer, reader);
     CHECK(!loaded);
     CHECK(loaded.GetStatus().code == ErrorCode::ValidationFailed);
     return true;
@@ -403,7 +410,8 @@ bool TestDataContextBinding() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded = writer.Load(reader);
+    Result<Ref<Object>> loaded =
+        LoadRootForTest(writer, reader);
     CHECK(loaded);
 
     BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
@@ -439,7 +447,8 @@ bool TestDataContextBindingReResolvesAndWritesBack() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded = writer.Load(reader);
+    Result<Ref<Object>> loaded =
+        LoadRootForTest(writer, reader);
     CHECK(loaded);
 
     BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
@@ -513,7 +522,7 @@ bool TestCompiledDocumentReplaysWithoutXmlTokenization() {
 
     XamlObjectWriter writer(*fixture.schema);
     Result<Ref<Object>> loaded =
-        writer.Load(decoded.Value());
+        LoadRootForTest(writer, decoded.Value());
     CHECK(loaded);
     BindableNode& root =
         static_cast<BindableNode&>(*loaded.Value());
@@ -550,7 +559,8 @@ bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
         xaml, static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded = writer.Load(reader);
+    Result<Ref<Object>> loaded =
+        LoadRootForTest(writer, reader);
     CHECK(loaded);
     BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
     CHECK(root.Children().Size() == 1U);
