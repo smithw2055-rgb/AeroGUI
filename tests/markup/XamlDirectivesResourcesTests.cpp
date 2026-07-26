@@ -107,8 +107,7 @@ private:
     friend Result<void> AddResource(
         Object&,
         StringView,
-        TypeId,
-        const Ref<Object>&,
+        const XamlValue&,
         void*) noexcept;
     friend Result<void> BeginNode(Object&, void*) noexcept;
     friend Result<void> EndNode(Object&, void*) noexcept;
@@ -259,12 +258,10 @@ Result<void> RegisterName(
 Result<void> AddResource(
     Object& scopeOwner,
     StringView key,
-    TypeId valueType,
-    const Ref<Object>& value,
+    const XamlValue& value,
     void*) noexcept {
     return static_cast<DirectiveNode&>(scopeOwner).resources_.TryAdd(
         key,
-        valueType,
         value);
 }
 
@@ -555,6 +552,38 @@ bool TestNamesResourcesStaticResourceAndServices() {
     return true;
 }
 
+bool TestValueElementResource() {
+    DirectiveNode::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        Result<Ref<Object>> loaded = LoadDocument(
+            fixture,
+            StringView(
+                "<Root xmlns=\"urn:directives\" "
+                "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+                "<String x:Key=\"message\" Value=\"hello\"/>"
+                "<Leaf Title=\"{StaticResource message}\"/>"
+                "</Root>"),
+            diagnostics);
+        CHECK(loaded);
+        CHECK(diagnostics.Size() == 0U);
+        Ref<Object> rootObject = std::move(loaded).Value();
+        auto* root = static_cast<DirectiveNode*>(rootObject.Get());
+        CHECK(root->Children().Size() == 1U);
+        CHECK(static_cast<DirectiveNode*>(
+            root->Children()[0].Get())->Title() == StringView("hello"));
+        Result<XamlResourceValue> value = root->Resources().Lookup(
+            StringView("message"));
+        CHECK(value);
+        CHECK(value.Value().Kind() == ValueKind::String);
+        CHECK(value.Value().AsString() == StringView("hello"));
+    }
+    CHECK(DirectiveNode::LiveCount() == 0U);
+    return true;
+}
+
 bool TestNullObjectElement() {
     DirectiveNode::ResetCounters();
     {
@@ -837,6 +866,7 @@ bool TestMarkupExtensionDiagnosticsAndRollback() {
 
 int main() {
     if (!TestNamesResourcesStaticResourceAndServices()) return 1;
+    if (!TestValueElementResource()) return 1;
     if (!TestNullObjectElement()) return 1;
     if (!TestDuplicateNameRollback()) return 1;
     if (!TestDuplicateKeyRollback()) return 1;

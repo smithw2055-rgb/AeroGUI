@@ -87,8 +87,7 @@ using XamlRegisterNameCallback = Base::Result<void> (*)(
 using XamlAddResourceCallback = Base::Result<void> (*)(
     Base::Object& scopeOwner,
     Base::StringView key,
-    Core::TypeId valueType,
-    const Base::Ref<Base::Object>& value,
+    const XamlValue& value,
     void* context) noexcept;
 using XamlProvideValueCallback = Base::Result<XamlValue> (*)(
     Base::StringView arguments,
@@ -221,8 +220,7 @@ public:
         Core::TypeId scopeType,
         Base::Object& scopeOwner,
         Base::StringView key,
-        Core::TypeId valueType,
-        const Base::Ref<Base::Object>& value) const noexcept;
+        const XamlValue& value) const noexcept;
 
     const XamlMemberAdapterRegistration* FindMemberAdapter(
         Core::MemberId member) const noexcept;

@@ -52,6 +52,10 @@ public:
     Base::Result<void> SetRoot(
         Base::Ref<Base::Object> owner,
         Visual& root) noexcept;
+    Base::Result<void> SetRoot(
+        Base::StringView name,
+        Base::Ref<Base::Object> owner,
+        Visual& root) noexcept;
     Base::Result<void> AddPart(
         Base::StringView name,
         Visual& parent,

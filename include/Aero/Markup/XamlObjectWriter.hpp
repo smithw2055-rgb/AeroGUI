@@ -124,7 +124,9 @@ private:
         Object = 0U,
         Member,
         Directive,
-        NullObject
+        NullObject,
+        ValueObject,
+        ValueMember
     };
 
     enum class DirectiveKind : std::uint8_t {
@@ -166,6 +168,7 @@ private:
         CreatedObjectRecord& operator=(const CreatedObjectRecord&) = delete;
 
         Base::Ref<Base::Object> object;
+        XamlValue value;
         Core::TypeId type = Core::InvalidTypeId;
         Base::String name;
         Base::String key;
@@ -173,6 +176,7 @@ private:
         bool endCalled = false;
         bool nameRegistered = false;
         bool resourceRegistered = false;
+        bool valueElement = false;
     };
 
     struct AssignmentRecord final {
@@ -266,6 +270,10 @@ private:
         const XamlNode& node) noexcept;
     Base::Result<void> StartObject(
         const XamlNode& node) noexcept;
+    Base::Result<void> StartValueObject(
+        const XamlNode& node,
+        std::uint32_t bindingStart,
+        Core::TypeId type) noexcept;
     Base::Result<void> StartNullObject(
         const XamlNode& node,
         std::uint32_t bindingStart) noexcept;
@@ -291,8 +299,13 @@ private:
         std::uint32_t bindingStart) noexcept;
     Base::Result<void> CompleteObject(
         const XamlNode& node) noexcept;
+    Base::Result<void> CompleteValueObject(
+        const XamlNode& node) noexcept;
     Base::Result<void> CompleteNullObject(
         const XamlNode& node) noexcept;
+    Base::Result<void> WriteValueToParent(
+        XamlValue&& value,
+        Core::SourceSpan source) noexcept;
     Base::Result<void> WriteObjectToParent(
         std::uint32_t objectIndex,
         Core::SourceSpan source) noexcept;

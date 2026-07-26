@@ -72,6 +72,14 @@ Base::Object* NameScope::Find(Base::StringView name) const noexcept {
     return nullptr;
 }
 
+Base::StringView NameScope::NameOf(
+    const Base::Object& object) const noexcept {
+    for (const Entry& entry : entries_) {
+        if (entry.object == &object) return entry.name.View();
+    }
+    return {};
+}
+
 void NameScope::Clear() noexcept {
     entries_.Clear();
 }

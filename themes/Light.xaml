@@ -1,5 +1,5 @@
 <ResourceDictionary
-    xmlns="urn:aero/themes"
+    xmlns="urn:aero"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Variant="Light">
   <Color x:Key="Transparent" Value="#00000000"/>

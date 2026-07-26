@@ -393,10 +393,11 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
     src/markup/XamlCompiledCache.cpp
     src/markup/XamlCompiledDocument.cpp
+    src/markup/Metadata.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTheme.cpp
-    src/markup/XamlThemeResources.cpp
+    src/markup/XamlThemeObjectModel.cpp
     src/markup/XamlTypeExtension.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
