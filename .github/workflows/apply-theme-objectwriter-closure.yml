@@ -24,6 +24,8 @@ jobs:
       - name: Apply closure
         run: |
           rm -f .github/patches/apply-error.txt
+          rm -f .github/patches/build-error.txt
+          rm -f .github/patches/test-error.txt
           python3 .github/patches/prepare_apply_theme_closure.py
           python3 .github/patches/prepare_apply_theme_closure_2.py
           python3 .github/patches/prepare_apply_theme_closure_3.py
@@ -70,10 +72,40 @@ jobs:
             -DAERO_ENABLE_SOKOL_BACKEND=OFF
 
       - name: Build
-        run: cmake --build out/theme-closure --parallel 2
+        run: |
+          set +e
+          output="$(cmake --build out/theme-closure --parallel 2 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            git reset --hard HEAD
+            printf '%s\n' "$output" > .github/patches/build-error.txt
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add .github/patches/build-error.txt
+            git commit -m "Record theme closure build failure"
+            git push origin HEAD:agent/markup-objectwriter-theme-closure
+            exit "$status"
+          fi
 
       - name: Test
-        run: ctest --test-dir out/theme-closure --output-on-failure --timeout 120
+        run: |
+          set +e
+          output="$(ctest --test-dir out/theme-closure --output-on-failure --timeout 120 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            git reset --hard HEAD
+            printf '%s\n' "$output" > .github/patches/test-error.txt
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add .github/patches/test-error.txt
+            git commit -m "Record theme closure test failure"
+            git push origin HEAD:agent/markup-objectwriter-theme-closure
+            exit "$status"
+          fi
 
       - name: Commit verified closure
         run: |
@@ -82,6 +114,8 @@ jobs:
           rm -f .github/patches/prepare_apply_theme_closure_2.py
           rm -f .github/patches/prepare_apply_theme_closure_3.py
           rm -f .github/patches/apply-error.txt
+          rm -f .github/patches/build-error.txt
+          rm -f .github/patches/test-error.txt
           rm -f .github/workflows/apply-theme-objectwriter-closure.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
