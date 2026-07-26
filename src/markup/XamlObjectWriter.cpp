@@ -209,8 +209,7 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     }
     Base::Result<void> compatible =
         ValidateXamlCompiledCacheIdentity(
-            document.Identity(), schema_->Domain(),
-            schema_->ModuleManifestHash());
+            document.Identity(), schema_->Domain());
     if (!compatible) return compatible.GetStatus();
 
     loading_ = true;

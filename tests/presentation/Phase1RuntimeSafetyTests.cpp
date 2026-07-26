@@ -1,7 +1,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 #include <Aero/Presentation/MountService.hpp>
 
 #include "TestAllocatorScope.hpp"
@@ -13,6 +13,7 @@
 
 namespace {
 
+using namespace Aero;
 using namespace Aero::Base;
 using namespace Aero::Controls;
 using namespace Aero::Core;

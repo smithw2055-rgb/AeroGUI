@@ -1,4 +1,4 @@
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Metadata.hpp>
@@ -24,7 +24,8 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Markup {
+namespace Aero {
+using namespace Markup;
 namespace {
 
 Base::Status RuntimeInvalidState(const char* message) noexcept {
@@ -266,7 +267,7 @@ struct RuntimeHost::Impl final {
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
     Core::MetadataDomain metadata;
-    XamlModuleCatalog modules;
+    ModuleCatalog modules;
     RuntimeHostOptions options;
     Presentation::NullRenderBackend nullBackend;
 
@@ -553,7 +554,7 @@ struct RuntimeHost::Impl final {
         options = requested;
 
         Base::Result<void> status =
-            modules.RegisterMetadata(metadata, true);
+            modules.RegisterMetadata(metadata);
         if (status) status = metadata.Seal();
         if (!status) {
             terminal = true;
@@ -629,10 +630,6 @@ struct RuntimeHost::Impl final {
                 *values, renderer);
         }
         if (status) status = visualTree->Register(*schema);
-        if (status) {
-            status = modules.ConfigureXaml(
-                *schema, *activation);
-        }
         if (status) status = metadataRuntime->Freeze();
         if (status) status = schema->Freeze();
         if (status) status = activation->Freeze();
@@ -806,13 +803,13 @@ RuntimeHost::~RuntimeHost() noexcept {
     }
 }
 
-XamlModuleCatalog& RuntimeHost::Modules() noexcept {
-    return impl_->modules;
-}
-
-const XamlModuleCatalog&
-RuntimeHost::Modules() const noexcept {
-    return impl_->modules;
+Base::Result<void> RuntimeHost::AddModule(
+    const ModuleRegistration& registration) noexcept {
+    if (impl_ == nullptr || impl_->initialized || impl_->terminal) {
+        return RuntimeInvalidState(
+            "RuntimeHost modules must be added before initialization");
+    }
+    return impl_->modules.TryAdd(registration);
 }
 
 Base::Result<void> RuntimeHost::Initialize() noexcept {
@@ -869,7 +866,7 @@ RuntimeHost::LoadCompiledXaml(
     }
     Base::Result<XamlCompiledDocument> document =
         XamlCompiledDocument::Deserialize(
-            bytes, impl_->metadata, {}, impl_->modules.ManifestHash());
+            bytes, impl_->metadata, {});
     if (!document) return document.GetStatus();
     return Load(document.Value());
 }
@@ -939,6 +936,17 @@ RuntimeHost::LoadAndMountCompiledXaml(
     Base::Result<void> mounted = Mount(availableSize);
     if (!mounted) return mounted.GetStatus();
     return impl_->root;
+}
+
+Base::Result<void> RuntimeHost::Resize(
+    Presentation::Size availableSize) noexcept {
+    if (!IsMounted() || impl_ == nullptr ||
+        impl_->visualTree == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "RuntimeHost resize requires a mounted visual tree");
+    }
+    return impl_->visualTree->Resize(availableSize);
 }
 
 Base::Result<void> RuntimeHost::Unmount() noexcept {
@@ -1103,4 +1111,4 @@ XamlObjectWriter* RuntimeHost::Writer() noexcept {
     return impl_ != nullptr ? impl_->writer : nullptr;
 }
 
-} // namespace Aero::Markup
+} // namespace Aero

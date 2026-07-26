@@ -1,6 +1,6 @@
-#include <Aero/Markup/RuntimeServices.hpp>
+#include <Aero/RuntimeServices.hpp>
 
-namespace Aero::Markup {
+namespace Aero {
 namespace {
 
 Base::Status ServicesInvalidArgument(const char* message) noexcept {
@@ -90,4 +90,4 @@ std::uint32_t RuntimeObjectStateStore::Prune(
     return removed;
 }
 
-} // namespace Aero::Markup
+} // namespace Aero

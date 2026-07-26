@@ -11,7 +11,6 @@ namespace {
 
 using namespace Base;
 using namespace Core;
-using namespace Markup;
 using namespace Presentation;
 
 Result<void> RegisterMetadata(
@@ -89,13 +88,13 @@ Base::Result<void> StatusBadge::BuildDisplayList(
         6.0);
 }
 
-Markup::XamlModuleManifest
+Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept {
-    Markup::XamlModuleManifest manifest;
+    Aero::ModuleRegistration manifest;
     manifest.name =
         "Aero.Samples.ControlGallery.StatusBadge";
-    manifest.metadataSchemaVersion = 1U;
-    manifest.registerMetadata = &RegisterMetadata;
+    manifest.schemaVersion = 1U;
+    manifest.registerModule = &RegisterMetadata;
     return manifest;
 }
 

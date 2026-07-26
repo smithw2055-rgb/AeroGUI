@@ -1,5 +1,5 @@
 #include <Aero/Diagnostics/ProductionDiagnostics.hpp>
-#include <Aero/Markup/RuntimeServices.hpp>
+#include <Aero/RuntimeServices.hpp>
 #include <Aero/Render/ProductionRendering.hpp>
 #include <Aero/Rhi/BackendLifecycle.hpp>
 #include <Aero/Text/UnicodeRuntime.hpp>
@@ -26,10 +26,10 @@ using Aero::Diagnostics::PerformanceGate;
 using Aero::Diagnostics::PerformanceMetric;
 using Aero::Diagnostics::RuntimeInspectorSnapshot;
 using Aero::Diagnostics::StabilityCounter;
-using Aero::Markup::MountEdgeState;
-using Aero::Markup::MountTransactionService;
-using Aero::Markup::RuntimeHost;
-using Aero::Markup::RuntimeObjectStateStore;
+using Aero::MountEdgeState;
+using Aero::MountTransactionService;
+using Aero::RuntimeHost;
+using Aero::RuntimeObjectStateStore;
 using Aero::Presentation::RenderPlan;
 using Aero::Render::AnimationClock;
 using Aero::Render::AnimationFillMode;
@@ -78,7 +78,7 @@ bool TestUnifiedMountTransactionAndSidecars() {
     CHECK(child->VisualParent() == parent.Get());
 
     RuntimeObjectStateStore sidecars;
-    Result<Aero::Markup::RuntimeObjectState*> state =
+    Result<Aero::RuntimeObjectState*> state =
         sidecars.Ensure(attached.Value().child);
     CHECK(state);
     state.Value()->measureQueued = true;

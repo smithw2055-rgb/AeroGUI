@@ -25,7 +25,7 @@ Implementation status: **portable implementation complete; CI validated**.
 
 Deliverables:
 
-- `Markup::RuntimeHost` composition root;
+- `Aero::RuntimeHost` composition root;
 - deterministic initialization and reverse-order shutdown;
 - one frame-phase entry point;
 - automatic input/control/TextBox interaction wiring;
@@ -219,7 +219,7 @@ Remaining release work:
 
 ## Current branch acceptance
 
-The `agent/m1-m4-runtime-foundation` branch instantiates and executes portable Slice A-J paths through `AeroXamlModuleSdkTests`. The CI matrix covers:
+The `agent/m1-m4-runtime-foundation` branch instantiates and executes portable Slice A-J paths through `AeroModuleRuntimeTests`. The CI matrix covers:
 
 - Windows Debug static plus D3D11/WARP gates;
 - Windows Release shared;

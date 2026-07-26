@@ -162,16 +162,6 @@ public:
         const XamlTypeAdapterRegistration& registration) noexcept;
     Base::Result<void> TryRegisterMarkupExtension(
         const XamlMarkupExtensionRegistration& registration) noexcept;
-    Base::Result<void> SetModuleManifestHash(
-        Base::HashCode hash) noexcept {
-        if (frozen_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "XAML module manifest is already frozen");
-        }
-        moduleManifestHash_ = hash;
-        return {};
-    }
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -185,9 +175,6 @@ public:
     Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
     const Core::MetadataDomain& Domain() const noexcept {
         return *domain_;
-    }
-    Base::HashCode ModuleManifestHash() const noexcept {
-        return moduleManifestHash_;
     }
     Base::Result<const Core::MetadataTypeDescriptor*> ResolveType(
         Base::StringView xamlNamespace,
@@ -253,7 +240,6 @@ public:
 private:
     Core::MetadataDomain* domain_ = nullptr;
     Core::MetadataRuntime* runtime_ = nullptr;
-    Base::HashCode moduleManifestHash_ = 0U;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
     Base::Vector<XamlMemberProviderRegistration> memberProviders_;
     Base::Vector<XamlTypeAdapterRegistration> typeAdapters_;

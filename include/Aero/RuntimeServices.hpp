@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-namespace Aero::Markup {
+namespace Aero {
 
 using MountEdgeState = Presentation::MountEdgeState;
 
@@ -134,4 +134,4 @@ struct TextEditorRenderState final {
     bool selectionVisible = false;
 };
 
-} // namespace Aero::Markup
+} // namespace Aero

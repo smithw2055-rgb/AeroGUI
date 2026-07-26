@@ -1,4 +1,4 @@
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 #include <Aero/Markup/XamlVisualTree.hpp>
 
 namespace Aero::Markup {
@@ -24,17 +24,6 @@ Base::Result<void> XamlVisualTreeHost::Resize(
         return renderer_->Invalidate(*rootRender_);
     }
     return {};
-}
-
-Base::Result<void> RuntimeHost::Resize(
-    Presentation::Size availableSize) noexcept {
-    if (!IsMounted() || impl_ == nullptr ||
-        impl_->visualTree == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "RuntimeHost resize requires a mounted visual tree");
-    }
-    return impl_->visualTree->Resize(availableSize);
 }
 
 } // namespace Aero::Markup

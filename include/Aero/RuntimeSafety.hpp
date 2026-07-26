@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-namespace Aero::Markup {
+namespace Aero {
 
 using MutationRollbackCallback = void (*)(void* context) noexcept;
 
@@ -130,4 +130,4 @@ private:
     Base::Vector<Base::Ref<Presentation::Visual>> nodes_;
 };
 
-} // namespace Aero::Markup
+} // namespace Aero

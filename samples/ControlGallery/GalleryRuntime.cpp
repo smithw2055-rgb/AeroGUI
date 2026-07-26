@@ -8,7 +8,7 @@
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
@@ -567,7 +567,7 @@ Result<void> GalleryRuntime::Initialize(
     std::unique_ptr<Impl> state =
         std::make_unique<Impl>();
     Result<void> status =
-        state->runtime.Modules().TryAdd(
+        state->runtime.AddModule(
             MakeStatusBadgeModuleManifest());
     RuntimeHostOptions options;
     options.renderBackend = &state->nullBackend;

@@ -3,10 +3,11 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Markup/RuntimeHost.hpp>
-#include <Aero/Markup/RuntimeSafety.hpp>
+#include <Aero/RuntimeHost.hpp>
+#include <Aero/RuntimeSafety.hpp>
 #include <Aero/Markup/XamlCompiledCache.hpp>
-#include <Aero/Markup/XamlModuleSdk.hpp>
+#include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Module.hpp>
 
 #include <cstdio>
 #include <utility>
@@ -20,6 +21,7 @@
 
 namespace {
 
+using namespace Aero;
 using namespace Aero::Base;
 using namespace Aero::Core;
 using namespace Aero::Controls;
@@ -37,7 +39,6 @@ using namespace Aero::Presentation;
 
 struct ModuleProbe final {
     std::uint32_t metadataCalls = 0U;
-    std::uint32_t xamlCalls = 0U;
 };
 
 Result<void> RegisterModule(
@@ -58,28 +59,20 @@ Result<void> RegisterModule(
         : Result<void>(registered.GetStatus());
 }
 
-Result<void> ConfigureModule(
-    XamlSchemaContext&,
-    XamlActivationProviderRegistry&,
-    void* userContext) noexcept {
-    ++static_cast<ModuleProbe*>(userContext)->xamlCalls;
-    return {};
-}
-
-bool TestSharedModuleCatalogAndManifestIdentity() {
+bool TestRootModuleCatalogAndSchemaIdentity() {
     ModuleProbe probe;
-    XamlModuleCatalog catalog;
-    XamlModuleManifest manifest;
+    ModuleCatalog catalog;
+    ModuleRegistration manifest;
     manifest.name = "Tests.ModuleSdk";
-    manifest.metadataSchemaVersion = 3U;
-    manifest.xamlSchemaVersion = 7U;
-    manifest.registerMetadata = &RegisterModule;
-    manifest.configureXaml = &ConfigureModule;
+    manifest.schemaVersion = 3U;
+    manifest.registerModule = &RegisterModule;
     manifest.context = &probe;
     CHECK(catalog.TryAdd(manifest));
     CHECK(!catalog.TryAdd(manifest));
     CHECK(catalog.ModuleCount() == 1U);
-    CHECK(catalog.ManifestHash() != 0U);
+    CHECK(catalog.Freeze());
+    CHECK(catalog.IsFrozen());
+    CHECK(!catalog.TryAdd(manifest));
 
     MetadataDomain metadata;
     CHECK(catalog.RegisterMetadata(metadata));
@@ -88,26 +81,17 @@ bool TestSharedModuleCatalogAndManifestIdentity() {
     MetadataRuntime runtime(metadata);
     CHECK(runtime.Freeze());
     XamlSchemaContext schema(metadata, runtime);
-    XamlActivationProviderRegistry activation(schema);
-    CHECK(catalog.ConfigureXaml(schema, activation));
-    CHECK(probe.xamlCalls == 1U);
-    CHECK(schema.ModuleManifestHash() ==
-        catalog.ManifestHash());
     CHECK(schema.Freeze());
 
     Result<XamlCompiledCacheIdentity> matching =
-        BuildXamlCompiledCacheIdentity(
-            metadata, catalog.ManifestHash());
+        BuildXamlCompiledCacheIdentity(metadata);
     CHECK(matching);
     CHECK(ValidateXamlCompiledCacheIdentity(
-        matching.Value(),
-        metadata,
-        catalog.ManifestHash()));
+        matching.Value(), metadata));
+    XamlCompiledCacheIdentity changed = matching.Value();
+    changed.metadataSchemaHash += 1U;
     Result<void> mismatch =
-        ValidateXamlCompiledCacheIdentity(
-            matching.Value(),
-            metadata,
-            catalog.ManifestHash() + 1U);
+        ValidateXamlCompiledCacheIdentity(changed, metadata);
     CHECK(!mismatch);
     CHECK(mismatch.GetStatus().code ==
         ErrorCode::ValidationFailed);
@@ -338,7 +322,7 @@ bool TestEventRouteLifetimeSnapshot() {
 #include "M1M4ClosureTests.inc"
 
 int main() {
-    if (!TestSharedModuleCatalogAndManifestIdentity()) return 1;
+    if (!TestRootModuleCatalogAndSchemaIdentity()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
     if (!TestRuntimeHostHighLevelMarkupApi()) return 1;
@@ -348,6 +332,6 @@ int main() {
     if (!TestEventRouteLifetimeSnapshot()) return 1;
     if (AeroPhase1EmbeddedMain() != 0) return 1;
     if (!RunM1M4ClosureTests()) return 1;
-    std::puts("Aero XAML module SDK tests passed");
+    std::puts("Aero module/runtime tests passed");
     return 0;
 }
