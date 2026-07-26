@@ -12,6 +12,11 @@
 #include <new>
 #include <utility>
 
+// Keep the phase-2 theme resource object model compiled with the existing
+// AeroMarkup source list. A later CMake-only cleanup can promote this to a
+// separately listed translation unit without changing behavior.
+#include "XamlThemeResources.cpp"
+
 namespace Aero::Markup {
 namespace {
 
