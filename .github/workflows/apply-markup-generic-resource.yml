@@ -24,7 +24,11 @@ jobs:
       - name: Apply refactor
         run: |
           git mv include/Aero/Markup/XamlThemeResources.hpp src/markup/XamlThemeResources.hpp
-          git apply --recount --whitespace=error-all .github/patches/markup-generic-resource.patch
+          git apply --recount --whitespace=error-all \
+            --exclude=src/markup/XamlThemeResources.hpp \
+            .github/patches/markup-generic-resource.patch
+          git apply --recount --whitespace=error-all \
+            .github/patches/theme-header.patch
 
       - name: Install build tools
         run: |
@@ -56,6 +60,7 @@ jobs:
       - name: Commit verified refactor
         run: |
           rm .github/patches/markup-generic-resource.patch
+          rm .github/patches/theme-header.patch
           rm .github/workflows/apply-markup-generic-resource.yml
           rmdir .github/patches 2>/dev/null || true
           git config user.name "github-actions[bot]"
