@@ -24,7 +24,7 @@ jobs:
 
       - name: Apply refactor
         run: |
-          rm -f .github/patches/apply-error.txt
+          rm -f .github/patches/apply-error.txt .github/patches/test-error.txt
           record_failure() {
             message="$1"
             git reset --hard HEAD
@@ -78,14 +78,24 @@ jobs:
         run: cmake --build out/ci --parallel 2
 
       - name: Test
-        run: ctest --test-dir out/ci --output-on-failure --timeout 120
+        run: |
+          if ! output=$(ctest --test-dir out/ci --output-on-failure --timeout 120 2>&1); then
+            git reset --hard HEAD
+            printf '%s\n' "$output" > .github/patches/test-error.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/patches/test-error.txt
+            git commit -m "ci: record markup test failure"
+            git push origin HEAD:agent/markup-generic-resource-pipeline
+            exit 1
+          fi
 
       - name: Commit verified refactor
         run: |
           rm .github/patches/markup-generic-resource.patch
           rm .github/patches/theme-header.patch
           rm .github/patches/runtime-transform.py
-          rm -f .github/patches/apply-error.txt
+          rm -f .github/patches/apply-error.txt .github/patches/test-error.txt
           rm .github/workflows/apply-markup-generic-resource.yml
           rmdir .github/patches 2>/dev/null || true
           git config user.name "github-actions[bot]"
