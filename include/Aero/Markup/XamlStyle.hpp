@@ -8,13 +8,13 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Presentation/Style.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlDependencyObjectResolver.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
 
-using XamlStyleDependencyObjectCastCallback = Core::DependencyObject* (*)(
-    Base::Object& object,
-    void* context) noexcept;
+using XamlStyleDependencyObjectCastCallback =
+    XamlDependencyObjectCastCallback;
 
 // Bridges the declarative Style/Setter object model to the sealed Presentation::Style
 // plan. Its exact member adapter takes precedence over the generic metadata
