@@ -1,0 +1,75 @@
+[1/223] Building CXX object CMakeFiles/AeroBase.dir/src/base/CAPI.cpp.o
+[2/223] Building CXX object CMakeFiles/AeroBase.dir/src/base/Allocator.cpp.o
+[3/223] Building CXX object CMakeFiles/AeroBase.dir/src/base/Object.cpp.o
+[4/223] Building CXX object CMakeFiles/AeroBase.dir/src/base/Utf8.cpp.o
+[5/223] Building CXX object CMakeFiles/AeroBase.dir/src/base/String.cpp.o
+[6/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/BindingPath.cpp.o
+[7/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/property/DependencyProperty.cpp.o
+[8/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/Diagnostics.cpp.o
+[9/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/Dispatcher.cpp.o
+[10/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/property/EffectiveValueEngine.cpp.o
+[11/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/events/RoutedEventCatalog.cpp.o
+[12/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/CoreMetadata.cpp.o
+[13/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/MetadataDescriptors.cpp.o
+[14/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/MetadataBehaviorRegistrationStore.cpp.o
+[15/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/MetadataDomain.cpp.o
+[16/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/MetadataValueFacets.cpp.o
+[17/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/MetadataValueRegistrationStore.cpp.o
+[18/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/ObjectServices.cpp.o
+[19/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/TypeRegistry.cpp.o
+[20/223] Building CXX object CMakeFiles/AeroCore.dir/src/core/metadata/Value.cpp.o
+[21/223] Building CXX object CMakeFiles/AeroPlatform.dir/src/platform/Clipboard.cpp.o
+[22/223] Building CXX object CMakeFiles/AeroPlatform.dir/src/platform/Ime.cpp.o
+[23/223] Building CXX object CMakeFiles/AeroPlatform.dir/src/platform/Win32Window.cpp.o
+[24/223] Building CXX object CMakeFiles/AeroPlatform.dir/src/platform/X11Window.cpp.o
+[25/223] Building CXX object CMakeFiles/AeroText.dir/src/text/EditableText.cpp.o
+[26/223] Building CXX object CMakeFiles/AeroText.dir/src/text/FontManager.cpp.o
+[27/223] Building CXX object CMakeFiles/AeroText.dir/src/text/GlyphAtlas.cpp.o
+[28/223] Building CXX object CMakeFiles/AeroText.dir/src/text/TextLayout.cpp.o
+[29/223] Building CXX object CMakeFiles/AeroText.dir/src/text/TextTypes.cpp.o
+[30/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Binding.cpp.o
+[31/223] Linking CXX static library libAeroBase.a
+[32/223] Linking CXX static library libAeroCore.a
+[33/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Commands.cpp.o
+[34/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Input.cpp.o
+[35/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Layout.cpp.o
+[36/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Metadata.cpp.o
+[37/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/MountService.cpp.o
+[38/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/QueuedRenderBackend.cpp.o
+[39/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/ObjectTree.cpp.o
+[40/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/VisualTreeMount.cpp.o
+[41/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Rendering.cpp.o
+[42/223] Linking CXX static library libAeroPlatform.a
+[43/223] Linking CXX static library libAeroText.a
+[44/223] Building CXX object CMakeFiles/AeroPresentation.dir/src/presentation/Style.cpp.o
+[45/223] Linking CXX static library libAeroPresentation.a
+[46/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Buttons.cpp.o
+[47/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Controls.cpp.o
+[48/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Items.cpp.o
+[49/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Scroll.cpp.o
+[50/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Metadata.cpp.o
+[51/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Selection.cpp.o
+[52/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/TextBlockLayoutService.cpp.o
+[53/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/TextBox.cpp.o
+[54/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Templates.cpp.o
+[55/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/Virtualization.cpp.o
+[56/223] cd /home/runner/work/AeroGUI/AeroGUI/out/theme-closure && /usr/local/bin/cmake -E make_directory /home/runner/work/AeroGUI/AeroGUI/out/theme-closure/themes && /usr/local/bin/cmake -E copy_if_different /home/runner/work/AeroGUI/AeroGUI/themes/Generic.xaml /home/runner/work/AeroGUI/AeroGUI/themes/Light.xaml /home/runner/work/AeroGUI/AeroGUI/themes/Dark.xaml /home/runner/work/AeroGUI/AeroGUI/out/theme-closure/themes
+[57/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlBinding.cpp.o
+[58/223] Building CXX object CMakeFiles/AeroControls.dir/src/controls/VisualStates.cpp.o
+[59/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlCompiledCache.cpp.o
+[60/223] Linking CXX static library libAeroControls.a
+[61/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlCompiledDocument.cpp.o
+[62/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlDynamicResource.cpp.o
+[63/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/Metadata.cpp.o
+[64/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlStyle.cpp.o
+[65/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlTheme.cpp.o
+[66/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlTypeExtension.cpp.o
+[67/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XamlThemeObjectModel.cpp.o
+FAILED: [code=1] CMakeFiles/AeroMarkup.dir/src/markup/XamlThemeObjectModel.cpp.o 
+/usr/bin/c++ -DAERO_CXX_STANDARD=17 -DAERO_EXCEPTIONS_ENABLED=0 -DAERO_RTTI_ENABLED=0 -I/home/runner/work/AeroGUI/AeroGUI/include -g -std=c++17 -fPIC -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -fno-exceptions -fno-rtti -Werror -MD -MT CMakeFiles/AeroMarkup.dir/src/markup/XamlThemeObjectModel.cpp.o -MF CMakeFiles/AeroMarkup.dir/src/markup/XamlThemeObjectModel.cpp.o.d -o CMakeFiles/AeroMarkup.dir/src/markup/XamlThemeObjectModel.cpp.o -c /home/runner/work/AeroGUI/AeroGUI/src/markup/XamlThemeObjectModel.cpp
+/home/runner/work/AeroGUI/AeroGUI/src/markup/XamlThemeObjectModel.cpp: In function ‘Aero::Base::Result<Aero::Markup::XamlLoadResult> Aero::Markup::Detail::{anonymous}::LoadDocument(Aero::Base::StringView, Aero::Markup::XamlSchemaContext&, const Aero::Markup::ResourceDictionary*)’:
+/home/runner/work/AeroGUI/AeroGUI/src/markup/XamlThemeObjectModel.cpp:176:21: error: aggregate ‘Aero::Markup::XamlLoadContext context’ has incomplete type and cannot be defined
+  176 |     XamlLoadContext context;
+      |                     ^~~~~~~
+[68/223] Building CXX object CMakeFiles/AeroMarkup.dir/src/markup/XmlTokenizer.cpp.o
+ninja: build stopped: subcommand failed.
