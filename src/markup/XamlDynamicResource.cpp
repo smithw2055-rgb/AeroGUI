@@ -177,7 +177,7 @@ Base::Result<void> XamlDynamicResourceExtension::Register(
     XamlSchemaContext& schema,
     Core::TypeId dynamicResourceExtensionType) noexcept {
     if (options_.effectiveValues == nullptr || options_.resources == nullptr ||
-        options_.asDependencyObject == nullptr) {
+        !options_.targetResolver.IsConfigured()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "DynamicResource markup extension options are incomplete");
@@ -196,7 +196,7 @@ Base::Result<XamlValue> XamlDynamicResourceExtension::ProvideValue(
         static_cast<XamlDynamicResourceExtension*>(context);
     if (extension == nullptr || extension->options_.effectiveValues == nullptr ||
         extension->options_.resources == nullptr ||
-        extension->options_.asDependencyObject == nullptr ||
+        !extension->options_.targetResolver.IsConfigured() ||
         services.targetObject == nullptr ||
         services.targetMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
@@ -209,13 +209,14 @@ Base::Result<XamlValue> XamlDynamicResourceExtension::ProvideValue(
             Base::ErrorCode::ValidationFailed,
             "DynamicResource requires a resource key");
     }
-    Core::DependencyObject* target = extension->options_.asDependencyObject(
-        *services.targetObject, extension->options_.castContext);
-    if (target == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
+    Base::Result<Core::DependencyObject*> targetResult =
+        extension->options_.targetResolver.RequireResolve(
+            *services.targetObject,
             "DynamicResource target must be a DependencyObject instance");
+    if (!targetResult) {
+        return targetResult.GetStatus();
     }
+    Core::DependencyObject* target = targetResult.Value();
     const Core::DependencyPropertyHandle property{services.targetMember};
     Base::Result<XamlResourceValue> resource = extension->options_.resources->Lookup(key);
     if (!resource) {

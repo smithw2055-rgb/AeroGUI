@@ -191,7 +191,7 @@ Base::Result<void> XamlStyleExtension::Register(
     Core::DependencyPropertyHandle styleProperty) noexcept {
     if (schema.IsFrozen() || activation.IsFrozen() ||
         options_.styles == nullptr || options_.properties == nullptr ||
-        options_.asDependencyObject == nullptr || !styleProperty.IsValid() ||
+        !options_.targetResolver.IsConfigured() || !styleProperty.IsValid() ||
         !options_.properties->IsFrozen() || !options_.properties->Types().IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -572,13 +572,19 @@ Base::Result<void> XamlStyleExtension::SetStyleMember(
     const XamlServiceProvider&,
     void* context) noexcept {
     XamlStyleExtension* extension = static_cast<XamlStyleExtension*>(context);
-    if (extension == nullptr || extension->options_.asDependencyObject == nullptr ||
+    if (extension == nullptr || !extension->options_.targetResolver.IsConfigured() ||
         value.Kind() != XamlValueKind::Object) {
         return InvalidStyleXaml("Style property expects a Style object or x:Null");
     }
-    Core::DependencyObject* target = extension->options_.asDependencyObject(
-        object, extension->options_.castContext);
-    if (target == nullptr || &target->PropertyRegistry() != extension->options_.properties) {
+    Base::Result<Core::DependencyObject*> targetResult =
+        extension->options_.targetResolver.RequireResolve(
+            object,
+            "Style property target is not a registered DependencyObject");
+    if (!targetResult) {
+        return targetResult.GetStatus();
+    }
+    Core::DependencyObject* target = targetResult.Value();
+    if (&target->PropertyRegistry() != extension->options_.properties) {
         return InvalidStyleXaml("Style property target is not a registered DependencyObject");
     }
     if (!value.IsNullObject() && value.Type() != extension->styleType_) {

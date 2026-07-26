@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Object.hpp>
+#include <Aero/Base/Result.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 
 namespace Aero::Markup {
@@ -20,13 +21,23 @@ struct XamlDependencyObjectResolver final {
     Core::DependencyObject* TryResolve(Base::Object& object) const noexcept {
         return cast != nullptr ? cast(object, context) : nullptr;
     }
-};
 
-inline Core::DependencyObject* ResolveXamlDependencyObject(
-    Base::Object& object,
-    XamlDependencyObjectCastCallback cast,
-    void* context) noexcept {
-    return XamlDependencyObjectResolver{cast, context}.TryResolve(object);
-}
+    Base::Result<Core::DependencyObject*> RequireResolve(
+        Base::Object& object,
+        const char* failureMessage) const noexcept {
+        if (cast == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML DependencyObject resolver is not configured");
+        }
+        Core::DependencyObject* resolved = cast(object, context);
+        if (resolved == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                failureMessage);
+        }
+        return resolved;
+    }
+};
 
 } // namespace Aero::Markup

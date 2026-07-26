@@ -11,9 +11,26 @@
 namespace Aero::Markup {
 
 struct XamlBindingExtensionOptions final {
+    XamlBindingExtensionOptions() noexcept = default;
+    XamlBindingExtensionOptions(
+        Presentation::BindingManager* bindingManager,
+        XamlDependencyObjectResolver resolver,
+        Core::DependencyPropertyHandle dataContext) noexcept
+        : bindings(bindingManager),
+          targetResolver(resolver),
+          dataContextProperty(dataContext) {}
+    XamlBindingExtensionOptions(
+        Presentation::BindingManager* bindingManager,
+        XamlDependencyObjectCastCallback cast,
+        void* castContext,
+        Core::DependencyPropertyHandle dataContext) noexcept
+        : XamlBindingExtensionOptions(
+            bindingManager,
+            XamlDependencyObjectResolver{cast, castContext},
+            dataContext) {}
+
     Presentation::BindingManager* bindings = nullptr;
-    XamlDependencyObjectCastCallback asDependencyObject = nullptr;
-    void* castContext = nullptr;
+    XamlDependencyObjectResolver targetResolver;
     Core::DependencyPropertyHandle dataContextProperty;
 };
 

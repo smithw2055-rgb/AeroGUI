@@ -144,7 +144,7 @@ XamlBindingExtension::XamlBindingExtension(
 Base::Result<void> XamlBindingExtension::Register(
     XamlSchemaContext& schema,
     Core::TypeId bindingExtensionType) noexcept {
-    if (options_.bindings == nullptr || options_.asDependencyObject == nullptr) {
+    if (options_.bindings == nullptr || !options_.targetResolver.IsConfigured()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding markup extension options are incomplete");
@@ -162,7 +162,7 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
     XamlBindingExtension* extension =
         static_cast<XamlBindingExtension*>(context);
     if (extension == nullptr || extension->options_.bindings == nullptr ||
-        extension->options_.asDependencyObject == nullptr ||
+        !extension->options_.targetResolver.IsConfigured() ||
         services.schema == nullptr || services.targetObject == nullptr ||
         services.nameScope == nullptr ||
         services.targetMember == Core::InvalidMemberId) {
@@ -182,13 +182,14 @@ Base::Result<XamlValue> XamlBindingExtension::ProvideValue(
         return parsed.GetStatus();
     }
 
-    Core::DependencyObject* target = extension->options_.asDependencyObject(
-        *services.targetObject, extension->options_.castContext);
-    if (target == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
+    Base::Result<Core::DependencyObject*> targetResult =
+        extension->options_.targetResolver.RequireResolve(
+            *services.targetObject,
             "Binding target must be a DependencyObject instance");
+    if (!targetResult) {
+        return targetResult.GetStatus();
     }
+    Core::DependencyObject* target = targetResult.Value();
 
     Base::Object* source = nullptr;
     if (!elementName.Empty()) {
