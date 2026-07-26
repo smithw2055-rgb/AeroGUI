@@ -3,6 +3,7 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/ObjectServices.hpp>
+#include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlNodeReader.hpp>
 #include <Aero/Markup/XamlObjectWriter.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
