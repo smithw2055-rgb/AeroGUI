@@ -272,7 +272,6 @@ Base::Result<void> ParsePalette(
         Base::Result<Presentation::Color> color = ParseColor(raw);
         if (!color) return color.GetStatus();
         ThemeColorResource entry;
-        assigned:
         Base::Result<void> assigned = entry.key.TryAssign(key);
         if (!assigned) return assigned.GetStatus();
         entry.value = color.Value();
