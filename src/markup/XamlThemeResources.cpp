@@ -515,6 +515,28 @@ const ThemeColorResource* ThemeResourceDictionary::FindColor(
     return nullptr;
 }
 
+ThemeResourceDictionaryObject::ThemeResourceDictionaryObject(
+    Base::MetaTypeId runtimeType) noexcept
+    : runtimeType_(runtimeType), dictionary_() {}
+
+Base::MetaTypeId ThemeResourceDictionaryObject::RuntimeType() const noexcept {
+    return runtimeType_;
+}
+
+Base::Result<void> ThemeResourceDictionaryObject::AddColor(
+    ThemeColorResource color) noexcept {
+    return dictionary_.colors.TryPushBack(std::move(color));
+}
+
+Base::Result<void> ThemeResourceDictionaryObject::AddTemplate(
+    ThemeControlTemplateResource controlTemplate) noexcept {
+    return dictionary_.templates.TryPushBack(std::move(controlTemplate));
+}
+
+ThemeResourceDictionary ThemeResourceDictionaryObject::TakeDictionary() noexcept {
+    return std::move(dictionary_);
+}
+
 Base::Result<ThemeResourceDictionary> LoadThemeResourceDictionary(
     Base::StringView genericXaml,
     Base::StringView paletteXaml) noexcept {
