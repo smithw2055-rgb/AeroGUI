@@ -5,6 +5,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Core/Metadata/Activation.hpp>
+#include <Aero/Markup/XamlLoadResult.hpp>
 
 #include <cstdint>
 
@@ -22,6 +23,13 @@ using XamlActivationContext = Core::ObjectActivationContext;
 using XamlActivateObjectCallback = Core::ObjectActivateCallback;
 using XamlActivationProviderRegistration =
     Core::ObjectActivationProviderRegistration;
+
+class XamlActivationProviderRegistry;
+
+struct XamlLoadContext final {
+    XamlActivationProviderRegistry* activationProviders = nullptr;
+    const XamlActivationContext* activation = nullptr;
+};
 
 // Schema-bound XAML integration over the shared Core activation registry.
 // Provider storage, inheritance lookup and runtime-type validation remain
@@ -72,6 +80,20 @@ LoadXamlWithActivation(
 
 AERO_API Base::Result<Base::Ref<Base::Object>>
 LoadXamlWithActivation(
+    XamlObjectWriter& writer,
+    const XamlCompiledDocument& document,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
+AERO_API Base::Result<XamlLoadResult>
+LoadXamlDocumentWithActivation(
+    XamlObjectWriter& writer,
+    XamlNodeReader& reader,
+    XamlActivationProviderRegistry& providers,
+    const XamlActivationContext& activation) noexcept;
+
+AERO_API Base::Result<XamlLoadResult>
+LoadXamlDocumentWithActivation(
     XamlObjectWriter& writer,
     const XamlCompiledDocument& document,
     XamlActivationProviderRegistry& providers,

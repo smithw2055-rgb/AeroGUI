@@ -162,16 +162,6 @@ public:
         const XamlTypeAdapterRegistration& registration) noexcept;
     Base::Result<void> TryRegisterMarkupExtension(
         const XamlMarkupExtensionRegistration& registration) noexcept;
-    Base::Result<void> SetModuleManifestHash(
-        Base::HashCode hash) noexcept {
-        if (frozen_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "XAML module manifest is already frozen");
-        }
-        moduleManifestHash_ = hash;
-        return {};
-    }
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -186,9 +176,6 @@ public:
     const Core::MetadataDomain& Domain() const noexcept {
         return *domain_;
     }
-    Base::HashCode ModuleManifestHash() const noexcept {
-        return moduleManifestHash_;
-    }
     Base::Result<const Core::MetadataTypeDescriptor*> ResolveType(
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
@@ -200,10 +187,6 @@ public:
         Core::TypeId targetType) const noexcept;
 
     Base::Result<Base::Ref<Base::Object>> CreateObject(
-        Core::TypeId type) const noexcept;
-    // Internal activation seam used by the XAML object-writer translation unit.
-    // Direct callers should normally use CreateObject().
-    Base::Result<Base::Ref<Base::Object>> CreateObjectActivated(
         Core::TypeId type) const noexcept;
     Base::Result<XamlValue> ConvertText(
         Core::TypeId type,
@@ -253,7 +236,6 @@ public:
 private:
     Core::MetadataDomain* domain_ = nullptr;
     Core::MetadataRuntime* runtime_ = nullptr;
-    Base::HashCode moduleManifestHash_ = 0U;
     Base::Vector<XamlMemberAdapterRegistration> memberAdapters_;
     Base::Vector<XamlMemberProviderRegistration> memberProviders_;
     Base::Vector<XamlTypeAdapterRegistration> typeAdapters_;

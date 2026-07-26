@@ -42,8 +42,7 @@ public:
     static Base::Result<XamlCompiledDocument> Deserialize(
         Base::Span<const std::uint8_t> bytes,
         const Core::MetadataDomain& domain,
-        const XamlCompiledDocumentLimits& limits = {},
-        Base::HashCode moduleManifestHash = 0U) noexcept;
+        const XamlCompiledDocumentLimits& limits = {}) noexcept;
 
     const XamlCompiledCacheIdentity& Identity() const noexcept {
         return identity_;

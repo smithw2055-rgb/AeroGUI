@@ -1,6 +1,7 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlModuleSdk.hpp>
+#include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Module.hpp>
 #include <Aero/Markup/XmlTokenizer.hpp>
 
 #include <cstdio>
@@ -76,7 +77,7 @@ int main(int argc, char** argv) {
         return Fail("cannot read input file");
     }
 
-    Aero::Markup::XamlModuleCatalog modules;
+    Aero::ModuleCatalog modules;
     Aero::Core::MetadataDomain metadata;
     Aero::Base::Result<void> registered =
         modules.RegisterMetadata(metadata);
@@ -88,11 +89,6 @@ int main(int argc, char** argv) {
     if (!registered) return Fail(registered.GetStatus());
     Aero::Markup::XamlSchemaContext schema(
         metadata, runtime);
-    Aero::Markup::XamlActivationProviderRegistry activation(
-        schema);
-    registered = modules.ConfigureXaml(
-        schema, activation);
-    if (!registered) return Fail(registered.GetStatus());
     registered = schema.Freeze();
     if (!registered) return Fail(registered.GetStatus());
 

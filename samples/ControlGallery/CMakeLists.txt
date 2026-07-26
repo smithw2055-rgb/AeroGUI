@@ -3,7 +3,7 @@ add_library(AeroControlGalleryModule STATIC
 target_include_directories(AeroControlGalleryModule
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(AeroControlGalleryModule
-    PUBLIC Aero::Markup)
+    PUBLIC Aero::Runtime)
 target_compile_features(AeroControlGalleryModule
     PUBLIC cxx_std_17)
 set_target_properties(AeroControlGalleryModule PROPERTIES

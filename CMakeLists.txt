@@ -315,7 +315,9 @@ add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/Metadata.cpp
     src/presentation/MountService.cpp
     src/presentation/ObjectTree.cpp
+    src/presentation/QueuedRenderBackend.cpp
     src/presentation/Rendering.cpp
+    src/presentation/VisualTreeMount.cpp
     src/presentation/Style.cpp)
 
 add_library(Aero::Presentation ALIAS AeroPresentation)
@@ -391,7 +393,6 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlBinding.cpp
     src/markup/XamlCompiledCache.cpp
     src/markup/XamlCompiledDocument.cpp
-    src/markup/XamlModuleSdk.cpp
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTheme.cpp
@@ -399,6 +400,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
     src/markup/XamlNamesResources.cpp
+    src/markup/XamlLoadResult.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlRuntimeSchema.cpp
     src/markup/XamlObjectWriter.cpp
@@ -423,6 +425,29 @@ set_target_properties(AeroMarkup PROPERTIES
 
 aero_apply_compiler_options(AeroMarkup)
 
+add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
+    src/Module.cpp
+    src/BuiltinModules.cpp
+    src/RuntimeHost.cpp
+    src/RuntimeSafety.cpp)
+add_library(Aero::Runtime ALIAS AeroRuntime)
+target_include_directories(AeroRuntime
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroRuntime
+    PUBLIC
+        Aero::Markup
+        Aero::Platform)
+target_compile_features(AeroRuntime PUBLIC cxx_std_17)
+set_target_properties(AeroRuntime PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroRuntime)
+
 set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
@@ -439,7 +464,7 @@ add_dependencies(AeroMarkup AeroDefaultThemes)
 
 if(AERO_BUILD_TOOLS)
     add_executable(aero-xamlc tools/xamlc/main.cpp)
-    target_link_libraries(aero-xamlc PRIVATE Aero::Markup)
+    target_link_libraries(aero-xamlc PRIVATE Aero::Runtime)
     target_compile_features(aero-xamlc PRIVATE cxx_std_17)
     set_target_properties(aero-xamlc PROPERTIES
         CXX_STANDARD 17

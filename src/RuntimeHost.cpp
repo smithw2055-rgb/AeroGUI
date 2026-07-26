@@ -1,4 +1,4 @@
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Metadata.hpp>
@@ -19,12 +19,13 @@
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Presentation/VisualTreeMount.hpp>
 
-#include <mutex>
 #include <new>
 #include <utility>
 
-namespace Aero::Markup {
+namespace Aero {
+using namespace Markup;
 namespace {
 
 Base::Status RuntimeInvalidState(const char* message) noexcept {
@@ -74,191 +75,6 @@ void DestroyRuntimeObject(
 
 } // namespace
 
-struct QueuedRenderBackend::Impl final {
-    explicit Impl(Base::IAllocator& value) noexcept
-        : allocator(&value), queue(&value) {}
-
-    Base::IAllocator* allocator = nullptr;
-    Presentation::IRenderBackend* downstream = nullptr;
-    Base::Vector<Presentation::RenderPlan> queue;
-    std::uint32_t capacity = 0U;
-    FrameQueueFullPolicy policy =
-        FrameQueueFullPolicy::DropOldest;
-    FrameQueueStatistics statistics;
-    mutable std::mutex mutex;
-    bool initialized = false;
-};
-
-QueuedRenderBackend::QueuedRenderBackend(
-    Base::IAllocator* allocator) noexcept
-    : allocator_(allocator != nullptr
-          ? allocator
-          : &Base::GetDefaultAllocator()) {
-    void* memory = allocator_->Allocate({
-        sizeof(Impl), alignof(Impl),
-        Base::MemoryTag::Render});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Impl), alignof(Impl),
-            Base::MemoryTag::Render);
-    }
-    impl_ = new (memory) Impl(*allocator_);
-}
-
-QueuedRenderBackend::~QueuedRenderBackend() noexcept {
-    Shutdown();
-    if (impl_ != nullptr) {
-        impl_->~Impl();
-        allocator_->Deallocate(
-            impl_, sizeof(Impl), alignof(Impl),
-            Base::MemoryTag::Render);
-        impl_ = nullptr;
-    }
-}
-
-Base::Result<void> QueuedRenderBackend::Initialize(
-    Presentation::IRenderBackend& downstream,
-    std::uint32_t capacity,
-    FrameQueueFullPolicy policy) noexcept {
-    if (impl_ == nullptr) {
-        return RuntimeNotInitialized(
-            "Render queue storage is unavailable");
-    }
-    if (&downstream == this || capacity == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Render queue requires a downstream backend and nonzero capacity");
-    }
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (impl_->initialized) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Render queue is already initialized");
-    }
-    Base::Result<void> reserved =
-        impl_->queue.TryReserve(capacity);
-    if (!reserved) return reserved.GetStatus();
-    impl_->downstream = &downstream;
-    impl_->capacity = capacity;
-    impl_->policy = policy;
-    impl_->statistics = {};
-    impl_->initialized = true;
-    return {};
-}
-
-void QueuedRenderBackend::Shutdown() noexcept {
-    if (impl_ == nullptr) return;
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    impl_->queue.Clear();
-    impl_->downstream = nullptr;
-    impl_->capacity = 0U;
-    impl_->statistics.pending = 0U;
-    impl_->initialized = false;
-}
-
-Base::Result<void> QueuedRenderBackend::Submit(
-    const Presentation::RenderPlan& plan) noexcept {
-    if (impl_ == nullptr) {
-        return RuntimeNotInitialized(
-            "Render queue storage is unavailable");
-    }
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (!impl_->initialized || impl_->downstream == nullptr) {
-        return RuntimeNotInitialized(
-            "Render queue is not initialized");
-    }
-    if (impl_->queue.Size() >= impl_->capacity) {
-        if (impl_->policy == FrameQueueFullPolicy::Reject) {
-            ++impl_->statistics.rejected;
-            return RuntimeInvalidState(
-                "Render queue capacity is exhausted");
-        }
-        for (std::uint32_t index = 1U;
-             index < impl_->queue.Size(); ++index) {
-            impl_->queue[index - 1U] =
-                std::move(impl_->queue[index]);
-        }
-        impl_->queue.PopBack();
-        ++impl_->statistics.dropped;
-    }
-    Base::Result<void> appended =
-        impl_->queue.TryPushBack(plan);
-    if (!appended) return appended.GetStatus();
-    ++impl_->statistics.accepted;
-    impl_->statistics.pending = impl_->queue.Size();
-    if (impl_->statistics.pending >
-        impl_->statistics.highWatermark) {
-        impl_->statistics.highWatermark =
-            impl_->statistics.pending;
-    }
-    return {};
-}
-
-Base::Result<bool> QueuedRenderBackend::ConsumeOne() noexcept {
-    if (impl_ == nullptr) {
-        return RuntimeNotInitialized(
-            "Render queue storage is unavailable");
-    }
-    Presentation::RenderPlan plan;
-    Presentation::IRenderBackend* downstream = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        if (!impl_->initialized || impl_->downstream == nullptr) {
-            return RuntimeNotInitialized(
-                "Render queue is not initialized");
-        }
-        if (impl_->queue.Empty()) return false;
-        plan = std::move(impl_->queue[0]);
-        for (std::uint32_t index = 1U;
-             index < impl_->queue.Size(); ++index) {
-            impl_->queue[index - 1U] =
-                std::move(impl_->queue[index]);
-        }
-        impl_->queue.PopBack();
-        impl_->statistics.pending = impl_->queue.Size();
-        downstream = impl_->downstream;
-    }
-
-    Base::Result<void> submitted =
-        downstream->Submit(plan);
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        if (submitted) {
-            ++impl_->statistics.consumed;
-        } else {
-            ++impl_->statistics.failed;
-        }
-    }
-    if (!submitted) return submitted.GetStatus();
-    return true;
-}
-
-Base::Result<std::uint32_t>
-QueuedRenderBackend::Drain() noexcept {
-    std::uint32_t count = 0U;
-    while (true) {
-        Base::Result<bool> consumed = ConsumeOne();
-        if (!consumed) return consumed.GetStatus();
-        if (!consumed.Value()) return count;
-        ++count;
-    }
-}
-
-bool QueuedRenderBackend::IsInitialized() const noexcept {
-    if (impl_ == nullptr) return false;
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    return impl_->initialized;
-}
-
-FrameQueueStatistics
-QueuedRenderBackend::Statistics() const noexcept {
-    if (impl_ == nullptr) return {};
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    FrameQueueStatistics result = impl_->statistics;
-    result.pending = impl_->queue.Size();
-    return result;
-}
-
 struct RuntimeHost::Impl final {
     explicit Impl(Base::IAllocator& value) noexcept
         : allocator(&value) {}
@@ -266,7 +82,7 @@ struct RuntimeHost::Impl final {
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
     Core::MetadataDomain metadata;
-    XamlModuleCatalog modules;
+    ModuleCatalog modules;
     RuntimeHostOptions options;
     Presentation::NullRenderBackend nullBackend;
 
@@ -286,6 +102,7 @@ struct RuntimeHost::Impl final {
     XamlActivationProviderRegistry* activation = nullptr;
     XamlVisualTreeHost* visualTree = nullptr;
     XamlObjectWriter* writer = nullptr;
+    Presentation::VisualTreeMount* visualMount = nullptr;
 
     Presentation::HitTestManager hitTests;
     Presentation::FocusManager* focus = nullptr;
@@ -295,7 +112,7 @@ struct RuntimeHost::Impl final {
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
 
-    Base::Ref<Base::Object> pendingRoot;
+    XamlLoadResult loadedDocument;
     Base::Ref<Base::Object> root;
     std::uint64_t frameNumber = 0U;
     bool initialized = false;
@@ -320,6 +137,19 @@ struct RuntimeHost::Impl final {
         return context;
     }
 
+    void ClearLoadedDocument() noexcept {
+        loadedDocument.Clear();
+    }
+
+    void DetachLoadedVisualObjects() noexcept {
+        if (values == nullptr) return;
+        for (Presentation::Visual* node : loadedDocument.visualContent.nodes) {
+            if (node != nullptr) {
+                (void)values->DetachObject(*node);
+            }
+        }
+    }
+
     Presentation::Visual* RootVisual() noexcept {
         if (!root) return nullptr;
         if (!metadata.Descriptors().IsDerivedFrom(
@@ -328,6 +158,40 @@ struct RuntimeHost::Impl final {
             return nullptr;
         }
         return static_cast<Presentation::Visual*>(root.Get());
+    }
+
+    Base::Result<Presentation::Visual*> ResolveVisual(
+        Base::Object& object, Core::TypeId type) noexcept {
+        if (object.RuntimeType() != type ||
+            !metadata.Descriptors().IsDerivedFrom(
+                type, Presentation::Visual::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root is not a registered Visual");
+        }
+        return static_cast<Presentation::Visual*>(&object);
+    }
+
+    Base::Result<Presentation::UIElement*> ResolveUIElement(
+        Base::Object& object, Core::TypeId type) noexcept {
+        Base::Result<Presentation::Visual*> visual =
+            ResolveVisual(object, type);
+        if (!visual) return visual.GetStatus();
+        Presentation::UIElement* element =
+            visual.Value()->AsUIElement();
+        if (element == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root is not a UIElement");
+        }
+        return element;
+    }
+
+    Presentation::FrameworkElement* ResolveFrameworkElement(
+        Base::Object& object, Core::TypeId type) noexcept {
+        Base::Result<Presentation::Visual*> visual =
+            ResolveVisual(object, type);
+        return visual ? visual.Value()->AsFrameworkElement() : nullptr;
     }
 
     Base::Result<void> CreateTemplateServices() noexcept {
@@ -490,19 +354,23 @@ struct RuntimeHost::Impl final {
     void ShutdownServices() noexcept {
         DestroyInteractions();
         DestroyTemplateServices();
-        if (visualTree != nullptr &&
-            visualTree->IsMounted()) {
-            static_cast<void>(visualTree->Unmount());
+        if (visualMount != nullptr && visualMount->IsMounted()) {
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
         }
+        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
-        pendingRoot.Reset();
+        ClearLoadedDocument();
         if (writer != nullptr) writer->Reset();
 
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, writer);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, visualTree);
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Presentation, visualMount);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, activation);
         DestroyRuntimeObject(
@@ -553,7 +421,7 @@ struct RuntimeHost::Impl final {
         options = requested;
 
         Base::Result<void> status =
-            modules.RegisterMetadata(metadata, true);
+            modules.RegisterMetadata(metadata);
         if (status) status = metadata.Seal();
         if (!status) {
             terminal = true;
@@ -630,8 +498,9 @@ struct RuntimeHost::Impl final {
         }
         if (status) status = visualTree->Register(*schema);
         if (status) {
-            status = modules.ConfigureXaml(
-                *schema, *activation);
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Presentation,
+                visualMount, *tree, *layout, renderer);
         }
         if (status) status = metadataRuntime->Freeze();
         if (status) status = schema->Freeze();
@@ -656,14 +525,14 @@ struct RuntimeHost::Impl final {
             return RuntimeNotInitialized(
                 "RuntimeHost must be initialized before XAML loading");
         }
-        if (mounted || root || pendingRoot) {
+        if (mounted || root || loadedDocument.root) {
             return RuntimeInvalidState(
                 "RuntimeHost already owns a loaded document");
         }
         writer->Reset();
         static_cast<void>(visualTree->DiscardStaged());
-        Base::Result<Base::Ref<Base::Object>> loaded =
-            LoadXamlVisualTreeWithActivation(
+        Base::Result<XamlLoadResult> loaded =
+            LoadXamlVisualTreeDocumentWithActivation(
                 *visualTree, *writer, reader,
                 *activation, ActivationContext());
         if (!loaded) {
@@ -671,8 +540,8 @@ struct RuntimeHost::Impl final {
             writer->Reset();
             return loaded.GetStatus();
         }
-        pendingRoot = loaded.Value();
-        return pendingRoot;
+        loadedDocument = std::move(loaded).Value();
+        return loadedDocument.root;
     }
 
     Base::Result<Base::Ref<Base::Object>> LoadCompiled(
@@ -681,14 +550,14 @@ struct RuntimeHost::Impl final {
             return RuntimeNotInitialized(
                 "RuntimeHost must be initialized before XAML loading");
         }
-        if (mounted || root || pendingRoot) {
+        if (mounted || root || loadedDocument.root) {
             return RuntimeInvalidState(
                 "RuntimeHost already owns a loaded document");
         }
         writer->Reset();
         static_cast<void>(visualTree->DiscardStaged());
-        Base::Result<Base::Ref<Base::Object>> loaded =
-            LoadXamlVisualTreeWithActivation(
+        Base::Result<XamlLoadResult> loaded =
+            LoadXamlVisualTreeDocumentWithActivation(
                 *visualTree, *writer, document,
                 *activation, ActivationContext());
         if (!loaded) {
@@ -696,8 +565,8 @@ struct RuntimeHost::Impl final {
             writer->Reset();
             return loaded.GetStatus();
         }
-        pendingRoot = loaded.Value();
-        return pendingRoot;
+        loadedDocument = std::move(loaded).Value();
+        return loadedDocument.root;
     }
 
     Base::Result<void> MountRoot(
@@ -716,8 +585,8 @@ struct RuntimeHost::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "RuntimeHost root must not be null");
         }
-        if (pendingRoot &&
-            pendingRoot.Get() != requestedRoot.Get()) {
+        if (loadedDocument.root &&
+            loadedDocument.root.Get() != requestedRoot.Get()) {
             return RuntimeInvalidState(
                 "Mounted root does not match the staged XAML document");
         }
@@ -728,22 +597,40 @@ struct RuntimeHost::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "RuntimeHost root must derive from Visual");
         }
-        Base::Result<void> mountedResult =
-            visualTree->Mount(
-                *requestedRoot,
-                requestedRoot->RuntimeType(),
-                availableSize);
+        Base::Result<Presentation::Visual*> rootVisual =
+            ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
+        if (!rootVisual) return rootVisual.GetStatus();
+        Base::Result<Presentation::UIElement*> rootLayout =
+            ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
+        if (!rootLayout) return rootLayout.GetStatus();
+        Base::Result<void> rootTracked =
+            loadedDocument.visualContent.TryAddNode(*rootVisual.Value());
+        if (!rootTracked) return rootTracked.GetStatus();
+        if (visualMount == nullptr) {
+            return RuntimeNotInitialized(
+                "RuntimeHost visual mount service is unavailable");
+        }
+        Base::Result<void> mountedResult = visualMount->Mount(
+            *rootVisual.Value(),
+            *rootLayout.Value(),
+            ResolveFrameworkElement(*requestedRoot, requestedRoot->RuntimeType()),
+            {loadedDocument.visualContent.mountEdges.Data(),
+             loadedDocument.visualContent.mountEdges.Size()},
+            availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
-        pendingRoot.Reset();
         mounted = true;
         Base::Result<void> interactions =
             CreateInteractions();
         if (!interactions) {
             DestroyInteractions();
-            static_cast<void>(visualTree->Unmount());
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            DetachLoadedVisualObjects();
             mounted = false;
             root.Reset();
+            ClearLoadedDocument();
             writer->Reset();
             return interactions.GetStatus();
         }
@@ -753,9 +640,8 @@ struct RuntimeHost::Impl final {
     Base::Result<void> UnmountRoot() noexcept {
         if (!initialized) return {};
         if (!mounted) {
-            if (pendingRoot) {
-                static_cast<void>(visualTree->DiscardStaged());
-                pendingRoot.Reset();
+            if (loadedDocument.root) {
+                ClearLoadedDocument();
                 writer->Reset();
             }
             return {};
@@ -763,10 +649,13 @@ struct RuntimeHost::Impl final {
         DestroyInteractions();
         DestroyTemplateServices();
         Base::Result<void> unmounted =
-            visualTree->Unmount();
+            visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()});
+        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
-        pendingRoot.Reset();
+        ClearLoadedDocument();
         writer->Reset();
         bindings->Shutdown();
         Base::Result<void> bindingsReady =
@@ -806,13 +695,13 @@ RuntimeHost::~RuntimeHost() noexcept {
     }
 }
 
-XamlModuleCatalog& RuntimeHost::Modules() noexcept {
-    return impl_->modules;
-}
-
-const XamlModuleCatalog&
-RuntimeHost::Modules() const noexcept {
-    return impl_->modules;
+Base::Result<void> RuntimeHost::AddModule(
+    const ModuleRegistration& registration) noexcept {
+    if (impl_ == nullptr || impl_->initialized || impl_->terminal) {
+        return RuntimeInvalidState(
+            "RuntimeHost modules must be added before initialization");
+    }
+    return impl_->modules.TryAdd(registration);
 }
 
 Base::Result<void> RuntimeHost::Initialize() noexcept {
@@ -869,20 +758,20 @@ RuntimeHost::LoadCompiledXaml(
     }
     Base::Result<XamlCompiledDocument> document =
         XamlCompiledDocument::Deserialize(
-            bytes, impl_->metadata, {}, impl_->modules.ManifestHash());
+            bytes, impl_->metadata, {});
     if (!document) return document.GetStatus();
     return Load(document.Value());
 }
 
 Base::Result<void> RuntimeHost::Mount(
     Presentation::Size availableSize) noexcept {
-    if (!impl_->pendingRoot) {
+    if (!impl_->loadedDocument.root) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "RuntimeHost has no staged XAML root");
     }
     return impl_->MountRoot(
-        impl_->pendingRoot, availableSize);
+        impl_->loadedDocument.root, availableSize);
 }
 
 Base::Result<void> RuntimeHost::Mount(
@@ -939,6 +828,17 @@ RuntimeHost::LoadAndMountCompiledXaml(
     Base::Result<void> mounted = Mount(availableSize);
     if (!mounted) return mounted.GetStatus();
     return impl_->root;
+}
+
+Base::Result<void> RuntimeHost::Resize(
+    Presentation::Size availableSize) noexcept {
+    if (!IsMounted() || impl_ == nullptr ||
+        impl_->visualMount == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "RuntimeHost resize requires a mounted visual tree");
+    }
+    return impl_->visualMount->Resize(availableSize);
 }
 
 Base::Result<void> RuntimeHost::Unmount() noexcept {
@@ -1023,10 +923,10 @@ RuntimeHost::Root() const noexcept {
 Base::Object* RuntimeHost::FindNamedObject(
     Base::StringView name,
     Core::TypeId expectedType) noexcept {
-    if (impl_ == nullptr || impl_->writer == nullptr || name.Empty()) {
+    if (impl_ == nullptr || name.Empty()) {
         return nullptr;
     }
-    Base::Object* object = impl_->writer->DocumentNameScope().Find(name);
+    Base::Object* object = impl_->loadedDocument.names.Find(name);
     if (object == nullptr || expectedType == Core::InvalidTypeId) {
         return object;
     }
@@ -1095,12 +995,8 @@ RuntimeHost::Activation() noexcept {
     return impl_ != nullptr ? impl_->activation : nullptr;
 }
 
-XamlVisualTreeHost* RuntimeHost::VisualTree() noexcept {
-    return impl_ != nullptr ? impl_->visualTree : nullptr;
+std::uint32_t RuntimeHost::NamedObjectCount() const noexcept {
+    return impl_ != nullptr ? impl_->loadedDocument.names.Size() : 0U;
 }
 
-XamlObjectWriter* RuntimeHost::Writer() noexcept {
-    return impl_ != nullptr ? impl_->writer : nullptr;
-}
-
-} // namespace Aero::Markup
+} // namespace Aero

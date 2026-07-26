@@ -8,7 +8,7 @@
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
-#include <Aero/Markup/RuntimeHost.hpp>
+#include <Aero/RuntimeHost.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
@@ -169,10 +169,6 @@ struct GalleryRuntime::Impl final {
         return *runtime.Metadata();
     }
 
-    XamlObjectWriter& Writer() noexcept {
-        return *runtime.Writer();
-    }
-
     Result<void> LoadDocument(
         const std::string& assetDirectory,
         GalleryLoadMode mode) noexcept {
@@ -257,12 +253,9 @@ struct GalleryRuntime::Impl final {
             "DarkChoice",
             "BigList"};
         for (StringView name : names) {
-            Object* object =
-                Writer().DocumentNameScope().Find(name);
-            if (object == nullptr ||
-                !Metadata().Descriptors().IsDerivedFrom(
-                    object->RuntimeType(),
-                    Control::StaticTypeId())) {
+            Object* object = runtime.FindNamedObject(
+                name, Control::StaticTypeId());
+            if (object == nullptr) {
                 return Failure(
                     "ControlGallery themed control is missing");
             }
@@ -567,7 +560,7 @@ Result<void> GalleryRuntime::Initialize(
     std::unique_ptr<Impl> state =
         std::make_unique<Impl>();
     Result<void> status =
-        state->runtime.Modules().TryAdd(
+        state->runtime.AddModule(
             MakeStatusBadgeModuleManifest());
     RuntimeHostOptions options;
     options.renderBackend = &state->nullBackend;
@@ -605,7 +598,7 @@ Result<void> GalleryRuntime::Initialize(
     if (!status) return status.GetStatus();
 
     state->snapshot.namedObjectCount =
-        state->Writer().DocumentNameScope().Size();
+        state->runtime.NamedObjectCount();
     state->snapshot.itemCount = state->items.Count();
     state->snapshot.realizedItemCount =
         state->generator->GeneratedCount();

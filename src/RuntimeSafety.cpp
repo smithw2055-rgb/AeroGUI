@@ -1,8 +1,8 @@
-#include <Aero/Markup/RuntimeSafety.hpp>
+#include <Aero/RuntimeSafety.hpp>
 
 #include <utility>
 
-namespace Aero::Markup {
+namespace Aero {
 
 namespace {
 
@@ -201,4 +201,4 @@ Base::Result<void> EventRouteLifetimeSnapshot::TryAdd(
             visual));
 }
 
-} // namespace Aero::Markup
+} // namespace Aero

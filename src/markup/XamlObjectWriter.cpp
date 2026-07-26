@@ -1,4 +1,5 @@
 #include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Markup/XamlActivation.hpp>
 #include <Aero/Markup/XamlCompiledDocument.hpp>
 
 #include <utility>
@@ -130,6 +131,71 @@ XamlObjectWriter::~XamlObjectWriter() noexcept {
 
 Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     XamlNodeReader& reader) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = nullptr;
+    Base::Result<Base::Ref<Base::Object>> result = LoadReaderCore(reader);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
+    XamlNodeReader& reader,
+    const XamlLoadContext& context) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = &context;
+    Base::Result<Base::Ref<Base::Object>> result = LoadReaderCore(reader);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    XamlNodeReader& reader) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(reader);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    XamlNodeReader& reader,
+    const XamlLoadContext& context) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(reader, context);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    const XamlCompiledDocument& document) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(document);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<XamlLoadResult> XamlObjectWriter::LoadDocument(
+    const XamlCompiledDocument& document,
+    const XamlLoadContext& context) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded = Load(document, context);
+    if (!loaded) return loaded.GetStatus();
+    XamlLoadResult result;
+    result.root = std::move(loaded).Value();
+    result.names = std::move(committedNames_);
+    result.resources = std::move(committedResources_);
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::LoadReaderCore(
+    XamlNodeReader& reader) noexcept {
     if (loading_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -190,6 +256,25 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
 
 Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     const XamlCompiledDocument& document) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = nullptr;
+    Base::Result<Base::Ref<Base::Object>> result = LoadCompiledCore(document);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
+    const XamlCompiledDocument& document,
+    const XamlLoadContext& context) noexcept {
+    const XamlLoadContext* previous = loadContext_;
+    loadContext_ = &context;
+    Base::Result<Base::Ref<Base::Object>> result = LoadCompiledCore(document);
+    loadContext_ = previous;
+    return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::LoadCompiledCore(
+    const XamlCompiledDocument& document) noexcept {
     if (loading_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -209,8 +294,7 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     }
     Base::Result<void> compatible =
         ValidateXamlCompiledCacheIdentity(
-            document.Identity(), schema_->Domain(),
-            schema_->ModuleManifestHash());
+            document.Identity(), schema_->Domain());
     if (!compatible) return compatible.GetStatus();
 
     loading_ = true;
@@ -241,6 +325,21 @@ Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::Load(
     ClearTransaction();
     loading_ = false;
     return result;
+}
+
+Base::Result<Base::Ref<Base::Object>> XamlObjectWriter::CreateObject(
+    Core::TypeId type) const noexcept {
+    if (loadContext_ != nullptr &&
+        loadContext_->activationProviders != nullptr) {
+        if (loadContext_->activation == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "XAML load context has activation providers but no activation data");
+        }
+        return loadContext_->activationProviders->CreateObject(
+            type, *loadContext_->activation);
+    }
+    return schema_->CreateObject(type);
 }
 
 void XamlObjectWriter::Reset() noexcept {
@@ -364,7 +463,7 @@ Base::Result<void> XamlObjectWriter::StartObject(
 
     const Core::MetadataTypeDescriptor* type = typeResult.Value();
     Base::Result<Base::Ref<Base::Object>> createResult =
-        schema_->CreateObjectActivated(type->Id());
+        CreateObject(type->Id());
     if (!createResult) {
         const bool nonConstructible =
             createResult.GetStatus().code == Base::ErrorCode::Unsupported;

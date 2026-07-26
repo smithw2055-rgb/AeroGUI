@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Markup/XamlModuleSdk.hpp>
+#include <Aero/Module.hpp>
 #include <Aero/Presentation/Input.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -46,59 +46,13 @@ class TextInputManager;
 }
 
 namespace Aero::Markup {
-
 class XamlActivationProviderRegistry;
 class XamlCompiledDocument;
 class XamlNodeReader;
-class XamlObjectWriter;
 class XamlSchemaContext;
-class XamlVisualTreeHost;
+}
 
-enum class FrameQueueFullPolicy : std::uint8_t {
-    Reject = 0U,
-    DropOldest,
-};
-
-struct FrameQueueStatistics final {
-    std::uint64_t accepted = 0U;
-    std::uint64_t consumed = 0U;
-    std::uint64_t dropped = 0U;
-    std::uint64_t rejected = 0U;
-    std::uint64_t failed = 0U;
-    std::uint32_t pending = 0U;
-    std::uint32_t highWatermark = 0U;
-};
-
-class AERO_API QueuedRenderBackend final
-    : public Presentation::IRenderBackend {
-public:
-    explicit QueuedRenderBackend(
-        Base::IAllocator* allocator = nullptr) noexcept;
-    ~QueuedRenderBackend() noexcept override;
-
-    QueuedRenderBackend(const QueuedRenderBackend&) = delete;
-    QueuedRenderBackend& operator=(const QueuedRenderBackend&) = delete;
-
-    Base::Result<void> Initialize(
-        Presentation::IRenderBackend& downstream,
-        std::uint32_t capacity = 3U,
-        FrameQueueFullPolicy policy =
-            FrameQueueFullPolicy::DropOldest) noexcept;
-    void Shutdown() noexcept;
-
-    Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override;
-    Base::Result<bool> ConsumeOne() noexcept;
-    Base::Result<std::uint32_t> Drain() noexcept;
-
-    bool IsInitialized() const noexcept;
-    FrameQueueStatistics Statistics() const noexcept;
-
-private:
-    struct Impl;
-    Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
-};
+namespace Aero {
 
 struct RuntimeHostOptions final {
     Presentation::IRenderBackend* renderBackend = nullptr;
@@ -126,8 +80,8 @@ public:
     RuntimeHost(const RuntimeHost&) = delete;
     RuntimeHost& operator=(const RuntimeHost&) = delete;
 
-    XamlModuleCatalog& Modules() noexcept;
-    const XamlModuleCatalog& Modules() const noexcept;
+    Base::Result<void> AddModule(
+        const ModuleRegistration& registration) noexcept;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Initialize(
@@ -138,9 +92,9 @@ public:
     bool IsMounted() const noexcept;
 
     Base::Result<Base::Ref<Base::Object>> Load(
-        XamlNodeReader& reader) noexcept;
+        Markup::XamlNodeReader& reader) noexcept;
     Base::Result<Base::Ref<Base::Object>> Load(
-        const XamlCompiledDocument& document) noexcept;
+        const Markup::XamlCompiledDocument& document) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadXaml(
         Base::StringView source,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
@@ -152,10 +106,10 @@ public:
         Base::Ref<Base::Object> root,
         Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMount(
-        XamlNodeReader& reader,
+        Markup::XamlNodeReader& reader,
         Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMount(
-        const XamlCompiledDocument& document,
+        const Markup::XamlCompiledDocument& document,
         Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
         Base::StringView source,
@@ -182,6 +136,7 @@ public:
     Base::Object* FindNamedObject(
         Base::StringView name,
         Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+    std::uint32_t NamedObjectCount() const noexcept;
 
     template<class T>
     T* FindNamed(Base::StringView name) noexcept {
@@ -200,10 +155,8 @@ public:
     Presentation::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;
-    XamlSchemaContext* Schema() noexcept;
-    XamlActivationProviderRegistry* Activation() noexcept;
-    XamlVisualTreeHost* VisualTree() noexcept;
-    XamlObjectWriter* Writer() noexcept;
+    Markup::XamlSchemaContext* Schema() noexcept;
+    Markup::XamlActivationProviderRegistry* Activation() noexcept;
 
 private:
     struct Impl;
@@ -211,4 +164,4 @@ private:
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero::Markup
+} // namespace Aero

@@ -187,9 +187,7 @@ XamlCompiledDocument::Compile(
         Compile(reader, schema.Domain());
     if (!compiled) return compiled.GetStatus();
     Base::Result<XamlCompiledCacheIdentity> identity =
-        BuildXamlCompiledCacheIdentity(
-            schema.Domain(),
-            schema.ModuleManifestHash());
+        BuildXamlCompiledCacheIdentity(schema.Domain());
     if (!identity) return identity.GetStatus();
     compiled.Value().identity_ = identity.Value();
     Base::Result<void> valid =
@@ -377,8 +375,6 @@ XamlCompiledDocument::Serialize() const noexcept {
     if (!result) return result.GetStatus();
     result = AppendU64(output, identity_.metadataSchemaHash);
     if (!result) return result.GetStatus();
-    result = AppendU64(output, identity_.moduleManifestHash);
-    if (!result) return result.GetStatus();
     result = AppendU32(output, nodes_.Size());
     if (!result) return result.GetStatus();
 
@@ -414,8 +410,7 @@ Base::Result<XamlCompiledDocument>
 XamlCompiledDocument::Deserialize(
     Base::Span<const std::uint8_t> bytes,
     const Core::MetadataDomain& domain,
-    const XamlCompiledDocumentLimits& limits,
-    Base::HashCode moduleManifestHash) noexcept {
+    const XamlCompiledDocumentLimits& limits) noexcept {
     if (limits.maxNodes == 0U ||
         limits.maxStringBytes == 0U) {
         return Base::Status::Failure(
@@ -450,13 +445,9 @@ XamlCompiledDocument::Deserialize(
     Base::Result<std::uint64_t> hash = decoder.ReadU64();
     if (!hash) return hash.GetStatus();
     document.identity_.metadataSchemaHash = hash.Value();
-    hash = decoder.ReadU64();
-    if (!hash) return hash.GetStatus();
-    document.identity_.moduleManifestHash = hash.Value();
     Base::Result<void> compatible =
         ValidateXamlCompiledCacheIdentity(
-            document.identity_, domain,
-            moduleManifestHash);
+            document.identity_, domain);
     if (!compatible) return compatible.GetStatus();
 
     Base::Result<std::uint32_t> count = decoder.ReadU32();

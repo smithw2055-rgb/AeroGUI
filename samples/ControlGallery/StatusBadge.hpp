@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Markup/XamlModuleSdk.hpp>
+#include <Aero/Module.hpp>
 
 namespace Aero::Samples::ControlGallery {
 
@@ -34,7 +34,7 @@ protected:
         Presentation::DisplayListBuilder& builder) noexcept override;
 };
 
-Markup::XamlModuleManifest
+Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept;
 
 } // namespace Aero::Samples::ControlGallery

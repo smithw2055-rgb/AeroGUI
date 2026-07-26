@@ -13,6 +13,7 @@
 
 namespace {
 
+using namespace Aero;
 using namespace Aero::Base;
 using namespace Aero::Core;
 using namespace Aero::Markup;
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    XamlModuleCatalog modules;
+    ModuleCatalog modules;
     Result<void> status = modules.TryAdd(
         MakeStatusBadgeModuleManifest());
     if (!status) {
@@ -114,13 +115,7 @@ int main(int argc, char** argv) {
     }
     XamlSchemaContext schema(
         metadata, runtime);
-    XamlActivationProviderRegistry
-        activation(schema);
-    status = modules.ConfigureXaml(
-        schema, activation);
-    if (status) {
-        status = schema.Freeze();
-    }
+    status = schema.Freeze();
     if (!status) {
         return Fail(status.GetStatus());
     }
