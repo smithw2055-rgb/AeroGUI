@@ -10,6 +10,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/MetadataId.hpp>
+#include <Aero/Core/Metadata/Value.hpp>
 
 #include <cstdint>
 
@@ -85,14 +86,7 @@ private:
     Base::Vector<Entry> entries_;
 };
 
-struct XamlResourceValue final {
-    Core::TypeId type = Core::InvalidTypeId;
-    Base::Ref<Base::Object> object;
-
-    bool IsValid() const noexcept {
-        return type != Core::InvalidTypeId && static_cast<bool>(object);
-    }
-};
+using XamlResourceValue = Core::Value;
 
 class AERO_API ResourceDictionary final {
 public:
@@ -106,11 +100,19 @@ public:
 
     Base::Result<void> TryAdd(
         Base::StringView key,
+        const XamlResourceValue& value,
+        Core::SourceSpan source = {}) noexcept;
+    Base::Result<void> TryAdd(
+        Base::StringView key,
         Core::TypeId type,
         const Base::Ref<Base::Object>& object,
         Core::SourceSpan source = {}) noexcept;
     // Adds a missing key or atomically replaces its value. Resource changes
     // notify DynamicResource expressions after the dictionary state commits.
+    Base::Result<void> TrySet(
+        Base::StringView key,
+        const XamlResourceValue& value,
+        Core::SourceSpan source = {}) noexcept;
     Base::Result<void> TrySet(
         Base::StringView key,
         Core::TypeId type,
@@ -149,8 +151,7 @@ private:
         Entry& operator=(const Entry&) = delete;
 
         Base::String key;
-        Core::TypeId type = Core::InvalidTypeId;
-        Base::Ref<Base::Object> object;
+        XamlResourceValue value;
         Core::SourceSpan source;
     };
 

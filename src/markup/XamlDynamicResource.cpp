@@ -59,8 +59,7 @@ Base::Result<Core::PropertyValue> EvaluateDynamicResource(
     if (!resource) {
         return resource.GetStatus();
     }
-    return Core::PropertyValue::FromObject(
-        resource.Value().type, resource.Value().object);
+    return resource.Value();
 }
 
 void ResourceChanged(
@@ -97,12 +96,12 @@ void CleanupDynamicResource(void* context) noexcept {
 
 Base::Result<XamlValue> ToXamlValue(
     const XamlResourceValue& value) noexcept {
-    if (!value.IsValid()) {
+    if (value.Type() == Core::InvalidTypeId || value.IsUnset()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "DynamicResource resolved an invalid resource value");
     }
-    return XamlValue::FromObject(value.type, value.object);
+    return value;
 }
 
 } // namespace

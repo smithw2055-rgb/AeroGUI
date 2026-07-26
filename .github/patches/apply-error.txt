@@ -1,4 +1,0 @@
-error: patch failed: include/Aero/Markup/XamlActivation.hpp:16
-error: include/Aero/Markup/XamlActivation.hpp: patch does not apply
-error: patch failed: src/markup/XamlObjectWriter.cpp:948
-error: src/markup/XamlObjectWriter.cpp: patch does not apply

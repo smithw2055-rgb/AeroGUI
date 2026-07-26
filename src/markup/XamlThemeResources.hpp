@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -13,9 +11,9 @@
 
 namespace Aero::Markup {
 
-// ResourceDictionary-shaped object model for the built-in theme pipeline.
-// This is intentionally independent from the current ControlTemplate
-// materializer so the dictionary can later be created by XamlObjectWriter.
+// Temporary private bootstrap representation for the built-in theme catalog.
+// Normal application and module resources use ResourceDictionary/Core::Value;
+// this DTO must disappear when Generic.xaml is loaded by XamlObjectWriter.
 enum class ThemeVisualKind : std::uint8_t {
     Grid = 0U,
     StackPanel,
@@ -73,31 +71,6 @@ struct ThemeResourceDictionary final {
 
     const ThemeColorResource* FindColor(
         Base::StringView key) const noexcept;
-};
-
-// XamlObjectWriter integration target. The final writer slice can activate this
-// object and fill its dictionary through normal member adapters, then pass the
-// retained value to XamlTheme without re-entering theme-specific XML parsing.
-class AERO_API ThemeResourceDictionaryObject final : public Base::Object {
-public:
-    explicit ThemeResourceDictionaryObject(
-        Base::MetaTypeId runtimeType = Base::InvalidMetaTypeId) noexcept;
-
-    Base::MetaTypeId RuntimeType() const noexcept override;
-
-    ThemeResourceDictionary& Dictionary() noexcept { return dictionary_; }
-    const ThemeResourceDictionary& Dictionary() const noexcept {
-        return dictionary_;
-    }
-
-    Base::Result<void> AddColor(ThemeColorResource color) noexcept;
-    Base::Result<void> AddTemplate(
-        ThemeControlTemplateResource controlTemplate) noexcept;
-    ThemeResourceDictionary TakeDictionary() noexcept;
-
-private:
-    Base::MetaTypeId runtimeType_ = Base::InvalidMetaTypeId;
-    ThemeResourceDictionary dictionary_;
 };
 
 Base::Result<ThemeResourceDictionary> LoadThemeResourceDictionary(

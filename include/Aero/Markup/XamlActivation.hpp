@@ -15,6 +15,7 @@ class XamlNodeReader;
 class XamlObjectWriter;
 class XamlSchemaContext;
 class XamlCompiledDocument;
+class ResourceDictionary;
 
 inline constexpr std::uint32_t XamlActivationAbiVersion =
     Core::ObjectActivationAbiVersion;
@@ -29,6 +30,9 @@ class XamlActivationProviderRegistry;
 struct XamlLoadContext final {
     XamlActivationProviderRegistry* activationProviders = nullptr;
     const XamlActivationContext* activation = nullptr;
+    // Optional application/module resources. Local document scopes take
+    // precedence; this dictionary is the final StaticResource fallback.
+    const ResourceDictionary* resources = nullptr;
 };
 
 // Schema-bound XAML integration over the shared Core activation registry.

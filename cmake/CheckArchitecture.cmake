@@ -66,6 +66,7 @@ endif()
 
 foreach(removed_path IN ITEMS
     "include/Aero/Markup/RuntimeHost.hpp"
+    "include/Aero/Markup/XamlThemeResources.hpp"
     "include/Aero/Markup/XamlModuleSdk.hpp"
     "include/Aero/RuntimeServices.hpp"
     "src/markup/RuntimeHost.inc"
@@ -99,6 +100,24 @@ aero_collect_matches(legacy_includes "${legacy_header_pattern}" ${current_code})
 if(legacy_includes)
     message(FATAL_ERROR
         "Code must not include removed legacy Core headers: ${legacy_includes}")
+endif()
+
+file(GLOB_RECURSE markup_translation_units
+    "${AERO_SOURCE_DIR}/src/markup/*.cpp")
+aero_collect_matches(markup_source_includes
+    "#[ \\t]*include[ \\t]*[\"<][^\">]*\\.cpp[\">]"
+    ${markup_translation_units})
+if(markup_source_includes)
+    message(FATAL_ERROR
+        "Markup translation units must not include other .cpp files: ${markup_source_includes}")
+endif()
+
+aero_collect_matches(theme_object_model
+    "ThemeResourceDictionaryObject"
+    ${current_code})
+if(theme_object_model)
+    message(FATAL_ERROR
+        "Theme bootstrap wrappers must not re-enter the public object model: ${theme_object_model}")
 endif()
 
 

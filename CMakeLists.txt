@@ -396,6 +396,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XamlDynamicResource.cpp
     src/markup/XamlStyle.cpp
     src/markup/XamlTheme.cpp
+    src/markup/XamlThemeResources.cpp
     src/markup/XamlTypeExtension.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
