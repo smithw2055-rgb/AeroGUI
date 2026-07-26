@@ -18,5 +18,6 @@ Implemented boundaries:
 14. Metadata value types are valid XAML value elements. For example, `<Color x:Key="Accent" Value="#FF0067C0"/>` converts through the registered value converter and enters the ordinary resource dictionary without an object wrapper.
 15. Built-in `ResourceDictionary`, `ControlTemplate`, `VisualStateGroup`, `VisualState`, and `Setter` objects are registered by the `Aero.Markup` metadata module. `Generic.xaml`, `Light.xaml`, and `Dark.xaml` are loaded by `XamlObjectWriter`; the private theme DOM/parser and `XamlThemeResources.cpp` are removed.
 16. Template prototypes are compiled from metadata-created visual objects, ordinary dependency-property local values, content facets, and XAML name scopes. Runtime template instances are recreated through `MetadataRuntime::CreateObject`, not a control-kind switch.
+17. Built-in and application XAML now share the same schema resolution, object creation, member assignment, resource lookup, value conversion, and initialization transaction semantics.
 
 The remaining theme work is feature expansion only: richer template bindings, style composition, transitions, and additional controls must extend these metadata objects and existing Presentation plans. Do not add another theme DOM, parser, resource wrapper, activation registry, or feature-local property system.
