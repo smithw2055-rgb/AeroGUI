@@ -19,6 +19,7 @@
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Presentation/VisualTreeMount.hpp>
 
 #include <new>
 #include <utility>
@@ -101,6 +102,7 @@ struct RuntimeHost::Impl final {
     XamlActivationProviderRegistry* activation = nullptr;
     XamlVisualTreeHost* visualTree = nullptr;
     XamlObjectWriter* writer = nullptr;
+    Presentation::VisualTreeMount* visualMount = nullptr;
 
     Presentation::HitTestManager hitTests;
     Presentation::FocusManager* focus = nullptr;
@@ -136,9 +138,16 @@ struct RuntimeHost::Impl final {
     }
 
     void ClearLoadedDocument() noexcept {
-        loadedDocument.root.Reset();
-        loadedDocument.names.Clear();
-        loadedDocument.resources.Clear();
+        loadedDocument.Clear();
+    }
+
+    void DetachLoadedVisualObjects() noexcept {
+        if (values == nullptr) return;
+        for (Presentation::Visual* node : loadedDocument.visualContent.nodes) {
+            if (node != nullptr) {
+                (void)values->DetachObject(*node);
+            }
+        }
     }
 
     Presentation::Visual* RootVisual() noexcept {
@@ -149,6 +158,40 @@ struct RuntimeHost::Impl final {
             return nullptr;
         }
         return static_cast<Presentation::Visual*>(root.Get());
+    }
+
+    Base::Result<Presentation::Visual*> ResolveVisual(
+        Base::Object& object, Core::TypeId type) noexcept {
+        if (object.RuntimeType() != type ||
+            !metadata.Descriptors().IsDerivedFrom(
+                type, Presentation::Visual::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root is not a registered Visual");
+        }
+        return static_cast<Presentation::Visual*>(&object);
+    }
+
+    Base::Result<Presentation::UIElement*> ResolveUIElement(
+        Base::Object& object, Core::TypeId type) noexcept {
+        Base::Result<Presentation::Visual*> visual =
+            ResolveVisual(object, type);
+        if (!visual) return visual.GetStatus();
+        Presentation::UIElement* element =
+            visual.Value()->AsUIElement();
+        if (element == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root is not a UIElement");
+        }
+        return element;
+    }
+
+    Presentation::FrameworkElement* ResolveFrameworkElement(
+        Base::Object& object, Core::TypeId type) noexcept {
+        Base::Result<Presentation::Visual*> visual =
+            ResolveVisual(object, type);
+        return visual ? visual.Value()->AsFrameworkElement() : nullptr;
     }
 
     Base::Result<void> CreateTemplateServices() noexcept {
@@ -311,10 +354,12 @@ struct RuntimeHost::Impl final {
     void ShutdownServices() noexcept {
         DestroyInteractions();
         DestroyTemplateServices();
-        if (visualTree != nullptr &&
-            visualTree->IsMounted()) {
-            static_cast<void>(visualTree->Unmount());
+        if (visualMount != nullptr && visualMount->IsMounted()) {
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
         }
+        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
         ClearLoadedDocument();
@@ -324,6 +369,8 @@ struct RuntimeHost::Impl final {
             *allocator, Base::MemoryTag::Markup, writer);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, visualTree);
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Presentation, visualMount);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Markup, activation);
         DestroyRuntimeObject(
@@ -450,6 +497,11 @@ struct RuntimeHost::Impl final {
                 *values, renderer);
         }
         if (status) status = visualTree->Register(*schema);
+        if (status) {
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Presentation,
+                visualMount, *tree, *layout, renderer);
+        }
         if (status) status = metadataRuntime->Freeze();
         if (status) status = schema->Freeze();
         if (status) status = activation->Freeze();
@@ -545,11 +597,26 @@ struct RuntimeHost::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "RuntimeHost root must derive from Visual");
         }
-        Base::Result<void> mountedResult =
-            visualTree->Mount(
-                *requestedRoot,
-                requestedRoot->RuntimeType(),
-                availableSize);
+        Base::Result<Presentation::Visual*> rootVisual =
+            ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
+        if (!rootVisual) return rootVisual.GetStatus();
+        Base::Result<Presentation::UIElement*> rootLayout =
+            ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
+        if (!rootLayout) return rootLayout.GetStatus();
+        Base::Result<void> rootTracked =
+            loadedDocument.visualContent.TryAddNode(*rootVisual.Value());
+        if (!rootTracked) return rootTracked.GetStatus();
+        if (visualMount == nullptr) {
+            return RuntimeNotInitialized(
+                "RuntimeHost visual mount service is unavailable");
+        }
+        Base::Result<void> mountedResult = visualMount->Mount(
+            *rootVisual.Value(),
+            *rootLayout.Value(),
+            ResolveFrameworkElement(*requestedRoot, requestedRoot->RuntimeType()),
+            {loadedDocument.visualContent.mountEdges.Data(),
+             loadedDocument.visualContent.mountEdges.Size()},
+            availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
         mounted = true;
@@ -557,7 +624,10 @@ struct RuntimeHost::Impl final {
             CreateInteractions();
         if (!interactions) {
             DestroyInteractions();
-            static_cast<void>(visualTree->Unmount());
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            DetachLoadedVisualObjects();
             mounted = false;
             root.Reset();
             ClearLoadedDocument();
@@ -571,7 +641,6 @@ struct RuntimeHost::Impl final {
         if (!initialized) return {};
         if (!mounted) {
             if (loadedDocument.root) {
-                static_cast<void>(visualTree->DiscardStaged());
                 ClearLoadedDocument();
                 writer->Reset();
             }
@@ -580,7 +649,10 @@ struct RuntimeHost::Impl final {
         DestroyInteractions();
         DestroyTemplateServices();
         Base::Result<void> unmounted =
-            visualTree->Unmount();
+            visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()});
+        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
         ClearLoadedDocument();
@@ -761,12 +833,12 @@ RuntimeHost::LoadAndMountCompiledXaml(
 Base::Result<void> RuntimeHost::Resize(
     Presentation::Size availableSize) noexcept {
     if (!IsMounted() || impl_ == nullptr ||
-        impl_->visualTree == nullptr) {
+        impl_->visualMount == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "RuntimeHost resize requires a mounted visual tree");
     }
-    return impl_->visualTree->Resize(availableSize);
+    return impl_->visualMount->Resize(availableSize);
 }
 
 Base::Result<void> RuntimeHost::Unmount() noexcept {

@@ -40,22 +40,16 @@ public:
     Base::Result<void> Unmount() noexcept;
     Base::Result<void> DiscardStaged() noexcept;
     bool IsMounted() const noexcept { return mount_.IsMounted(); }
-    std::uint32_t StagedContentCount() const noexcept { return edges_.Size(); }
+    std::uint32_t StagedContentCount() const noexcept {
+        return stagedContent_.EdgeCount();
+    }
+    XamlVisualContentPlan TakeStagedContent() noexcept;
 
 private:
-    struct Edge final {
-        Base::Ref<Base::Object> parentOwner;
-        Base::Ref<Base::Object> childOwner;
-        Core::ContentClearCallback clearContent = nullptr;
-        void* contentContext = nullptr;
-    };
-
     Core::EffectiveValueEngine* values_ = nullptr;
     Presentation::VisualTreeMount mount_;
     XamlSchemaContext* schema_ = nullptr;
-    Base::Vector<Edge> edges_;
-    Base::Vector<Presentation::VisualTreeMountEdge> mountEdges_;
-    Base::Vector<Presentation::Visual*> nodes_;
+    XamlVisualContentPlan stagedContent_;
 
     Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) const noexcept;
@@ -67,8 +61,6 @@ private:
         Base::Object& object,
         const XamlValue& value,
         const XamlServiceProvider& services) noexcept;
-    Base::Result<void> AddNode(Presentation::Visual& node) noexcept;
-    void ReleaseStagedContent() noexcept;
 
     static bool HandlesContentMember(
         const XamlResolvedMember& member,

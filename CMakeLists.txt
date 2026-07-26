@@ -400,6 +400,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/XmlTokenizer.cpp
     src/markup/XamlActivation.cpp
     src/markup/XamlNamesResources.cpp
+    src/markup/XamlLoadResult.cpp
     src/markup/XamlNodeReader.cpp
     src/markup/XamlRuntimeSchema.cpp
     src/markup/XamlObjectWriter.cpp
@@ -428,8 +429,7 @@ add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/Module.cpp
     src/BuiltinModules.cpp
     src/RuntimeHost.cpp
-    src/RuntimeSafety.cpp
-    src/RuntimeServices.cpp)
+    src/RuntimeSafety.cpp)
 add_library(Aero::Runtime ALIAS AeroRuntime)
 target_include_directories(AeroRuntime
     PUBLIC

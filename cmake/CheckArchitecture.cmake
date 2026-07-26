@@ -63,6 +63,21 @@ if(rhi_reverse)
         "RHI public contracts must depend only on Base and RHI: ${rhi_reverse}")
 endif()
 
+
+foreach(removed_path IN ITEMS
+    "include/Aero/Markup/RuntimeHost.hpp"
+    "include/Aero/Markup/XamlModuleSdk.hpp"
+    "include/Aero/RuntimeServices.hpp"
+    "src/markup/RuntimeHost.inc"
+    "src/markup/RuntimeWindow.inc"
+    "src/markup/RuntimeSafety.inc"
+    "src/markup/RuntimeServices.inc")
+    if(EXISTS "${AERO_SOURCE_DIR}/${removed_path}")
+        message(FATAL_ERROR
+            "Removed runtime/markup compatibility file still exists: ${removed_path}")
+    endif()
+endforeach()
+
 set(legacy_header_pattern
     "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|ObjectTree|Rendering|Style|Presentation|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
 file(GLOB_RECURSE current_code
@@ -70,6 +85,8 @@ file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.hpp"
     "${AERO_SOURCE_DIR}/src/*.inc"
     "${AERO_SOURCE_DIR}/tests/*.cpp"
+    "${AERO_SOURCE_DIR}/tests/*.inc"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Base/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
@@ -82,6 +99,16 @@ aero_collect_matches(legacy_includes "${legacy_header_pattern}" ${current_code})
 if(legacy_includes)
     message(FATAL_ERROR
         "Code must not include removed legacy Core headers: ${legacy_includes}")
+endif()
+
+
+set(removed_runtime_include_pattern
+    "#[ \t]*include[ \t]*<Aero/(Markup/(RuntimeHost|XamlModuleSdk)|RuntimeServices)\.hpp>")
+aero_collect_matches(removed_runtime_includes
+    "${removed_runtime_include_pattern}" ${current_code})
+if(removed_runtime_includes)
+    message(FATAL_ERROR
+        "Code must not include removed runtime/markup compatibility headers: ${removed_runtime_includes}")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

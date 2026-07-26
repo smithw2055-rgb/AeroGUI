@@ -1,5 +1,5 @@
 #include <Aero/Diagnostics/ProductionDiagnostics.hpp>
-#include <Aero/RuntimeServices.hpp>
+#include <Aero/Presentation/MountService.hpp>
 #include <Aero/Render/ProductionRendering.hpp>
 #include <Aero/Rhi/BackendLifecycle.hpp>
 #include <Aero/Text/UnicodeRuntime.hpp>
@@ -26,10 +26,9 @@ using Aero::Diagnostics::PerformanceGate;
 using Aero::Diagnostics::PerformanceMetric;
 using Aero::Diagnostics::RuntimeInspectorSnapshot;
 using Aero::Diagnostics::StabilityCounter;
-using Aero::MountEdgeState;
-using Aero::MountTransactionService;
 using Aero::RuntimeHost;
-using Aero::RuntimeObjectStateStore;
+using Aero::Presentation::MountEdgeState;
+using Aero::Presentation::MountService;
 using Aero::Presentation::RenderPlan;
 using Aero::Render::AnimationClock;
 using Aero::Render::AnimationFillMode;
@@ -53,7 +52,7 @@ using Aero::Text::ParagraphDirection;
 using Aero::Text::UnicodeScript;
 using Aero::Text::UnicodeTextAnalysis;
 
-bool TestUnifiedMountTransactionAndSidecars() {
+bool TestUnifiedMountTransaction() {
     RuntimeHost runtime;
     CHECK(runtime.Initialize());
 
@@ -66,8 +65,8 @@ bool TestUnifiedMountTransactionAndSidecars() {
     Ref<Object> root(parent);
     CHECK(runtime.Mount(root, {400.0, 240.0}));
 
-    MountTransactionService mounts(
-        *runtime.Tree(), *runtime.Layout(), runtime.Renderer());
+    MountService mounts(
+        *runtime.Tree(), runtime.Layout(), runtime.Renderer());
     Result<MountEdgeState> attached = mounts.Attach(*parent, *child);
     CHECK(attached);
     CHECK(attached.Value().logicalAttached);
@@ -77,23 +76,12 @@ bool TestUnifiedMountTransactionAndSidecars() {
     CHECK(child->LogicalParent() == parent.Get());
     CHECK(child->VisualParent() == parent.Get());
 
-    RuntimeObjectStateStore sidecars;
-    Result<Aero::RuntimeObjectState*> state =
-        sidecars.Ensure(attached.Value().child);
-    CHECK(state);
-    state.Value()->measureQueued = true;
-    state.Value()->renderQueued = true;
-    CHECK(sidecars.Size() == 1U);
-    CHECK(sidecars.Find(attached.Value().child) != nullptr);
 
     CHECK(runtime.RunFrame());
     MountEdgeState edge = attached.Value();
-    CHECK(mounts.Detach(*parent, *child, &edge));
+    CHECK(mounts.Detach(edge));
     CHECK(child->LogicalParent() == nullptr);
     CHECK(child->VisualParent() == nullptr);
-    CHECK(sidecars.Prune(*runtime.Tree()) == 1U);
-    CHECK(sidecars.Size() == 0U);
-
     CHECK(runtime.Unmount());
     runtime.Shutdown();
     return true;
@@ -380,7 +368,7 @@ bool TestAccessibilityInspectorAndReleaseGates() {
 }
 
 bool RunM1M4ClosureTests() {
-    if (!TestUnifiedMountTransactionAndSidecars()) return false;
+    if (!TestUnifiedMountTransaction()) return false;
     if (!TestUnicodeLineBreakBidiAndClusters()) return false;
     if (!TestAndroidGlesLifecycle()) return false;
     if (!TestVulkanResourceAndFenceContract()) return false;
