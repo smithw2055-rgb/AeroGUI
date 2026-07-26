@@ -22,7 +22,21 @@ jobs:
           show-progress: false
 
       - name: Apply closure
-        run: python3 .github/patches/apply_theme_objectwriter_closure.py
+        run: |
+          set +e
+          output="$(python3 .github/patches/apply_theme_objectwriter_closure.py 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            git reset --hard HEAD
+            printf '%s\n' "$output" > .github/patches/apply-error.txt
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add .github/patches/apply-error.txt
+            git commit -m "Record theme closure transform failure"
+            git push origin HEAD:agent/markup-objectwriter-theme-closure
+            exit "$status"
+          fi
 
       - name: Install build tools
         run: |
@@ -54,6 +68,7 @@ jobs:
       - name: Commit verified closure
         run: |
           rm -f .github/patches/apply_theme_objectwriter_closure.py
+          rm -f .github/patches/apply-error.txt
           rm -f .github/workflows/apply-theme-objectwriter-closure.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
