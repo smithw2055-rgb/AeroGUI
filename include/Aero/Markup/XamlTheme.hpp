@@ -15,10 +15,14 @@ enum class ThemeVariant : std::uint8_t {
     Dark,
 };
 
-// Loads the provider-owned default-theme dialect used by themes/Generic.xaml
-// plus one palette document. Visual trees and setter-only visual states are
-// data-driven; the loader intentionally accepts only the built-in controls
-// and primitive visuals needed by the M3 default theme.
+// Loads the built-in default theme through the Markup/XAML boundary. Generic
+// and palette documents are treated as ResourceDictionary-shaped XAML inputs;
+// the remaining built-in template materialization is a bootstrap adapter that
+// produces sealed Presentation::ControlTemplate plans for the current controls.
+//
+// New theme features should be modeled as normal XAML objects, resources,
+// styles, setters, triggers, and templates instead of adding more ad-hoc XML
+// rules to this loader.
 class AERO_API XamlTheme final {
 public:
     static Base::Result<std::unique_ptr<XamlTheme>> Load(
