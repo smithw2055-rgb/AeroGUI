@@ -1,0 +1,62 @@
+name: Apply theme object-writer closure
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-build-test:
+    if: github.head_ref == 'agent/markup-objectwriter-theme-closure' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/markup-objectwriter-theme-closure
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Apply closure
+        run: python3 .github/patches/apply_theme_objectwriter_closure.py
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ninja-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B out/theme-closure -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAERO_BUILD_SHARED=OFF \
+            -DAERO_BUILD_TESTS=ON \
+            -DAERO_BUILD_SAMPLES=ON \
+            -DAERO_BUILD_TOOLS=ON \
+            -DAERO_ENABLE_EXCEPTIONS=OFF \
+            -DAERO_ENABLE_RTTI=OFF \
+            -DAERO_WARNINGS_AS_ERRORS=ON \
+            -DAERO_ENABLE_D3D11_BACKEND=OFF \
+            -DAERO_ENABLE_WGL_SURFACE=OFF \
+            -DAERO_ENABLE_GLX_SURFACE=OFF \
+            -DAERO_ENABLE_SOKOL_BACKEND=OFF
+
+      - name: Build
+        run: cmake --build out/theme-closure --parallel 2
+
+      - name: Test
+        run: ctest --test-dir out/theme-closure --output-on-failure --timeout 120
+
+      - name: Commit verified closure
+        run: |
+          rm -f .github/patches/apply_theme_objectwriter_closure.py
+          rm -f .github/workflows/apply-theme-objectwriter-closure.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Load built-in themes through XamlObjectWriter"
+          git push origin HEAD:agent/markup-objectwriter-theme-closure
