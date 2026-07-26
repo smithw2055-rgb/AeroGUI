@@ -5,15 +5,10 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Markup/XamlDependencyObjectResolver.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
 namespace Aero::Markup {
-
-// XAML does not depend on RTTI. Applications register this explicit bridge for
-// each family of XAML-created objects that derives from DependencyObject.
-using XamlDependencyObjectCastCallback = Core::DependencyObject* (*)(
-    Base::Object& object,
-    void* context) noexcept;
 
 struct XamlBindingExtensionOptions final {
     Presentation::BindingManager* bindings = nullptr;
