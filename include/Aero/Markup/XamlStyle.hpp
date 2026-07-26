@@ -13,9 +13,6 @@
 
 namespace Aero::Markup {
 
-using XamlStyleDependencyObjectCastCallback =
-    XamlDependencyObjectCastCallback;
-
 // Bridges the declarative Style/Setter object model to the sealed Presentation::Style
 // plan. Its exact member adapter takes precedence over the generic metadata
 // dependency-property accessor for the Style property.
@@ -25,8 +22,7 @@ struct XamlStyleExtensionOptions final {
     // Optional value type returned by XamlTypeExtension. When configured,
     // Style.TargetType accepts both a literal type name and `{x:Type ...}`.
     Core::TypeId typeReferenceType = Core::InvalidTypeId;
-    XamlStyleDependencyObjectCastCallback asDependencyObject = nullptr;
-    void* castContext = nullptr;
+    XamlDependencyObjectResolver targetResolver;
 };
 
 // Supports the following initial, deterministic XAML subset:
