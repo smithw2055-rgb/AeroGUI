@@ -40,11 +40,16 @@ jobs:
           git mv include/Aero/Markup/XamlThemeResources.hpp src/markup/XamlThemeResources.hpp
           if ! output=$(git apply --recount --whitespace=error-all \
               --exclude=src/markup/XamlThemeResources.hpp \
+              --exclude=include/Aero/Markup/XamlActivation.hpp \
+              --exclude=src/markup/XamlObjectWriter.cpp \
               .github/patches/markup-generic-resource.patch 2>&1); then
             record_failure "$output"
           fi
           if ! output=$(git apply --recount --whitespace=error-all \
               .github/patches/theme-header.patch 2>&1); then
+            record_failure "$output"
+          fi
+          if ! output=$(python3 .github/patches/runtime-transform.py 2>&1); then
             record_failure "$output"
           fi
 
@@ -79,6 +84,8 @@ jobs:
         run: |
           rm .github/patches/markup-generic-resource.patch
           rm .github/patches/theme-header.patch
+          rm .github/patches/runtime-transform.py
+          rm -f .github/patches/apply-error.txt
           rm .github/workflows/apply-markup-generic-resource.yml
           rmdir .github/patches 2>/dev/null || true
           git config user.name "github-actions[bot]"
