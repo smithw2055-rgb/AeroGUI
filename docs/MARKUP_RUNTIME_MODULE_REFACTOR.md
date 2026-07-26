@@ -23,4 +23,4 @@ Remaining theme work must remove the private bootstrap parser incrementally:
 2. load `Generic.xaml` through `XamlObjectWriter` and the same `ResourceDictionary/Core::Value` pipeline as application XAML;
 3. delete `XamlThemeResources.cpp` once the built-in catalog no longer needs materialization DTOs.
 
-Do not add another theme DOM, resource wrapper, activation registry, or feature-local property system during that migration.
+Migration invariant: `XamlObjectWriter`, metadata facets, and `Core::Value` remain the only object construction, member assignment, and resource-value pipeline. Theme code may adapt the resulting object graph, but must not introduce a parallel parser, writer, property system, or resource wrapper.
