@@ -34,7 +34,7 @@ struct ThemeEntry final {
     std::unique_ptr<ControlTemplate> plan;
 };
 
-Base::Status InvalidTheme(const char* message) noexcept {
+Base::Status ThemeMaterializerError(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed, message);
 }
@@ -77,7 +77,7 @@ Base::Result<DependencyPropertyHandle> SetterProperty(
     const ThemeVisualNode& target,
     Base::StringView property) noexcept {
     if (target.kind != ThemeVisualKind::Border) {
-        return InvalidTheme(
+        return ThemeMaterializerError(
             "Theme state setters currently target Border nodes");
     }
     if (property == Base::StringView("Background")) {
@@ -86,7 +86,7 @@ Base::Result<DependencyPropertyHandle> SetterProperty(
     if (property == Base::StringView("BorderBrush")) {
         return Border::BorderBrushProperty;
     }
-    return InvalidTheme(
+    return ThemeMaterializerError(
         "Theme state setter property is unsupported");
 }
 
@@ -98,7 +98,7 @@ Base::Result<VisualStateGroup> BuildVisualStateGroup(
     Base::Result<void> assigned = group.name.TryAssign(source.name.View());
     if (!assigned || group.name.Empty()) {
         return assigned
-            ? InvalidTheme("VisualStateGroup requires Name")
+            ? ThemeMaterializerError("VisualStateGroup requires Name")
             : assigned.GetStatus();
     }
     for (const ThemeVisualStateResource& sourceState : source.states) {
@@ -106,7 +106,7 @@ Base::Result<VisualStateGroup> BuildVisualStateGroup(
         assigned = state.name.TryAssign(sourceState.name.View());
         if (!assigned || state.name.Empty()) {
             return assigned
-                ? InvalidTheme("VisualState requires Name")
+                ? ThemeMaterializerError("VisualState requires Name")
                 : assigned.GetStatus();
         }
         for (const ThemeSetterResource& sourceSetter : sourceState.setters) {
@@ -115,7 +115,7 @@ Base::Result<VisualStateGroup> BuildVisualStateGroup(
             const ThemeColorResource* resource = dictionary.FindColor(
                 sourceSetter.resource.View());
             if (target == nullptr || resource == nullptr) {
-                return InvalidTheme(
+                return ThemeMaterializerError(
                     "VisualState setter target or resource is missing");
             }
             Base::Result<DependencyPropertyHandle> property = SetterProperty(
@@ -173,7 +173,7 @@ Base::Result<void> BuildThemeTemplate(
     void* factoryContext) noexcept {
     auto* blueprint = static_cast<ThemeBlueprint*>(factoryContext);
     if (blueprint == nullptr || blueprint->nodes.Empty()) {
-        return InvalidTheme("Theme template blueprint is empty");
+        return ThemeMaterializerError("Theme template blueprint is empty");
     }
     Base::Vector<Visual*> visuals;
     for (std::uint32_t index = 0U; index < blueprint->nodes.Size(); ++index) {
@@ -213,7 +213,7 @@ Base::Result<void> BuildThemeTemplate(
             added = context.SetRoot(std::move(owner), *visual);
         } else {
             if (node.parent >= visuals.Size()) {
-                return InvalidTheme("Theme node parent is invalid");
+                return ThemeMaterializerError("Theme node parent is invalid");
             }
             added = context.AddPart(
                 node.name.View(),
@@ -274,11 +274,11 @@ Base::Result<std::unique_ptr<XamlTheme>> XamlTheme::Load(
         ThemeEntry entry;
         entry.targetType = TargetTypeFromName(templateResource.targetType.View());
         if (entry.targetType == InvalidTypeId) {
-            return InvalidTheme("Theme template TargetType is unsupported");
+            return ThemeMaterializerError("Theme template TargetType is unsupported");
         }
         for (const ThemeEntry& existing : impl->entries) {
             if (existing.targetType == entry.targetType) {
-                return InvalidTheme("Theme template TargetType is duplicated");
+                return ThemeMaterializerError("Theme template TargetType is duplicated");
             }
         }
         entry.blueprint.nodes = std::move(templateResource.visualTree);
