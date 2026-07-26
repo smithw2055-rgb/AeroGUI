@@ -1,4 +1,4 @@
-Accepted and implemented through the root runtime/module, explicit load context, visual content plan, content writer, and provider-resolver cleanup slices.
+Accepted and implemented through the root runtime/module, explicit load context, visual content plan, content writer, provider-resolver cleanup, and final style/theme object-model slices.
 
 Implemented boundaries:
 
@@ -13,8 +13,7 @@ Implemented boundaries:
 9. Slice-era `RuntimeServices` compatibility APIs are removed. Code and tests use `Presentation::MountService` directly.
 10. Runtime-oriented tests now live under `tests/runtime` and architecture checks reject the removed Markup/Runtime compatibility headers and `.inc` files.
 11. Binding, DynamicResource, and Style providers share `XamlDependencyObjectResolver` instead of each provider carrying its own ad-hoc DependencyObject callback contract.
+12. `XamlStyleExtension` now exposes a complete Style/Setter/Trigger object-model entry point. `Setter.Value` and `Trigger.Value` accept normal `XamlValue` payloads, so object-valued setters, template resources, and trigger setters flow through the same metadata/property validation path as scalar setters.
+13. Built-in themes are documented as ResourceDictionary-shaped XAML inputs. The remaining template materialization code is a bootstrap adapter for the current built-in controls; new theme behavior must be represented by normal XAML objects, resources, styles, setters, triggers, and templates rather than adding more ad-hoc XML rules.
 
-Remaining behavior-level work is intentionally isolated because it changes theme/style/resource semantics rather than only composition boundaries:
-
-1. Replace the dedicated `XamlTheme` XML parser with standard XAML or compiled XAML loading once the theme object model can be represented by normal metadata/facets.
-2. Expand Style/Setter support beyond the current deterministic subset if templates, triggers, or object-valued setters are required.
+Remaining behavior-level work after this refactor is limited to expanding the catalog of built-in theme objects and richer template factories. That work should add metadata-modeled theme objects instead of reintroducing runtime/module or provider-local Markup responsibilities.
