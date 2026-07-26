@@ -16,11 +16,12 @@ Implemented boundaries:
 12. `XamlStyleExtension` now exposes a complete Style/Setter/Trigger object-model entry point. `Setter.Value` and `Trigger.Value` accept normal `XamlValue` payloads, so object-valued setters, template resources, and trigger setters flow through the same metadata/property validation path as scalar setters.
 13. `ResourceDictionary` stores `Core::Value`, so scalar, custom-value, null-object, and object resources share one lookup contract. Local document resources override the optional application/module dictionary supplied through `XamlLoadContext`.
 14. The built-in theme parser and DTOs are private implementation details. They are compiled as a normal translation unit; public `ThemeResourceDictionaryObject` and `.cpp` inclusion shortcuts are prohibited by architecture checks.
+15. Built-in palette XAML (`Light.xaml` and `Dark.xaml`) is loaded by `XamlObjectWriter` through private metadata-registered `ResourceDictionary` and `Color` objects. `x:Key`, resource scopes, member conversion, and duplicate-key validation are no longer implemented by the theme parser.
 
 Remaining theme work must remove the private bootstrap parser incrementally:
 
-1. model `Style`, `Setter`, `Trigger`, `ControlTemplate`, visual states, and template content as metadata-created objects;
-2. load `Generic.xaml` through `XamlObjectWriter` and the same `ResourceDictionary/Core::Value` pipeline as application XAML;
-3. delete `XamlThemeResources.cpp` once the built-in catalog no longer needs materialization DTOs.
+1. model `ControlTemplate`, visual states, and template content as metadata-created objects;
+2. load `Generic.xaml` through `XamlObjectWriter` and the same `ResourceDictionary/Core::Value` pipeline already used by palette XAML;
+3. delete the remaining `ThemeXamlDocument` parser and then `XamlThemeResources.cpp` once template materialization no longer needs DTOs.
 
 Migration invariant: `XamlObjectWriter`, metadata facets, and `Core::Value` remain the only object construction, member assignment, and resource-value pipeline. Theme code may adapt the resulting object graph, but must not introduce a parallel parser, writer, property system, or resource wrapper.
