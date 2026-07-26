@@ -1,4 +1,4 @@
-commit=5e18f774e96f886859c9ee814665f72dcc7b84b2
+commit=2d8103e3227456e395120b223144124336483f3d
 Traceback (most recent call last):
   File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 743, in <module>
     replace_once(
