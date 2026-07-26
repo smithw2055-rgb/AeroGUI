@@ -195,7 +195,7 @@ Base::Result<void> XamlVisualTreeHost::DiscardStaged() noexcept {
 
 XamlVisualContentPlan XamlVisualTreeHost::TakeStagedContent() noexcept {
     XamlVisualContentPlan result = std::move(stagedContent_);
-    stagedContent_ = {};
+    stagedContent_.Clear();
     return result;
 }
 
@@ -299,4 +299,3 @@ Base::Result<void> XamlVisualTreeHost::Resize(
 }
 
 } // namespace Aero::Markup
-
