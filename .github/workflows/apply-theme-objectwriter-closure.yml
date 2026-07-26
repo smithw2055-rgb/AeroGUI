@@ -25,12 +25,13 @@ jobs:
         run: |
           rm -f .github/patches/apply-error.txt
           python3 .github/patches/prepare_apply_theme_closure.py
+          python3 .github/patches/prepare_apply_theme_closure_2.py
           set +e
           output="$(python3 .github/patches/apply_theme_objectwriter_closure.py 2>&1)"
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
-            context="$(nl -ba .github/patches/apply_theme_objectwriter_closure.py | sed -n '330,390p')"
+            context="$(nl -ba .github/patches/apply_theme_objectwriter_closure.py | sed -n '700,780p')"
             git reset --hard HEAD
             {
               printf 'commit=%s\n' "$GITHUB_SHA"
@@ -77,6 +78,7 @@ jobs:
         run: |
           rm -f .github/patches/apply_theme_objectwriter_closure.py
           rm -f .github/patches/prepare_apply_theme_closure.py
+          rm -f .github/patches/prepare_apply_theme_closure_2.py
           rm -f .github/patches/apply-error.txt
           rm -f .github/workflows/apply-theme-objectwriter-closure.yml
           git config user.name github-actions[bot]
