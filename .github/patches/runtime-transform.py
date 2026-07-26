@@ -35,3 +35,8 @@ replace_once(
     "    return Base::Status::Failure(\n        Base::ErrorCode::NotFound,\n        MessageStaticResourceNotFound.Data());\n}\n\nBase::Result<void> XamlObjectWriter::CreateScopesForObject(\n",
     "    if (loadContext_ != nullptr && loadContext_->resources != nullptr) {\n        Base::Result<XamlResourceValue> value =\n            loadContext_->resources->Lookup(key);\n        if (value) {\n            return value;\n        }\n        if (value.GetStatus().code != Base::ErrorCode::NotFound) {\n            return value.GetStatus();\n        }\n    }\n    return Base::Status::Failure(\n        Base::ErrorCode::NotFound,\n        MessageStaticResourceNotFound.Data());\n}\n\nBase::Result<void> XamlObjectWriter::CreateScopesForObject(\n",
 )
+replace_once(
+    "cmake/CheckArchitecture.cmake",
+    "aero_collect_matches(source_includes\n    \"#[ \\\\t]*include[ \\\\t]*[\\\"<][^\\\">]*\\\\.cpp[\\\">]\"\n    ${current_code})\nif(source_includes)\n    message(FATAL_ERROR\n        \"Translation units must not include other .cpp files: ${source_includes}\")\nendif()\n",
+    "file(GLOB_RECURSE markup_translation_units\n    \"${AERO_SOURCE_DIR}/src/markup/*.cpp\")\naero_collect_matches(markup_source_includes\n    \"#[ \\\\t]*include[ \\\\t]*[\\\"<][^\\\">]*\\\\.cpp[\\\">]\"\n    ${markup_translation_units})\nif(markup_source_includes)\n    message(FATAL_ERROR\n        \"Markup translation units must not include other .cpp files: ${markup_source_includes}\")\nendif()\n",
+)
