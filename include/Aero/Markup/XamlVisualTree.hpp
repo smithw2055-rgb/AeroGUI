@@ -1,14 +1,11 @@
 #pragma once
 
-#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Presentation/VisualTreeMount.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Markup/XamlActivation.hpp>
+#include <Aero/Markup/XamlContentWriter.hpp>
 #include <Aero/Markup/XamlLoadResult.hpp>
 #include <Aero/Markup/XamlSchemaContext.hpp>
 
@@ -41,15 +38,16 @@ public:
     Base::Result<void> DiscardStaged() noexcept;
     bool IsMounted() const noexcept { return mount_.IsMounted(); }
     std::uint32_t StagedContentCount() const noexcept {
-        return stagedContent_.EdgeCount();
+        return contentWriter_.StagedContentCount();
     }
     XamlVisualContentPlan TakeStagedContent() noexcept;
 
 private:
     Core::EffectiveValueEngine* values_ = nullptr;
     Presentation::VisualTreeMount mount_;
-    XamlSchemaContext* schema_ = nullptr;
     XamlVisualContentPlan stagedContent_;
+    XamlContentWriter contentWriter_;
+    XamlSchemaContext* schema_ = nullptr;
 
     Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) const noexcept;
@@ -57,19 +55,6 @@ private:
         Base::Object& object, Core::TypeId type) const noexcept;
     Presentation::FrameworkElement* ResolveFrameworkElement(
         Base::Object& object, Core::TypeId type) const noexcept;
-    Base::Result<void> StageContent(
-        Base::Object& object,
-        const XamlValue& value,
-        const XamlServiceProvider& services) noexcept;
-
-    static bool HandlesContentMember(
-        const XamlResolvedMember& member,
-        void* context) noexcept;
-    static Base::Result<void> SetContentMember(
-        Base::Object& object,
-        const XamlValue& value,
-        const XamlServiceProvider& services,
-        void* context) noexcept;
 };
 
 AERO_API Base::Result<Base::Ref<Base::Object>>
