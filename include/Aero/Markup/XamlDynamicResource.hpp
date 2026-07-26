@@ -26,8 +26,7 @@ public:
 struct XamlDynamicResourceExtensionOptions final {
     Core::EffectiveValueEngine* effectiveValues = nullptr;
     ResourceDictionary* resources = nullptr;
-    XamlDependencyObjectCastCallback asDependencyObject = nullptr;
-    void* castContext = nullptr;
+    XamlDependencyObjectResolver targetResolver;
 };
 
 // Registers {DynamicResource key}. This initial application-resource slice
