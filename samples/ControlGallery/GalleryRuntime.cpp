@@ -239,7 +239,7 @@ struct GalleryRuntime::Impl final {
                      palette.data()),
                  static_cast<std::uint32_t>(
                      palette.size())},
-                Metadata().DependencyProperties());
+                *runtime.MetadataRuntime());
         if (!loaded) return loaded.GetStatus();
         theme = std::move(loaded).Value();
         return {};

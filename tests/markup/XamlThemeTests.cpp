@@ -5,6 +5,7 @@
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/ObjectServices.hpp>
+#include <Aero/Markup/Metadata.hpp>
 #include <Aero/Markup/XamlTheme.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 
@@ -57,6 +58,7 @@ struct Fixture final {
 
     bool Build() {
         CHECK(TryRegisterBuiltInUiMetadata(metadata));
+        CHECK(TryRegisterMarkupMetadata(metadata));
         CHECK(metadata.Seal());
         runtime = std::make_unique<MetadataRuntime>(metadata);
         CHECK(runtime->Freeze());
@@ -91,7 +93,7 @@ bool TestLightAndDarkThemeTemplates() {
                 static_cast<std::uint32_t>(generic.size())),
             StringView(light.data(),
                 static_cast<std::uint32_t>(light.size())),
-            fixture.metadata.DependencyProperties());
+            *fixture.runtime);
     if (!lightResult) {
         std::fprintf(stderr, "Theme load failed: %s\n",
             lightResult.GetStatus().message);
@@ -163,7 +165,7 @@ bool TestLightAndDarkThemeTemplates() {
                 static_cast<std::uint32_t>(generic.size())),
             StringView(dark.data(),
                 static_cast<std::uint32_t>(dark.size())),
-            fixture.metadata.DependencyProperties());
+            *fixture.runtime);
     CHECK(darkResult);
     std::unique_ptr<XamlTheme> darkTheme =
         std::move(darkResult).Value();
@@ -277,7 +279,7 @@ bool TestThemeValidation() {
             StringView(generic.data(),
                 static_cast<std::uint32_t>(generic.size())),
             missingTokenPalette,
-            fixture.metadata.DependencyProperties());
+            *fixture.runtime);
     CHECK(!invalid);
     return true;
 }

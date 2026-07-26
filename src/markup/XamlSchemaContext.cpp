@@ -220,15 +220,13 @@ Base::Result<void> XamlSchemaContext::AddResource(
     Core::TypeId scopeType,
     Base::Object& scopeOwner,
     Base::StringView key,
-    Core::TypeId valueType,
-    const Base::Ref<Base::Object>& value) const noexcept {
+    const XamlValue& value) const noexcept {
     const XamlTypeAdapterRegistration* adapter =
         FindTypeAdapter(scopeType);
     if (adapter == nullptr || adapter->addResource == nullptr) return {};
     return adapter->addResource(
         scopeOwner,
         key,
-        valueType,
         value,
         adapter->context);
 }

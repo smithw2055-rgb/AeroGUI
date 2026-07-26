@@ -28,6 +28,13 @@ bool IsTargetCompatible(
 Base::Result<void> TemplateBuildContext::SetRoot(
     Base::Ref<Base::Object> owner,
     Visual& root) noexcept {
+    return SetRoot({}, std::move(owner), root);
+}
+
+Base::Result<void> TemplateBuildContext::SetRoot(
+    Base::StringView name,
+    Base::Ref<Base::Object> owner,
+    Visual& root) noexcept {
     if (tree_ == nullptr || parent_ == nullptr ||
         rootVisual_ != nullptr || !owner ||
         owner.Get() != &root || root.AsUIElement() == nullptr) {
@@ -57,7 +64,7 @@ Base::Result<void> TemplateBuildContext::SetRoot(
         }
     }
     Base::Result<void> added = AddOwnedPart(
-        {}, std::move(owner), root, mount);
+        name, std::move(owner), root, mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
             (void)root.AsFrameworkElement()->SetTemplatedParent(nullptr);

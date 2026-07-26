@@ -72,7 +72,9 @@ foreach(removed_path IN ITEMS
     "src/markup/RuntimeHost.inc"
     "src/markup/RuntimeWindow.inc"
     "src/markup/RuntimeSafety.inc"
-    "src/markup/RuntimeServices.inc")
+    "src/markup/RuntimeServices.inc"
+    "src/markup/XamlThemeResources.hpp"
+    "src/markup/XamlThemeResources.cpp")
     if(EXISTS "${AERO_SOURCE_DIR}/${removed_path}")
         message(FATAL_ERROR
             "Removed runtime/markup compatibility file still exists: ${removed_path}")
@@ -112,12 +114,12 @@ if(markup_source_includes)
         "Markup translation units must not include other .cpp files: ${markup_source_includes}")
 endif()
 
-aero_collect_matches(theme_object_model
-    "ThemeResourceDictionaryObject"
+aero_collect_matches(theme_private_pipeline
+    "Theme(XamlDocument|ResourceDictionary|VisualNode)"
     ${current_code})
-if(theme_object_model)
+if(theme_private_pipeline)
     message(FATAL_ERROR
-        "Theme bootstrap wrappers must not re-enter the public object model: ${theme_object_model}")
+        "Built-in themes must use metadata objects and XamlObjectWriter: ${theme_private_pipeline}")
 endif()
 
 

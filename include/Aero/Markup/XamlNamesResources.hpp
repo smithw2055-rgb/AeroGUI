@@ -60,6 +60,8 @@ public:
         Base::Object& object) noexcept;
     Base::Object* Find(
         Base::StringView name) const noexcept;
+    Base::StringView NameOf(
+        const Base::Object& object) const noexcept;
 
     void Clear() noexcept;
 
