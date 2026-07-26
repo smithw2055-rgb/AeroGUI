@@ -30,8 +30,14 @@ jobs:
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
+            context="$(nl -ba .github/patches/apply_theme_objectwriter_closure.py | sed -n '330,390p')"
             git reset --hard HEAD
-            printf '%s\n' "$output" > .github/patches/apply-error.txt
+            {
+              printf 'commit=%s\n' "$GITHUB_SHA"
+              printf '%s\n' "$output"
+              printf '%s\n' '--- prepared script context ---'
+              printf '%s\n' "$context"
+            } > .github/patches/apply-error.txt
             git config user.name github-actions[bot]
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
             git add .github/patches/apply-error.txt
