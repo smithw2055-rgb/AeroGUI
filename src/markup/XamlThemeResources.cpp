@@ -272,6 +272,7 @@ Base::Result<void> ParsePalette(
         Base::Result<Presentation::Color> color = ParseColor(raw);
         if (!color) return color.GetStatus();
         ThemeColorResource entry;
+        assigned:
         Base::Result<void> assigned = entry.key.TryAssign(key);
         if (!assigned) return assigned.GetStatus();
         entry.value = color.Value();
@@ -513,6 +514,28 @@ const ThemeColorResource* ThemeResourceDictionary::FindColor(
         if (entry.key.View() == key) return &entry;
     }
     return nullptr;
+}
+
+ThemeResourceDictionaryObject::ThemeResourceDictionaryObject(
+    Base::MetaTypeId runtimeType) noexcept
+    : runtimeType_(runtimeType), dictionary_() {}
+
+Base::MetaTypeId ThemeResourceDictionaryObject::RuntimeType() const noexcept {
+    return runtimeType_;
+}
+
+Base::Result<void> ThemeResourceDictionaryObject::AddColor(
+    ThemeColorResource color) noexcept {
+    return dictionary_.colors.TryPushBack(std::move(color));
+}
+
+Base::Result<void> ThemeResourceDictionaryObject::AddTemplate(
+    ThemeControlTemplateResource controlTemplate) noexcept {
+    return dictionary_.templates.TryPushBack(std::move(controlTemplate));
+}
+
+ThemeResourceDictionary ThemeResourceDictionaryObject::TakeDictionary() noexcept {
+    return std::move(dictionary_);
 }
 
 Base::Result<ThemeResourceDictionary> LoadThemeResourceDictionary(
