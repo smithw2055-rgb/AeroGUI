@@ -8,6 +8,10 @@
 
 #include <memory>
 
+namespace Aero::Core {
+class MetadataRuntime;
+}
+
 namespace Aero::Markup {
 
 enum class ThemeVariant : std::uint8_t {
@@ -15,20 +19,15 @@ enum class ThemeVariant : std::uint8_t {
     Dark,
 };
 
-// Loads the built-in default theme through the Markup/XAML boundary. Generic
-// and palette documents are treated as ResourceDictionary-shaped XAML inputs;
-// the remaining built-in template materialization is a bootstrap adapter that
-// produces sealed Presentation::ControlTemplate plans for the current controls.
-//
-// New theme features should be modeled as normal XAML objects, resources,
-// styles, setters, triggers, and templates instead of adding more ad-hoc XML
-// rules to this loader.
+// Loads built-in theme documents through the ordinary metadata-backed
+// XamlObjectWriter. Palette values, templates, visual trees, visual states and
+// setters use the same object/value/resource pipeline as application XAML.
 class AERO_API XamlTheme final {
 public:
     static Base::Result<std::unique_ptr<XamlTheme>> Load(
         Base::StringView genericXaml,
         Base::StringView paletteXaml,
-        Core::DependencyPropertyRegistry& properties) noexcept;
+        Core::MetadataRuntime& runtime) noexcept;
 
     ~XamlTheme();
 
