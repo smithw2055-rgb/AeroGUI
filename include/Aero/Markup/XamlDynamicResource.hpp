@@ -24,6 +24,24 @@ public:
 };
 
 struct XamlDynamicResourceExtensionOptions final {
+    XamlDynamicResourceExtensionOptions() noexcept = default;
+    XamlDynamicResourceExtensionOptions(
+        Core::EffectiveValueEngine* effectiveValueEngine,
+        ResourceDictionary* resourceDictionary,
+        XamlDependencyObjectResolver resolver) noexcept
+        : effectiveValues(effectiveValueEngine),
+          resources(resourceDictionary),
+          targetResolver(resolver) {}
+    XamlDynamicResourceExtensionOptions(
+        Core::EffectiveValueEngine* effectiveValueEngine,
+        ResourceDictionary* resourceDictionary,
+        XamlDependencyObjectCastCallback cast,
+        void* castContext) noexcept
+        : XamlDynamicResourceExtensionOptions(
+            effectiveValueEngine,
+            resourceDictionary,
+            XamlDependencyObjectResolver{cast, castContext}) {}
+
     Core::EffectiveValueEngine* effectiveValues = nullptr;
     ResourceDictionary* resources = nullptr;
     XamlDependencyObjectResolver targetResolver;
