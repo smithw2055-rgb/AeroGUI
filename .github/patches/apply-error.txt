@@ -1,69 +1,87 @@
-commit=2d8103e3227456e395120b223144124336483f3d
+commit=6456cac8670098a8300d964abbfa9e65abd2bdbf
 Traceback (most recent call last):
-  File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 743, in <module>
-    replace_once(
-  File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 10, in replace_once
-    raise RuntimeError(f"{path}: expected one match, found {count}")
-RuntimeError: samples/ControlGallery/GalleryRuntime.cpp: expected one match, found 0
+  File "/home/runner/work/AeroGUI/AeroGUI/.github/patches/apply_theme_objectwriter_closure.py", line 797, in <module>
+    raise RuntimeError("markup refactor document boundary text was not found")
+RuntimeError: markup refactor document boundary text was not found
 --- prepared script context ---
-   330	    "    const XamlNode& node) noexcept {\n"
-   331	    "    if (frames_.Empty()) {\n"
-   332	    "        return Failure(\n"
-   333	    "            InvalidStateStatus(),\n"
-   334	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   335	    "            MessageInvalidWriterState,\n"
-   336	    "            node.Source());\n"
-   337	    "    }\n\n"
-   338	    "    Frame& frame = frames_.Back();\n"
-   339	    "    if (frame.kind == FrameKind::NullObject) {\n",
-   340	    "Base::Result<void> XamlObjectWriter::EndObject(\n"
-   341	    "    const XamlNode& node) noexcept {\n"
-   342	    "    if (frames_.Empty()) {\n"
-   343	    "        return Failure(\n"
-   344	    "            InvalidStateStatus(),\n"
-   345	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   346	    "            MessageInvalidWriterState,\n"
-   347	    "            node.Source());\n"
-   348	    "    }\n\n"
-   349	    "    Frame& frame = frames_.Back();\n"
-   350	    "    if (frame.kind == FrameKind::ValueObject) {\n"
-   351	    "        return CompleteValueObject(node);\n"
-   352	    "    }\n"
-   353	    "    if (frame.kind == FrameKind::NullObject) {\n",
-   354	)
-   355	replace_once(
-   356	    "src/markup/XamlObjectWriter.cpp",
-   357	    "Base::Result<void> XamlObjectWriter::StartMember(\n"
-   358	    "    const XamlNode& node) noexcept {\n"
-   359	    "    if (frames_.Empty() || frames_.Back().kind != FrameKind::Object) {\n",
-   360	    "Base::Result<void> XamlObjectWriter::StartMember(\n"
-   361	    "    const XamlNode& node) noexcept {\n"
-   362	    "    if (frames_.Empty() ||\n"
-   363	    "        (frames_.Back().kind != FrameKind::Object &&\n"
-   364	    "         frames_.Back().kind != FrameKind::ValueObject)) {\n",
-   365	)
-   366	# Insert the value-member branch after the shared record bounds check.
-   367	replace_once(
-   368	    "src/markup/XamlObjectWriter.cpp",
-   369	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
-   370	    "        return Failure(\n"
-   371	    "            InvalidStateStatus(),\n"
-   372	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   373	    "            MessageInvalidWriterState,\n"
-   374	    "            node.Source());\n"
-   375	    "    }\n\n"
-   376	    "    if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n",
-   377	    "    if (objectFrame.objectIndex >= created_.Size()) {\n"
-   378	    "        return Failure(\n"
-   379	    "            InvalidStateStatus(),\n"
-   380	    "            XamlObjectWriterDiagnosticCodes::InvalidWriterState,\n"
-   381	    "            MessageInvalidWriterState,\n"
-   382	    "            node.Source());\n"
-   383	    "    }\n\n"
-   384	    "    if (objectFrame.kind == FrameKind::ValueObject) {\n"
-   385	    "        if (node.Name().NamespaceUri() == XamlLanguageNamespaceUri()) {\n"
-   386	    "            if (IsXamlDirective(node.Name(), DirectiveKey)) {\n"
-   387	    "                return StartDirective(\n"
-   388	    "                    node, DirectiveKind::Key, objectFrame.objectIndex);\n"
-   389	    "            }\n"
-   390	    "            return Failure(\n"
+   700	    generic,
+   701	)
+   702	generic = re.sub(
+   703	    r'(<Setter\s+TargetName="[^"]+"\s+Property="[^"]+")\s+Resource="([^"]+)"',
+   704	    r'\1 Value="{StaticResource \2}"',
+   705	    generic,
+   706	)
+   707	generic = generic.replace("<VisualTree>", "<ControlTemplate.VisualTree>")
+   708	generic = generic.replace("</VisualTree>", "</ControlTemplate.VisualTree>")
+   709	generic = generic.replace(
+   710	    "<VisualStateGroups>",
+   711	    "<ControlTemplate.VisualStateGroups>",
+   712	)
+   713	generic = generic.replace(
+   714	    "</VisualStateGroups>",
+   715	    "</ControlTemplate.VisualStateGroups>",
+   716	)
+   717	if "Resource=\"" in generic or "BackgroundResource=" in generic or \
+   718	        "BorderBrushResource=" in generic:
+   719	    raise RuntimeError("Generic.xaml still contains private theme attributes")
+   720	generic_path.write_text(generic, encoding="utf-8")
+   721	
+   722	# Theme callers provide the frozen metadata runtime used by ObjectWriter.
+   723	replace_once(
+   724	    "tests/markup/XamlThemeTests.cpp",
+   725	    "#include <Aero/Markup/XamlTheme.hpp>\n",
+   726	    "#include <Aero/Markup/Metadata.hpp>\n"
+   727	    "#include <Aero/Markup/XamlTheme.hpp>\n",
+   728	)
+   729	replace_once(
+   730	    "tests/markup/XamlThemeTests.cpp",
+   731	    "        CHECK(TryRegisterBuiltInUiMetadata(metadata));\n"
+   732	    "        CHECK(metadata.Seal());\n",
+   733	    "        CHECK(TryRegisterBuiltInUiMetadata(metadata));\n"
+   734	    "        CHECK(TryRegisterMarkupMetadata(metadata));\n"
+   735	    "        CHECK(metadata.Seal());\n",
+   736	)
+   737	replace_all(
+   738	    "tests/markup/XamlThemeTests.cpp",
+   739	    "fixture.metadata.DependencyProperties())",
+   740	    "*fixture.runtime)",
+   741	    minimum=3,
+   742	)
+   743	replace_once(
+   744	    "samples/ControlGallery/GalleryRuntime.cpp",
+   745	    "Metadata().DependencyProperties())",
+   746	    "*runtime.MetadataRuntime())",
+   747	)
+   748	
+   749	# Architecture checks make the removal permanent.
+   750	replace_once(
+   751	    "cmake/CheckArchitecture.cmake",
+   752	    '    "src/markup/RuntimeServices.inc")\n',
+   753	    '    "src/markup/RuntimeServices.inc"\n'
+   754	    '    "src/markup/XamlThemeResources.hpp"\n'
+   755	    '    "src/markup/XamlThemeResources.cpp")\n',
+   756	)
+   757	replace_once(
+   758	    "cmake/CheckArchitecture.cmake",
+   759	    "aero_collect_matches(theme_object_model\n"
+   760	    "    \"ThemeResourceDictionaryObject\"\n"
+   761	    "    ${current_code})\n"
+   762	    "if(theme_object_model)\n"
+   763	    "    message(FATAL_ERROR\n"
+   764	    "        \"Theme bootstrap wrappers must not re-enter the public object model: ${theme_object_model}\")\n"
+   765	    "endif()\n",
+   766	    "aero_collect_matches(theme_private_pipeline\n"
+   767	    "    \"Theme(XamlDocument|ResourceDictionary|VisualNode)\"\n"
+   768	    "    ${current_code})\n"
+   769	    "if(theme_private_pipeline)\n"
+   770	    "    message(FATAL_ERROR\n"
+   771	    "        \"Built-in themes must use metadata objects and XamlObjectWriter: ${theme_private_pipeline}\")\n"
+   772	    "endif()\n",
+   773	)
+   774	
+   775	# Record the final boundary rather than another planned adapter layer.
+   776	doc = Path("docs/MARKUP_RUNTIME_MODULE_REFACTOR.md")
+   777	text = doc.read_text(encoding="utf-8")
+   778	old = """13. `ResourceDictionary` stores `Core::Value`, so scalar, custom-value, null-object, and object resources share one lookup contract. Local document resources override the optional application/module dictionary supplied through `XamlLoadContext`.
+   779	14. The built-in theme parser and DTOs are private implementation details. They are compiled as a normal translation unit; public `ThemeResourceDictionaryObject` and `.cpp` inclusion shortcuts are prohibited by architecture checks.
+   780	
