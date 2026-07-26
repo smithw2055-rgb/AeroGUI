@@ -23,6 +23,8 @@ jobs:
 
       - name: Apply closure
         run: |
+          rm -f .github/patches/apply-error.txt
+          python3 .github/patches/prepare_apply_theme_closure.py
           set +e
           output="$(python3 .github/patches/apply_theme_objectwriter_closure.py 2>&1)"
           status=$?
@@ -68,6 +70,7 @@ jobs:
       - name: Commit verified closure
         run: |
           rm -f .github/patches/apply_theme_objectwriter_closure.py
+          rm -f .github/patches/prepare_apply_theme_closure.py
           rm -f .github/patches/apply-error.txt
           rm -f .github/workflows/apply-theme-objectwriter-closure.yml
           git config user.name github-actions[bot]
