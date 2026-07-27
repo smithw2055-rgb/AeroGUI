@@ -1,17 +1,16 @@
 name: Source Export
 
 on:
-  push:
-    branches:
-      - agent/temp-source-export-2
-    paths:
-      - .github/workflows/source-export.yml
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   export:
+    if: github.head_ref == 'agent/temp-source-export-2'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
