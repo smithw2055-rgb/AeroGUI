@@ -101,7 +101,7 @@ public:
     Base::Result<LoaderResult> LoadDocument(
         const CompiledDocument& document) noexcept;
 
-    Markup::Schema& Schema() const noexcept {
+    Markup::Schema& GetSchema() const noexcept {
         return *schema_;
     }
     Core::IDiagnosticSink* Diagnostics() const noexcept {

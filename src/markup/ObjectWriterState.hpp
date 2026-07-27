@@ -15,7 +15,7 @@ public:
     explicit ObjectWriterState(
         const ObjectWriter& writer) noexcept
         : ObjectWriterState(
-              writer.Schema(),
+              writer.GetSchema(),
               writer.Diagnostics()) {}
     ~ObjectWriterState() noexcept;
 
@@ -37,7 +37,7 @@ public:
         return consumed_;
     }
 
-    Schema& Schema() const noexcept {
+    Schema& GetSchema() const noexcept {
         return *schema_;
     }
 
