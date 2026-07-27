@@ -34,7 +34,7 @@ Result<void> RegisterMetadata(
         .Property(
             StatusBadge::AccentProperty,
             DefaultAccent,
-            PropertyMetadataFlags::AffectsRender,
+            PropertyOptions::AffectsRender,
             &ValidateAccent)
         .Finish();
 }
