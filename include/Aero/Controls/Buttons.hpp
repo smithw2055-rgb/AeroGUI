@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Templates.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Input.hpp>
 
@@ -23,8 +24,8 @@ class ControlInteractionManager;
 class AERO_API ButtonBase : public ContentControl {
     AERO_TYPED_META(ButtonBase, ContentControl)
 public:
-    inline static constexpr RoutedEventHandle ClickEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Click");
+    inline static constexpr auto ClickEvent =
+        Core::DefineEvent<ButtonBase, RoutedEventArgs>("Click");
     UIElement::RoutedEvent_<RoutedEventHandler> Click() noexcept {
         return {*this, ClickEvent};
     }
@@ -45,18 +46,15 @@ public:
     Base::Result<void> SetCommandTarget(
         Base::Ref<UIElement> target) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        ClickModeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ClickMode");
-    inline static constexpr DependencyPropertyHandle
-        CommandProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Command");
-    inline static constexpr DependencyPropertyHandle
-        CommandParameterProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CommandParameter");
-    inline static constexpr DependencyPropertyHandle
-        CommandTargetProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CommandTarget");
+    inline static constexpr auto ClickModeProperty =
+        Core::DefineProperty<ButtonBase, ClickMode>("ClickMode");
+    inline static constexpr auto CommandProperty =
+        Core::DefineProperty<ButtonBase, ICommand>("Command");
+    inline static constexpr auto CommandParameterProperty =
+        Core::DefineProperty<ButtonBase, Base::Object>(
+            "CommandParameter");
+    inline static constexpr auto CommandTargetProperty =
+        Core::DefineProperty<ButtonBase, UIElement>("CommandTarget");
 
 protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
@@ -86,12 +84,10 @@ public:
     Base::Result<void> SetDelay(std::uint32_t value) noexcept;
     Base::Result<void> SetInterval(std::uint32_t value) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        DelayProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Delay");
-    inline static constexpr DependencyPropertyHandle
-        IntervalProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Interval");
+    inline static constexpr auto DelayProperty =
+        Core::DefineProperty<RepeatButton, std::uint32_t>("Delay");
+    inline static constexpr auto IntervalProperty =
+        Core::DefineProperty<RepeatButton, std::uint32_t>("Interval");
 };
 
 class AERO_API ToggleButton : public ButtonBase {
@@ -107,12 +103,13 @@ public:
     Base::Result<void> SetIsChecked(bool value) noexcept;
     Base::Result<void> SetIsThreeState(bool value) noexcept;
 
-    inline static constexpr RoutedEventHandle CheckedEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Checked");
-    inline static constexpr RoutedEventHandle UncheckedEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Unchecked");
-    inline static constexpr RoutedEventHandle IndeterminateEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Indeterminate");
+    inline static constexpr auto CheckedEvent =
+        Core::DefineEvent<ToggleButton, RoutedEventArgs>("Checked");
+    inline static constexpr auto UncheckedEvent =
+        Core::DefineEvent<ToggleButton, RoutedEventArgs>("Unchecked");
+    inline static constexpr auto IndeterminateEvent =
+        Core::DefineEvent<ToggleButton, RoutedEventArgs>(
+            "Indeterminate");
     UIElement::RoutedEvent_<RoutedEventHandler> Checked() noexcept {
         return {*this, CheckedEvent};
     }
@@ -123,15 +120,12 @@ public:
         return {*this, IndeterminateEvent};
     }
 
-    inline static constexpr DependencyPropertyHandle
-        IsCheckedProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsChecked");
-    inline static constexpr DependencyPropertyHandle
-        IsThreeStateProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsThreeState");
-    inline static constexpr DependencyPropertyHandle
-        IsIndeterminateProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsIndeterminate");
+    inline static constexpr auto IsCheckedProperty =
+        Core::DefineProperty<ToggleButton, bool>("IsChecked");
+    inline static constexpr auto IsThreeStateProperty =
+        Core::DefineProperty<ToggleButton, bool>("IsThreeState");
+    inline static constexpr auto IsIndeterminateProperty =
+        Core::DefineProperty<ToggleButton, bool>("IsIndeterminate");
 
 protected:
     explicit ToggleButton(TypeId runtimeType) noexcept
@@ -160,9 +154,9 @@ public:
     Base::Result<void> SetGroupName(
         Base::StringView value) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        GroupNameProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "GroupName");
+    inline static constexpr auto GroupNameProperty =
+        Core::DefineProperty<RadioButton, Base::String>(
+            "GroupName");
 };
 
 class AERO_API ControlInteractionManager final {
