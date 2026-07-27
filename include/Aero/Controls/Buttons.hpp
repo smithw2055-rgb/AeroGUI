@@ -123,7 +123,7 @@ public:
     inline static constexpr auto IsThreeStateProperty =
         Members::Property<bool>{"IsThreeState"};
     inline static constexpr auto IsIndeterminateProperty =
-        Members::Property<bool>{"IsIndeterminate"};
+        Members::ReadOnlyProperty<bool>{"IsIndeterminate"};
 
 protected:
     explicit ToggleButton(TypeId runtimeType) noexcept

@@ -57,9 +57,9 @@ public:
     Base::Result<void> SetChildPosition(UIElement& child, Point position) noexcept;
     Point ChildPosition(const UIElement& child) const noexcept;
     inline static constexpr auto LeftProperty =
-        Members::Property<double>{"Left"};
+        Members::AttachedProperty<double>{"Left"};
     inline static constexpr auto TopProperty =
-        Members::Property<double>{"Top"};
+        Members::AttachedProperty<double>{"Top"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -85,9 +85,9 @@ public:
     Base::Span<const GridLength> ColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
     Base::Span<const GridLength> RowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
     inline static constexpr auto RowProperty =
-        Members::Property<std::uint32_t>{"Row"};
+        Members::AttachedProperty<std::uint32_t>{"Row"};
     inline static constexpr auto ColumnProperty =
-        Members::Property<std::uint32_t>{"Column"};
+        Members::AttachedProperty<std::uint32_t>{"Column"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;

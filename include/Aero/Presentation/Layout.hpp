@@ -311,11 +311,11 @@ public:
     inline static constexpr auto IsEnabledProperty =
         Members::Property<bool>{"IsEnabled"};
     inline static constexpr auto IsMouseOverProperty =
-        Members::Property<bool>{"IsMouseOver"};
+        Members::ReadOnlyProperty<bool>{"IsMouseOver"};
     inline static constexpr auto IsPressedProperty =
-        Members::Property<bool>{"IsPressed"};
+        Members::ReadOnlyProperty<bool>{"IsPressed"};
     inline static constexpr auto IsKeyboardFocusedProperty =
-        Members::Property<bool>{"IsKeyboardFocused"};
+        Members::ReadOnlyProperty<bool>{"IsKeyboardFocused"};
     inline static constexpr auto IsTabStopProperty =
         Members::Property<bool>{"IsTabStop"};
     inline static constexpr auto TabIndexProperty =

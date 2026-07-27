@@ -16,6 +16,12 @@ public: \
         template<class TValue> \
         using Property = \
             Aero::Core::DependencyPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using ReadOnlyProperty = \
+            Aero::Core::ReadOnlyDependencyPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using AttachedProperty = \
+            Aero::Core::DependencyPropertyRef<Self, TValue>; \
         template<class TEventArgs> \
         using RoutedEvent = \
             Aero::Core::RoutedEventRef<Self, TEventArgs>; \

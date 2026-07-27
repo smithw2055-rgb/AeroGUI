@@ -169,17 +169,17 @@ public:
     Base::Result<void> SetCanContentScroll(
         bool value) noexcept;
     inline static constexpr auto HorizontalOffsetProperty =
-        Members::Property<double>{"HorizontalOffset"};
+        Members::ReadOnlyProperty<double>{"HorizontalOffset"};
     inline static constexpr auto VerticalOffsetProperty =
-        Members::Property<double>{"VerticalOffset"};
+        Members::ReadOnlyProperty<double>{"VerticalOffset"};
     inline static constexpr auto ExtentWidthProperty =
-        Members::Property<double>{"ExtentWidth"};
+        Members::ReadOnlyProperty<double>{"ExtentWidth"};
     inline static constexpr auto ExtentHeightProperty =
-        Members::Property<double>{"ExtentHeight"};
+        Members::ReadOnlyProperty<double>{"ExtentHeight"};
     inline static constexpr auto ViewportWidthProperty =
-        Members::Property<double>{"ViewportWidth"};
+        Members::ReadOnlyProperty<double>{"ViewportWidth"};
     inline static constexpr auto ViewportHeightProperty =
-        Members::Property<double>{"ViewportHeight"};
+        Members::ReadOnlyProperty<double>{"ViewportHeight"};
     inline static constexpr auto CanHorizontallyScrollProperty =
         Members::Property<bool>{"CanHorizontallyScroll"};
     inline static constexpr auto CanVerticallyScrollProperty =

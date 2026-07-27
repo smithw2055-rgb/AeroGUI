@@ -244,24 +244,27 @@ private:
 
 } // namespace MetadataDetail
 
+namespace MetadataDetail {
+
 template<class TOwner, class TValue>
-class DependencyPropertyRef final
-    : public MetadataDetail::TypedMember<
+class DependencyPropertyView
+    : public TypedMember<
         TOwner,
         TValue,
         MemberKind::Property,
         DependencyPropertyHandle> {
-    using Member = MetadataDetail::TypedMember<
+    using Member = TypedMember<
         TOwner,
         TValue,
         MemberKind::Property,
         DependencyPropertyHandle>;
 
 public:
-    using AccessType =
-        MetadataDetail::PropertyAccessType<TValue>;
+    using OwnerClass = TOwner;
+    using ValueClass = TValue;
+    using AccessType = PropertyAccessType<TValue>;
 
-    constexpr explicit DependencyPropertyRef(
+    constexpr explicit DependencyPropertyView(
         Base::StringView name) noexcept
         : Member(name) {}
 
@@ -274,8 +277,7 @@ public:
         Base::Result<Value> value =
             object.GetValue(this->Handle());
         if (!value) return value.GetStatus();
-        return MetadataDetail::DecodeValue<TValue>(
-            value.Value());
+        return DecodeValue<TValue>(value.Value());
     }
 
     AccessType GetOr(
@@ -296,13 +298,28 @@ public:
             object.GetValue(this->Handle());
         return value ? value.Value().AsString() : fallback;
     }
+};
+
+} // namespace MetadataDetail
+
+template<class TOwner, class TValue>
+class DependencyPropertyRef final
+    : public MetadataDetail::DependencyPropertyView<TOwner, TValue> {
+    using View =
+        MetadataDetail::DependencyPropertyView<TOwner, TValue>;
+
+public:
+    using AccessType = typename View::AccessType;
+
+    constexpr explicit DependencyPropertyRef(
+        Base::StringView name) noexcept
+        : View(name) {}
 
     Base::Result<void> Set(
         DependencyObject& object,
         const AccessType& value) const noexcept {
         Base::Result<Value> encoded =
-            MetadataDetail::EncodeRuntimeValue<TValue>(
-                value);
+            MetadataDetail::EncodeRuntimeValue<TValue>(value);
         if (!encoded) return encoded.GetStatus();
         return object.SetValue(
             this->Handle(), encoded.Value());
@@ -315,7 +332,7 @@ public:
         DependencyObject& object,
         Base::StringView value) const noexcept {
         Base::Result<Value> encoded =
-            Value::TryFromString(ValueType(), value);
+            Value::TryFromString(View::ValueType(), value);
         if (!encoded) return encoded.GetStatus();
         return object.SetValue(
             this->Handle(), encoded.Value());
@@ -325,8 +342,7 @@ public:
         DependencyObject& object,
         const AccessType& value) const noexcept {
         Base::Result<Value> encoded =
-            MetadataDetail::EncodeRuntimeValue<TValue>(
-                value);
+            MetadataDetail::EncodeRuntimeValue<TValue>(value);
         if (!encoded) return encoded.GetStatus();
         return object.SetCurrentValue(
             this->Handle(), encoded.Value());
@@ -339,7 +355,7 @@ public:
         DependencyObject& object,
         Base::StringView value) const noexcept {
         Base::Result<Value> encoded =
-            Value::TryFromString(ValueType(), value);
+            Value::TryFromString(View::ValueType(), value);
         if (!encoded) return encoded.GetStatus();
         return object.SetCurrentValue(
             this->Handle(), encoded.Value());
@@ -349,6 +365,18 @@ public:
         DependencyObject& object) const noexcept {
         return object.ClearValue(this->Handle());
     }
+};
+
+template<class TOwner, class TValue>
+class ReadOnlyDependencyPropertyRef final
+    : public MetadataDetail::DependencyPropertyView<TOwner, TValue> {
+    using View =
+        MetadataDetail::DependencyPropertyView<TOwner, TValue>;
+
+public:
+    constexpr explicit ReadOnlyDependencyPropertyRef(
+        Base::StringView name) noexcept
+        : View(name) {}
 };
 
 template<class TOwner, class TEventArgs>
@@ -378,6 +406,12 @@ template<class TOwner, class TValue>
 constexpr DependencyPropertyRef<TOwner, TValue>
 DefineProperty(Base::StringView name) noexcept {
     return DependencyPropertyRef<TOwner, TValue>(name);
+}
+
+template<class TOwner, class TValue>
+constexpr ReadOnlyDependencyPropertyRef<TOwner, TValue>
+DefineReadOnlyProperty(Base::StringView name) noexcept {
+    return ReadOnlyDependencyPropertyRef<TOwner, TValue>(name);
 }
 
 template<class TOwner, class TEventArgs>
@@ -442,7 +476,7 @@ public:
 
     template<class TOwner, class TValue>
     TypeBuilder& ReadOnlyProperty(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const ReadOnlyDependencyPropertyRef<TOwner, TValue>& property,
         const TValue& defaultValue,
         PropertyMetadataFlags flags =
             PropertyMetadataFlags::None,
@@ -452,6 +486,23 @@ public:
             property,
             MetadataDetail::EncodeRegistrationValue(
                 *context_, defaultValue),
+            flags,
+            validate,
+            coerce,
+            DependencyPropertyFlags::ReadOnly);
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& ReadOnlyProperty(
+        const ReadOnlyDependencyPropertyRef<TOwner, TValue>& property,
+        Value defaultValue,
+        PropertyMetadataFlags flags =
+            PropertyMetadataFlags::None,
+        ValidateValueCallback validate = nullptr,
+        CoerceValueCallback coerce = nullptr) noexcept {
+        return RegisterProperty(
+            property,
+            Base::Result<Value>(std::move(defaultValue)),
             flags,
             validate,
             coerce,
@@ -470,6 +521,23 @@ public:
             property,
             MetadataDetail::EncodeRegistrationValue(
                 *context_, defaultValue),
+            flags,
+            validate,
+            coerce,
+            DependencyPropertyFlags::Attached);
+    }
+
+    template<class TOwner, class TValue>
+    TypeBuilder& AttachedProperty(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        Value defaultValue,
+        PropertyMetadataFlags flags =
+            PropertyMetadataFlags::None,
+        ValidateValueCallback validate = nullptr,
+        CoerceValueCallback coerce = nullptr) noexcept {
+        return RegisterProperty(
+            property,
+            Base::Result<Value>(std::move(defaultValue)),
             flags,
             validate,
             coerce,
@@ -496,7 +564,7 @@ public:
 
     template<class TOwner, class TValue>
     TypeBuilder& Override(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const MetadataDetail::DependencyPropertyView<TOwner, TValue>& property,
         const TValue& defaultValue,
         PropertyMetadataFlags flags =
             PropertyMetadataFlags::None,
@@ -619,7 +687,7 @@ public:
 private:
     template<class TOwner, class TValue>
     TypeBuilder& RegisterProperty(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const MetadataDetail::DependencyPropertyView<TOwner, TValue>& property,
         Base::Result<Value> defaultValue,
         PropertyMetadataFlags flags,
         ValidateValueCallback validate,

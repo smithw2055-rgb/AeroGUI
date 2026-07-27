@@ -343,7 +343,7 @@ public:
         return changed_.Remove(handler);
     }
     inline static constexpr auto ItemCountProperty =
-        Members::Property<std::uint32_t>{"ItemCount"};
+        Members::ReadOnlyProperty<std::uint32_t>{"ItemCount"};
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
