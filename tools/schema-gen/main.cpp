@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         if (describe) {
             std::printf(
                 "format=%u types=%u members=%u schema_hash=%016llx\n",
-                Aero::Markup::XamlSchemaManifestFormatVersion,
+                Aero::XamlSchemaManifestFormatVersion,
                 manifest.Value().TypeCount(),
                 manifest.Value().MemberCount(),
                 static_cast<unsigned long long>(

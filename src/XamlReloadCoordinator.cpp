@@ -38,16 +38,16 @@ struct XamlReloadCoordinator::Impl final {
                 Base::ErrorCode::NotInitialized,
                 "XAML reload requires source providers");
         }
-        Base::Result<Markup::IXamlSourceProvider*> provider =
-            providers->Resolve(uri);
+        Base::Result<Markup::XamlSourceProviderResolution> provider =
+            providers->ResolveDetailed(uri);
         if (!provider) return provider.GetStatus();
         Base::Result<std::uint64_t> revision =
-            provider.Value()->Revision(uri);
+            provider.Value().provider->Revision(uri);
         if (revision && revision.Value() != 0U) {
             return revision.Value();
         }
         Base::Result<Markup::XamlSource> source =
-            provider.Value()->Load(uri);
+            provider.Value().provider->Load(uri);
         if (!source) return source.GetStatus();
         return source.Value().revision != 0U
             ? source.Value().revision
@@ -70,10 +70,19 @@ struct XamlReloadCoordinator::Impl final {
         const Base::ResourceUri& uri) noexcept {
         if (uri.Empty() || HasTracked(records, uri)) return {};
         std::uint64_t revision = 0U;
+        std::uint64_t sourceIdentity = 0U;
+        Markup::XamlSourceProviderRegistry* providers =
+            host != nullptr ? host->XamlSources() : nullptr;
+        if (providers != nullptr) {
+            Base::Result<Markup::XamlSourceProviderResolution> resolved =
+                providers->ResolveDetailed(uri);
+            if (resolved) sourceIdentity = resolved.Value().cacheIdentity;
+        }
         Markup::XamlDocumentCache* cache =
             host != nullptr ? host->DocumentCache() : nullptr;
         if (cache == nullptr ||
-            !cache->TryGetSourceRevision(uri, revision)) {
+            !cache->TryGetSourceRevision(
+                uri, sourceIdentity, revision)) {
             Base::Result<std::uint64_t> current = ReadRevision(uri);
             if (!current) return current.GetStatus();
             revision = current.Value();

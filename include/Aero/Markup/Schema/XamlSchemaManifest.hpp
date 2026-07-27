@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Version.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -17,7 +18,6 @@ namespace Aero::Markup {
 
 class XamlSchemaContext;
 
-inline constexpr std::uint32_t XamlSchemaManifestFormatVersion = 1U;
 
 struct XamlSchemaManifestLimits final {
     std::uint32_t maxTypes = 100000U;

@@ -363,6 +363,7 @@ struct XamlDocumentCache::Impl final {
         Base::ResourceUri uri;
         Base::Vector<std::uint8_t> compiledBytes;
         std::uint64_t sourceRevision = 0U;
+        std::uint64_t sourceIdentity = 0U;
         std::uint64_t lastAccess = 0U;
     };
 
@@ -471,6 +472,7 @@ XamlDocumentCache& XamlDocumentCache::operator=(
 Base::Result<XamlDocumentCacheLookup> XamlDocumentCache::Lookup(
     const Base::ResourceUri& uri,
     std::uint64_t sourceRevision,
+    std::uint64_t sourceIdentity,
     const Core::MetadataDomain& domain,
     const XamlCompiledDocumentLimits& limits) noexcept {
     XamlDocumentCacheLookup result;
@@ -482,7 +484,8 @@ Base::Result<XamlDocumentCacheLookup> XamlDocumentCache::Lookup(
         ++impl_->misses;
         return result;
     }
-    if (entry->sourceRevision != sourceRevision) {
+    if (entry->sourceRevision != sourceRevision ||
+        entry->sourceIdentity != sourceIdentity) {
         ++impl_->misses;
         Base::Result<std::uint32_t> invalidated =
             Invalidate(uri, true);
@@ -511,6 +514,7 @@ Base::Result<XamlDocumentCacheLookup> XamlDocumentCache::Lookup(
 Base::Result<void> XamlDocumentCache::Store(
     const Base::ResourceUri& uri,
     std::uint64_t sourceRevision,
+    std::uint64_t sourceIdentity,
     const XamlCompiledDocument& document,
     Base::Span<const Base::ResourceUri> dependencies) noexcept {
     if (impl_ == nullptr || uri.Empty() || !document.IsValid()) {
@@ -532,6 +536,7 @@ Base::Result<void> XamlDocumentCache::Store(
         existing->uri = uri;
         existing->compiledBytes = std::move(serialized).Value();
         existing->sourceRevision = sourceRevision;
+        existing->sourceIdentity = sourceIdentity;
         existing->lastAccess = ++impl_->accessSequence;
         impl_->compiledBytes += existing->compiledBytes.Size();
     } else {
@@ -539,6 +544,7 @@ Base::Result<void> XamlDocumentCache::Store(
         entry.uri = uri;
         entry.compiledBytes = std::move(serialized).Value();
         entry.sourceRevision = sourceRevision;
+        entry.sourceIdentity = sourceIdentity;
         entry.lastAccess = ++impl_->accessSequence;
         impl_->compiledBytes += entry.compiledBytes.Size();
         Base::Result<typename Base::HashMap<Base::String, Impl::Entry>::InsertResult>
@@ -605,13 +611,16 @@ bool XamlDocumentCache::Contains(
 
 bool XamlDocumentCache::TryGetSourceRevision(
     const Base::ResourceUri& uri,
+    std::uint64_t sourceIdentity,
     std::uint64_t& revision) const noexcept {
     revision = 0U;
     if (impl_ == nullptr || uri.Empty()) return false;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return false;
     const Impl::Entry* entry = impl_->entries.Find(key.Value());
-    if (entry == nullptr) return false;
+    if (entry == nullptr || entry->sourceIdentity != sourceIdentity) {
+        return false;
+    }
     revision = entry->sourceRevision;
     return true;
 }

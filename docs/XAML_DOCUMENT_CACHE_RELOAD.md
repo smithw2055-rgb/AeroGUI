@@ -16,11 +16,12 @@
 
 ## 缓存模型
 
-`XamlDocumentCache` 使用规范 `ResourceUri` 与 source revision 作为命中条件。
-缓存项保存：
+`XamlDocumentCache` 使用规范 `ResourceUri`、source revision 与 source-provider
+identity 作为命中条件。不同 View 即使对同一 URI 返回相同 revision，只要它们的
+provider identity 不同，就不会重放彼此的缓存内容。缓存项保存：
 
 - serialized AXIR
-- source revision
+- source revision 与 provider identity
 - canonical origin URI
 - dependency URI list
 - LRU access sequence

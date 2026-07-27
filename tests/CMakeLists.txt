@@ -422,6 +422,9 @@ if(TARGET aero-xamlc)
         NAME AeroXamlCompilerSmoke
         COMMAND aero-xamlc --check
             "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/xamlc_smoke.xaml")
+    add_test(
+        NAME AeroXamlCompilerVersion
+        COMMAND aero-xamlc --version)
 endif()
 
 add_executable(AeroXamlStyleTests markup/XamlStyleTests.cpp)

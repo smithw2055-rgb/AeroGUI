@@ -4,8 +4,8 @@ The installable SDK exports CMake targets under the `Aero::` namespace and
 keeps host tools separate from target libraries. A native consumer can use:
 
 ```cmake
-find_package(Aero 0.2 CONFIG REQUIRED)
-target_link_libraries(MyApp PRIVATE Aero::Runtime)
+find_package(Aero 0.3 CONFIG REQUIRED)
+target_link_libraries(MyApp PRIVATE Aero::EngineHost)
 ```
 
 Applications compile XAML with:
@@ -17,26 +17,36 @@ aero_add_xaml(MyApp
 ```
 
 Cross-compiling builds set `AERO_HOST_XAMLC_EXECUTABLE` to a host-native
-`aero-xamlc`. Target-platform executables are never run by the build.
+`aero-xamlc`. Target-platform executables are never run by the build. Generated
+AXIR paths preserve each source's relative directory, so equal basenames in
+`Views/` and `Themes/` do not collide. Ninja and Makefile builds also consume
+the depfile emitted by `aero-xamlc`.
 
 ## Version domains
 
-- Product version: `0.2.0`
-- Public C++ ABI: `1`
-- Module descriptor ABI: `2`
-- XAML Facet/Schema ABI: `8`
+- Product version: `0.3.0`
+- Public C++ ABI: `2`
+- Module descriptor ABI: `3`
+- XAML Facet/Schema ABI: `9`
+- Runtime ABI: `4`
 - Compiled XAML cache format: `7`
+- Compiled document encoding: `2`
 
-Module and XAML Facet registrations reject incompatible ABI versions before the
-schema is frozen. AXIR headers carry the XAML schema ABI independently from the
-metadata descriptor and facet versions.
+All values above are generated from `cmake/AeroVersions.cmake` into the public
+`Aero/Version.hpp`, installed package variables, runtime, and host tools. Module
+and XAML Facet registrations reject incompatible ABI versions before the schema
+is frozen. AXIR headers carry the XAML schema ABI independently from the metadata
+descriptor and facet versions. `aero-xamlc --version` reports the active product,
+schema, cache, and encoding versions.
 
 ## Exported components
 
-The baseline package exports Base, Core, Platform, Text, Presentation, Controls,
-Inspector, MarkupKernel, Markup, ModuleCatalog, Runtime, Rhi, RhiOpenGL33,
-Render, RenderOpenGL33, and TextRender. Platform-specific backends are exported
-when their build options are enabled.
+Normal applications link `Aero::EngineHost`; custom-control and schema-only
+libraries link `Aero::ModuleSdk`. `Aero::Runtime` remains available for hosts
+that supply their own render integration. Lower-level Base, Core, Presentation,
+Controls, Markup, Render, and RHI targets remain exported for advanced embedders,
+but they are not the default product entry points. Platform-specific backends
+are exported when their build options are enabled.
 
 The SDK installs public headers, built-in theme XAML, the CMake package files,
 and `aero-xamlc` when tools are enabled.

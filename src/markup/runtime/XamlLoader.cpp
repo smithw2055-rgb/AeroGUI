@@ -121,8 +121,8 @@ Base::Result<void> XamlSourceProviderRegistry::TryRegister(
         std::move(registration));
 }
 
-Base::Result<IXamlSourceProvider*>
-XamlSourceProviderRegistry::Resolve(
+Base::Result<XamlSourceProviderResolution>
+XamlSourceProviderRegistry::ResolveDetailed(
     const Base::ResourceUri& uri) const noexcept {
     const struct Route final {
         bool scheme;
@@ -145,13 +145,31 @@ XamlSourceProviderRegistry::Resolve(
                     uri,
                     route.scheme,
                     route.assembly)) {
-                return registration.provider;
+                XamlSourceProviderResolution result;
+                result.provider = registration.provider;
+                result.cacheIdentity = Base::MixHash64(
+                    registration.provider->CacheIdentity() ^
+                    Base::DefaultHash<Base::StringView>{}(
+                        registration.scheme.View()) ^
+                    Base::DefaultHash<Base::StringView>{}(
+                        registration.assembly.View(), UINT64_C(0xA3E0)));
+                return result;
             }
         }
     }
     return Base::Status::Failure(
         Base::ErrorCode::NotFound,
         "No XAML source provider matches the resource URI");
+}
+
+Base::Result<IXamlSourceProvider*>
+XamlSourceProviderRegistry::Resolve(
+    const Base::ResourceUri& uri) const noexcept {
+    Base::Result<XamlSourceProviderResolution> resolved =
+        ResolveDetailed(uri);
+    return resolved
+        ? Base::Result<IXamlSourceProvider*>(resolved.Value().provider)
+        : Base::Result<IXamlSourceProvider*>(resolved.GetStatus());
 }
 
 Base::Result<void> EmbeddedXamlSourceProvider::TryAdd(
@@ -184,7 +202,15 @@ Base::Result<void> EmbeddedXamlSourceProvider::TryAdd(
         return copied.GetStatus();
     }
     entry.revision = revision;
-    return entries_.TryPushBack(std::move(entry));
+    Base::Result<void> stored = entries_.TryPushBack(std::move(entry));
+    if (!stored) return stored.GetStatus();
+    cacheIdentity_ = Base::HashBytes(
+        uri.Canonical().Data(),
+        uri.Canonical().SizeBytes(),
+        cacheIdentity_ ^ revision);
+    cacheIdentity_ = Base::HashBytes(
+        bytes.Data(), bytes.Size(), cacheIdentity_);
+    return {};
 }
 
 Base::Result<void> EmbeddedXamlSourceProvider::TryAddText(
@@ -387,6 +413,7 @@ struct XamlLoader::Operation final {
     Base::Result<void> PopulateDocumentCache(
         const XamlSource& source,
         const Base::ResourceUri& origin,
+        std::uint64_t sourceIdentity,
         const XamlLoadResult& loaded,
         const XamlLoadOptions& options) noexcept;
     Base::Result<void> ResolveResourceDependencies(
@@ -641,8 +668,8 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
                 "XAML dependency depth exceeds configured limits"));
     }
 
-    Base::Result<IXamlSourceProvider*> provider =
-        providers_->Resolve(uri);
+    Base::Result<XamlSourceProviderResolution> provider =
+        providers_->ResolveDetailed(uri);
     if (!provider) {
         return Failure(
             provider.GetStatus(),
@@ -658,12 +685,13 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
 
     if (options.documentCache != nullptr) {
         Base::Result<std::uint64_t> probedRevision =
-            provider.Value()->Revision(uri);
+            provider.Value().provider->Revision(uri);
         if (probedRevision && probedRevision.Value() != 0U) {
             Base::Result<XamlDocumentCacheLookup> cached =
                 options.documentCache->Lookup(
                     uri,
                     probedRevision.Value(),
+                    provider.Value().cacheIdentity,
                     schema_->Domain(),
                     options.limits.compiled);
             if (cached && cached.Value().hit) {
@@ -677,6 +705,7 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
                     static_cast<void>(options.documentCache->Store(
                         uri,
                         probedRevision.Value(),
+                        provider.Value().cacheIdentity,
                         cached.Value().document,
                         {loaded.Value().dependencies.Data(),
                          loaded.Value().dependencies.Size()}));
@@ -688,7 +717,7 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
     }
 
     Base::Result<XamlSource> source =
-        provider.Value()->Load(uri);
+        provider.Value().provider->Load(uri);
     if (!source) {
         loadStack_.PopBack();
         return Failure(
@@ -727,7 +756,11 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
         existingRoot);
     if (loaded && options.documentCache != nullptr) {
         static_cast<void>(PopulateDocumentCache(
-            source.Value(), origin, loaded.Value(), options));
+            source.Value(),
+            origin,
+            provider.Value().cacheIdentity,
+            loaded.Value(),
+            options));
     }
     loadStack_.PopBack();
     return loaded;
@@ -736,6 +769,7 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
 Base::Result<void> XamlLoader::Operation::PopulateDocumentCache(
     const XamlSource& source,
     const Base::ResourceUri& origin,
+    std::uint64_t sourceIdentity,
     const XamlLoadResult& loaded,
     const XamlLoadOptions& options) noexcept {
     if (options.documentCache == nullptr || source.bytes.Empty()) return {};
@@ -758,6 +792,7 @@ Base::Result<void> XamlLoader::Operation::PopulateDocumentCache(
     return options.documentCache->Store(
         origin,
         source.revision,
+        sourceIdentity,
         compiled.Value(),
         {loaded.dependencies.Data(), loaded.dependencies.Size()});
 }

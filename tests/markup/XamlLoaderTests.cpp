@@ -7,6 +7,7 @@
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
 #include <Aero/Markup/Compiled/XamlCompiledDocument.hpp>
 #include <Aero/Markup/Runtime/XamlLoader.hpp>
+#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
 #include <Aero/Markup/Parsing/XamlNodeReader.hpp>
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
 #include <Aero/Markup/Parsing/XmlTokenizer.hpp>
@@ -293,12 +294,70 @@ bool TestLoadComponentAndCompiledEquivalence() {
     return true;
 }
 
+
+bool TestSharedCacheIsolatesSourceProviders() {
+    Fixture fixture;
+    CHECK(fixture.Build());
+    Result<ResourceUri> uri = ResourceUri::Parse(
+        StringView("pack://application:,,,/Aero.Controls;component/Views/Shared.xaml"));
+    CHECK(uri);
+
+    EmbeddedXamlSourceProvider first;
+    EmbeddedXamlSourceProvider second;
+    CHECK(first.TryAddText(
+        uri.Value(),
+        StringView("<Border xmlns=\"urn:aero\" Width=\"10\"/>"),
+        7U));
+    CHECK(second.TryAddText(
+        uri.Value(),
+        StringView("<Border xmlns=\"urn:aero\" Width=\"20\"/>"),
+        7U));
+    CHECK(first.Freeze());
+    CHECK(second.Freeze());
+    CHECK(first.CacheIdentity() != second.CacheIdentity());
+
+    XamlSourceProviderRegistry firstRegistry;
+    XamlSourceProviderRegistry secondRegistry;
+    CHECK(firstRegistry.TryRegister(
+        first, StringView("pack"), StringView("Aero.Controls")));
+    CHECK(secondRegistry.TryRegister(
+        second, StringView("pack"), StringView("Aero.Controls")));
+
+    XamlDocumentCache cache;
+    ObjectActivationContext activation = fixture.Activation();
+    ObjectServicesScope objectServices(
+        fixture.dispatcher,
+        fixture.metadata.DependencyProperties(),
+        *fixture.runtime);
+    XamlLoadOptions options;
+    options.activationFacets = fixture.activation.get();
+    options.activation = &activation;
+    options.documentCache = &cache;
+
+    XamlLoader firstLoader(*fixture.schema, firstRegistry);
+    Result<XamlLoadResult> firstLoaded =
+        firstLoader.Load(uri.Value(), options);
+    CHECK(firstLoaded);
+    auto* firstBorder = static_cast<Border*>(firstLoaded.Value().root.Get());
+    CHECK(firstBorder->Width() == 10.0);
+
+    XamlLoader secondLoader(*fixture.schema, secondRegistry);
+    Result<XamlLoadResult> secondLoaded =
+        secondLoader.Load(uri.Value(), options);
+    CHECK(secondLoaded);
+    auto* secondBorder = static_cast<Border*>(secondLoaded.Value().root.Get());
+    CHECK(secondBorder->Width() == 20.0);
+    CHECK(cache.Statistics().storeCount == 2U);
+    return true;
+}
+
 } // namespace
 
 int main() {
     if (!TestProviderRoutingPriority()) return 1;
     if (!TestUriLoadParseAndPolicy()) return 1;
     if (!TestLoadComponentAndCompiledEquivalence()) return 1;
+    if (!TestSharedCacheIsolatesSourceProviders()) return 1;
     std::puts("Aero XAML loader tests passed");
     return 0;
 }

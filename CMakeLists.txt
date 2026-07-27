@@ -1,13 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 
+include(cmake/AeroVersions.cmake)
+
 project(AeroGUI
-    VERSION 0.2.0
+    VERSION ${AERO_VERSION}
     DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
     LANGUAGES C CXX)
 
 find_package(Threads REQUIRED)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
+set(AERO_GENERATED_INCLUDE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+file(MAKE_DIRECTORY "${AERO_GENERATED_INCLUDE_DIR}/Aero")
+configure_file(
+    cmake/AeroVersion.hpp.in
+    "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
+    @ONLY)
+include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_BUILD_SAMPLES "Build AeroGUI sample applications" ON)
@@ -504,7 +515,6 @@ target_include_directories(AeroMarkup
 target_compile_definitions(
     AeroMarkupKernel
     PUBLIC
-        AERO_MARKUP_XAML_ABI=9
         $<$<BOOL:${AERO_WITH_EXPAT}>:AERO_WITH_EXPAT=1>
         $<$<NOT:$<BOOL:${AERO_WITH_EXPAT}>>:AERO_WITH_EXPAT=0>)
 target_link_libraries(AeroMarkup
@@ -521,7 +531,7 @@ set_target_properties(AeroMarkup PROPERTIES
 
 aero_apply_compiler_options(AeroMarkup)
 
-add_library(AeroModuleCatalog STATIC
+add_library(AeroModuleCatalog ${AERO_LIBRARY_TYPE}
     src/Module.cpp
     src/BuiltinModules.cpp
     src/SchemaBundle.cpp)
@@ -740,8 +750,6 @@ target_link_libraries(AeroRuntime
     PUBLIC
         AeroModuleCatalog
         Aero::Platform)
-target_compile_definitions(
-    AeroRuntime PRIVATE AERO_RUNTIME_XAML_ABI=9)
 target_compile_features(AeroRuntime PUBLIC cxx_std_17)
 set_target_properties(AeroRuntime PROPERTIES
     CXX_STANDARD 17
@@ -750,6 +758,17 @@ set_target_properties(AeroRuntime PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRuntime)
+
+# Product-facing SDK aggregates. Lower-level targets remain available for
+# advanced embedders, while normal applications can depend on one stable entry.
+add_library(AeroModuleSdk INTERFACE)
+add_library(Aero::ModuleSdk ALIAS AeroModuleSdk)
+target_link_libraries(AeroModuleSdk INTERFACE Aero::ModuleCatalog)
+
+add_library(AeroEngineHost INTERFACE)
+add_library(Aero::EngineHost ALIAS AeroEngineHost)
+target_link_libraries(AeroEngineHost INTERFACE
+    Aero::Runtime Aero::Render Aero::Rhi)
 
 set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
@@ -1199,6 +1218,10 @@ set_target_properties(
 set_target_properties(
     AeroRuntime PROPERTIES EXPORT_NAME Runtime)
 set_target_properties(
+    AeroModuleSdk PROPERTIES EXPORT_NAME ModuleSdk)
+set_target_properties(
+    AeroEngineHost PROPERTIES EXPORT_NAME EngineHost)
+set_target_properties(
     AeroRhi PROPERTIES EXPORT_NAME Rhi)
 set_target_properties(
     AeroRhiOpenGL33 PROPERTIES EXPORT_NAME RhiOpenGL33)
@@ -1221,6 +1244,8 @@ set(_aero_sdk_targets
     AeroMarkup
     AeroModuleCatalog
     AeroRuntime
+    AeroModuleSdk
+    AeroEngineHost
     AeroRhi
     AeroRhiOpenGL33
     AeroRender
@@ -1261,7 +1286,11 @@ if(TARGET aero-xamlc)
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 install(DIRECTORY include/Aero
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "Version.hpp" EXCLUDE)
+install(FILES
+    "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Aero)
 install(DIRECTORY themes/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/themes
     FILES_MATCHING PATTERN "*.xaml")

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
@@ -67,6 +68,11 @@ public:
             Base::ErrorCode::Unsupported,
             "XAML source provider does not expose revision probes");
     }
+    // Stable identity for cache isolation. Custom providers should override
+    // this when independent instances expose the same logical source store.
+    virtual std::uint64_t CacheIdentity() const noexcept {
+        return Base::DefaultHash<const IXamlSourceProvider*>{}(this);
+    }
 };
 
 using XamlSourceLoadCallback = Base::Result<XamlSource> (*)(
@@ -86,8 +92,10 @@ public:
     XamlSourceProviderFacet(
         XamlSourceLoadCallback load,
         void* context = nullptr,
-        XamlSourceRevisionCallback revision = nullptr) noexcept
-        : load_(load), revision_(revision), context_(context) {}
+        XamlSourceRevisionCallback revision = nullptr,
+        std::uint64_t cacheIdentity = 0U) noexcept
+        : load_(load), revision_(revision), context_(context),
+          cacheIdentity_(cacheIdentity) {}
 
     bool IsValid() const noexcept {
         return load_ != nullptr;
@@ -108,11 +116,22 @@ public:
             ? revision_(uri, context_)
             : IXamlSourceProvider::Revision(uri);
     }
+    std::uint64_t CacheIdentity() const noexcept override {
+        return cacheIdentity_ != 0U
+            ? cacheIdentity_
+            : IXamlSourceProvider::CacheIdentity();
+    }
 
 private:
     XamlSourceLoadCallback load_ = nullptr;
     XamlSourceRevisionCallback revision_ = nullptr;
     void* context_ = nullptr;
+    std::uint64_t cacheIdentity_ = 0U;
+};
+
+struct XamlSourceProviderResolution final {
+    IXamlSourceProvider* provider = nullptr;
+    std::uint64_t cacheIdentity = 0U;
 };
 
 struct XamlSourceProviderRegistration final {
@@ -143,6 +162,8 @@ public:
             scheme,
             assembly);
     }
+    Base::Result<XamlSourceProviderResolution> ResolveDetailed(
+        const Base::ResourceUri& uri) const noexcept;
     Base::Result<IXamlSourceProvider*> Resolve(
         const Base::ResourceUri& uri) const noexcept;
 
@@ -171,6 +192,9 @@ public:
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
+    std::uint64_t CacheIdentity() const noexcept override {
+        return cacheIdentity_;
+    }
 
     bool IsFrozen() const noexcept {
         return frozen_;
@@ -187,6 +211,7 @@ private:
     };
 
     Base::Vector<Entry> entries_;
+    std::uint64_t cacheIdentity_ = UINT64_C(0xA3E0E4BEDDED0001);
     bool frozen_ = false;
 };
 
@@ -202,6 +227,10 @@ public:
         const Base::ResourceUri& uri) const noexcept override;
     Base::Result<std::uint64_t> Revision(
         const Base::ResourceUri& uri) const noexcept override;
+    std::uint64_t CacheIdentity() const noexcept override {
+        return Base::MixHash64(
+            UINT64_C(0xA3E0F11E00000001) ^ maxFileBytes_);
+    }
 
 private:
     std::uint64_t maxFileBytes_ = 0U;

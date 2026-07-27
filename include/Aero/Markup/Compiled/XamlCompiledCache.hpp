@@ -12,7 +12,6 @@ namespace Aero::Markup {
 
 // Increment only when the compiled-XAML cache header or IR interpretation
 // changes. Metadata graph changes are tracked separately by metadataSchemaHash.
-inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = 7U;
 
 struct XamlCompiledCacheIdentity final {
     std::uint32_t cacheFormatVersion = XamlCompiledCacheFormatVersion;

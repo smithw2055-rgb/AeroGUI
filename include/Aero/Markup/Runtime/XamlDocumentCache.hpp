@@ -102,10 +102,26 @@ public:
         const Base::ResourceUri& uri,
         std::uint64_t sourceRevision,
         const Core::MetadataDomain& domain,
+        const XamlCompiledDocumentLimits& limits = {}) noexcept {
+        return Lookup(uri, sourceRevision, 0U, domain, limits);
+    }
+    Base::Result<XamlDocumentCacheLookup> Lookup(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceRevision,
+        std::uint64_t sourceIdentity,
+        const Core::MetadataDomain& domain,
         const XamlCompiledDocumentLimits& limits = {}) noexcept;
     Base::Result<void> Store(
         const Base::ResourceUri& uri,
         std::uint64_t sourceRevision,
+        const XamlCompiledDocument& document,
+        Base::Span<const Base::ResourceUri> dependencies) noexcept {
+        return Store(uri, sourceRevision, 0U, document, dependencies);
+    }
+    Base::Result<void> Store(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceRevision,
+        std::uint64_t sourceIdentity,
         const XamlCompiledDocument& document,
         Base::Span<const Base::ResourceUri> dependencies) noexcept;
 
@@ -117,6 +133,12 @@ public:
     bool Contains(const Base::ResourceUri& uri) const noexcept;
     bool TryGetSourceRevision(
         const Base::ResourceUri& uri,
+        std::uint64_t& revision) const noexcept {
+        return TryGetSourceRevision(uri, 0U, revision);
+    }
+    bool TryGetSourceRevision(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceIdentity,
         std::uint64_t& revision) const noexcept;
     Base::Result<void> CollectAffected(
         const Base::ResourceUri& changed,

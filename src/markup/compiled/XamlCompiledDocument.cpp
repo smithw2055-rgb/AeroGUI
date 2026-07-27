@@ -8,7 +8,7 @@ namespace {
 
 constexpr std::uint32_t CompiledDocumentMagic =
     UINT32_C(0x52495841);
-constexpr std::uint32_t CompiledDocumentEncodingVersion = 2U;
+
 
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
@@ -223,7 +223,7 @@ XamlCompiledDocument::Serialize() const noexcept {
         AppendU32(output, CompiledDocumentMagic);
     if (!result) return result.GetStatus();
     result = AppendU32(
-        output, CompiledDocumentEncodingVersion);
+        output, XamlCompiledDocumentEncodingVersion);
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity_.cacheFormatVersion);
     if (!result) return result.GetStatus();
@@ -296,7 +296,7 @@ XamlCompiledDocument::Deserialize(
     Base::Result<std::uint32_t> encoding = decoder.ReadU32();
     if (!encoding) return encoding.GetStatus();
     if (magic.Value() != CompiledDocumentMagic ||
-        encoding.Value() != CompiledDocumentEncodingVersion) {
+        encoding.Value() != XamlCompiledDocumentEncodingVersion) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Compiled XAML encoding is not supported");
