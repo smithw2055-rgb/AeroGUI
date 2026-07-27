@@ -1,0 +1,27 @@
+name: Source Export
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aero-source-export
+          path: |
+            CMakeLists.txt
+            cmake
+            include
+            samples
+            src
+            tests
+            themes
+            tools
+          retention-days: 1
