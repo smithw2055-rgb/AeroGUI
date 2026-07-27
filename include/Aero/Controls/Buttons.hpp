@@ -26,8 +26,8 @@ class AERO_API ButtonBase : public ContentControl {
 public:
     inline static constexpr auto ClickEvent =
         Members::RoutedEvent<RoutedEventArgs>{"Click"};
-    UIElement::RoutedEvent_<RoutedEventHandler> Click() noexcept {
-        return {*this, ClickEvent};
+    auto Click() noexcept {
+        return Event(ClickEvent);
     }
 
     ClickMode GetClickMode() const noexcept;
@@ -108,14 +108,14 @@ public:
         Members::RoutedEvent<RoutedEventArgs>{"Unchecked"};
     inline static constexpr auto IndeterminateEvent =
         Members::RoutedEvent<RoutedEventArgs>{"Indeterminate"};
-    UIElement::RoutedEvent_<RoutedEventHandler> Checked() noexcept {
-        return {*this, CheckedEvent};
+    auto Checked() noexcept {
+        return Event(CheckedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler> Unchecked() noexcept {
-        return {*this, UncheckedEvent};
+    auto Unchecked() noexcept {
+        return Event(UncheckedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler> Indeterminate() noexcept {
-        return {*this, IndeterminateEvent};
+    auto Indeterminate() noexcept {
+        return Event(IndeterminateEvent);
     }
 
     inline static constexpr auto IsCheckedProperty =

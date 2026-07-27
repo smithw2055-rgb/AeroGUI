@@ -28,11 +28,6 @@ UIElement* ButtonBase::CommandTarget() const noexcept {
 
 Base::Result<void> ButtonBase::SetClickMode(
     ClickMode value) noexcept {
-    if (value > ClickMode::Hover) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ButtonBase ClickMode is invalid");
-    }
     return ClickModeProperty.Set(*this, value);
 }
 
@@ -95,9 +90,8 @@ ToggleState ToggleButton::GetToggleState() const noexcept {
 
 Base::Result<void> ToggleButton::SetIsChecked(
     bool value) noexcept {
-    Base::Result<void> checked = SetValue(
-        IsCheckedProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    Base::Result<void> checked =
+        IsCheckedProperty.Set(*this, value);
     if (!checked) return checked.GetStatus();
     return SetReadOnlyCurrentValue(
         IsIndeterminateProperty,
@@ -106,9 +100,8 @@ Base::Result<void> ToggleButton::SetIsChecked(
 
 Base::Result<void> ToggleButton::SetIsThreeState(
     bool value) noexcept {
-    Base::Result<void> state = SetValue(
-        IsThreeStateProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    Base::Result<void> state =
+        IsThreeStateProperty.Set(*this, value);
     if (!state || value || !IsIndeterminate()) {
         return state;
     }
@@ -133,7 +126,7 @@ Base::Result<void> ToggleButton::SetToggleState(
     Base::Result<void> status;
     switch (value) {
     case ToggleState::Checked:
-        status = SetValue(IsCheckedProperty, enabled);
+        status = IsCheckedProperty.Set(*this, true);
         if (!status) return status.GetStatus();
         return SetReadOnlyCurrentValue(
             IsIndeterminateProperty, disabled);
@@ -141,28 +134,23 @@ Base::Result<void> ToggleButton::SetToggleState(
         status = SetReadOnlyCurrentValue(
             IsIndeterminateProperty, disabled);
         if (!status) return status.GetStatus();
-        return SetValue(IsCheckedProperty, disabled);
+        return IsCheckedProperty.Set(*this, false);
     case ToggleState::Indeterminate:
         status = SetReadOnlyCurrentValue(
             IsIndeterminateProperty, enabled);
         if (!status) return status.GetStatus();
-        return SetValue(IsCheckedProperty, disabled);
+        return IsCheckedProperty.Set(*this, false);
     }
     return {};
 }
 
 Base::StringView RadioButton::GroupName() const noexcept {
-    Base::Result<Value> value = GetValue(GroupNameProperty);
-    return value ? value.Value().AsString() : Base::StringView();
+    return GroupNameProperty.GetViewOr(*this);
 }
 
 Base::Result<void> RadioButton::SetGroupName(
     Base::StringView value) noexcept {
-    Base::Result<Value> stored =
-        Value::TryFromString(BuiltinTypes::String, value);
-    return stored
-        ? SetValue(GroupNameProperty, stored.Value())
-        : stored.GetStatus();
+    return GroupNameProperty.Set(*this, value);
 }
 
 ControlInteractionManager::ControlInteractionManager(

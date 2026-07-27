@@ -1,6 +1,6 @@
 #include <Aero/Markup/Schema/Metadata.hpp>
 
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Presentation/Style.hpp>
 
 #include "../resources/XamlTemplateCompiler.hpp"
@@ -94,22 +94,6 @@ Base::Result<void> ClearStateSetters(
     return {};
 }
 
-PropertyRegistration OrdinaryProperty(
-    Base::StringView name,
-    TypeId type,
-    PropertyGetCallback get,
-    PropertySetCallback set,
-    PropertyFlags flags = PropertyFlags::None) noexcept {
-    PropertyRegistration registration;
-    registration.name = name;
-    registration.valueType = type;
-    registration.flags = flags;
-    registration.access = PropertyAccessKind::Ordinary;
-    registration.get = get;
-    registration.set = set;
-    return registration;
-}
-
 } // namespace
 
 Base::Result<void> PopulateMarkupMetadata(
@@ -127,37 +111,36 @@ Base::Result<void> PopulateMarkupMetadata(
     }
     Base::Result<void> status;
 
-    MetaTypeBuilder<XamlVisualStateGroupObject> stateGroup =
-        MetaTypeBuilder<XamlVisualStateGroupObject>::Object(context);
+    auto stateGroup =
+        Describe<XamlVisualStateGroupObject>(context);
     stateGroup
-        .Property(OrdinaryProperty(
+        .Property(
             "Name",
             TypeOf<Base::String>(),
             &GetGroupName,
-            &SetGroupName))
+            &SetGroupName)
         .Content<XamlVisualStateObject>(
             "States",
             ContentKind::Collection,
             &AddGroupState,
             &ClearGroupStates)
-        .DefaultFactory();
+        .Factory();
     status = stateGroup.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<XamlVisualStateObject> state =
-        MetaTypeBuilder<XamlVisualStateObject>::Object(context);
+    auto state = Describe<XamlVisualStateObject>(context);
     state
-        .Property(OrdinaryProperty(
+        .Property(
             "Name",
             TypeOf<Base::String>(),
             &GetStateName,
-            &SetStateName))
+            &SetStateName)
         .Content<Setter>(
             "Setters",
             ContentKind::Collection,
             &AddStateSetter,
             &ClearStateSetters)
-        .DefaultFactory();
+        .Factory();
     status = state.Finish();
     return status;
 }

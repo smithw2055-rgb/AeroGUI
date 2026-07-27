@@ -676,11 +676,6 @@ double Track::ViewportSize() const noexcept {
 
 Base::Result<void> Track::SetOrientation(
     Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll orientation is invalid");
-    }
     return OrientationProperty.Set(*this, value);
 }
 
@@ -824,11 +819,6 @@ double ScrollBar::LargeChange() const noexcept {
 
 Base::Result<void> ScrollBar::SetOrientation(
     Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll orientation is invalid");
-    }
     return OrientationProperty.Set(*this, value);
 }
 

@@ -150,9 +150,8 @@ public:
     ~ScrollViewer() override;
     inline static constexpr auto ScrollChangedEvent =
         Members::RoutedEvent<ScrollChangedEventArgs>{"ScrollChanged"};
-    UIElement::RoutedEvent_<ScrollChangedEventHandler>
-        ScrollChanged() noexcept {
-        return {*this, ScrollChangedEvent};
+    auto ScrollChanged() noexcept {
+        return Event(ScrollChangedEvent);
     }
 
     double HorizontalOffset() const noexcept;

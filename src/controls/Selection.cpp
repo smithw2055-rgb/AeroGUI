@@ -148,11 +148,6 @@ std::uint32_t Selector::IndexOfItem(
 
 Base::Result<void> Selector::SetSelectionMode(
     SelectionMode value) noexcept {
-    if (value > SelectionMode::Extended) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Selector SelectionMode is invalid");
-    }
     lastSelectionError_ = {};
     Base::Result<void> stored =
         SelectionModeProperty.Set(*this, value);

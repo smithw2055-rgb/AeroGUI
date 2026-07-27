@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 
 namespace Aero::Presentation {
 
@@ -32,10 +31,6 @@ bool IsValidMargin(Thickness value) noexcept {
         std::isfinite(value.top + value.bottom);
 }
 
-TypeId PresentationType(const char* name) noexcept {
-    return MakeTypeId(
-        Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
-}
 
 double ClampDimension(double value, double minimum, double maximum) noexcept {
     return std::max(minimum, std::min(value, maximum));
@@ -194,8 +189,8 @@ Base::Result<void> FrameworkElement::SetLayoutRounding(
     }
     const bool scaleChanged = dpiScale_ != dpiScale;
     dpiScale_ = dpiScale;
-    Base::Result<void> result = SetValue(UseLayoutRoundingProperty,
-        Value::FromBoolean(PresentationType("Boolean"), enabled));
+    Base::Result<void> result =
+        UseLayoutRoundingProperty.Set(*this, enabled);
     if (!result) return result;
     return scaleChanged && enabled ? InvalidateMeasure() : Base::Result<void>();
 }
@@ -207,8 +202,7 @@ bool UIElement::IsHitTestVisible() const noexcept {
     return IsHitTestVisibleProperty.GetOr(*this, true);
 }
 bool UIElement::IsEnabled() const noexcept {
-    Base::Result<Value> value = GetValue(IsEnabledProperty);
-    if (value && !value.Value().AsBoolean()) return false;
+    if (!IsEnabledProperty.GetOr(*this, true)) return false;
     Visual* parent = LogicalParent() != nullptr
         ? LogicalParent() : VisualParent();
     const UIElement* parentElement =
@@ -237,36 +231,26 @@ bool FrameworkElement::UseLayoutRounding() const noexcept {
     return UseLayoutRoundingProperty.GetOr(*this, false);
 }
 bool FrameworkElement::HasWidth() const noexcept {
-    Base::Result<Value> value = GetValue(WidthProperty);
-    return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
+    return !WidthProperty.GetOr(*this, Length::Auto()).isAuto;
 }
 bool FrameworkElement::HasHeight() const noexcept {
-    Base::Result<Value> value = GetValue(HeightProperty);
-    return value && !static_cast<const Length*>(value.Value().AsCustom())->isAuto;
+    return !HeightProperty.GetOr(*this, Length::Auto()).isAuto;
 }
 double FrameworkElement::Width() const noexcept {
-    Base::Result<Value> value = GetValue(WidthProperty);
-    if (!value) return 0.0;
-    const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
+    const Length length = WidthProperty.GetOr(*this, Length::Auto());
     return length.isAuto ? 0.0 : length.value;
 }
 double FrameworkElement::Height() const noexcept {
-    Base::Result<Value> value = GetValue(HeightProperty);
-    if (!value) return 0.0;
-    const Length& length = *static_cast<const Length*>(value.Value().AsCustom());
+    const Length length = HeightProperty.GetOr(*this, Length::Auto());
     return length.isAuto ? 0.0 : length.value;
 }
 Size FrameworkElement::MinSize() const noexcept {
-    Base::Result<Value> width = GetValue(MinWidthProperty);
-    Base::Result<Value> height = GetValue(MinHeightProperty);
-    return {width ? width.Value().AsDouble() : 0.0,
-        height ? height.Value().AsDouble() : 0.0};
+    return {MinWidthProperty.GetOr(*this, 0.0),
+        MinHeightProperty.GetOr(*this, 0.0)};
 }
 Size FrameworkElement::MaxSize() const noexcept {
-    Base::Result<Value> width = GetValue(MaxWidthProperty);
-    Base::Result<Value> height = GetValue(MaxHeightProperty);
-    return {width ? width.Value().AsDouble() : 1.0e12,
-        height ? height.Value().AsDouble() : 1.0e12};
+    return {MaxWidthProperty.GetOr(*this, 1.0e12),
+        MaxHeightProperty.GetOr(*this, 1.0e12)};
 }
 Thickness FrameworkElement::Margin() const noexcept {
     return MarginProperty.GetOr(*this, Thickness{});
@@ -323,43 +307,37 @@ Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
 }
 Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
     return SetReadOnlyCurrentValue(IsMouseOverProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+        Value::FromBoolean(TypeOf<bool>(), value));
 }
 Base::Result<void> UIElement::SetPressedState(bool value) noexcept {
     return SetReadOnlyCurrentValue(IsPressedProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+        Value::FromBoolean(TypeOf<bool>(), value));
 }
 Base::Result<void> UIElement::SetKeyboardFocusedState(bool value) noexcept {
     return SetReadOnlyCurrentValue(IsKeyboardFocusedProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+        Value::FromBoolean(TypeOf<bool>(), value));
 }
 
 Base::Result<void> FrameworkElement::SetWidth(double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return InvalidArgument("Width must be finite and nonnegative");
     }
-    const Length length = Length::Pixels(value);
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Length"), &length);
-    return stored ? SetValue(WidthProperty, stored.Value()) : stored.GetStatus();
+    return WidthProperty.Set(*this, Length::Pixels(value));
 }
 
 Base::Result<void> FrameworkElement::ClearWidth() noexcept {
-    return ClearValue(WidthProperty);
+    return WidthProperty.Clear(*this);
 }
 
 Base::Result<void> FrameworkElement::SetHeight(double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return InvalidArgument("Height must be finite and nonnegative");
     }
-    const Length length = Length::Pixels(value);
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Length"), &length);
-    return stored ? SetValue(HeightProperty, stored.Value()) : stored.GetStatus();
+    return HeightProperty.Set(*this, Length::Pixels(value));
 }
 
 Base::Result<void> FrameworkElement::ClearHeight() noexcept {
-    return ClearValue(HeightProperty);
+    return HeightProperty.Clear(*this);
 }
 
 Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
@@ -368,10 +346,11 @@ Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
         value.height > maximum.height) {
         return InvalidArgument("Minimum layout size is invalid");
     }
-    Base::Result<void> width = SetValue(MinWidthProperty,
-        Value::FromDouble(PresentationType("Double"), value.width));
-    return width ? SetValue(MinHeightProperty,
-        Value::FromDouble(PresentationType("Double"), value.height)) : width;
+    Base::Result<void> width =
+        MinWidthProperty.Set(*this, value.width);
+    return width
+        ? MinHeightProperty.Set(*this, value.height)
+        : width;
 }
 
 Base::Result<void> FrameworkElement::SetMaxSize(Size value) noexcept {
@@ -380,37 +359,28 @@ Base::Result<void> FrameworkElement::SetMaxSize(Size value) noexcept {
         value.height < minimum.height) {
         return InvalidArgument("Maximum layout size is invalid");
     }
-    Base::Result<void> width = SetValue(MaxWidthProperty,
-        Value::FromDouble(PresentationType("Double"), value.width));
-    return width ? SetValue(MaxHeightProperty,
-        Value::FromDouble(PresentationType("Double"), value.height)) : width;
+    Base::Result<void> width =
+        MaxWidthProperty.Set(*this, value.width);
+    return width
+        ? MaxHeightProperty.Set(*this, value.height)
+        : width;
 }
 
 Base::Result<void> FrameworkElement::SetMargin(Thickness value) noexcept {
     if (!IsValidMargin(value)) {
         return InvalidArgument("Margin must be finite, nonnegative, and non-overflowing");
     }
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Thickness"), &value);
-    return stored ? SetValue(MarginProperty, stored.Value()) : stored.GetStatus();
+    return MarginProperty.Set(*this, value);
 }
 
 Base::Result<void> FrameworkElement::SetHorizontalAlignment(
     HorizontalAlignment value) noexcept {
-    if (value > HorizontalAlignment::Right) {
-        return InvalidArgument("Horizontal alignment is invalid");
-    }
-    return SetValue(HorizontalAlignmentProperty, Value::FromUnsignedInteger(
-        PresentationType("HorizontalAlignment"), static_cast<std::uint64_t>(value)));
+    return HorizontalAlignmentProperty.Set(*this, value);
 }
 
 Base::Result<void> FrameworkElement::SetVerticalAlignment(
     VerticalAlignment value) noexcept {
-    if (value > VerticalAlignment::Bottom) {
-        return InvalidArgument("Vertical alignment is invalid");
-    }
-    return SetValue(VerticalAlignmentProperty, Value::FromUnsignedInteger(
-        PresentationType("VerticalAlignment"), static_cast<std::uint64_t>(value)));
+    return VerticalAlignmentProperty.Set(*this, value);
 }
 
 Base::Result<Size> UIElement::MeasureOverride(Size availableSize) noexcept {

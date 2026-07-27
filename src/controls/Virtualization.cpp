@@ -48,11 +48,6 @@ VirtualizingStackPanel::GetOrientation() const noexcept {
 Base::Result<void>
 VirtualizingStackPanel::SetOrientation(
     Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VirtualizingStackPanel orientation is invalid");
-    }
     if (value == GetOrientation()) return {};
     const double oldMainOffset = MainOffset();
     Base::Result<void> stored =

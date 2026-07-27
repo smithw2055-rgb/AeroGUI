@@ -619,7 +619,28 @@ public:
     }
 
     TypeBuilder& Property(
-        const PropertyRegistration& registration) noexcept {
+        Base::StringView name,
+        TypeId valueType,
+        PropertyFlags flags = PropertyFlags::None) noexcept {
+        builder_.Property({name, valueType, flags});
+        return *this;
+    }
+
+    TypeBuilder& Property(
+        Base::StringView name,
+        TypeId valueType,
+        PropertyGetCallback get,
+        PropertySetCallback set,
+        PropertyFlags flags = PropertyFlags::None,
+        void* propertyContext = nullptr) noexcept {
+        PropertyRegistration registration;
+        registration.name = name;
+        registration.valueType = valueType;
+        registration.flags = flags;
+        registration.access = PropertyAccessKind::Ordinary;
+        registration.get = get;
+        registration.set = set;
+        registration.context = propertyContext;
         builder_.Property(registration);
         return *this;
     }
@@ -664,13 +685,6 @@ public:
         return *this;
     }
 
-    MetaTypeBuilder<T>& Advanced() noexcept {
-        return builder_;
-    }
-
-    const MetaTypeBuilder<T>& Advanced() const noexcept {
-        return builder_;
-    }
 
     bool Ok() const noexcept {
         return builder_.Ok();

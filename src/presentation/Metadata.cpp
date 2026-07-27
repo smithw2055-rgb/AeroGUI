@@ -263,24 +263,6 @@ Base::Result<void> SetStyleResources(
     return {};
 }
 
-PropertyRegistration OrdinaryProperty(
-    Base::StringView name,
-    TypeId type,
-    PropertyGetCallback get,
-    PropertySetCallback set,
-    PropertyFlags flags =
-        PropertyFlags::None) noexcept {
-    PropertyRegistration registration;
-    registration.name = name;
-    registration.valueType = type;
-    registration.flags = flags;
-    registration.access =
-        PropertyAccessKind::Ordinary;
-    registration.get = get;
-    registration.set = set;
-    return registration;
-}
-
 } // namespace
 
 Base::Result<void> Detail::PopulatePresentationMetadata(
@@ -289,15 +271,13 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
 
     auto resourceDictionary = Describe<ResourceDictionary>(context);
     resourceDictionary
-        .Property({
+        .Property(
             "Source",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property({
+            TypeOf<Base::String>())
+        .Property(
             "MergedDictionaries",
             ResourceDictionary::StaticTypeId(),
-            PropertyFlags::Structural |
-                PropertyFlags::Collection})
+            PropertyFlags::Structural | PropertyFlags::Collection)
         .Content<Base::Object>(
             "Entries",
             ContentKind::Collection)
@@ -307,32 +287,27 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
 
     auto setter = Describe<Setter>(context);
     setter
-        .Property({
+        .Property(
             "TargetName",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property({
+            TypeOf<Base::String>())
+        .Property(
             "Property",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property({
+            TypeOf<Base::String>())
+        .Property(
             "Value",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
+            TypeOf<Base::String>())
         .Factory();
     status = setter.Finish();
     if (!status) return status.GetStatus();
 
     auto trigger = Describe<PropertyTrigger>(context);
     trigger
-        .Property({
+        .Property(
             "Property",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property({
+            TypeOf<Base::String>())
+        .Property(
             "Value",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
+            TypeOf<Base::String>())
         .Content<Setter>(
             "Setters",
             ContentKind::Collection)
@@ -342,25 +317,22 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
 
     auto style = Describe<Style>(context);
     style
-        .Property({
+        .Property(
             "TargetType",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property({
+            TypeOf<Base::String>())
+        .Property(
             "BasedOn",
-            Style::StaticTypeId(),
-            PropertyFlags::None})
-        .Property(OrdinaryProperty(
+            Style::StaticTypeId())
+        .Property(
             "Resources",
             ResourceDictionary::StaticTypeId(),
             nullptr,
             &SetStyleResources,
-            PropertyFlags::Structural))
-        .Property({
+            PropertyFlags::Structural)
+        .Property(
             "Triggers",
             PropertyTrigger::StaticTypeId(),
-            PropertyFlags::Structural |
-                PropertyFlags::Collection})
+            PropertyFlags::Structural | PropertyFlags::Collection)
         .Content<Setter>(
             "Setters",
             ContentKind::Collection)
@@ -552,12 +524,12 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         TypeOf<Thickness>(), &zero);
     if (!margin) return margin.GetStatus();
     frameworkElement
-        .Property(OrdinaryProperty(
+        .Property(
             "Resources",
             ResourceDictionary::StaticTypeId(),
             nullptr,
             &SetFrameworkElementResources,
-            PropertyFlags::Structural))
+            PropertyFlags::Structural)
         .Property(
             FrameworkElement::DataContextProperty,
             Value::NullObject(TypeOf<Base::Object>()),

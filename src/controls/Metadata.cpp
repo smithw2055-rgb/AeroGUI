@@ -104,24 +104,6 @@ Base::Result<void> SetTemplateResources(
     return {};
 }
 
-Core::PropertyRegistration OrdinaryProperty(
-    Base::StringView name,
-    Core::TypeId type,
-    Core::PropertyGetCallback get,
-    Core::PropertySetCallback set,
-    Core::PropertyFlags flags =
-        Core::PropertyFlags::None) noexcept {
-    Core::PropertyRegistration registration;
-    registration.name = name;
-    registration.valueType = type;
-    registration.flags = flags;
-    registration.access =
-        Core::PropertyAccessKind::Ordinary;
-    registration.get = get;
-    registration.set = set;
-    return registration;
-}
-
 bool ValidateNonnegativeDouble(const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::Double &&
         std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
@@ -376,27 +358,26 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     if (!status) return status.GetStatus();
 
     auto frameworkTemplate = Describe<FrameworkTemplate>(context, TypeFlags::Abstract);
-    frameworkTemplate.Property(OrdinaryProperty(
+    frameworkTemplate.Property(
         "Resources",
         Presentation::ResourceDictionary::StaticTypeId(),
         nullptr,
         &SetTemplateResources<FrameworkTemplate>,
-        PropertyFlags::Structural));
+        PropertyFlags::Structural);
     status = frameworkTemplate.Finish();
     if (!status) return status.GetStatus();
 
     auto controlTemplate = Describe<ControlTemplate>(context);
     controlTemplate
-        .Property({
+        .Property(
             "TargetType",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property(OrdinaryProperty(
+            TypeOf<Base::String>())
+        .Property(
             "VisualTree",
             TypeOf<Base::Object>(),
             &GetTemplateVisualTree,
             &SetTemplateVisualTree,
-            PropertyFlags::Structural))
+            PropertyFlags::Structural)
         .Content<Base::Object>(
             "VisualStateGroups",
             ContentKind::Collection,
@@ -408,16 +389,15 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     auto dataTemplate = Describe<DataTemplate>(context);
     dataTemplate
-        .Property({
+        .Property(
             "DataType",
-            TypeOf<Base::String>(),
-            PropertyFlags::None})
-        .Property(OrdinaryProperty(
+            TypeOf<Base::String>())
+        .Property(
             "Resources",
             Presentation::ResourceDictionary::StaticTypeId(),
             nullptr,
             &SetTemplateResources<DataTemplate>,
-            PropertyFlags::Structural))
+            PropertyFlags::Structural)
         .Content<Base::Object>(
             "VisualTree",
             ContentKind::Single,
@@ -430,12 +410,12 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     auto itemsPanelTemplate = Describe<ItemsPanelTemplate>(context);
     itemsPanelTemplate
-        .Property(OrdinaryProperty(
+        .Property(
             "Resources",
             Presentation::ResourceDictionary::StaticTypeId(),
             nullptr,
             &SetTemplateResources<ItemsPanelTemplate>,
-            PropertyFlags::Structural))
+            PropertyFlags::Structural)
         .Content<Base::Object>(
             "VisualTree",
             ContentKind::Single,

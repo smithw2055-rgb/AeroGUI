@@ -160,26 +160,31 @@ private:
 class AERO_API UIElement : public Visual {
     AERO_DECLARE_TYPE(UIElement, Visual)
 public:
-    template<class THandler>
-    class RoutedEvent_ final {
+    template<class TArgs>
+    class RoutedEventConnection final {
     public:
-        RoutedEvent_(UIElement& element, RoutedEventHandle event) noexcept
+        using Handler = Base::Delegate<void(
+            Base::Object*, const TArgs&)>;
+
+        RoutedEventConnection(
+            UIElement& element,
+            RoutedEventHandle event) noexcept
             : element_(&element), event_(event) {}
 
         Base::Result<void> TryAdd(
-            const THandler& handler,
+            const Handler& handler,
             bool handledEventsToo = false) noexcept {
-            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
             return element_->TryAddHandler(
-                event_, Detail::RoutedHandlerStorage(
-                    static_cast<const Base::Delegate<
-                        void(Base::Object*, const Args&)>&>(handler)),
+                event_,
+                Detail::RoutedHandlerStorage(handler),
                 handledEventsToo);
         }
 
-        void Add(const THandler& handler,
+        void Add(
+            const Handler& handler,
             bool handledEventsToo = false) noexcept {
-            Base::Result<void> result = TryAdd(handler, handledEventsToo);
+            Base::Result<void> result =
+                TryAdd(handler, handledEventsToo);
             if (!result) {
                 Base::ReportOutOfMemory(
                     sizeof(Detail::RoutedHandlerStorage),
@@ -188,17 +193,17 @@ public:
             }
         }
 
-        void operator+=(const THandler& handler) noexcept { Add(handler); }
-
-        bool Remove(const THandler& handler) noexcept {
-            using Args = typename Detail::RoutedHandlerTraits<THandler>::Args;
-            return element_->RemoveHandler(
-                event_, Detail::RoutedHandlerStorage(
-                    static_cast<const Base::Delegate<
-                        void(Base::Object*, const Args&)>&>(handler)));
+        void operator+=(const Handler& handler) noexcept {
+            Add(handler);
         }
 
-        void operator-=(const THandler& handler) noexcept {
+        bool Remove(const Handler& handler) noexcept {
+            return element_->RemoveHandler(
+                event_,
+                Detail::RoutedHandlerStorage(handler));
+        }
+
+        void operator-=(const Handler& handler) noexcept {
             static_cast<void>(Remove(handler));
         }
 
@@ -206,50 +211,61 @@ public:
         UIElement* element_ = nullptr;
         RoutedEventHandle event_;
     };
+
+    template<class THandler>
+    using RoutedEvent_ = RoutedEventConnection<
+        typename Detail::RoutedHandlerTraits<THandler>::Args>;
+
+    template<class TOwner, class TArgs>
+    RoutedEventConnection<TArgs> Event(
+        const RoutedEventRef<TOwner, TArgs>& event) noexcept {
+        return {*this, event.Handle()};
+    }
+
     inline static constexpr auto MouseMoveEvent =
         Members::RoutedEvent<MouseEventArgs>{"MouseMove"};
-    RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
-        return {*this, MouseMoveEvent};
+    auto MouseMove() noexcept {
+        return Event(MouseMoveEvent);
     }
     inline static constexpr auto MouseDownEvent =
         Members::RoutedEvent<MouseButtonEventArgs>{"MouseDown"};
-    RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
-        return {*this, MouseDownEvent};
+    auto MouseDown() noexcept {
+        return Event(MouseDownEvent);
     }
     inline static constexpr auto MouseUpEvent =
         Members::RoutedEvent<MouseButtonEventArgs>{"MouseUp"};
-    RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
-        return {*this, MouseUpEvent};
+    auto MouseUp() noexcept {
+        return Event(MouseUpEvent);
     }
     inline static constexpr auto MouseWheelEvent =
         Members::RoutedEvent<MouseWheelEventArgs>{"MouseWheel"};
-    RoutedEvent_<MouseWheelEventHandler> MouseWheel() noexcept {
-        return {*this, MouseWheelEvent};
+    auto MouseWheel() noexcept {
+        return Event(MouseWheelEvent);
     }
     inline static constexpr auto GotKeyboardFocusEvent =
         Members::RoutedEvent<KeyboardFocusChangedEventArgs>{"GotKeyboardFocus"};
-    RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
-        return {*this, GotKeyboardFocusEvent};
+    auto GotKeyboardFocus() noexcept {
+        return Event(GotKeyboardFocusEvent);
     }
     inline static constexpr auto LostKeyboardFocusEvent =
         Members::RoutedEvent<KeyboardFocusChangedEventArgs>{"LostKeyboardFocus"};
-    RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
-        return {*this, LostKeyboardFocusEvent};
+    auto LostKeyboardFocus() noexcept {
+        return Event(LostKeyboardFocusEvent);
     }
     inline static constexpr auto KeyDownEvent =
         Members::RoutedEvent<KeyEventArgs>{"KeyDown"};
-    RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
-        return {*this, KeyDownEvent};
+    auto KeyDown() noexcept {
+        return Event(KeyDownEvent);
     }
     inline static constexpr auto KeyUpEvent =
         Members::RoutedEvent<KeyEventArgs>{"KeyUp"};
-    RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
-        return {*this, KeyUpEvent};
+    auto KeyUp() noexcept {
+        return Event(KeyUpEvent);
     }
     inline static constexpr auto TextInputEvent =
         Members::RoutedEvent<TextCompositionEventArgs>{"TextInput"};
-    RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
-        return {*this, TextInputEvent};
+    auto TextInput() noexcept {
+        return Event(TextInputEvent);
     }
 
     explicit UIElement(TypeId runtimeType) noexcept;
