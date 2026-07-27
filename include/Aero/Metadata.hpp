@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -17,6 +18,19 @@ namespace Aero::Core {
 using RegistrationContext = MetaRegistrationContext;
 
 namespace MetadataDetail {
+
+template<class T, bool = std::is_base_of_v<Base::Object, T>>
+struct PropertyAccess final {
+    using Type = T;
+};
+
+template<class T>
+struct PropertyAccess<T, true> final {
+    using Type = Base::Ref<T>;
+};
+
+template<class T>
+using PropertyAccessType = typename PropertyAccess<T>::Type;
 
 template<class T>
 constexpr TypeId ValueType() noexcept {
@@ -56,6 +70,9 @@ Base::Result<Value> EncodeRegistrationValue(
                     static_cast<Underlying>(value)));
         }
     } else {
+        static_assert(
+            !std::is_base_of_v<Base::Object, T>,
+            "Object defaults must be passed as an explicit Value");
         return context.Values().TryCreateValue(
             type, &value);
     }
@@ -63,9 +80,12 @@ Base::Result<Value> EncodeRegistrationValue(
 
 template<class T>
 Base::Result<Value> EncodeRuntimeValue(
-    const T& value) noexcept {
+    const PropertyAccessType<T>& value) noexcept {
     const TypeId type = ValueType<T>();
-    if constexpr (std::is_same_v<T, bool>) {
+    if constexpr (std::is_base_of_v<Base::Object, T>) {
+        return Value::FromObject(
+            type, Base::Ref<Base::Object>(value));
+    } else if constexpr (std::is_same_v<T, bool>) {
         return Value::FromBoolean(type, value);
     } else if constexpr (std::is_same_v<T, std::uint32_t>) {
         return Value::FromUnsignedInteger(type, value);
@@ -94,7 +114,7 @@ Base::Result<Value> EncodeRuntimeValue(
 }
 
 template<class T>
-Base::Result<T> DecodeValue(
+Base::Result<PropertyAccessType<T>> DecodeValue(
     const Value& value) noexcept {
     const TypeId type = ValueType<T>();
     if (value.Type() != type) {
@@ -103,7 +123,18 @@ Base::Result<T> DecodeValue(
             "Property value type is incompatible");
     }
 
-    if constexpr (std::is_same_v<T, bool>) {
+    if constexpr (std::is_base_of_v<Base::Object, T>) {
+        if (value.Kind() != ValueKind::Object) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Property value is not an object");
+        }
+        const Base::Ref<Base::Object>& stored =
+            value.AsObject();
+        if (!stored) return Base::Ref<T>{};
+        return Base::Ref<T>::FromBorrowed(
+            *static_cast<T*>(stored.Get()));
+    } else if constexpr (std::is_same_v<T, bool>) {
         if (value.Kind() != ValueKind::Boolean) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -227,6 +258,9 @@ class DependencyPropertyRef final
         DependencyPropertyHandle>;
 
 public:
+    using AccessType =
+        MetadataDetail::PropertyAccessType<TValue>;
+
     constexpr explicit DependencyPropertyRef(
         Base::StringView name) noexcept
         : Member(name) {}
@@ -235,7 +269,7 @@ public:
         return MetadataDetail::ValueType<TValue>();
     }
 
-    Base::Result<TValue> Get(
+    Base::Result<AccessType> Get(
         const DependencyObject& object) const noexcept {
         Base::Result<Value> value =
             object.GetValue(this->Handle());
@@ -246,9 +280,10 @@ public:
 
     Base::Result<void> Set(
         DependencyObject& object,
-        const TValue& value) const noexcept {
+        const AccessType& value) const noexcept {
         Base::Result<Value> encoded =
-            MetadataDetail::EncodeRuntimeValue(value);
+            MetadataDetail::EncodeRuntimeValue<TValue>(
+                value);
         if (!encoded) return encoded.GetStatus();
         return object.SetValue(
             this->Handle(), encoded.Value());
@@ -256,9 +291,10 @@ public:
 
     Base::Result<void> SetCurrent(
         DependencyObject& object,
-        const TValue& value) const noexcept {
+        const AccessType& value) const noexcept {
         Base::Result<Value> encoded =
-            MetadataDetail::EncodeRuntimeValue(value);
+            MetadataDetail::EncodeRuntimeValue<TValue>(
+                value);
         if (!encoded) return encoded.GetStatus();
         return object.SetCurrentValue(
             this->Handle(), encoded.Value());
