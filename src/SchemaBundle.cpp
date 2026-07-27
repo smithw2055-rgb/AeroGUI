@@ -119,7 +119,6 @@ Base::Result<void> SchemaBundle::Prepare(
 }
 
 Base::Result<void> SchemaBundle::Finalize(
-    const ModuleCatalog& modules,
     const SchemaBundleServices& requested) noexcept {
     if (impl_ == nullptr || impl_->terminal || !impl_->prepared) {
         return InvalidBundleState(

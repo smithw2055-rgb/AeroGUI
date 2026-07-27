@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     Aero::SchemaBundle bundle;
     status = bundle.Prepare(modules);
     if (!status) return Fail(status.GetStatus());
-    status = bundle.Finalize(modules, {});
+    status = bundle.Finalize({});
     if (!status) return Fail(status.GetStatus());
 
     Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =

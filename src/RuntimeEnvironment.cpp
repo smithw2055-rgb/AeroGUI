@@ -63,7 +63,7 @@ Base::Result<void> RuntimeEnvironment::Initialize() noexcept {
     Base::Result<void> prepared = state.schema.Prepare(state.modules);
     if (!prepared) return prepared.GetStatus();
     Base::Result<void> finalized = state.schema.Finalize(
-        state.modules, SchemaBundleServices{state.allocator});
+        SchemaBundleServices{state.allocator});
     if (!finalized) return finalized.GetStatus();
     Base::Result<void> frozen = state.modules.Freeze();
     if (!frozen) return frozen.GetStatus();

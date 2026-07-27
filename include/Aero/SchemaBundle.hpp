@@ -41,7 +41,6 @@ public:
     Base::Result<void> Prepare(
         const ModuleCatalog& modules) noexcept;
     Base::Result<void> Finalize(
-        const ModuleCatalog& modules,
         const SchemaBundleServices& services) noexcept;
 
     bool IsPrepared() const noexcept;

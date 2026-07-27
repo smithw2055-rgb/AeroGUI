@@ -142,7 +142,7 @@ CompileWithBuiltInSchema(
     Aero::SchemaBundle bundle;
     Aero::Base::Result<void> status = bundle.Prepare(modules);
     if (!status) return status.GetStatus();
-    status = bundle.Finalize(modules, {});
+    status = bundle.Finalize({});
     if (!status) return status.GetStatus();
     return Aero::Markup::CompiledDocument::Compile(
         reader, bundle.Schema(), origin);
