@@ -1,0 +1,42 @@
+name: Apply public metadata migration
+
+on:
+  push:
+    branches:
+      - agent/developer-friendly-metadata-api
+    paths:
+      - .github/workflows/apply-public-metadata-migration.yml
+      - .github/scripts/migrate_public_metadata_members.py
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/developer-friendly-metadata-api
+          fetch-depth: 0
+
+      - name: Rewrite public metadata declarations
+        run: python3 .github/scripts/migrate_public_metadata_members.py
+
+      - name: Commit migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            include/Aero/Controls/ControlPrimitives.hpp \
+            include/Aero/Controls/Controls.hpp \
+            include/Aero/Controls/Items.hpp \
+            include/Aero/Controls/Scroll.hpp \
+            include/Aero/Controls/Selection.hpp \
+            include/Aero/Controls/TextBox.hpp \
+            include/Aero/Controls/Virtualization.hpp \
+            include/Aero/Presentation/Layout.hpp \
+            include/Aero/Presentation/Rendering.hpp
+          git diff --cached --quiet && exit 0
+          git commit -m "api: type public dependency properties and events"
+          git push origin HEAD:agent/developer-friendly-metadata-api
