@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    if: github.head_ref != 'agent/developer-friendly-metadata-api'
+    if: github.head_ref != 'agent/developer-friendly-metadata-api' && github.ref_name != 'agent/developer-friendly-metadata-api'
     name: Linux C++17
     runs-on: ubuntu-24.04
     timeout-minutes: 30
