@@ -98,4 +98,9 @@ MakeStatusBadgeModuleManifest() noexcept {
     return manifest;
 }
 
+Base::Result<void> RegisterControlGalleryModules(
+    Aero::ModuleCatalog& modules) noexcept {
+    return modules.TryAdd(MakeStatusBadgeModuleManifest());
+}
+
 } // namespace Aero::Samples::ControlGallery

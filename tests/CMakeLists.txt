@@ -839,3 +839,17 @@ set_tests_properties(
     AeroTemplateTests
     AeroInspectorTests
     PROPERTIES LABELS "conformance")
+
+if(NOT CMAKE_CROSSCOMPILING)
+    configure_file(
+        sdk_consumer/RunInstalledConsumer.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/RunInstalledConsumer.cmake"
+        @ONLY)
+    add_test(
+        NAME AeroInstalledSdkConsumer
+        COMMAND "${CMAKE_COMMAND}" -P
+            "${CMAKE_CURRENT_BINARY_DIR}/RunInstalledConsumer.cmake")
+    set_tests_properties(AeroInstalledSdkConsumer PROPERTIES
+        LABELS "sdk;product"
+        TIMEOUT 120)
+endif()

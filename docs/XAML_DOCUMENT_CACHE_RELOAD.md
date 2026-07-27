@@ -60,28 +60,30 @@ source 逆序删除，避免提前丢失反向边。
 
 ## 文档副作用所有权
 
-成功 XAML load 产生的 Binding handle 和 DynamicResource expression 不再只属于
-临时 `XamlLoadSession`。它们被移动到 `XamlLoadResult`，再由 `UiDocument` 或
-RuntimeHost 的当前 document 持有。
+成功 XAML load 产生的 Binding 和 DynamicResource 不会立即写入 View service。
+`XamlLoadSession` 只把 deferred effect plan 移入 `XamlLoadResult` 和 `UiDocument`；
+`RuntimeHost::Mount()` 在视觉树、Presentation service 与交互注册全部成功后提交
+这些 effects。提交中途失败会逆序撤销已提交项。
 
 文档清理顺序为：
 
-1. 逆序撤销 Binding / expression effect
+1. 若已挂载，逆序撤销 Binding / expression effect
 2. 释放声明式 content edges
 3. 释放 NameScope、resources 与 root object
 
-因此丢弃未挂载 `UiDocument`、普通 Unmount、热重载替换和 Runtime shutdown 使用
-相同的确定性清理路径，不需要全局重启 BindingManager。
+未挂载文档只清理 pending expression/context，不会调用已经销毁的 View manager。
+每个 `UiDocument` 记录创建它的 View lifetime，跨 View 挂载被明确拒绝；View
+shutdown 会先使该 lifetime 失效，从而避免晚释放 document 访问悬空 service。
 
 ## 完整文档替换
 
 `RuntimeHost::ReplaceMountedDocument()` 接受一个已经成功加载的 `UiDocument`：
 
-1. 验证 replacement root 是 Visual。
-2. 卸载旧视觉树，但暂时保留旧 document 所有权。
-3. 挂载 replacement。
-4. 成功后清理旧 document 及其 committed effects。
-5. replacement 挂载失败时，清理 replacement 并尝试重新挂载旧 document。
+1. 验证 replacement 属于当前 View，且 root 是 Visual。
+2. replacement effects 保持 deferred，不影响当前文档。
+3. 卸载旧视觉树，但暂时保留旧 document 所有权。
+4. 挂载 replacement，并在挂载完成后提交 effects。
+5. 成功后清理旧 document；失败时清理 candidate 并重新挂载旧 document。
 
 该模型保证解析、资源依赖和对象实例化错误不会触碰当前 UI。替换窗口只覆盖
 实际 visual mount 切换，不声称是跨 GPU present 的无缝双缓冲交换。

@@ -144,10 +144,12 @@ auto document = view.Host().LoadUiDocument(mainUri);
 view.Host().Mount(std::move(document).Value(), availableSize);
 ```
 
-`RuntimeEnvironment` 持有共享、冻结的 `SchemaBundle`；每个 `RuntimeView` 拥有
-独立的资源层、Binding、输入、布局和渲染状态。`UiDocument` 保留 root、
-NameScope、文档资源、规范 URI、依赖列表和挂载计划，适合多窗口、预加载和后续
-热重载。
+`RuntimeEnvironment` 持有引用计数的共享状态、冻结的 `SchemaBundle` 与 document
+cache；`CreateView()` 返回持有该共享状态的 `RuntimeView`，因此轻量 Environment
+外壳可以先释放。每个 View 仍拥有独立的资源层、Binding、输入、布局和渲染状态。
+`UiDocument` 保留 root、NameScope、文档资源、规范 URI、依赖列表和挂载计划，
+并明确绑定创建它的 View；跨 View 挂载会失败。Binding 与 DynamicResource 等
+副作用在加载阶段只形成 deferred plan，成功挂载时才提交。
 
 ## RuntimeHost
 

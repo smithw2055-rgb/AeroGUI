@@ -68,5 +68,4 @@ jobs:
         run: exit 1
 
       - name: Test
-        if: github.event_name != 'pull_request'
         run: ctest --test-dir out/ci --output-on-failure --timeout 120

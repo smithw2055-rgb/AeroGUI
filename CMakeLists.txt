@@ -69,6 +69,7 @@ set(AERO_TEXT_TEST_ARABIC_FONT "" CACHE FILEPATH
     "Arabic font used by optional HarfBuzz conformance tests")
 
 include(cmake/AeroCompilerOptions.cmake)
+include(cmake/AeroAddXaml.cmake)
 
 if(AERO_BUILD_SHARED)
     set(AERO_LIBRARY_TYPE SHARED)
@@ -551,6 +552,7 @@ aero_apply_compiler_options(AeroModuleCatalog)
 
 if(AERO_BUILD_TOOLS)
     add_executable(aero-schema-gen tools/schema-gen/main.cpp)
+    add_executable(Aero::schema-gen ALIAS aero-schema-gen)
     target_link_libraries(aero-schema-gen PRIVATE AeroModuleCatalog)
     target_compile_features(aero-schema-gen PRIVATE cxx_std_17)
     set_target_properties(aero-schema-gen PROPERTIES
@@ -560,6 +562,7 @@ if(AERO_BUILD_TOOLS)
     aero_apply_compiler_options(aero-schema-gen)
 
     add_executable(aero-xamlc tools/xamlc/main.cpp)
+    add_executable(Aero::xamlc ALIAS aero-xamlc)
     target_link_libraries(aero-xamlc PRIVATE AeroModuleCatalog)
     target_compile_features(aero-xamlc PRIVATE cxx_std_17)
     set_target_properties(aero-xamlc PROPERTIES

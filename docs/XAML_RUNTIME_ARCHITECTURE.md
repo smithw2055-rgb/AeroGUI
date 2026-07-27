@@ -165,8 +165,9 @@ Binding、DynamicResource、输入、布局或渲染状态。Binding 和 Dynamic
 所需的 manager、effective-value engine 与 fallback resources 由每次加载的
 `XamlExtensionContext` 提供，不再被固化进冻结 Schema。
 
-`UiDocument` 是 move-only RAII 对象，可在挂载前独立保存和检查。现有
-`RuntimeHost` 保留为单 View 便捷封装，并提供 `LoadUiDocument`、
+`UiDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
+和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有
+`RuntimeHost` 保留为单 View 兼容封装，并提供 `LoadUiDocument`、
 `ParseUiDocument`、`LoadCompiledUiDocument` 与 `Mount(UiDocument&&, ...)`。
 旧的 root-only API 继续兼容，但产品代码优先使用 Document API。
 

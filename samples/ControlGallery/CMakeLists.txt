@@ -3,7 +3,7 @@ add_library(AeroControlGalleryModule STATIC
 target_include_directories(AeroControlGalleryModule
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(AeroControlGalleryModule
-    PUBLIC Aero::Runtime)
+    PUBLIC Aero::ModuleSdk)
 target_compile_features(AeroControlGalleryModule
     PUBLIC cxx_std_17)
 set_target_properties(AeroControlGalleryModule PROPERTIES
@@ -13,24 +13,8 @@ set_target_properties(AeroControlGalleryModule PROPERTIES
 aero_apply_compiler_options(
     AeroControlGalleryModule)
 
-add_executable(aero-controlgallery-xamlc
-    XamlCompiler.cpp)
-target_link_libraries(aero-controlgallery-xamlc
-    PRIVATE AeroControlGalleryModule)
-target_compile_features(
-    aero-controlgallery-xamlc PRIVATE cxx_std_17)
-set_target_properties(
-    aero-controlgallery-xamlc PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO)
-aero_apply_compiler_options(
-    aero-controlgallery-xamlc)
-
 set(_aero_control_gallery_assets
     "${CMAKE_CURRENT_BINARY_DIR}/assets")
-set(_aero_control_gallery_compiled
-    "${_aero_control_gallery_assets}/ControlGallery.axir")
 set(_aero_control_gallery_source_copy
     "${_aero_control_gallery_assets}/ControlGallery.xaml")
 set(_aero_control_gallery_theme_dir
@@ -40,9 +24,40 @@ set(_aero_control_gallery_theme_outputs
     "${_aero_control_gallery_theme_dir}/Light.xaml"
     "${_aero_control_gallery_theme_dir}/Dark.xaml")
 
+add_executable(AeroControlGallery
+    GalleryRuntime.cpp
+    NativeGallery.cpp
+    main.cpp)
+target_link_libraries(AeroControlGallery
+    PRIVATE Aero::EngineHost AeroControlGalleryModule)
+target_compile_definitions(AeroControlGallery PRIVATE
+    "AERO_CONTROL_GALLERY_ASSET_DIR=\"${_aero_control_gallery_assets}\"")
+target_compile_features(AeroControlGallery
+    PRIVATE cxx_std_17)
+set_target_properties(AeroControlGallery PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroControlGallery)
+
+aero_add_schema_manifest(AeroControlGallerySchema
+    OUTPUT
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/ControlGallery.aeroschema"
+    MODULE_HEADER "StatusBadge.hpp"
+    MODULE_FUNCTION
+        "Aero::Samples::ControlGallery::RegisterControlGalleryModules"
+    LIBRARIES AeroControlGalleryModule)
+
+aero_add_xaml(AeroControlGallery
+    OUTPUT_DIRECTORY "${_aero_control_gallery_assets}"
+    SCHEMA "${AeroControlGallerySchema_OUTPUT}"
+    ORIGIN_PREFIX
+        "pack://application:,,,/Aero.ControlGallery;component"
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/ControlGallery.xaml"
+    OUTPUTS_VAR _aero_control_gallery_compiled_outputs)
+
 add_custom_command(
     OUTPUT
-        "${_aero_control_gallery_compiled}"
         "${_aero_control_gallery_source_copy}"
         ${_aero_control_gallery_theme_outputs}
     COMMAND "${CMAKE_COMMAND}" -E make_directory
@@ -61,11 +76,7 @@ add_custom_command(
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "${CMAKE_SOURCE_DIR}/themes/Dark.xaml"
         "${_aero_control_gallery_theme_dir}/Dark.xaml"
-    COMMAND "$<TARGET_FILE:aero-controlgallery-xamlc>"
-        "${CMAKE_CURRENT_SOURCE_DIR}/ControlGallery.xaml"
-        "${_aero_control_gallery_compiled}"
     DEPENDS
-        aero-controlgallery-xamlc
         "${CMAKE_CURRENT_SOURCE_DIR}/ControlGallery.xaml"
         "${CMAKE_SOURCE_DIR}/themes/Generic.xaml"
         "${CMAKE_SOURCE_DIR}/themes/Light.xaml"
@@ -73,27 +84,11 @@ add_custom_command(
     VERBATIM)
 add_custom_target(AeroControlGalleryAssets ALL
     DEPENDS
-        "${_aero_control_gallery_compiled}"
         "${_aero_control_gallery_source_copy}"
-        ${_aero_control_gallery_theme_outputs})
-
-add_executable(AeroControlGallery
-    GalleryRuntime.cpp
-    NativeGallery.cpp
-    main.cpp)
-target_link_libraries(AeroControlGallery
-    PRIVATE AeroControlGalleryModule)
-target_compile_definitions(AeroControlGallery PRIVATE
-    "AERO_CONTROL_GALLERY_ASSET_DIR=\"${_aero_control_gallery_assets}\"")
-target_compile_features(AeroControlGallery
-    PRIVATE cxx_std_17)
-set_target_properties(AeroControlGallery PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO)
-aero_apply_compiler_options(AeroControlGallery)
-add_dependencies(
-    AeroControlGallery
+        ${_aero_control_gallery_theme_outputs}
+        ${_aero_control_gallery_compiled_outputs})
+add_dependencies(AeroControlGallery
+    AeroControlGallerySchema
     AeroControlGalleryAssets)
 
 if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
@@ -132,7 +127,7 @@ if(AERO_BUILD_TESTS)
             --simulate-context-loss)
     set_tests_properties(
         AeroControlGallerySmoke PROPERTIES
-        LABELS "conformance"
+        LABELS "conformance;product"
         TIMEOUT 60)
     if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
             AND AERO_ENABLE_WGL_SURFACE)
@@ -154,7 +149,7 @@ if(AERO_BUILD_TESTS)
             AeroControlGalleryD3D11Smoke
             AeroControlGalleryWglSmoke
             PROPERTIES
-                LABELS "context-loss"
+                LABELS "context-loss;product"
                 TIMEOUT 60)
         set_tests_properties(
             AeroControlGalleryWglSmoke
@@ -170,7 +165,7 @@ if(AERO_BUILD_TESTS)
         set_tests_properties(
             AeroControlGalleryGlxSmoke
             PROPERTIES
-            LABELS "context-loss"
+            LABELS "context-loss;product"
             TIMEOUT 60
             SKIP_RETURN_CODE 77)
     endif()

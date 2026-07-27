@@ -106,3 +106,19 @@ aero-schema-gen --describe Aero.aeroschema
 For cross-compilation, generate application manifests in a native host-tools
 build and pass the resulting file to `aero_add_xaml(SCHEMA ...)`. The target
 build never executes a target-platform module or schema generator.
+
+
+## Product dogfood and install gate
+
+`ControlGallery` uses the same public workflow as an application: it registers
+its custom-control module, generates a `.aeroschema`, compiles XAML through
+`aero_add_xaml()`, creates a view through `RuntimeEnvironment::CreateView()`, and
+links the product-facing SDK targets. It no longer builds a sample-specific
+XAML compiler.
+
+The test suite installs Aero into an isolated prefix, configures a separate
+`find_package(Aero)` consumer, compiles two `Main.xaml` files in different
+relative directories, links `Aero::EngineHost`, and runs the resulting program.
+This gate verifies package exports, host tools, schema paths, version headers,
+and collision-free generated XAML outputs rather than only testing the source
+tree build.

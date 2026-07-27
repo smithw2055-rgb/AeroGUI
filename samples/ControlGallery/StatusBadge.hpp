@@ -36,5 +36,7 @@ protected:
 
 Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept;
+Base::Result<void> RegisterControlGalleryModules(
+    Aero::ModuleCatalog& modules) noexcept;
 
 } // namespace Aero::Samples::ControlGallery
