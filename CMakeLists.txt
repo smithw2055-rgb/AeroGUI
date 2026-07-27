@@ -514,7 +514,8 @@ aero_apply_compiler_options(AeroMarkup)
 
 add_library(AeroModuleCatalog STATIC
     src/Module.cpp
-    src/BuiltinModules.cpp)
+    src/BuiltinModules.cpp
+    src/SchemaBundle.cpp)
 target_include_directories(AeroModuleCatalog
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

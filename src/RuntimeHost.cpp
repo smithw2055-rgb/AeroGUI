@@ -1,4 +1,5 @@
 #include <Aero/RuntimeHost.hpp>
+#include <Aero/SchemaBundle.hpp>
 
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Metadata.hpp>
@@ -9,12 +10,8 @@
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
-#include <Aero/Markup/Extensions/XamlDynamicResource.hpp>
 #include <Aero/Markup/Runtime/XamlLoader.hpp>
-#include <Aero/Markup/Resources/XamlResources.hpp>
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
-#include <Aero/Markup/Resources/XamlPresentationObjectModel.hpp>
-#include <Aero/Markup/Runtime/XamlContentWriter.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Presentation/Binding.hpp>
@@ -95,11 +92,12 @@ void DestroyRuntimeObject(
 
 struct RuntimeHost::Impl final {
     explicit Impl(Base::IAllocator& value) noexcept
-        : allocator(&value) {}
+        : allocator(&value), schemaBundle(&value) {}
 
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
-    Core::MetadataDomain metadata;
+    SchemaBundle schemaBundle;
+    Core::MetadataDomain* metadata = nullptr;
     ModuleCatalog modules;
     RuntimeHostOptions options;
     Presentation::NullRenderBackend nullBackend;
@@ -119,11 +117,7 @@ struct RuntimeHost::Impl final {
     Detail::RuntimePresentationServices presentationServices;
 
     XamlSchemaContext* schema = nullptr;
-    XamlResourceExtension resourceXaml;
     Core::ActivationProviderRegistry* activation = nullptr;
-    XamlDynamicResourceExtension* dynamicResourceXaml = nullptr;
-    XamlPresentationObjectModel* presentationXaml = nullptr;
-    XamlContentWriter* visualContentXaml = nullptr;
     Presentation::VisualTreeMount* visualMount = nullptr;
     XamlSourceProviderRegistry xamlSources;
     EmbeddedXamlSourceProvider embeddedXaml;
@@ -159,7 +153,7 @@ struct RuntimeHost::Impl final {
             XamlActivationContext::Create();
         context.dispatcher = &dispatcher;
         context.dependencyProperties =
-            &metadata.DependencyProperties();
+            &metadata->DependencyProperties();
         context.applicationServices =
             options.applicationServices;
         context.hostContext = options.hostContext;
@@ -307,7 +301,7 @@ struct RuntimeHost::Impl final {
 
     Presentation::Visual* RootVisual() noexcept {
         if (!root) return nullptr;
-        if (!metadata.Descriptors().IsDerivedFrom(
+        if (!metadata->Descriptors().IsDerivedFrom(
                 root->RuntimeType(),
                 Presentation::Visual::StaticTypeId())) {
             return nullptr;
@@ -318,7 +312,7 @@ struct RuntimeHost::Impl final {
     Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) noexcept {
         if (object.RuntimeType() != type ||
-            !metadata.Descriptors().IsDerivedFrom(
+            !metadata->Descriptors().IsDerivedFrom(
                 type, Presentation::Visual::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -353,7 +347,7 @@ struct RuntimeHost::Impl final {
         Base::Result<void> status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             templates, *tree, *values,
-            metadata.DependencyProperties(), layout, renderer);
+            metadata->DependencyProperties(), layout, renderer);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
@@ -362,11 +356,11 @@ struct RuntimeHost::Impl final {
         status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             styles, *values,
-            metadata.DependencyProperties());
+            metadata->DependencyProperties());
         if (!status) return status.GetStatus();
         presentationServices.Configure(
             *allocator,
-            metadata,
+            *metadata,
             *values,
             *styles,
             *templates,
@@ -400,14 +394,14 @@ struct RuntimeHost::Impl final {
             if (node == nullptr) continue;
             const Core::TypeId type = node->RuntimeType();
             if (controlInteractions != nullptr &&
-                metadata.Descriptors().IsDerivedFrom(
+                metadata->Descriptors().IsDerivedFrom(
                     type, Controls::ButtonBase::StaticTypeId())) {
                 Base::Result<void> attached =
                     controlInteractions->Attach(
                         *static_cast<Controls::ButtonBase*>(node));
                 if (!attached) return attached.GetStatus();
             }
-            if (metadata.Descriptors().IsDerivedFrom(
+            if (metadata->Descriptors().IsDerivedFrom(
                     type, Controls::TextBox::StaticTypeId())) {
                 auto& textBox =
                     *static_cast<Controls::TextBox*>(node);
@@ -437,7 +431,7 @@ struct RuntimeHost::Impl final {
     void ClearTextInputHosts(
         Presentation::Visual* node) noexcept {
         if (node == nullptr) return;
-        if (metadata.Descriptors().IsDerivedFrom(
+        if (metadata->Descriptors().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::TextBox::StaticTypeId())) {
             static_cast<void>(
@@ -526,12 +520,6 @@ struct RuntimeHost::Impl final {
     void ShutdownServices() noexcept {
         DestroyInteractions();
         DetachRuntimePresentation();
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup,
-            dynamicResourceXaml);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup,
-            presentationXaml);
         DestroyTemplateServices();
         if (visualMount != nullptr && visualMount->IsMounted()) {
             static_cast<void>(visualMount->Unmount({
@@ -543,14 +531,7 @@ struct RuntimeHost::Impl final {
         ClearLoadedDocument();
 
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup,
-            visualContentXaml);
-        DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation, visualMount);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup, activation);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup, schema);
 
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
@@ -577,9 +558,10 @@ struct RuntimeHost::Impl final {
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             objectServices);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
-            metadataRuntime);
+        activation = nullptr;
+        schema = nullptr;
+        metadataRuntime = nullptr;
+        metadata = nullptr;
         initialized = false;
     }
 
@@ -598,30 +580,26 @@ struct RuntimeHost::Impl final {
 
         Base::Result<void> status =
             EnsureDefaultXamlProviders();
-        if (status) {
-            status = modules.RegisterMetadata(metadata);
-        }
-        if (status) status = metadata.Seal();
+        if (status) status = schemaBundle.Prepare(modules);
         if (!status) {
             terminal = true;
             return status.GetStatus();
         }
+        metadata = &schemaBundle.Metadata();
+        metadataRuntime = &schemaBundle.Runtime();
 
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
-            metadataRuntime, metadata);
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 objectServices, dispatcher,
-                metadata.DependencyProperties(),
+                metadata->DependencyProperties(),
                 *metadataRuntime);
         }
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 values, dispatcher,
-                metadata.DependencyProperties());
+                metadata->DependencyProperties());
         }
         if (status) status = values->Initialize();
         if (status) {
@@ -651,7 +629,7 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
-                events, metadata.RoutedEvents());
+                events, metadata->RoutedEvents());
         }
         if (status) {
             status = CreateRuntimeObject(
@@ -660,65 +638,23 @@ struct RuntimeHost::Impl final {
         }
         if (status) status = CreateTemplateServices();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                schema, metadata, *metadataRuntime);
-        }
-        if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                activation,
-                metadataRuntime->Descriptors());
-        }
-        if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                visualContentXaml);
-        }
-        if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                presentationXaml,
-                XamlPresentationObjectModelOptions{
-                    metadataRuntime,
-                    &metadata.DependencyProperties(),
-                    Core::InvalidTypeId,
-                    allocator});
-        }
-        if (status) {
             status = RebuildDynamicResourceEnvironment();
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                dynamicResourceXaml,
-                XamlDynamicResourceExtensionOptions{
+            status = schemaBundle.Finalize(
+                modules,
+                SchemaBundleServices{
                     values,
-                    &dynamicResourceEnvironment});
-        }
-        if (status) status = resourceXaml.Register(*schema);
-        if (status) {
-            status = dynamicResourceXaml->Register(
-                *schema,
-                Core::MakeTypeId(
-                    Base::StringView("urn:aero"),
-                    Base::StringView("DynamicResource")));
+                    &dynamicResourceEnvironment,
+                    allocator});
         }
         if (status) {
-            status = presentationXaml->Register(
-                *schema, *activation);
-        }
-        if (status) {
-            status = visualContentXaml->Register(*schema);
-        }
-        if (status) {
+            schema = &schemaBundle.XamlSchema();
+            activation = &schemaBundle.ActivationFacets();
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 visualMount, *tree, *layout, renderer);
         }
-        if (status) status = metadataRuntime->Freeze();
-        if (status) status = schema->Freeze();
-        if (status) status = activation->Freeze();
         if (!status) {
             ShutdownServices();
             terminal = true;
@@ -865,7 +801,7 @@ struct RuntimeHost::Impl final {
             return RuntimeInvalidState(
                 "Mounted root does not match the staged XAML document");
         }
-        if (!metadata.Descriptors().IsDerivedFrom(
+        if (!metadata->Descriptors().IsDerivedFrom(
                 requestedRoot->RuntimeType(),
                 Presentation::Visual::StaticTypeId())) {
             return Base::Status::Failure(
@@ -1333,12 +1269,12 @@ Base::Object* RuntimeHost::FindNamedObject(
     if (object == nullptr || expectedType == Core::InvalidTypeId) {
         return object;
     }
-    return impl_->metadata.Descriptors().IsAssignableFrom(
+    return impl_->metadata->Descriptors().IsAssignableFrom(
         expectedType, object->RuntimeType()) ? object : nullptr;
 }
 
 Core::MetadataDomain* RuntimeHost::Metadata() noexcept {
-    return IsInitialized() ? &impl_->metadata : nullptr;
+    return IsInitialized() ? impl_->metadata : nullptr;
 }
 
 Core::MetadataRuntime*

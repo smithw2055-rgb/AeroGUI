@@ -1,6 +1,7 @@
 #include <Aero/Module.hpp>
 
 #include <Aero/BuiltinModules.hpp>
+#include <Aero/Markup/Schema/XamlRegistrationContext.hpp>
 
 #include <utility>
 
@@ -34,6 +35,7 @@ Base::Result<void> ModuleCatalog::TryAdd(
     module.schemaVersion = registration.schemaVersion;
     module.registerModule = registration.registerModule;
     module.context = registration.context;
+    module.registerXaml = registration.registerXaml;
     return modules_.TryPushBack(std::move(module));
 }
 
@@ -50,6 +52,17 @@ Base::Result<void> ModuleCatalog::RegisterMetadata(
                 module.schemaVersion,
                 module.registerModule,
                 module.context});
+        if (!registered) return registered.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> ModuleCatalog::RegisterXaml(
+    Markup::XamlRegistrationContext& context) const noexcept {
+    for (const Module& module : modules_) {
+        if (module.registerXaml == nullptr) continue;
+        Base::Result<void> registered =
+            module.registerXaml(context, module.context);
         if (!registered) return registered.GetStatus();
     }
     return {};

@@ -11,6 +11,7 @@
 #include <Aero/Markup/Resources/XamlPresentationObjectModel.hpp>
 #include <Aero/Markup/Runtime/XamlContentWriter.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/SchemaBundle.hpp>
 #include <Aero/Markup/Parsing/XamlNodeReader.hpp>
 #include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 #include <Aero/Presentation/Resources.hpp>
@@ -102,57 +103,25 @@ int main(int argc, char** argv) {
     }
 
     Aero::ModuleCatalog modules;
-    Aero::Core::MetadataDomain metadata;
+    Aero::SchemaBundle schemaBundle;
     Aero::Base::Result<void> registered =
-        modules.RegisterMetadata(metadata);
+        schemaBundle.Prepare(modules);
     if (!registered) return Fail(registered.GetStatus());
-    registered = metadata.Seal();
-    if (!registered) return Fail(registered.GetStatus());
-    Aero::Core::MetadataRuntime runtime(metadata);
-    Aero::Markup::XamlSchemaContext schema(
-        metadata, runtime);
+
     Aero::Core::Dispatcher dispatcher;
     Aero::Core::EffectiveValueEngine values(
         dispatcher,
-        metadata.DependencyProperties());
+        schemaBundle.Metadata().DependencyProperties());
     Aero::Presentation::ResourceDictionary resources;
-    Aero::Core::ActivationProviderRegistry activation(
-        runtime.Descriptors());
-    Aero::Markup::XamlResourceExtension resourceXaml;
-    Aero::Markup::XamlDynamicResourceExtension dynamicXaml({
-        &values,
-        &resources});
-    Aero::Markup::XamlPresentationObjectModel presentationXaml({
-        &runtime,
-        &metadata.DependencyProperties()});
-    Aero::Markup::XamlContentWriter visualContentXaml;
-
-    registered = resourceXaml.Register(schema);
-    if (registered) {
-        registered = dynamicXaml.Register(
-            schema,
-            Aero::Core::MakeTypeId(
-                Aero::Base::StringView("urn:aero"),
-                Aero::Base::StringView(
-                    "DynamicResource")));
-    }
-    if (registered) {
-        registered = presentationXaml.Register(
-            schema, activation);
-    }
-    if (registered) {
-        registered = visualContentXaml.Register(schema);
-    }
-    if (registered) {
-        registered = runtime.Freeze();
-    }
-    if (registered) {
-        registered = schema.Freeze();
-    }
-    if (registered) {
-        registered = activation.Freeze();
-    }
+    registered = schemaBundle.Finalize(
+        modules,
+        Aero::SchemaBundleServices{
+            &values,
+            &resources,
+            nullptr});
     if (!registered) return Fail(registered.GetStatus());
+    Aero::Markup::XamlSchemaContext& schema =
+        schemaBundle.XamlSchema();
 
     Aero::Markup::Utf8XmlTokenizer tokenizer;
     registered = tokenizer.Reset(Aero::Base::StringView(

@@ -9,15 +9,23 @@
 
 #include <cstdint>
 
+namespace Aero::Markup {
+class XamlRegistrationContext;
+}
+
 namespace Aero {
 
 using ModuleRegisterCallback = Core::MetadataModuleRegisterCallback;
+using ModuleRegisterXamlCallback = Base::Result<void> (*)(
+    Markup::XamlRegistrationContext& context,
+    void* userContext) noexcept;
 
 struct ModuleRegistration final {
     Base::StringView name;
     std::uint32_t schemaVersion = 1U;
     ModuleRegisterCallback registerModule = nullptr;
     void* context = nullptr;
+    ModuleRegisterXamlCallback registerXaml = nullptr;
 };
 
 // Root-level module catalog for AeroGUI composition. Modules register metadata
@@ -30,6 +38,8 @@ public:
         const ModuleRegistration& registration) noexcept;
     Base::Result<void> RegisterMetadata(
         Core::MetadataDomain& domain) const noexcept;
+    Base::Result<void> RegisterXaml(
+        Markup::XamlRegistrationContext& context) const noexcept;
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -43,6 +53,7 @@ private:
         std::uint32_t schemaVersion = 1U;
         ModuleRegisterCallback registerModule = nullptr;
         void* context = nullptr;
+        ModuleRegisterXamlCallback registerXaml = nullptr;
     };
 
     Base::Vector<Module> modules_;
