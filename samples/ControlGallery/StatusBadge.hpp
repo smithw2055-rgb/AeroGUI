@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
 
 namespace Aero::Samples::ControlGallery {
@@ -24,10 +25,10 @@ public:
     Base::Result<void> SetAccent(
         Presentation::Color value) noexcept;
 
-    inline static constexpr Core::DependencyPropertyHandle
-        AccentProperty =
-            Core::MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "Accent");
+    inline static constexpr auto AccentProperty =
+        Core::DefineProperty<
+            StatusBadge,
+            Presentation::Color>("Accent");
 
 protected:
     Base::Result<void> BuildDisplayList(
