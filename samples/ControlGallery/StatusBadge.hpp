@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
 
 namespace Aero::Samples::ControlGallery {
@@ -11,7 +12,7 @@ inline constexpr Base::StringView GalleryNamespace() noexcept {
 
 class StatusBadge final
     : public Controls::ContentControl {
-    AERO_TYPED_META_NAMED(
+    AERO_DECLARE_TYPE_NAMED(
         StatusBadge,
         Controls::ContentControl,
         "urn:aero-control-gallery",
@@ -24,10 +25,8 @@ public:
     Base::Result<void> SetAccent(
         Presentation::Color value) noexcept;
 
-    inline static constexpr Core::DependencyPropertyHandle
-        AccentProperty =
-            Core::MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "Accent");
+    inline static constexpr Members::Property<Presentation::Color>
+        AccentProperty{"Accent"};
 
 protected:
     Base::Result<void> BuildDisplayList(
