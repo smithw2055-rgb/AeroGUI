@@ -158,12 +158,6 @@ bool ValidateColorValue(const Core::Value& value) noexcept {
         color.alpha >= 0.0F && color.alpha <= 1.0F;
 }
 
-bool ValidateOrientationValue(const Core::Value& value) noexcept {
-    return value.Kind() == Core::ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <=
-            static_cast<std::uint64_t>(Orientation::Vertical);
-}
-
 bool ValidateUInt32(const Core::Value& value) noexcept {
     return value.Kind() == Core::ValueKind::UnsignedInteger &&
         value.AsUnsignedInteger() <=
@@ -174,22 +168,6 @@ bool ValidatePositiveUInt32(
     const Core::Value& value) noexcept {
     return ValidateUInt32(value) &&
         value.AsUnsignedInteger() != 0U;
-}
-
-bool ValidateClickModeValue(
-    const Core::Value& value) noexcept {
-    return value.Kind() == Core::ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <=
-            static_cast<std::uint64_t>(ClickMode::Hover);
-}
-
-bool ValidateSelectionModeValue(
-    const Core::Value& value) noexcept {
-    return value.Kind() ==
-            Core::ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <=
-            static_cast<std::uint64_t>(
-                SelectionMode::Extended);
 }
 
 bool ValidateObjectValue(
@@ -511,8 +489,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             ButtonBase::ClickModeProperty,
             ClickMode::Release,
-            PropertyMetadataFlags::None,
-            &ValidateClickModeValue)
+            PropertyMetadataFlags::None)
         .Property(
             ButtonBase::CommandProperty,
             Value::NullObject(TypeOf<ICommand>()),
@@ -684,8 +661,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             Track::OrientationProperty,
             Orientation::Vertical,
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateOrientationValue)
+            PropertyMetadataFlags::AffectsMeasure)
         .Property(
             Track::MinimumProperty,
             0.0,
@@ -716,8 +692,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             ScrollBar::OrientationProperty,
             Orientation::Vertical,
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateOrientationValue)
+            PropertyMetadataFlags::AffectsMeasure)
         .Property(
             ScrollBar::MinimumProperty,
             0.0,
@@ -781,8 +756,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             Selector::SelectionModeProperty,
             SelectionMode::Single,
-            PropertyMetadataFlags::None,
-            &ValidateSelectionModeValue)
+            PropertyMetadataFlags::None)
         .Property(
             Selector::SelectedIndexProperty,
             UINT32_MAX,
@@ -835,8 +809,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             StackPanel::OrientationProperty,
             Orientation::Vertical,
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateOrientationValue)
+            PropertyMetadataFlags::AffectsMeasure)
         .Factory();
     status = stackPanel.Finish();
     if (!status) return status.GetStatus();
@@ -846,8 +819,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         .Property(
             VirtualizingStackPanel::OrientationProperty,
             Orientation::Vertical,
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateOrientationValue)
+            PropertyMetadataFlags::AffectsMeasure)
         .Property(
             VirtualizingStackPanel::OverscanCountProperty,
             2U,

@@ -183,14 +183,6 @@ bool ValidateThicknessValue(const Value& value) noexcept {
     return IsFinite(t) && t.left >= 0.0 && t.top >= 0.0 &&
         t.right >= 0.0 && t.bottom >= 0.0;
 }
-bool ValidateHorizontalValue(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= static_cast<std::uint64_t>(HorizontalAlignment::Right);
-}
-bool ValidateVerticalValue(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= static_cast<std::uint64_t>(VerticalAlignment::Bottom);
-}
 Base::Result<Value> CheckMinimum(DependencyObject& object,
     const Value& value, DependencyPropertyHandle maximum) noexcept {
     Base::Result<Value> other = object.GetValue(maximum);
@@ -617,14 +609,12 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
             FrameworkElement::HorizontalAlignmentProperty,
             Value::FromUnsignedInteger(
                 TypeOf<HorizontalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange,
-            &ValidateHorizontalValue)
+            PropertyMetadataFlags::AffectsArrange)
         .Property(
             FrameworkElement::VerticalAlignmentProperty,
             Value::FromUnsignedInteger(
                 TypeOf<VerticalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange,
-            &ValidateVerticalValue)
+            PropertyMetadataFlags::AffectsArrange)
         .Property(
             FrameworkElement::UseLayoutRoundingProperty,
             false,

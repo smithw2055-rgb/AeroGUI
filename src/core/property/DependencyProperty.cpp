@@ -111,6 +111,39 @@ Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
     return ValidateValue(temporary, metadata, metadata.defaultValue);
 }
 
+namespace {
+
+bool IsRegisteredEnumValue(
+    const TypeInfo& type,
+    const PropertyValue& value) noexcept {
+    if (type.Kind() != MetadataTypeKind::Enum) return true;
+
+    if (HasTypeFlag(type.Flags(), TypeFlags::SignedEnum)) {
+        // Signed enum raw values preserve the registered underlying
+        // representation. Until descriptors store its bit width, enforce
+        // the value kind and leave range constraints to explicit metadata.
+        return value.Kind() == PropertyValueKind::SignedInteger;
+    }
+    if (value.Kind() != PropertyValueKind::UnsignedInteger) return false;
+    const std::uint64_t raw = value.AsUnsignedInteger();
+
+    if (!type.IsFlagsEnum()) {
+        for (const EnumValueInfo& candidate : type.EnumValues()) {
+            if (candidate.RawValue() == raw) return true;
+        }
+        return false;
+    }
+
+    if (raw == 0U) return true;
+    std::uint64_t declaredBits = 0U;
+    for (const EnumValueInfo& candidate : type.EnumValues()) {
+        declaredBits |= candidate.RawValue();
+    }
+    return (raw & ~declaredBits) == 0U;
+}
+
+} // namespace
+
 Base::Result<void> DependencyPropertyRegistry::ValidateValue(
     const DependencyProperty& property,
     const PropertyMetadata& metadata,
@@ -142,6 +175,10 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Dependency property value type is not assignable to the property type");
+    }
+
+    if (!IsRegisteredEnumValue(*expected, value)) {
+        return ValidationFailedStatus();
     }
 
     if (!metadata.validate.Empty() && !metadata.validate(value)) {
