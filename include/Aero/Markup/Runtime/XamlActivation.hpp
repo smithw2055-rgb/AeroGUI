@@ -48,6 +48,9 @@ struct XamlLoadContext final {
     const Base::ResourceUri* baseUri = nullptr;
     Base::Object* templatedParent = nullptr;
     Base::Ref<Base::Object> existingRoot;
+    Base::Ref<XamlEffectLifetime> effectLifetime;
+    XamlEffectCommitMode effectCommitMode =
+        XamlEffectCommitMode::Immediate;
     std::uint32_t maxObjects = UINT32_MAX;
     // Runs while the object-writer transaction is still reversible. URI,
     // resource dependency, and host validation failures therefore roll back

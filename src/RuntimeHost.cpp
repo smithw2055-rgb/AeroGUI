@@ -153,6 +153,7 @@ struct RuntimeHost::Impl final {
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
 
     XamlLoadResult loadedDocument;
+    Base::Ref<XamlEffectLifetime> effectLifetime;
     Base::Ref<Base::Object> root;
     std::uint64_t frameNumber = 0U;
     bool initialized = false;
@@ -252,7 +253,8 @@ struct RuntimeHost::Impl final {
     }
 
     Base::Result<XamlLoadOptions> LoadOptions(
-        XamlActivationContext& context) noexcept {
+        XamlActivationContext& context,
+        bool deferredEffects = false) noexcept {
         XamlLoadOptions result;
         result.resources = &dynamicResourceEnvironment;
         result.effectiveValues = values;
@@ -262,6 +264,10 @@ struct RuntimeHost::Impl final {
         result.activationFacets =
             activation;
         result.activation = &context;
+        result.effectLifetime = effectLifetime;
+        result.effectCommitMode = deferredEffects
+            ? XamlEffectCommitMode::Deferred
+            : XamlEffectCommitMode::Immediate;
         return result;
     }
 
@@ -550,6 +556,7 @@ struct RuntimeHost::Impl final {
         mounted = false;
         root.Reset();
         ClearLoadedDocument();
+        if (effectLifetime) effectLifetime->Invalidate();
 
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation, visualMount);
@@ -599,8 +606,13 @@ struct RuntimeHost::Impl final {
         }
         options = requested;
 
-        Base::Result<void> status =
-            EnsureDefaultXamlProviders();
+        Base::Result<Base::Ref<XamlEffectLifetime>> lifetime =
+            Base::MakeRefWithAllocator<XamlEffectLifetime>(*allocator);
+        Base::Result<void> status = lifetime
+            ? Base::Result<void>()
+            : Base::Result<void>(lifetime.GetStatus());
+        if (status) effectLifetime = std::move(lifetime).Value();
+        if (status) status = EnsureDefaultXamlProviders();
         if (status && !schemaBundle->IsPrepared()) {
             status = schemaBundle->Prepare(modules);
         }
@@ -803,6 +815,27 @@ struct RuntimeHost::Impl final {
             merge);
     }
 
+    Base::Result<void> ValidateDocumentRoot(
+        const Base::Ref<Base::Object>& requestedRoot) noexcept {
+        if (!requestedRoot) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root must not be null");
+        }
+        if (!metadata->Descriptors().IsDerivedFrom(
+                requestedRoot->RuntimeType(),
+                Presentation::Visual::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost root must derive from Visual");
+        }
+        Base::Result<Presentation::UIElement*> rootLayout =
+            ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
+        return rootLayout
+            ? Base::Result<void>()
+            : Base::Result<void>(rootLayout.GetStatus());
+    }
+
     Base::Result<void> MountRoot(
         Base::Ref<Base::Object> requestedRoot,
         Presentation::Size availableSize) noexcept {
@@ -814,22 +847,12 @@ struct RuntimeHost::Impl final {
             return RuntimeInvalidState(
                 "RuntimeHost already has a mounted root");
         }
-        if (!requestedRoot) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "RuntimeHost root must not be null");
-        }
+        Base::Result<void> validRoot = ValidateDocumentRoot(requestedRoot);
+        if (!validRoot) return validRoot.GetStatus();
         if (loadedDocument.root &&
             loadedDocument.root.Get() != requestedRoot.Get()) {
             return RuntimeInvalidState(
                 "Mounted root does not match the staged XAML document");
-        }
-        if (!metadata->Descriptors().IsDerivedFrom(
-                requestedRoot->RuntimeType(),
-                Presentation::Visual::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "RuntimeHost root must derive from Visual");
         }
         Base::Result<Presentation::Visual*> rootVisual =
             ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
@@ -878,6 +901,18 @@ struct RuntimeHost::Impl final {
             root.Reset();
             ClearLoadedDocument();
             return interactions.GetStatus();
+        }
+        Base::Result<void> effects = loadedDocument.effects.Commit();
+        if (!effects) {
+            DestroyInteractions();
+            DetachRuntimePresentation();
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return effects.GetStatus();
         }
         return {};
     }
@@ -1014,7 +1049,7 @@ Base::Result<UiDocument> RuntimeHost::LoadUiDocument(
     XamlActivationContext activationContext =
         impl_->ActivationContext();
     Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
+        impl_->LoadOptions(activationContext, true);
     if (!options) return options.GetStatus();
     XamlLoader loader(
         *impl_->schema,
@@ -1038,7 +1073,7 @@ Base::Result<UiDocument> RuntimeHost::ParseUiDocument(
     XamlActivationContext activationContext =
         impl_->ActivationContext();
     Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
+        impl_->LoadOptions(activationContext, true);
     if (!options) return options.GetStatus();
     XamlLoader loader(
         *impl_->schema,
@@ -1061,7 +1096,7 @@ Base::Result<UiDocument> RuntimeHost::LoadCompiledUiDocument(
     XamlActivationContext activationContext =
         impl_->ActivationContext();
     Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
+        impl_->LoadOptions(activationContext, true);
     if (!options) return options.GetStatus();
     XamlLoader loader(*impl_->schema, impl_->xamlSources);
     Base::Result<XamlLoadResult> loaded =
@@ -1267,6 +1302,13 @@ Base::Result<void> RuntimeHost::Mount(
             Base::ErrorCode::InvalidArgument,
             "RuntimeHost cannot mount an empty UI document");
     }
+    if (document.RuntimeLifetime() != impl_->effectLifetime.Get()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "UI document belongs to another RuntimeView");
+    }
+    Base::Result<void> valid = impl_->ValidateDocumentRoot(document.Root());
+    if (!valid) return valid.GetStatus();
     impl_->loadedDocument = document.TakeResult();
     return impl_->MountRoot(
         impl_->loadedDocument.root, availableSize);
@@ -1284,6 +1326,13 @@ Base::Result<void> RuntimeHost::ReplaceMountedDocument(
             Base::ErrorCode::InvalidArgument,
             "RuntimeHost cannot replace a document with an empty document");
     }
+    if (document.RuntimeLifetime() != impl_->effectLifetime.Get()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Replacement UI document belongs to another RuntimeView");
+    }
+    Base::Result<void> valid = impl_->ValidateDocumentRoot(document.Root());
+    if (!valid) return valid.GetStatus();
 
     XamlLoadResult next = document.TakeResult();
     if (!next.root ||

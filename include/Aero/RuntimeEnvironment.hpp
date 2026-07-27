@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
@@ -10,13 +11,16 @@
 
 namespace Aero {
 
-// Process/application-level immutable composition. Multiple RuntimeView objects
-// can share its MetadataRuntime and XAML schema while retaining independent
-// layout, input, resources, bindings, and rendering state.
+class RuntimeView;
+
+// Process/application-level immutable composition. Its internal state is
+// reference counted so views remain valid when the lightweight environment
+// facade is released. Modules and schemas are still frozen exactly once.
 class AERO_API RuntimeEnvironment final {
 public:
     explicit RuntimeEnvironment(
         Base::IAllocator* allocator = nullptr) noexcept;
+    ~RuntimeEnvironment() noexcept = default;
 
     RuntimeEnvironment(const RuntimeEnvironment&) = delete;
     RuntimeEnvironment& operator=(const RuntimeEnvironment&) = delete;
@@ -24,28 +28,28 @@ public:
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
     Base::Result<void> Initialize() noexcept;
+    Base::Result<Base::Ref<RuntimeView>> CreateView(
+        const RuntimeHostOptions& options = {},
+        Base::IAllocator* allocator = nullptr) noexcept;
 
     bool IsInitialized() const noexcept;
-    SchemaBundle& Schema() noexcept { return schema_; }
-    const SchemaBundle& Schema() const noexcept { return schema_; }
-    Markup::XamlDocumentCache& Documents() noexcept { return documents_; }
-    const Markup::XamlDocumentCache& Documents() const noexcept {
-        return documents_;
-    }
+    SchemaBundle& Schema() noexcept;
+    const SchemaBundle& Schema() const noexcept;
+    Markup::XamlDocumentCache& Documents() noexcept;
+    const Markup::XamlDocumentCache& Documents() const noexcept;
 
 private:
+    friend class RuntimeView;
     Base::IAllocator* allocator_ = nullptr;
-    ModuleCatalog modules_;
-    SchemaBundle schema_;
-    Markup::XamlDocumentCache documents_;
-    bool initialized_ = false;
+    Base::Ref<Base::Object> state_;
 };
 
-class AERO_API RuntimeView final {
+class AERO_API RuntimeView final : public Base::Object {
 public:
     explicit RuntimeView(
         RuntimeEnvironment& environment,
         Base::IAllocator* allocator = nullptr) noexcept;
+    ~RuntimeView() noexcept override { Shutdown(); }
 
     RuntimeView(const RuntimeView&) = delete;
     RuntimeView& operator=(const RuntimeView&) = delete;
@@ -58,7 +62,7 @@ public:
     const RuntimeHost& Host() const noexcept { return host_; }
 
 private:
-    RuntimeEnvironment* environment_ = nullptr;
+    Base::Ref<Base::Object> environmentState_;
     RuntimeHost host_;
 };
 

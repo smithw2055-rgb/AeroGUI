@@ -115,6 +115,54 @@ void CleanupDynamicResource(void* context) noexcept {
 }
 
 
+struct DeferredDynamicResourceState final {
+    Core::EffectiveValueEngine* engine = nullptr;
+    Core::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle property;
+    Base::Vector<const ResourceDictionary*> resources;
+    ResourceDictionary* fallbackResources = nullptr;
+    Base::String key;
+    Base::IAllocator* allocator = nullptr;
+};
+
+Base::Result<std::uint64_t> CommitDynamicResource(void* context) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state == nullptr || state->engine == nullptr ||
+        state->target == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred DynamicResource state is invalid");
+    }
+    Base::Result<void> attached = DynamicResource::Attach(
+        *state->engine,
+        {state->resources.Data(), state->resources.Size()},
+        state->fallbackResources,
+        *state->target, state->property, state->key.View());
+    return attached
+        ? Base::Result<std::uint64_t>(1U)
+        : Base::Result<std::uint64_t>(attached.GetStatus());
+}
+
+void RollbackDynamicResource(
+    void* context, std::uint64_t token) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state != nullptr && token != 0U && state->engine != nullptr &&
+        state->target != nullptr) {
+        static_cast<void>(state->engine->ClearLocalExpression(
+            *state->target, state->property));
+    }
+}
+
+void CleanupDeferredDynamicResource(void* context) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state == nullptr) return;
+    Base::IAllocator* allocator = state->allocator;
+    state->~DeferredDynamicResourceState();
+    allocator->Deallocate(
+        state, sizeof(DeferredDynamicResourceState),
+        alignof(DeferredDynamicResourceState), Base::MemoryTag::Markup);
+}
+
 } // namespace
 
 Base::Result<void> DynamicResource::Attach(
@@ -310,18 +358,41 @@ Base::Result<XamlProvidedValue> XamlDynamicResourceExtension::ProvideValue(
             Base::ErrorCode::InvalidState,
             "DynamicResource requires load-scoped effective-value and resource services");
     }
-    Base::Result<Core::PropertyExpression> expression =
-        DynamicResource::CreateExpression(
-            *effectiveValues,
-            services.ambientResourceChain,
-            fallbackResources,
-            *target,
-            property,
-            key);
-    if (!expression) return expression.GetStatus();
-    return XamlProvidedValue::Expression(
-        *effectiveValues,
-        expression.Value());
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(DeferredDynamicResourceState),
+        alignof(DeferredDynamicResourceState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Deferred DynamicResource allocation failed");
+    }
+    auto* state = new (memory) DeferredDynamicResourceState();
+    state->engine = effectiveValues;
+    state->target = target;
+    state->property = property;
+    state->fallbackResources = fallbackResources;
+    state->allocator = &allocator;
+    Base::Result<void> reserved = state->resources.TryReserve(
+        services.ambientResourceChain.Size());
+    if (reserved) {
+        for (const ResourceDictionary* resource :
+             services.ambientResourceChain) {
+            reserved = state->resources.TryPushBack(resource);
+            if (!reserved) break;
+        }
+    }
+    if (reserved) reserved = state->key.TryAssign(key);
+    if (!reserved) {
+        CleanupDeferredDynamicResource(state);
+        return reserved.GetStatus();
+    }
+    return XamlProvidedValue::Deferred(
+        state,
+        &CommitDynamicResource,
+        &RollbackDynamicResource,
+        &CleanupDeferredDynamicResource);
 }
 
 } // namespace Aero::Markup

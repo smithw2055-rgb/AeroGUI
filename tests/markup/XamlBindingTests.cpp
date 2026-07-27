@@ -323,13 +323,10 @@ Result<void> AddChild(
 }
 
 template<class T>
-Result<Ref<Object>> LoadRootForTest(
+Result<XamlLoadResult> LoadRootForTest(
     XamlObjectWriter& writer,
     T& input) noexcept {
-    Result<XamlLoadResult> loaded =
-        writer.LoadDocument(input);
-    if (!loaded) return loaded.GetStatus();
-    return loaded.Value().root;
+    return writer.LoadDocument(input);
 }
 
 bool TestElementNameOneWayBinding() {
@@ -347,11 +344,11 @@ bool TestElementNameOneWayBinding() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, reader);
     CHECK(loaded);
 
-    BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
+    BindableNode& root = static_cast<BindableNode&>(*loaded.Value().root);
     CHECK(root.Children().Size() == 2U);
     BindableNode& source = static_cast<BindableNode&>(*root.Children()[0]);
     BindableNode& target = static_cast<BindableNode&>(*root.Children()[1]);
@@ -387,7 +384,7 @@ bool TestBindingArgumentsAreValidated() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, reader);
     CHECK(!loaded);
     CHECK(loaded.GetStatus().code == ErrorCode::ValidationFailed);
@@ -410,11 +407,11 @@ bool TestDataContextBinding() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, reader);
     CHECK(loaded);
 
-    BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
+    BindableNode& root = static_cast<BindableNode&>(*loaded.Value().root);
     CHECK(root.Children().Size() == 1U);
     BindableNode& target = static_cast<BindableNode&>(*root.Children()[0]);
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::DataBind));
@@ -447,11 +444,11 @@ bool TestDataContextBindingReResolvesAndWritesBack() {
         static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, reader);
     CHECK(loaded);
 
-    BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
+    BindableNode& root = static_cast<BindableNode&>(*loaded.Value().root);
     BindableNode& target = static_cast<BindableNode&>(*root.Children()[0]);
     CHECK(fixture.dispatcher.RunFramePhase(
         DispatcherFramePhase::DataBind));
@@ -521,11 +518,11 @@ bool TestCompiledDocumentReplaysWithoutXmlTokenization() {
     CHECK(!truncated);
 
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, decoded.Value());
     CHECK(loaded);
     BindableNode& root =
-        static_cast<BindableNode&>(*loaded.Value());
+        static_cast<BindableNode&>(*loaded.Value().root);
     CHECK(root.Children().Size() == 2U);
     BindableNode& target =
         static_cast<BindableNode&>(*root.Children()[1]);
@@ -559,10 +556,10 @@ bool TestXamlDynamicResourceReevaluatesAfterDictionaryReplacement() {
         xaml, static_cast<std::uint32_t>(std::strlen(xaml)))));
     XamlNodeReader reader(tokenizer);
     XamlObjectWriter writer(*fixture.schema);
-    Result<Ref<Object>> loaded =
+    Result<XamlLoadResult> loaded =
         LoadRootForTest(writer, reader);
     CHECK(loaded);
-    BindableNode& root = static_cast<BindableNode&>(*loaded.Value());
+    BindableNode& root = static_cast<BindableNode&>(*loaded.Value().root);
     CHECK(root.Children().Size() == 1U);
     BindableNode& target = static_cast<BindableNode&>(*root.Children()[0]);
 

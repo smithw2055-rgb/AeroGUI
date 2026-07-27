@@ -584,6 +584,8 @@ XamlLoader::Operation::LoadCompiledDocument(
     context.baseUri = &originUri;
     context.templatedParent = options.templatedParent;
     context.existingRoot = existingRoot;
+    context.effectLifetime = options.effectLifetime;
+    context.effectCommitMode = options.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     FinalizeContext finalize{
         this, &options, &originUri, &document};
@@ -802,6 +804,8 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::ParseCore(
     context.baseUri = &baseUri;
     context.templatedParent = options.templatedParent;
     context.existingRoot = existingRoot;
+    context.effectLifetime = options.effectLifetime;
+    context.effectCommitMode = options.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     FinalizeContext finalize{
         this, &options, &baseUri, nullptr};

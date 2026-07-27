@@ -4,7 +4,9 @@
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/RuntimeEnvironment.hpp>
 #include <Aero/RuntimeHost.hpp>
+#include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/QueuedRenderBackend.hpp>
 #include <Aero/RuntimeSafety.hpp>
 #include <Aero/Markup/Compiled/XamlCompiledCache.hpp>
@@ -518,6 +520,117 @@ bool TestRuntimeHostXamlTemplate() {
     return true;
 }
 
+bool TestEnvironmentStateOutlivesFacade() {
+    Ref<RuntimeView> view;
+    {
+        RuntimeEnvironment environment;
+        CHECK(environment.Initialize());
+        Result<Ref<RuntimeView>> created = environment.CreateView();
+        CHECK(created);
+        view = std::move(created).Value();
+    }
+
+    Result<Ref<Border>> made = MakeRef<Border>();
+    CHECK(made);
+    Ref<Object> root(std::move(made).Value());
+    CHECK(view->Host().Mount(root, {160.0, 90.0}));
+    CHECK(view->Host().RunFrame());
+    CHECK(view->Host().Unmount());
+    view.Reset();
+    return true;
+}
+
+bool TestUiDocumentDefersEffectsUntilMount() {
+    RuntimeEnvironment environment;
+    CHECK(environment.Initialize());
+    RuntimeView view(environment);
+    CHECK(view.Initialize());
+    EmbeddedXamlSourceProvider* embedded =
+        view.Host().EmbeddedXamlSources();
+    CHECK(embedded != nullptr);
+    Result<ResourceUri> resourcesUri = ResourceUri::Parse(
+        "pack://application:,,,/Aero.Tests;component/Deferred/Resources.xaml");
+    CHECK(resourcesUri);
+    CHECK(embedded->TryAddText(
+        resourcesUri.Value(),
+        "<ResourceDictionary xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+        "<Color x:Key=\"DeferredAccent\" Value=\"#FF0000FF\"/>"
+        "</ResourceDictionary>"));
+    CHECK(view.Host().LoadResources(
+        RuntimeResourceLayer::Application,
+        resourcesUri.Value().Canonical()));
+
+    Result<UiDocument> loaded = view.Host().ParseUiDocument(
+        "<Border xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"Target\" "
+        "Background=\"{DynamicResource DeferredAccent}\"/>");
+    CHECK(loaded);
+    auto* pending = static_cast<Border*>(
+        loaded.Value().FindNamedObject(
+            "Target", Border::StaticTypeId()));
+    CHECK(pending != nullptr);
+    CHECK(pending->Background().blue == 0.0F);
+    CHECK(view.Host().Mount(std::move(loaded).Value(), {320.0, 180.0}));
+    CHECK(view.Host().RunFrame());
+    Border* target = view.Host().FindNamed<Border>("Target");
+    CHECK(target != nullptr);
+    CHECK(target->Background().blue == 1.0F);
+    CHECK(view.Host().Unmount());
+    return true;
+}
+
+bool TestUiDocumentIsViewAffineAndSafeAfterShutdown() {
+    RuntimeEnvironment environment;
+    CHECK(environment.Initialize());
+    RuntimeView first(environment);
+    RuntimeView second(environment);
+    CHECK(first.Initialize());
+    CHECK(second.Initialize());
+
+    Result<UiDocument> loaded = first.Host().ParseUiDocument(
+        "<Border xmlns=\"urn:aero\" Width=\"80\"/>");
+    CHECK(loaded);
+    UiDocument document = std::move(loaded).Value();
+    Result<void> wrongView = second.Host().Mount(
+        std::move(document), {100.0, 100.0});
+    CHECK(!wrongView);
+    CHECK(wrongView.GetStatus().code == ErrorCode::InvalidArgument);
+    CHECK(document.IsValid());
+    CHECK(first.Host().Mount(std::move(document), {100.0, 100.0}));
+    CHECK(first.Host().Unmount());
+
+    UiDocument detached;
+    {
+        RuntimeView temporary(environment);
+        CHECK(temporary.Initialize());
+        EmbeddedXamlSourceProvider* embedded =
+            temporary.Host().EmbeddedXamlSources();
+        CHECK(embedded != nullptr);
+        Result<ResourceUri> resourceUri = ResourceUri::Parse(
+            "pack://application:,,,/Aero.Tests;component/Detached/Resources.xaml");
+        CHECK(resourceUri);
+        CHECK(embedded->TryAddText(
+            resourceUri.Value(),
+            "<ResourceDictionary xmlns=\"urn:aero\" "
+            "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
+            "<Color x:Key=\"SafeAccent\" Value=\"#FFFF0000\"/>"
+            "</ResourceDictionary>"));
+        CHECK(temporary.Host().LoadResources(
+            RuntimeResourceLayer::Application,
+            resourceUri.Value().Canonical()));
+        Result<UiDocument> pending = temporary.Host().ParseUiDocument(
+            "<Border xmlns=\"urn:aero\" "
+            "Background=\"{DynamicResource SafeAccent}\"/>");
+        CHECK(pending);
+        detached = std::move(pending).Value();
+    }
+    CHECK(detached.IsValid());
+    detached = UiDocument{};
+    return true;
+}
+
 bool TestRuntimeHostLifecycle() {
     RuntimeHost runtime;
     CHECK(runtime.Initialize());
@@ -679,6 +792,9 @@ bool TestEventRouteLifetimeSnapshot() {
 int main() {
     if (!TestRootModuleCatalogAndSchemaIdentity()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
+    if (!TestEnvironmentStateOutlivesFacade()) return 1;
+    if (!TestUiDocumentDefersEffectsUntilMount()) return 1;
+    if (!TestUiDocumentIsViewAffineAndSafeAfterShutdown()) return 1;
     if (!TestRuntimeHostLifecycle()) return 1;
     if (!TestRuntimeHostHighLevelMarkupApi()) return 1;
     if (!TestRuntimeHostResourceDictionaryDependencies()) return 1;

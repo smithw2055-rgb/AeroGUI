@@ -12,6 +12,7 @@
 #include <cstdint>
 
 namespace Aero::Markup {
+class XamlEffectLifetime;
 struct XamlLoadResult;
 }
 
@@ -56,6 +57,7 @@ private:
         Markup::XamlLoadResult&& result,
         Base::IAllocator& allocator) noexcept;
     Markup::XamlLoadResult TakeResult() noexcept;
+    const Markup::XamlEffectLifetime* RuntimeLifetime() const noexcept;
     void Reset() noexcept;
 
     Base::IAllocator* allocator_ = nullptr;

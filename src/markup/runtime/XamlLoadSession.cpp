@@ -246,6 +246,9 @@ Base::Result<XamlLoadResult> XamlLoadSession::CompleteLoad(
     result.resources = std::move(committedResources_);
     result.visualContent = std::move(resultVisualContent_);
     result.effects.Items() = std::move(extensionEffects_);
+    if (loadContext_ != nullptr) {
+        result.runtimeLifetime = loadContext_->effectLifetime;
+    }
     if (!deferredContent_.Empty()) {
         result.Clear();
         AbortTransaction();
@@ -1658,14 +1661,7 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
             source);
     }
     if (targetObjectIndex >= created_.Size()) {
-        if (provided.expression.cleanup != nullptr) {
-            provided.expression.cleanup(provided.expression.context);
-        }
-        if (provided.rollback != nullptr) {
-            provided.rollback(
-                provided.rollbackContext,
-                provided.rollbackToken);
-        }
+        provided.Discard();
         return Failure(
             InvalidStateStatus(),
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
@@ -1680,14 +1676,7 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
     if (!policy.writable ||
         (assignment != nullptr && assignment->count != 0U &&
          policy.mode == XamlMemberWriteMode::SetOnce)) {
-        if (provided.expression.cleanup != nullptr) {
-            provided.expression.cleanup(provided.expression.context);
-        }
-        if (provided.rollback != nullptr) {
-            provided.rollback(
-                provided.rollbackContext,
-                provided.rollbackToken);
-        }
+        provided.Discard();
         return Failure(
             Base::Status::Failure(
                 policy.writable
@@ -1708,26 +1697,20 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
         Base::Result<void> appended = assignments_.TryPushBack({
             targetObjectIndex, member.id, 0U});
         if (!appended) {
-            if (provided.expression.cleanup != nullptr) {
-                provided.expression.cleanup(provided.expression.context);
-            }
-            if (provided.rollback != nullptr) {
-                provided.rollback(
-                    provided.rollbackContext,
-                    provided.rollbackToken);
-            }
+            provided.Discard();
             return appended.GetStatus();
         }
         assignment = &assignments_.Back();
     }
 
     XamlCommittedEffect effect;
+    if (loadContext_ != nullptr) {
+        effect.lifetime = loadContext_->effectLifetime;
+    }
     if (provided.kind == XamlProvidedValueKind::Expression) {
         if (provided.effectiveValues == nullptr ||
             !provided.expression.IsValid()) {
-            if (provided.expression.cleanup != nullptr) {
-                provided.expression.cleanup(provided.expression.context);
-            }
+            provided.Discard();
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Markup extension returned an invalid property expression");
@@ -1736,36 +1719,48 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
             schema_->ResolvePropertyTarget(
                 *created_[targetObjectIndex].object);
         if (!target) {
-            if (provided.expression.cleanup != nullptr) {
-                provided.expression.cleanup(provided.expression.context);
-            }
+            provided.Discard();
             return target.GetStatus();
-        }
-        const Core::DependencyPropertyHandle property{member.id};
-        Base::Result<void> installed =
-            provided.effectiveValues->SetLocalExpression(
-                *target.Value(), property, provided.expression);
-        if (!installed) {
-            if (provided.expression.cleanup != nullptr) {
-                provided.expression.cleanup(provided.expression.context);
-            }
-            return installed.GetStatus();
         }
         effect.effectiveValues = provided.effectiveValues;
         effect.target = target.Value();
-        effect.property = property;
+        effect.property = Core::DependencyPropertyHandle{member.id};
+        effect.pendingExpression = provided.expression;
+        provided.expression = {};
     } else if (provided.kind == XamlProvidedValueKind::Handled) {
-        effect.rollbackContext = provided.rollbackContext;
-        effect.rollbackToken = provided.rollbackToken;
+        effect.context = provided.rollbackContext;
+        effect.token = provided.rollbackToken;
         effect.rollback = provided.rollback;
+        effect.committed = true;
+        provided.rollbackContext = nullptr;
+        provided.rollback = nullptr;
+    } else if (provided.kind == XamlProvidedValueKind::Deferred) {
+        effect.context = provided.rollbackContext;
+        effect.commit = provided.commit;
+        effect.rollback = provided.rollback;
+        effect.cleanup = provided.cleanup;
+        provided.rollbackContext = nullptr;
+        provided.commit = nullptr;
+        provided.rollback = nullptr;
+        provided.cleanup = nullptr;
     } else {
+        provided.Discard();
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Markup extension returned an unknown value kind");
     }
 
+    const bool immediate = loadContext_ == nullptr ||
+        loadContext_->effectCommitMode == XamlEffectCommitMode::Immediate;
+    if (immediate && !effect.committed) {
+        Base::Result<void> committed = effect.Commit();
+        if (!committed) {
+            effect.Rollback();
+            return committed.GetStatus();
+        }
+    }
     Base::Result<void> effectStored =
-        extensionEffects_.TryPushBack(effect);
+        extensionEffects_.TryPushBack(std::move(effect));
     if (!effectStored) {
         effect.Rollback();
         return effectStored.GetStatus();
@@ -2533,14 +2528,7 @@ void XamlLoadSession::AbortTransaction() noexcept {
     deferredContent_.ReleaseAll();
     for (std::uint32_t index = extensionEffects_.Size();
          index > 0U; --index) {
-        XamlCommittedEffect& effect = extensionEffects_[index - 1U];
-        if (effect.effectiveValues != nullptr && effect.target != nullptr) {
-            static_cast<void>(effect.effectiveValues->ClearLocalExpression(
-                *effect.target, effect.property));
-        }
-        if (effect.rollback != nullptr) {
-            effect.rollback(effect.rollbackContext, effect.rollbackToken);
-        }
+        extensionEffects_[index - 1U].Rollback();
     }
     extensionEffects_.Clear();
     for (std::uint32_t index = created_.Size(); index > 0U; --index) {

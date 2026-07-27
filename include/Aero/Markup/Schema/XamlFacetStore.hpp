@@ -58,12 +58,16 @@ using XamlResolvePropertyTargetCallback = Core::DependencyObject* (*)(
 enum class XamlProvidedValueKind : std::uint8_t {
     Value = 0U,
     Handled,
-    Expression
+    Expression,
+    Deferred
 };
 
+using XamlProvidedCommitCallback = Base::Result<std::uint64_t> (*)(
+    void* context) noexcept;
 using XamlProvidedRollbackCallback = void (*)(
     void* context,
     std::uint64_t token) noexcept;
+using XamlProvidedCleanupCallback = void (*)(void* context) noexcept;
 
 struct XamlProvidedValue final {
     XamlProvidedValueKind kind = XamlProvidedValueKind::Value;
@@ -73,6 +77,8 @@ struct XamlProvidedValue final {
     void* rollbackContext = nullptr;
     std::uint64_t rollbackToken = 0U;
     XamlProvidedRollbackCallback rollback = nullptr;
+    XamlProvidedCommitCallback commit = nullptr;
+    XamlProvidedCleanupCallback cleanup = nullptr;
 
     static XamlProvidedValue FromValue(XamlValue&& provided) noexcept {
         XamlProvidedValue result;
@@ -98,6 +104,37 @@ struct XamlProvidedValue final {
         result.effectiveValues = &engine;
         result.expression = provided;
         return result;
+    }
+    static XamlProvidedValue Deferred(
+        void* context,
+        XamlProvidedCommitCallback commitCallback,
+        XamlProvidedRollbackCallback rollbackCallback,
+        XamlProvidedCleanupCallback cleanupCallback) noexcept {
+        XamlProvidedValue result;
+        result.kind = XamlProvidedValueKind::Deferred;
+        result.rollbackContext = context;
+        result.commit = commitCallback;
+        result.rollback = rollbackCallback;
+        result.cleanup = cleanupCallback;
+        return result;
+    }
+    void Discard() noexcept {
+        if (kind == XamlProvidedValueKind::Expression &&
+            expression.cleanup != nullptr) {
+            expression.cleanup(expression.context);
+        } else if (kind == XamlProvidedValueKind::Handled &&
+                   rollback != nullptr) {
+            rollback(rollbackContext, rollbackToken);
+        } else if (kind == XamlProvidedValueKind::Deferred &&
+                   cleanup != nullptr) {
+            cleanup(rollbackContext);
+        }
+        expression = {};
+        rollbackContext = nullptr;
+        rollbackToken = 0U;
+        rollback = nullptr;
+        commit = nullptr;
+        cleanup = nullptr;
     }
 };
 

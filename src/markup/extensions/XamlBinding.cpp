@@ -1,6 +1,9 @@
 #include <Aero/Markup/Extensions/XamlBinding.hpp>
 
+#include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
+
+#include <new>
 
 namespace Aero::Markup {
 namespace {
@@ -126,13 +129,61 @@ Base::Result<void> ParseArguments(
     return {};
 }
 
+struct DeferredBindingState final {
+    Presentation::BindingManager* manager = nullptr;
+    Core::MetadataRuntime* metadata = nullptr;
+    Base::Object* source = nullptr;
+    Core::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle targetProperty;
+    Core::DependencyPropertyHandle dataContextProperty;
+    Base::String path;
+    Presentation::BindingMode mode = Presentation::BindingMode::OneWay;
+    Core::UpdateSourceTrigger updateSourceTrigger =
+        Core::UpdateSourceTrigger::PropertyChanged;
+    Base::IAllocator* allocator = nullptr;
+};
+
+Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr || state->manager == nullptr ||
+        state->metadata == nullptr || state->target == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred Binding state is invalid");
+    }
+    Presentation::MetadataBindingDescriptor descriptor;
+    descriptor.metadata = state->metadata;
+    descriptor.source = state->source;
+    descriptor.target = state->target;
+    descriptor.targetProperty = state->targetProperty;
+    descriptor.dataContextProperty = state->dataContextProperty;
+    descriptor.path = state->path.View();
+    descriptor.mode = state->mode;
+    descriptor.updateSourceTrigger = state->updateSourceTrigger;
+    Base::Result<Presentation::BindingHandle> attached =
+        state->manager->Attach(descriptor);
+    return attached
+        ? Base::Result<std::uint64_t>(attached.Value().value)
+        : Base::Result<std::uint64_t>(attached.GetStatus());
+}
+
 void RollbackBinding(
     void* context,
     std::uint64_t token) noexcept {
-    auto* manager = static_cast<Presentation::BindingManager*>(context);
-    if (manager != nullptr && token != 0U) {
-        static_cast<void>(manager->Detach({token}));
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state != nullptr && state->manager != nullptr && token != 0U) {
+        static_cast<void>(state->manager->Detach({token}));
     }
+}
+
+void CleanupBinding(void* context) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr) return;
+    Base::IAllocator* allocator = state->allocator;
+    state->~DeferredBindingState();
+    allocator->Deallocate(
+        state, sizeof(DeferredBindingState),
+        alignof(DeferredBindingState), Base::MemoryTag::Markup);
 }
 
 } // namespace
@@ -220,26 +271,33 @@ Base::Result<XamlProvidedValue> XamlBindingExtension::ProvideValue(
             "Binding requires a load-scoped BindingManager");
     }
 
-    Presentation::MetadataBindingDescriptor descriptor;
-    descriptor.metadata = services.schema->Runtime();
-    descriptor.source = source;
-    descriptor.target = target;
-    descriptor.targetProperty = targetHandle;
-    descriptor.dataContextProperty =
-        extension->options_.dataContextProperty;
-    descriptor.path = path;
-    descriptor.mode = mode;
-    descriptor.updateSourceTrigger = updateSourceTrigger;
-    Base::Result<Presentation::BindingHandle> attached =
-        bindings->Attach(descriptor);
-    if (!attached) {
-        return attached.GetStatus();
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(DeferredBindingState),
+        alignof(DeferredBindingState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Deferred Binding allocation failed");
     }
-
-    return XamlProvidedValue::Handled(
-        bindings,
-        attached.Value().value,
-        &RollbackBinding);
+    auto* state = new (memory) DeferredBindingState();
+    state->manager = bindings;
+    state->metadata = services.schema->Runtime();
+    state->source = source;
+    state->target = target;
+    state->targetProperty = targetHandle;
+    state->dataContextProperty = extension->options_.dataContextProperty;
+    state->mode = mode;
+    state->updateSourceTrigger = updateSourceTrigger;
+    state->allocator = &allocator;
+    Base::Result<void> assigned = state->path.TryAssign(path);
+    if (!assigned) {
+        CleanupBinding(state);
+        return assigned.GetStatus();
+    }
+    return XamlProvidedValue::Deferred(
+        state, &CommitBinding, &RollbackBinding, &CleanupBinding);
 }
 
 } // namespace Aero::Markup

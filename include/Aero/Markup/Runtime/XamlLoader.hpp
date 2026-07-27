@@ -234,6 +234,9 @@ struct XamlLoadOptions final {
     Core::ActivationProviderRegistry* activationFacets = nullptr;
     const Core::ObjectActivationContext* activation = nullptr;
     Base::Object* templatedParent = nullptr;
+    Base::Ref<XamlEffectLifetime> effectLifetime;
+    XamlEffectCommitMode effectCommitMode =
+        XamlEffectCommitMode::Immediate;
 };
 
 class AERO_API XamlLoader final {

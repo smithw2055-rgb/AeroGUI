@@ -105,6 +105,13 @@ Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
         : Base::Span<const Base::ResourceUri>{};
 }
 
+const Markup::XamlEffectLifetime*
+UiDocument::RuntimeLifetime() const noexcept {
+    return impl_ != nullptr
+        ? impl_->result.runtimeLifetime.Get()
+        : nullptr;
+}
+
 Markup::XamlLoadResult UiDocument::TakeResult() noexcept {
     if (impl_ == nullptr) {
         Markup::XamlLoadResult empty;
