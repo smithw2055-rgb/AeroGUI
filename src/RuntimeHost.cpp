@@ -11,6 +11,7 @@
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
 #include <Aero/Markup/Runtime/XamlLoader.hpp>
+#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
@@ -93,19 +94,26 @@ void DestroyRuntimeObject(
 struct RuntimeHost::Impl final {
     Impl(
         Base::IAllocator& value,
-        SchemaBundle* sharedSchema = nullptr) noexcept
+        SchemaBundle* sharedSchema = nullptr,
+        XamlDocumentCache* sharedDocumentCache = nullptr) noexcept
         : allocator(&value),
           ownedSchemaBundle(&value),
           schemaBundle(sharedSchema != nullptr
               ? sharedSchema
               : &ownedSchemaBundle),
-          usesSharedSchema(sharedSchema != nullptr) {}
+          usesSharedSchema(sharedSchema != nullptr),
+          ownedDocumentCache(&value),
+          documentCache(sharedDocumentCache != nullptr
+              ? sharedDocumentCache
+              : &ownedDocumentCache) {}
 
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
     SchemaBundle ownedSchemaBundle;
     SchemaBundle* schemaBundle = nullptr;
     bool usesSharedSchema = false;
+    XamlDocumentCache ownedDocumentCache;
+    XamlDocumentCache* documentCache = nullptr;
     Core::MetadataDomain* metadata = nullptr;
     ModuleCatalog modules;
     RuntimeHostOptions options;
@@ -250,6 +258,7 @@ struct RuntimeHost::Impl final {
         result.effectiveValues = values;
         result.bindings = bindings;
         result.fallbackResources = &dynamicResourceEnvironment;
+        result.documentCache = documentCache;
         result.activationFacets =
             activation;
         result.activation = &context;
@@ -873,10 +882,11 @@ struct RuntimeHost::Impl final {
         return {};
     }
 
-    Base::Result<void> UnmountRoot() noexcept {
+    Base::Result<void> DetachMountedRoot(
+        bool clearDocument) noexcept {
         if (!initialized) return {};
         if (!mounted) {
-            if (loadedDocument.root) {
+            if (clearDocument && loadedDocument.root) {
                 ClearLoadedDocument();
             }
             return {};
@@ -889,12 +899,12 @@ struct RuntimeHost::Impl final {
                 loadedDocument.visualContent.mountEdges.Size()});
         mounted = false;
         root.Reset();
-        ClearLoadedDocument();
-        bindings->Shutdown();
-        Base::Result<void> bindingsReady =
-            bindings->Initialize();
-        if (!unmounted) return unmounted.GetStatus();
-        return bindingsReady;
+        if (clearDocument) ClearLoadedDocument();
+        return unmounted;
+    }
+
+    Base::Result<void> UnmountRoot() noexcept {
+        return DetachMountedRoot(true);
     }
 };
 
@@ -929,6 +939,25 @@ RuntimeHost::RuntimeHost(
             Base::MemoryTag::Markup);
     }
     impl_ = new (memory) Impl(*allocator_, &schemaBundle);
+}
+
+RuntimeHost::RuntimeHost(
+    SchemaBundle& schemaBundle,
+    XamlDocumentCache& documentCache,
+    Base::IAllocator* allocator) noexcept
+    : allocator_(allocator != nullptr
+          ? allocator
+          : &Base::GetDefaultAllocator()) {
+    void* memory = allocator_->Allocate({
+        sizeof(Impl), alignof(Impl),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(Impl), alignof(Impl),
+            Base::MemoryTag::Markup);
+    }
+    impl_ = new (memory) Impl(
+        *allocator_, &schemaBundle, &documentCache);
 }
 
 RuntimeHost::~RuntimeHost() noexcept {
@@ -1243,6 +1272,55 @@ Base::Result<void> RuntimeHost::Mount(
         impl_->loadedDocument.root, availableSize);
 }
 
+Base::Result<void> RuntimeHost::ReplaceMountedDocument(
+    UiDocument&& document,
+    Presentation::Size availableSize) noexcept {
+    if (impl_ == nullptr || !impl_->initialized || !impl_->mounted) {
+        return RuntimeInvalidState(
+            "RuntimeHost document replacement requires a mounted view");
+    }
+    if (!document.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "RuntimeHost cannot replace a document with an empty document");
+    }
+
+    XamlLoadResult next = document.TakeResult();
+    if (!next.root ||
+        !impl_->metadata->Descriptors().IsDerivedFrom(
+            next.root->RuntimeType(),
+            Presentation::Visual::StaticTypeId())) {
+        next.Clear();
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Replacement UI document root must derive from Visual");
+    }
+
+    Base::Result<void> detached =
+        impl_->DetachMountedRoot(false);
+    if (!detached) {
+        Base::Result<void> restored = impl_->MountRoot(
+            impl_->loadedDocument.root, availableSize);
+        next.Clear();
+        return restored ? detached : restored;
+    }
+
+    XamlLoadResult previous =
+        std::move(impl_->loadedDocument);
+    impl_->loadedDocument = std::move(next);
+    Base::Result<void> mounted = impl_->MountRoot(
+        impl_->loadedDocument.root, availableSize);
+    if (mounted) {
+        previous.Clear();
+        return {};
+    }
+
+    impl_->loadedDocument = std::move(previous);
+    Base::Result<void> restored = impl_->MountRoot(
+        impl_->loadedDocument.root, availableSize);
+    return restored ? mounted : restored;
+}
+
 Base::Result<Base::Ref<Base::Object>>
 RuntimeHost::LoadAndMountXaml(
     Base::StringView uri,
@@ -1462,6 +1540,26 @@ RuntimeHost::EmbeddedXamlSources() noexcept {
     return impl_ != nullptr
         ? &impl_->embeddedXaml
         : nullptr;
+}
+
+XamlDocumentCache* RuntimeHost::DocumentCache() noexcept {
+    return impl_ != nullptr ? impl_->documentCache : nullptr;
+}
+
+const Base::ResourceUri& RuntimeHost::CurrentDocumentUri() const noexcept {
+    static const Base::ResourceUri empty;
+    return impl_ != nullptr
+        ? impl_->loadedDocument.canonicalUri
+        : empty;
+}
+
+Base::Span<const Base::ResourceUri>
+RuntimeHost::CurrentDocumentDependencies() const noexcept {
+    return impl_ != nullptr
+        ? Base::Span<const Base::ResourceUri>{
+              impl_->loadedDocument.dependencies.Data(),
+              impl_->loadedDocument.dependencies.Size()}
+        : Base::Span<const Base::ResourceUri>{};
 }
 
 Presentation::ResourceDictionary*

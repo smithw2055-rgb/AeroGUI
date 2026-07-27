@@ -270,3 +270,57 @@ aero-xamlc --schema App.aeroschema --check Main.xaml
 
 `Aero::MarkupKernel` 可供只需要 XML/node/compiled 基础能力的组件链接；完整
 对象写入、资源与 Presentation 集成使用 `Aero::Markup`。
+
+## Document Cache 与完整文档重载
+
+头文件：
+
+- `Aero/Markup/Runtime/XamlDocumentCache.hpp`
+- `Aero/XamlReloadCoordinator.hpp`
+
+`RuntimeEnvironment` 自动创建一个跨 View 共享的 document cache：
+
+```cpp
+Aero::RuntimeEnvironment environment;
+environment.Initialize();
+
+auto stats = environment.Documents().Statistics();
+```
+
+独立 `RuntimeHost` 也拥有自己的 cache；共享 Schema 的 Host 可显式注入 cache。
+Loader 的 `XamlLoadOptions::documentCache` 是低层接入点。
+
+手动失效：
+
+```cpp
+auto invalidated = cache.Invalidate(changedUri, true);
+Base::Vector<Aero::Base::ResourceUri> affected;
+cache.CollectAffected(changedUri, affected);
+```
+
+完整文档开发期重载：
+
+```cpp
+Aero::RuntimeView view(environment);
+view.Initialize(options);
+
+Aero::XamlReloadCoordinator reload(view.Host());
+reload.Start("Views/Main.xaml", {1280.0f, 720.0f}, diagnostics);
+
+// 文件监听器也可以调用 NotifySourceChanged(uri)。
+auto polled = reload.Poll(diagnostics);
+```
+
+`Poll()` 不创建线程；它在调用线程读取 revision，并且仅在检测到变化时重新加载
+root document。新 `UiDocument` 完整成功后才替换当前挂载内容。
+
+`RuntimeHost::ReplaceMountedDocument()` 也可独立使用：
+
+```cpp
+auto replacement = host.LoadUiDocument("Views/Main.xaml", diagnostics);
+host.ReplaceMountedDocument(
+    std::move(replacement).Value(), availableSize);
+```
+
+丢弃 `UiDocument`、Unmount 或替换文档时，文档持有的 Binding 和
+DynamicResource committed effects 会自动逆序撤销。

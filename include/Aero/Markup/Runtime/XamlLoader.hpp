@@ -24,6 +24,7 @@ class BindingManager;
 namespace Aero::Markup {
 
 class XamlSchemaContext;
+class XamlDocumentCache;
 
 namespace XamlLoaderDiagnosticCodes {
 inline constexpr Core::DiagnosticCode InvalidUri =
@@ -60,9 +61,18 @@ public:
 
     virtual Base::Result<XamlSource> Load(
         const Base::ResourceUri& uri) const noexcept = 0;
+    virtual Base::Result<std::uint64_t> Revision(
+        const Base::ResourceUri&) const noexcept {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML source provider does not expose revision probes");
+    }
 };
 
 using XamlSourceLoadCallback = Base::Result<XamlSource> (*)(
+    const Base::ResourceUri& uri,
+    void* context) noexcept;
+using XamlSourceRevisionCallback = Base::Result<std::uint64_t> (*)(
     const Base::ResourceUri& uri,
     void* context) noexcept;
 
@@ -75,8 +85,9 @@ public:
     XamlSourceProviderFacet() noexcept = default;
     XamlSourceProviderFacet(
         XamlSourceLoadCallback load,
-        void* context = nullptr) noexcept
-        : load_(load), context_(context) {}
+        void* context = nullptr,
+        XamlSourceRevisionCallback revision = nullptr) noexcept
+        : load_(load), revision_(revision), context_(context) {}
 
     bool IsValid() const noexcept {
         return load_ != nullptr;
@@ -91,9 +102,16 @@ public:
         }
         return load_(uri, context_);
     }
+    Base::Result<std::uint64_t> Revision(
+        const Base::ResourceUri& uri) const noexcept override {
+        return revision_ != nullptr
+            ? revision_(uri, context_)
+            : IXamlSourceProvider::Revision(uri);
+    }
 
 private:
     XamlSourceLoadCallback load_ = nullptr;
+    XamlSourceRevisionCallback revision_ = nullptr;
     void* context_ = nullptr;
 };
 
@@ -151,6 +169,8 @@ public:
 
     Base::Result<XamlSource> Load(
         const Base::ResourceUri& uri) const noexcept override;
+    Base::Result<std::uint64_t> Revision(
+        const Base::ResourceUri& uri) const noexcept override;
 
     bool IsFrozen() const noexcept {
         return frozen_;
@@ -180,6 +200,8 @@ public:
 
     Base::Result<XamlSource> Load(
         const Base::ResourceUri& uri) const noexcept override;
+    Base::Result<std::uint64_t> Revision(
+        const Base::ResourceUri& uri) const noexcept override;
 
 private:
     std::uint64_t maxFileBytes_ = 0U;
@@ -208,6 +230,7 @@ struct XamlLoadOptions final {
     Core::EffectiveValueEngine* effectiveValues = nullptr;
     Presentation::BindingManager* bindings = nullptr;
     ResourceDictionary* fallbackResources = nullptr;
+    XamlDocumentCache* documentCache = nullptr;
     Core::ActivationProviderRegistry* activationFacets = nullptr;
     const Core::ObjectActivationContext* activation = nullptr;
     Base::Object* templatedParent = nullptr;

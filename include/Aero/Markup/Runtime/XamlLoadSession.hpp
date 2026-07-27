@@ -106,14 +106,6 @@ private:
         std::uint32_t count = 0U;
     };
 
-    struct ExtensionEffectRecord final {
-        Core::EffectiveValueEngine* effectiveValues = nullptr;
-        Core::DependencyObject* target = nullptr;
-        Core::DependencyPropertyHandle property;
-        void* rollbackContext = nullptr;
-        std::uint64_t rollbackToken = 0U;
-        XamlProvidedRollbackCallback rollback = nullptr;
-    };
 
     struct NameScopeRecord final {
         NameScopeRecord() noexcept = default;
@@ -174,7 +166,7 @@ private:
     Base::Vector<Frame> frames_;
     Base::Vector<CreatedObjectRecord> created_;
     Base::Vector<AssignmentRecord> assignments_;
-    Base::Vector<ExtensionEffectRecord> extensionEffects_;
+    Base::Vector<XamlCommittedEffect> extensionEffects_;
     Base::Vector<NameScopeRecord> nameScopes_;
     Base::Vector<ResourceScopeRecord> resourceScopes_;
     Base::Vector<const ResourceDictionary*> serviceResourceChain_;

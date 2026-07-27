@@ -1,17 +1,20 @@
 #include <Aero/Markup/Runtime/XamlLoader.hpp>
 
 #include <Aero/Core/ObjectServices.hpp>
+#include <Aero/Base/Hash.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
 #if AERO_WITH_EXPAT
 #include <Aero/Markup/Parsing/ExpatXmlTokenizer.hpp>
 #endif
 #include <Aero/Markup/Runtime/XamlLoadSession.hpp>
+#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
 #include <Aero/Markup/Parsing/XamlNodeReader.hpp>
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
 #include <cstdio>
+#include <filesystem>
 #include <utility>
 
 namespace Aero::Markup {
@@ -216,6 +219,50 @@ Base::Result<XamlSource> EmbeddedXamlSourceProvider::Load(
         "Embedded XAML source was not found");
 }
 
+Base::Result<std::uint64_t> EmbeddedXamlSourceProvider::Revision(
+    const Base::ResourceUri& uri) const noexcept {
+    for (const Entry& entry : entries_) {
+        if (entry.uri == uri) return entry.revision;
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "Embedded XAML source was not found");
+}
+
+Base::Result<std::uint64_t> FileXamlSourceProvider::Revision(
+    const Base::ResourceUri& uri) const noexcept {
+    if ((!uri.Scheme().Empty() &&
+         uri.Scheme() != Base::StringView("file")) ||
+        uri.Path().Empty() || maxFileBytes_ == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "File XAML source URI is invalid");
+    }
+    Base::String path;
+    Base::Result<void> assigned = path.TryAssign(uri.Path());
+    if (!assigned) return assigned.GetStatus();
+    std::error_code error;
+    const std::filesystem::path filePath(path.CStr());
+    const std::uintmax_t size =
+        std::filesystem::file_size(filePath, error);
+    if (error || size > maxFileBytes_ || size > UINT32_MAX) {
+        return Base::Status::Failure(
+            error ? Base::ErrorCode::NotFound : Base::ErrorCode::OutOfRange,
+            "XAML source file revision could not be read");
+    }
+    const auto writeTime =
+        std::filesystem::last_write_time(filePath, error);
+    if (error) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "XAML source file timestamp could not be read");
+    }
+    const std::uint64_t ticks = static_cast<std::uint64_t>(
+        writeTime.time_since_epoch().count());
+    return Base::MixHash64(
+        static_cast<std::uint64_t>(size) ^ Base::MixHash64(ticks));
+}
+
 Base::Result<XamlSource> FileXamlSourceProvider::Load(
     const Base::ResourceUri& uri) const noexcept {
     if ((!uri.Scheme().Empty() &&
@@ -290,8 +337,11 @@ Base::Result<XamlSource> FileXamlSourceProvider::Load(
             Base::ErrorCode::InternalError,
             "XAML source file could not be read completely");
     }
-    source.revision =
-        static_cast<std::uint64_t>(length);
+    Base::Result<std::uint64_t> revision = Revision(uri);
+    source.revision = revision
+        ? revision.Value()
+        : Base::HashBytes(
+              source.bytes.Data(), source.bytes.Size());
     return source;
 }
 
@@ -328,6 +378,16 @@ struct XamlLoader::Operation final {
     Base::Result<XamlLoadResult> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
+        const XamlLoadOptions& options) noexcept;
+    Base::Result<XamlLoadResult> LoadCompiledDocument(
+        XamlCompiledDocument& document,
+        const Base::ResourceUri& originUri,
+        const XamlLoadOptions& options,
+        const Base::Ref<Base::Object>& existingRoot) noexcept;
+    Base::Result<void> PopulateDocumentCache(
+        const XamlSource& source,
+        const Base::ResourceUri& origin,
+        const XamlLoadResult& loaded,
         const XamlLoadOptions& options) noexcept;
     Base::Result<void> ResolveResourceDependencies(
         XamlLoadResult& result,
@@ -504,6 +564,16 @@ XamlLoader::Operation::LoadCompiled(
         return status;
     }
 
+    return LoadCompiledDocument(
+        document.Value(), originUri, options, {});
+}
+
+Base::Result<XamlLoadResult>
+XamlLoader::Operation::LoadCompiledDocument(
+    XamlCompiledDocument& document,
+    const Base::ResourceUri& originUri,
+    const XamlLoadOptions& options,
+    const Base::Ref<Base::Object>& existingRoot) noexcept {
     XamlLoadContext context;
     context.activation = options.activation;
     context.activationFacets = options.activationFacets;
@@ -513,9 +583,10 @@ XamlLoader::Operation::LoadCompiled(
     context.fallbackResources = options.fallbackResources;
     context.baseUri = &originUri;
     context.templatedParent = options.templatedParent;
+    context.existingRoot = existingRoot;
     context.maxObjects = options.limits.maxObjects;
     FinalizeContext finalize{
-        this, &options, &originUri, &document.Value()};
+        this, &options, &originUri, &document};
     context.finalize = &FinalizeLoad;
     context.finalizeContext = &finalize;
     XamlLoadSession session(*schema_, diagnostics_);
@@ -528,13 +599,10 @@ XamlLoader::Operation::LoadCompiled(
                   *options.activation->dispatcher,
                   *options.activation->dependencyProperties,
                   schema_->Runtime());
-              return session.Load(
-                  document.Value(), context);
+              return session.Load(document, context);
           }()
-        : session.Load(document.Value(), context);
-    if (!loaded) {
-        return loaded.GetStatus();
-    }
+        : session.Load(document, context);
+    if (!loaded) return loaded.GetStatus();
     return std::move(loaded).Value();
 }
 
@@ -585,6 +653,38 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
     if (!pushed) {
         return pushed.GetStatus();
     }
+
+    if (options.documentCache != nullptr) {
+        Base::Result<std::uint64_t> probedRevision =
+            provider.Value()->Revision(uri);
+        if (probedRevision && probedRevision.Value() != 0U) {
+            Base::Result<XamlDocumentCacheLookup> cached =
+                options.documentCache->Lookup(
+                    uri,
+                    probedRevision.Value(),
+                    schema_->Domain(),
+                    options.limits.compiled);
+            if (cached && cached.Value().hit) {
+                Base::Result<XamlLoadResult> loaded =
+                    LoadCompiledDocument(
+                        cached.Value().document,
+                        uri,
+                        options,
+                        existingRoot);
+                if (loaded) {
+                    static_cast<void>(options.documentCache->Store(
+                        uri,
+                        probedRevision.Value(),
+                        cached.Value().document,
+                        {loaded.Value().dependencies.Data(),
+                         loaded.Value().dependencies.Size()}));
+                }
+                loadStack_.PopBack();
+                return loaded;
+            }
+        }
+    }
+
     Base::Result<XamlSource> source =
         provider.Value()->Load(uri);
     if (!source) {
@@ -610,13 +710,54 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::LoadCore(
         source.Value().uri.Empty()
         ? uri
         : source.Value().uri;
+    const std::uint64_t sourceRevision =
+        source.Value().revision != 0U
+        ? source.Value().revision
+        : Base::HashBytes(
+              source.Value().bytes.Data(),
+              source.Value().bytes.Size());
+
+    source.Value().revision = sourceRevision;
     Base::Result<XamlLoadResult> loaded = ParseCore(
         source.Value().Text(),
         origin,
         options,
         existingRoot);
+    if (loaded && options.documentCache != nullptr) {
+        static_cast<void>(PopulateDocumentCache(
+            source.Value(), origin, loaded.Value(), options));
+    }
     loadStack_.PopBack();
     return loaded;
+}
+
+Base::Result<void> XamlLoader::Operation::PopulateDocumentCache(
+    const XamlSource& source,
+    const Base::ResourceUri& origin,
+    const XamlLoadResult& loaded,
+    const XamlLoadOptions& options) noexcept {
+    if (options.documentCache == nullptr || source.bytes.Empty()) return {};
+#if AERO_WITH_EXPAT
+    ExpatXmlTokenizer tokenizer(options.limits.xml);
+#else
+    Utf8XmlTokenizer tokenizer(options.limits.xml);
+#endif
+    Base::Result<void> reset = tokenizer.Reset(source.Text());
+    if (!reset) return reset.GetStatus();
+    XamlNodeReader reader(tokenizer);
+    Base::Result<XamlCompiledDocument> compiled =
+        XamlCompiledDocument::Compile(reader, *schema_, origin);
+    if (!compiled) return compiled.GetStatus();
+    for (const Base::ResourceUri& dependency : loaded.dependencies) {
+        Base::Result<void> added =
+            compiled.Value().TryAddDependency(dependency);
+        if (!added) return added.GetStatus();
+    }
+    return options.documentCache->Store(
+        origin,
+        source.revision,
+        compiled.Value(),
+        {loaded.dependencies.Data(), loaded.dependencies.Size()});
 }
 
 Base::Result<XamlLoadResult> XamlLoader::Operation::ParseCore(

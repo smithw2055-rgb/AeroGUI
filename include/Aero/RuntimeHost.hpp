@@ -52,6 +52,7 @@ class TextInputManager;
 
 namespace Aero::Markup {
 class EmbeddedXamlSourceProvider;
+class XamlDocumentCache;
 class IXamlSourceProvider;
 class XamlSchemaContext;
 class XamlSourceProviderRegistry;
@@ -100,6 +101,10 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     RuntimeHost(
         SchemaBundle& schema,
+        Base::IAllocator* allocator = nullptr) noexcept;
+    RuntimeHost(
+        SchemaBundle& schema,
+        Markup::XamlDocumentCache& documentCache,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RuntimeHost() noexcept;
 
@@ -166,6 +171,9 @@ public:
     Base::Result<void> Mount(
         UiDocument&& document,
         Presentation::Size availableSize) noexcept;
+    Base::Result<void> ReplaceMountedDocument(
+        UiDocument&& document,
+        Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
         Base::StringView uri,
         Presentation::Size availableSize,
@@ -220,6 +228,9 @@ public:
     Core::ActivationProviderRegistry* ActivationFacets() noexcept;
     Markup::XamlSourceProviderRegistry* XamlSources() noexcept;
     Markup::EmbeddedXamlSourceProvider* EmbeddedXamlSources() noexcept;
+    Markup::XamlDocumentCache* DocumentCache() noexcept;
+    const Base::ResourceUri& CurrentDocumentUri() const noexcept;
+    Base::Span<const Base::ResourceUri> CurrentDocumentDependencies() const noexcept;
     Presentation::ResourceDictionary* ApplicationResources() noexcept;
     Presentation::ResourceDictionary* ThemeResources() noexcept;
     Presentation::ResourceDictionary* SystemResources() noexcept;

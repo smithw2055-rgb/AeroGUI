@@ -7,7 +7,8 @@ RuntimeEnvironment::RuntimeEnvironment(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()),
-      schema_(allocator_) {}
+      schema_(allocator_),
+      documents_(allocator_) {}
 
 Base::Result<void> RuntimeEnvironment::AddModule(
     const ModuleRegistration& registration) noexcept {
@@ -40,7 +41,7 @@ RuntimeView::RuntimeView(
     RuntimeEnvironment& environment,
     Base::IAllocator* allocator) noexcept
     : environment_(&environment),
-      host_(environment.Schema(), allocator) {}
+      host_(environment.Schema(), environment.Documents(), allocator) {}
 
 Base::Result<void> RuntimeView::Initialize(
     const RuntimeHostOptions& options) noexcept {

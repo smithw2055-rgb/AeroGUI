@@ -6,8 +6,11 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataDescriptors.hpp>
+#include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Resources/XamlNamesResources.hpp>
 #include <Aero/Presentation/VisualTreeMount.hpp>
+
+#include <utility>
 
 namespace Aero::Markup {
 
@@ -42,6 +45,67 @@ struct XamlVisualContentPlan final {
     }
 };
 
+
+struct XamlCommittedEffect final {
+    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Core::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle property;
+    void* rollbackContext = nullptr;
+    std::uint64_t rollbackToken = 0U;
+    void (*rollback)(void* context, std::uint64_t token) noexcept = nullptr;
+
+    void Rollback() noexcept {
+        if (effectiveValues != nullptr && target != nullptr) {
+            static_cast<void>(effectiveValues->ClearLocalExpression(
+                *target, property));
+        }
+        if (rollback != nullptr) {
+            rollback(rollbackContext, rollbackToken);
+        }
+        effectiveValues = nullptr;
+        target = nullptr;
+        rollbackContext = nullptr;
+        rollbackToken = 0U;
+        rollback = nullptr;
+    }
+};
+
+class XamlCommittedEffectPlan final {
+public:
+    XamlCommittedEffectPlan() noexcept = default;
+    ~XamlCommittedEffectPlan() noexcept { Rollback(); }
+
+    XamlCommittedEffectPlan(
+        XamlCommittedEffectPlan&& other) noexcept
+        : effects_(std::move(other.effects_)) {}
+    XamlCommittedEffectPlan& operator=(
+        XamlCommittedEffectPlan&& other) noexcept {
+        if (this == &other) return *this;
+        Rollback();
+        effects_ = std::move(other.effects_);
+        return *this;
+    }
+
+    XamlCommittedEffectPlan(const XamlCommittedEffectPlan&) = delete;
+    XamlCommittedEffectPlan& operator=(
+        const XamlCommittedEffectPlan&) = delete;
+
+    Base::Vector<XamlCommittedEffect>& Items() noexcept { return effects_; }
+    const Base::Vector<XamlCommittedEffect>& Items() const noexcept {
+        return effects_;
+    }
+    void Rollback() noexcept {
+        for (std::uint32_t index = effects_.Size(); index > 0U; --index) {
+            effects_[index - 1U].Rollback();
+        }
+        effects_.Clear();
+    }
+    std::uint32_t Size() const noexcept { return effects_.Size(); }
+
+private:
+    Base::Vector<XamlCommittedEffect> effects_;
+};
+
 // Ownership returned by a successful XAML load. The object writer remains a
 // short-lived loading session; mounted runtimes keep names, resources, and the
 // visual content plan here instead of reaching back into Markup services.
@@ -50,10 +114,12 @@ struct XamlLoadResult final {
     NameScope names;
     ResourceDictionary resources;
     XamlVisualContentPlan visualContent;
+    XamlCommittedEffectPlan effects;
     Base::ResourceUri canonicalUri;
     Base::Vector<Base::ResourceUri> dependencies;
 
     void Clear() noexcept {
+        effects.Rollback();
         root.Reset();
         names.Clear();
         resources.Clear();

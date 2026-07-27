@@ -240,4 +240,25 @@ Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 - DataTrigger、MultiTrigger、EventTrigger
 - 动画式 VisualState transition
 - HierarchicalDataTemplate
-- 实时视觉树热重载
+- 保留控件实例的细粒度视觉树热补丁
+
+## Document Cache、依赖图与完整文档热重载
+
+`RuntimeEnvironment` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
+验证的 serialized AXIR、source revision 和 dependency URI，不保存实例对象或
+View service。多个 `RuntimeView` 可以复用同一缓存，同时继续拥有独立的
+Binding、资源环境、布局和渲染状态。
+
+Provider 可通过 `Revision()` 暴露低成本版本探测。缓存命中时 Loader 直接重放
+AXIR；未提供 revision probe 时回退到 source load 和 byte hash。成功的首次 source
+load 仍走原 object-writer 语义，随后以不影响结果语义的附加步骤填充 cache，因此
+cache 失败不会改变文档加载结果。
+
+`XamlDependencyGraph` 同时维护正向和反向 URI edges。ResourceDictionary Source
+变化会传递失效上层文档。`XamlReloadCoordinator` 由宿主显式轮询或接收资产变更
+通知，构建新的 `UiDocument` 后调用 `RuntimeHost::ReplaceMountedDocument()`。
+
+Binding handle 与 DynamicResource expression 的 committed rollback records 现在
+随 document 所有权移动。文档替换后旧 effects 被逆序撤销；replacement 失败时
+旧 document 可以重新挂载，不再通过全局 `BindingManager::Shutdown()` 清理。
+详细契约见 [`XAML_DOCUMENT_CACHE_RELOAD.md`](XAML_DOCUMENT_CACHE_RELOAD.md)。

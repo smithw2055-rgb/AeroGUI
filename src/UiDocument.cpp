@@ -117,6 +117,7 @@ Markup::XamlLoadResult UiDocument::TakeResult() noexcept {
 
 void UiDocument::Reset() noexcept {
     if (impl_ == nullptr) return;
+    impl_->result.Clear();
     impl_->~Impl();
     allocator_->Deallocate(
         impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);

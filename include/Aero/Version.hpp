@@ -15,6 +15,7 @@ inline constexpr std::uint32_t CppAbiVersion = 1U;
 inline constexpr std::uint32_t ModuleAbiVersion = 2U;
 inline constexpr std::uint32_t XamlFacetAbiVersion = 8U;
 inline constexpr std::uint32_t XamlSchemaAbiVersion = 8U;
-inline constexpr std::uint32_t RuntimeAbiVersion = 2U;
+inline constexpr std::uint32_t XamlDocumentCacheAbiVersion = 1U;
+inline constexpr std::uint32_t RuntimeAbiVersion = 3U;
 
 } // namespace Aero

@@ -4,6 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
 #include <Aero/RuntimeHost.hpp>
 #include <Aero/SchemaBundle.hpp>
 
@@ -27,11 +28,16 @@ public:
     bool IsInitialized() const noexcept;
     SchemaBundle& Schema() noexcept { return schema_; }
     const SchemaBundle& Schema() const noexcept { return schema_; }
+    Markup::XamlDocumentCache& Documents() noexcept { return documents_; }
+    const Markup::XamlDocumentCache& Documents() const noexcept {
+        return documents_;
+    }
 
 private:
     Base::IAllocator* allocator_ = nullptr;
     ModuleCatalog modules_;
     SchemaBundle schema_;
+    Markup::XamlDocumentCache documents_;
     bool initialized_ = false;
 };
 

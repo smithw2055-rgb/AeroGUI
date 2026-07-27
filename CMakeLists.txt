@@ -443,6 +443,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/resources/XamlScopes.cpp
     src/markup/runtime/XamlLoadResult.cpp
     src/markup/runtime/XamlLoadSession.cpp
+    src/markup/runtime/XamlDocumentCache.cpp
     src/markup/runtime/XamlLoader.cpp
     src/markup/resources/XamlResources.cpp
     src/markup/schema/XamlRuntimeSchema.cpp
@@ -503,7 +504,7 @@ target_include_directories(AeroMarkup
 target_compile_definitions(
     AeroMarkupKernel
     PUBLIC
-        AERO_MARKUP_XAML_ABI=8
+        AERO_MARKUP_XAML_ABI=9
         $<$<BOOL:${AERO_WITH_EXPAT}>:AERO_WITH_EXPAT=1>
         $<$<NOT:$<BOOL:${AERO_WITH_EXPAT}>>:AERO_WITH_EXPAT=0>)
 target_link_libraries(AeroMarkup
@@ -723,6 +724,7 @@ endif()
 add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/RuntimeEnvironment.cpp
     src/RuntimeHost.cpp
+    src/XamlReloadCoordinator.cpp
     src/RuntimeSafety.cpp
     src/UiDocument.cpp
     src/runtime/RuntimePresentationServices.cpp
@@ -739,7 +741,7 @@ target_link_libraries(AeroRuntime
         AeroModuleCatalog
         Aero::Platform)
 target_compile_definitions(
-    AeroRuntime PRIVATE AERO_RUNTIME_XAML_ABI=8)
+    AeroRuntime PRIVATE AERO_RUNTIME_XAML_ABI=9)
 target_compile_features(AeroRuntime PUBLIC cxx_std_17)
 set_target_properties(AeroRuntime PROPERTIES
     CXX_STANDARD 17

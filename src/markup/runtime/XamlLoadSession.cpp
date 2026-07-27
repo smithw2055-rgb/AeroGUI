@@ -245,6 +245,7 @@ Base::Result<XamlLoadResult> XamlLoadSession::CompleteLoad(
     result.names = std::move(committedNames_);
     result.resources = std::move(committedResources_);
     result.visualContent = std::move(resultVisualContent_);
+    result.effects.Items() = std::move(extensionEffects_);
     if (!deferredContent_.Empty()) {
         result.Clear();
         AbortTransaction();
@@ -1720,7 +1721,7 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
         assignment = &assignments_.Back();
     }
 
-    ExtensionEffectRecord effect;
+    XamlCommittedEffect effect;
     if (provided.kind == XamlProvidedValueKind::Expression) {
         if (provided.effectiveValues == nullptr ||
             !provided.expression.IsValid()) {
@@ -1766,13 +1767,7 @@ Base::Result<void> XamlLoadSession::WriteProvidedValue(
     Base::Result<void> effectStored =
         extensionEffects_.TryPushBack(effect);
     if (!effectStored) {
-        if (effect.effectiveValues != nullptr && effect.target != nullptr) {
-            static_cast<void>(effect.effectiveValues->ClearLocalExpression(
-                *effect.target, effect.property));
-        }
-        if (effect.rollback != nullptr) {
-            effect.rollback(effect.rollbackContext, effect.rollbackToken);
-        }
+        effect.Rollback();
         return effectStored.GetStatus();
     }
     if (assignment->count == UINT32_MAX) {
@@ -2538,7 +2533,7 @@ void XamlLoadSession::AbortTransaction() noexcept {
     deferredContent_.ReleaseAll();
     for (std::uint32_t index = extensionEffects_.Size();
          index > 0U; --index) {
-        ExtensionEffectRecord& effect = extensionEffects_[index - 1U];
+        XamlCommittedEffect& effect = extensionEffects_[index - 1U];
         if (effect.effectiveValues != nullptr && effect.target != nullptr) {
             static_cast<void>(effect.effectiveValues->ClearLocalExpression(
                 *effect.target, effect.property));
