@@ -201,12 +201,10 @@ Base::Result<void> FrameworkElement::SetLayoutRounding(
 }
 
 bool UIElement::ClipToBounds() const noexcept {
-    Base::Result<Value> value = GetValue(ClipToBoundsProperty);
-    return value ? value.Value().AsBoolean() : false;
+    return ClipToBoundsProperty.GetOr(*this, false);
 }
 bool UIElement::IsHitTestVisible() const noexcept {
-    Base::Result<Value> value = GetValue(IsHitTestVisibleProperty);
-    return value ? value.Value().AsBoolean() : true;
+    return IsHitTestVisibleProperty.GetOr(*this, true);
 }
 bool UIElement::IsEnabled() const noexcept {
     Base::Result<Value> value = GetValue(IsEnabledProperty);
@@ -218,35 +216,25 @@ bool UIElement::IsEnabled() const noexcept {
     return parentElement == nullptr || parentElement->IsEnabled();
 }
 bool UIElement::IsMouseOver() const noexcept {
-    Base::Result<Value> value = GetValue(IsMouseOverProperty);
-    return value && value.Value().AsBoolean();
+    return IsMouseOverProperty.GetOr(*this, false);
 }
 bool UIElement::IsPressed() const noexcept {
-    Base::Result<Value> value = GetValue(IsPressedProperty);
-    return value && value.Value().AsBoolean();
+    return IsPressedProperty.GetOr(*this, false);
 }
 bool UIElement::IsKeyboardFocused() const noexcept {
-    Base::Result<Value> value = GetValue(IsKeyboardFocusedProperty);
-    return value && value.Value().AsBoolean();
+    return IsKeyboardFocusedProperty.GetOr(*this, false);
 }
 bool UIElement::IsTabStop() const noexcept {
-    Base::Result<Value> value = GetValue(IsTabStopProperty);
-    return value && value.Value().AsBoolean();
+    return IsTabStopProperty.GetOr(*this, false);
 }
 std::uint32_t UIElement::TabIndex() const noexcept {
-    Base::Result<Value> value = GetValue(TabIndexProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : 0U;
+    return TabIndexProperty.GetOr(*this, 0U);
 }
 bool UIElement::IsFocusScope() const noexcept {
-    Base::Result<Value> value = GetValue(IsFocusScopeProperty);
-    return value && value.Value().AsBoolean();
+    return IsFocusScopeProperty.GetOr(*this, false);
 }
 bool FrameworkElement::UseLayoutRounding() const noexcept {
-    Base::Result<Value> value = GetValue(UseLayoutRoundingProperty);
-    return value ? value.Value().AsBoolean() : false;
+    return UseLayoutRoundingProperty.GetOr(*this, false);
 }
 bool FrameworkElement::HasWidth() const noexcept {
     Base::Result<Value> value = GetValue(WidthProperty);
@@ -281,18 +269,15 @@ Size FrameworkElement::MaxSize() const noexcept {
         height ? height.Value().AsDouble() : 1.0e12};
 }
 Thickness FrameworkElement::Margin() const noexcept {
-    Base::Result<Value> value = GetValue(MarginProperty);
-    return value ? *static_cast<const Thickness*>(value.Value().AsCustom()) : Thickness{};
+    return MarginProperty.GetOr(*this, Thickness{});
 }
 HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
-    Base::Result<Value> value = GetValue(HorizontalAlignmentProperty);
-    return value ? static_cast<HorizontalAlignment>(value.Value().AsUnsignedInteger())
-                 : HorizontalAlignment::Stretch;
+    return HorizontalAlignmentProperty.GetOr(
+        *this, HorizontalAlignment::Stretch);
 }
 VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
-    Base::Result<Value> value = GetValue(VerticalAlignmentProperty);
-    return value ? static_cast<VerticalAlignment>(value.Value().AsUnsignedInteger())
-                 : VerticalAlignment::Stretch;
+    return VerticalAlignmentProperty.GetOr(
+        *this, VerticalAlignment::Stretch);
 }
 
 Base::Result<void> UIElement::OnPropertyInvalidated(
@@ -318,30 +303,23 @@ Base::Result<void> UIElement::OnPropertyInvalidated(
 }
 
 Base::Result<void> UIElement::SetClipToBounds(bool value) noexcept {
-    return SetValue(ClipToBoundsProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+    return ClipToBoundsProperty.Set(*this, value);
 }
 
 Base::Result<void> UIElement::SetHitTestVisible(bool value) noexcept {
-    return SetValue(IsHitTestVisibleProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+    return IsHitTestVisibleProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetEnabled(bool value) noexcept {
-    return SetValue(IsEnabledProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+    return IsEnabledProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetTabStop(bool value) noexcept {
-    return SetValue(IsTabStopProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+    return IsTabStopProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetTabIndex(std::uint32_t value) noexcept {
-    return SetValue(TabIndexProperty,
-        Value::FromUnsignedInteger(
-            PresentationType("UInt32"), value));
+    return TabIndexProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
-    return SetValue(IsFocusScopeProperty,
-        Value::FromBoolean(PresentationType("Boolean"), value));
+    return IsFocusScopeProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
     return SetReadOnlyCurrentValue(IsMouseOverProperty,

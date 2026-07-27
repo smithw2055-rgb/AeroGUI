@@ -235,9 +235,9 @@ public:
     inline static constexpr auto StyleProperty =
         Members::Property<Style>{"Style"};
     inline static constexpr auto WidthProperty =
-        Members::Property<double>{"Width"};
+        Members::Property<Length>{"Width"};
     inline static constexpr auto HeightProperty =
-        Members::Property<double>{"Height"};
+        Members::Property<Length>{"Height"};
     inline static constexpr auto MinWidthProperty =
         Members::Property<double>{"MinWidth"};
     inline static constexpr auto MaxWidthProperty =

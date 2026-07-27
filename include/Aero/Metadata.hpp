@@ -278,6 +278,14 @@ public:
             value.Value());
     }
 
+    AccessType GetOr(
+        const DependencyObject& object,
+        AccessType fallback = {}) const noexcept {
+        Base::Result<AccessType> value = Get(object);
+        return value ? std::move(value).Value()
+                     : std::move(fallback);
+    }
+
     Base::Result<void> Set(
         DependencyObject& object,
         const AccessType& value) const noexcept {

@@ -47,9 +47,7 @@ StackPanel::StackPanel(Orientation orientation) noexcept
 }
 
 Orientation StackPanel::GetOrientation() const noexcept {
-    Base::Result<Value> value = GetValue(OrientationProperty);
-    return value ? static_cast<Orientation>(value.Value().AsUnsignedInteger())
-                 : Orientation::Vertical;
+    return OrientationProperty.GetOr(*this, Orientation::Vertical);
 }
 
 Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
@@ -57,8 +55,7 @@ Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "StackPanel orientation is invalid");
     }
-    return SetValue(OrientationProperty, Value::FromUnsignedInteger(
-        PresentationType("Orientation"), static_cast<std::uint64_t>(value)));
+    return OrientationProperty.Set(*this, value);
 }
 
 Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
@@ -396,24 +393,19 @@ Base::Result<void> Grid::ResolveTracks(
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
 
 Color Border::Background() const noexcept {
-    Base::Result<Value> value = GetValue(BackgroundProperty);
-    return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
+    return BackgroundProperty.GetOr(*this, Color{});
 }
 
 Color Border::BorderBrush() const noexcept {
-    Base::Result<Value> value = GetValue(BorderBrushProperty);
-    return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
+    return BorderBrushProperty.GetOr(*this, Color{});
 }
 
 double Border::BorderThickness() const noexcept {
-    Base::Result<Value> value = GetValue(BorderThicknessProperty);
-    return value ? value.Value().AsDouble() : 0.0;
+    return BorderThicknessProperty.GetOr(*this, 0.0);
 }
 
 Thickness Border::Padding() const noexcept {
-    Base::Result<Value> value = GetValue(PaddingProperty);
-    return value ? *static_cast<const Thickness*>(value.Value().AsCustom())
-                 : Thickness{};
+    return PaddingProperty.GetOr(*this, Thickness{});
 }
 
 Base::Result<void> Border::SetBackground(Color value) noexcept {

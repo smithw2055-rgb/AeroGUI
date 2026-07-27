@@ -7,31 +7,23 @@
 namespace Aero::Controls {
 
 ClickMode ButtonBase::GetClickMode() const noexcept {
-    Base::Result<Value> value = GetValue(ClickModeProperty);
-    return value ? static_cast<ClickMode>(
-        value.Value().AsUnsignedInteger()) : ClickMode::Release;
+    return ClickModeProperty.GetOr(*this, ClickMode::Release);
 }
 
 ICommand* ButtonBase::Command() const noexcept {
-    Base::Result<Value> value = GetValue(CommandProperty);
-    if (!value || value.Value().IsNullObject()) return nullptr;
-    return static_cast<ICommand*>(
-        value.Value().AsObject().Get());
+    Base::Result<Base::Ref<ICommand>> value =
+        CommandProperty.Get(*this);
+    return value ? value.Value().Get() : nullptr;
 }
 
 Base::Ref<Base::Object> ButtonBase::CommandParameter() const noexcept {
-    Base::Result<Value> value =
-        GetValue(CommandParameterProperty);
-    return value && !value.Value().IsNullObject()
-        ? value.Value().AsObject()
-        : Base::Ref<Base::Object>{};
+    return CommandParameterProperty.GetOr(*this);
 }
 
 UIElement* ButtonBase::CommandTarget() const noexcept {
-    Base::Result<Value> value = GetValue(CommandTargetProperty);
-    if (!value || value.Value().IsNullObject()) return nullptr;
-    return static_cast<UIElement*>(
-        value.Value().AsObject().Get());
+    Base::Result<Base::Ref<UIElement>> value =
+        CommandTargetProperty.Get(*this);
+    return value ? value.Value().Get() : nullptr;
 }
 
 Base::Result<void> ButtonBase::SetClickMode(
@@ -41,54 +33,35 @@ Base::Result<void> ButtonBase::SetClickMode(
             Base::ErrorCode::InvalidArgument,
             "ButtonBase ClickMode is invalid");
     }
-    return SetValue(ClickModeProperty,
-        Value::FromUnsignedInteger(
-            TypeOf<ClickMode>(),
-            static_cast<std::uint64_t>(value)));
+    return ClickModeProperty.Set(*this, value);
 }
 
 Base::Result<void> ButtonBase::SetCommand(
     Base::Ref<ICommand> command) noexcept {
-    Base::Ref<Base::Object> object(std::move(command));
-    return SetValue(CommandProperty,
-        Value::FromObject(TypeOf<ICommand>(), std::move(object)));
+    return CommandProperty.Set(*this, command);
 }
 
 Base::Result<void> ButtonBase::SetCommandParameter(
     Base::Ref<Base::Object> parameter) noexcept {
-    return SetValue(CommandParameterProperty,
-        Value::FromObject(
-            TypeOf<Base::Object>(), std::move(parameter)));
+    return CommandParameterProperty.Set(*this, parameter);
 }
 
 Base::Result<void> ButtonBase::SetCommandTarget(
     Base::Ref<UIElement> target) noexcept {
-    Base::Ref<Base::Object> object(std::move(target));
-    return SetValue(CommandTargetProperty,
-        Value::FromObject(TypeOf<UIElement>(), std::move(object)));
+    return CommandTargetProperty.Set(*this, target);
 }
 
 std::uint32_t RepeatButton::Delay() const noexcept {
-    Base::Result<Value> value = GetValue(DelayProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : 400U;
+    return DelayProperty.GetOr(*this, 400U);
 }
 
 std::uint32_t RepeatButton::Interval() const noexcept {
-    Base::Result<Value> value = GetValue(IntervalProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : 100U;
+    return IntervalProperty.GetOr(*this, 100U);
 }
 
 Base::Result<void> RepeatButton::SetDelay(
     std::uint32_t value) noexcept {
-    return SetValue(DelayProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger, value));
+    return DelayProperty.Set(*this, value);
 }
 
 Base::Result<void> RepeatButton::SetInterval(
@@ -98,25 +71,19 @@ Base::Result<void> RepeatButton::SetInterval(
             Base::ErrorCode::InvalidArgument,
             "RepeatButton interval must be positive");
     }
-    return SetValue(IntervalProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger, value));
+    return IntervalProperty.Set(*this, value);
 }
 
 bool ToggleButton::IsChecked() const noexcept {
-    Base::Result<Value> value = GetValue(IsCheckedProperty);
-    return value && value.Value().AsBoolean();
+    return IsCheckedProperty.GetOr(*this, false);
 }
 
 bool ToggleButton::IsThreeState() const noexcept {
-    Base::Result<Value> value = GetValue(IsThreeStateProperty);
-    return value && value.Value().AsBoolean();
+    return IsThreeStateProperty.GetOr(*this, false);
 }
 
 bool ToggleButton::IsIndeterminate() const noexcept {
-    Base::Result<Value> value =
-        GetValue(IsIndeterminateProperty);
-    return value && value.Value().AsBoolean();
+    return IsIndeterminateProperty.GetOr(*this, false);
 }
 
 ToggleState ToggleButton::GetToggleState() const noexcept {
