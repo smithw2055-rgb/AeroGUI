@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 
 namespace Aero::Presentation {
 
@@ -23,18 +22,6 @@ Base::Status InvalidState(const char* message) noexcept {
 
 bool SameSize(Size left, Size right) noexcept {
     return left.width == right.width && left.height == right.height;
-}
-
-bool IsValidMargin(Thickness value) noexcept {
-    return IsFinite(value) && value.left >= 0.0 && value.top >= 0.0 &&
-        value.right >= 0.0 && value.bottom >= 0.0 &&
-        std::isfinite(value.left + value.right) &&
-        std::isfinite(value.top + value.bottom);
-}
-
-TypeId PresentationType(const char* name) noexcept {
-    return MakeTypeId(
-        Base::StringView(name, static_cast<std::uint32_t>(std::strlen(name))));
 }
 
 double ClampDimension(double value, double minimum, double maximum) noexcept {
