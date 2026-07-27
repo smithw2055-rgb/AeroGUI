@@ -18,8 +18,7 @@ bool IsValidAccent(const Color& value) noexcept {
 }
 
 Result<void> RegisterMetadata(
-    Core::MetadataContext& context,
-    void*) noexcept {
+    Core::MetadataContext& context) noexcept {
     auto badge = Aero::Describe<StatusBadge>(context);
     badge
         .Factory()
