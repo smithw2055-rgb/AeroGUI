@@ -63,6 +63,18 @@ jobs:
           path: out/ci/build.log
           if-no-files-found: error
 
+      - name: Upload source snapshot
+        if: steps.build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aero-source-snapshot
+          path: |
+            .
+            !.git
+            !out
+          include-hidden-files: true
+          retention-days: 1
+
       - name: Fail failed build
         if: steps.build.outcome == 'failure'
         run: exit 1
