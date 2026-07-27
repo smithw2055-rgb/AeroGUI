@@ -1,7 +1,7 @@
 #include <Aero/Core/Metadata/CoreMetadata.hpp>
 
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include <Aero/Metadata.hpp>
 
 #include <cctype>
 #include <cerrno>
@@ -40,13 +40,17 @@ Base::StringView Trim(Base::StringView value) noexcept {
     return value.Substr(begin, end - begin);
 }
 
-Base::Result<double> ParseDouble(Base::StringView text) noexcept {
+Base::Result<double> ParseDouble(
+    Base::StringView text) noexcept {
     Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
+    Base::Result<void> assigned =
+        buffer.TryAssign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     const double value = std::strtod(buffer.CStr(), &end);
-    if (end == buffer.CStr() || *end != '\0' || !std::isfinite(value)) {
+    if (end == buffer.CStr() ||
+        *end != '\0' ||
+        !std::isfinite(value)) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Text is not a finite number");
@@ -75,13 +79,16 @@ Base::Result<Value> ConvertUnsigned(
     Base::StringView text,
     void*) noexcept {
     Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
+    Base::Result<void> assigned =
+        buffer.TryAssign(Trim(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     errno = 0;
     const unsigned long long value =
         std::strtoull(buffer.CStr(), &end, 10);
-    if (end == buffer.CStr() || *end != '\0' || errno == ERANGE ||
+    if (end == buffer.CStr() ||
+        *end != '\0' ||
+        errno == ERANGE ||
         value > static_cast<unsigned long long>(UINT32_MAX) ||
         (!buffer.Empty() && buffer.View()[0] == '-')) {
         return Base::Status::Failure(
@@ -98,7 +105,8 @@ Base::Result<Value> ConvertDoubleValue(
     void*) noexcept {
     Base::Result<double> value = ParseDouble(text);
     return value
-        ? Base::Result<Value>(Value::FromDouble(type, value.Value()))
+        ? Base::Result<Value>(
+            Value::FromDouble(type, value.Value()))
         : Base::Result<Value>(value.GetStatus());
 }
 
@@ -112,42 +120,33 @@ Base::Result<Value> ConvertString(
 } // namespace
 
 Base::Result<void> Detail::PopulateCoreMetadata(
-    MetaRegistrationContext& context) noexcept {
-    Base::Result<void> status;
-
-    MetaTypeBuilder<Base::Object> object =
-        MetaTypeBuilder<Base::Object>::Object(context);
-    status = object.Finish();
+    RegistrationContext& context) noexcept {
+    Base::Result<void> status =
+        Describe<Base::Object>(context).Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<bool> boolean =
-        MetaTypeBuilder<bool>::Primitive(context);
-    boolean.TextConverter(&ConvertBoolean);
-    status = boolean.Finish();
+    status = DescribePrimitive<bool>(context)
+        .TextConverter(&ConvertBoolean)
+        .Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<std::uint32_t> unsignedInteger =
-        MetaTypeBuilder<std::uint32_t>::Primitive(context);
-    unsignedInteger.TextConverter(&ConvertUnsigned);
-    status = unsignedInteger.Finish();
+    status = DescribePrimitive<std::uint32_t>(context)
+        .TextConverter(&ConvertUnsigned)
+        .Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<double> number =
-        MetaTypeBuilder<double>::Primitive(context);
-    number.TextConverter(&ConvertDoubleValue);
-    status = number.Finish();
+    status = DescribePrimitive<double>(context)
+        .TextConverter(&ConvertDoubleValue)
+        .Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Base::String> string =
-        MetaTypeBuilder<Base::String>::Primitive(context);
-    string.TextConverter(&ConvertString);
-    status = string.Finish();
+    status = DescribePrimitive<Base::String>(context)
+        .TextConverter(&ConvertString)
+        .Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<DependencyObject> dependencyObject =
-        MetaTypeBuilder<DependencyObject>::Object(
-            context, TypeFlags::Abstract);
-    return dependencyObject.Finish();
+    return Describe<DependencyObject>(
+        context, TypeFlags::Abstract).Finish();
 }
 
 } // namespace Aero::Core
