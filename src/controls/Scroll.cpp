@@ -1,6 +1,5 @@
 #include <Aero/Controls/Scroll.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -563,35 +562,17 @@ void ScrollViewer::OnScrollDataChanged(
     const ScrollData& newData,
     ScrollInputKind kind) noexcept {
     static_cast<void>(SetReadOnlyCurrentValue(
-        HorizontalOffsetProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.horizontalOffset)));
+        HorizontalOffsetProperty, newData.horizontalOffset));
     static_cast<void>(SetReadOnlyCurrentValue(
-        VerticalOffsetProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.verticalOffset)));
+        VerticalOffsetProperty, newData.verticalOffset));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ExtentWidthProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.extentWidth)));
+        ExtentWidthProperty, newData.extentWidth));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ExtentHeightProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.extentHeight)));
+        ExtentHeightProperty, newData.extentHeight));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ViewportWidthProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.viewportWidth)));
+        ViewportWidthProperty, newData.viewportWidth));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ViewportHeightProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.viewportHeight)));
+        ViewportHeightProperty, newData.viewportHeight));
     if (events_ != nullptr) {
         ScrollChangedEventArgs args;
         args.oldData = oldData;

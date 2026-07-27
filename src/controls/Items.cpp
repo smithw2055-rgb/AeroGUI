@@ -1,7 +1,6 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <algorithm>
@@ -441,10 +440,7 @@ void ItemsControl::PublishReset() noexcept {
 
 void ItemsControl::PublishItemCount() noexcept {
     static_cast<void>(SetReadOnlyCurrentValue(
-        ItemCountProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger,
-            ItemCount())));
+        ItemCountProperty, ItemCount()));
 }
 
 Base::Result<Base::Ref<ItemContainer>>

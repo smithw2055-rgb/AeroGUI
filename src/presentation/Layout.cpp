@@ -1,7 +1,6 @@
 #include <Aero/Presentation/Layout.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
 #include <algorithm>
@@ -306,16 +305,13 @@ Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
     return IsFocusScopeProperty.Set(*this, value);
 }
 Base::Result<void> UIElement::SetMouseOverState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(IsMouseOverProperty,
-        Value::FromBoolean(TypeOf<bool>(), value));
+    return SetReadOnlyCurrentValue(IsMouseOverProperty, value);
 }
 Base::Result<void> UIElement::SetPressedState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(IsPressedProperty,
-        Value::FromBoolean(TypeOf<bool>(), value));
+    return SetReadOnlyCurrentValue(IsPressedProperty, value);
 }
 Base::Result<void> UIElement::SetKeyboardFocusedState(bool value) noexcept {
-    return SetReadOnlyCurrentValue(IsKeyboardFocusedProperty,
-        Value::FromBoolean(TypeOf<bool>(), value));
+    return SetReadOnlyCurrentValue(IsKeyboardFocusedProperty, value);
 }
 
 Base::Result<void> FrameworkElement::SetWidth(double value) noexcept {

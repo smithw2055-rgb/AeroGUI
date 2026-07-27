@@ -23,6 +23,8 @@ class DependencyProperty;
 class MetadataBehaviorRegistrationStore;
 class DependencyPropertyRegistry;
 class MetaRegistrationContext;
+template<class TOwner, class TValue>
+class ReadOnlyDependencyPropertyRef;
 
 struct DependencyPropertyHandle final {
     MemberId value = InvalidMemberId;
@@ -424,6 +426,11 @@ protected:
     Base::Result<void> SetReadOnlyCurrentValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetReadOnlyCurrentValue(
+        const ReadOnlyDependencyPropertyRef<TOwner, TValue>& property,
+        const typename ReadOnlyDependencyPropertyRef<
+            TOwner, TValue>::AccessType& value) noexcept;
     virtual Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
 

@@ -1,6 +1,5 @@
 #include <Aero/Controls/Buttons.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 
 #include <utility>
 
@@ -94,8 +93,7 @@ Base::Result<void> ToggleButton::SetIsChecked(
         IsCheckedProperty.Set(*this, value);
     if (!checked) return checked.GetStatus();
     return SetReadOnlyCurrentValue(
-        IsIndeterminateProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, false));
+        IsIndeterminateProperty, false);
 }
 
 Base::Result<void> ToggleButton::SetIsThreeState(
@@ -106,8 +104,7 @@ Base::Result<void> ToggleButton::SetIsThreeState(
         return state;
     }
     return SetReadOnlyCurrentValue(
-        IsIndeterminateProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, false));
+        IsIndeterminateProperty, false);
 }
 
 Base::Result<void> ToggleButton::SetToggleState(
@@ -119,25 +116,21 @@ Base::Result<void> ToggleButton::SetToggleState(
             Base::ErrorCode::InvalidArgument,
             "ToggleButton state is invalid");
     }
-    const Value enabled =
-        Value::FromBoolean(BuiltinTypes::Boolean, true);
-    const Value disabled =
-        Value::FromBoolean(BuiltinTypes::Boolean, false);
     Base::Result<void> status;
     switch (value) {
     case ToggleState::Checked:
         status = IsCheckedProperty.Set(*this, true);
         if (!status) return status.GetStatus();
         return SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, disabled);
+            IsIndeterminateProperty, false);
     case ToggleState::Unchecked:
         status = SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, disabled);
+            IsIndeterminateProperty, false);
         if (!status) return status.GetStatus();
         return IsCheckedProperty.Set(*this, false);
     case ToggleState::Indeterminate:
         status = SetReadOnlyCurrentValue(
-            IsIndeterminateProperty, enabled);
+            IsIndeterminateProperty, true);
         if (!status) return status.GetStatus();
         return IsCheckedProperty.Set(*this, false);
     }
@@ -836,9 +829,7 @@ void ControlInteractionManager::OnPropertyChanged(
             toggle.IsIndeterminate()) {
             record.updatingToggle = true;
             static_cast<void>(toggle.SetReadOnlyCurrentValue(
-                ToggleButton::IsIndeterminateProperty,
-                Value::FromBoolean(
-                    BuiltinTypes::Boolean, false)));
+                ToggleButton::IsIndeterminateProperty, false));
             record.updatingToggle = false;
         } else if (!record.updatingToggle &&
             args.property ==
@@ -847,9 +838,7 @@ void ControlInteractionManager::OnPropertyChanged(
             toggle.IsIndeterminate()) {
             record.updatingToggle = true;
             static_cast<void>(toggle.SetReadOnlyCurrentValue(
-                ToggleButton::IsIndeterminateProperty,
-                Value::FromBoolean(
-                    BuiltinTypes::Boolean, false)));
+                ToggleButton::IsIndeterminateProperty, false));
             record.updatingToggle = false;
         }
         PublishToggleState(toggle, record);

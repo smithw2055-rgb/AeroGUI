@@ -374,10 +374,24 @@ class ReadOnlyDependencyPropertyRef final
         MetadataDetail::DependencyPropertyView<TOwner, TValue>;
 
 public:
+    using AccessType = typename View::AccessType;
+
     constexpr explicit ReadOnlyDependencyPropertyRef(
         Base::StringView name) noexcept
         : View(name) {}
 };
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
+    const ReadOnlyDependencyPropertyRef<TOwner, TValue>& property,
+    const typename ReadOnlyDependencyPropertyRef<
+        TOwner, TValue>::AccessType& value) noexcept {
+    Base::Result<Value> encoded =
+        MetadataDetail::EncodeRuntimeValue<TValue>(value);
+    if (!encoded) return encoded.GetStatus();
+    return SetReadOnlyCurrentValue(
+        property.Handle(), encoded.Value());
+}
 
 template<class TOwner, class TEventArgs>
 class RoutedEventRef final
