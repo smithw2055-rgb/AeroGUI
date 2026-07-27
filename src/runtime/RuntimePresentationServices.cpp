@@ -122,7 +122,7 @@ Base::Result<void> RuntimePresentationServices::Apply(
         Base::Result<std::uint32_t> styleValues = values_->Flush();
         if (!styleValues) return styleValues.GetStatus();
 
-        if (metadata_->Descriptors().IsDerivedFrom(
+        if (metadata_->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
             auto& control = *static_cast<Controls::Control*>(node);
@@ -185,7 +185,7 @@ void RuntimePresentationServices::Detach(
     for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
         Presentation::Visual* node = reachable[index - 1U];
         if (node == nullptr || metadata_ == nullptr ||
-            !metadata_->Descriptors().IsDerivedFrom(
+            !metadata_->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
             continue;

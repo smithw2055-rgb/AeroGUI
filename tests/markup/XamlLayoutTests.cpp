@@ -8,7 +8,7 @@
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
 #include <Aero/Markup/Parsing/XamlNodeReader.hpp>

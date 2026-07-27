@@ -1,6 +1,6 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/ObjectServices.hpp>

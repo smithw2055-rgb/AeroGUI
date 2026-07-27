@@ -9,10 +9,11 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Markup/Runtime/XamlActivation.hpp>
-#include <Aero/Markup/Runtime/XamlLoader.hpp>
-#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
-#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Loader.hpp>
+#include "core/metadata/MetadataDomainAccess.hpp"
+#include "markup/LoaderResult.hpp"
+#include "UiDocumentAccess.hpp"
+#include <Aero/Markup/Schema.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Presentation/Binding.hpp>
@@ -29,7 +30,6 @@
 #include <utility>
 
 namespace Aero {
-using namespace Markup;
 namespace {
 
 Base::Status RuntimeInvalidState(const char* message) noexcept {
@@ -95,7 +95,7 @@ struct RuntimeHost::Impl final {
     Impl(
         Base::IAllocator& value,
         SchemaBundle* sharedSchema = nullptr,
-        XamlDocumentCache* sharedDocumentCache = nullptr) noexcept
+        Markup::DocumentCache* sharedDocumentCache = nullptr) noexcept
         : allocator(&value),
           ownedSchemaBundle(&value),
           schemaBundle(sharedSchema != nullptr
@@ -112,8 +112,8 @@ struct RuntimeHost::Impl final {
     SchemaBundle ownedSchemaBundle;
     SchemaBundle* schemaBundle = nullptr;
     bool usesSharedSchema = false;
-    XamlDocumentCache ownedDocumentCache;
-    XamlDocumentCache* documentCache = nullptr;
+    Markup::DocumentCache ownedDocumentCache;
+    Markup::DocumentCache* documentCache = nullptr;
     Core::MetadataDomain* metadata = nullptr;
     ModuleCatalog modules;
     RuntimeHostOptions options;
@@ -133,12 +133,11 @@ struct RuntimeHost::Impl final {
     Presentation::StyleManager* styles = nullptr;
     Detail::RuntimePresentationServices presentationServices;
 
-    XamlSchemaContext* schema = nullptr;
-    Core::ActivationProviderRegistry* activation = nullptr;
+    Markup::Schema* schema = nullptr;
     Presentation::VisualTreeMount* visualMount = nullptr;
-    XamlSourceProviderRegistry xamlSources;
-    EmbeddedXamlSourceProvider embeddedXaml;
-    FileXamlSourceProvider fileXaml;
+    Markup::SourceProviderRegistry xamlSources;
+    Markup::EmbeddedSourceProvider embeddedXaml;
+    Markup::FileSourceProvider fileXaml;
     Presentation::ResourceDictionary applicationResources;
     Presentation::ResourceDictionary themeResources;
     Presentation::ResourceDictionary systemResources;
@@ -152,8 +151,8 @@ struct RuntimeHost::Impl final {
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
 
-    XamlLoadResult loadedDocument;
-    Base::Ref<XamlEffectLifetime> effectLifetime;
+    Markup::LoaderResult loadedDocument;
+    Base::Ref<Markup::EffectLifetime> effectLifetime;
     Base::Ref<Base::Object> root;
     std::uint64_t frameNumber = 0U;
     bool initialized = false;
@@ -164,18 +163,6 @@ struct RuntimeHost::Impl final {
         return options.renderBackend != nullptr
             ? *options.renderBackend
             : static_cast<Presentation::IRenderBackend&>(nullBackend);
-    }
-
-    XamlActivationContext ActivationContext() noexcept {
-        XamlActivationContext context =
-            XamlActivationContext::Create();
-        context.dispatcher = &dispatcher;
-        context.dependencyProperties =
-            &metadata->DependencyProperties();
-        context.applicationServices =
-            options.applicationServices;
-        context.hostContext = options.hostContext;
-        return context;
     }
 
     Base::Result<void> EnsureDefaultXamlProviders() noexcept {
@@ -242,32 +229,22 @@ struct RuntimeHost::Impl final {
         return {};
     }
 
-    Base::Result<Base::Ref<Base::Object>> CompleteDocumentLoad(
-        Base::Result<XamlLoadResult> loaded) noexcept {
-        if (!loaded) {
-            return loaded.GetStatus();
-        }
-        XamlLoadResult result = std::move(loaded).Value();
-        loadedDocument = std::move(result);
-        return loadedDocument.root;
-    }
-
-    Base::Result<XamlLoadOptions> LoadOptions(
-        XamlActivationContext& context,
+    Base::Result<Markup::LoadOptions> LoadOptions(
         bool deferredEffects = false) noexcept {
-        XamlLoadOptions result;
+        Markup::LoadOptions result;
         result.resources = &dynamicResourceEnvironment;
         result.effectiveValues = values;
         result.bindings = bindings;
         result.fallbackResources = &dynamicResourceEnvironment;
         result.documentCache = documentCache;
-        result.activationFacets =
-            activation;
-        result.activation = &context;
+        result.dispatcher = &dispatcher;
+        result.dependencyProperties =
+            &Core::Detail::MetadataDomainAccess::
+                DependencyProperties(*metadata);
         result.effectLifetime = effectLifetime;
         result.effectCommitMode = deferredEffects
-            ? XamlEffectCommitMode::Deferred
-            : XamlEffectCommitMode::Immediate;
+            ? Markup::EffectCommitMode::Deferred
+            : Markup::EffectCommitMode::Immediate;
         return result;
     }
 
@@ -328,7 +305,7 @@ struct RuntimeHost::Impl final {
 
     Presentation::Visual* RootVisual() noexcept {
         if (!root) return nullptr;
-        if (!metadata->Descriptors().IsDerivedFrom(
+        if (!metadata->Types().IsDerivedFrom(
                 root->RuntimeType(),
                 Presentation::Visual::StaticTypeId())) {
             return nullptr;
@@ -339,7 +316,7 @@ struct RuntimeHost::Impl final {
     Base::Result<Presentation::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) noexcept {
         if (object.RuntimeType() != type ||
-            !metadata->Descriptors().IsDerivedFrom(
+            !metadata->Types().IsDerivedFrom(
                 type, Presentation::Visual::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -374,7 +351,9 @@ struct RuntimeHost::Impl final {
         Base::Result<void> status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             templates, *tree, *values,
-            metadata->DependencyProperties(), layout, renderer);
+            Core::Detail::MetadataDomainAccess::
+                DependencyProperties(*metadata),
+            layout, renderer);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
@@ -383,7 +362,8 @@ struct RuntimeHost::Impl final {
         status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             styles, *values,
-            metadata->DependencyProperties());
+            Core::Detail::MetadataDomainAccess::
+                DependencyProperties(*metadata));
         if (!status) return status.GetStatus();
         presentationServices.Configure(
             *allocator,
@@ -421,14 +401,14 @@ struct RuntimeHost::Impl final {
             if (node == nullptr) continue;
             const Core::TypeId type = node->RuntimeType();
             if (controlInteractions != nullptr &&
-                metadata->Descriptors().IsDerivedFrom(
+                metadata->Types().IsDerivedFrom(
                     type, Controls::ButtonBase::StaticTypeId())) {
                 Base::Result<void> attached =
                     controlInteractions->Attach(
                         *static_cast<Controls::ButtonBase*>(node));
                 if (!attached) return attached.GetStatus();
             }
-            if (metadata->Descriptors().IsDerivedFrom(
+            if (metadata->Types().IsDerivedFrom(
                     type, Controls::TextBox::StaticTypeId())) {
                 auto& textBox =
                     *static_cast<Controls::TextBox*>(node);
@@ -458,7 +438,7 @@ struct RuntimeHost::Impl final {
     void ClearTextInputHosts(
         Presentation::Visual* node) noexcept {
         if (node == nullptr) return;
-        if (metadata->Descriptors().IsDerivedFrom(
+        if (metadata->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::TextBox::StaticTypeId())) {
             static_cast<void>(
@@ -586,7 +566,6 @@ struct RuntimeHost::Impl final {
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             objectServices);
-        activation = nullptr;
         schema = nullptr;
         metadataRuntime = nullptr;
         metadata = nullptr;
@@ -606,8 +585,9 @@ struct RuntimeHost::Impl final {
         }
         options = requested;
 
-        Base::Result<Base::Ref<XamlEffectLifetime>> lifetime =
-            Base::MakeRefWithAllocator<XamlEffectLifetime>(*allocator);
+        Base::Result<Base::Ref<Markup::EffectLifetime>> lifetime =
+            Base::MakeRefWithAllocator<Markup::EffectLifetime>(
+                *allocator);
         Base::Result<void> status = lifetime
             ? Base::Result<void>()
             : Base::Result<void>(lifetime.GetStatus());
@@ -630,14 +610,16 @@ struct RuntimeHost::Impl final {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 objectServices, dispatcher,
-                metadata->DependencyProperties(),
+                Core::Detail::MetadataDomainAccess::
+                    DependencyProperties(*metadata),
                 *metadataRuntime);
         }
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 values, dispatcher,
-                metadata->DependencyProperties());
+                Core::Detail::MetadataDomainAccess::
+                    DependencyProperties(*metadata));
         }
         if (status) status = values->Initialize();
         if (status) {
@@ -667,7 +649,9 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
-                events, metadata->RoutedEvents());
+                events,
+                Core::Detail::MetadataDomainAccess::
+                    RoutedEvents(*metadata));
         }
         if (status) {
             status = CreateRuntimeObject(
@@ -684,8 +668,7 @@ struct RuntimeHost::Impl final {
                 SchemaBundleServices{allocator});
         }
         if (status && schemaBundle->IsFrozen()) {
-            schema = &schemaBundle->XamlSchema();
-            activation = &schemaBundle->ActivationFacets();
+            schema = &schemaBundle->Schema();
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 visualMount, *tree, *layout, renderer);
@@ -700,11 +683,13 @@ struct RuntimeHost::Impl final {
     }
 
     Base::Result<void> CommitResourceLayer(
-        XamlLoadResult result,
+        UiDocument document,
         Presentation::ResourceDictionary& target,
         bool merge) noexcept {
-        if (!result.root ||
-            result.root->RuntimeType() !=
+        const Base::Ref<Base::Object>& rootObject =
+            document.Root();
+        if (!rootObject ||
+            rootObject->RuntimeType() !=
                 Presentation::ResourceDictionary::StaticTypeId()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -712,7 +697,7 @@ struct RuntimeHost::Impl final {
         }
         auto& dictionary =
             static_cast<Presentation::ResourceDictionary&>(
-                *result.root);
+                *rootObject);
         if (merge) {
             Base::Result<void> merged =
                 target.TryAddMerged(dictionary);
@@ -763,18 +748,17 @@ struct RuntimeHost::Impl final {
             return RuntimeInvalidState(
                 "RuntimeHost resource layers must be loaded before a document");
         }
-        XamlActivationContext activationContext =
-            ActivationContext();
-        Base::Result<XamlLoadOptions> loadOptions =
-            LoadOptions(activationContext);
+        Base::Result<Markup::LoadOptions> loadOptions =
+            LoadOptions();
         if (!loadOptions) {
             return loadOptions.GetStatus();
         }
-        XamlLoader loader(
+        Markup::Loader loader(
             *schema,
             xamlSources,
-            diagnostics);
-        Base::Result<XamlLoadResult> loaded =
+            diagnostics,
+            allocator);
+        Base::Result<UiDocument> loaded =
             loader.Load(uri, loadOptions.Value());
         if (!loaded) {
             return loaded.GetStatus();
@@ -798,13 +782,12 @@ struct RuntimeHost::Impl final {
             return RuntimeInvalidState(
                 "RuntimeHost resource layers must be loaded before a document");
         }
-        XamlActivationContext activationContext =
-            ActivationContext();
-        Base::Result<XamlLoadOptions> loadOptions =
-            LoadOptions(activationContext);
+        Base::Result<Markup::LoadOptions> loadOptions =
+            LoadOptions();
         if (!loadOptions) return loadOptions.GetStatus();
-        XamlLoader loader(*schema, xamlSources);
-        Base::Result<XamlLoadResult> loaded =
+        Markup::Loader loader(
+            *schema, xamlSources, nullptr, allocator);
+        Base::Result<UiDocument> loaded =
             loader.LoadCompiled(
                 bytes, originUri, loadOptions.Value());
         if (!loaded) return loaded.GetStatus();
@@ -822,7 +805,7 @@ struct RuntimeHost::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "RuntimeHost root must not be null");
         }
-        if (!metadata->Descriptors().IsDerivedFrom(
+        if (!metadata->Types().IsDerivedFrom(
                 requestedRoot->RuntimeType(),
                 Presentation::Visual::StaticTypeId())) {
             return Base::Status::Failure(
@@ -978,7 +961,7 @@ RuntimeHost::RuntimeHost(
 
 RuntimeHost::RuntimeHost(
     SchemaBundle& schemaBundle,
-    XamlDocumentCache& documentCache,
+    Markup::DocumentCache& documentCache,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
@@ -1013,7 +996,7 @@ Base::Result<void> RuntimeHost::AddModule(
         return RuntimeInvalidState(
             "RuntimeHost modules require an owned, uninitialized schema bundle");
     }
-    return impl_->modules.TryAdd(registration);
+    return impl_->modules.Add(registration);
 }
 
 Base::Result<void> RuntimeHost::Initialize() noexcept {
@@ -1039,30 +1022,25 @@ bool RuntimeHost::IsMounted() const noexcept {
     return impl_ != nullptr && impl_->mounted;
 }
 
-Base::Result<UiDocument> RuntimeHost::LoadUiDocument(
+Base::Result<UiDocument> RuntimeHost::Load(
     Base::StringView uri,
     Core::IDiagnosticSink* diagnostics) noexcept {
     if (!IsInitialized()) {
         return RuntimeNotInitialized(
             "RuntimeHost must be initialized before XAML loading");
     }
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext, true);
+    Base::Result<Markup::LoadOptions> options =
+        impl_->LoadOptions(true);
     if (!options) return options.GetStatus();
-    XamlLoader loader(
+    Markup::Loader loader(
         *impl_->schema,
         impl_->xamlSources,
-        diagnostics);
-    Base::Result<XamlLoadResult> loaded =
-        loader.Load(uri, options.Value());
-    if (!loaded) return loaded.GetStatus();
-    return UiDocument::Adopt(
-        std::move(loaded).Value(), *allocator_);
+        diagnostics,
+        allocator_);
+    return loader.Load(uri, options.Value());
 }
 
-Base::Result<UiDocument> RuntimeHost::ParseUiDocument(
+Base::Result<UiDocument> RuntimeHost::Parse(
     Base::StringView source,
     const Base::ResourceUri& baseUri,
     Core::IDiagnosticSink* diagnostics) noexcept {
@@ -1070,103 +1048,38 @@ Base::Result<UiDocument> RuntimeHost::ParseUiDocument(
         return RuntimeNotInitialized(
             "RuntimeHost must be initialized before XAML parsing");
     }
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext, true);
+    Base::Result<Markup::LoadOptions> options =
+        impl_->LoadOptions(true);
     if (!options) return options.GetStatus();
-    XamlLoader loader(
+    Markup::Loader loader(
         *impl_->schema,
         impl_->xamlSources,
-        diagnostics);
-    Base::Result<XamlLoadResult> loaded =
-        loader.Parse(source, baseUri, options.Value());
-    if (!loaded) return loaded.GetStatus();
-    return UiDocument::Adopt(
-        std::move(loaded).Value(), *allocator_);
+        diagnostics,
+        allocator_);
+    return loader.Parse(source, baseUri, options.Value());
 }
 
-Base::Result<UiDocument> RuntimeHost::LoadCompiledUiDocument(
+Base::Result<UiDocument> RuntimeHost::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri) noexcept {
     if (!IsInitialized()) {
         return RuntimeNotInitialized(
             "RuntimeHost must be initialized before compiled XAML loading");
     }
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext, true);
+    Base::Result<Markup::LoadOptions> options =
+        impl_->LoadOptions(true);
     if (!options) return options.GetStatus();
-    XamlLoader loader(*impl_->schema, impl_->xamlSources);
-    Base::Result<XamlLoadResult> loaded =
-        loader.LoadCompiled(bytes, originUri, options.Value());
-    if (!loaded) return loaded.GetStatus();
-    return UiDocument::Adopt(
-        std::move(loaded).Value(), *allocator_);
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadXaml(
-    Base::StringView uri,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<void> ready = impl_->BeginDocumentLoad();
-    if (!ready) return ready.GetStatus();
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
-    if (!options) return options.GetStatus();
-    XamlLoader loader(
+    Markup::Loader loader(
         *impl_->schema,
         impl_->xamlSources,
-        diagnostics);
-    return impl_->CompleteDocumentLoad(
-        loader.Load(uri, options.Value()));
+        nullptr,
+        allocator_);
+    return loader.LoadCompiled(
+        bytes, originUri, options.Value());
 }
 
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::ParseXaml(
-    Base::StringView source,
-    const Base::ResourceUri& baseUri,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<void> ready = impl_->BeginDocumentLoad();
-    if (!ready) return ready.GetStatus();
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
-    if (!options) return options.GetStatus();
-    XamlLoader loader(
-        *impl_->schema,
-        impl_->xamlSources,
-        diagnostics);
-    return impl_->CompleteDocumentLoad(
-        loader.Parse(
-            source, baseUri, options.Value()));
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadCompiledXaml(
-    Base::Span<const std::uint8_t> bytes,
-    const Base::ResourceUri& originUri) noexcept {
-    Base::Result<void> ready = impl_->BeginDocumentLoad();
-    if (!ready) return ready.GetStatus();
-    XamlActivationContext activationContext =
-        impl_->ActivationContext();
-    Base::Result<XamlLoadOptions> options =
-        impl_->LoadOptions(activationContext);
-    if (!options) return options.GetStatus();
-    XamlLoader loader(
-        *impl_->schema,
-        impl_->xamlSources);
-    return impl_->CompleteDocumentLoad(
-        loader.LoadCompiled(
-            bytes, originUri, options.Value()));
-}
-
-Base::Result<void> RuntimeHost::RegisterXamlSourceProvider(
-    IXamlSourceProvider& provider,
+Base::Result<void> RuntimeHost::RegisterSourceProvider(
+    Markup::ISourceProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
     if (impl_ == nullptr || impl_->terminal) {
@@ -1302,14 +1215,16 @@ Base::Result<void> RuntimeHost::Mount(
             Base::ErrorCode::InvalidArgument,
             "RuntimeHost cannot mount an empty UI document");
     }
-    if (document.RuntimeLifetime() != impl_->effectLifetime.Get()) {
+    if (Detail::UiDocumentAccess::RuntimeLifetime(document) !=
+        impl_->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "UI document belongs to another RuntimeView");
+            "UI document belongs to another View");
     }
     Base::Result<void> valid = impl_->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
-    impl_->loadedDocument = document.TakeResult();
+    impl_->loadedDocument =
+        Detail::UiDocumentAccess::Take(document);
     return impl_->MountRoot(
         impl_->loadedDocument.root, availableSize);
 }
@@ -1326,17 +1241,19 @@ Base::Result<void> RuntimeHost::ReplaceMountedDocument(
             Base::ErrorCode::InvalidArgument,
             "RuntimeHost cannot replace a document with an empty document");
     }
-    if (document.RuntimeLifetime() != impl_->effectLifetime.Get()) {
+    if (Detail::UiDocumentAccess::RuntimeLifetime(document) !=
+        impl_->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Replacement UI document belongs to another RuntimeView");
+            "Replacement UI document belongs to another View");
     }
     Base::Result<void> valid = impl_->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
 
-    XamlLoadResult next = document.TakeResult();
+    Markup::LoaderResult next =
+        Detail::UiDocumentAccess::Take(document);
     if (!next.root ||
-        !impl_->metadata->Descriptors().IsDerivedFrom(
+        !impl_->metadata->Types().IsDerivedFrom(
             next.root->RuntimeType(),
             Presentation::Visual::StaticTypeId())) {
         next.Clear();
@@ -1354,7 +1271,7 @@ Base::Result<void> RuntimeHost::ReplaceMountedDocument(
         return restored ? detached : restored;
     }
 
-    XamlLoadResult previous =
+    Markup::LoaderResult previous =
         std::move(impl_->loadedDocument);
     impl_->loadedDocument = std::move(next);
     Base::Result<void> mounted = impl_->MountRoot(
@@ -1368,46 +1285,6 @@ Base::Result<void> RuntimeHost::ReplaceMountedDocument(
     Base::Result<void> restored = impl_->MountRoot(
         impl_->loadedDocument.root, availableSize);
     return restored ? mounted : restored;
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadAndMountXaml(
-    Base::StringView uri,
-    Presentation::Size availableSize,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<Base::Ref<Base::Object>> loaded =
-        LoadXaml(uri, diagnostics);
-    if (!loaded) return loaded.GetStatus();
-    Base::Result<void> mounted = Mount(availableSize);
-    if (!mounted) return mounted.GetStatus();
-    return impl_->root;
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::ParseAndMountXaml(
-    Base::StringView source,
-    const Base::ResourceUri& baseUri,
-    Presentation::Size availableSize,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<Base::Ref<Base::Object>> loaded =
-        ParseXaml(source, baseUri, diagnostics);
-    if (!loaded) return loaded.GetStatus();
-    Base::Result<void> mounted = Mount(availableSize);
-    if (!mounted) return mounted.GetStatus();
-    return impl_->root;
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadAndMountCompiledXaml(
-    Base::Span<const std::uint8_t> bytes,
-    Presentation::Size availableSize,
-    const Base::ResourceUri& originUri) noexcept {
-    Base::Result<Base::Ref<Base::Object>> loaded =
-        LoadCompiledXaml(bytes, originUri);
-    if (!loaded) return loaded.GetStatus();
-    Base::Result<void> mounted = Mount(availableSize);
-    if (!mounted) return mounted.GetStatus();
-    return impl_->root;
 }
 
 Base::Result<void> RuntimeHost::Resize(
@@ -1510,7 +1387,7 @@ Base::Object* RuntimeHost::FindNamedObject(
     if (object == nullptr || expectedType == Core::InvalidTypeId) {
         return object;
     }
-    return impl_->metadata->Descriptors().IsAssignableFrom(
+    return impl_->metadata->Types().IsAssignableFrom(
         expectedType, object->RuntimeType()) ? object : nullptr;
 }
 
@@ -1566,32 +1443,25 @@ RuntimeHost::VisualStates() noexcept {
     return impl_ != nullptr ? impl_->visualStates : nullptr;
 }
 
-XamlSchemaContext* RuntimeHost::Schema() noexcept {
+Markup::Schema* RuntimeHost::Schema() noexcept {
     return impl_ != nullptr ? impl_->schema : nullptr;
 }
 
-Core::ActivationProviderRegistry*
-RuntimeHost::ActivationFacets() noexcept {
-    return impl_ != nullptr
-        ? impl_->activation
-        : nullptr;
-}
-
-XamlSourceProviderRegistry*
-RuntimeHost::XamlSources() noexcept {
+Markup::SourceProviderRegistry*
+RuntimeHost::Sources() noexcept {
     return impl_ != nullptr
         ? &impl_->xamlSources
         : nullptr;
 }
 
-EmbeddedXamlSourceProvider*
-RuntimeHost::EmbeddedXamlSources() noexcept {
+Markup::EmbeddedSourceProvider*
+RuntimeHost::EmbeddedSources() noexcept {
     return impl_ != nullptr
         ? &impl_->embeddedXaml
         : nullptr;
 }
 
-XamlDocumentCache* RuntimeHost::DocumentCache() noexcept {
+Markup::DocumentCache* RuntimeHost::DocumentCache() noexcept {
     return impl_ != nullptr ? impl_->documentCache : nullptr;
 }
 

@@ -21,12 +21,12 @@ enum class ToggleState : std::uint8_t {
 class ControlInteractionManager;
 
 class AERO_API ButtonBase : public ContentControl {
-    AERO_TYPED_META(ButtonBase, ContentControl)
+    AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
-    inline static constexpr RoutedEventHandle ClickEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Click");
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs> ClickEvent{"Click"};
     UIElement::RoutedEvent_<RoutedEventHandler> Click() noexcept {
-        return {*this, ClickEvent};
+        return Event(ClickEvent);
     }
 
     ClickMode GetClickMode() const noexcept;
@@ -45,18 +45,15 @@ public:
     Base::Result<void> SetCommandTarget(
         Base::Ref<UIElement> target) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        ClickModeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ClickMode");
-    inline static constexpr DependencyPropertyHandle
-        CommandProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Command");
-    inline static constexpr DependencyPropertyHandle
-        CommandParameterProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CommandParameter");
-    inline static constexpr DependencyPropertyHandle
-        CommandTargetProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CommandTarget");
+    inline static constexpr Members::Property<ClickMode>
+        ClickModeProperty{"ClickMode"};
+    inline static constexpr Members::Property<Base::Ref<ICommand>>
+        CommandProperty{"Command"};
+    inline static constexpr Members::Property<
+        Base::Ref<Base::Object>>
+        CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Base::Ref<UIElement>>
+        CommandTargetProperty{"CommandTarget"};
 
 protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
@@ -69,14 +66,14 @@ private:
 };
 
 class AERO_API Button final : public ButtonBase {
-    AERO_TYPED_META(Button, ButtonBase)
+    AERO_DECLARE_TYPE(Button, ButtonBase)
 public:
     Button() noexcept : ButtonBase(StaticTypeId()) {}
     ~Button() override = default;
 };
 
 class AERO_API RepeatButton final : public ButtonBase {
-    AERO_TYPED_META(RepeatButton, ButtonBase)
+    AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
     RepeatButton() noexcept : ButtonBase(StaticTypeId()) {}
     ~RepeatButton() override = default;
@@ -86,16 +83,14 @@ public:
     Base::Result<void> SetDelay(std::uint32_t value) noexcept;
     Base::Result<void> SetInterval(std::uint32_t value) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        DelayProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Delay");
-    inline static constexpr DependencyPropertyHandle
-        IntervalProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Interval");
+    inline static constexpr Members::Property<std::uint32_t>
+        DelayProperty{"Delay"};
+    inline static constexpr Members::Property<std::uint32_t>
+        IntervalProperty{"Interval"};
 };
 
 class AERO_API ToggleButton : public ButtonBase {
-    AERO_TYPED_META(ToggleButton, ButtonBase)
+    AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
     ToggleButton() noexcept : ButtonBase(StaticTypeId()) {}
     ~ToggleButton() override = default;
@@ -107,31 +102,28 @@ public:
     Base::Result<void> SetIsChecked(bool value) noexcept;
     Base::Result<void> SetIsThreeState(bool value) noexcept;
 
-    inline static constexpr RoutedEventHandle CheckedEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Checked");
-    inline static constexpr RoutedEventHandle UncheckedEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Unchecked");
-    inline static constexpr RoutedEventHandle IndeterminateEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "Indeterminate");
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs> CheckedEvent{"Checked"};
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs> UncheckedEvent{"Unchecked"};
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs> IndeterminateEvent{"Indeterminate"};
     UIElement::RoutedEvent_<RoutedEventHandler> Checked() noexcept {
-        return {*this, CheckedEvent};
+        return Event(CheckedEvent);
     }
     UIElement::RoutedEvent_<RoutedEventHandler> Unchecked() noexcept {
-        return {*this, UncheckedEvent};
+        return Event(UncheckedEvent);
     }
     UIElement::RoutedEvent_<RoutedEventHandler> Indeterminate() noexcept {
-        return {*this, IndeterminateEvent};
+        return Event(IndeterminateEvent);
     }
 
-    inline static constexpr DependencyPropertyHandle
-        IsCheckedProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsChecked");
-    inline static constexpr DependencyPropertyHandle
-        IsThreeStateProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsThreeState");
-    inline static constexpr DependencyPropertyHandle
-        IsIndeterminateProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsIndeterminate");
+    inline static constexpr Members::Property<bool>
+        IsCheckedProperty{"IsChecked"};
+    inline static constexpr Members::Property<bool>
+        IsThreeStateProperty{"IsThreeState"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        IsIndeterminateProperty{"IsIndeterminate"};
 
 protected:
     explicit ToggleButton(TypeId runtimeType) noexcept
@@ -144,14 +136,14 @@ private:
 };
 
 class AERO_API CheckBox final : public ToggleButton {
-    AERO_TYPED_META(CheckBox, ToggleButton)
+    AERO_DECLARE_TYPE(CheckBox, ToggleButton)
 public:
     CheckBox() noexcept : ToggleButton(StaticTypeId()) {}
     ~CheckBox() override = default;
 };
 
 class AERO_API RadioButton final : public ToggleButton {
-    AERO_TYPED_META(RadioButton, ToggleButton)
+    AERO_DECLARE_TYPE(RadioButton, ToggleButton)
 public:
     RadioButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~RadioButton() override = default;
@@ -160,9 +152,8 @@ public:
     Base::Result<void> SetGroupName(
         Base::StringView value) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        GroupNameProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "GroupName");
+    inline static constexpr Members::Property<Base::String>
+        GroupNameProperty{"GroupName"};
 };
 
 class AERO_API ControlInteractionManager final {

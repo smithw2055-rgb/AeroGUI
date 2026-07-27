@@ -59,17 +59,12 @@ bool EqualIndices(
 } // namespace
 
 bool ListBoxItem::IsSelected() const noexcept {
-    Base::Result<Value> value =
-        GetValue(IsSelectedProperty);
-    return value && value.Value().AsBoolean();
+    return GetValueOr(IsSelectedProperty, false);
 }
 
 Base::Result<void> ListBoxItem::SetIsSelected(
     bool value) noexcept {
-    return SetCurrentValue(
-        IsSelectedProperty,
-        Value::FromBoolean(
-            BuiltinTypes::Boolean, value));
+    return SetCurrentValue(IsSelectedProperty, value);
 }
 
 Selector::Selector() noexcept
@@ -115,39 +110,26 @@ Selector::~Selector() {
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectionModeProperty);
-    return value
-        ? static_cast<SelectionMode>(
-            value.Value().AsUnsignedInteger())
-        : SelectionMode::Single;
+    return GetValueOr(
+        SelectionModeProperty, SelectionMode::Single);
 }
 
 std::uint32_t Selector::SelectedIndex() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedIndexProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : UINT32_MAX;
+    return GetValueOr(SelectedIndexProperty, UINT32_MAX);
 }
 
 Base::Ref<Base::Object>
 Selector::SelectedItem() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedItemProperty);
-    return value && !value.Value().IsNullObject()
-        ? value.Value().AsObject()
-        : Base::Ref<Base::Object>();
+    return GetValueOr(
+        SelectedItemProperty,
+        Base::Ref<Base::Object>{});
 }
 
 Base::Ref<Base::Object>
 Selector::SelectedValue() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedValueProperty);
-    return value && !value.Value().IsNullObject()
-        ? value.Value().AsObject()
-        : Base::Ref<Base::Object>();
+    return GetValueOr(
+        SelectedValueProperty,
+        Base::Ref<Base::Object>{});
 }
 
 bool Selector::IsSelected(
@@ -170,17 +152,9 @@ std::uint32_t Selector::IndexOfItem(
 
 Base::Result<void> Selector::SetSelectionMode(
     SelectionMode value) noexcept {
-    if (value > SelectionMode::Extended) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Selector SelectionMode is invalid");
-    }
     lastSelectionError_ = {};
-    Base::Result<void> stored = SetValue(
-        SelectionModeProperty,
-        Value::FromUnsignedInteger(
-            TypeOf<SelectionMode>(),
-            static_cast<std::uint64_t>(value)));
+    Base::Result<void> stored =
+        SetValue(SelectionModeProperty, value);
     if (!stored) return stored.GetStatus();
     if (value == SelectionMode::Single &&
         selectedIndices_.Size() > 1U) {
@@ -464,10 +438,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     Base::Result<void> indexStored;
     if (activeProperty_ != SelectedIndexProperty) {
         indexStored = SetCurrentValue(
-            SelectedIndexProperty,
-            Value::FromUnsignedInteger(
-                BuiltinTypes::UnsignedInteger,
-                primaryIndex_));
+            SelectedIndexProperty, primaryIndex_);
     }
     if (!indexStored) {
         synchronizingProperties_ = false;
@@ -476,9 +447,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     Base::Result<void> itemStored;
     if (activeProperty_ != SelectedItemProperty) {
         itemStored = SetCurrentValue(
-            SelectedItemProperty,
-            Value::FromObject(
-                TypeOf<Base::Object>(), selected));
+            SelectedItemProperty, selected);
     }
     if (!itemStored) {
         synchronizingProperties_ = false;
@@ -487,9 +456,7 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     Base::Result<void> valueStored;
     if (activeProperty_ != SelectedValueProperty) {
         valueStored = SetCurrentValue(
-            SelectedValueProperty,
-            Value::FromObject(
-                TypeOf<Base::Object>(), selected));
+            SelectedValueProperty, selected);
     }
     synchronizingProperties_ = false;
     return valueStored;

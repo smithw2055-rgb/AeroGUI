@@ -51,7 +51,7 @@ function(aero_add_schema_manifest target)
     set(AERO_SCHEMA_GENERATED_FUNCTION
         "${AERO_SCHEMA_MODULE_FUNCTION}")
     set(_aero_schema_template [=[
-#include <Aero/Markup/Schema/XamlSchemaManifest.hpp>
+#include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/SchemaBundle.hpp>
 #include <@AERO_SCHEMA_GENERATED_HEADER@>
@@ -122,6 +122,7 @@ int main(int argc, char** argv) {
         PRIVATE Aero::ModuleCatalog ${AERO_SCHEMA_LIBRARIES})
     target_compile_features("${_aero_schema_generator}"
         PRIVATE cxx_std_17)
+    aero_apply_compiler_options("${_aero_schema_generator}")
     set_target_properties("${_aero_schema_generator}" PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED YES

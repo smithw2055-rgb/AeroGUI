@@ -5,7 +5,7 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>
 #include <Aero/Markup/Parsing/XamlNodeReader.hpp>
 #include <Aero/Markup/Runtime/XamlObjectWriter.hpp>

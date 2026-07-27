@@ -117,6 +117,23 @@ elseif(AERO_ENABLE_GLX_SURFACE)
         AERO_CONTROL_GALLERY_GLX_NATIVE=1)
 endif()
 
+if(TARGET Aero::TextFreeType)
+    target_compile_definitions(
+        AeroControlGallery PRIVATE
+        AERO_CONTROL_GALLERY_WITH_FREETYPE=1)
+    target_link_libraries(
+        AeroControlGallery
+        PRIVATE
+            Aero::TextRender
+            Aero::TextFreeType)
+    if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
+            AND AERO_ENABLE_WGL_SURFACE)
+        target_link_libraries(
+            AeroControlGallery
+            PRIVATE Aero::TextRenderD3D11)
+    endif()
+endif()
+
 if(AERO_BUILD_TESTS)
     add_test(
         NAME AeroControlGallerySmoke

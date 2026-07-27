@@ -138,6 +138,50 @@ public:
         const BindingDescriptor& descriptor) noexcept;
     Base::Result<BindingHandle> Attach(
         const MetadataBindingDescriptor& descriptor) noexcept;
+    template<
+        class TSourceOwner,
+        class TValue,
+        class TTargetOwner>
+    Base::Result<BindingHandle> Attach(
+        DependencyObject& source,
+        const DependencyPropertyRef<
+            TSourceOwner, TValue>& sourceProperty,
+        DependencyObject& target,
+        const DependencyPropertyRef<
+            TTargetOwner, TValue>& targetProperty,
+        BindingMode mode = BindingMode::OneWay) noexcept {
+        BindingDescriptor descriptor;
+        descriptor.source = &source;
+        descriptor.sourceProperty =
+            sourceProperty.Handle();
+        descriptor.target = &target;
+        descriptor.targetProperty =
+            targetProperty.Handle();
+        descriptor.mode = mode;
+        return Attach(descriptor);
+    }
+    template<
+        class TSourceOwner,
+        class TValue,
+        class TTargetOwner>
+    Base::Result<BindingHandle> Attach(
+        DependencyObject& source,
+        const ReadOnlyPropertyRef<
+            TSourceOwner, TValue>& sourceProperty,
+        DependencyObject& target,
+        const DependencyPropertyRef<
+            TTargetOwner, TValue>& targetProperty,
+        BindingMode mode = BindingMode::OneWay) noexcept {
+        BindingDescriptor descriptor;
+        descriptor.source = &source;
+        descriptor.sourceProperty =
+            sourceProperty.Handle();
+        descriptor.target = &target;
+        descriptor.targetProperty =
+            targetProperty.Handle();
+        descriptor.mode = mode;
+        return Attach(descriptor);
+    }
     Base::Result<bool> Detach(BindingHandle handle) noexcept;
     Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
 
@@ -182,7 +226,6 @@ private:
         DependencyPropertyHandle dataContextProperty;
         Base::String path;
         BindingPathPlan pathPlan;
-        const PropertyChangeNotificationFacet* notificationFacet = nullptr;
         std::uint64_t notificationSubscription = 0U;
         PropertyValue lastSourceValue;
         PropertyValue lastTargetValue;

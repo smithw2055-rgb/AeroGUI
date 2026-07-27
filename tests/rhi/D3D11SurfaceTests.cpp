@@ -14,7 +14,7 @@
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
 #include <Aero/Markup/Runtime/XamlActivation.hpp>

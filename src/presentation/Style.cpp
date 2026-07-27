@@ -1,5 +1,7 @@
 #include <Aero/Presentation/Style.hpp>
 
+#include "ResourceAssignment.hpp"
+
 namespace Aero::Presentation {
 
 using namespace Aero::Core;
@@ -147,6 +149,12 @@ Base::Result<void> PropertyTrigger::TryAddAuthoredSetter(
         std::move(setter));
 }
 
+Base::Result<void>
+PropertyTrigger::ClearAuthoredSetters() noexcept {
+    authoredSetters_.Clear();
+    return {};
+}
+
 Base::Result<StylePropertyTrigger>
 PropertyTrigger::BuildPlan() const noexcept {
     if (!property_.IsValid() || value_.IsUnset()) {
@@ -276,6 +284,24 @@ Base::Result<void> Style::TryAddAuthoredTrigger(
     }
     return authoredTriggerObjects_.TryPushBack(
         std::move(trigger));
+}
+
+Base::Result<void> Style::ClearAuthoredSetters() noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    authoredSetterObjects_.Clear();
+    return {};
+}
+
+Base::Result<void> Style::ClearAuthoredTriggers() noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    authoredTriggerObjects_.Clear();
+    return {};
 }
 
 Base::Result<void> Style::TryAddSetter(
@@ -806,6 +832,14 @@ Base::Result<void> ThemeStyleManager::ClearSetters(
         if (!cleared) return cleared.GetStatus();
     }
     return {};
+}
+
+Base::Result<void> Style::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "Style Resources is already assigned");
 }
 
 } // namespace Aero::Presentation

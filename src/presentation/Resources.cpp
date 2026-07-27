@@ -839,6 +839,32 @@ Base::Result<bool> ResourceDictionary::RemoveMerged(
     return false;
 }
 
+Base::Result<void>
+ResourceDictionary::ClearMergedDictionaries() noexcept {
+    if (impl_ == nullptr) return {};
+    if (impl_->sealed) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            MessageReadOnly);
+    }
+    if (impl_->merged.Empty()) return {};
+    while (!impl_->merged.Empty()) {
+        Impl::Merged merged = impl_->merged.Back();
+        impl_->merged.PopBack();
+        if (merged.dictionary != nullptr) {
+            UnsubscribeImpl(
+                *merged.dictionary,
+                merged.subscription);
+            ReleaseImpl(merged.dictionary);
+        }
+    }
+    Notify(
+        *impl_,
+        {},
+        ResourceChangeKind::MergedDictionaryChanged);
+    return {};
+}
+
 std::uint32_t
 ResourceDictionary::MergedDictionaryCount() const noexcept {
     return impl_ != nullptr

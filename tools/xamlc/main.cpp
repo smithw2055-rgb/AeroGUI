@@ -1,8 +1,6 @@
 #include <Aero/Base/ResourceUri.hpp>
-#include <Aero/Markup/Compiled/XamlCompiledDocument.hpp>
-#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
-#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
-#include <Aero/Markup/Schema/XamlSchemaManifest.hpp>
+#include <Aero/Markup/CompiledDocument.hpp>
+#include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/SchemaBundle.hpp>
 #include <Aero/Version.hpp>
@@ -136,9 +134,9 @@ bool ParseCommandLine(int argc, char** argv, CommandLine& options) {
     return true;
 }
 
-Aero::Base::Result<Aero::Markup::XamlCompiledDocument>
+Aero::Base::Result<Aero::Markup::CompiledDocument>
 CompileWithBuiltInSchema(
-    Aero::Markup::XamlNodeReader& reader,
+    Aero::Markup::NodeReader& reader,
     const Aero::Base::ResourceUri& origin) noexcept {
     Aero::ModuleCatalog modules;
     Aero::SchemaBundle bundle;
@@ -146,13 +144,13 @@ CompileWithBuiltInSchema(
     if (!status) return status.GetStatus();
     status = bundle.Finalize(modules, {});
     if (!status) return status.GetStatus();
-    return Aero::Markup::XamlCompiledDocument::Compile(
-        reader, bundle.XamlSchema(), origin);
+    return Aero::Markup::CompiledDocument::Compile(
+        reader, bundle.Schema(), origin);
 }
 
-Aero::Base::Result<Aero::Markup::XamlCompiledDocument>
+Aero::Base::Result<Aero::Markup::CompiledDocument>
 CompileWithManifest(
-    Aero::Markup::XamlNodeReader& reader,
+    Aero::Markup::NodeReader& reader,
     const Aero::Base::ResourceUri& origin,
     const char* schemaPath) {
     std::vector<std::uint8_t> schemaBytes;
@@ -161,12 +159,12 @@ CompileWithManifest(
             Aero::Base::ErrorCode::NotFound,
             "cannot read schema manifest");
     }
-    Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =
-        Aero::Markup::XamlSchemaManifest::Deserialize({
+    Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
+        Aero::Markup::SchemaManifest::Deserialize({
             schemaBytes.data(),
             static_cast<std::uint32_t>(schemaBytes.size())});
     if (!manifest) return manifest.GetStatus();
-    return Aero::Markup::XamlCompiledDocument::Compile(
+    return Aero::Markup::CompiledDocument::Compile(
         reader, manifest.Value(), origin);
 }
 
@@ -209,9 +207,9 @@ int main(int argc, char** argv) {
         reinterpret_cast<const char*>(source.data()),
         static_cast<std::uint32_t>(source.size())));
     if (!reset) return Fail(reset.GetStatus());
-    Aero::Markup::XamlNodeReader reader(tokenizer);
+    Aero::Markup::NodeReader reader(tokenizer);
 
-    Aero::Base::Result<Aero::Markup::XamlCompiledDocument> compiled =
+    Aero::Base::Result<Aero::Markup::CompiledDocument> compiled =
         options.schemaPath != nullptr
         ? CompileWithManifest(reader, origin.Value(), options.schemaPath)
         : CompileWithBuiltInSchema(reader, origin.Value());

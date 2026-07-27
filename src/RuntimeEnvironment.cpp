@@ -1,5 +1,7 @@
 #include <Aero/RuntimeEnvironment.hpp>
 
+#include <Aero/Markup/Loader.hpp>
+
 #include <new>
 #include <utility>
 
@@ -15,7 +17,7 @@ public:
     Base::IAllocator* allocator = nullptr;
     ModuleCatalog modules;
     SchemaBundle schema;
-    Markup::XamlDocumentCache documents;
+    Markup::DocumentCache documents;
     bool initialized = false;
 };
 
@@ -51,7 +53,7 @@ Base::Result<void> RuntimeEnvironment::AddModule(
             Base::ErrorCode::InvalidState,
             "Runtime environment modules are frozen");
     }
-    return state.modules.TryAdd(registration);
+    return state.modules.Add(registration);
 }
 
 Base::Result<void> RuntimeEnvironment::Initialize() noexcept {
@@ -69,7 +71,7 @@ Base::Result<void> RuntimeEnvironment::Initialize() noexcept {
     return {};
 }
 
-Base::Result<Base::Ref<RuntimeView>> RuntimeEnvironment::CreateView(
+Base::Result<Base::Ref<View>> RuntimeEnvironment::CreateView(
     const RuntimeHostOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!IsInitialized()) {
@@ -79,8 +81,8 @@ Base::Result<Base::Ref<RuntimeView>> RuntimeEnvironment::CreateView(
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : *allocator_;
-    Base::Result<Base::Ref<RuntimeView>> made =
-        Base::MakeRefWithAllocator<RuntimeView>(
+    Base::Result<Base::Ref<View>> made =
+        Base::MakeRefWithAllocator<View>(
             selected, *this, &selected);
     if (!made) return made.GetStatus();
     Base::Result<void> initialized = made.Value()->Initialize(options);
@@ -102,16 +104,16 @@ const SchemaBundle& RuntimeEnvironment::Schema() const noexcept {
     return static_cast<const RuntimeEnvironmentState&>(*state_).schema;
 }
 
-Markup::XamlDocumentCache& RuntimeEnvironment::Documents() noexcept {
+Markup::DocumentCache& RuntimeEnvironment::Documents() noexcept {
     return static_cast<RuntimeEnvironmentState&>(*state_).documents;
 }
 
-const Markup::XamlDocumentCache&
+const Markup::DocumentCache&
 RuntimeEnvironment::Documents() const noexcept {
     return static_cast<const RuntimeEnvironmentState&>(*state_).documents;
 }
 
-RuntimeView::RuntimeView(
+View::View(
     RuntimeEnvironment& environment,
     Base::IAllocator* allocator) noexcept
     : environmentState_(environment.state_),
@@ -120,7 +122,7 @@ RuntimeView::RuntimeView(
           State(*environmentState_).documents,
           allocator) {}
 
-Base::Result<void> RuntimeView::Initialize(
+Base::Result<void> View::Initialize(
     const RuntimeHostOptions& options) noexcept {
     if (!environmentState_ ||
         !State(*environmentState_).initialized) {
@@ -129,6 +131,41 @@ Base::Result<void> RuntimeView::Initialize(
             "Runtime environment must be initialized before creating a view");
     }
     return host_.Initialize(options);
+}
+
+Base::Result<UiDocument> View::Load(
+    Base::StringView uri,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    return host_.Load(uri, diagnostics);
+}
+
+Base::Result<UiDocument> View::Parse(
+    Base::StringView source,
+    const Base::ResourceUri& baseUri,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    return host_.Parse(
+        source, baseUri, diagnostics);
+}
+
+Base::Result<void> View::SetContent(
+    UiDocument&& document,
+    Presentation::Size availableSize) noexcept {
+    return host_.IsMounted()
+        ? host_.ReplaceMountedDocument(
+              std::move(document), availableSize)
+        : host_.Mount(
+              std::move(document), availableSize);
+}
+
+Base::Result<void> View::LoadContent(
+    Base::StringView uri,
+    Presentation::Size availableSize,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<UiDocument> loaded =
+        Load(uri, diagnostics);
+    if (!loaded) return loaded.GetStatus();
+    return SetContent(
+        std::move(loaded).Value(), availableSize);
 }
 
 } // namespace Aero

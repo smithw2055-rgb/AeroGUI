@@ -9,6 +9,8 @@
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
+#include <utility>
+
 namespace Aero::Presentation {
 
 using namespace Aero::Core;
@@ -30,7 +32,7 @@ struct StylePropertyTrigger final {
 };
 
 class AERO_API Setter final : public Base::Object {
-    AERO_TYPED_META(Setter, Base::Object)
+    AERO_DECLARE_TYPE(Setter, Base::Object)
 public:
     explicit Setter(
         TypeId runtimeType = StaticTypeId()) noexcept
@@ -64,6 +66,19 @@ public:
         }
         value_ = value;
         return {};
+    }
+    template<class TOwner, class TValue>
+    Base::Result<void> Set(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
+        Base::Result<PropertyValue> encoded =
+            ValueCodec<TValue>::Encode(value);
+        if (!encoded) return encoded.GetStatus();
+        Base::Result<void> selected =
+            SetProperty(property.Handle());
+        return selected
+            ? SetValue(encoded.Value())
+            : selected;
     }
     Base::Result<void> SetPropertyName(
         Base::StringView value) noexcept;
@@ -99,7 +114,7 @@ private:
 
 class AERO_API PropertyTrigger final
     : public Base::Object {
-    AERO_TYPED_META_NAMED(
+    AERO_DECLARE_TYPE_NAMED(
         PropertyTrigger,
         Base::Object,
         "urn:aero",
@@ -130,6 +145,7 @@ public:
         const PropertyValue& value) noexcept;
     Base::Result<void> TryAddAuthoredSetter(
         Base::Ref<Setter> setter) noexcept;
+    Base::Result<void> ClearAuthoredSetters() noexcept;
     Base::StringView PropertyName() const noexcept {
         return propertyName_.View();
     }
@@ -200,7 +216,7 @@ private:
 // flattened deterministically; a derived style replaces a base setter for the
 // same property.
 class AERO_API Style final : public Base::Object {
-    AERO_TYPED_META(Style, Base::Object)
+    AERO_DECLARE_TYPE(Style, Base::Object)
 public:
     Style() noexcept;
     explicit Style(
@@ -226,6 +242,87 @@ public:
         StylePropertyTrigger trigger) noexcept;
     Base::Result<void> TryAddPropertyTrigger(
         const PropertyTrigger& trigger) noexcept;
+
+    class TriggerBuilder final {
+    public:
+        template<class TOwner, class TValue>
+        Base::Result<void> Set(
+            const DependencyPropertyRef<TOwner, TValue>& property,
+            const TValue& value) noexcept {
+            if (!status_.IsOk()) return status_;
+            Base::Result<PropertyValue> encoded =
+                ValueCodec<TValue>::Encode(value);
+            if (!encoded) return encoded.GetStatus();
+            StylePropertyTrigger trigger;
+            trigger.property = condition_;
+            trigger.value = std::move(conditionValue_);
+            Base::Result<void> added =
+                trigger.setters.TryPushBack({
+                    property.Handle(),
+                    std::move(encoded).Value()});
+            if (!added) return added.GetStatus();
+            return owner_->TryAddPropertyTrigger(
+                std::move(trigger));
+        }
+
+    private:
+        friend class Style;
+
+        TriggerBuilder(
+            Style& owner,
+            DependencyPropertyHandle condition,
+            PropertyValue&& value) noexcept
+            : owner_(&owner),
+              condition_(condition),
+              conditionValue_(std::move(value)) {}
+        explicit TriggerBuilder(
+            Base::Status status) noexcept
+            : status_(status) {}
+
+        Style* owner_ = nullptr;
+        DependencyPropertyHandle condition_;
+        PropertyValue conditionValue_;
+        Base::Status status_;
+    };
+
+    template<class TOwner, class TValue>
+    Base::Result<void> Set(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
+        Base::Result<PropertyValue> encoded =
+            ValueCodec<TValue>::Encode(value);
+        if (!encoded) return encoded.GetStatus();
+        return TryAddSetter(
+            property.Handle(), encoded.Value());
+    }
+    template<class TOwner, class TValue>
+    TriggerBuilder When(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
+        Base::Result<PropertyValue> encoded =
+            ValueCodec<TValue>::Encode(value);
+        if (!encoded) {
+            return TriggerBuilder(encoded.GetStatus());
+        }
+        return TriggerBuilder(
+            *this,
+            property.Handle(),
+            std::move(encoded).Value());
+    }
+    template<class TOwner, class TValue>
+    TriggerBuilder When(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const TValue& value) noexcept {
+        Base::Result<PropertyValue> encoded =
+            ValueCodec<TValue>::Encode(value);
+        if (!encoded) {
+            return TriggerBuilder(encoded.GetStatus());
+        }
+        return TriggerBuilder(
+            *this,
+            property.Handle(),
+            std::move(encoded).Value());
+    }
     // Builder configuration is intentionally available only before Seal().
     // XAML object construction supplies TargetType and BasedOn as members,
     // whereas native callers commonly provide both to the constructor.
@@ -239,6 +336,8 @@ public:
         Base::Ref<Setter> setter) noexcept;
     Base::Result<void> TryAddAuthoredTrigger(
         Base::Ref<PropertyTrigger> trigger) noexcept;
+    Base::Result<void> ClearAuthoredSetters() noexcept;
+    Base::Result<void> ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Setter>>
     AuthoredSetters() const noexcept {
         return {
@@ -272,6 +371,8 @@ public:
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
     TypeId runtimeType_ = StaticTypeId();

@@ -135,7 +135,7 @@ private:
 using DataTemplateFactory = DeferredObjectFactory;
 
 class AERO_API DataTemplate final : public Base::Object {
-    AERO_TYPED_META(DataTemplate, Base::Object)
+    AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
     DataTemplate() noexcept = default;
     DataTemplate(
@@ -175,6 +175,8 @@ public:
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
     Base::Result<void> SetBaseUri(
         const Base::ResourceUri& value) noexcept {
         return program_.SetBaseUri(value);
@@ -204,7 +206,7 @@ private:
 
 class AERO_API ItemsPanelTemplate final
     : public Base::Object {
-    AERO_TYPED_META(ItemsPanelTemplate, Base::Object)
+    AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
     ItemsPanelTemplate() noexcept = default;
     ItemsPanelTemplate(
@@ -236,6 +238,8 @@ public:
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
     Base::Result<void> SetBaseUri(
         const Base::ResourceUri& value) noexcept {
         return program_.SetBaseUri(value);
@@ -262,7 +266,7 @@ private:
 };
 
 class AERO_API ItemContainer : public ContentControl {
-    AERO_TYPED_META(ItemContainer, ContentControl)
+    AERO_DECLARE_TYPE(ItemContainer, ContentControl)
 public:
     ItemContainer() noexcept
         : ContentControl(StaticTypeId()) {}
@@ -273,7 +277,7 @@ protected:
 };
 
 class AERO_API ItemsPresenter final : public Decorator {
-    AERO_TYPED_META(ItemsPresenter, Decorator)
+    AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
 public:
     ItemsPresenter() noexcept
         : Decorator(StaticTypeId()) {}
@@ -297,7 +301,7 @@ class ItemContainerGenerator;
 class VirtualizingStackPanel;
 
 class AERO_API ItemsControl : public Control {
-    AERO_TYPED_META(ItemsControl, Control)
+    AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
     ItemsControl() noexcept;
     ~ItemsControl() override;
@@ -342,9 +346,8 @@ public:
         return changed_.Remove(handler);
     }
 
-    inline static constexpr DependencyPropertyHandle
-        ItemCountProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ItemCount");
+    inline static constexpr Members::ReadOnlyProperty<
+        std::uint32_t> ItemCountProperty{"ItemCount"};
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;

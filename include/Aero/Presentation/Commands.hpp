@@ -19,7 +19,7 @@ struct KeyboardInput;
 using CanExecuteChangedHandler = Base::Delegate<void()>;
 
 class AERO_API ICommand : public Base::Object {
-    AERO_TYPED_META(ICommand, Base::Object)
+    AERO_DECLARE_TYPE(ICommand, Base::Object)
 public:
     ~ICommand() override = default;
 
@@ -46,7 +46,7 @@ private:
 };
 
 class AERO_API InputGesture : public Base::Object {
-    AERO_TYPED_META(InputGesture, Base::Object)
+    AERO_DECLARE_TYPE(InputGesture, Base::Object)
 public:
     ~InputGesture() override = default;
     virtual bool Matches(const KeyboardInput& input) const noexcept = 0;
@@ -56,7 +56,7 @@ protected:
 };
 
 class AERO_API KeyGesture final : public InputGesture {
-    AERO_TYPED_META(KeyGesture, InputGesture)
+    AERO_DECLARE_TYPE(KeyGesture, InputGesture)
 public:
     KeyGesture() noexcept = default;
     KeyGesture(std::uint32_t key, std::uint32_t modifiers = 0U) noexcept
@@ -76,7 +76,7 @@ private:
 };
 
 class AERO_API RoutedCommand final : public ICommand {
-    AERO_TYPED_META(RoutedCommand, ICommand)
+    AERO_DECLARE_TYPE(RoutedCommand, ICommand)
 public:
     RoutedCommand() noexcept;
     explicit RoutedCommand(Base::StringView name) noexcept;
@@ -112,7 +112,7 @@ private:
 };
 
 struct CanExecuteRoutedEventArgs final : RoutedEventArgs {
-    AERO_TYPED_META(CanExecuteRoutedEventArgs, RoutedEventArgs)
+    AERO_DECLARE_TYPE(CanExecuteRoutedEventArgs, RoutedEventArgs)
     CanExecuteRoutedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
 
@@ -124,7 +124,7 @@ struct CanExecuteRoutedEventArgs final : RoutedEventArgs {
 };
 
 struct ExecutedRoutedEventArgs final : RoutedEventArgs {
-    AERO_TYPED_META(ExecutedRoutedEventArgs, RoutedEventArgs)
+    AERO_DECLARE_TYPE(ExecutedRoutedEventArgs, RoutedEventArgs)
     ExecutedRoutedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
 

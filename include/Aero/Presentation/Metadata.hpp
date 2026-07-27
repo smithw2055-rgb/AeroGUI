@@ -12,13 +12,7 @@ namespace Detail {
 // Module population is an implementation callback; hosts register through the
 // MetadataDomain overload below.
 AERO_API Base::Result<void> PopulatePresentationMetadata(
-    Core::MetaRegistrationContext& context) noexcept;
-
-inline Base::Result<void> RegisterPresentationMetadataModule(
-    Core::MetaRegistrationContext& context,
-    void*) noexcept {
-    return PopulatePresentationMetadata(context);
-}
+    Core::MetadataContext& context) noexcept;
 
 } // namespace Detail
 
@@ -34,7 +28,8 @@ inline Base::Result<void> TryRegisterPresentationMetadata(
         Core::MakeMetadataModuleId(name),
         name,
         SchemaVersion,
-        &Detail::RegisterPresentationMetadataModule,
+        &Detail::PopulatePresentationMetadata,
+        nullptr,
         nullptr});
 }
 

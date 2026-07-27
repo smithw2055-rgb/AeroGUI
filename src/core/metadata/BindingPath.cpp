@@ -61,27 +61,19 @@ Base::Status RecordCompileError(
 }
 
 bool PropertyReadable(
-    const MetadataPropertyDescriptor& property,
-    const PropertyAccessorFacet* accessor) noexcept {
-    if (accessor == nullptr ||
-        HasPropertyFlag(property.Flags(), PropertyFlags::WriteOnly)) {
-        return false;
-    }
-    return accessor->access == PropertyAccessKind::Provider ||
-        (accessor->access == PropertyAccessKind::Ordinary &&
-         accessor->get != nullptr);
+    const PropertyInfo& property,
+    bool accessorReadable) noexcept {
+    return accessorReadable &&
+        !HasPropertyFlag(
+            property.Flags(), PropertyFlags::WriteOnly);
 }
 
 bool PropertyWritable(
-    const MetadataPropertyDescriptor& property,
-    const PropertyAccessorFacet* accessor) noexcept {
-    if (accessor == nullptr ||
-        HasPropertyFlag(property.Flags(), PropertyFlags::ReadOnly)) {
-        return false;
-    }
-    return accessor->access == PropertyAccessKind::Provider ||
-        (accessor->access == PropertyAccessKind::Ordinary &&
-         accessor->set != nullptr);
+    const PropertyInfo& property,
+    bool accessorWritable) noexcept {
+    return accessorWritable &&
+        !HasPropertyFlag(
+            property.Flags(), PropertyFlags::ReadOnly);
 }
 
 bool IsObjectLike(MetadataTypeKind kind) noexcept {
@@ -108,8 +100,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                 "Binding path requires a frozen runtime, root type, and path"));
     }
 
-    const MetadataDescriptorStore& descriptors = runtime.Descriptors();
-    const MetadataFacetStore& facets = runtime.Facets();
+    const TypeRegistry& descriptors = runtime.Types();
     if (descriptors.FindType(rootType) == nullptr) {
         return RecordCompileError(
             error,
@@ -146,7 +137,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                 InvalidPath("Binding path contains an empty segment"));
         }
 
-        const MetadataTypeDescriptor* input =
+        const TypeInfo* input =
             descriptors.FindType(currentType);
         if (input == nullptr) {
             return RecordCompileError(
@@ -162,7 +153,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         BindingPathSegment segment;
         segment.inputType = currentType;
         if (IsObjectLike(input->Kind())) {
-            const MetadataPropertyDescriptor* property =
+            const PropertyInfo* property =
                 descriptors.FindProperty(currentType, name, true);
             if (property == nullptr) {
                 return RecordCompileError(
@@ -174,15 +165,17 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                         Base::ErrorCode::NotFound,
                         "Binding path object property was not found"));
             }
-            const PropertyAccessorFacet* accessor =
-                facets.FindPropertyAccessor(property->Id());
             segment.kind = BindingPathSegmentKind::ObjectProperty;
             segment.member = property->Id();
             segment.outputType = property->ValueType();
-            segment.readable = PropertyReadable(*property, accessor);
-            segment.writable = PropertyWritable(*property, accessor);
+            segment.readable = PropertyReadable(
+                *property,
+                runtime.CanReadProperty(property->Id()));
+            segment.writable = PropertyWritable(
+                *property,
+                runtime.CanWriteProperty(property->Id()));
         } else if (input->Kind() == MetadataTypeKind::Struct) {
-            const MetadataFieldDescriptor* field =
+            const FieldInfo* field =
                 descriptors.FindField(currentType, name);
             if (field == nullptr) {
                 return RecordCompileError(
@@ -194,14 +187,13 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                         Base::ErrorCode::NotFound,
                         "Binding path value field was not found"));
             }
-            const ValueMemberAccessorFacet* accessor =
-                facets.FindValueMemberAccessor(field->Id());
             segment.kind = BindingPathSegmentKind::ValueField;
             segment.member = field->Id();
             segment.outputType = field->ValueType();
-            segment.readable = accessor != nullptr && accessor->get != nullptr;
+            segment.readable =
+                runtime.CanReadValueMember(field->Id());
             segment.writable =
-                accessor != nullptr && accessor->set != nullptr &&
+                runtime.CanWriteValueMember(field->Id()) &&
                 !HasFieldFlag(field->Flags(), FieldFlags::ReadOnly);
             segment.copyOnWrite = true;
         } else {
@@ -214,7 +206,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                     "Binding path cannot traverse this metadata type kind"));
         }
 
-        const MetadataTypeDescriptor* output =
+        const TypeInfo* output =
             descriptors.FindType(segment.outputType);
         if (output == nullptr) {
             return RecordCompileError(
@@ -289,7 +281,7 @@ Base::Result<Value> BindingPathPlan::Get(
             Base::ErrorCode::Unsupported,
             "Binding path is not readable");
     }
-    if (!runtime.Descriptors().IsAssignableFrom(
+    if (!runtime.Types().IsAssignableFrom(
             rootType_, root.RuntimeType())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -378,7 +370,7 @@ Base::Result<void> BindingPathPlan::Set(
             "Binding path is not writable");
     }
     if (value.IsUnset() ||
-        !runtime.Descriptors().IsAssignableFrom(
+        !runtime.Types().IsAssignableFrom(
             rootType_, root.RuntimeType())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,

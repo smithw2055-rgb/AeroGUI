@@ -1,13 +1,11 @@
 #include <Aero/Module.hpp>
 
 #include <Aero/BuiltinModules.hpp>
-#include <Aero/Markup/Schema/XamlRegistrationContext.hpp>
-
 #include <utility>
 
 namespace Aero {
 
-Base::Result<void> ModuleCatalog::TryAdd(
+Base::Result<void> ModuleCatalog::Add(
     const ModuleRegistration& registration) noexcept {
     if (frozen_) {
         return Base::Status::Failure(
@@ -15,7 +13,10 @@ Base::Result<void> ModuleCatalog::TryAdd(
             "Aero module catalog is frozen");
     }
     if (registration.name.Empty() || registration.schemaVersion == 0U ||
-        registration.registerModule == nullptr ||
+        (registration.registerModule == nullptr &&
+         registration.registerModuleWithContext == nullptr) ||
+        (registration.registerModule != nullptr &&
+         registration.registerModuleWithContext != nullptr) ||
         registration.abiVersion != ModuleAbiVersion) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -35,8 +36,9 @@ Base::Result<void> ModuleCatalog::TryAdd(
     if (!named) return named.GetStatus();
     module.schemaVersion = registration.schemaVersion;
     module.registerModule = registration.registerModule;
+    module.registerModuleWithContext =
+        registration.registerModuleWithContext;
     module.context = registration.context;
-    module.registerXaml = registration.registerXaml;
     module.abiVersion = registration.abiVersion;
     Base::Result<void> reserved = module.dependencies.TryReserve(
         registration.dependencies.Size());
@@ -151,22 +153,8 @@ Base::Result<void> ModuleCatalog::RegisterMetadata(
                 name,
                 module.schemaVersion,
                 module.registerModule,
+                module.registerModuleWithContext,
                 module.context});
-        if (!registered) return registered.GetStatus();
-    }
-    return {};
-}
-
-Base::Result<void> ModuleCatalog::RegisterXaml(
-    Markup::XamlRegistrationContext& context) const noexcept {
-    Base::Vector<std::uint32_t> order;
-    Base::Result<void> resolved = ResolveOrder(order);
-    if (!resolved) return resolved.GetStatus();
-    for (std::uint32_t index : order) {
-        const Module& module = modules_[index];
-        if (module.registerXaml == nullptr) continue;
-        Base::Result<void> registered =
-            module.registerXaml(context, module.context);
         if (!registered) return registered.GetStatus();
     }
     return {};

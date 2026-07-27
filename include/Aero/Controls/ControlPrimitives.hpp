@@ -13,7 +13,7 @@ using namespace Aero::Presentation;
 class ControlTemplate;
 
 class AERO_API Panel : public FrameworkElement {
-    AERO_TYPED_META(Panel, FrameworkElement)
+    AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
     std::uint32_t OwnedChildCount() const noexcept { return ownedChildren_.Size(); }
     Base::Result<void> AddOwnedChild(
@@ -53,7 +53,7 @@ private:
 };
 
 class AERO_API Decorator : public FrameworkElement {
-    AERO_TYPED_META(Decorator, FrameworkElement)
+    AERO_DECLARE_TYPE(Decorator, FrameworkElement)
 public:
     UIElement* Child() const noexcept {
         if (child_ != nullptr) return child_;
@@ -131,11 +131,11 @@ private:
 };
 
 class AERO_API Control : public FrameworkElement {
-    AERO_TYPED_META(Control, FrameworkElement)
+    AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
-    inline static constexpr DependencyPropertyHandle
-        TemplateProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Template");
+    inline static constexpr Members::Property<
+        Base::Ref<ControlTemplate>>
+        TemplateProperty{"Template"};
 
     UIElement* TemplateChild() const noexcept {
         return templateChild_;
@@ -183,7 +183,7 @@ private:
 };
 
 class AERO_API ContentControl : public Control {
-    AERO_TYPED_META(ContentControl, Control)
+    AERO_DECLARE_TYPE(ContentControl, Control)
 public:
     UIElement* Content() const noexcept { return content_; }
     const Base::Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
@@ -269,7 +269,7 @@ private:
 };
 
 class AERO_API UserControl : public ContentControl {
-    AERO_TYPED_META(UserControl, ContentControl)
+    AERO_DECLARE_TYPE(UserControl, ContentControl)
 public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;

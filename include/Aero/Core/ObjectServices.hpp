@@ -3,7 +3,6 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Core/Dispatcher.hpp>
-#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 
 namespace Aero::Core {
@@ -13,7 +12,6 @@ class MetadataRuntime;
 struct ObjectServices final {
     Dispatcher* dispatcher = nullptr;
     DependencyPropertyRegistry* dependencyProperties = nullptr;
-    MetadataValueRegistrationStore* valueRegistrations = nullptr;
     MetadataRuntime* metadataRuntime = nullptr;
 
     bool IsValid() const noexcept {
@@ -33,10 +31,6 @@ public:
     ObjectServicesScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties) noexcept;
-    ObjectServicesScope(
-        Dispatcher& dispatcher,
-        DependencyPropertyRegistry& properties,
-        MetadataValueRegistrationStore& values) noexcept;
     ObjectServicesScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties,

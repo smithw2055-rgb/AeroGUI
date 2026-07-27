@@ -31,14 +31,14 @@ enum class MouseButton : std::uint8_t { Left = 0U, Right, Middle, XButton1, XBut
 enum class MouseButtonState : std::uint8_t { Released = 0U, Pressed };
 
 struct EventArgs {
-    AERO_TYPED_META(EventArgs, NoMetadataBase)
+    AERO_DECLARE_TYPE(EventArgs, NoMetadataBase)
     explicit constexpr EventArgs(TypeId type = StaticTypeId()) noexcept
         : eventArgsType(type) {}
     TypeId eventArgsType = StaticTypeId();
 };
 
 struct RoutedEventArgs : EventArgs {
-    AERO_TYPED_META(RoutedEventArgs, EventArgs)
+    AERO_DECLARE_TYPE(RoutedEventArgs, EventArgs)
     explicit constexpr RoutedEventArgs(
         TypeId type = StaticTypeId()) noexcept : EventArgs(type) {}
     RoutedEventHandle routedEvent;
@@ -48,14 +48,14 @@ struct RoutedEventArgs : EventArgs {
 };
 
 struct InputEventArgs : RoutedEventArgs {
-    AERO_TYPED_META(InputEventArgs, RoutedEventArgs)
+    AERO_DECLARE_TYPE(InputEventArgs, RoutedEventArgs)
     explicit constexpr InputEventArgs(
         TypeId type = StaticTypeId()) noexcept : RoutedEventArgs(type) {}
     std::uint32_t modifiers = 0U;
 };
 
 struct MouseEventArgs : InputEventArgs {
-    AERO_TYPED_META(MouseEventArgs, InputEventArgs)
+    AERO_DECLARE_TYPE(MouseEventArgs, InputEventArgs)
     explicit constexpr MouseEventArgs(
         TypeId type = StaticTypeId()) noexcept : InputEventArgs(type) {}
     std::uint32_t pointerId = 0U;
@@ -63,21 +63,21 @@ struct MouseEventArgs : InputEventArgs {
 };
 
 struct MouseButtonEventArgs final : MouseEventArgs {
-    AERO_TYPED_META(MouseButtonEventArgs, MouseEventArgs)
+    AERO_DECLARE_TYPE(MouseButtonEventArgs, MouseEventArgs)
     constexpr MouseButtonEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
     MouseButton changedButton = MouseButton::Left;
     MouseButtonState buttonState = MouseButtonState::Released;
 };
 
 struct MouseWheelEventArgs final : MouseEventArgs {
-    AERO_TYPED_META(MouseWheelEventArgs, MouseEventArgs)
+    AERO_DECLARE_TYPE(MouseWheelEventArgs, MouseEventArgs)
     constexpr MouseWheelEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
     double deltaX = 0.0;
     double deltaY = 0.0;
 };
 
 struct KeyEventArgs final : InputEventArgs {
-    AERO_TYPED_META(KeyEventArgs, InputEventArgs)
+    AERO_DECLARE_TYPE(KeyEventArgs, InputEventArgs)
     constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
     KeyboardAction action = KeyboardAction::Down;
     std::uint32_t key = 0U;
@@ -85,13 +85,13 @@ struct KeyEventArgs final : InputEventArgs {
 };
 
 struct TextCompositionEventArgs final : InputEventArgs {
-    AERO_TYPED_META(TextCompositionEventArgs, InputEventArgs)
+    AERO_DECLARE_TYPE(TextCompositionEventArgs, InputEventArgs)
     constexpr TextCompositionEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
     Base::StringView text;
 };
 
 struct KeyboardFocusChangedEventArgs final : RoutedEventArgs {
-    AERO_TYPED_META(KeyboardFocusChangedEventArgs, RoutedEventArgs)
+    AERO_DECLARE_TYPE(KeyboardFocusChangedEventArgs, RoutedEventArgs)
     constexpr KeyboardFocusChangedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
     UIElement* oldFocus = nullptr;
@@ -226,7 +226,7 @@ using ObjectTreeLifecycleHandler = void (*)(
     void* context) noexcept;
 
 class AERO_API Visual : public DependencyObject {
-    AERO_TYPED_META(Visual, DependencyObject)
+    AERO_DECLARE_TYPE(Visual, DependencyObject)
 public:
     // Construction and tree operations
     explicit Visual(TypeId runtimeType) noexcept;

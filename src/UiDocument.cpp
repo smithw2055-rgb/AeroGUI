@@ -1,8 +1,9 @@
 #include <Aero/UiDocument.hpp>
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Markup/Runtime/XamlLoadResult.hpp>
 #include <Aero/Presentation/Resources.hpp>
+
+#include "UiDocumentAccess.hpp"
 
 #include <new>
 #include <utility>
@@ -10,10 +11,10 @@
 namespace Aero {
 
 struct UiDocument::Impl final {
-    explicit Impl(Markup::XamlLoadResult&& value) noexcept
+    explicit Impl(Markup::LoaderResult&& value) noexcept
         : result(std::move(value)) {}
 
-    Markup::XamlLoadResult result;
+    Markup::LoaderResult result;
 };
 
 UiDocument::~UiDocument() noexcept {
@@ -36,8 +37,8 @@ UiDocument& UiDocument::operator=(UiDocument&& other) noexcept {
     return *this;
 }
 
-Base::Result<UiDocument> UiDocument::Adopt(
-    Markup::XamlLoadResult&& result,
+Base::Result<UiDocument> Detail::UiDocumentAccess::Adopt(
+    Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
         return Base::Status::Failure(
@@ -45,7 +46,9 @@ Base::Result<UiDocument> UiDocument::Adopt(
             "UI document requires a loaded root object");
     }
     void* memory = allocator.Allocate({
-        sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
+        sizeof(UiDocument::Impl),
+        alignof(UiDocument::Impl),
+        Base::MemoryTag::Markup});
     if (memory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -53,7 +56,8 @@ Base::Result<UiDocument> UiDocument::Adopt(
     }
     UiDocument document;
     document.allocator_ = &allocator;
-    document.impl_ = new (memory) Impl(std::move(result));
+    document.impl_ =
+        new (memory) UiDocument::Impl(std::move(result));
     return document;
 }
 
@@ -105,20 +109,23 @@ Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
         : Base::Span<const Base::ResourceUri>{};
 }
 
-const Markup::XamlEffectLifetime*
-UiDocument::RuntimeLifetime() const noexcept {
-    return impl_ != nullptr
-        ? impl_->result.runtimeLifetime.Get()
+const Markup::EffectLifetime*
+Detail::UiDocumentAccess::RuntimeLifetime(
+    const UiDocument& document) noexcept {
+    return document.impl_ != nullptr
+        ? document.impl_->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-Markup::XamlLoadResult UiDocument::TakeResult() noexcept {
-    if (impl_ == nullptr) {
-        Markup::XamlLoadResult empty;
+Markup::LoaderResult Detail::UiDocumentAccess::Take(
+    UiDocument& document) noexcept {
+    if (document.impl_ == nullptr) {
+        Markup::LoaderResult empty;
         return empty;
     }
-    Markup::XamlLoadResult result = std::move(impl_->result);
-    Reset();
+    Markup::LoaderResult result =
+        std::move(document.impl_->result);
+    document.Reset();
     return result;
 }
 
@@ -127,7 +134,10 @@ void UiDocument::Reset() noexcept {
     impl_->result.Clear();
     impl_->~Impl();
     allocator_->Deallocate(
-        impl_, sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
+        impl_,
+        sizeof(UiDocument::Impl),
+        alignof(UiDocument::Impl),
+        Base::MemoryTag::Markup);
     impl_ = nullptr;
     allocator_ = nullptr;
 }

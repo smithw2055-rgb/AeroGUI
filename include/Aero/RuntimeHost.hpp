@@ -17,7 +17,6 @@
 #include <cstdint>
 
 namespace Aero::Core {
-class ActivationProviderRegistry;
 class IDiagnosticSink;
 class EffectiveValueEngine;
 class MetadataDomain;
@@ -51,11 +50,11 @@ class TextInputManager;
 }
 
 namespace Aero::Markup {
-class EmbeddedXamlSourceProvider;
-class XamlDocumentCache;
-class IXamlSourceProvider;
-class XamlSchemaContext;
-class XamlSourceProviderRegistry;
+class EmbeddedSourceProvider;
+class DocumentCache;
+class ISourceProvider;
+class Schema;
+class SourceProviderRegistry;
 }
 
 namespace Aero {
@@ -104,7 +103,7 @@ public:
         Base::IAllocator* allocator = nullptr) noexcept;
     RuntimeHost(
         SchemaBundle& schema,
-        Markup::XamlDocumentCache& documentCache,
+        Markup::DocumentCache& documentCache,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RuntimeHost() noexcept;
 
@@ -122,31 +121,18 @@ public:
     bool IsInitialized() const noexcept;
     bool IsMounted() const noexcept;
 
-    // Loads a document through the URI/provider pipeline.
-    Base::Result<Base::Ref<Base::Object>> LoadXaml(
+    Base::Result<UiDocument> Load(
         Base::StringView uri,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    // Parses caller-owned text. baseUri controls relative resource resolution.
-    Base::Result<Base::Ref<Base::Object>> ParseXaml(
+    Base::Result<UiDocument> Parse(
         Base::StringView source,
         const Base::ResourceUri& baseUri = {},
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<Base::Ref<Base::Object>> LoadCompiledXaml(
+    Base::Result<UiDocument> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
-
-    Base::Result<UiDocument> LoadUiDocument(
-        Base::StringView uri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> ParseUiDocument(
-        Base::StringView source,
-        const Base::ResourceUri& baseUri = {},
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> LoadCompiledUiDocument(
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri = {}) noexcept;
-    Base::Result<void> RegisterXamlSourceProvider(
-        Markup::IXamlSourceProvider& provider,
+    Base::Result<void> RegisterSourceProvider(
+        Markup::ISourceProvider& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept;
     Base::Result<void> LoadResources(
@@ -174,19 +160,6 @@ public:
     Base::Result<void> ReplaceMountedDocument(
         UiDocument&& document,
         Presentation::Size availableSize) noexcept;
-    Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
-        Base::StringView uri,
-        Presentation::Size availableSize,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<Base::Ref<Base::Object>> ParseAndMountXaml(
-        Base::StringView source,
-        const Base::ResourceUri& baseUri,
-        Presentation::Size availableSize,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<Base::Ref<Base::Object>> LoadAndMountCompiledXaml(
-        Base::Span<const std::uint8_t> bytes,
-        Presentation::Size availableSize,
-        const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> Resize(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
@@ -224,11 +197,10 @@ public:
     Presentation::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;
-    Markup::XamlSchemaContext* Schema() noexcept;
-    Core::ActivationProviderRegistry* ActivationFacets() noexcept;
-    Markup::XamlSourceProviderRegistry* XamlSources() noexcept;
-    Markup::EmbeddedXamlSourceProvider* EmbeddedXamlSources() noexcept;
-    Markup::XamlDocumentCache* DocumentCache() noexcept;
+    Markup::Schema* Schema() noexcept;
+    Markup::SourceProviderRegistry* Sources() noexcept;
+    Markup::EmbeddedSourceProvider* EmbeddedSources() noexcept;
+    Markup::DocumentCache* DocumentCache() noexcept;
     const Base::ResourceUri& CurrentDocumentUri() const noexcept;
     Base::Span<const Base::ResourceUri> CurrentDocumentDependencies() const noexcept;
     Presentation::ResourceDictionary* ApplicationResources() noexcept;

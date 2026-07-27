@@ -10,6 +10,8 @@
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 
+#include <type_traits>
+
 namespace Aero::Presentation {
 class LayoutManager;
 class RenderManager;
@@ -223,7 +225,7 @@ private:
 };
 
 class AERO_API FrameworkTemplate : public Base::Object {
-    AERO_TYPED_META(FrameworkTemplate, Base::Object)
+    AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
 public:
     FrameworkTemplate() noexcept = default;
     FrameworkTemplate(
@@ -249,6 +251,44 @@ public:
         Base::StringView targetName,
         DependencyPropertyHandle sourceProperty,
         DependencyPropertyHandle targetProperty) noexcept;
+    template<
+        class TSourceOwner,
+        class TSourceValue,
+        class TTargetOwner,
+        class TTargetValue>
+    Base::Result<void> Bind(
+        Base::StringView targetName,
+        const DependencyPropertyRef<
+            TSourceOwner, TSourceValue>& sourceProperty,
+        const DependencyPropertyRef<
+            TTargetOwner, TTargetValue>& targetProperty) noexcept {
+        static_assert(
+            std::is_same_v<TSourceValue, TTargetValue>,
+            "Template binding source and target values must match");
+        return TryAddTemplateBinding(
+            targetName,
+            sourceProperty.Handle(),
+            targetProperty.Handle());
+    }
+    template<
+        class TSourceOwner,
+        class TSourceValue,
+        class TTargetOwner,
+        class TTargetValue>
+    Base::Result<void> Bind(
+        Base::StringView targetName,
+        const ReadOnlyPropertyRef<
+            TSourceOwner, TSourceValue>& sourceProperty,
+        const DependencyPropertyRef<
+            TTargetOwner, TTargetValue>& targetProperty) noexcept {
+        static_assert(
+            std::is_same_v<TSourceValue, TTargetValue>,
+            "Template binding source and target values must match");
+        return TryAddTemplateBinding(
+            targetName,
+            sourceProperty.Handle(),
+            targetProperty.Handle());
+    }
     Base::Result<void> TryAddPropertyTrigger(
         TemplatePropertyTrigger trigger) noexcept;
     Base::Result<void> TryAddVisualStateGroup(
@@ -278,6 +318,8 @@ public:
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
     Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
         return sealed_ ? program_.Bindings()
             : Base::Span<const TemplateBindingPlan>{
@@ -305,7 +347,7 @@ private:
 };
 
 class AERO_API ControlTemplate final : public FrameworkTemplate {
-    AERO_TYPED_META(ControlTemplate, FrameworkTemplate)
+    AERO_DECLARE_TYPE(ControlTemplate, FrameworkTemplate)
 public:
     using FrameworkTemplate::FrameworkTemplate;
 

@@ -1,14 +1,23 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 
+#include <new>
+#include <type_traits>
+#include <utility>
+
 namespace Aero::Core {
 
+namespace Detail {
 class MetadataFacetStore;
+}
 class MetadataRegistrationTypes;
+template<class T>
+class TypeDescription;
 
 // Mutable registration storage for executable type/member behavior.
 //
@@ -19,6 +28,7 @@ class AERO_API MetadataBehaviorRegistrationStore final {
 public:
     explicit MetadataBehaviorRegistrationStore(TypeRegistry& types) noexcept
         : types_(&types) {}
+    ~MetadataBehaviorRegistrationStore() noexcept;
 
     MetadataBehaviorRegistrationStore(
         const MetadataBehaviorRegistrationStore&) = delete;
@@ -35,14 +45,59 @@ public:
     const TypeRegistry& Types() const noexcept { return *types_; }
 
 private:
-    friend class MetadataFacetStore;
+    friend class Detail::MetadataFacetStore;
     friend class MetadataRegistrationTypes;
     friend class TypeRegistry;
+
+    struct OwnedBehaviorContext final {
+        Base::IAllocator* allocator = nullptr;
+        void* value = nullptr;
+        void (*destroy)(OwnedBehaviorContext&) noexcept = nullptr;
+    };
+
+    template<class TContext>
+    Base::Result<std::decay_t<TContext>*> TryOwnContext(
+        TContext&& value) noexcept {
+        using Stored = std::decay_t<TContext>;
+        Base::IAllocator& allocator = Base::GetDefaultAllocator();
+        void* memory = allocator.Allocate({
+            sizeof(Stored),
+            alignof(Stored),
+            Base::MemoryTag::General});
+        if (memory == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Metadata behavior context allocation failed");
+        }
+        auto* stored = new (memory) Stored(
+            std::forward<TContext>(value));
+        OwnedBehaviorContext context;
+        context.allocator = &allocator;
+        context.value = stored;
+        context.destroy = [](OwnedBehaviorContext& owned) noexcept {
+            auto* typed = static_cast<Stored*>(owned.value);
+            typed->~Stored();
+            owned.allocator->Deallocate(
+                typed,
+                sizeof(Stored),
+                alignof(Stored),
+                Base::MemoryTag::General);
+            owned = {};
+        };
+        Base::Result<void> retained =
+            ownedContexts_.TryPushBack(context);
+        if (!retained) {
+            context.destroy(context);
+            return retained.GetStatus();
+        }
+        return stored;
+    }
+    void ReleaseLastContext(void* value) noexcept;
 
     const TypeFactoryRegistration* FindTypeFactory(
         TypeId type) const noexcept;
     const ContentAccessorRegistration* FindContentAccessor(
-        TypeId type) const noexcept;
+        MemberId member) const noexcept;
     const PropertyAccessorRegistration* FindPropertyAccessor(
         MemberId member) const noexcept;
     const ValueMemberAccessorRegistration* FindValueMemberAccessor(
@@ -64,6 +119,7 @@ private:
         propertyChangeNotifications_;
     Base::Vector<CollectionChangeNotificationRegistration>
         collectionChangeNotifications_;
+    Base::Vector<OwnedBehaviorContext> ownedContexts_;
     bool frozen_ = false;
 };
 
@@ -117,6 +173,19 @@ public:
     }
 
 private:
+    template<class>
+    friend class TypeDescription;
+
+    template<class TContext>
+    Base::Result<std::decay_t<TContext>*> TryOwnBehaviorContext(
+        TContext&& value) const noexcept {
+        return behaviors_->TryOwnContext(
+            std::forward<TContext>(value));
+    }
+    void ReleaseLastBehaviorContext(void* value) const noexcept {
+        behaviors_->ReleaseLastContext(value);
+    }
+
     Base::Result<void> ValidateRegistrationPair() const noexcept;
 
     TypeRegistry* types_ = nullptr;

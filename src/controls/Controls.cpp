@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <utility>
 
 namespace Aero::Controls {
@@ -12,27 +11,8 @@ using namespace Aero::Core;
 using namespace Aero::Presentation;
 namespace {
 
-bool IsValidColor(Color value) noexcept {
-    return IsFinite(value) && value.red >= 0.0F && value.red <= 1.0F &&
-        value.green >= 0.0F && value.green <= 1.0F &&
-        value.blue >= 0.0F && value.blue <= 1.0F &&
-        value.alpha >= 0.0F && value.alpha <= 1.0F;
-}
-
-bool IsValidPadding(Thickness value) noexcept {
-    return IsFinite(value) && value.left >= 0.0 && value.top >= 0.0 &&
-        value.right >= 0.0 && value.bottom >= 0.0 &&
-        std::isfinite(value.left + value.right) &&
-        std::isfinite(value.top + value.bottom);
-}
-
 bool IsValidTextSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
-}
-
-TypeId PresentationType(const char* name) noexcept {
-    return MakeTypeId(Base::StringView(
-        name, static_cast<std::uint32_t>(std::strlen(name))));
 }
 
 } // namespace
@@ -47,18 +27,12 @@ StackPanel::StackPanel(Orientation orientation) noexcept
 }
 
 Orientation StackPanel::GetOrientation() const noexcept {
-    Base::Result<Value> value = GetValue(OrientationProperty);
-    return value ? static_cast<Orientation>(value.Value().AsUnsignedInteger())
-                 : Orientation::Vertical;
+    return GetValueOr(
+        OrientationProperty, Orientation::Vertical);
 }
 
 Base::Result<void> StackPanel::SetOrientation(Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "StackPanel orientation is invalid");
-    }
-    return SetValue(OrientationProperty, Value::FromUnsignedInteger(
-        PresentationType("Orientation"), static_cast<std::uint64_t>(value)));
+    return SetValue(OrientationProperty, value);
 }
 
 Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
@@ -116,17 +90,17 @@ Base::Result<void> Canvas::SetChildPosition(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Canvas child must be attached before positioning");
     }
-    Base::Result<void> left = child.SetValue(LeftProperty,
-        Value::FromDouble(PresentationType("Double"), position.x));
-    return left ? child.SetValue(TopProperty,
-        Value::FromDouble(PresentationType("Double"), position.y)) : left;
+    Base::Result<void> left =
+        child.SetValue(LeftProperty, position.x);
+    return left
+        ? child.SetValue(TopProperty, position.y)
+        : left;
 }
 
 Point Canvas::ChildPosition(const UIElement& child) const noexcept {
-    Base::Result<Value> left = child.GetValue(LeftProperty);
-    Base::Result<Value> top = child.GetValue(TopProperty);
-    return {left ? left.Value().AsDouble() : 0.0,
-        top ? top.Value().AsDouble() : 0.0};
+    return {
+        child.GetValueOr(LeftProperty, 0.0),
+        child.GetValueOr(TopProperty, 0.0)};
 }
 
 Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
@@ -214,10 +188,10 @@ Base::Result<void> Grid::SetChildCell(
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Grid child must be attached before assigning a cell");
     }
-    Base::Result<void> rowResult = child.SetValue(RowProperty,
-        Value::FromUnsignedInteger(PresentationType("UInt32"), row));
-    return rowResult ? child.SetValue(ColumnProperty,
-        Value::FromUnsignedInteger(PresentationType("UInt32"), column))
+    Base::Result<void> rowResult =
+        child.SetValue(RowProperty, row);
+    return rowResult
+        ? child.SetValue(ColumnProperty, column)
         : rowResult;
 }
 
@@ -340,15 +314,11 @@ Base::Result<void> Grid::ValidateDefinitions(
 }
 
 std::uint32_t Grid::ChildRow(const UIElement& child) const noexcept {
-    Base::Result<Value> value = child.GetValue(RowProperty);
-    return value ? static_cast<std::uint32_t>(
-        value.Value().AsUnsignedInteger()) : 0U;
+    return child.GetValueOr(RowProperty, 0U);
 }
 
 std::uint32_t Grid::ChildColumn(const UIElement& child) const noexcept {
-    Base::Result<Value> value = child.GetValue(ColumnProperty);
-    return value ? static_cast<std::uint32_t>(
-        value.Value().AsUnsignedInteger()) : 0U;
+    return child.GetValueOr(ColumnProperty, 0U);
 }
 
 Base::Result<void> Grid::ResolveTracks(
@@ -396,75 +366,40 @@ Base::Result<void> Grid::ResolveTracks(
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
 
 Color Border::Background() const noexcept {
-    Base::Result<Value> value = GetValue(BackgroundProperty);
-    return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
+    return GetValueOr(BackgroundProperty, Color{});
 }
 
 Color Border::BorderBrush() const noexcept {
-    Base::Result<Value> value = GetValue(BorderBrushProperty);
-    return value ? *static_cast<const Color*>(value.Value().AsCustom()) : Color{};
+    return GetValueOr(BorderBrushProperty, Color{});
 }
 
 double Border::BorderThickness() const noexcept {
-    Base::Result<Value> value = GetValue(BorderThicknessProperty);
-    return value ? value.Value().AsDouble() : 0.0;
+    return GetValueOr(BorderThicknessProperty, 0.0);
 }
 
 Thickness Border::Padding() const noexcept {
-    Base::Result<Value> value = GetValue(PaddingProperty);
-    return value ? *static_cast<const Thickness*>(value.Value().AsCustom())
-                 : Thickness{};
+    return GetValueOr(PaddingProperty, Thickness{});
 }
 
 Base::Result<void> Border::SetBackground(Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Border color is invalid");
-    }
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Color"), &value);
-    return stored ? SetValue(BackgroundProperty, stored.Value())
-                  : stored.GetStatus();
+    return SetValue(BackgroundProperty, value);
 }
 
 Base::Result<void> Border::SetStroke(Color value, double thickness) noexcept {
-    if (!IsValidColor(value) || !std::isfinite(thickness) || thickness < 0.0) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Border stroke is invalid");
-    }
     Base::Result<void> brush = SetBorderBrush(value);
     return brush ? SetBorderThickness(thickness) : brush;
 }
 
 Base::Result<void> Border::SetBorderBrush(Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Border brush is invalid");
-    }
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Color"), &value);
-    return stored ? SetValue(BorderBrushProperty, stored.Value())
-                  : stored.GetStatus();
+    return SetValue(BorderBrushProperty, value);
 }
 
 Base::Result<void> Border::SetBorderThickness(double value) noexcept {
-    if (!std::isfinite(value) || value < 0.0) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Border thickness is invalid");
-    }
-    return SetValue(BorderThicknessProperty,
-        Value::FromDouble(PresentationType("Double"), value));
+    return SetValue(BorderThicknessProperty, value);
 }
 
 Base::Result<void> Border::SetPadding(Thickness value) noexcept {
-    if (!IsValidPadding(value)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Border padding must be finite, nonnegative, and non-overflowing");
-    }
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Thickness"), &value);
-    return stored ? SetValue(PaddingProperty, stored.Value())
-                  : stored.GetStatus();
+    return SetValue(PaddingProperty, value);
 }
 
 Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
@@ -510,32 +445,21 @@ TextBlock::~TextBlock() {
 }
 
 Base::StringView TextBlock::Text() const noexcept {
-    Base::Result<Value> value = GetValue(TextProperty);
-    return value ? value.Value().AsString() : Base::StringView();
+    return GetValueOr(TextProperty, Base::StringView());
 }
 
 Color TextBlock::Foreground() const noexcept {
-    Base::Result<Value> value = GetValue(ForegroundProperty);
-    return value ? *static_cast<const Color*>(value.Value().AsCustom())
-                 : Color{0.0F, 0.0F, 0.0F, 1.0F};
+    return GetValueOr(
+        ForegroundProperty,
+        Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
-    Base::Result<Value> stored = Value::TryFromString(
-        PresentationType("String"), value);
-    return stored ? SetValue(TextProperty, stored.Value())
-                  : stored.GetStatus();
+    return SetValue(TextProperty, value);
 }
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "TextBlock foreground color is invalid");
-    }
-    Base::Result<Value> stored = TryCreateRuntimeValue(
-        PresentationType("Color"), &value);
-    return stored ? SetValue(ForegroundProperty, stored.Value())
-                  : stored.GetStatus();
+    return SetValue(ForegroundProperty, value);
 }
 
 Base::Result<void> TextBlock::SetLayoutService(

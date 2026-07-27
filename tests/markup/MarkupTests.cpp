@@ -1,4 +1,4 @@
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Markup/Compiled/XamlCompiledCache.hpp>
 #if AERO_WITH_EXPAT
 #include <Aero/Markup/Parsing/ExpatXmlTokenizer.hpp>

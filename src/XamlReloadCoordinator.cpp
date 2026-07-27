@@ -3,8 +3,8 @@
 #include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
-#include <Aero/Markup/Runtime/XamlDocumentCache.hpp>
-#include <Aero/Markup/Runtime/XamlLoader.hpp>
+#include <Aero/Markup/Loader.hpp>
+#include <Aero/Markup/Loader.hpp>
 #include <Aero/RuntimeHost.hpp>
 #include <Aero/UiDocument.hpp>
 
@@ -31,14 +31,14 @@ struct XamlReloadCoordinator::Impl final {
                 Base::ErrorCode::InvalidState,
                 "XAML reload source is unavailable");
         }
-        Markup::XamlSourceProviderRegistry* providers =
-            host->XamlSources();
+        Markup::SourceProviderRegistry* providers =
+            host->Sources();
         if (providers == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
                 "XAML reload requires source providers");
         }
-        Base::Result<Markup::XamlSourceProviderResolution> provider =
+        Base::Result<Markup::SourceProviderResolution> provider =
             providers->ResolveDetailed(uri);
         if (!provider) return provider.GetStatus();
         Base::Result<std::uint64_t> revision =
@@ -46,7 +46,7 @@ struct XamlReloadCoordinator::Impl final {
         if (revision && revision.Value() != 0U) {
             return revision.Value();
         }
-        Base::Result<Markup::XamlSource> source =
+        Base::Result<Markup::Source> source =
             provider.Value().provider->Load(uri);
         if (!source) return source.GetStatus();
         return source.Value().revision != 0U
@@ -71,14 +71,14 @@ struct XamlReloadCoordinator::Impl final {
         if (uri.Empty() || HasTracked(records, uri)) return {};
         std::uint64_t revision = 0U;
         std::uint64_t sourceIdentity = 0U;
-        Markup::XamlSourceProviderRegistry* providers =
-            host != nullptr ? host->XamlSources() : nullptr;
+        Markup::SourceProviderRegistry* providers =
+            host != nullptr ? host->Sources() : nullptr;
         if (providers != nullptr) {
-            Base::Result<Markup::XamlSourceProviderResolution> resolved =
+            Base::Result<Markup::SourceProviderResolution> resolved =
                 providers->ResolveDetailed(uri);
             if (resolved) sourceIdentity = resolved.Value().cacheIdentity;
         }
-        Markup::XamlDocumentCache* cache =
+        Markup::DocumentCache* cache =
             host != nullptr ? host->DocumentCache() : nullptr;
         if (cache == nullptr ||
             !cache->TryGetSourceRevision(
@@ -128,7 +128,7 @@ struct XamlReloadCoordinator::Impl final {
                 Base::ErrorCode::InvalidState,
                 "XAML reload coordinator is not active");
         }
-        Markup::XamlDocumentCache* cache = host->DocumentCache();
+        Markup::DocumentCache* cache = host->DocumentCache();
         std::uint32_t invalidatedCount = 0U;
         if (cache != nullptr) {
             Base::Result<std::uint32_t> invalidated =
@@ -138,7 +138,7 @@ struct XamlReloadCoordinator::Impl final {
         }
 
         Base::Result<UiDocument> replacement =
-            host->LoadUiDocument(rootUri.Canonical(), diagnostics);
+            host->Load(rootUri.Canonical(), diagnostics);
         if (!replacement) return replacement.GetStatus();
         Base::ResourceUri replacementRoot = rootUri;
         Base::Vector<RevisionRecord> replacementRevisions(allocator);
@@ -233,7 +233,7 @@ Base::Result<void> XamlReloadCoordinator::Start(
         Base::ResourceUri::Parse(rootUri);
     if (!parsed) return parsed.GetStatus();
     Base::Result<UiDocument> document =
-        impl_->host->LoadUiDocument(rootUri, diagnostics);
+        impl_->host->Load(rootUri, diagnostics);
     if (!document) return document.GetStatus();
     Base::ResourceUri resolvedRoot = parsed.Value();
     Base::Vector<Impl::RevisionRecord> revisions(impl_->allocator);

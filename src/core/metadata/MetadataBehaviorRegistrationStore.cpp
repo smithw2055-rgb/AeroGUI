@@ -30,6 +30,31 @@ bool HasPropertyFlagValue(
 
 } // namespace
 
+MetadataBehaviorRegistrationStore::~MetadataBehaviorRegistrationStore()
+    noexcept {
+    for (std::uint32_t index = ownedContexts_.Size();
+         index > 0U; --index) {
+        OwnedBehaviorContext& context =
+            ownedContexts_[index - 1U];
+        if (context.destroy != nullptr) {
+            context.destroy(context);
+        }
+    }
+}
+
+void MetadataBehaviorRegistrationStore::ReleaseLastContext(
+    void* value) noexcept {
+    if (ownedContexts_.Empty() ||
+        ownedContexts_.Back().value != value) {
+        return;
+    }
+    OwnedBehaviorContext& context = ownedContexts_.Back();
+    if (context.destroy != nullptr) {
+        context.destroy(context);
+    }
+    ownedContexts_.PopBack();
+}
+
 Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
     if (frozen_) return {};
     if (types_ == nullptr || !types_->IsFrozen()) {
@@ -54,7 +79,7 @@ Base::Result<void> MetadataBehaviorRegistrationStore::Freeze() noexcept {
             HasPropertyFlagValue(
                 member->Flags(), PropertyFlags::Collection);
         if (type == nullptr || type->Kind() != MetadataTypeKind::Object ||
-            type->ContentMember() != content.member || member == nullptr ||
+            member == nullptr ||
             member->OwnerType() != content.type ||
             !HasPropertyFlagValue(
                 member->Flags(), PropertyFlags::Structural) ||
@@ -156,9 +181,9 @@ MetadataBehaviorRegistrationStore::FindTypeFactory(TypeId type) const noexcept {
 
 const ContentAccessorRegistration*
 MetadataBehaviorRegistrationStore::FindContentAccessor(
-    TypeId type) const noexcept {
+    MemberId member) const noexcept {
     for (const ContentAccessorRegistration& registration : contentAccessors_) {
-        if (registration.type == type) return &registration;
+        if (registration.member == member) return &registration;
     }
     return nullptr;
 }
@@ -312,7 +337,7 @@ Base::Result<void> MetadataRegistrationTypes::TrySetContentAccessor(
     const bool collection = member != nullptr &&
         HasPropertyFlagValue(member->Flags(), PropertyFlags::Collection);
     if (type == nullptr || type->Kind() != MetadataTypeKind::Object ||
-        type->ContentMember() != registration.member || member == nullptr ||
+        member == nullptr ||
         member->OwnerType() != registration.type ||
         !HasPropertyFlagValue(
             member->Flags(), PropertyFlags::Structural) ||
@@ -322,7 +347,7 @@ Base::Result<void> MetadataRegistrationTypes::TrySetContentAccessor(
             Base::ErrorCode::InvalidArgument,
             "Content accessor registration is invalid");
     }
-    if (behaviors_->FindContentAccessor(registration.type) != nullptr) {
+    if (behaviors_->FindContentAccessor(registration.member) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Content accessor is already registered");

@@ -1,5 +1,7 @@
 #include <Aero/Controls/Templates.hpp>
 
+#include "../presentation/ResourceAssignment.hpp"
+
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -1069,6 +1071,14 @@ void TemplateManager::OnPropertyChanged(
         }
         return;
     }
+}
+
+Base::Result<void> FrameworkTemplate::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Presentation::Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "FrameworkTemplate Resources is already assigned");
 }
 
 } // namespace Aero::Controls

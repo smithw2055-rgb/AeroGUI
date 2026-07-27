@@ -1,7 +1,7 @@
 #include <Aero/BuiltinModules.hpp>
 
 #include <Aero/Controls/Metadata.hpp>
-#include <Aero/Markup/Schema/Metadata.hpp>
+#include <Aero/Markup/Schema.hpp>
 
 namespace Aero {
 

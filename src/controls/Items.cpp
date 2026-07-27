@@ -1,4 +1,6 @@
 #include <Aero/Controls/Items.hpp>
+
+#include "../presentation/ResourceAssignment.hpp"
 #include <Aero/Controls/Virtualization.hpp>
 
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
@@ -441,10 +443,7 @@ void ItemsControl::PublishReset() noexcept {
 
 void ItemsControl::PublishItemCount() noexcept {
     static_cast<void>(SetReadOnlyCurrentValue(
-        ItemCountProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger,
-            ItemCount())));
+        ItemCountProperty, ItemCount()));
 }
 
 Base::Result<Base::Ref<ItemContainer>>
@@ -1161,6 +1160,22 @@ ItemContainerGenerator::ItemFromContainer(
         ? records_[
             index - firstGeneratedIndex_].item
         : Base::Ref<Base::Object>();
+}
+
+Base::Result<void> DataTemplate::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Presentation::Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "DataTemplate Resources is already assigned");
+}
+
+Base::Result<void> ItemsPanelTemplate::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Presentation::Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "ItemsPanelTemplate Resources is already assigned");
 }
 
 } // namespace Aero::Controls

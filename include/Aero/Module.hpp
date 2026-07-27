@@ -11,17 +11,11 @@
 
 #include <cstdint>
 
-namespace Aero::Markup {
-class XamlRegistrationContext;
-}
-
 namespace Aero {
 
 using ModuleRegisterCallback = Core::MetadataModuleRegisterCallback;
-using ModuleRegisterXamlCallback = Base::Result<void> (*)(
-    Markup::XamlRegistrationContext& context,
-    void* userContext) noexcept;
-
+using ModuleRegisterContextCallback =
+    Core::MetadataModuleRegisterContextCallback;
 struct ModuleDependency final {
     Base::StringView name;
     std::uint32_t minimumSchemaVersion = 1U;
@@ -31,24 +25,30 @@ struct ModuleRegistration final {
     Base::StringView name;
     std::uint32_t schemaVersion = 1U;
     ModuleRegisterCallback registerModule = nullptr;
+    ModuleRegisterContextCallback registerModuleWithContext = nullptr;
     void* context = nullptr;
-    ModuleRegisterXamlCallback registerXaml = nullptr;
     std::uint32_t abiVersion = ModuleAbiVersion;
     Base::Span<const ModuleDependency> dependencies;
 };
 
-// Root-level module catalog for AeroGUI composition. Modules register metadata
-// descriptors and facets once; Markup, Presentation, Controls, tools, and the
-// runtime all consume the sealed MetadataDomain instead of maintaining a second
-// XAML-specific registration path.
+constexpr ModuleRegistration DefineModule(
+    Base::StringView name,
+    ModuleRegisterCallback registerModule) noexcept {
+    ModuleRegistration registration;
+    registration.name = name;
+    registration.registerModule = registerModule;
+    return registration;
+}
+
+// Root-level module catalog for AeroGUI composition. Modules describe types
+// once; markup, presentation, controls, tools, and runtime all consume the
+// same sealed MetadataDomain.
 class AERO_API ModuleCatalog final {
 public:
-    Base::Result<void> TryAdd(
+    Base::Result<void> Add(
         const ModuleRegistration& registration) noexcept;
     Base::Result<void> RegisterMetadata(
         Core::MetadataDomain& domain) const noexcept;
-    Base::Result<void> RegisterXaml(
-        Markup::XamlRegistrationContext& context) const noexcept;
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept { return frozen_; }
@@ -61,8 +61,8 @@ private:
         Base::String name;
         std::uint32_t schemaVersion = 1U;
         ModuleRegisterCallback registerModule = nullptr;
+        ModuleRegisterContextCallback registerModuleWithContext = nullptr;
         void* context = nullptr;
-        ModuleRegisterXamlCallback registerXaml = nullptr;
         std::uint32_t abiVersion = ModuleAbiVersion;
         struct Dependency final {
             Base::String name;

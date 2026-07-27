@@ -75,7 +75,7 @@ namespace Aero::Presentation {
 using namespace Aero::Core;
 
 struct Length final {
-    AERO_TYPED_META(Length, NoMetadataBase)
+    AERO_DECLARE_TYPE(Length, NoMetadataBase)
     double value = 0.0;
     bool isAuto = true;
 
@@ -157,7 +157,7 @@ private:
 };
 
 class AERO_API UIElement : public Visual {
-    AERO_TYPED_META(UIElement, Visual)
+    AERO_DECLARE_TYPE(UIElement, Visual)
 public:
     template<class THandler>
     class RoutedEvent_ final {
@@ -206,58 +206,68 @@ public:
         RoutedEventHandle event_;
     };
 
-    inline static constexpr RoutedEventHandle MouseMoveEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseMove");
+    template<class TOwner, class TArgs>
+    auto Event(
+        const Core::RoutedEventRef<TOwner, TArgs>& event) noexcept {
+        using Handler =
+            Base::Delegate<void(Base::Object*, const TArgs&)>;
+        return RoutedEvent_<Handler>(*this, event.Handle());
+    }
+
+    inline static constexpr Members::RoutedEvent<
+        MouseEventArgs> MouseMoveEvent{"MouseMove"};
     RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
-        return {*this, MouseMoveEvent};
+        return Event(MouseMoveEvent);
     }
 
-    inline static constexpr RoutedEventHandle MouseDownEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseDown");
+    inline static constexpr Members::RoutedEvent<
+        MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
     RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
-        return {*this, MouseDownEvent};
+        return Event(MouseDownEvent);
     }
 
-    inline static constexpr RoutedEventHandle MouseUpEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseUp");
+    inline static constexpr Members::RoutedEvent<
+        MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
     RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
-        return {*this, MouseUpEvent};
+        return Event(MouseUpEvent);
     }
 
-    inline static constexpr RoutedEventHandle MouseWheelEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "MouseWheel");
+    inline static constexpr Members::RoutedEvent<
+        MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
     RoutedEvent_<MouseWheelEventHandler> MouseWheel() noexcept {
-        return {*this, MouseWheelEvent};
+        return Event(MouseWheelEvent);
     }
 
-    inline static constexpr RoutedEventHandle GotKeyboardFocusEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "GotKeyboardFocus");
+    inline static constexpr Members::RoutedEvent<
+        KeyboardFocusChangedEventArgs>
+        GotKeyboardFocusEvent{"GotKeyboardFocus"};
     RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
-        return {*this, GotKeyboardFocusEvent};
+        return Event(GotKeyboardFocusEvent);
     }
 
-    inline static constexpr RoutedEventHandle LostKeyboardFocusEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "LostKeyboardFocus");
+    inline static constexpr Members::RoutedEvent<
+        KeyboardFocusChangedEventArgs>
+        LostKeyboardFocusEvent{"LostKeyboardFocus"};
     RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
-        return {*this, LostKeyboardFocusEvent};
+        return Event(LostKeyboardFocusEvent);
     }
 
-    inline static constexpr RoutedEventHandle KeyDownEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyDown");
+    inline static constexpr Members::RoutedEvent<
+        KeyEventArgs> KeyDownEvent{"KeyDown"};
     RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
-        return {*this, KeyDownEvent};
+        return Event(KeyDownEvent);
     }
 
-    inline static constexpr RoutedEventHandle KeyUpEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "KeyUp");
+    inline static constexpr Members::RoutedEvent<
+        KeyEventArgs> KeyUpEvent{"KeyUp"};
     RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
-        return {*this, KeyUpEvent};
+        return Event(KeyUpEvent);
     }
 
-    inline static constexpr RoutedEventHandle TextInputEvent =
-        MakeRoutedEventHandle(StaticTypeIdValue_, "TextInput");
+    inline static constexpr Members::RoutedEvent<
+        TextCompositionEventArgs> TextInputEvent{"TextInput"};
     RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
-        return {*this, TextInputEvent};
+        return Event(TextInputEvent);
     }
 
     explicit UIElement(TypeId runtimeType) noexcept;
@@ -312,34 +322,24 @@ public:
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        ClipToBoundsProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ClipToBounds");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsHitTestVisibleProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsHitTestVisible");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsEnabledProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsEnabled");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsMouseOverProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsMouseOver");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsPressedProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsPressed");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsKeyboardFocusedProperty =
-            Aero::Core::MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "IsKeyboardFocused");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsTabStopProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsTabStop");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        TabIndexProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "TabIndex");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        IsFocusScopeProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsFocusScope");
+    inline static constexpr Members::Property<bool>
+        ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr Members::Property<bool>
+        IsHitTestVisibleProperty{"IsHitTestVisible"};
+    inline static constexpr Members::Property<bool>
+        IsEnabledProperty{"IsEnabled"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        IsMouseOverProperty{"IsMouseOver"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        IsPressedProperty{"IsPressed"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        IsKeyboardFocusedProperty{"IsKeyboardFocused"};
+    inline static constexpr Members::Property<bool>
+        IsTabStopProperty{"IsTabStop"};
+    inline static constexpr Members::Property<std::uint32_t>
+        TabIndexProperty{"TabIndex"};
+    inline static constexpr Members::Property<bool>
+        IsFocusScopeProperty{"IsFocusScope"};
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;

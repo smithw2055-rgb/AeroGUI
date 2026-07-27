@@ -2,7 +2,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Dispatcher.hpp>

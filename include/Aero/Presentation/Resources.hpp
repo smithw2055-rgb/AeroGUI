@@ -131,7 +131,7 @@ using ResourceChangedCallback = void (*)(
 // between load sessions and runtime owners without invalidating subscriptions.
 class AERO_API ResourceDictionary final
     : public Base::Object {
-    AERO_TYPED_META(
+    AERO_DECLARE_TYPE(
         ResourceDictionary,
         Base::Object)
 public:
@@ -212,6 +212,7 @@ public:
         ResourceDictionary& dictionary) noexcept;
     Base::Result<bool> RemoveMerged(
         ResourceDictionary& dictionary) noexcept;
+    Base::Result<void> ClearMergedDictionaries() noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.

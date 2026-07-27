@@ -65,6 +65,28 @@ endif()
 
 
 foreach(removed_path IN ITEMS
+    "include/Aero/Markup/Runtime"
+    "include/Aero/Markup/Schema"
+    "include/Aero/Markup/Parsing"
+    "include/Aero/Markup/Resources"
+    "include/Aero/Markup/Extensions"
+    "include/Aero/Markup/Compiled"
+    "src/markup/runtime"
+    "src/markup/schema"
+    "src/markup/parsing"
+    "src/markup/resources"
+    "src/markup/extensions"
+    "src/markup/compiled"
+    "include/Aero/Markup/DocumentCache.hpp"
+    "include/Aero/Core/Metadata/Activation.hpp"
+    "include/Aero/Core/Metadata/MetadataDescriptors.hpp"
+    "include/Aero/Core/Metadata/MetadataDsl.hpp"
+    "include/Aero/Core/Metadata/MetaRegistrationContext.hpp"
+    "include/Aero/Core/Metadata/MetadataValueFacets.hpp"
+    "src/core/metadata/LegacyActivation.hpp"
+    "src/core/metadata/MetadataDescriptors.cpp"
+    "src/markup/LoaderEngine.hpp"
+    "src/markup/LoaderEngine.cpp"
     "include/Aero/Markup/RuntimeHost.hpp"
     "include/Aero/Markup/XamlThemeResources.hpp"
     "include/Aero/Markup/XamlModuleSdk.hpp"
@@ -81,6 +103,31 @@ foreach(removed_path IN ITEMS
             "Removed runtime/markup compatibility file still exists: ${removed_path}")
     endif()
 endforeach()
+
+set(legacy_markup_header_pattern
+    "#[ \t]*include[ \t]*<Aero/Markup/(Runtime|Schema|Parsing|Resources|Extensions|Compiled)/")
+file(GLOB_RECURSE production_code
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.inc"
+    "${AERO_SOURCE_DIR}/tools/*.cpp"
+    "${AERO_SOURCE_DIR}/tools/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Base/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Markup/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Presentation/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Render/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
+aero_collect_matches(legacy_markup_includes
+    "${legacy_markup_header_pattern}" ${production_code})
+if(legacy_markup_includes)
+    message(FATAL_ERROR
+        "Production code must not include removed Markup headers: "
+        "${legacy_markup_includes}")
+endif()
 
 set(legacy_header_pattern
     "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|ObjectTree|Rendering|Style|Presentation|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
@@ -106,14 +153,15 @@ if(legacy_includes)
 endif()
 
 
-file(GLOB_RECURSE markup_kernel_files
-    "${AERO_SOURCE_DIR}/src/markup/parsing/*.cpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Markup/Parsing/*.hpp"
-    "${AERO_SOURCE_DIR}/src/markup/compiled/XamlCompiledCache.cpp"
-    "${AERO_SOURCE_DIR}/src/markup/compiled/XamlCompiledDocument.cpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Markup/Compiled/XamlCompiledCache.hpp")
+set(markup_kernel_files
+    "${AERO_SOURCE_DIR}/src/markup/CompiledCache.cpp"
+    "${AERO_SOURCE_DIR}/src/markup/CompiledDocument.cpp"
+    "${AERO_SOURCE_DIR}/src/markup/ExpatXmlTokenizer.cpp"
+    "${AERO_SOURCE_DIR}/src/markup/NodeReader.cpp"
+    "${AERO_SOURCE_DIR}/src/markup/XmlTokenizer.cpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Markup/CompiledDocument.hpp")
 aero_collect_matches(markup_kernel_reverse
-    "#[ \t]*include[ \t]*<Aero/(Presentation|Controls|Markup/(Runtime|Resources|Schema|Extensions))/"
+    "#[ \t]*include[ \t]*<Aero/(Presentation|Controls|Markup/(Loader|Resources|Schema|Extensions))[.]hpp>"
     ${markup_kernel_files})
 if(markup_kernel_reverse)
     message(FATAL_ERROR
@@ -135,7 +183,7 @@ aero_collect_matches(theme_private_pipeline
     ${current_code})
 if(theme_private_pipeline)
     message(FATAL_ERROR
-        "Built-in themes must use metadata objects and XamlObjectWriter: ${theme_private_pipeline}")
+        "Built-in themes must use metadata objects and ObjectWriter: ${theme_private_pipeline}")
 endif()
 
 

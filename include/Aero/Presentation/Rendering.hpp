@@ -191,7 +191,7 @@ private:
 };
 
 class AERO_API FrameworkElement : public UIElement {
-    AERO_TYPED_META(FrameworkElement, UIElement)
+    AERO_DECLARE_TYPE(FrameworkElement, UIElement)
 public:
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
@@ -224,48 +224,42 @@ public:
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
     DependencyObject* TemplatedParent() const noexcept {
         return templatedParent_;
     }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
 
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        DataContextProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "DataContext");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        StyleProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Style");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        WidthProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Width");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        HeightProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Height");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        MinWidthProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MinWidth");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        MaxWidthProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MaxWidth");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        MinHeightProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MinHeight");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        MaxHeightProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MaxHeight");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        MarginProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Margin");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        HorizontalAlignmentProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "HorizontalAlignment");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        VerticalAlignmentProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "VerticalAlignment");
-    inline static constexpr Aero::Core::DependencyPropertyHandle
-        UseLayoutRoundingProperty = Aero::Core::MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "UseLayoutRounding");
+    inline static constexpr Members::Property<
+        Base::Ref<Base::Object>>
+        DataContextProperty{"DataContext"};
+    inline static constexpr Members::Property<
+        Base::Ref<Style>>
+        StyleProperty{"Style"};
+    inline static constexpr Members::Property<Length>
+        WidthProperty{"Width"};
+    inline static constexpr Members::Property<Length>
+        HeightProperty{"Height"};
+    inline static constexpr Members::Property<double>
+        MinWidthProperty{"MinWidth"};
+    inline static constexpr Members::Property<double>
+        MaxWidthProperty{"MaxWidth"};
+    inline static constexpr Members::Property<double>
+        MinHeightProperty{"MinHeight"};
+    inline static constexpr Members::Property<double>
+        MaxHeightProperty{"MaxHeight"};
+    inline static constexpr Members::Property<Thickness>
+        MarginProperty{"Margin"};
+    inline static constexpr Members::Property<
+        HorizontalAlignment>
+        HorizontalAlignmentProperty{"HorizontalAlignment"};
+    inline static constexpr Members::Property<
+        VerticalAlignment>
+        VerticalAlignmentProperty{"VerticalAlignment"};
+    inline static constexpr Members::Property<bool>
+        UseLayoutRoundingProperty{"UseLayoutRounding"};
 
     Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;

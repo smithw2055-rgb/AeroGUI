@@ -1,4 +1,4 @@
-#include <Aero/Markup/Schema/XamlSchemaManifest.hpp>
+#include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/SchemaBundle.hpp>
 
@@ -46,7 +46,7 @@ bool WriteFile(
     return static_cast<bool>(output);
 }
 
-Aero::Base::Result<Aero::Markup::XamlSchemaManifest>
+Aero::Base::Result<Aero::Markup::SchemaManifest>
 BuildBuiltInManifest() noexcept {
     Aero::ModuleCatalog modules;
     Aero::SchemaBundle bundle;
@@ -54,8 +54,8 @@ BuildBuiltInManifest() noexcept {
     if (!status) return status.GetStatus();
     status = bundle.Finalize(modules, {});
     if (!status) return status.GetStatus();
-    return Aero::Markup::XamlSchemaManifest::Capture(
-        bundle.XamlSchema());
+    return Aero::Markup::SchemaManifest::Capture(
+        bundle.Schema());
 }
 
 } // namespace
@@ -70,8 +70,8 @@ int main(int argc, char** argv) {
         if (!ReadFile(argv[2], bytes)) {
             return Fail("cannot read schema manifest");
         }
-        Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =
-            Aero::Markup::XamlSchemaManifest::Deserialize({
+        Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
+            Aero::Markup::SchemaManifest::Deserialize({
                 bytes.data(), static_cast<std::uint32_t>(bytes.size())});
         if (!manifest) return Fail(manifest.GetStatus());
         if (describe) {
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
             "aero-schema-gen --describe <input.aeroschema>");
     }
 
-    Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =
+    Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
         BuildBuiltInManifest();
     if (!manifest) return Fail(manifest.GetStatus());
     Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =

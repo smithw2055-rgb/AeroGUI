@@ -9,7 +9,9 @@
 
 namespace Aero::Core {
 
+namespace Detail {
 class MetadataFacetStore;
+}
 class MetadataRegistrationValues;
 
 // Mutable registration storage for custom value semantics and text converters.
@@ -35,7 +37,7 @@ public:
     const TypeRegistry& Types() const noexcept { return *types_; }
 
 private:
-    friend class MetadataFacetStore;
+    friend class Detail::MetadataFacetStore;
     friend class MetadataRegistrationValues;
 
     struct ValueSemanticsEntry final {

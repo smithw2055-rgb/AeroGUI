@@ -1,7 +1,5 @@
 #include <Aero/Controls/Virtualization.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
-
 #include <algorithm>
 #include <cmath>
 
@@ -48,18 +46,10 @@ VirtualizingStackPanel::GetOrientation() const noexcept {
 Base::Result<void>
 VirtualizingStackPanel::SetOrientation(
     Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "VirtualizingStackPanel orientation is invalid");
-    }
     if (value == GetOrientation()) return {};
     const double oldMainOffset = MainOffset();
-    Base::Result<void> stored = SetValue(
-        OrientationProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::Orientation,
-            static_cast<std::uint64_t>(value)));
+    Base::Result<void> stored =
+        SetValue(OrientationProperty, value);
     if (!stored) return stored.GetStatus();
     orientation_ = value;
     data_.horizontalOffset = 0.0;
@@ -80,11 +70,8 @@ Base::Result<void>
 VirtualizingStackPanel::SetOverscanCount(
     std::uint32_t value) noexcept {
     if (value == OverscanCount()) return {};
-    Base::Result<void> stored = SetValue(
-        OverscanCountProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger,
-            value));
+    Base::Result<void> stored =
+        SetValue(OverscanCountProperty, value);
     if (!stored) return stored.GetStatus();
     overscanCount_ = value;
     return UpdateRealization(true);
@@ -98,20 +85,13 @@ VirtualizingStackPanel::EstimatedItemExtent() const noexcept {
 Base::Result<void>
 VirtualizingStackPanel::SetEstimatedItemExtent(
     double value) noexcept {
-    if (!std::isfinite(value) || value <= 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Estimated item extent must be positive and finite");
-    }
     if (Same(value, EstimatedItemExtent())) return {};
     const std::uint32_t anchor =
         ItemIndexAtOffset(MainOffset());
     const double intraItem =
         MainOffset() - ItemOffset(anchor);
-    Base::Result<void> stored = SetValue(
-        EstimatedItemExtentProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double, value));
+    Base::Result<void> stored =
+        SetValue(EstimatedItemExtentProperty, value);
     if (!stored) return stored.GetStatus();
     estimatedItemExtent_ = value;
     Base::Result<void> rebuilt =
@@ -359,26 +339,20 @@ VirtualizingStackPanel::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     const double oldEstimate =
         estimatedItemExtent_;
-    Base::Result<Value> orientation =
+    Base::Result<Orientation> orientation =
         GetValue(OrientationProperty);
     if (orientation) {
-        orientation_ = static_cast<Orientation>(
-            orientation.Value()
-                .AsUnsignedInteger());
+        orientation_ = orientation.Value();
     }
-    Base::Result<Value> overscan =
+    Base::Result<std::uint32_t> overscan =
         GetValue(OverscanCountProperty);
     if (overscan) {
-        overscanCount_ =
-            static_cast<std::uint32_t>(
-                overscan.Value()
-                    .AsUnsignedInteger());
+        overscanCount_ = overscan.Value();
     }
-    Base::Result<Value> estimate =
+    Base::Result<double> estimate =
         GetValue(EstimatedItemExtentProperty);
     if (estimate) {
-        estimatedItemExtent_ =
-            estimate.Value().AsDouble();
+        estimatedItemExtent_ = estimate.Value();
     }
     if (!Same(
             oldEstimate,

@@ -5,7 +5,7 @@
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
 #include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Controls/RuntimeMetadata.hpp>
+#include <Aero/Controls/Metadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Controls/Controls.hpp>
 

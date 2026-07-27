@@ -13,14 +13,12 @@ struct FallbackObjectServices final {
     Dispatcher dispatcher;
     TypeRegistry types;
     MetadataBehaviorRegistrationStore behaviors{types};
-    MetadataValueRegistrationStore values{types};
     DependencyPropertyRegistry properties{types, behaviors};
     bool ready = false;
 
     FallbackObjectServices() noexcept {
         ready = types.Freeze() &&
             behaviors.Freeze() &&
-            values.Freeze() &&
             properties.Freeze();
     }
 };
@@ -38,7 +36,7 @@ ObjectServices GetCurrentObjectServices() noexcept {
         return *CurrentObjectServices;
     }
     FallbackObjectServices& fallback = GetFallbackObjectServices();
-    return {&fallback.dispatcher, &fallback.properties, nullptr, nullptr};
+    return {&fallback.dispatcher, &fallback.properties, nullptr};
 }
 
 bool HasCurrentObjectServices() noexcept {
@@ -57,11 +55,6 @@ Base::Result<Value> TryCreateRuntimeValue(
         return CurrentObjectServices->metadataRuntime->TryCreateValue(
             type, source);
     }
-    if (CurrentObjectServices->valueRegistrations != nullptr) {
-        return MetadataRegistrationValues(
-            *CurrentObjectServices->valueRegistrations).TryCreateValue(
-                type, source);
-    }
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "Object services do not provide metadata value semantics");
@@ -70,17 +63,7 @@ Base::Result<Value> TryCreateRuntimeValue(
 ObjectServicesScope::ObjectServicesScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties) noexcept
-    : services_{&dispatcher, &properties, nullptr, nullptr},
-      previous_(CurrentObjectServices),
-      ownerThread_(CurrentDispatcherThreadToken()) {
-    CurrentObjectServices = &services_;
-}
-
-ObjectServicesScope::ObjectServicesScope(
-    Dispatcher& dispatcher,
-    DependencyPropertyRegistry& properties,
-    MetadataValueRegistrationStore& values) noexcept
-    : services_{&dispatcher, &properties, &values, nullptr},
+    : services_{&dispatcher, &properties, nullptr},
       previous_(CurrentObjectServices),
       ownerThread_(CurrentDispatcherThreadToken()) {
     CurrentObjectServices = &services_;
@@ -90,7 +73,7 @@ ObjectServicesScope::ObjectServicesScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties,
     MetadataRuntime& runtime) noexcept
-    : services_{&dispatcher, &properties, nullptr, &runtime},
+    : services_{&dispatcher, &properties, &runtime},
       previous_(CurrentObjectServices),
       ownerThread_(CurrentDispatcherThreadToken()) {
     CurrentObjectServices = &services_;
@@ -100,7 +83,7 @@ ObjectServicesScope::ObjectServicesScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties,
     MetadataRuntime* runtime) noexcept
-    : services_{&dispatcher, &properties, nullptr, runtime},
+    : services_{&dispatcher, &properties, runtime},
       previous_(CurrentObjectServices),
       ownerThread_(CurrentDispatcherThreadToken()) {
     CurrentObjectServices = &services_;

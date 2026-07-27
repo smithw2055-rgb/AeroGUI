@@ -301,11 +301,13 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/property/EffectiveValueEngine.cpp
     src/core/events/RoutedEventCatalog.cpp
     src/core/metadata/CoreMetadata.cpp
-    src/core/metadata/MetadataDescriptors.cpp
+    src/core/metadata/MetadataRuntimeData.cpp
     src/core/metadata/MetadataBehaviorRegistrationStore.cpp
     src/core/metadata/MetadataDomain.cpp
+    src/core/metadata/MetadataRuntime.cpp
     src/core/metadata/MetadataValueFacets.cpp
     src/core/metadata/MetadataValueRegistrationStore.cpp
+    src/core/metadata/ValueConversion.cpp
     src/core/ObjectServices.cpp
     src/core/metadata/TypeRegistry.cpp
     src/core/metadata/Value.cpp)
@@ -420,10 +422,10 @@ set_target_properties(AeroInspector PROPERTIES
 aero_apply_compiler_options(AeroInspector)
 
 add_library(AeroMarkupKernel ${AERO_LIBRARY_TYPE}
-    src/markup/compiled/XamlCompiledCache.cpp
-    src/markup/compiled/XamlCompiledDocument.cpp
-    src/markup/parsing/XmlTokenizer.cpp
-    src/markup/parsing/XamlNodeReader.cpp)
+    src/markup/CompiledCache.cpp
+    src/markup/CompiledDocument.cpp
+    src/markup/XmlTokenizer.cpp
+    src/markup/NodeReader.cpp)
 add_library(Aero::MarkupKernel ALIAS AeroMarkupKernel)
 
 target_include_directories(AeroMarkupKernel
@@ -441,27 +443,25 @@ set_target_properties(AeroMarkupKernel PROPERTIES
 aero_apply_compiler_options(AeroMarkupKernel)
 
 add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
-    src/markup/extensions/XamlBinding.cpp
-    src/markup/compiled/XamlCompiledSchema.cpp
-    src/markup/schema/Metadata.cpp
-    src/markup/schema/XamlFacetStore.cpp
-    src/markup/schema/XamlSchemaManifest.cpp
-    src/markup/extensions/XamlDynamicResource.cpp
-    src/markup/resources/XamlStyle.cpp
-    src/markup/resources/XamlTemplate.cpp
-    src/markup/resources/XamlTemplateCompiler.cpp
-    src/markup/extensions/XamlTypeExtension.cpp
-    src/markup/runtime/XamlActivation.cpp
-    src/markup/resources/XamlScopes.cpp
-    src/markup/runtime/XamlLoadResult.cpp
-    src/markup/runtime/XamlLoadSession.cpp
-    src/markup/runtime/XamlDocumentCache.cpp
-    src/markup/runtime/XamlLoader.cpp
-    src/markup/resources/XamlResources.cpp
-    src/markup/schema/XamlRuntimeSchema.cpp
-    src/markup/runtime/XamlObjectWriter.cpp
-    src/markup/schema/XamlSchemaContext.cpp
-    src/markup/runtime/XamlContentWriter.cpp)
+    src/markup/BindingExtension.cpp
+    src/markup/CompiledSchema.cpp
+    src/markup/Metadata.cpp
+    src/markup/FacetStore.cpp
+    src/markup/SchemaManifest.cpp
+    src/markup/DynamicResourceExtension.cpp
+    src/markup/StyleSupport.cpp
+    src/markup/TemplateSupport.cpp
+    src/markup/TemplateCompiler.cpp
+    src/markup/TypeExtension.cpp
+    src/markup/Scopes.cpp
+    src/markup/LoaderResult.cpp
+    src/markup/ObjectWriterState.cpp
+    src/markup/DocumentCache.cpp
+    src/markup/Loader.cpp
+    src/markup/Resources.cpp
+    src/markup/Schema.cpp
+    src/markup/ObjectWriter.cpp
+    src/markup/SchemaServices.cpp)
 
 if(AERO_WITH_EXPAT)
     if(AERO_THIRD_PARTY_ROOT STREQUAL "")
@@ -500,7 +500,7 @@ if(AERO_WITH_EXPAT)
         endif()
     endif()
     target_sources(AeroMarkupKernel PRIVATE
-        src/markup/parsing/ExpatXmlTokenizer.cpp)
+        src/markup/ExpatXmlTokenizer.cpp)
     target_link_libraries(AeroMarkupKernel PRIVATE
         $<BUILD_INTERFACE:${_aero_expat_target}>
         $<INSTALL_INTERFACE:EXPAT::EXPAT>)

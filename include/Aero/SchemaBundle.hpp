@@ -6,7 +6,6 @@
 #include <Aero/Module.hpp>
 
 namespace Aero::Core {
-class ActivationProviderRegistry;
 class DependencyPropertyRegistry;
 class EffectiveValueEngine;
 class MetadataDomain;
@@ -14,7 +13,7 @@ class MetadataRuntime;
 }
 
 namespace Aero::Markup {
-class XamlSchemaContext;
+class Schema;
 }
 
 namespace Aero::Presentation {
@@ -52,11 +51,8 @@ public:
     const Core::MetadataDomain& Metadata() const noexcept;
     Core::MetadataRuntime& Runtime() noexcept;
     const Core::MetadataRuntime& Runtime() const noexcept;
-    Markup::XamlSchemaContext& XamlSchema() noexcept;
-    const Markup::XamlSchemaContext& XamlSchema() const noexcept;
-    Core::ActivationProviderRegistry& ActivationFacets() noexcept;
-    const Core::ActivationProviderRegistry& ActivationFacets() const noexcept;
-
+    Markup::Schema& Schema() noexcept;
+    const Markup::Schema& Schema() const noexcept;
 private:
     struct Impl;
     Base::IAllocator* allocator_ = nullptr;

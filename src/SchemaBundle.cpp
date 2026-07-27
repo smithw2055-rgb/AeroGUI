@@ -1,12 +1,12 @@
 #include <Aero/SchemaBundle.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Markup/Extensions/XamlDynamicResource.hpp>
-#include <Aero/Markup/Resources/XamlPresentationObjectModel.hpp>
-#include <Aero/Markup/Resources/XamlResources.hpp>
-#include <Aero/Markup/Runtime/XamlContentWriter.hpp>
-#include <Aero/Markup/Schema/XamlRegistrationContext.hpp>
-#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Extensions.hpp>
+#include "core/metadata/MetadataDomainAccess.hpp"
+#include "markup/PresentationObjectModel.hpp"
+#include "markup/ResourceSupport.hpp"
+#include "markup/ObjectWriter.hpp"
+#include <Aero/Markup/Schema.hpp>
 
 #include <new>
 #include <utility>
@@ -52,21 +52,17 @@ struct SchemaBundle::Impl final {
     Base::IAllocator* allocator = nullptr;
     Core::MetadataDomain metadata;
     Core::MetadataRuntime* runtime = nullptr;
-    Markup::XamlSchemaContext* schema = nullptr;
-    Core::ActivationProviderRegistry* activation = nullptr;
-    Markup::XamlDynamicResourceExtension* dynamicResource = nullptr;
-    Markup::XamlPresentationObjectModel* presentation = nullptr;
-    Markup::XamlContentWriter* contentWriter = nullptr;
-    Markup::XamlResourceExtension resourceExtension;
+    Markup::Schema* schema = nullptr;
+    Markup::DynamicResourceExtension* dynamicResource = nullptr;
+    Markup::PresentationObjectModel* presentation = nullptr;
+    Markup::ResourceExtension resourceExtension;
     bool prepared = false;
     bool frozen = false;
     bool terminal = false;
 
     ~Impl() noexcept {
-        Destroy(*allocator, Base::MemoryTag::Markup, contentWriter);
         Destroy(*allocator, Base::MemoryTag::Markup, presentation);
         Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
-        Destroy(*allocator, Base::MemoryTag::Markup, activation);
         Destroy(*allocator, Base::MemoryTag::Markup, schema);
         Destroy(*allocator, Base::MemoryTag::Markup, runtime);
     }
@@ -138,64 +134,44 @@ Base::Result<void> SchemaBundle::Finalize(
         ? *requested.allocator
         : *impl_->allocator;
 
-    Base::Result<Markup::XamlSchemaContext*> schema =
-        Create<Markup::XamlSchemaContext>(
+    Base::Result<Markup::Schema*> schema =
+        Create<Markup::Schema>(
             *impl_->allocator,
             Base::MemoryTag::Markup,
             impl_->metadata,
-            *impl_->runtime);
+            *impl_->runtime,
+            impl_->allocator);
     if (!schema) {
         impl_->terminal = true;
         return schema.GetStatus();
     }
     impl_->schema = schema.Value();
 
-    Base::Result<Core::ActivationProviderRegistry*> activation =
-        Create<Core::ActivationProviderRegistry>(
+    Base::Result<Markup::DynamicResourceExtension*> dynamicResource =
+        Create<Markup::DynamicResourceExtension>(
             *impl_->allocator,
             Base::MemoryTag::Markup,
-            impl_->runtime->Descriptors());
-    if (!activation) {
-        impl_->terminal = true;
-        return activation.GetStatus();
-    }
-    impl_->activation = activation.Value();
-
-    Base::Result<Markup::XamlDynamicResourceExtension*> dynamicResource =
-        Create<Markup::XamlDynamicResourceExtension>(
-            *impl_->allocator,
-            Base::MemoryTag::Markup,
-            Markup::XamlDynamicResourceExtensionOptions{});
+            Markup::DynamicResourceExtensionOptions{});
     if (!dynamicResource) {
         impl_->terminal = true;
         return dynamicResource.GetStatus();
     }
     impl_->dynamicResource = dynamicResource.Value();
 
-    Base::Result<Markup::XamlPresentationObjectModel*> presentation =
-        Create<Markup::XamlPresentationObjectModel>(
+    Base::Result<Markup::PresentationObjectModel*> presentation =
+        Create<Markup::PresentationObjectModel>(
             *impl_->allocator,
             Base::MemoryTag::Markup,
-            Markup::XamlPresentationObjectModelOptions{
+            Markup::PresentationObjectModelOptions{
                 impl_->runtime,
-                &impl_->metadata.DependencyProperties(),
-                Core::InvalidTypeId,
+                &Core::Detail::MetadataDomainAccess::
+                    DependencyProperties(impl_->metadata),
                 &programAllocator});
     if (!presentation) {
         impl_->terminal = true;
         return presentation.GetStatus();
     }
     impl_->presentation = presentation.Value();
-
-    Base::Result<Markup::XamlContentWriter*> contentWriter =
-        Create<Markup::XamlContentWriter>(
-            *impl_->allocator,
-            Base::MemoryTag::Markup);
-    if (!contentWriter) {
-        impl_->terminal = true;
-        return contentWriter.GetStatus();
-    }
-    impl_->contentWriter = contentWriter.Value();
 
     Base::Result<void> status =
         impl_->resourceExtension.Register(*impl_->schema);
@@ -208,24 +184,10 @@ Base::Result<void> SchemaBundle::Finalize(
     }
     if (status) {
         status = impl_->presentation->Register(
-            *impl_->schema,
-            *impl_->activation);
-    }
-    if (status) {
-        status = impl_->contentWriter->Register(*impl_->schema);
-    }
-    if (status) {
-        Markup::XamlRegistrationContext context(
-            *impl_->schema,
-            *impl_->activation,
-            *impl_->runtime,
-            impl_->metadata.DependencyProperties(),
-            programAllocator);
-        status = modules.RegisterXaml(context);
+            *impl_->schema);
     }
     if (status) status = impl_->runtime->Freeze();
     if (status) status = impl_->schema->Freeze();
-    if (status) status = impl_->activation->Freeze();
     if (!status) {
         impl_->terminal = true;
         return status.GetStatus();
@@ -262,25 +224,14 @@ const Core::MetadataRuntime& SchemaBundle::Runtime() const noexcept {
     return *impl_->runtime;
 }
 
-Markup::XamlSchemaContext& SchemaBundle::XamlSchema() noexcept {
+Markup::Schema& SchemaBundle::Schema() noexcept {
     AERO_ASSERT(impl_ != nullptr && impl_->schema != nullptr);
     return *impl_->schema;
 }
 
-const Markup::XamlSchemaContext& SchemaBundle::XamlSchema() const noexcept {
+const Markup::Schema& SchemaBundle::Schema() const noexcept {
     AERO_ASSERT(impl_ != nullptr && impl_->schema != nullptr);
     return *impl_->schema;
-}
-
-Core::ActivationProviderRegistry& SchemaBundle::ActivationFacets() noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->activation != nullptr);
-    return *impl_->activation;
-}
-
-const Core::ActivationProviderRegistry&
-SchemaBundle::ActivationFacets() const noexcept {
-    AERO_ASSERT(impl_ != nullptr && impl_->activation != nullptr);
-    return *impl_->activation;
 }
 
 } // namespace Aero

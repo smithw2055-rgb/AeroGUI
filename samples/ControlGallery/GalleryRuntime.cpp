@@ -8,6 +8,7 @@
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Virtualization.hpp>
+#include <Aero/Controls/Controls.hpp>
 #include <Aero/RuntimeEnvironment.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
@@ -34,6 +35,45 @@ using namespace Presentation;
 Status Failure(const char* message) noexcept {
     return Status::Failure(
         ErrorCode::InvalidState, message);
+}
+
+Base::Result<void> ApplyTextLayoutServiceToSubtree(
+    Presentation::Visual& node,
+    Controls::ITextBlockLayoutService& service,
+    bool refreshExisting) noexcept {
+    if (auto* element = node.AsUIElement()) {
+        if (element->RuntimeType() == Controls::TextBlock::StaticTypeId()) {
+            Controls::TextBlock* text =
+                static_cast<Controls::TextBlock*>(element);
+            if (refreshExisting) {
+                Result<void> cleared = text->SetLayoutService(nullptr);
+                if (!cleared) return cleared.GetStatus();
+            }
+            if (refreshExisting || text->LayoutService() != &service) {
+                Result<void> assigned = text->SetLayoutService(&service);
+                if (!assigned) return assigned.GetStatus();
+            }
+        } else if (element->RuntimeType() == Controls::TextBox::StaticTypeId()) {
+            Controls::TextBox* text =
+                static_cast<Controls::TextBox*>(element);
+            if (refreshExisting) {
+                Result<void> cleared = text->SetLayoutService(nullptr);
+                if (!cleared) return cleared.GetStatus();
+            }
+            if (refreshExisting || text->LayoutService() != &service) {
+                Result<void> assigned = text->SetLayoutService(&service);
+                if (!assigned) return assigned.GetStatus();
+            }
+        }
+    }
+    for (Presentation::Visual* child : node.VisualChildren()) {
+        if (child != nullptr) {
+            Result<void> assigned = ApplyTextLayoutServiceToSubtree(
+                *child, service, refreshExisting);
+            if (!assigned) return assigned.GetStatus();
+        }
+    }
+    return {};
 }
 
 bool ReadFile(
@@ -160,6 +200,7 @@ struct GalleryRuntime::Impl final {
     ListBox* listBox = nullptr;
     VirtualizingStackPanel* virtualizingPanel = nullptr;
     GallerySnapshot snapshot;
+    Controls::ITextBlockLayoutService* textLayoutService = nullptr;
 
     ~Impl() { Cleanup(); }
 
@@ -311,9 +352,25 @@ struct GalleryRuntime::Impl final {
         snapshot.nodeCount = plan.Nodes().Size();
         snapshot.commandCount =
             plan.Commands().Size();
+        snapshot.textCommandCount = 0U;
+        for (const RenderCommand& command : plan.Commands()) {
+            if (command.kind == RenderCommandKind::DrawGlyphRun) {
+                ++snapshot.textCommandCount;
+            }
+        }
     }
 
     Result<void> RunFrame() noexcept {
+        if (textLayoutService == nullptr) {
+            Result<RuntimeFrameResult> frame =
+                Runtime().RunFrame();
+            if (!frame) return frame.GetStatus();
+            UpdatePlanSnapshot();
+            return {};
+        }
+
+        TextBlockLayoutServiceScope textScope(
+            *textLayoutService);
         Result<RuntimeFrameResult> frame =
             Runtime().RunFrame();
         if (!frame) return frame.GetStatus();
@@ -321,6 +378,18 @@ struct GalleryRuntime::Impl final {
         return {};
     }
 
+    Result<void> SetTextLayoutService(
+        Controls::ITextBlockLayoutService& service,
+        bool refreshExisting) noexcept {
+        textLayoutService = &service;
+        Presentation::ObjectTree* tree = Runtime().Tree();
+        Presentation::Visual* root =
+            tree != nullptr ? tree->Root() : nullptr;
+        return root != nullptr
+            ? ApplyTextLayoutServiceToSubtree(
+                  *root, service, refreshExisting)
+            : Result<void>{};
+    }
     Result<void> EnsureNativeTextServices() noexcept {
 #if defined(_WIN32)
         Result<bool> attached =
@@ -577,6 +646,16 @@ Result<void> GalleryRuntime::Initialize(
     return {};
 }
 
+Base::Result<void> GalleryRuntime::SetTextLayoutService(
+    Controls::ITextBlockLayoutService& service,
+    bool refreshExisting) noexcept {
+    if (!impl_) {
+        return Status::Failure(
+            ErrorCode::NotInitialized,
+            "ControlGallery runtime is not initialized");
+    }
+    return impl_->SetTextLayoutService(service, refreshExisting);
+}
 Result<bool> GalleryRuntime::HandleWindowEvent(
     const Platform::WindowEvent& event) noexcept {
     if (!impl_) {
@@ -607,3 +686,7 @@ GalleryRuntime::Plan() const noexcept {
 }
 
 } // namespace Aero::Samples::ControlGallery
+
+
+
+

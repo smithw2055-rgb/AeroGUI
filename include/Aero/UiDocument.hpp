@@ -11,22 +11,21 @@
 
 #include <cstdint>
 
-namespace Aero::Markup {
-class XamlEffectLifetime;
-struct XamlLoadResult;
-}
-
 namespace Aero::Presentation {
 class ResourceDictionary;
 }
 
 namespace Aero {
 
+namespace Detail {
+class UiDocumentAccess;
+}
+
 class RuntimeHost;
 
 // Move-only ownership for one successfully loaded XAML document. The document
 // keeps names, resources, dependency URIs, and the declaration/mount plan alive
-// independently from a RuntimeView until it is mounted or discarded.
+// independently from a View until it is mounted or discarded.
 class AERO_API UiDocument final {
 public:
     UiDocument() noexcept = default;
@@ -50,14 +49,9 @@ public:
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
 
 private:
-    friend class RuntimeHost;
+    friend class Detail::UiDocumentAccess;
     struct Impl;
 
-    static Base::Result<UiDocument> Adopt(
-        Markup::XamlLoadResult&& result,
-        Base::IAllocator& allocator) noexcept;
-    Markup::XamlLoadResult TakeResult() noexcept;
-    const Markup::XamlEffectLifetime* RuntimeLifetime() const noexcept;
     void Reset() noexcept;
 
     Base::IAllocator* allocator_ = nullptr;

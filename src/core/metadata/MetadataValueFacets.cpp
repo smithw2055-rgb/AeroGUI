@@ -1,9 +1,9 @@
-#include <Aero/Core/Metadata/MetadataValueFacets.hpp>
+#include "MetadataValueFacets.hpp"
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Core::Detail {
 namespace {
 
 template<class Key>
@@ -21,7 +21,7 @@ Base::Result<void> InsertValueFacetIndex(
     return {};
 }
 
-bool IsValueType(const MetadataTypeDescriptor& type) noexcept {
+bool IsValueType(const TypeInfo& type) noexcept {
     return (static_cast<std::uint32_t>(type.Flags()) &
         static_cast<std::uint32_t>(TypeFlags::ValueType)) != 0U;
 }
@@ -34,7 +34,7 @@ Base::Status ValueFacetStateError(const char* message) noexcept {
 
 Base::Result<void> MetadataFacetStore::BuildValueFacets(
     const MetadataValueRegistrationStore& source,
-    const MetadataDescriptorStore& descriptors) noexcept {
+    const TypeRegistry& types) noexcept {
     if (!sealed_ || valueFacetsSealed_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -43,15 +43,15 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
                 : "Core metadata facets must be built before value facets");
     }
     const MetadataRegistrationValues values(source);
-    if (!values.IsFrozen() || !descriptors.IsSealed() ||
-        descriptors_ != &descriptors) {
+    if (!values.IsFrozen() || !types.IsFrozen() ||
+        types_ != &types) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Metadata value facet sources are not sealed or do not match");
     }
 
     std::uint32_t valueTypeCount = 0U;
-    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+    for (const TypeInfo& type : types.Types()) {
         if (IsValueType(type)) ++valueTypeCount;
     }
     Base::Result<void> result = valueSemantics_.TryReserve(valueTypeCount);
@@ -63,7 +63,7 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
     result = textConverterIndex_.TryReserve(valueTypeCount);
     if (!result) return result.GetStatus();
 
-    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+    for (const TypeInfo& type : types.Types()) {
         if (!IsValueType(type)) continue;
 
         const Base::Ref<ValueTypeSemantics>* semantics =
@@ -122,9 +122,9 @@ const TextConverterFacet* MetadataFacetStore::FindTextConverter(
 
 Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     const MetadataFacetStore& facets,
-    const MetadataDescriptorStore& descriptors) noexcept {
+    const TypeRegistry& descriptors) noexcept {
     if (!facets.IsSealed() || !facets.ValueFacetsSealed() ||
-        !descriptors.IsSealed()) {
+        !descriptors.IsFrozen()) {
         return ValueFacetStateError(
             "Value facet hash requires sealed descriptors and facets");
     }
@@ -136,12 +136,12 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
 
     std::uint32_t semanticsCount = 0U;
     std::uint32_t converterCount = 0U;
-    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+    for (const TypeInfo& type : descriptors.Types()) {
         if (facets.FindValueSemantics(type.Id()) != nullptr) ++semanticsCount;
         if (facets.FindTextConverter(type.Id()) != nullptr) ++converterCount;
     }
     builder.AddU32(semanticsCount);
-    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+    for (const TypeInfo& type : descriptors.Types()) {
         const ValueSemanticsFacet* facet =
             facets.FindValueSemantics(type.Id());
         if (facet == nullptr || !facet->semantics) continue;
@@ -157,7 +157,7 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     }
 
     builder.AddU32(converterCount);
-    for (const MetadataTypeDescriptor& type : descriptors.Types()) {
+    for (const TypeInfo& type : descriptors.Types()) {
         const TextConverterFacet* facet =
             facets.FindTextConverter(type.Id());
         if (facet == nullptr) continue;
@@ -167,4 +167,4 @@ Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
     return builder.Finish();
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Core::Detail

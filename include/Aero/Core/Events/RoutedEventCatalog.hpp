@@ -18,6 +18,40 @@ struct RoutedEventHandle final {
     }
 };
 
+constexpr RoutedEventHandle MakeRoutedEventHandle(
+    TypeId ownerType,
+    Base::StringView name) noexcept;
+
+template<class TOwner, class TArgs>
+class RoutedEventRef final {
+public:
+    using Owner = TOwner;
+    using Args = TArgs;
+
+    constexpr explicit RoutedEventRef(
+        Base::StringView name) noexcept
+        : name_(name),
+          handle_(MakeRoutedEventHandle(
+              TOwner::StaticTypeIdValue_, name)) {}
+
+    constexpr Base::StringView Name() const noexcept {
+        return name_;
+    }
+    constexpr RoutedEventHandle Handle() const noexcept {
+        return handle_;
+    }
+    constexpr operator RoutedEventHandle() const noexcept {
+        return handle_;
+    }
+    constexpr MemberId Id() const noexcept {
+        return handle_.value;
+    }
+
+private:
+    Base::StringView name_;
+    RoutedEventHandle handle_;
+};
+
 constexpr bool operator==(
     RoutedEventHandle left,
     RoutedEventHandle right) noexcept {
