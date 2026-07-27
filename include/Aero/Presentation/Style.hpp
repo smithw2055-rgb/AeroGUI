@@ -160,6 +160,41 @@ private:
     Base::Vector<Base::Ref<Setter>> authoredSetters_;
 };
 
+// Frozen execution plan produced from Style authoring objects. Runtime
+// managers consume only this snapshot; Setter/Trigger authoring objects are
+// not consulted after Style::Seal().
+class AERO_API StyleProgram final {
+public:
+    StyleProgram() noexcept = default;
+    StyleProgram(StyleProgram&&) noexcept = default;
+    StyleProgram& operator=(StyleProgram&&) noexcept = default;
+
+    StyleProgram(const StyleProgram&) = delete;
+    StyleProgram& operator=(const StyleProgram&) = delete;
+
+    TypeId TargetType() const noexcept { return targetType_; }
+    Base::Span<const StyleSetter> Setters() const noexcept {
+        return {setters_.Data(), setters_.Size()};
+    }
+    Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
+        return {triggers_.Data(), triggers_.Size()};
+    }
+    bool IsFrozen() const noexcept { return frozen_; }
+
+private:
+    friend class Style;
+    Base::Result<void> Freeze(
+        TypeId targetType,
+        Base::Vector<StyleSetter>&& setters,
+        Base::Vector<StylePropertyTrigger>&& triggers) noexcept;
+    void Reset() noexcept;
+
+    TypeId targetType_ = InvalidTypeId;
+    Base::Vector<StyleSetter> setters_;
+    Base::Vector<StylePropertyTrigger> triggers_;
+    bool frozen_ = false;
+};
+
 // Host-owned immutable style plan. Styles are authored through setters and
 // sealed only after DependencyProperty metadata is frozen. BasedOn setters are
 // flattened deterministically; a derived style replaces a base setter for the
@@ -219,16 +254,17 @@ public:
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 
-    TypeId TargetType() const noexcept { return targetType_; }
+    TypeId TargetType() const noexcept {
+        return sealed_ ? program_.TargetType() : targetType_;
+    }
     const Style* BasedOn() const noexcept { return basedOn_; }
     bool IsSealed() const noexcept { return sealed_; }
+    const StyleProgram& Program() const noexcept { return program_; }
     Base::Span<const StyleSetter> Setters() const noexcept {
-        return {flattened_.Data(), flattened_.Size()};
+        return program_.Setters();
     }
     Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
-        return {
-            flattenedTriggers_.Data(),
-            flattenedTriggers_.Size()};
+        return program_.Triggers();
     }
     ResourceDictionary& Resources() noexcept {
         return resources_;
@@ -247,9 +283,8 @@ private:
     Base::Vector<Base::Ref<PropertyTrigger>>
         authoredTriggerObjects_;
     Base::Vector<StyleSetter> authored_;
-    Base::Vector<StyleSetter> flattened_;
     Base::Vector<StylePropertyTrigger> authoredTriggers_;
-    Base::Vector<StylePropertyTrigger> flattenedTriggers_;
+    StyleProgram program_;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

@@ -66,6 +66,104 @@ Result<void> RegisterModule(
         : Result<void>(registered.GetStatus());
 }
 
+struct OrderedModuleProbe final {
+    StringView typeName;
+    std::uint32_t marker = 0U;
+    Vector<std::uint32_t>* order = nullptr;
+};
+
+Result<void> RegisterOrderedModule(
+    MetaRegistrationContext& context,
+    void* userContext) noexcept {
+    auto* probe = static_cast<OrderedModuleProbe*>(userContext);
+    if (probe == nullptr || probe->order == nullptr) {
+        return Status::Failure(
+            ErrorCode::InvalidArgument,
+            "Ordered module probe is invalid");
+    }
+    Result<void> appended = probe->order->TryPushBack(probe->marker);
+    if (!appended) return appended.GetStatus();
+    Result<TypeId> registered = context.Types().TryRegisterType(
+        TypeRegistration::Object(
+            "urn:module-order-tests",
+            probe->typeName,
+            BuiltinTypes::FrameworkElement,
+            TypeFlags::None,
+            nullptr));
+    return registered
+        ? Result<void>()
+        : Result<void>(registered.GetStatus());
+}
+
+bool TestModuleDependencyOrderAndValidation() {
+    Vector<std::uint32_t> order;
+    OrderedModuleProbe first{"First", 1U, &order};
+    OrderedModuleProbe second{"Second", 2U, &order};
+    OrderedModuleProbe third{"Third", 3U, &order};
+    const ModuleDependency secondDependencies[] = {
+        {"Tests.First", 2U}};
+    const ModuleDependency thirdDependencies[] = {
+        {"Tests.Second", 1U}};
+
+    ModuleRegistration thirdModule;
+    thirdModule.name = "Tests.Third";
+    thirdModule.registerModule = &RegisterOrderedModule;
+    thirdModule.context = &third;
+    thirdModule.dependencies = {thirdDependencies, 1U};
+    ModuleRegistration secondModule;
+    secondModule.name = "Tests.Second";
+    secondModule.registerModule = &RegisterOrderedModule;
+    secondModule.context = &second;
+    secondModule.dependencies = {secondDependencies, 1U};
+    ModuleRegistration firstModule;
+    firstModule.name = "Tests.First";
+    firstModule.schemaVersion = 2U;
+    firstModule.registerModule = &RegisterOrderedModule;
+    firstModule.context = &first;
+
+    ModuleCatalog catalog;
+    CHECK(catalog.TryAdd(thirdModule));
+    CHECK(catalog.TryAdd(secondModule));
+    CHECK(catalog.TryAdd(firstModule));
+    CHECK(catalog.Freeze());
+    MetadataDomain metadata;
+    CHECK(catalog.RegisterMetadata(metadata));
+    // MetadataDomain rebuilds its candidate storage for each registration, so
+    // prior callbacks are replayed. The final replay must still follow the
+    // resolved dependency order.
+    CHECK(order.Size() == 6U);
+    CHECK(order[3] == 1U && order[4] == 2U && order[5] == 3U);
+
+    const ModuleDependency missingDependencies[] = {
+        {"Tests.Missing", 1U}};
+    ModuleRegistration missing = firstModule;
+    missing.name = "Tests.NeedsMissing";
+    missing.dependencies = {missingDependencies, 1U};
+    ModuleCatalog missingCatalog;
+    CHECK(missingCatalog.TryAdd(missing));
+    Result<void> missingResult = missingCatalog.Freeze();
+    CHECK(!missingResult);
+    CHECK(missingResult.GetStatus().code == ErrorCode::NotFound);
+
+    const ModuleDependency cycleADependencies[] = {
+        {"Tests.CycleB", 1U}};
+    const ModuleDependency cycleBDependencies[] = {
+        {"Tests.CycleA", 1U}};
+    ModuleRegistration cycleA = firstModule;
+    cycleA.name = "Tests.CycleA";
+    cycleA.dependencies = {cycleADependencies, 1U};
+    ModuleRegistration cycleB = secondModule;
+    cycleB.name = "Tests.CycleB";
+    cycleB.dependencies = {cycleBDependencies, 1U};
+    ModuleCatalog cycleCatalog;
+    CHECK(cycleCatalog.TryAdd(cycleA));
+    CHECK(cycleCatalog.TryAdd(cycleB));
+    Result<void> cycleResult = cycleCatalog.Freeze();
+    CHECK(!cycleResult);
+    CHECK(cycleResult.GetStatus().code == ErrorCode::CycleDetected);
+    return true;
+}
+
 bool TestRootModuleCatalogAndSchemaIdentity() {
     ModuleProbe probe;
     ModuleCatalog catalog;
@@ -791,6 +889,7 @@ bool TestEventRouteLifetimeSnapshot() {
 
 int main() {
     if (!TestRootModuleCatalogAndSchemaIdentity()) return 1;
+    if (!TestModuleDependencyOrderAndValidation()) return 1;
     if (!TestHostDrivenRenderQueue()) return 1;
     if (!TestEnvironmentStateOutlivesFacade()) return 1;
     if (!TestUiDocumentDefersEffectsUntilMount()) return 1;

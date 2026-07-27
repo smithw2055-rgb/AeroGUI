@@ -2,6 +2,7 @@
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -21,6 +22,11 @@ using ModuleRegisterXamlCallback = Base::Result<void> (*)(
     Markup::XamlRegistrationContext& context,
     void* userContext) noexcept;
 
+struct ModuleDependency final {
+    Base::StringView name;
+    std::uint32_t minimumSchemaVersion = 1U;
+};
+
 struct ModuleRegistration final {
     Base::StringView name;
     std::uint32_t schemaVersion = 1U;
@@ -28,6 +34,7 @@ struct ModuleRegistration final {
     void* context = nullptr;
     ModuleRegisterXamlCallback registerXaml = nullptr;
     std::uint32_t abiVersion = ModuleAbiVersion;
+    Base::Span<const ModuleDependency> dependencies;
 };
 
 // Root-level module catalog for AeroGUI composition. Modules register metadata
@@ -57,8 +64,15 @@ private:
         void* context = nullptr;
         ModuleRegisterXamlCallback registerXaml = nullptr;
         std::uint32_t abiVersion = ModuleAbiVersion;
+        struct Dependency final {
+            Base::String name;
+            std::uint32_t minimumSchemaVersion = 1U;
+        };
+        Base::Vector<Dependency> dependencies;
     };
 
+    Base::Result<void> ResolveOrder(
+        Base::Vector<std::uint32_t>& order) const noexcept;
     Base::Vector<Module> modules_;
     bool frozen_ = false;
 };

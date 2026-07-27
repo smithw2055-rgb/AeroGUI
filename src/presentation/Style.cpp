@@ -18,6 +18,35 @@ bool IsTargetCompatible(
 
 } // namespace
 
+
+Base::Result<void> StyleProgram::Freeze(
+    TypeId targetType,
+    Base::Vector<StyleSetter>&& setters,
+    Base::Vector<StylePropertyTrigger>&& triggers) noexcept {
+    if (frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "StyleProgram is already frozen");
+    }
+    if (targetType == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "StyleProgram target type is invalid");
+    }
+    targetType_ = targetType;
+    setters_ = std::move(setters);
+    triggers_ = std::move(triggers);
+    frozen_ = true;
+    return {};
+}
+
+void StyleProgram::Reset() noexcept {
+    targetType_ = InvalidTypeId;
+    setters_.Clear();
+    triggers_.Clear();
+    frozen_ = false;
+}
+
 Base::Result<void> Setter::SetPropertyName(
     Base::StringView value) noexcept {
     if (value.Empty()) {
@@ -155,9 +184,8 @@ Style::Style(
       targetType_(targetType),
       basedOn_(basedOn),
       authored_(),
-      flattened_(),
       authoredTriggers_(),
-      flattenedTriggers_(),
+      program_(),
       resources_() {}
 
 Base::Result<void> Style::TrySetTargetType(TypeId targetType) noexcept {
@@ -392,15 +420,20 @@ Base::Result<void> Style::Seal(
             nextTriggers.TryPushBack(trigger);
         if (!appended) return appended.GetStatus();
     }
-    flattened_ = std::move(next);
-    flattenedTriggers_ = std::move(nextTriggers);
-    Base::Result<void> sealedResources =
-        resources_.Seal();
+    Base::Result<void> frozenProgram = program_.Freeze(
+        targetType_, std::move(next), std::move(nextTriggers));
+    if (!frozenProgram) return frozenProgram.GetStatus();
+    Base::Result<void> sealedResources = resources_.Seal();
     if (!sealedResources) {
-        flattened_.Clear();
-        flattenedTriggers_.Clear();
+        program_.Reset();
         return sealedResources.GetStatus();
     }
+    authored_.Clear();
+    authoredTriggers_.Clear();
+    authoredSetterObjects_.Clear();
+    authoredTriggerObjects_.Clear();
+    basedOn_ = nullptr;
+    basedOnOwner_.Reset();
     sealed_ = true;
     return {};
 }

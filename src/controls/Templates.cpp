@@ -335,6 +335,27 @@ Base::Result<void> TemplateProgram::Seal() noexcept {
     return {};
 }
 
+Base::Result<void> TemplateProgram::FreezeRuntimePlan(
+    TypeId targetType,
+    Base::Vector<TemplateBindingPlan>&& bindings,
+    Base::Vector<TemplatePropertyTrigger>&& triggers,
+    Base::Vector<VisualStateGroup>&& visualStateGroups) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "TemplateProgram runtime plan is already frozen");
+    }
+    if (factory_ == nullptr || targetType == InvalidTypeId) {
+        return InvalidTemplate(
+            "TemplateProgram runtime plan is incomplete");
+    }
+    targetType_ = targetType;
+    bindings_ = std::move(bindings);
+    triggers_ = std::move(triggers);
+    visualStateGroups_ = std::move(visualStateGroups);
+    sealed_ = true;
+    return {};
+}
+
 Base::Result<void> FrameworkTemplate::TrySetTargetType(
     TypeId value) noexcept {
     if (sealed_) {
@@ -572,7 +593,11 @@ Base::Result<void> FrameworkTemplate::Seal(
         }
     }
     Base::Result<void> programSealed =
-        program_.Seal();
+        program_.FreezeRuntimePlan(
+            targetType_,
+            std::move(bindings_),
+            std::move(triggers_),
+            std::move(visualStateGroups_));
     if (!programSealed) {
         return programSealed.GetStatus();
     }

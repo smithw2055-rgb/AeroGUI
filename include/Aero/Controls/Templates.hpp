@@ -124,58 +124,6 @@ struct TemplateNamespace final {
     Base::String uri;
 };
 
-// Immutable deferred construction program shared by native and XAML-authored
-// templates. Markup may retain node IR behind factoryContext; Controls only
-// depends on the stable execution callback and origin/environment metadata.
-class AERO_API TemplateProgram final {
-public:
-    TemplateProgram() noexcept = default;
-    TemplateProgram(
-        TemplateFactoryCallback factory,
-        void* factoryContext = nullptr) noexcept
-        : factory_(factory),
-          factoryContext_(factoryContext) {}
-
-    Base::Result<void> Configure(
-        TemplateFactoryCallback factory,
-        void* factoryContext = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
-    Base::Result<void> SetBaseUri(
-        const Base::ResourceUri& value) noexcept;
-    Base::Result<void> TryAddNamespace(
-        Base::StringView prefix,
-        Base::StringView uri) noexcept;
-    Base::Result<void> Seal() noexcept;
-
-    TemplateFactoryCallback Factory() const noexcept {
-        return factory_;
-    }
-    void* FactoryContext() const noexcept {
-        return factoryContext_;
-    }
-    const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
-        return factoryOwner_;
-    }
-    const Base::ResourceUri& BaseUri() const noexcept {
-        return baseUri_;
-    }
-    Base::Span<const TemplateNamespace>
-    Namespaces() const noexcept {
-        return {namespaces_.Data(), namespaces_.Size()};
-    }
-    bool IsSealed() const noexcept {
-        return sealed_;
-    }
-
-private:
-    TemplateFactoryCallback factory_ = nullptr;
-    void* factoryContext_ = nullptr;
-    Base::Ref<Base::Object> factoryOwner_;
-    Base::ResourceUri baseUri_;
-    Base::Vector<TemplateNamespace> namespaces_;
-    bool sealed_ = false;
-};
-
 struct TemplateBindingPlan final {
     Base::String targetName;
     DependencyPropertyHandle sourceProperty;
@@ -208,6 +156,70 @@ struct VisualState final {
 struct VisualStateGroup final {
     Base::String name;
     Base::Vector<VisualState> states;
+};
+
+// Immutable deferred construction and property program shared by native and
+// XAML-authored templates. FrameworkTemplate moves all validated runtime data
+// here during Seal(), leaving authoring collections out of the hot path.
+class AERO_API TemplateProgram final {
+public:
+    TemplateProgram() noexcept = default;
+    TemplateProgram(
+        TemplateFactoryCallback factory,
+        void* factoryContext = nullptr) noexcept
+        : factory_(factory),
+          factoryContext_(factoryContext) {}
+
+    Base::Result<void> Configure(
+        TemplateFactoryCallback factory,
+        void* factoryContext = nullptr,
+        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
+    Base::Result<void> SetBaseUri(
+        const Base::ResourceUri& value) noexcept;
+    Base::Result<void> TryAddNamespace(
+        Base::StringView prefix,
+        Base::StringView uri) noexcept;
+    Base::Result<void> Seal() noexcept;
+
+    TemplateFactoryCallback Factory() const noexcept { return factory_; }
+    void* FactoryContext() const noexcept { return factoryContext_; }
+    const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
+        return factoryOwner_;
+    }
+    const Base::ResourceUri& BaseUri() const noexcept { return baseUri_; }
+    Base::Span<const TemplateNamespace> Namespaces() const noexcept {
+        return {namespaces_.Data(), namespaces_.Size()};
+    }
+    TypeId TargetType() const noexcept { return targetType_; }
+    Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
+        return {bindings_.Data(), bindings_.Size()};
+    }
+    Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
+        return {triggers_.Data(), triggers_.Size()};
+    }
+    Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
+        return {visualStateGroups_.Data(), visualStateGroups_.Size()};
+    }
+    bool IsSealed() const noexcept { return sealed_; }
+
+private:
+    friend class FrameworkTemplate;
+    Base::Result<void> FreezeRuntimePlan(
+        TypeId targetType,
+        Base::Vector<TemplateBindingPlan>&& bindings,
+        Base::Vector<TemplatePropertyTrigger>&& triggers,
+        Base::Vector<VisualStateGroup>&& visualStateGroups) noexcept;
+
+    TemplateFactoryCallback factory_ = nullptr;
+    void* factoryContext_ = nullptr;
+    Base::Ref<Base::Object> factoryOwner_;
+    Base::ResourceUri baseUri_;
+    Base::Vector<TemplateNamespace> namespaces_;
+    TypeId targetType_ = InvalidTypeId;
+    Base::Vector<TemplateBindingPlan> bindings_;
+    Base::Vector<TemplatePropertyTrigger> triggers_;
+    Base::Vector<VisualStateGroup> visualStateGroups_;
+    bool sealed_ = false;
 };
 
 class AERO_API FrameworkTemplate : public Base::Object {
@@ -244,7 +256,9 @@ public:
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
 
-    TypeId TargetType() const noexcept { return targetType_; }
+    TypeId TargetType() const noexcept {
+        return sealed_ ? program_.TargetType() : targetType_;
+    }
     bool IsSealed() const noexcept { return sealed_; }
     TemplateFactoryCallback Factory() const noexcept {
         return program_.Factory();
@@ -265,13 +279,19 @@ public:
         return resources_;
     }
     Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
-        return {bindings_.Data(), bindings_.Size()};
+        return sealed_ ? program_.Bindings()
+            : Base::Span<const TemplateBindingPlan>{
+                  bindings_.Data(), bindings_.Size()};
     }
     Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
-        return {triggers_.Data(), triggers_.Size()};
+        return sealed_ ? program_.Triggers()
+            : Base::Span<const TemplatePropertyTrigger>{
+                  triggers_.Data(), triggers_.Size()};
     }
     Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
-        return {visualStateGroups_.Data(), visualStateGroups_.Size()};
+        return sealed_ ? program_.VisualStateGroups()
+            : Base::Span<const VisualStateGroup>{
+                  visualStateGroups_.Data(), visualStateGroups_.Size()};
     }
 
 private:
