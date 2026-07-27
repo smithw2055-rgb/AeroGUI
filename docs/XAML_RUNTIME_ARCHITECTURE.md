@@ -195,6 +195,31 @@ compiled document，compiled payload 不存在或 schema identity 不兼容时�
 位于上层 `AeroMarkup`，后者才依赖 Controls。架构检查禁止 Kernel 反向包含
 Presentation、Controls 或 Markup integration 目录。
 
+## Schema Manifest 与工具隔离
+
+`SchemaBundle` 可以导出 `XamlSchemaManifest`。manifest 是 host-tool validation
+snapshot，只包含稳定的 TypeId/MemberId、namespace、继承、property/event、
+content-member 与 schema identity；运行时 factory、Facet callback、allocator 和
+View service 不进入文件。
+
+```text
+application module registrations
+  -> native host schema generator
+  -> App.aeroschema
+  -> aero-xamlc --schema App.aeroschema
+  -> AXIR carrying the same metadata schema hash
+```
+
+因此 target runtime 与 host xamlc 不需要链接同一平台二进制。运行时仍使用完整
+`SchemaBundle` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXIR identity
+直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 MetadataDomain
+做兼容性校验。
+
+内置主题构建也走相同路径：native build 先由 `aero-schema-gen` 生成
+`Aero.aeroschema`，再将其传给 `aero-xamlc`。交叉编译可提供 host schema-gen，
+或直接提供预生成 manifest。
+
+
 ## Compiled XAML
 
 compiled cache format 当前为 7。document 只保存加载链实际消费的 origin URI、

@@ -12,6 +12,7 @@ namespace Aero::Markup {
 
 class XamlNodeReader;
 class XamlSchemaContext;
+class XamlSchemaManifest;
 
 struct XamlCompiledDocumentLimits final {
     std::uint32_t maxNodes = 100000U;
@@ -46,8 +47,17 @@ public:
         XamlNodeReader& reader,
         const XamlSchemaContext& schema,
         const Base::ResourceUri& originUri) noexcept;
+    static Base::Result<XamlCompiledDocument> Compile(
+        XamlNodeReader& reader,
+        const XamlSchemaManifest& manifest) noexcept;
+    static Base::Result<XamlCompiledDocument> Compile(
+        XamlNodeReader& reader,
+        const XamlSchemaManifest& manifest,
+        const Base::ResourceUri& originUri) noexcept;
     Base::Result<void> ValidateSchema(
         const XamlSchemaContext& schema) const noexcept;
+    Base::Result<void> ValidateSchema(
+        const XamlSchemaManifest& manifest) const noexcept;
     Base::Result<Base::Vector<std::uint8_t>>
     Serialize() const noexcept;
     static Base::Result<XamlCompiledDocument> Deserialize(
@@ -76,6 +86,11 @@ public:
     }
 
 private:
+    static Base::Result<XamlCompiledDocument> CompileWithIdentity(
+        XamlNodeReader& reader,
+        const XamlCompiledCacheIdentity& identity,
+        const Base::ResourceUri& originUri) noexcept;
+
     XamlCompiledCacheIdentity identity_;
     Base::ResourceUri originUri_;
     Base::Vector<Base::ResourceUri> dependencies_;

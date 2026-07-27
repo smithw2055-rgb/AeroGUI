@@ -17,6 +17,10 @@ option(AERO_PRECOMPILE_BUILTIN_THEMES
     "Precompile built-in XAML themes with a host aero-xamlc" ON)
 set(AERO_HOST_XAMLC_EXECUTABLE "" CACHE FILEPATH
     "Host aero-xamlc executable used while cross-compiling or when tools are disabled")
+set(AERO_HOST_SCHEMA_GEN_EXECUTABLE "" CACHE FILEPATH
+    "Host aero-schema-gen executable used to create the built-in schema manifest")
+set(AERO_BUILTIN_SCHEMA_MANIFEST "" CACHE FILEPATH
+    "Pre-generated built-in .aeroschema file used instead of aero-schema-gen")
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
@@ -429,6 +433,7 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/compiled/XamlCompiledSchema.cpp
     src/markup/schema/Metadata.cpp
     src/markup/schema/XamlFacetStore.cpp
+    src/markup/schema/XamlSchemaManifest.cpp
     src/markup/extensions/XamlDynamicResource.cpp
     src/markup/resources/XamlStyle.cpp
     src/markup/resources/XamlTemplate.cpp
@@ -534,6 +539,15 @@ set_target_properties(AeroModuleCatalog PROPERTIES
 aero_apply_compiler_options(AeroModuleCatalog)
 
 if(AERO_BUILD_TOOLS)
+    add_executable(aero-schema-gen tools/schema-gen/main.cpp)
+    target_link_libraries(aero-schema-gen PRIVATE AeroModuleCatalog)
+    target_compile_features(aero-schema-gen PRIVATE cxx_std_17)
+    set_target_properties(aero-schema-gen PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(aero-schema-gen)
+
     add_executable(aero-xamlc tools/xamlc/main.cpp)
     target_link_libraries(aero-xamlc PRIVATE AeroModuleCatalog)
     target_compile_features(aero-xamlc PRIVATE cxx_std_17)
@@ -542,6 +556,57 @@ if(AERO_BUILD_TOOLS)
         CXX_STANDARD_REQUIRED YES
         CXX_EXTENSIONS NO)
     aero_apply_compiler_options(aero-xamlc)
+endif()
+
+set(_aero_schema_manifest "")
+set(_aero_schema_manifest_dependency "")
+set(_aero_generated_schema_manifest
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero/Aero.aeroschema")
+if(NOT AERO_BUILTIN_SCHEMA_MANIFEST STREQUAL "")
+    if(NOT EXISTS "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+        message(FATAL_ERROR
+            "AERO_BUILTIN_SCHEMA_MANIFEST does not exist: "
+            "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+    endif()
+    set(_aero_schema_manifest "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+    set(_aero_schema_manifest_dependency "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+elseif(NOT AERO_HOST_SCHEMA_GEN_EXECUTABLE STREQUAL "")
+    if(NOT EXISTS "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}")
+        message(FATAL_ERROR
+            "AERO_HOST_SCHEMA_GEN_EXECUTABLE does not exist: "
+            "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}")
+    endif()
+    add_custom_command(
+        OUTPUT "${_aero_generated_schema_manifest}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero"
+        COMMAND "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}"
+            "${_aero_generated_schema_manifest}"
+        DEPENDS "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}"
+        VERBATIM)
+    add_custom_target(AeroBuiltInSchema ALL
+        DEPENDS "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest_dependency AeroBuiltInSchema)
+elseif(TARGET aero-schema-gen AND NOT CMAKE_CROSSCOMPILING)
+    add_custom_command(
+        OUTPUT "${_aero_generated_schema_manifest}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero"
+        COMMAND "$<TARGET_FILE:aero-schema-gen>"
+            "${_aero_generated_schema_manifest}"
+        DEPENDS aero-schema-gen
+        VERBATIM)
+    add_custom_target(AeroBuiltInSchema ALL
+        DEPENDS "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest_dependency AeroBuiltInSchema)
+endif()
+
+set(_aero_xaml_schema_arguments "")
+if(NOT _aero_schema_manifest STREQUAL "")
+    set(_aero_xaml_schema_arguments
+        --schema "${_aero_schema_manifest}")
 endif()
 
 set(_aero_xamlc_command "")
@@ -590,16 +655,19 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
         COMMAND "${CMAKE_COMMAND}" -E make_directory
             "${_aero_compiled_theme_directory}"
         COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
             --origin
             "pack://application:,,,/Aero.Themes;component/Light.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "${_aero_light_theme_compiled}"
         COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
             --origin
             "pack://application:,,,/Aero.Themes;component/Dark.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "${_aero_dark_theme_compiled}"
         COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
             --origin
             "pack://application:,,,/Aero.Themes;component/Generic.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
@@ -615,6 +683,7 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
         DEPENDS
             ${_aero_xamlc_dependency}
+            ${_aero_schema_manifest_dependency}
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
@@ -1177,6 +1246,12 @@ install(TARGETS ${_aero_sdk_targets}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(TARGET aero-schema-gen)
+    set_target_properties(aero-schema-gen PROPERTIES EXPORT_NAME schema-gen)
+    install(TARGETS aero-schema-gen
+        EXPORT AeroTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 if(TARGET aero-xamlc)
     set_target_properties(aero-xamlc PROPERTIES EXPORT_NAME xamlc)
     install(TARGETS aero-xamlc
@@ -1188,6 +1263,11 @@ install(DIRECTORY include/Aero
 install(DIRECTORY themes/
     DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/themes
     FILES_MATCHING PATTERN "*.xaml")
+if(NOT _aero_schema_manifest STREQUAL "")
+    install(FILES "${_aero_schema_manifest}"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/schema
+        RENAME Aero.aeroschema)
+endif()
 
 set(AERO_PACKAGE_WITH_EXPAT ${AERO_WITH_EXPAT})
 set(AERO_PACKAGE_WITH_GLX ${AERO_ENABLE_GLX_SURFACE})

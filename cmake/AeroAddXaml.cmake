@@ -1,5 +1,147 @@
 include(CMakeParseArguments)
 
+# Build a host-side schema generator for an application module set. The module
+# function must have this signature:
+#
+#   Aero::Base::Result<void> RegisterModules(
+#       Aero::ModuleCatalog& modules) noexcept;
+#
+# The generated .aeroschema contains descriptor data only; target factories and
+# callbacks remain in the runtime libraries and never enter the host-tool file.
+function(aero_add_schema_manifest target)
+    cmake_parse_arguments(
+        AERO_SCHEMA
+        ""
+        "OUTPUT;MODULE_HEADER;MODULE_FUNCTION"
+        "LIBRARIES"
+        ${ARGN})
+
+    if(TARGET "${target}")
+        message(FATAL_ERROR
+            "aero_add_schema_manifest target already exists: ${target}")
+    endif()
+    if(NOT AERO_SCHEMA_OUTPUT)
+        message(FATAL_ERROR
+            "aero_add_schema_manifest requires OUTPUT")
+    endif()
+    if(NOT AERO_SCHEMA_MODULE_HEADER OR
+       NOT AERO_SCHEMA_MODULE_FUNCTION)
+        message(FATAL_ERROR
+            "aero_add_schema_manifest requires MODULE_HEADER and "
+            "MODULE_FUNCTION")
+    endif()
+    if(CMAKE_CROSSCOMPILING)
+        message(FATAL_ERROR
+            "aero_add_schema_manifest builds and executes a host tool. "
+            "Generate the manifest in a native host-tools build and pass "
+            "the resulting file to aero_add_xaml(SCHEMA ...).")
+    endif()
+
+    get_filename_component(
+        _aero_schema_output "${AERO_SCHEMA_OUTPUT}" ABSOLUTE)
+    get_filename_component(
+        _aero_schema_output_dir "${_aero_schema_output}" DIRECTORY)
+    set(_aero_schema_generator
+        "${target}_generator")
+    set(_aero_schema_source
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/aero-schema/${target}.cpp")
+
+    set(AERO_SCHEMA_GENERATED_HEADER
+        "${AERO_SCHEMA_MODULE_HEADER}")
+    set(AERO_SCHEMA_GENERATED_FUNCTION
+        "${AERO_SCHEMA_MODULE_FUNCTION}")
+    set(_aero_schema_template [=[
+#include <Aero/Markup/Schema/XamlSchemaManifest.hpp>
+#include <Aero/Module.hpp>
+#include <Aero/SchemaBundle.hpp>
+#include <@AERO_SCHEMA_GENERATED_HEADER@>
+
+#include <cstdio>
+#include <cstdint>
+#include <fstream>
+
+namespace {
+int Fail(Aero::Base::Status status) noexcept {
+    const char* message = status.message != nullptr && status.message[0] != '\0'
+        ? status.message : "operation failed";
+    std::fprintf(stderr, "schema generator: %s\n", message);
+    return 1;
+}
+
+bool WriteFile(
+    const char* path,
+    Aero::Base::Span<const std::uint8_t> bytes) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) return false;
+    output.write(
+        reinterpret_cast<const char*>(bytes.Data()),
+        static_cast<std::streamsize>(bytes.Size()));
+    return static_cast<bool>(output);
+}
+} // namespace
+
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        std::fprintf(stderr, "schema generator: output path is required\n");
+        return 2;
+    }
+    Aero::ModuleCatalog modules;
+    Aero::Base::Result<void> status =
+        @AERO_SCHEMA_GENERATED_FUNCTION@(modules);
+    if (!status) return Fail(status.GetStatus());
+
+    Aero::SchemaBundle bundle;
+    status = bundle.Prepare(modules);
+    if (!status) return Fail(status.GetStatus());
+    status = bundle.Finalize(modules, {});
+    if (!status) return Fail(status.GetStatus());
+
+    Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =
+        Aero::Markup::XamlSchemaManifest::Capture(bundle.XamlSchema());
+    if (!manifest) return Fail(manifest.GetStatus());
+    Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =
+        manifest.Value().Serialize();
+    if (!encoded) return Fail(encoded.GetStatus());
+    if (!WriteFile(argv[1], {
+            encoded.Value().Data(), encoded.Value().Size()})) {
+        std::fprintf(stderr, "schema generator: cannot write output\n");
+        return 1;
+    }
+    return 0;
+}
+]=])
+    string(CONFIGURE "${_aero_schema_template}"
+        _aero_schema_content @ONLY)
+    file(GENERATE
+        OUTPUT "${_aero_schema_source}"
+        CONTENT "${_aero_schema_content}")
+
+    add_executable("${_aero_schema_generator}" EXCLUDE_FROM_ALL
+        "${_aero_schema_source}")
+    target_link_libraries("${_aero_schema_generator}"
+        PRIVATE Aero::ModuleCatalog ${AERO_SCHEMA_LIBRARIES})
+    target_compile_features("${_aero_schema_generator}"
+        PRIVATE cxx_std_17)
+    set_target_properties("${_aero_schema_generator}" PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+
+    add_custom_command(
+        OUTPUT "${_aero_schema_output}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_schema_output_dir}"
+        COMMAND "$<TARGET_FILE:${_aero_schema_generator}>"
+            "${_aero_schema_output}"
+        DEPENDS "${_aero_schema_generator}"
+        VERBATIM)
+    add_custom_target("${target}"
+        DEPENDS "${_aero_schema_output}")
+    set_property(TARGET "${target}" PROPERTY
+        AERO_SCHEMA_MANIFEST "${_aero_schema_output}")
+    set("${target}_OUTPUT" "${_aero_schema_output}" PARENT_SCOPE)
+endfunction()
+
 # Compile XAML files as build outputs and attach them to a target as generated
 # resources. A host executable can be supplied through AERO_HOST_XAMLC_EXECUTABLE
 # for cross-compiling; native builds use the exported Aero::xamlc target.
@@ -11,7 +153,7 @@ function(aero_add_xaml target)
     cmake_parse_arguments(
         AERO_XAML
         ""
-        "OUTPUT_DIRECTORY;ORIGIN_PREFIX"
+        "OUTPUT_DIRECTORY;ORIGIN_PREFIX;SCHEMA"
         "SOURCES"
         ${ARGN})
     if(NOT AERO_XAML_SOURCES)
@@ -38,32 +180,39 @@ function(aero_add_xaml target)
             "AERO_HOST_XAMLC_EXECUTABLE")
     endif()
 
+    set(_aero_schema_arguments)
+    set(_aero_schema_dependency)
+    if(AERO_XAML_SCHEMA)
+        get_filename_component(
+            _aero_schema_absolute "${AERO_XAML_SCHEMA}" ABSOLUTE)
+        list(APPEND _aero_schema_arguments
+            --schema "${_aero_schema_absolute}")
+        set(_aero_schema_dependency "${_aero_schema_absolute}")
+    endif()
+
     set(_aero_outputs)
     foreach(_aero_source IN LISTS AERO_XAML_SOURCES)
         get_filename_component(_aero_absolute "${_aero_source}" ABSOLUTE)
         get_filename_component(_aero_name "${_aero_source}" NAME_WE)
         set(_aero_output "${_aero_xaml_output}/${_aero_name}.axir")
+        set(_aero_origin_arguments)
         if(AERO_XAML_ORIGIN_PREFIX)
-            set(_aero_origin "${AERO_XAML_ORIGIN_PREFIX}/${_aero_source}")
-            add_custom_command(
-                OUTPUT "${_aero_output}"
-                COMMAND "${CMAKE_COMMAND}" -E make_directory
-                    "${_aero_xaml_output}"
-                COMMAND "${_aero_xamlc}"
-                    --origin "${_aero_origin}"
-                    "${_aero_absolute}" "${_aero_output}"
-                DEPENDS "${_aero_absolute}" ${_aero_xamlc_dependency}
-                VERBATIM)
-        else()
-            add_custom_command(
-                OUTPUT "${_aero_output}"
-                COMMAND "${CMAKE_COMMAND}" -E make_directory
-                    "${_aero_xaml_output}"
-                COMMAND "${_aero_xamlc}"
-                    "${_aero_absolute}" "${_aero_output}"
-                DEPENDS "${_aero_absolute}" ${_aero_xamlc_dependency}
-                VERBATIM)
+            list(APPEND _aero_origin_arguments
+                --origin "${AERO_XAML_ORIGIN_PREFIX}/${_aero_source}")
         endif()
+        add_custom_command(
+            OUTPUT "${_aero_output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${_aero_xaml_output}"
+            COMMAND "${_aero_xamlc}"
+                ${_aero_schema_arguments}
+                ${_aero_origin_arguments}
+                "${_aero_absolute}" "${_aero_output}"
+            DEPENDS
+                "${_aero_absolute}"
+                ${_aero_xamlc_dependency}
+                ${_aero_schema_dependency}
+            VERBATIM)
         list(APPEND _aero_outputs "${_aero_output}")
     endforeach()
 

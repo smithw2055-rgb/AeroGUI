@@ -91,6 +91,14 @@ Runtime；应用代码不再自行读取或编译这些主题。
 - 提供可加载 origin URI：loader 回退到 source/provider 路径；
 - 没有 source：返回明确失败，不尝试猜测旧格式。
 
+### 自定义模块的 host schema
+
+应用含自定义控件或属性时，不再要求 host `aero-xamlc` 加载目标平台模块。
+使用 `aero_add_schema_manifest()` 从模块注册代码生成 `App.aeroschema`，并在
+`aero_add_xaml(... SCHEMA App.aeroschema)` 中使用。manifest 变化会使 XAML
+重新编译，AXIR 中的 metadata schema hash 仍与目标 Runtime 严格匹配。
+
+
 ## 构建配置
 
 推荐：

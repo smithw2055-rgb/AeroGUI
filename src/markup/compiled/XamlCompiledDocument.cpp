@@ -165,9 +165,16 @@ XamlCompiledDocument::Compile(
     Base::Result<XamlCompiledCacheIdentity> identity =
         BuildXamlCompiledCacheIdentity(domain);
     if (!identity) return identity.GetStatus();
+    return CompileWithIdentity(reader, identity.Value(), originUri);
+}
 
+Base::Result<XamlCompiledDocument>
+XamlCompiledDocument::CompileWithIdentity(
+    XamlNodeReader& reader,
+    const XamlCompiledCacheIdentity& identity,
+    const Base::ResourceUri& originUri) noexcept {
     XamlCompiledDocument document;
-    document.identity_ = identity.Value();
+    document.identity_ = identity;
     document.originUri_ = originUri;
     if (!originUri.Empty()) {
         Base::Result<void> dependency =
@@ -178,16 +185,12 @@ XamlCompiledDocument::Compile(
     while (true) {
         Base::Result<XamlNodeKind> read = reader.Read(node);
         if (!read) return read.GetStatus();
-        Base::Result<XamlNode> cloned =
-            XamlNode::TryClone(node);
+        Base::Result<XamlNode> cloned = XamlNode::TryClone(node);
         if (!cloned) return cloned.GetStatus();
-        Base::Result<void> appended =
-            document.nodes_.TryPushBack(
-                std::move(cloned).Value());
+        Base::Result<void> appended = document.nodes_.TryPushBack(
+            std::move(cloned).Value());
         if (!appended) return appended.GetStatus();
-        if (read.Value() == XamlNodeKind::EndOfDocument) {
-            break;
-        }
+        if (read.Value() == XamlNodeKind::EndOfDocument) break;
     }
     return document;
 }

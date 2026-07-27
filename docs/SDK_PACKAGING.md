@@ -52,3 +52,47 @@ bundle is consumed by runtime views and host-side XAML tooling.
 window scoped and retains independent input, resource, binding, layout, and render
 state. `UiDocument` is move-only document ownership and can be loaded before a
 view is mounted.
+
+## Host schema manifests
+
+Target-platform modules do not have to be loaded into the host `aero-xamlc`.
+A native host-tools build exports the immutable validation surface to an
+`.aeroschema` file, then passes that file to XAML compilation:
+
+```cmake
+aero_add_schema_manifest(MyAppSchema
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/MyApp.aeroschema"
+    MODULE_HEADER "MyApp/Modules.hpp"
+    MODULE_FUNCTION "MyApp::RegisterModules"
+    LIBRARIES MyAppModules)
+
+aero_add_xaml(MyApp
+    SCHEMA "${MyAppSchema_OUTPUT}"
+    ORIGIN_PREFIX "pack://application:,,,/My.App;component"
+    SOURCES Views/Main.xaml)
+add_dependencies(MyApp MyAppSchema)
+```
+
+The module function has the following contract:
+
+```cpp
+Aero::Base::Result<void> RegisterModules(
+    Aero::ModuleCatalog& modules) noexcept;
+```
+
+The generated manifest contains TypeId/MemberId values, namespaces, type
+inheritance, property/event descriptors, effective content members, and the
+compiled-XAML schema identity. Factories, callbacks, raw pointers, allocators,
+and runtime service instances are never serialized.
+
+`aero-schema-gen` emits and validates the built-in Aero schema:
+
+```text
+aero-schema-gen Aero.aeroschema
+aero-schema-gen --check Aero.aeroschema
+aero-schema-gen --describe Aero.aeroschema
+```
+
+For cross-compilation, generate application manifests in a native host-tools
+build and pass the resulting file to `aero_add_xaml(SCHEMA ...)`. The target
+build never executes a target-platform module or schema generator.

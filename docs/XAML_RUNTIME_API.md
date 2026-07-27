@@ -225,11 +225,48 @@ Presentation 对象模型，不再分别持有 Style 与 Template XAML extension
 `DeferredObjectProgram`。
 
 
+## Schema Manifest 与 host xamlc
+
+头文件：`Aero/Markup/Schema/XamlSchemaManifest.hpp`
+
+`XamlSchemaManifest::Capture()` 从冻结的 `XamlSchemaContext` 导出只读验证
+snapshot。manifest 保存稳定 descriptor 和 schema identity，不保存 factory、
+callback、service pointer 或目标平台 ABI。
+
+```cpp
+auto manifest = Aero::Markup::XamlSchemaManifest::Capture(
+    schemaBundle.XamlSchema());
+auto bytes = manifest.Value().Serialize();
+```
+
+Host 工具可以独立反序列化：
+
+```cpp
+auto manifest = Aero::Markup::XamlSchemaManifest::Deserialize(bytes);
+auto compiled = Aero::Markup::XamlCompiledDocument::Compile(
+    reader, manifest.Value(), originUri);
+```
+
+命令行：
+
+```text
+aero-schema-gen App.aeroschema
+aero-xamlc --schema App.aeroschema --origin <uri> Main.xaml Main.axir
+aero-xamlc --schema App.aeroschema --check Main.xaml
+```
+
+应用级 manifest 通过 `aero_add_schema_manifest()` 从与 Runtime 相同的
+`ModuleCatalog` 生成。这样自定义控件、属性和 XAML namespace 可以在 host
+`aero-xamlc` 中验证，而不需要加载目标平台二进制。
+
+
 ## 构建选项
 
-- `AERO_BUILD_TOOLS`：是否构建本机 `aero-xamlc`。
+- `AERO_BUILD_TOOLS`：是否构建本机 `aero-xamlc` 与 `aero-schema-gen`。
 - `AERO_PRECOMPILE_BUILTIN_THEMES`：是否在构建时生成内置 AXIR。
 - `AERO_HOST_XAMLC_EXECUTABLE`：交叉编译时使用的宿主机 xamlc。
+- `AERO_HOST_SCHEMA_GEN_EXECUTABLE`：生成内置 manifest 的宿主机工具。
+- `AERO_BUILTIN_SCHEMA_MANIFEST`：直接使用预生成的内置 manifest。
 
 `Aero::MarkupKernel` 可供只需要 XML/node/compiled 基础能力的组件链接；完整
 对象写入、资源与 Presentation 集成使用 `Aero::Markup`。
