@@ -648,8 +648,10 @@ else()
 endif()
 
 add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
+    src/RuntimeEnvironment.cpp
     src/RuntimeHost.cpp
     src/RuntimeSafety.cpp
+    src/UiDocument.cpp
     src/runtime/RuntimePresentationServices.cpp
     "${_aero_generated_theme_header}")
 add_library(Aero::Runtime ALIAS AeroRuntime)

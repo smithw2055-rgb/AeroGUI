@@ -9,6 +9,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/UiDocument.hpp>
 #include <Aero/Presentation/Input.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -58,6 +59,8 @@ class XamlSourceProviderRegistry;
 
 namespace Aero {
 
+class SchemaBundle;
+
 enum class BuiltInTheme : std::uint8_t {
     Light = 0U,
     Dark
@@ -95,6 +98,9 @@ class AERO_API RuntimeHost final {
 public:
     explicit RuntimeHost(
         Base::IAllocator* allocator = nullptr) noexcept;
+    RuntimeHost(
+        SchemaBundle& schema,
+        Base::IAllocator* allocator = nullptr) noexcept;
     ~RuntimeHost() noexcept;
 
     RuntimeHost(const RuntimeHost&) = delete;
@@ -123,6 +129,17 @@ public:
     Base::Result<Base::Ref<Base::Object>> LoadCompiledXaml(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri = {}) noexcept;
+
+    Base::Result<UiDocument> LoadUiDocument(
+        Base::StringView uri,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<UiDocument> ParseUiDocument(
+        Base::StringView source,
+        const Base::ResourceUri& baseUri = {},
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<UiDocument> LoadCompiledUiDocument(
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> RegisterXamlSourceProvider(
         Markup::IXamlSourceProvider& provider,
         Base::StringView scheme = {},
@@ -145,6 +162,9 @@ public:
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Mount(
         Base::Ref<Base::Object> root,
+        Presentation::Size availableSize) noexcept;
+    Base::Result<void> Mount(
+        UiDocument&& document,
         Presentation::Size availableSize) noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadAndMountXaml(
         Base::StringView uri,

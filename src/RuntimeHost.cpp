@@ -91,12 +91,21 @@ void DestroyRuntimeObject(
 } // namespace
 
 struct RuntimeHost::Impl final {
-    explicit Impl(Base::IAllocator& value) noexcept
-        : allocator(&value), schemaBundle(&value) {}
+    Impl(
+        Base::IAllocator& value,
+        SchemaBundle* sharedSchema = nullptr) noexcept
+        : allocator(&value),
+          ownedSchemaBundle(&value),
+          schemaBundle(sharedSchema != nullptr
+              ? sharedSchema
+              : &ownedSchemaBundle),
+          usesSharedSchema(sharedSchema != nullptr) {}
 
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
-    SchemaBundle schemaBundle;
+    SchemaBundle ownedSchemaBundle;
+    SchemaBundle* schemaBundle = nullptr;
+    bool usesSharedSchema = false;
     Core::MetadataDomain* metadata = nullptr;
     ModuleCatalog modules;
     RuntimeHostOptions options;
@@ -583,13 +592,18 @@ struct RuntimeHost::Impl final {
 
         Base::Result<void> status =
             EnsureDefaultXamlProviders();
-        if (status) status = schemaBundle.Prepare(modules);
-        if (!status) {
-            terminal = true;
-            return status.GetStatus();
+        if (status && !schemaBundle->IsPrepared()) {
+            status = schemaBundle->Prepare(modules);
         }
-        metadata = &schemaBundle.Metadata();
-        metadataRuntime = &schemaBundle.Runtime();
+        if (!status || !schemaBundle->IsPrepared()) {
+            terminal = true;
+            return status
+                ? RuntimeInvalidState(
+                      "RuntimeHost schema bundle was not prepared")
+                : status.GetStatus();
+        }
+        metadata = &schemaBundle->Metadata();
+        metadataRuntime = &schemaBundle->Runtime();
 
         if (status) {
             status = CreateRuntimeObject(
@@ -643,14 +657,14 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = RebuildDynamicResourceEnvironment();
         }
-        if (status) {
-            status = schemaBundle.Finalize(
+        if (status && !schemaBundle->IsFrozen()) {
+            status = schemaBundle->Finalize(
                 modules,
                 SchemaBundleServices{allocator});
         }
-        if (status) {
-            schema = &schemaBundle.XamlSchema();
-            activation = &schemaBundle.ActivationFacets();
+        if (status && schemaBundle->IsFrozen()) {
+            schema = &schemaBundle->XamlSchema();
+            activation = &schemaBundle->ActivationFacets();
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
                 visualMount, *tree, *layout, renderer);
@@ -900,6 +914,23 @@ RuntimeHost::RuntimeHost(
     impl_ = new (memory) Impl(*allocator_);
 }
 
+RuntimeHost::RuntimeHost(
+    SchemaBundle& schemaBundle,
+    Base::IAllocator* allocator) noexcept
+    : allocator_(allocator != nullptr
+          ? allocator
+          : &Base::GetDefaultAllocator()) {
+    void* memory = allocator_->Allocate({
+        sizeof(Impl), alignof(Impl),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        Base::ReportOutOfMemory(
+            sizeof(Impl), alignof(Impl),
+            Base::MemoryTag::Markup);
+    }
+    impl_ = new (memory) Impl(*allocator_, &schemaBundle);
+}
+
 RuntimeHost::~RuntimeHost() noexcept {
     Shutdown();
     if (impl_ != nullptr) {
@@ -913,9 +944,10 @@ RuntimeHost::~RuntimeHost() noexcept {
 
 Base::Result<void> RuntimeHost::AddModule(
     const ModuleRegistration& registration) noexcept {
-    if (impl_ == nullptr || impl_->initialized || impl_->terminal) {
+    if (impl_ == nullptr || impl_->initialized || impl_->terminal ||
+        impl_->usesSharedSchema) {
         return RuntimeInvalidState(
-            "RuntimeHost modules must be added before initialization");
+            "RuntimeHost modules require an owned, uninitialized schema bundle");
     }
     return impl_->modules.TryAdd(registration);
 }
@@ -941,6 +973,73 @@ bool RuntimeHost::IsInitialized() const noexcept {
 
 bool RuntimeHost::IsMounted() const noexcept {
     return impl_ != nullptr && impl_->mounted;
+}
+
+Base::Result<UiDocument> RuntimeHost::LoadUiDocument(
+    Base::StringView uri,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    if (!IsInitialized()) {
+        return RuntimeNotInitialized(
+            "RuntimeHost must be initialized before XAML loading");
+    }
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(
+        *impl_->schema,
+        impl_->xamlSources,
+        diagnostics);
+    Base::Result<XamlLoadResult> loaded =
+        loader.Load(uri, options.Value());
+    if (!loaded) return loaded.GetStatus();
+    return UiDocument::Adopt(
+        std::move(loaded).Value(), *allocator_);
+}
+
+Base::Result<UiDocument> RuntimeHost::ParseUiDocument(
+    Base::StringView source,
+    const Base::ResourceUri& baseUri,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    if (!IsInitialized()) {
+        return RuntimeNotInitialized(
+            "RuntimeHost must be initialized before XAML parsing");
+    }
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(
+        *impl_->schema,
+        impl_->xamlSources,
+        diagnostics);
+    Base::Result<XamlLoadResult> loaded =
+        loader.Parse(source, baseUri, options.Value());
+    if (!loaded) return loaded.GetStatus();
+    return UiDocument::Adopt(
+        std::move(loaded).Value(), *allocator_);
+}
+
+Base::Result<UiDocument> RuntimeHost::LoadCompiledUiDocument(
+    Base::Span<const std::uint8_t> bytes,
+    const Base::ResourceUri& originUri) noexcept {
+    if (!IsInitialized()) {
+        return RuntimeNotInitialized(
+            "RuntimeHost must be initialized before compiled XAML loading");
+    }
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(*impl_->schema, impl_->xamlSources);
+    Base::Result<XamlLoadResult> loaded =
+        loader.LoadCompiled(bytes, originUri, options.Value());
+    if (!loaded) return loaded.GetStatus();
+    return UiDocument::Adopt(
+        std::move(loaded).Value(), *allocator_);
 }
 
 Base::Result<Base::Ref<Base::Object>>
@@ -1127,6 +1226,21 @@ Base::Result<void> RuntimeHost::Mount(
     Presentation::Size availableSize) noexcept {
     return impl_->MountRoot(
         std::move(root), availableSize);
+}
+
+Base::Result<void> RuntimeHost::Mount(
+    UiDocument&& document,
+    Presentation::Size availableSize) noexcept {
+    Base::Result<void> ready = impl_->BeginDocumentLoad();
+    if (!ready) return ready.GetStatus();
+    if (!document.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "RuntimeHost cannot mount an empty UI document");
+    }
+    impl_->loadedDocument = document.TakeResult();
+    return impl_->MountRoot(
+        impl_->loadedDocument.root, availableSize);
 }
 
 Base::Result<Base::Ref<Base::Object>>
