@@ -5,6 +5,8 @@ on:
     branches: [main]
   push:
     branches: [main, "agent/**"]
+    paths-ignore:
+      - .github/workflows/apply-routed-event-migration.yml
   workflow_dispatch:
 
 permissions:
