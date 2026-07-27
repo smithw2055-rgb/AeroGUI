@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
@@ -119,6 +120,7 @@ struct XamlMemberProviderFacet final {
     void* context = nullptr;
     XamlMemberWriteMode mode = XamlMemberWriteMode::SetOnce;
     bool acceptsAnyValue = false;
+    std::int32_t priority = 0;
 };
 
 struct XamlMemberWritePolicy final {
@@ -142,6 +144,50 @@ struct XamlTypeFacet final {
     bool defersVisualContent = false;
     XamlResolveImplicitResourceKeyCallback resolveImplicitResourceKey = nullptr;
     XamlResolvePropertyTargetCallback resolvePropertyTarget = nullptr;
+};
+
+// Orthogonal type capabilities. New modules should register these facets
+// directly. XamlTypeFacet remains as a compatibility aggregate and is
+// decomposed into these records by XamlFacetStore.
+struct XamlLifecycleFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    XamlInitializationCallback beginInit = nullptr;
+    XamlInitializationCallback endInit = nullptr;
+    XamlAbortInitializationCallback abortInit = nullptr;
+    XamlInitializationWithServicesCallback endInitWithServices = nullptr;
+    void* context = nullptr;
+};
+
+struct XamlNameScopeFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    bool createsNameScope = true;
+    XamlRegisterNameCallback registerName = nullptr;
+    void* context = nullptr;
+};
+
+struct XamlResourceScopeFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    bool createsResourceScope = true;
+    XamlAddResourceCallback addResource = nullptr;
+    XamlResolveResourceScopeCallback resolveResourceScope = nullptr;
+    void* context = nullptr;
+};
+
+struct XamlDeferredContentFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    bool defersVisualContent = true;
+};
+
+struct XamlImplicitResourceKeyFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    XamlResolveImplicitResourceKeyCallback resolve = nullptr;
+    void* context = nullptr;
+};
+
+struct XamlPropertyTargetFacet final {
+    Core::TypeId type = Core::InvalidTypeId;
+    XamlResolvePropertyTargetCallback resolve = nullptr;
+    void* context = nullptr;
 };
 
 struct XamlMarkupExtensionFacet final {
@@ -174,6 +220,24 @@ public:
         const XamlTypeFacet& facet,
         const Core::MetadataDescriptorStore& descriptors) noexcept;
     Base::Result<void> TryAdd(
+        const XamlLifecycleFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
+        const XamlNameScopeFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
+        const XamlResourceScopeFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
+        const XamlDeferredContentFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
+        const XamlImplicitResourceKeyFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
+        const XamlPropertyTargetFacet& facet,
+        const Core::MetadataDescriptorStore& descriptors) noexcept;
+    Base::Result<void> TryAdd(
         const XamlMarkupExtensionFacet& facet,
         const Core::MetadataDescriptorStore& descriptors) noexcept;
     Base::Result<void> Freeze() noexcept;
@@ -187,6 +251,24 @@ public:
     const XamlTypeFacet* FindType(
         Core::TypeId type,
         const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlLifecycleFacet* FindLifecycle(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlNameScopeFacet* FindNameScope(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlResourceScopeFacet* FindResourceScope(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlDeferredContentFacet* FindDeferredContent(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlImplicitResourceKeyFacet* FindImplicitResourceKey(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
+    const XamlPropertyTargetFacet* FindPropertyTarget(
+        Core::TypeId type,
+        const Core::MetadataDescriptorStore& descriptors) const noexcept;
     const XamlMarkupExtensionFacet* FindMarkupExtension(
         Core::TypeId type) const noexcept;
 
@@ -194,11 +276,24 @@ private:
     Base::Vector<XamlMemberFacet> members_;
     Base::Vector<XamlMemberProviderFacet> memberProviders_;
     Base::Vector<XamlTypeFacet> types_;
+    Base::Vector<XamlLifecycleFacet> lifecycles_;
+    Base::Vector<XamlNameScopeFacet> nameScopes_;
+    Base::Vector<XamlResourceScopeFacet> resourceScopes_;
+    Base::Vector<XamlDeferredContentFacet> deferredContents_;
+    Base::Vector<XamlImplicitResourceKeyFacet> implicitResourceKeys_;
+    Base::Vector<XamlPropertyTargetFacet> propertyTargets_;
     Base::Vector<XamlMarkupExtensionFacet> markupExtensions_;
+    Base::HashMap<Core::MemberId, std::uint32_t> memberIndex_;
+    Base::HashMap<Core::TypeId, std::uint32_t> markupExtensionIndex_;
     bool frozen_ = false;
 
-    const XamlTypeFacet* FindTypeExact(
-        Core::TypeId type) const noexcept;
+    const XamlTypeFacet* FindTypeExact(Core::TypeId type) const noexcept;
+    const XamlLifecycleFacet* FindLifecycleExact(Core::TypeId type) const noexcept;
+    const XamlNameScopeFacet* FindNameScopeExact(Core::TypeId type) const noexcept;
+    const XamlResourceScopeFacet* FindResourceScopeExact(Core::TypeId type) const noexcept;
+    const XamlDeferredContentFacet* FindDeferredContentExact(Core::TypeId type) const noexcept;
+    const XamlImplicitResourceKeyFacet* FindImplicitResourceKeyExact(Core::TypeId type) const noexcept;
+    const XamlPropertyTargetFacet* FindPropertyTargetExact(Core::TypeId type) const noexcept;
 };
 
 } // namespace Aero::Markup

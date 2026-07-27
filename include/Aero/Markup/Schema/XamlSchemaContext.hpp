@@ -85,6 +85,30 @@ public:
         return TryRegisterTypeAdapter(facet);
     }
     Base::Result<void> TryAddFacet(
+        const XamlLifecycleFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
+        const XamlNameScopeFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
+        const XamlResourceScopeFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
+        const XamlDeferredContentFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
+        const XamlImplicitResourceKeyFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
+        const XamlPropertyTargetFacet& facet) noexcept {
+        return xamlFacets_.TryAdd(facet, runtime_->Descriptors());
+    }
+    Base::Result<void> TryAddFacet(
         const XamlMarkupExtensionFacet& facet) noexcept {
         return TryRegisterMarkupExtension(facet);
     }

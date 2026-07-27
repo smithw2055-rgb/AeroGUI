@@ -57,6 +57,24 @@ public:
     Base::Result<void> TryAdd(const XamlTypeFacet& facet) noexcept {
         return schema_->TryAddFacet(facet);
     }
+    Base::Result<void> TryAdd(const XamlLifecycleFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
+    Base::Result<void> TryAdd(const XamlNameScopeFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
+    Base::Result<void> TryAdd(const XamlResourceScopeFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
+    Base::Result<void> TryAdd(const XamlDeferredContentFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
+    Base::Result<void> TryAdd(const XamlImplicitResourceKeyFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
+    Base::Result<void> TryAdd(const XamlPropertyTargetFacet& facet) noexcept {
+        return schema_->TryAddFacet(facet);
+    }
     Base::Result<void> TryAdd(const XamlMarkupExtensionFacet& facet) noexcept {
         return schema_->TryAddFacet(facet);
     }

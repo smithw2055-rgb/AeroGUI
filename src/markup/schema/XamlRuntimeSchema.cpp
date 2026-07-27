@@ -234,10 +234,11 @@ XamlSchemaContext::ResolvePropertyTarget(
             object.RuntimeType())) {
         target = static_cast<Core::DependencyObject*>(&object);
     } else {
-        const XamlTypeFacet* facet = xamlFacets_.FindType(
-            object.RuntimeType(), runtime_->Descriptors());
-        if (facet != nullptr && facet->resolvePropertyTarget != nullptr) {
-            target = facet->resolvePropertyTarget(object, facet->context);
+        const XamlPropertyTargetFacet* facet =
+            xamlFacets_.FindPropertyTarget(
+                object.RuntimeType(), runtime_->Descriptors());
+        if (facet != nullptr && facet->resolve != nullptr) {
+            target = facet->resolve(object, facet->context);
         }
     }
     if (target == nullptr) {

@@ -96,54 +96,56 @@ Base::Result<XamlProvidedValue> XamlSchemaContext::ProvideMarkupExtensionValue(
 Base::Result<void> XamlSchemaContext::BeginInit(
     Core::TypeId type,
     Base::Object& object) const noexcept {
-    const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(type);
-    if (adapter == nullptr || adapter->beginInit == nullptr) return {};
-    return adapter->beginInit(object, adapter->context);
+    const XamlLifecycleFacet* facet = xamlFacets_.FindLifecycle(
+        type, runtime_->Descriptors());
+    if (facet == nullptr || facet->beginInit == nullptr) return {};
+    return facet->beginInit(object, facet->context);
 }
 
 Base::Result<void> XamlSchemaContext::EndInit(
     Core::TypeId type,
     Base::Object& object,
     const XamlServiceProvider& services) const noexcept {
-    const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(type);
-    if (adapter == nullptr) return {};
-    if (adapter->endInitWithServices != nullptr) {
-        return adapter->endInitWithServices(
-            object, services, adapter->context);
+    const XamlLifecycleFacet* facet = xamlFacets_.FindLifecycle(
+        type, runtime_->Descriptors());
+    if (facet == nullptr) return {};
+    if (facet->endInitWithServices != nullptr) {
+        return facet->endInitWithServices(
+            object, services, facet->context);
     }
-    return adapter->endInit != nullptr
-        ? adapter->endInit(object, adapter->context)
+    return facet->endInit != nullptr
+        ? facet->endInit(object, facet->context)
         : Base::Result<void>();
 }
 
 void XamlSchemaContext::AbortInit(
     Core::TypeId type,
     Base::Object& object) const noexcept {
-    const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(type);
-    if (adapter != nullptr && adapter->abortInit != nullptr) {
-        adapter->abortInit(object, adapter->context);
+    const XamlLifecycleFacet* facet = xamlFacets_.FindLifecycle(
+        type, runtime_->Descriptors());
+    if (facet != nullptr && facet->abortInit != nullptr) {
+        facet->abortInit(object, facet->context);
     }
 }
 
 bool XamlSchemaContext::CreatesNameScope(Core::TypeId type) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(type);
-    return adapter != nullptr && adapter->createsNameScope;
+    const XamlNameScopeFacet* facet = xamlFacets_.FindNameScope(
+        type, runtime_->Descriptors());
+    return facet != nullptr && facet->createsNameScope;
 }
 
 bool XamlSchemaContext::CreatesResourceScope(
     Core::TypeId type) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(type);
-    return adapter != nullptr && adapter->createsResourceScope;
+    const XamlResourceScopeFacet* facet = xamlFacets_.FindResourceScope(
+        type, runtime_->Descriptors());
+    return facet != nullptr && facet->createsResourceScope;
 }
 
 bool XamlSchemaContext::DefersVisualContent(
     Core::TypeId type) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(type);
-    return adapter != nullptr &&
-        adapter->defersVisualContent;
+    const XamlDeferredContentFacet* facet = xamlFacets_.FindDeferredContent(
+        type, runtime_->Descriptors());
+    return facet != nullptr && facet->defersVisualContent;
 }
 
 Base::Result<void> XamlSchemaContext::RegisterName(
@@ -151,14 +153,11 @@ Base::Result<void> XamlSchemaContext::RegisterName(
     Base::Object& scopeOwner,
     Base::StringView name,
     Base::Object& object) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(scopeType);
-    if (adapter == nullptr || adapter->registerName == nullptr) return {};
-    return adapter->registerName(
-        scopeOwner,
-        name,
-        object,
-        adapter->context);
+    const XamlNameScopeFacet* facet = xamlFacets_.FindNameScope(
+        scopeType, runtime_->Descriptors());
+    if (facet == nullptr || facet->registerName == nullptr) return {};
+    return facet->registerName(
+        scopeOwner, name, object, facet->context);
 }
 
 Base::Result<void> XamlSchemaContext::AddResource(
@@ -166,41 +165,35 @@ Base::Result<void> XamlSchemaContext::AddResource(
     Base::Object& scopeOwner,
     Base::StringView key,
     const XamlValue& value) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(scopeType);
-    if (adapter == nullptr || adapter->addResource == nullptr) return {};
-    return adapter->addResource(
-        scopeOwner,
-        key,
-        value,
-        adapter->context);
+    const XamlResourceScopeFacet* facet = xamlFacets_.FindResourceScope(
+        scopeType, runtime_->Descriptors());
+    if (facet == nullptr || facet->addResource == nullptr) return {};
+    return facet->addResource(
+        scopeOwner, key, value, facet->context);
 }
 
-ResourceDictionary*
-XamlSchemaContext::ResolveResourceScope(
+ResourceDictionary* XamlSchemaContext::ResolveResourceScope(
     Core::TypeId scopeType,
     Base::Object& scopeOwner) const noexcept {
-    const XamlTypeAdapterRegistration* adapter =
-        FindTypeAdapter(scopeType);
-    return adapter != nullptr &&
-            adapter->resolveResourceScope != nullptr
-        ? adapter->resolveResourceScope(
-              scopeOwner,
-              adapter->context)
+    const XamlResourceScopeFacet* facet = xamlFacets_.FindResourceScope(
+        scopeType, runtime_->Descriptors());
+    return facet != nullptr && facet->resolveResourceScope != nullptr
+        ? facet->resolveResourceScope(scopeOwner, facet->context)
         : nullptr;
 }
 
 Base::Result<ResourceKey> XamlSchemaContext::ResolveImplicitResourceKey(
     Core::TypeId type,
     const Base::Object& object) const noexcept {
-    const XamlTypeAdapterRegistration* adapter = FindTypeAdapter(type);
-    if (adapter == nullptr || adapter->resolveImplicitResourceKey == nullptr) {
+    const XamlImplicitResourceKeyFacet* facet =
+        xamlFacets_.FindImplicitResourceKey(
+            type, runtime_->Descriptors());
+    if (facet == nullptr || facet->resolve == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML type has no implicit resource-key facet");
     }
-    return adapter->resolveImplicitResourceKey(
-        object, adapter->context);
+    return facet->resolve(object, facet->context);
 }
 
 const XamlMemberAdapterRegistration* XamlSchemaContext::FindMemberAdapter(
