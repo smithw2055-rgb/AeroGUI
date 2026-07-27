@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Base/Ascii.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -9,7 +10,6 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 
-#include <cctype>
 #include <cstdint>
 
 namespace Aero::Core {
@@ -206,37 +206,26 @@ private:
     static constexpr bool HasPropertyFlag(PropertyFlags value, PropertyFlags flag) noexcept { return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U; }
     static Base::Status RuntimeNotFrozen() noexcept { return Base::Status::Failure(Base::ErrorCode::InvalidState, "MetadataRuntime is not frozen"); }
     static Base::Status UnsupportedProperty() noexcept { return Base::Status::Failure(Base::ErrorCode::Unsupported, "Metadata property has no usable accessor facet"); }
-    static Base::StringView Trim(Base::StringView value) noexcept {
-        std::uint32_t begin = 0U; std::uint32_t end = value.SizeBytes();
-        while (begin < end && std::isspace(static_cast<unsigned char>(value[begin]))) ++begin;
-        while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1U]))) --end;
-        return value.Substr(begin, end - begin);
-    }
-    static bool EqualsAsciiInsensitive(Base::StringView left, Base::StringView right) noexcept {
-        if (left.SizeBytes() != right.SizeBytes()) return false;
-        for (std::uint32_t index = 0U; index < left.SizeBytes(); ++index) if (std::tolower(static_cast<unsigned char>(left[index])) != std::tolower(static_cast<unsigned char>(right[index]))) return false;
-        return true;
-    }
     Base::Result<Value> TryConvertEnumText(const MetadataTypeDescriptor& type, Base::StringView input) const noexcept {
-        Base::StringView remaining = Trim(input);
+        Base::StringView remaining = Base::TrimAscii(input);
         if (remaining.Empty()) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Enum text is empty");
         std::uint64_t raw = 0U; std::uint32_t tokenCount = 0U;
         while (!remaining.Empty()) {
             std::uint32_t split = remaining.SizeBytes();
             for (std::uint32_t index = 0U; index < remaining.SizeBytes(); ++index) if (remaining[index] == ',' || remaining[index] == '|') { split = index; break; }
-            const Base::StringView token = Trim(remaining.Substr(0U, split));
+            const Base::StringView token = Base::TrimAscii(remaining.Substr(0U, split));
             if (token.Empty()) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Enum text contains an empty value");
             const MetadataEnumValueDescriptor* match = nullptr;
             for (MemberId member : type.EnumValues()) {
                 const MetadataEnumValueDescriptor* candidate = Descriptors().FindEnumValue(member);
-                if (candidate != nullptr && EqualsAsciiInsensitive(token, candidate->Name())) { match = candidate; break; }
+                if (candidate != nullptr && Base::EqualsAsciiInsensitive(token, candidate->Name())) { match = candidate; break; }
             }
             if (match == nullptr) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Enum text value is not registered");
             ++tokenCount;
             if (!type.IsFlagsEnum() && tokenCount > 1U) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Non-flags enum accepts exactly one value");
             raw = type.IsFlagsEnum() ? (raw | match->RawValue()) : match->RawValue();
             if (split == remaining.SizeBytes()) break;
-            remaining = Trim(remaining.Substr(split + 1U));
+            remaining = Base::TrimAscii(remaining.Substr(split + 1U));
         }
         return HasTypeFlag(type.Flags(), TypeFlags::SignedEnum) ? Value::FromSignedInteger(type.Id(), static_cast<std::int64_t>(raw)) : Value::FromUnsignedInteger(type.Id(), raw);
     }

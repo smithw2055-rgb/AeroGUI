@@ -10,7 +10,6 @@
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Metadata.hpp>
 
-#include <cctype>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -121,103 +120,6 @@ Core::PropertyRegistration OrdinaryProperty(
     registration.get = get;
     registration.set = set;
     return registration;
-}
-
-bool EqualsAsciiInsensitive(
-    Base::StringView value,
-    const char* literal) noexcept {
-    std::uint32_t size = 0U;
-    while (literal[size] != '\0') ++size;
-    if (value.SizeBytes() != size) return false;
-    for (std::uint32_t index = 0U; index < size; ++index) {
-        if (std::tolower(static_cast<unsigned char>(value[index])) !=
-            std::tolower(static_cast<unsigned char>(literal[index]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-Base::StringView Trim(Base::StringView value) noexcept {
-    std::uint32_t begin = 0U;
-    std::uint32_t end = value.SizeBytes();
-    while (begin < end &&
-        std::isspace(static_cast<unsigned char>(value[begin]))) {
-        ++begin;
-    }
-    while (end > begin &&
-        std::isspace(static_cast<unsigned char>(value[end - 1U]))) {
-        --end;
-    }
-    return value.Substr(begin, end - begin);
-}
-
-Base::Result<Core::Value> ConvertOrientation(
-    Core::TypeId type,
-    Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "horizontal")) {
-        return Core::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(Orientation::Horizontal));
-    }
-    if (EqualsAsciiInsensitive(value, "vertical")) {
-        return Core::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(Orientation::Vertical));
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::ValidationFailed,
-        "Orientation is invalid");
-}
-
-Base::Result<Core::Value> ConvertClickMode(
-    Core::TypeId type,
-    Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "release")) {
-        return Core::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(ClickMode::Release));
-    }
-    if (EqualsAsciiInsensitive(value, "press")) {
-        return Core::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(ClickMode::Press));
-    }
-    if (EqualsAsciiInsensitive(value, "hover")) {
-        return Core::Value::FromUnsignedInteger(
-            type, static_cast<std::uint64_t>(ClickMode::Hover));
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::ValidationFailed,
-        "ClickMode is invalid");
-}
-
-Base::Result<Core::Value> ConvertSelectionMode(
-    Core::TypeId type,
-    Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "single")) {
-        return Core::Value::FromUnsignedInteger(
-            type,
-            static_cast<std::uint64_t>(
-                SelectionMode::Single));
-    }
-    if (EqualsAsciiInsensitive(value, "multiple")) {
-        return Core::Value::FromUnsignedInteger(
-            type,
-            static_cast<std::uint64_t>(
-                SelectionMode::Multiple));
-    }
-    if (EqualsAsciiInsensitive(value, "extended")) {
-        return Core::Value::FromUnsignedInteger(
-            type,
-            static_cast<std::uint64_t>(
-                SelectionMode::Extended));
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::ValidationFailed,
-        "SelectionMode is invalid");
 }
 
 bool ValidateNonnegativeDouble(const Core::Value& value) noexcept {
@@ -471,8 +373,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     auto orientation = DescribeEnum<Orientation, std::uint32_t>(context);
     orientation
         .EnumValue("Horizontal", Orientation::Horizontal)
-        .EnumValue("Vertical", Orientation::Vertical)
-        .TextConverter(&ConvertOrientation);
+        .EnumValue("Vertical", Orientation::Vertical);
     status = orientation.Finish();
     if (!status) return status.GetStatus();
 
@@ -480,8 +381,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     clickMode
         .EnumValue("Release", ClickMode::Release)
         .EnumValue("Press", ClickMode::Press)
-        .EnumValue("Hover", ClickMode::Hover)
-        .TextConverter(&ConvertClickMode);
+        .EnumValue("Hover", ClickMode::Hover);
     status = clickMode.Finish();
     if (!status) return status.GetStatus();
 
@@ -489,8 +389,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     selectionMode
         .EnumValue("Single", SelectionMode::Single)
         .EnumValue("Multiple", SelectionMode::Multiple)
-        .EnumValue("Extended", SelectionMode::Extended)
-        .TextConverter(&ConvertSelectionMode);
+        .EnumValue("Extended", SelectionMode::Extended);
     status = selectionMode.Finish();
     if (!status) return status.GetStatus();
 

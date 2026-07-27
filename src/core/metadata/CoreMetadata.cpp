@@ -1,9 +1,10 @@
 #include <Aero/Core/Metadata/CoreMetadata.hpp>
 
+#include <Aero/Base/Ascii.hpp>
+
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Metadata.hpp>
 
-#include <cctype>
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -11,40 +12,11 @@
 namespace Aero::Core {
 namespace {
 
-bool EqualsAsciiInsensitive(
-    Base::StringView value,
-    const char* literal) noexcept {
-    std::uint32_t size = 0U;
-    while (literal[size] != '\0') ++size;
-    if (value.SizeBytes() != size) return false;
-    for (std::uint32_t index = 0U; index < size; ++index) {
-        if (std::tolower(static_cast<unsigned char>(value[index])) !=
-            std::tolower(static_cast<unsigned char>(literal[index]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-Base::StringView Trim(Base::StringView value) noexcept {
-    std::uint32_t begin = 0U;
-    std::uint32_t end = value.SizeBytes();
-    while (begin < end &&
-        std::isspace(static_cast<unsigned char>(value[begin]))) {
-        ++begin;
-    }
-    while (end > begin &&
-        std::isspace(static_cast<unsigned char>(value[end - 1U]))) {
-        --end;
-    }
-    return value.Substr(begin, end - begin);
-}
-
 Base::Result<double> ParseDouble(
     Base::StringView text) noexcept {
     Base::String buffer;
     Base::Result<void> assigned =
-        buffer.TryAssign(Trim(text));
+        buffer.TryAssign(Base::TrimAscii(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     const double value = std::strtod(buffer.CStr(), &end);
@@ -62,11 +34,11 @@ Base::Result<Value> ConvertBoolean(
     TypeId type,
     Base::StringView text,
     void*) noexcept {
-    const Base::StringView value = Trim(text);
-    if (EqualsAsciiInsensitive(value, "true")) {
+    const Base::StringView value = Base::TrimAscii(text);
+    if (Base::EqualsAsciiInsensitive(value, "true")) {
         return Value::FromBoolean(type, true);
     }
-    if (EqualsAsciiInsensitive(value, "false")) {
+    if (Base::EqualsAsciiInsensitive(value, "false")) {
         return Value::FromBoolean(type, false);
     }
     return Base::Status::Failure(
@@ -80,7 +52,7 @@ Base::Result<Value> ConvertUnsigned(
     void*) noexcept {
     Base::String buffer;
     Base::Result<void> assigned =
-        buffer.TryAssign(Trim(text));
+        buffer.TryAssign(Base::TrimAscii(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     errno = 0;

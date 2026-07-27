@@ -1,5 +1,7 @@
 #include <Aero/Presentation/Metadata.hpp>
 
+#include <Aero/Base/Ascii.hpp>
+
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Metadata.hpp>
 #include <Aero/Presentation/Commands.hpp>
@@ -22,28 +24,9 @@ namespace {
 
 constexpr double DefaultMaximum = 1.0e12;
 
-bool EqualsAsciiInsensitive(Base::StringView value, const char* literal) noexcept {
-    std::uint32_t size = 0U;
-    while (literal[size] != '\0') ++size;
-    if (value.SizeBytes() != size) return false;
-    for (std::uint32_t index = 0U; index < size; ++index) {
-        if (std::tolower(static_cast<unsigned char>(value[index])) !=
-            std::tolower(static_cast<unsigned char>(literal[index]))) return false;
-    }
-    return true;
-}
-
-Base::StringView Trim(Base::StringView value) noexcept {
-    std::uint32_t begin = 0U;
-    std::uint32_t end = value.SizeBytes();
-    while (begin < end && std::isspace(static_cast<unsigned char>(value[begin]))) ++begin;
-    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1U]))) --end;
-    return value.Substr(begin, end - begin);
-}
-
 Base::Result<double> ParseDouble(Base::StringView text) noexcept {
     Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
+    Base::Result<void> assigned = buffer.TryAssign(Base::TrimAscii(text));
     if (!assigned) return assigned.GetStatus();
     char* end = nullptr;
     const double value = std::strtod(buffer.CStr(), &end);
@@ -57,9 +40,9 @@ Base::Result<double> ParseDouble(Base::StringView text) noexcept {
 Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
     void* context) noexcept {
     auto* values = static_cast<MetadataValueRegistrationStore*>(context);
-    const Base::StringView value = Trim(text);
+    const Base::StringView value = Base::TrimAscii(text);
     Length length = Length::Auto();
-    if (!EqualsAsciiInsensitive(value, "auto")) {
+    if (!Base::EqualsAsciiInsensitive(value, "auto")) {
         Base::Result<double> parsed = ParseDouble(value);
         if (!parsed || parsed.Value() < 0.0) {
             return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
@@ -137,7 +120,7 @@ int Hex(char value) noexcept {
 
 Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
     void* context) noexcept {
-    const Base::StringView value = Trim(text);
+    const Base::StringView value = Base::TrimAscii(text);
     if ((value.SizeBytes() != 7U && value.SizeBytes() != 9U) || value[0] != '#') {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "Color requires #RRGGBB or #AARRGGBB");
@@ -180,30 +163,6 @@ bool EqualColor(const void* left, const void* right, void*) noexcept {
         a.blue == b.blue && a.alpha == b.alpha;
 }
 
-Base::Result<Value> ConvertHorizontal(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    HorizontalAlignment result;
-    if (EqualsAsciiInsensitive(value, "stretch")) result = HorizontalAlignment::Stretch;
-    else if (EqualsAsciiInsensitive(value, "left")) result = HorizontalAlignment::Left;
-    else if (EqualsAsciiInsensitive(value, "center")) result = HorizontalAlignment::Center;
-    else if (EqualsAsciiInsensitive(value, "right")) result = HorizontalAlignment::Right;
-    else return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "HorizontalAlignment is invalid");
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
-}
-Base::Result<Value> ConvertVertical(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    VerticalAlignment result;
-    if (EqualsAsciiInsensitive(value, "stretch")) result = VerticalAlignment::Stretch;
-    else if (EqualsAsciiInsensitive(value, "top")) result = VerticalAlignment::Top;
-    else if (EqualsAsciiInsensitive(value, "center")) result = VerticalAlignment::Center;
-    else if (EqualsAsciiInsensitive(value, "bottom")) result = VerticalAlignment::Bottom;
-    else return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "VerticalAlignment is invalid");
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
-}
 bool ValidateLength(const Value& value) noexcept {
     if (value.Kind() != ValueKind::Custom) return false;
     const Length& length = *static_cast<const Length*>(value.AsCustom());
@@ -488,8 +447,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .EnumValue("Stretch", HorizontalAlignment::Stretch)
         .EnumValue("Left", HorizontalAlignment::Left)
         .EnumValue("Center", HorizontalAlignment::Center)
-        .EnumValue("Right", HorizontalAlignment::Right)
-        .TextConverter(&ConvertHorizontal);
+        .EnumValue("Right", HorizontalAlignment::Right);
     status = horizontal.Finish();
     if (!status) return status.GetStatus();
 
@@ -498,8 +456,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .EnumValue("Stretch", VerticalAlignment::Stretch)
         .EnumValue("Top", VerticalAlignment::Top)
         .EnumValue("Center", VerticalAlignment::Center)
-        .EnumValue("Bottom", VerticalAlignment::Bottom)
-        .TextConverter(&ConvertVertical);
+        .EnumValue("Bottom", VerticalAlignment::Bottom);
     status = vertical.Finish();
     if (!status) return status.GetStatus();
 
