@@ -3,6 +3,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Presentation/Input.hpp>
+#include <Aero/Type.hpp>
 
 namespace Aero::Controls {
 
@@ -30,21 +31,19 @@ using SelectionChangedHandler =
         Selector&, const SelectionChangedEvent&)>;
 
 class AERO_API ListBoxItem final : public ItemContainer {
-    AERO_TYPED_META(ListBoxItem, ItemContainer)
+    AERO_DECLARE_TYPE(ListBoxItem, ItemContainer)
 public:
     ListBoxItem() noexcept : ItemContainer(StaticTypeId()) {}
     ~ListBoxItem() override = default;
 
     bool IsSelected() const noexcept;
     Base::Result<void> SetIsSelected(bool value) noexcept;
-
-    inline static constexpr DependencyPropertyHandle
-        IsSelectedProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsSelected");
+    inline static constexpr auto IsSelectedProperty =
+        Members::Property<bool>{"IsSelected"};
 };
 
 class AERO_API Selector : public ItemsControl {
-    AERO_TYPED_META(Selector, ItemsControl)
+    AERO_DECLARE_TYPE(Selector, ItemsControl)
 public:
     Selector() noexcept;
     ~Selector() override;
@@ -96,19 +95,14 @@ public:
     Base::Status LastSelectionError() const noexcept {
         return lastSelectionError_;
     }
-
-    inline static constexpr DependencyPropertyHandle
-        SelectionModeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectionMode");
-    inline static constexpr DependencyPropertyHandle
-        SelectedIndexProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectedIndex");
-    inline static constexpr DependencyPropertyHandle
-        SelectedItemProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectedItem");
-    inline static constexpr DependencyPropertyHandle
-        SelectedValueProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectedValue");
+    inline static constexpr auto SelectionModeProperty =
+        Members::Property<SelectionMode>{"SelectionMode"};
+    inline static constexpr auto SelectedIndexProperty =
+        Members::Property<std::uint32_t>{"SelectedIndex"};
+    inline static constexpr auto SelectedItemProperty =
+        Members::Property<Base::Object>{"SelectedItem"};
+    inline static constexpr auto SelectedValueProperty =
+        Members::Property<Base::Object>{"SelectedValue"};
 
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
@@ -148,7 +142,7 @@ private:
 class ListBoxInteractionManager;
 
 class AERO_API ListBox final : public Selector {
-    AERO_TYPED_META(ListBox, Selector)
+    AERO_DECLARE_TYPE(ListBox, Selector)
 public:
     ListBox() noexcept : Selector(StaticTypeId()) {}
     ~ListBox() override;

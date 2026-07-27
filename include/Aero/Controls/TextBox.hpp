@@ -5,6 +5,7 @@
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Text/EditableText.hpp>
+#include <Aero/Type.hpp>
 
 namespace Aero::Controls {
 
@@ -64,7 +65,7 @@ class AERO_API TextBox final
     : public FrameworkElement,
       public IScrollInfo,
       public Platform::ITextCompositionClient {
-    AERO_TYPED_META(TextBox, FrameworkElement)
+    AERO_DECLARE_TYPE(TextBox, FrameworkElement)
 public:
     TextBox() noexcept;
     ~TextBox() override;
@@ -155,28 +156,20 @@ public:
         double direction) noexcept override;
     Base::Result<bool> PageVertical(
         double direction) noexcept override;
-
-    inline static constexpr DependencyPropertyHandle
-        TextProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Text");
-    inline static constexpr DependencyPropertyHandle
-        IsReadOnlyProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsReadOnly");
-    inline static constexpr DependencyPropertyHandle
-        MaximumLengthProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MaximumLength");
-    inline static constexpr DependencyPropertyHandle
-        AcceptsReturnProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "AcceptsReturn");
-    inline static constexpr DependencyPropertyHandle
-        ForegroundProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Foreground");
-    inline static constexpr DependencyPropertyHandle
-        SelectionBrushProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectionBrush");
-    inline static constexpr DependencyPropertyHandle
-        CaretBrushProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CaretBrush");
+    inline static constexpr auto TextProperty =
+        Members::Property<Base::String>{"Text"};
+    inline static constexpr auto IsReadOnlyProperty =
+        Members::Property<bool>{"IsReadOnly"};
+    inline static constexpr auto MaximumLengthProperty =
+        Members::Property<std::uint32_t>{"MaximumLength"};
+    inline static constexpr auto AcceptsReturnProperty =
+        Members::Property<bool>{"AcceptsReturn"};
+    inline static constexpr auto ForegroundProperty =
+        Members::Property<Color>{"Foreground"};
+    inline static constexpr auto SelectionBrushProperty =
+        Members::Property<Color>{"SelectionBrush"};
+    inline static constexpr auto CaretBrushProperty =
+        Members::Property<Color>{"CaretBrush"};
 
 protected:
     Base::Result<Size> MeasureOverride(

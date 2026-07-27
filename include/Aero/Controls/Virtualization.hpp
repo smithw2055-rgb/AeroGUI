@@ -2,13 +2,14 @@
 
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
+#include <Aero/Type.hpp>
 
 namespace Aero::Controls {
 
 class AERO_API VirtualizingStackPanel final
     : public Panel,
       public IScrollInfo {
-    AERO_TYPED_META(VirtualizingStackPanel, Panel)
+    AERO_DECLARE_TYPE(VirtualizingStackPanel, Panel)
 public:
     VirtualizingStackPanel() noexcept;
     ~VirtualizingStackPanel() override;
@@ -57,18 +58,12 @@ public:
         double direction) noexcept override;
     Base::Result<bool> PageVertical(
         double direction) noexcept override;
-
-    inline static constexpr DependencyPropertyHandle
-        OrientationProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Orientation");
-    inline static constexpr DependencyPropertyHandle
-        OverscanCountProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "OverscanCount");
-    inline static constexpr DependencyPropertyHandle
-        EstimatedItemExtentProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_,
-                "EstimatedItemExtent");
+    inline static constexpr auto OrientationProperty =
+        Members::Property<Orientation>{"Orientation"};
+    inline static constexpr auto OverscanCountProperty =
+        Members::Property<std::uint32_t>{"OverscanCount"};
+    inline static constexpr auto EstimatedItemExtentProperty =
+        Members::Property<double>{"EstimatedItemExtent"};
 
 protected:
     Base::Result<void> OnPropertyInvalidated(
