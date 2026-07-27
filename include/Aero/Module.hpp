@@ -7,6 +7,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Version.hpp>
 
 #include <cstdint>
@@ -36,6 +37,19 @@ struct ModuleRegistration final {
     std::uint32_t abiVersion = ModuleAbiVersion;
     Base::Span<const ModuleDependency> dependencies;
 };
+
+constexpr ModuleRegistration DefineModule(
+    Base::StringView name,
+    ModuleRegisterCallback registerModule,
+    std::uint32_t schemaVersion = 1U,
+    void* context = nullptr) noexcept {
+    ModuleRegistration module;
+    module.name = name;
+    module.schemaVersion = schemaVersion;
+    module.registerModule = registerModule;
+    module.context = context;
+    return module;
+}
 
 // Root-level module catalog for AeroGUI composition. Modules register metadata
 // descriptors and facets once; Markup, Presentation, Controls, tools, and the
