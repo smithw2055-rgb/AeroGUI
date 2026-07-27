@@ -16,6 +16,15 @@ namespace Aero::Markup {
 class XamlRegistrationContext;
 }
 
+namespace Aero::Core {
+
+// Product-facing names keep implementation-specific "metadata" terminology
+// out of ordinary control declarations while preserving the underlying ABI.
+using PropertyOptions = PropertyMetadataFlags;
+using TypeOptions = TypeFlags;
+
+} // namespace Aero::Core
+
 namespace Aero {
 
 using ModuleRegisterCallback = Core::MetadataModuleRegisterCallback;
