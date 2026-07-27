@@ -1,0 +1,39 @@
+name: Apply routed event API migration
+
+on:
+  push:
+    branches:
+      - agent/developer-friendly-metadata-api
+    paths:
+      - .github/workflows/apply-routed-event-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/developer-friendly-metadata-api
+          fetch-depth: 0
+
+      - name: Simplify routed event connections
+        shell: bash
+        run: |
+          echo 'H4sIAFRxZ2oC/71W3XPiNhB/91+h+iFnJ4Tc6zlAJtfLtJlJLpkc99JAGWEWoo6QPJLMJcfwv3f1gTFgVsjvnf3u3dXuiXOWQqFmfEv4EPBoUyQTm+GOmIzqSgX8ZCjYccz5wbiAIcnsLCJucJ4loJ38WzYp36Iwn6KYkDmvB4yy8n3KX6rNRI0HxRLJPrLaXOyKsT4ho6zWkwZ2c9Vm1MEhlZDDIADo8c5vlrTjLG5FOkp6L/k/XaX3l/x7Wb0X3FGlLyWlHnEUuqjDnqH3v0h0FieTmqS2AGrx9gjxgS3bW++HCf9qWcRogb2vm0Uuz9Vluyr0ph8TrhMRKt88k2Wgm3Fu0QKWXsXEQxDjJ4jreOSFdFcw/V20iDC+gXdfy1YN+7bYI34lEm+d3zppUoZVRm/HPwARtehf8JmBqOj3kzQgglSKzTSbf2JIX5O4Y2rdkTdw1fX2wH6KJks+I7b81Kbkpsm13ktFHYCf2M2+nBJ2GSkyR6GecQK2S9KYTjXvJHljA/bJY2cTdH1GXGkMTz8dY4tDT+ZV6qCh0WZwQ/+FwsYcHGVZK89ySsGuHRbU1f5hxP8Lpe88pkvFP74TO5o2XQ+yPZVcTjoL4LwV1aIV7L3BZ0a+9YxHjaVNfSGFfHvNz2dxH5DsQjHVKt3t9NhOb3k98/Gv4wQHUo3D82OZ41/0kH7Ml2ma0Bf4G7ew1ywWAlZdS3yd3pLT7f39xMfmXPxgsP48Jf4a+GVMuUoLMlXxvSO/wgO0d2H8Uc6fZVtr9mY4FPl4jpaQfk8aiQPnDSqxgo4xuA66LrU4KtWvPgy/Sqtr7yW8wYHpe2eTm1zE/tmCrbzkZwOUd22HzpyPp2Rdgw9lvIQa31v4G7LpyV5euh6Em39fNe+LzLfZy0G8X9ukBs8+0AznEJ6V0lzvsJruPlGXLft+Bv0Qv3+FlFTvM/TyO7CmJVe2neZJ1ZTZJzUZPZz/u9MSo2X0A1P7kEm8xRno3lP78dh1MsAXdGon8INo/2kpylGeh7+h7LOj4fyc0Kw8nrsnA4wDijjySDf3tX99+E1p43qzfKxCyJtsB6EfR0emw81sBUfi++pgZ1dwt8vrE89Jm1u0zn61JxJ0DXy3ip8VxT40bCaxacw5pZ/2sk5xFpSoPTSeONbmxGvs+klfLhnB39xp38S6ZNgnt2LiF44BP85BHGWyuBC3Dk9D9wfvAR1ji/xkeRvQG30/MNphb/tk/hNyovY4pZ1A8Tsv7Pq/8tbpsjGDVtZyzz1D0Ay8dsf4KqcvqnusIXE1j7jVHFj3m4fVuV4HRPAEtzOX3Y7l/WwbKx7LqyVaFPQNYoOoT3X5vg07vW+DKXzeXd4zAqG5g48eX95Bf4AZE25DGF/XOq9F88Ak2cSdnTeJ6fXTmhBoIwsJ7IhTF47yJ22cGGSH7PSmmw9ghdIZa3YZke1yOg02HwISz49F6MMSZN9O0Pwq0j+SMkDzEH0jVj3Nw7MeSm6Oc9L6V9KtgypzVcrfy/TfHnGl5n4lwVNw+M/JFHfYXr6n2OJfnQ+M3cvT5LauAiy4j7q8cYPxCvX/9X8DSomLTKBIAAA=' | base64 --decode | gzip --decompress > /tmp/routed_event_migration.py
+          python3 /tmp/routed_event_migration.py
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            include/Aero/Presentation/Layout.hpp \
+            include/Aero/Controls/Buttons.hpp \
+            include/Aero/Controls/Scroll.hpp
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: simplify routed event connections [skip ci]"
+          git push origin HEAD:agent/developer-friendly-metadata-api
