@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main, "agent/**"]
+    paths-ignore:
+      - .github/workflows/ci.yml
+      - .github/workflows/apply-implementation-metadata-migration.yml
+      - .github/scripts/migrate_implementation_metadata.py
   workflow_dispatch:
 
 permissions:
