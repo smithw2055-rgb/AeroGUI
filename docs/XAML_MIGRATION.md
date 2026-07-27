@@ -73,7 +73,7 @@ DataTemplate 的第一个参数仍是数据项；ItemsPanelTemplate 收到空引
 
 ## Compiled XAML
 
-重新用当前 `aero-xamlc` 生成 cache format 6 文件。document 现在包含 origin
+重新用当前 `aero-xamlc` 生成 cache format 7 文件。document 现在包含 origin
 URI、依赖和统一 node IR。
 
 需要稳定 origin 的离线编译使用：

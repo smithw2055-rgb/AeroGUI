@@ -15,7 +15,8 @@ Base::Result<void> ModuleCatalog::TryAdd(
             "Aero module catalog is frozen");
     }
     if (registration.name.Empty() || registration.schemaVersion == 0U ||
-        registration.registerModule == nullptr) {
+        registration.registerModule == nullptr ||
+        registration.abiVersion != ModuleAbiVersion) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Aero module registration is incomplete");
@@ -36,6 +37,7 @@ Base::Result<void> ModuleCatalog::TryAdd(
     module.registerModule = registration.registerModule;
     module.context = registration.context;
     module.registerXaml = registration.registerXaml;
+    module.abiVersion = registration.abiVersion;
     return modules_.TryPushBack(std::move(module));
 }
 

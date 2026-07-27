@@ -15,6 +15,31 @@ auto child = Aero::Base::ResourceUri::Resolve(
 和 `Path()` 用于 provider 选择。`IsNetwork()` 只报告 URI 属性；是否允许加载
 由 `XamlLoadPolicy` 决定。
 
+## Module composition 与 SchemaBundle
+
+头文件：
+
+- `Aero/Module.hpp`
+- `Aero/SchemaBundle.hpp`
+- `Aero/Markup/Schema/XamlRegistrationContext.hpp`
+
+模块在同一个 descriptor 中声明 Metadata 与 XAML 两阶段注册：
+
+```cpp
+Aero::ModuleRegistration module;
+module.name = "My.Controls";
+module.registerModule = &RegisterMetadata;
+module.registerXaml = &RegisterXaml;
+
+environment.AddModule(module);
+environment.Initialize();
+```
+
+`RegisterMetadata` 定义类型和成员；`RegisterXaml` 通过
+`XamlRegistrationContext::TryAdd()` 贡献正交的 XAML Facet。
+`SchemaBundle` 只允许 `Prepare()` 后再 `Finalize()`，成功后其 Metadata、Schema
+和 activation facets 都不可变，可供多个 View 与宿主工具共享。
+
 ## Source providers
 
 头文件：`Aero/Markup/Runtime/XamlLoader.hpp`
@@ -85,9 +110,10 @@ load wrapper 已移除，避免调用方无意丢失名称、资源和视觉内�
 - `Aero/Markup/Extensions/XamlExtensionContext.hpp`
 
 `XamlSchemaContext` 解析 metadata descriptor，并把 XAML 特有行为委托给冻结的
-`XamlFacetStore`。可注册的能力包括 member、member provider、type 和
-markup-extension facet。Type facet 还可公开资源作用域与隐式资源键，因此
-`XamlLoader` 不依赖具体 Style/Template 类型。
+`XamlFacetStore`。可注册的能力包括 member、member provider、markup-extension，
+以及独立的 lifecycle、NameScope、ResourceScope、deferred-content、隐式资源键和
+property-target type facet。旧 `XamlTypeFacet` 作为兼容聚合入口，内部会拆解为
+这些正交能力，因此派生类型只覆盖自己声明的切面。
 
 Markup extension 返回 `XamlProvidedValue`：
 
@@ -98,6 +124,30 @@ Markup extension 返回 `XamlProvidedValue`：
 这些副作用属于当前 `XamlLoadSession` 事务，后续加载失败时会逆序撤销。有效值
 目标由 `XamlSchemaContext::ResolvePropertyTarget()` 根据 metadata 解析，不需要
 公开 DependencyObject cast callback。
+
+## RuntimeEnvironment、RuntimeView 与 UiDocument
+
+头文件：
+
+- `Aero/RuntimeEnvironment.hpp`
+- `Aero/UiDocument.hpp`
+
+```cpp
+Aero::RuntimeEnvironment environment;
+environment.AddModule(myModule);
+environment.Initialize();
+
+Aero::RuntimeView view(environment);
+view.Initialize(options);
+
+auto document = view.Host().LoadUiDocument(mainUri);
+view.Host().Mount(std::move(document).Value(), availableSize);
+```
+
+`RuntimeEnvironment` 持有共享、冻结的 `SchemaBundle`；每个 `RuntimeView` 拥有
+独立的资源层、Binding、输入、布局和渲染状态。`UiDocument` 保留 root、
+NameScope、文档资源、规范 URI、依赖列表和挂载计划，适合多窗口、预加载和后续
+热重载。
 
 ## RuntimeHost
 

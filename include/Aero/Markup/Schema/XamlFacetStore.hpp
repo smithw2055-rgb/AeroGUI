@@ -10,6 +10,7 @@
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Extensions/XamlExtensionContext.hpp>
 #include <Aero/Markup/Schema/XamlResolvedMember.hpp>
+#include <Aero/Version.hpp>
 
 namespace Aero::Markup {
 
@@ -112,6 +113,7 @@ struct XamlMemberFacet final {
     void* context = nullptr;
     XamlSetMemberWithServicesCallback setWithServices = nullptr;
     bool acceptsAnyValue = false;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlMemberProviderFacet final {
@@ -121,6 +123,7 @@ struct XamlMemberProviderFacet final {
     XamlMemberWriteMode mode = XamlMemberWriteMode::SetOnce;
     bool acceptsAnyValue = false;
     std::int32_t priority = 0;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlMemberWritePolicy final {
@@ -144,6 +147,7 @@ struct XamlTypeFacet final {
     bool defersVisualContent = false;
     XamlResolveImplicitResourceKeyCallback resolveImplicitResourceKey = nullptr;
     XamlResolvePropertyTargetCallback resolvePropertyTarget = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 // Orthogonal type capabilities. New modules should register these facets
@@ -156,6 +160,7 @@ struct XamlLifecycleFacet final {
     XamlAbortInitializationCallback abortInit = nullptr;
     XamlInitializationWithServicesCallback endInitWithServices = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlNameScopeFacet final {
@@ -163,6 +168,7 @@ struct XamlNameScopeFacet final {
     bool createsNameScope = true;
     XamlRegisterNameCallback registerName = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlResourceScopeFacet final {
@@ -171,29 +177,34 @@ struct XamlResourceScopeFacet final {
     XamlAddResourceCallback addResource = nullptr;
     XamlResolveResourceScopeCallback resolveResourceScope = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlDeferredContentFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     bool defersVisualContent = true;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlImplicitResourceKeyFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlResolveImplicitResourceKeyCallback resolve = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlPropertyTargetFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlResolvePropertyTargetCallback resolve = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlMarkupExtensionFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlProvideValueCallback provideValue = nullptr;
     void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 // Compatibility names for the previous schema-owned registration API.

@@ -4,6 +4,7 @@
 #include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Version.hpp>
 
 #include <cstdint>
 
@@ -11,7 +12,7 @@ namespace Aero::Markup {
 
 // Increment only when the compiled-XAML cache header or IR interpretation
 // changes. Metadata graph changes are tracked separately by metadataSchemaHash.
-inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = 6U;
+inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = 7U;
 
 struct XamlCompiledCacheIdentity final {
     std::uint32_t cacheFormatVersion = XamlCompiledCacheFormatVersion;
@@ -19,6 +20,7 @@ struct XamlCompiledCacheIdentity final {
     std::uint32_t descriptorFormatVersion =
         Core::MetadataDescriptorFormatVersion;
     std::uint32_t facetFormatVersion = Core::MetadataFacetFormatVersion;
+    std::uint32_t xamlSchemaVersion = XamlSchemaAbiVersion;
     Base::HashCode metadataSchemaHash = 0U;
 };
 
@@ -28,6 +30,7 @@ enum class XamlCompiledCacheCompatibility : std::uint8_t {
     TypeIdAlgorithmMismatch,
     DescriptorFormatMismatch,
     FacetFormatMismatch,
+    XamlSchemaMismatch,
     MetadataSchemaMismatch
 };
 

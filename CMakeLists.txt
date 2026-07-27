@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(AeroGUI
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
     LANGUAGES C CXX)
 
 find_package(Threads REQUIRED)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_BUILD_SAMPLES "Build AeroGUI sample applications" ON)
@@ -482,7 +484,8 @@ if(AERO_WITH_EXPAT)
     target_sources(AeroMarkupKernel PRIVATE
         src/markup/parsing/ExpatXmlTokenizer.cpp)
     target_link_libraries(AeroMarkupKernel PRIVATE
-        ${_aero_expat_target})
+        $<BUILD_INTERFACE:${_aero_expat_target}>
+        $<INSTALL_INTERFACE:EXPAT::EXPAT>)
 endif()
 
 add_library(Aero::Markup ALIAS AeroMarkup)
@@ -495,7 +498,7 @@ target_include_directories(AeroMarkup
 target_compile_definitions(
     AeroMarkupKernel
     PUBLIC
-        AERO_MARKUP_XAML_ABI=7
+        AERO_MARKUP_XAML_ABI=8
         $<$<BOOL:${AERO_WITH_EXPAT}>:AERO_WITH_EXPAT=1>
         $<$<NOT:$<BOOL:${AERO_WITH_EXPAT}>>:AERO_WITH_EXPAT=0>)
 target_link_libraries(AeroMarkup
@@ -516,6 +519,7 @@ add_library(AeroModuleCatalog STATIC
     src/Module.cpp
     src/BuiltinModules.cpp
     src/SchemaBundle.cpp)
+add_library(Aero::ModuleCatalog ALIAS AeroModuleCatalog)
 target_include_directories(AeroModuleCatalog
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -666,7 +670,7 @@ target_link_libraries(AeroRuntime
         AeroModuleCatalog
         Aero::Platform)
 target_compile_definitions(
-    AeroRuntime PRIVATE AERO_RUNTIME_XAML_ABI=7)
+    AeroRuntime PRIVATE AERO_RUNTIME_XAML_ABI=8)
 target_compile_features(AeroRuntime PUBLIC cxx_std_17)
 set_target_properties(AeroRuntime PROPERTIES
     CXX_STANDARD 17
@@ -1099,6 +1103,111 @@ if(AERO_ENABLE_D3D11_BACKEND)
 else()
     target_compile_definitions(AeroRhi PUBLIC AERO_HAS_D3D11_BACKEND=0)
 endif()
+
+# Installable SDK and CMake package.
+set_target_properties(
+    AeroBase PROPERTIES EXPORT_NAME Base)
+set_target_properties(
+    AeroCore PROPERTIES EXPORT_NAME Core)
+set_target_properties(
+    AeroPlatform PROPERTIES EXPORT_NAME Platform)
+set_target_properties(
+    AeroText PROPERTIES EXPORT_NAME Text)
+set_target_properties(
+    AeroPresentation PROPERTIES EXPORT_NAME Presentation)
+set_target_properties(
+    AeroControls PROPERTIES EXPORT_NAME Controls)
+set_target_properties(
+    AeroInspector PROPERTIES EXPORT_NAME Inspector)
+set_target_properties(
+    AeroMarkupKernel PROPERTIES EXPORT_NAME MarkupKernel)
+set_target_properties(
+    AeroMarkup PROPERTIES EXPORT_NAME Markup)
+set_target_properties(
+    AeroModuleCatalog PROPERTIES EXPORT_NAME ModuleCatalog)
+set_target_properties(
+    AeroRuntime PROPERTIES EXPORT_NAME Runtime)
+set_target_properties(
+    AeroRhi PROPERTIES EXPORT_NAME Rhi)
+set_target_properties(
+    AeroRhiOpenGL33 PROPERTIES EXPORT_NAME RhiOpenGL33)
+set_target_properties(
+    AeroRender PROPERTIES EXPORT_NAME Render)
+set_target_properties(
+    AeroRenderOpenGL33 PROPERTIES EXPORT_NAME RenderOpenGL33)
+set_target_properties(
+    AeroTextRender PROPERTIES EXPORT_NAME TextRender)
+
+set(_aero_sdk_targets
+    AeroBase
+    AeroCore
+    AeroPlatform
+    AeroText
+    AeroPresentation
+    AeroControls
+    AeroInspector
+    AeroMarkupKernel
+    AeroMarkup
+    AeroModuleCatalog
+    AeroRuntime
+    AeroRhi
+    AeroRhiOpenGL33
+    AeroRender
+    AeroRenderOpenGL33
+    AeroTextRender)
+
+foreach(_aero_optional_target IN ITEMS
+        AeroRhiWGL
+        AeroRhiGLX
+        AeroRhiD3D11
+        AeroRenderD3D11
+        AeroTextRenderD3D11)
+    if(TARGET ${_aero_optional_target})
+        list(APPEND _aero_sdk_targets ${_aero_optional_target})
+        string(REGEX REPLACE "^Aero" "" _aero_export_name
+            "${_aero_optional_target}")
+        set_target_properties(${_aero_optional_target}
+            PROPERTIES EXPORT_NAME "${_aero_export_name}")
+    endif()
+endforeach()
+
+install(TARGETS ${_aero_sdk_targets}
+    EXPORT AeroTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(TARGET aero-xamlc)
+    set_target_properties(aero-xamlc PROPERTIES EXPORT_NAME xamlc)
+    install(TARGETS aero-xamlc
+        EXPORT AeroTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+install(DIRECTORY include/Aero
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY themes/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/themes
+    FILES_MATCHING PATTERN "*.xaml")
+
+set(AERO_PACKAGE_WITH_EXPAT ${AERO_WITH_EXPAT})
+set(AERO_PACKAGE_WITH_GLX ${AERO_ENABLE_GLX_SURFACE})
+configure_package_config_file(
+    cmake/AeroConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+install(EXPORT AeroTargets
+    FILE AeroTargets.cmake
+    NAMESPACE Aero::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfigVersion.cmake"
+    cmake/AeroAddXaml.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
 
 if(AERO_BUILD_TESTS)
     enable_testing()

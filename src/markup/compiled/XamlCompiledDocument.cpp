@@ -230,6 +230,8 @@ XamlCompiledDocument::Serialize() const noexcept {
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity_.facetFormatVersion);
     if (!result) return result.GetStatus();
+    result = AppendU32(output, identity_.xamlSchemaVersion);
+    if (!result) return result.GetStatus();
     result = AppendU64(output, identity_.metadataSchemaHash);
     if (!result) return result.GetStatus();
     result = AppendString(
@@ -310,6 +312,9 @@ XamlCompiledDocument::Deserialize(
     value = decoder.ReadU32();
     if (!value) return value.GetStatus();
     document.identity_.facetFormatVersion = value.Value();
+    value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    document.identity_.xamlSchemaVersion = value.Value();
     Base::Result<std::uint64_t> hash = decoder.ReadU64();
     if (!hash) return hash.GetStatus();
     document.identity_.metadataSchemaHash = hash.Value();

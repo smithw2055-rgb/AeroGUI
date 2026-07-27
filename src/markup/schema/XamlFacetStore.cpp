@@ -66,7 +66,8 @@ Base::Result<void> XamlFacetStore::TryAdd(
     const XamlMemberFacet& facet,
     const Core::MetadataDescriptorStore& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
-    if (facet.member == Core::InvalidMemberId ||
+    if (facet.abiVersion != XamlFacetAbiVersion ||
+        facet.member == Core::InvalidMemberId ||
         (facet.set == nullptr && facet.setWithServices == nullptr) ||
         descriptors.FindProperty(facet.member) == nullptr) {
         return Base::Status::Failure(
@@ -84,7 +85,8 @@ Base::Result<void> XamlFacetStore::TryAdd(
 Base::Result<void> XamlFacetStore::TryAdd(
     const XamlMemberProviderFacet& facet) noexcept {
     if (frozen_) return FrozenStatus();
-    if (facet.handles == nullptr || facet.set == nullptr) {
+    if (facet.abiVersion != XamlFacetAbiVersion ||
+        facet.handles == nullptr || facet.set == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML member-provider facet is invalid");
@@ -105,6 +107,11 @@ Base::Result<void> XamlFacetStore::TryAdd(
     const XamlTypeFacet& facet,
     const Core::MetadataDescriptorStore& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
+    if (facet.abiVersion != XamlFacetAbiVersion) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML type facet ABI version is incompatible");
+    }
     Base::Result<void> valid = ValidateObjectType(facet.type, descriptors);
     if (!valid) return valid.GetStatus();
     if (FindTypeExact(facet.type) != nullptr) {
@@ -170,6 +177,11 @@ Base::Result<void> XamlFacetStore::TryAdd( \
     const TypeName& facet, \
     const Core::MetadataDescriptorStore& descriptors) noexcept { \
     if (frozen_) return FrozenStatus(); \
+    if (facet.abiVersion != XamlFacetAbiVersion) { \
+        return Base::Status::Failure( \
+            Base::ErrorCode::Unsupported, \
+            "XAML capability facet ABI version is incompatible"); \
+    } \
     Base::Result<void> valid = ValidateObjectType(facet.type, descriptors); \
     if (!valid) return valid.GetStatus(); \
     if (!(validExpression)) { \
@@ -224,7 +236,8 @@ Base::Result<void> XamlFacetStore::TryAdd(
     if (frozen_) return FrozenStatus();
     const Core::MetadataTypeDescriptor* type =
         descriptors.FindType(facet.type);
-    if (type == nullptr || facet.provideValue == nullptr ||
+    if (facet.abiVersion != XamlFacetAbiVersion ||
+        type == nullptr || facet.provideValue == nullptr ||
         !HasTypeFlag(type->Flags(), Core::TypeFlags::MarkupExtension)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,

@@ -39,6 +39,26 @@ markup-extension 行为集中在一次冻结的 `XamlFacetStore` 中。每次加
 依赖清单和资源 `Source` 解析由 session 的 pre-commit finalizer 完成，因此不会
 出现“对象已经提交、资源依赖随后失败”的半成功状态。
 
+## SchemaBundle 与模块组合
+
+运行时与宿主工具不再分别拼装 Metadata 和 XAML 行为。`ModuleCatalog` 对每个
+模块执行两个明确阶段：
+
+1. `registerModule` 向 `MetadataDomain` 注册类型、成员和通用 Metadata Facet。
+2. Metadata seal 后，`registerXaml` 通过 `XamlRegistrationContext` 注册
+   XAML member、markup extension、生命周期、NameScope、ResourceScope、
+   deferred content、隐式资源键和 property-target 能力。
+
+`SchemaBundle::Prepare()` 完成 Metadata 注册与 seal，`Finalize()` 创建并冻结
+`MetadataRuntime`、`XamlSchemaContext` 和 activation facets。Runtime、
+`aero-xamlc` 与后续设计工具都消费同一种冻结的 `SchemaBundle`，避免应用自定义
+控件在运行时可用、离线编译器却无法识别的双注册问题。
+
+类型能力按切面独立继承。派生类型只覆盖它实际注册的能力，例如只注册
+`XamlPropertyTargetFacet` 不会遮蔽基类的 `XamlResourceScopeFacet`。兼容的
+`XamlTypeFacet` 聚合入口仍然存在，但注册时会被分解成独立能力记录。Facet store
+在 Freeze 时建立 member/type 索引，并按 priority 确定 member-provider 顺序。
+
 ## URI 与 provider
 
 `Base::ResourceUri` 负责解析、相对解析和规范化。首版支持相对 URI、`file`、
@@ -122,6 +142,34 @@ schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对�
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
 表达式由 writer 安装并纳入事务，已处理结果携带可选 rollback token。
 
+## RuntimeEnvironment、RuntimeView 与 UiDocument
+
+产品运行时分为三个所有权层次：
+
+```text
+RuntimeEnvironment
+  -> ModuleCatalog + frozen SchemaBundle
+  -> creates RuntimeView
+
+RuntimeView
+  -> independent resources, bindings, input, layout and rendering state
+  -> wraps one RuntimeHost view instance
+
+UiDocument
+  -> root + NameScope + document resources
+  -> canonical URI + dependency graph + declaration/mount plan
+```
+
+多个 `RuntimeView` 可以共享同一个不可变 `SchemaBundle`，但不共享 View 级别的
+Binding、DynamicResource、输入、布局或渲染状态。Binding 和 DynamicResource
+所需的 manager、effective-value engine 与 fallback resources 由每次加载的
+`XamlExtensionContext` 提供，不再被固化进冻结 Schema。
+
+`UiDocument` 是 move-only RAII 对象，可在挂载前独立保存和检查。现有
+`RuntimeHost` 保留为单 View 便捷封装，并提供 `LoadUiDocument`、
+`ParseUiDocument`、`LoadCompiledUiDocument` 与 `Mount(UiDocument&&, ...)`。
+旧的 root-only API 继续兼容，但产品代码优先使用 Document API。
+
 ## RuntimeHost
 
 `RuntimeHost` 拥有 provider registry、application/theme/system 资源层、Core
@@ -149,7 +197,7 @@ Presentation、Controls 或 Markup integration 目录。
 
 ## Compiled XAML
 
-compiled cache format 当前为 6。document 只保存加载链实际消费的 origin URI、
+compiled cache format 当前为 7。document 只保存加载链实际消费的 origin URI、
 依赖清单和 node IR；模板不再维护一份未使用的旁路 range 表。
 runtime/compiled 使用相同 object writer。
 

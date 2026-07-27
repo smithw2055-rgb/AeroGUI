@@ -27,6 +27,9 @@ XamlCompiledCacheCompatibility CompareXamlCompiledCacheIdentity(
     if (cached.facetFormatVersion != current.facetFormatVersion) {
         return XamlCompiledCacheCompatibility::FacetFormatMismatch;
     }
+    if (cached.xamlSchemaVersion != current.xamlSchemaVersion) {
+        return XamlCompiledCacheCompatibility::XamlSchemaMismatch;
+    }
     if (cached.metadataSchemaHash != current.metadataSchemaHash) {
         return XamlCompiledCacheCompatibility::MetadataSchemaMismatch;
     }
@@ -59,6 +62,10 @@ Base::Result<void> ValidateXamlCompiledCacheIdentity(
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Compiled XAML metadata facet format is incompatible");
+    case XamlCompiledCacheCompatibility::XamlSchemaMismatch:
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Compiled XAML schema ABI version is incompatible");
     case XamlCompiledCacheCompatibility::MetadataSchemaMismatch:
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,

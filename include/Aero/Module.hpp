@@ -6,6 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Version.hpp>
 
 #include <cstdint>
 
@@ -26,6 +27,7 @@ struct ModuleRegistration final {
     ModuleRegisterCallback registerModule = nullptr;
     void* context = nullptr;
     ModuleRegisterXamlCallback registerXaml = nullptr;
+    std::uint32_t abiVersion = ModuleAbiVersion;
 };
 
 // Root-level module catalog for AeroGUI composition. Modules register metadata
@@ -54,6 +56,7 @@ private:
         ModuleRegisterCallback registerModule = nullptr;
         void* context = nullptr;
         ModuleRegisterXamlCallback registerXaml = nullptr;
+        std::uint32_t abiVersion = ModuleAbiVersion;
     };
 
     Base::Vector<Module> modules_;
