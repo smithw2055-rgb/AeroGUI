@@ -8,11 +8,11 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include <cstdio>
 #include <memory>
@@ -34,7 +34,7 @@ struct Fixture final {
     MetadataDomain metadata;
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
-    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<ActivationProviderRegistry> activation;
     TypeId objectType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
     TypeId textBlockType = InvalidTypeId;
@@ -47,7 +47,8 @@ struct Fixture final {
         textBlockType = BuiltinTypes::TextBlock;
         runtime = std::make_unique<MetadataRuntime>(metadata);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
-        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        activation = std::make_unique<ActivationProviderRegistry>(
+            metadata.Descriptors());
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());
@@ -72,10 +73,11 @@ bool TestTextAttributeActivatesCoreTextBlock() {
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    Result<Ref<Object>> loaded = LoadXamlWithActivation(
+    Result<XamlLoadResult> loaded = LoadXamlWithActivation(
         writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
-    TextBlock* text = static_cast<TextBlock*>(loaded.Value().Get());
+    TextBlock* text =
+        static_cast<TextBlock*>(loaded.Value().root.Get());
     CHECK(text != nullptr && text->Text() == StringView("Hello, 世界"));
     return true;
 }

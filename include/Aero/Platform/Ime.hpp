@@ -43,6 +43,12 @@ public:
     CancelNativeComposition() noexcept = 0;
 };
 
+std::intptr_t DispatchWin32ImeWindowMessage(
+    void* window,
+    std::uint32_t message,
+    std::uintptr_t wParam,
+    std::intptr_t lParam) noexcept;
+
 // Win32 Imm32 adapter. Public signatures keep HWND, WPARAM, LPARAM and WNDPROC
 // opaque. Attach() subclasses the supplied HWND so WM_IME_* messages reach the
 // active TextBox composition client before the normal window procedure.

@@ -6,7 +6,7 @@
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 #include <Aero/Core/Metadata/CoreMetadata.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Markup/XamlCompiledDocument.hpp>
+#include <Aero/Markup/Compiled/XamlCompiledDocument.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Rhi/OpenGL33Backend.hpp>
 #include <Aero/Text/Text.hpp>

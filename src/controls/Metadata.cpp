@@ -6,15 +6,122 @@
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/Templates.hpp>
 #include <Aero/Controls/Virtualization.hpp>
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 
 #include <cctype>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace Aero::Controls {
 namespace {
+
+Base::Result<Core::Value> GetTemplateVisualTree(
+    const Base::Object& object,
+    void*) noexcept {
+    const Base::Ref<Base::Object>& value =
+        static_cast<const ControlTemplate&>(object)
+            .AuthoredVisualTree();
+    return Core::Value::FromObject(
+        Core::TypeOf<Base::Object>(),
+        value);
+}
+
+Base::Result<void> SetTemplateVisualTree(
+    Base::Object& object,
+    const Core::Value& value,
+    void*) noexcept {
+    if (value.Kind() != Core::ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "ControlTemplate VisualTree expects an object");
+    }
+    return static_cast<ControlTemplate&>(object)
+        .SetAuthoredVisualTree(value.AsObject());
+}
+
+template<class T>
+Base::Result<void> SetDeferredTemplateVisualTree(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    return static_cast<T&>(object)
+        .SetAuthoredVisualTree(value);
+}
+
+template<class T>
+Base::Result<void> ClearDeferredTemplateVisualTree(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<T&>(object)
+        .ClearAuthoredVisualTree();
+    return {};
+}
+
+Base::Result<void> AddTemplateVisualStateGroup(
+    Base::Object& object,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    return static_cast<ControlTemplate&>(object)
+        .TryAddAuthoredVisualStateGroup(value);
+}
+
+Base::Result<void> ClearTemplateVisualStateGroups(
+    Base::Object& object,
+    void*) noexcept {
+    static_cast<ControlTemplate&>(object)
+        .ClearAuthoredVisualStateGroups();
+    return {};
+}
+
+template<class T>
+Base::Result<void> SetTemplateResources(
+    Base::Object& object,
+    const Core::Value& value,
+    void*) noexcept {
+    if (value.Kind() != Core::ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject() ||
+        value.AsObject()->RuntimeType() !=
+            Presentation::ResourceDictionary::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template Resources expects a ResourceDictionary");
+    }
+    auto& target = static_cast<T&>(object).Resources();
+    if (target.Size() != 0U ||
+        target.MergedDictionaryCount() != 0U ||
+        !target.Source().Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Template Resources is already assigned");
+    }
+    auto& source =
+        static_cast<Presentation::ResourceDictionary&>(
+            *value.AsObject());
+    target = std::move(source);
+    return {};
+}
+
+Core::PropertyRegistration OrdinaryProperty(
+    Base::StringView name,
+    Core::TypeId type,
+    Core::PropertyGetCallback get,
+    Core::PropertySetCallback set,
+    Core::PropertyFlags flags =
+        Core::PropertyFlags::None) noexcept {
+    Core::PropertyRegistration registration;
+    registration.name = name;
+    registration.valueType = type;
+    registration.flags = flags;
+    registration.access =
+        Core::PropertyAccessKind::Ordinary;
+    registration.get = get;
+    registration.set = set;
+    return registration;
+}
 
 bool EqualsAsciiInsensitive(
     Base::StringView value,
@@ -398,6 +505,82 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = scrollChangedEventArgs.Finish();
     if (!status) return status.GetStatus();
 
+    MetaTypeBuilder<FrameworkTemplate> frameworkTemplate =
+        MetaTypeBuilder<FrameworkTemplate>::Object(
+            context, TypeFlags::Abstract);
+    frameworkTemplate.Property(OrdinaryProperty(
+        "Resources",
+        Presentation::ResourceDictionary::StaticTypeId(),
+        nullptr,
+        &SetTemplateResources<FrameworkTemplate>,
+        PropertyFlags::Structural));
+    status = frameworkTemplate.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ControlTemplate> controlTemplate =
+        MetaTypeBuilder<ControlTemplate>::Object(context);
+    controlTemplate
+        .Property({
+            "TargetType",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property(OrdinaryProperty(
+            "VisualTree",
+            TypeOf<Base::Object>(),
+            &GetTemplateVisualTree,
+            &SetTemplateVisualTree,
+            PropertyFlags::Structural))
+        .Content<Base::Object>(
+            "VisualStateGroups",
+            ContentKind::Collection,
+            &AddTemplateVisualStateGroup,
+            &ClearTemplateVisualStateGroups)
+        .DefaultFactory();
+    status = controlTemplate.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<DataTemplate> dataTemplate =
+        MetaTypeBuilder<DataTemplate>::Object(context);
+    dataTemplate
+        .Property({
+            "DataType",
+            TypeOf<Base::String>(),
+            PropertyFlags::None})
+        .Property(OrdinaryProperty(
+            "Resources",
+            Presentation::ResourceDictionary::StaticTypeId(),
+            nullptr,
+            &SetTemplateResources<DataTemplate>,
+            PropertyFlags::Structural))
+        .Content<Base::Object>(
+            "VisualTree",
+            ContentKind::Single,
+            &SetDeferredTemplateVisualTree<DataTemplate>,
+            &ClearDeferredTemplateVisualTree<DataTemplate>,
+            ContentFlags::Visual)
+        .DefaultFactory();
+    status = dataTemplate.Finish();
+    if (!status) return status.GetStatus();
+
+    MetaTypeBuilder<ItemsPanelTemplate> itemsPanelTemplate =
+        MetaTypeBuilder<ItemsPanelTemplate>::Object(context);
+    itemsPanelTemplate
+        .Property(OrdinaryProperty(
+            "Resources",
+            Presentation::ResourceDictionary::StaticTypeId(),
+            nullptr,
+            &SetTemplateResources<ItemsPanelTemplate>,
+            PropertyFlags::Structural))
+        .Content<Base::Object>(
+            "VisualTree",
+            ContentKind::Single,
+            &SetDeferredTemplateVisualTree<ItemsPanelTemplate>,
+            &ClearDeferredTemplateVisualTree<ItemsPanelTemplate>,
+            ContentFlags::Visual)
+        .DefaultFactory();
+    status = itemsPanelTemplate.Finish();
+    if (!status) return status.GetStatus();
+
     MetaTypeBuilder<Panel> panel =
         MetaTypeBuilder<Panel>::Object(context, TypeFlags::Abstract);
     panel.Content<Presentation::UIElement>(
@@ -418,6 +601,13 @@ Base::Result<void> Detail::PopulateControlsMetadata(
 
     MetaTypeBuilder<Control> control =
         MetaTypeBuilder<Control>::Object(context, TypeFlags::Abstract);
+    control.DependencyProperty(
+        Control::TemplateProperty,
+        "Template",
+        ControlTemplate::StaticTypeId(),
+        Value::NullObject(
+            ControlTemplate::StaticTypeId()),
+        PropertyMetadataFlags::AffectsMeasure);
     status = control.Finish();
     if (!status) return status.GetStatus();
 

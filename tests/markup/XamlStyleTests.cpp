@@ -9,13 +9,13 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Presentation/Style.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XamlStyle.hpp>
-#include <Aero/Markup/XamlTypeExtension.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Resources/XamlPresentationObjectModel.hpp>
+#include <Aero/Markup/Extensions/XamlTypeExtension.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include "TestMetadataConverters.hpp"
 
@@ -78,7 +78,11 @@ Result<Ref<Object>> MakeRoot() noexcept;
 Result<Ref<Object>> MakeElement() noexcept;
 Result<Ref<Object>> MakeBrush() noexcept;
 Result<void> AddChild(Object& object, const XamlValue& value, void*) noexcept;
-DependencyObject* AsDependencyObject(Object& object, void*) noexcept;
+DependencyObject* ResolveElementPropertyTarget(
+    Object& object,
+    void*) noexcept {
+    return static_cast<ElementNode*>(&object);
+}
 
 struct Fixture final {
     Dispatcher dispatcher;
@@ -87,8 +91,8 @@ struct Fixture final {
     std::unique_ptr<EffectiveValueEngine> effectiveValues;
     std::unique_ptr<StyleManager> styles;
     std::unique_ptr<XamlSchemaContext> schema;
-    std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlStyleExtension> styleExtension;
+    std::unique_ptr<ActivationProviderRegistry> activation;
+    std::unique_ptr<XamlPresentationObjectModel> presentationXaml;
     std::unique_ptr<XamlTypeExtension> typeExtension;
 
     TypeId objectType = InvalidTypeId;
@@ -241,23 +245,34 @@ struct Fixture final {
             *effectiveValues, metadata.DependencyProperties());
         CHECK(effectiveValues->Initialize());
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
-        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        styleExtension = std::make_unique<XamlStyleExtension>(
-            XamlStyleExtensionOptions{
-                styles.get(), &metadata.DependencyProperties(), InvalidTypeId,
-                &AsDependencyObject, nullptr});
+        activation = std::make_unique<ActivationProviderRegistry>(
+            metadata.Descriptors());
+        presentationXaml =
+            std::make_unique<XamlPresentationObjectModel>(
+                XamlPresentationObjectModelOptions{
+                    runtime.get(),
+                    &metadata.DependencyProperties()});
         typeExtension = std::make_unique<XamlTypeExtension>(InvalidTypeId);
 
         CHECK(schema->TryRegisterTypeAdapter({
             rootType, nullptr, nullptr, nullptr, nullptr, false, true}));
+        XamlTypeFacet elementFacet;
+        elementFacet.type = elementType;
+        elementFacet.resolvePropertyTarget = &ResolveElementPropertyTarget;
+        CHECK(schema->TryAddFacet(elementFacet));
         CHECK(schema->TryRegisterMemberAdapter({
             children, XamlMemberWriteMode::Collection,
             &AddChild, nullptr, nullptr}));
         typeExtension->SetTypeReferenceType(typeReferenceType);
-        styleExtension->SetTypeReferenceType(typeReferenceType);
+        presentationXaml->SetTypeReferenceType(typeReferenceType);
         CHECK(typeExtension->Register(*schema, typeExtensionType));
-        CHECK(styleExtension->Register(
-            *schema, *activation, styleType, setterType, style));
+        XamlPresentationObjectModelTypes presentationTypes;
+        presentationTypes.style = styleType;
+        presentationTypes.setter = setterType;
+        presentationTypes.styleProperty = style;
+        presentationTypes.includeTemplates = false;
+        CHECK(presentationXaml->Register(
+            *schema, *activation, presentationTypes));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());
@@ -300,10 +315,6 @@ Result<void> AddChild(Object& object, const XamlValue& value, void*) noexcept {
     return static_cast<RootNode&>(object).AddChild(value.AsObject());
 }
 
-DependencyObject* AsDependencyObject(Object& object, void*) noexcept {
-    return static_cast<ElementNode*>(&object);
-}
-
 Result<Ref<Object>> Load(Fixture& fixture, const char* xaml) noexcept {
     Utf8XmlTokenizer tokenizer;
     Result<void> reset = tokenizer.Reset(StringView(
@@ -316,7 +327,10 @@ Result<Ref<Object>> Load(Fixture& fixture, const char* xaml) noexcept {
     XamlActivationContext context = XamlActivationContext::Create();
     context.dispatcher = &fixture.dispatcher;
     context.dependencyProperties = &fixture.metadata.DependencyProperties();
-    return LoadXamlWithActivation(writer, reader, *fixture.activation, context);
+    Result<XamlLoadResult> loaded = LoadXamlWithActivation(
+        writer, reader, *fixture.activation, context);
+    if (!loaded) return loaded.GetStatus();
+    return loaded.Value().root;
 }
 
 bool TestXamlStyleResourceBasedOnAndDetach() {
@@ -344,13 +358,18 @@ bool TestXamlStyleResourceBasedOnAndDetach() {
     Result<PropertyValue> assignedStyle = element.GetValue(fixture.style);
     CHECK(assignedStyle && !assignedStyle.Value().IsNullObject());
     CHECK(element.GetValue(fixture.width).Value().AsDouble() == 1.0);
+    CHECK(fixture.styles->Apply(
+        element,
+        *static_cast<Style*>(
+            assignedStyle.Value().AsObject().Get())));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(element.GetValue(fixture.width).Value().AsDouble() == 42.5);
     Result<PropertyValue> fill = element.GetValue(fixture.fill);
     CHECK(fill && !fill.Value().IsNullObject());
     CHECK(fill.Value().Type() == fixture.brushType);
     CHECK(fill.Value().AsObject().Get() != fixture.defaultBrush.Get());
-    CHECK(fixture.styleExtension->DetachObject(element).Value());
+    CHECK(fixture.styles->DetachObject(element).Value());
+    CHECK(element.ClearValue(fixture.style));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     Result<PropertyValue> clearedStyle = element.GetValue(fixture.style);
     CHECK(clearedStyle && clearedStyle.Value().IsNullObject());
@@ -399,6 +418,12 @@ bool TestXamlStyleAcceptsNullSetterValue() {
     RootNode& root = static_cast<RootNode&>(*loaded.Value());
     CHECK(root.Children().Size() == 1U);
     ElementNode& element = static_cast<ElementNode&>(*root.Children()[0]);
+    Result<PropertyValue> assignedStyle = element.GetValue(fixture.style);
+    CHECK(assignedStyle && !assignedStyle.Value().IsNullObject());
+    CHECK(fixture.styles->Apply(
+        element,
+        *static_cast<Style*>(
+            assignedStyle.Value().AsObject().Get())));
     CHECK(fixture.dispatcher.RunFramePhase(DispatcherFramePhase::PropertyChanges));
     CHECK(element.GetValue(fixture.fill).Value().IsNullObject());
     return true;

@@ -84,9 +84,10 @@ Base::Result<void> TemplateBuildContext::AddPart(
     Base::Ref<Base::Object> owner,
     Visual& part) noexcept {
     if (tree_ == nullptr || parent_ == nullptr ||
-        rootVisual_ == nullptr || name.Empty() ||
+        rootVisual_ == nullptr ||
         !owner || owner.Get() != &part ||
-        FindObject(name) != nullptr) {
+        (!name.Empty() &&
+         FindObject(name) != nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Template part registration is invalid");
@@ -266,6 +267,103 @@ void TemplateBuildContext::Rollback() noexcept {
     rootElement_ = nullptr;
 }
 
+Base::Result<void> TemplateProgram::Configure(
+    TemplateFactoryCallback factory,
+    void* factoryContext,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    if (factory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "TemplateProgram requires an execution factory");
+    }
+    factory_ = factory;
+    factoryContext_ = factoryContext;
+    factoryOwner_ = std::move(factoryOwner);
+    return {};
+}
+
+Base::Result<void> TemplateProgram::SetBaseUri(
+    const Base::ResourceUri& value) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    baseUri_ = value;
+    return {};
+}
+
+Base::Result<void> TemplateProgram::TryAddNamespace(
+    Base::StringView prefix,
+    Base::StringView uri) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    if (uri.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template namespace URI is empty");
+    }
+    for (const TemplateNamespace& existing :
+         namespaces_) {
+        if (existing.prefix.View() == prefix) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Template namespace prefix is duplicated");
+        }
+    }
+    TemplateNamespace entry;
+    Base::Result<void> assigned =
+        entry.prefix.TryAssign(prefix);
+    if (!assigned) return assigned.GetStatus();
+    assigned = entry.uri.TryAssign(uri);
+    if (!assigned) return assigned.GetStatus();
+    return namespaces_.TryPushBack(std::move(entry));
+}
+
+Base::Result<void> TemplateProgram::Seal() noexcept {
+    if (sealed_) return {};
+    if (factory_ == nullptr) {
+        return InvalidTemplate(
+            "TemplateProgram requires an execution factory");
+    }
+    sealed_ = true;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::TrySetTargetType(
+    TypeId value) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    if (value == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkTemplate TargetType is invalid");
+    }
+    targetType_ = value;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::ConfigureProgram(
+    TemplateFactoryCallback factory,
+    void* factoryContext,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    return program_.Configure(
+        factory,
+        factoryContext,
+        std::move(factoryOwner));
+}
+
 Base::Result<void> FrameworkTemplate::TryAddTemplateBinding(
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
@@ -287,6 +385,27 @@ Base::Result<void> FrameworkTemplate::TryAddTemplateBinding(
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
     return bindings_.TryPushBack(std::move(binding));
+}
+
+Base::Result<void> ControlTemplate::SetAuthoredVisualTree(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (IsSealed() || !value) {
+        return InvalidTemplate(
+            "ControlTemplate authored visual tree is invalid");
+    }
+    authoredVisualTree_ = value;
+    return {};
+}
+
+Base::Result<void>
+ControlTemplate::TryAddAuthoredVisualStateGroup(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (IsSealed() || !value) {
+        return InvalidTemplate(
+            "ControlTemplate authored visual state group is invalid");
+    }
+    return authoredVisualStateGroups_.TryPushBack(
+        value);
 }
 
 Base::Result<void> FrameworkTemplate::TryAddPropertyTrigger(
@@ -372,7 +491,7 @@ Base::Result<void> FrameworkTemplate::Seal(
     if (sealed_) return {};
     if (!properties.IsFrozen() ||
         targetType_ == InvalidTypeId ||
-        factory_ == nullptr ||
+        program_.Factory() == nullptr ||
         properties.Types().FindType(targetType_) == nullptr) {
         return InvalidTemplate(
             "FrameworkTemplate requires a factory and registered target type");
@@ -452,6 +571,16 @@ Base::Result<void> FrameworkTemplate::Seal(
             }
         }
     }
+    Base::Result<void> programSealed =
+        program_.Seal();
+    if (!programSealed) {
+        return programSealed.GetStatus();
+    }
+    Base::Result<void> resourcesSealed =
+        resources_.Seal();
+    if (!resourcesSealed) {
+        return resourcesSealed.GetStatus();
+    }
     sealed_ = true;
     return {};
 }
@@ -510,6 +639,27 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     instance.parts = std::move(context.parts_);
     instance.projections =
         std::move(context.projections_);
+    for (const TemplatePart& part :
+         instance.parts) {
+        if (!part.name.Empty() && part.owner) {
+            Base::Result<void> named =
+                instance.names.TryRegister(
+                    part.name.View(),
+                    *part.owner);
+            if (!named) {
+                context.parts_ =
+                    std::move(instance.parts);
+                context.projections_ =
+                    std::move(instance.projections);
+                context.rootVisual_ =
+                    instance.rootVisual;
+                context.rootElement_ =
+                    instance.rootElement;
+                context.Rollback();
+                return named.GetStatus();
+            }
+        }
+    }
     context.rootVisual_ = nullptr;
     context.rootElement_ = nullptr;
     Base::Result<void> tracked =
@@ -568,9 +718,18 @@ DependencyObject* TemplateManager::FindName(
     TemplateHandle handle,
     Base::StringView name) const noexcept {
     const std::uint32_t index = FindInstance(handle);
-    return index != UINT32_MAX
-        ? FindTarget(instances_[index], name)
-        : nullptr;
+    if (index == UINT32_MAX) return nullptr;
+    Base::Object* found =
+        instances_[index].names.Find(name);
+    if (found != nullptr) {
+        for (const TemplatePart& part :
+             instances_[index].parts) {
+            if (part.owner.Get() == found) {
+                return part.object;
+            }
+        }
+    }
+    return FindTarget(instances_[index], name);
 }
 
 TemplateHandle TemplateManager::AppliedHandle(

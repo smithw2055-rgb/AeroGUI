@@ -222,6 +222,16 @@ set_target_properties(AeroStyleTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQ
 aero_apply_compiler_options(AeroStyleTests)
 add_test(NAME AeroStyleTests COMMAND AeroStyleTests)
 
+add_executable(AeroResourceTests presentation/ResourceTests.cpp)
+target_link_libraries(AeroResourceTests PRIVATE Aero::Presentation)
+target_compile_features(AeroResourceTests PRIVATE cxx_std_17)
+set_target_properties(AeroResourceTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroResourceTests)
+add_test(NAME AeroResourceTests COMMAND AeroResourceTests)
+
 add_executable(AeroObjectTreeTests presentation/ObjectTreeTests.cpp)
 target_link_libraries(AeroObjectTreeTests PRIVATE Aero::Presentation)
 target_compile_features(AeroObjectTreeTests PRIVATE cxx_std_17)
@@ -360,6 +370,16 @@ set_target_properties(AeroMarkupTests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_RE
 aero_apply_compiler_options(AeroMarkupTests)
 add_test(NAME AeroMarkupTests COMMAND AeroMarkupTests)
 
+add_executable(AeroXamlLoaderTests markup/XamlLoaderTests.cpp)
+target_link_libraries(AeroXamlLoaderTests PRIVATE Aero::Markup)
+target_compile_features(AeroXamlLoaderTests PRIVATE cxx_std_17)
+set_target_properties(AeroXamlLoaderTests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO)
+aero_apply_compiler_options(AeroXamlLoaderTests)
+add_test(NAME AeroXamlLoaderTests COMMAND AeroXamlLoaderTests)
+
 add_executable(AeroXamlObjectWriterTests markup/XamlObjectWriterTests.cpp)
 target_link_libraries(AeroXamlObjectWriterTests PRIVATE Aero::Markup)
 target_compile_features(AeroXamlObjectWriterTests PRIVATE cxx_std_17)
@@ -432,8 +452,8 @@ set_target_properties(AeroXamlButtonTests PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 aero_apply_compiler_options(AeroXamlButtonTests)
 add_test(NAME AeroXamlButtonTests COMMAND AeroXamlButtonTests)
 
-add_executable(AeroXamlThemeTests markup/XamlThemeTests.cpp)
-target_link_libraries(AeroXamlThemeTests PRIVATE Aero::Markup)
+add_executable(AeroXamlThemeTests runtime/XamlThemeRuntimeTests.cpp)
+target_link_libraries(AeroXamlThemeTests PRIVATE Aero::Runtime)
 target_compile_features(AeroXamlThemeTests PRIVATE cxx_std_17)
 target_compile_definitions(AeroXamlThemeTests PRIVATE
     AERO_THEME_SOURCE_DIR="${CMAKE_SOURCE_DIR}/themes")

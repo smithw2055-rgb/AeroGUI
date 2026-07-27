@@ -11,11 +11,11 @@
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Metadata.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include "TestMetadataConverters.hpp"
 
@@ -131,7 +131,7 @@ struct Fixture final {
     MetadataDomain metadata;
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
-    std::unique_ptr<XamlActivationProviderRegistry> activations;
+    std::unique_ptr<ActivationProviderRegistry> activations;
 
     TypeId objectType = InvalidTypeId;
     TypeId booleanType = InvalidTypeId;
@@ -343,7 +343,8 @@ struct Fixture final {
         CHECK(metadata.Seal());
         runtime = std::make_unique<MetadataRuntime>(metadata);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
-        activations = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        activations = std::make_unique<ActivationProviderRegistry>(
+            metadata.Descriptors());
         CHECK(activations->TryRegister({
             elementType, &Fixture::Activate, this}));
         CHECK(runtime->Freeze());
@@ -382,11 +383,13 @@ Result<Ref<Object>> LoadDocument(
     }
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    return LoadXamlWithActivation(
+    Result<XamlLoadResult> loaded = LoadXamlWithActivation(
         writer,
         reader,
         *fixture.activations,
         activation);
+    if (!loaded) return loaded.GetStatus();
+    return loaded.Value().root;
 }
 
 bool TestActivationAndAutomaticDependencyProperties() {
@@ -567,7 +570,8 @@ bool TestActivationRegistrationGuards() {
     CHECK(metadata.Seal());
     MetadataRuntime runtime(metadata);
     XamlSchemaContext schema(metadata, runtime);
-    XamlActivationProviderRegistry activations(schema);
+    ActivationProviderRegistry activations(
+        metadata.Descriptors());
     const StringView ns("urn:guard");
     const TypeId objectType = MakeTypeId(ns, StringView("Object"));
 
@@ -582,11 +586,11 @@ bool TestActivationRegistrationGuards() {
         objectType, &Fixture::Activate, nullptr});
     CHECK(!duplicate && duplicate.GetStatus().code == ErrorCode::AlreadyExists);
 
-    Result<void> premature = activations.Freeze();
-    CHECK(!premature && premature.GetStatus().code == ErrorCode::InvalidState);
+    // Core activation facets depend on sealed metadata descriptors, not on a
+    // XAML-specific wrapper or schema freeze order.
+    CHECK(activations.Freeze());
     CHECK(runtime.Freeze());
     CHECK(schema.Freeze());
-    CHECK(activations.Freeze());
     Result<void> late = activations.TryRegister({
         objectType, &Fixture::Activate, nullptr});
     CHECK(!late && late.GetStatus().code == ErrorCode::InvalidState);

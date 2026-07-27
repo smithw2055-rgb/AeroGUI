@@ -1,10 +1,10 @@
 #include "StatusBadge.hpp"
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Compiled/XamlCompiledDocument.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include <cstdio>
 #include <cstdint>

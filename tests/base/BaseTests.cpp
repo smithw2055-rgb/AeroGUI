@@ -1,6 +1,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
+#include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
@@ -290,6 +291,53 @@ bool TestStringAllocationFailure() {
     return true;
 }
 
+bool TestResourceUri() {
+    Result<ResourceUri> relative =
+        ResourceUri::Parse(StringView("views/./shell/../Main.xaml"));
+    CHECK(relative);
+    CHECK(relative.Value().Canonical() == StringView("views/Main.xaml"));
+    CHECK(relative.Value().Scheme().Empty());
+    CHECK(!relative.Value().IsAbsolute());
+
+    Result<ResourceUri> file =
+        ResourceUri::Parse(StringView("C:\\Projects\\AeroGUI-R\\themes\\Light.xaml"));
+    CHECK(file);
+    CHECK(file.Value().Canonical() ==
+        StringView("file:///C:/Projects/AeroGUI-R/themes/Light.xaml"));
+    CHECK(file.Value().Scheme() == StringView("file"));
+    CHECK(file.Value().Path() ==
+        StringView("C:/Projects/AeroGUI-R/themes/Light.xaml"));
+
+    Result<ResourceUri> pack = ResourceUri::Parse(
+        StringView("pack://application:,,,/Aero.Controls;component/Themes/../Generic.xaml"));
+    CHECK(pack);
+    CHECK(pack.Value().Canonical() ==
+        StringView("pack://application:,,,/Aero.Controls;component/Generic.xaml"));
+    CHECK(pack.Value().Scheme() == StringView("pack"));
+    CHECK(pack.Value().Assembly() == StringView("Aero.Controls"));
+
+    Result<ResourceUri> base = ResourceUri::Parse(
+        StringView("pack://application:,,,/Aero.Controls;component/Views/Shell.xaml"));
+    CHECK(base);
+    Result<ResourceUri> resolved =
+        ResourceUri::Resolve(base.Value(), StringView("../Themes/Dark.xaml"));
+    CHECK(resolved);
+    CHECK(resolved.Value().Canonical() ==
+        StringView("pack://application:,,,/Aero.Controls;component/Themes/Dark.xaml"));
+
+    Result<ResourceUri> network =
+        ResourceUri::Parse(StringView("HTTPS://example.com/ui/App.xaml"));
+    CHECK(network);
+    CHECK(network.Value().Scheme() == StringView("https"));
+    CHECK(network.Value().IsNetwork());
+
+    Result<ResourceUri> malformedPack =
+        ResourceUri::Parse(StringView("pack://siteoforigin:,,,/App.xaml"));
+    CHECK(!malformedPack);
+    CHECK(malformedPack.GetStatus().code == ErrorCode::InvalidArgument);
+    return true;
+}
+
 bool TestRefAndWeakRef() {
     TrackingAllocator allocator;
     CHECK(ProbeObject::aliveCount.load() == 0);
@@ -433,6 +481,7 @@ int main() {
         {"String", &TestString},
         {"String allocator semantics", &TestStringAllocatorSemantics},
         {"String allocation failure", &TestStringAllocationFailure},
+        {"Resource URI", &TestResourceUri},
         {"Ref/WeakRef", &TestRefAndWeakRef},
         {"Ref allocation failure", &TestRefAllocationFailure},
         {"Delegate", &TestDelegate},

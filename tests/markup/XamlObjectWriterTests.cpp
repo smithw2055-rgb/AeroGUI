@@ -8,10 +8,11 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Runtime/XamlLoadSession.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include "TestMetadataConverters.hpp"
 
@@ -420,7 +421,10 @@ Result<Ref<Object>> LoadDocument(
 
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    return writer.Load(reader);
+    Result<XamlLoadResult> loaded =
+        writer.LoadDocument(reader);
+    if (!loaded) return loaded.GetStatus();
+    return loaded.Value().root;
 }
 
 bool TestAttributesAttachedPropertyAndContentCollection() {
@@ -564,6 +568,53 @@ bool TestDuplicateSetOnceMember() {
     return true;
 }
 
+bool TestLoadSessionIsSingleUseAndWriterIsReusable() {
+    TestElement::ResetCounters();
+    {
+        Fixture fixture;
+        CHECK(fixture.Build());
+        DiagnosticBag diagnostics;
+        const StringView xaml(
+            "<Element xmlns=\"urn:test\"/>");
+
+        Utf8XmlTokenizer firstTokenizer;
+        CHECK(firstTokenizer.Reset(xaml, &diagnostics));
+        XamlNodeReader firstReader(
+            firstTokenizer, &diagnostics);
+        XamlLoadSession session(
+            *fixture.schema, &diagnostics);
+        Result<XamlLoadResult> first =
+            session.Load(firstReader);
+        CHECK(first);
+        CHECK(session.IsConsumed());
+
+        Utf8XmlTokenizer secondTokenizer;
+        CHECK(secondTokenizer.Reset(xaml, &diagnostics));
+        XamlNodeReader secondReader(
+            secondTokenizer, &diagnostics);
+        Result<XamlLoadResult> second =
+            session.Load(secondReader);
+        CHECK(!second);
+        CHECK(second.GetStatus().code ==
+            ErrorCode::InvalidState);
+
+        XamlObjectWriter writer(
+            *fixture.schema, &diagnostics);
+        Utf8XmlTokenizer writerTokenizer1;
+        CHECK(writerTokenizer1.Reset(xaml, &diagnostics));
+        XamlNodeReader writerReader1(
+            writerTokenizer1, &diagnostics);
+        CHECK(writer.LoadDocument(writerReader1));
+        Utf8XmlTokenizer writerTokenizer2;
+        CHECK(writerTokenizer2.Reset(xaml, &diagnostics));
+        XamlNodeReader writerReader2(
+            writerTokenizer2, &diagnostics);
+        CHECK(writer.LoadDocument(writerReader2));
+    }
+    CHECK(TestElement::LiveCount() == 0U);
+    return true;
+}
+
 } // namespace
 
 int main() {
@@ -572,6 +623,7 @@ int main() {
     if (!TestRollbackAfterCompletedChild()) return 1;
     if (!TestInvalidScalarDiagnosticAndRollback()) return 1;
     if (!TestDuplicateSetOnceMember()) return 1;
+    if (!TestLoadSessionIsSingleUseAndWriterIsReusable()) return 1;
     std::puts("Aero XAML object writer tests passed");
     return 0;
 }

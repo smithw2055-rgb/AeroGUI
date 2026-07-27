@@ -1,7 +1,10 @@
 #include <Aero/Controls/RuntimeMetadata.hpp>
-#include <Aero/Markup/XamlCompiledCache.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
+#include <Aero/Markup/Compiled/XamlCompiledCache.hpp>
+#if AERO_WITH_EXPAT
+#include <Aero/Markup/Parsing/ExpatXmlTokenizer.hpp>
+#endif
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
 #include "TestAllocatorScope.hpp"
 
 #include <cstdio>
@@ -102,6 +105,67 @@ bool TestTokenizerSequenceAndEntities() {
     CHECK(diagnostics.Size() == 0U);
     return true;
 }
+
+#if AERO_WITH_EXPAT
+bool TestExpatNodeConformanceAndSecurity() {
+    const StringView input(
+        "<Window xmlns=\"urn:aero\" "
+        "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+        "x:Name=\"root\" Title=\"A &amp; B\">"
+        "<TextBlock Text=\"Hi &#x1F642;\"/>"
+        "<TextBlock><![CDATA[raw < text]]></TextBlock>"
+        "</Window>");
+    Utf8XmlTokenizer fallback;
+    ExpatXmlTokenizer expat;
+    CHECK(fallback.Reset(input));
+    CHECK(expat.Reset(input));
+    XamlNodeReader fallbackReader(fallback);
+    XamlNodeReader expatReader(expat);
+    XamlNode fallbackNode;
+    XamlNode expatNode;
+    while (true) {
+        Result<XamlNodeKind> fallbackKind =
+            fallbackReader.Read(fallbackNode);
+        Result<XamlNodeKind> expatKind =
+            expatReader.Read(expatNode);
+        CHECK(fallbackKind);
+        CHECK(expatKind);
+        CHECK(fallbackKind.Value() == expatKind.Value());
+        CHECK(fallbackNode.Name().Prefix() ==
+            expatNode.Name().Prefix());
+        CHECK(fallbackNode.Name().LocalName() ==
+            expatNode.Name().LocalName());
+        CHECK(fallbackNode.Name().NamespaceUri() ==
+            expatNode.Name().NamespaceUri());
+        CHECK(fallbackNode.NamespacePrefix() ==
+            expatNode.NamespacePrefix());
+        CHECK(fallbackNode.NamespaceUri() ==
+            expatNode.NamespaceUri());
+        CHECK(fallbackNode.Value() ==
+            expatNode.Value());
+        CHECK(fallbackNode.IsFromAttribute() ==
+            expatNode.IsFromAttribute());
+        if (fallbackKind.Value() ==
+            XamlNodeKind::EndOfDocument) {
+            break;
+        }
+    }
+
+    DiagnosticBag diagnostics;
+    Result<void> dtd = expat.Reset(
+        StringView(
+            "<!DOCTYPE A [<!ENTITY x SYSTEM "
+            "\"file:///forbidden\">]><A>&x;</A>"),
+        &diagnostics);
+    CHECK(!dtd);
+    CHECK(dtd.GetStatus().code ==
+        ErrorCode::Unsupported);
+    CHECK(diagnostics.Size() == 1U);
+    CHECK(diagnostics.Items()[0].Code() ==
+        XmlDiagnosticCodes::UnsupportedDeclaration);
+    return true;
+}
+#endif
 
 bool TestSourceSpans() {
     const StringView input("<Root>\n  <Child a=\"v\"/>\n</Root>");
@@ -456,6 +520,9 @@ bool TestCompiledXamlCacheCompatibility() {
 
 int main() {
     if (!TestTokenizerSequenceAndEntities()) return 1;
+#if AERO_WITH_EXPAT
+    if (!TestExpatNodeConformanceAndSecurity()) return 1;
+#endif
     if (!TestSourceSpans()) return 1;
     if (!TestXmlLineEndingNormalization()) return 1;
     if (!TestXamlNodeStreamNamespacesAndSelfClosing()) return 1;

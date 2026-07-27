@@ -115,6 +115,20 @@ Result<Ref<Object>> MakeItemVisual(
     return Ref<Object>(std::move(text));
 }
 
+Result<Ref<Object>> MakeItemsPanel(
+    const Ref<Object>& payload,
+    void*) noexcept {
+    if (payload) {
+        return Status::Failure(
+            ErrorCode::InvalidArgument,
+            "Items panel payload must be empty");
+    }
+    Result<Ref<StackPanel>> made =
+        MakeRef<StackPanel>();
+    if (!made) return made.GetStatus();
+    return Ref<Object>(std::move(made).Value());
+}
+
 bool AttachRootChildren(
     Fixture& fixture,
     Grid& root,
@@ -193,6 +207,39 @@ bool TestCollectionDeltas() {
     CHECK(log.last.action ==
         ItemsChangeAction::Remove);
     CHECK(items.RemoveItemsChanged(handler));
+    return true;
+}
+
+bool TestSharedDeferredObjectProgram() {
+    Result<ResourceUri> origin =
+        ResourceUri::Parse(
+            StringView("pack://application:,,,/Panels.xaml"));
+    CHECK(origin);
+
+    DeferredObjectProgram program;
+    CHECK(program.Configure(&MakeItemsPanel));
+    CHECK(program.SetBaseUri(origin.Value()));
+    CHECK(program.Seal());
+    CHECK(program.IsSealed());
+    CHECK(program.BaseUri() == origin.Value());
+    Result<Ref<Object>> created =
+        program.Instantiate();
+    CHECK(created);
+    CHECK(created.Value()->RuntimeType() ==
+        StackPanel::StaticTypeId());
+    Result<void> late =
+        program.Configure(&MakeItemsPanel);
+    CHECK(!late &&
+        late.GetStatus().code == ErrorCode::InvalidState);
+
+    ItemsPanelTemplate panelTemplate(
+        &MakeItemsPanel);
+    CHECK(panelTemplate.SetBaseUri(origin.Value()));
+    Result<Ref<Object>> panel =
+        panelTemplate.Instantiate();
+    CHECK(panel);
+    CHECK(panel.Value()->RuntimeType() ==
+        StackPanel::StaticTypeId());
     return true;
 }
 
@@ -307,6 +354,7 @@ bool TestGeneratorIncrementalAndSourceSwitch() {
 
 int main() {
     if (!TestCollectionDeltas()) return 1;
+    if (!TestSharedDeferredObjectProgram()) return 1;
     if (!TestGeneratorIncrementalAndSourceSwitch()) return 1;
     std::puts("Aero items tests passed");
     return 0;

@@ -17,12 +17,13 @@
 #include <Aero/Controls/RuntimeMetadata.hpp>
 #include <Aero/Presentation/Metadata.hpp>
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XamlVisualTree.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Runtime/XamlContentWriter.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
+#include <Aero/Presentation/VisualTreeMount.hpp>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -40,6 +41,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 namespace {
 
@@ -344,8 +346,10 @@ struct XamlControlFixture final {
     std::unique_ptr<LayoutManager> layout;
     std::unique_ptr<RenderManager> renderer;
     std::unique_ptr<XamlSchemaContext> schema;
-    std::unique_ptr<XamlActivationProviderRegistry> activation;
-    std::unique_ptr<XamlVisualTreeHost> visual;
+    std::unique_ptr<ActivationProviderRegistry> activation;
+    std::unique_ptr<XamlContentWriter> contentWriter;
+    std::unique_ptr<VisualTreeMount> visualMount;
+    XamlLoadResult document;
     TypeId objectType = InvalidTypeId;
     TypeId doubleType = InvalidTypeId;
     TypeId stringType = InvalidTypeId;
@@ -378,15 +382,17 @@ struct XamlControlFixture final {
         renderer = std::make_unique<RenderManager>(
             dispatcher, *renderBackend_);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
-        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
-        visual = std::make_unique<XamlVisualTreeHost>(
-            *tree, *layout, *values, renderer.get());
+        activation = std::make_unique<ActivationProviderRegistry>(
+            metadata.Descriptors());
+        contentWriter = std::make_unique<XamlContentWriter>();
+        visualMount = std::make_unique<VisualTreeMount>(
+            *tree, *layout, renderer.get());
 
         CHECK(values->Initialize());
         CHECK(tree->Initialize());
         CHECK(layout->Initialize());
         CHECK(renderer->Initialize());
-        CHECK(visual->Register(*schema));
+        CHECK(contentWriter->Register(*schema));
         CHECK(runtime->Freeze());
         CHECK(schema->Freeze());
         CHECK(activation->Freeze());
@@ -398,6 +404,62 @@ struct XamlControlFixture final {
         context.dispatcher = &dispatcher;
         context.dependencyProperties = &metadata.DependencyProperties();
         return context;
+    }
+
+    Result<Ref<Object>> Load(
+        XamlObjectWriter& writer,
+        XamlNodeReader& reader) noexcept {
+        if (visualMount->IsMounted()) {
+            return Status::Failure(
+                ErrorCode::InvalidState,
+                "D3D11 XAML fixture is already mounted");
+        }
+        document.Clear();
+        Result<XamlLoadResult> loaded =
+            LoadXamlWithActivation(
+                writer, reader, *activation, Activation());
+        if (!loaded) {
+            return loaded.GetStatus();
+        }
+        document = std::move(loaded).Value();
+        return document.root;
+    }
+
+    Result<void> Mount(
+        Object& root,
+        TypeId,
+        Size availableSize) noexcept {
+        auto* visual = static_cast<Visual*>(&root);
+        UIElement* layoutRoot = visual->AsUIElement();
+        if (layoutRoot == nullptr) {
+            return Status::Failure(
+                ErrorCode::InvalidArgument,
+                "D3D11 XAML root is not a UIElement");
+        }
+        Result<void> tracked =
+            document.visualContent.TryAddNode(*visual);
+        if (!tracked) return tracked.GetStatus();
+        return visualMount->Mount(
+            *visual,
+            *layoutRoot,
+            visual->AsFrameworkElement(),
+            {document.visualContent.mountEdges.Data(),
+             document.visualContent.mountEdges.Size()},
+            availableSize);
+    }
+
+    Result<void> Unmount() noexcept {
+        Result<void> unmounted = visualMount->Unmount(
+            {document.visualContent.mountEdges.Data(),
+             document.visualContent.mountEdges.Size()});
+        if (!unmounted) return unmounted.GetStatus();
+        for (Visual* node : document.visualContent.nodes) {
+            if (node != nullptr) {
+                (void)values->DetachObject(*node);
+            }
+        }
+        document.Clear();
+        return {};
     }
 
 private:
@@ -860,16 +922,11 @@ bool TestXamlStackPanelBorderD3D11Presentation(
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    Result<Ref<Object>> loaded = LoadXamlVisualTreeWithActivation(
-        *fixture.visual,
-        writer,
-        reader,
-        *fixture.activation,
-        fixture.Activation());
+    Result<Ref<Object>> loaded = fixture.Load(writer, reader);
     CHECK(loaded && diagnostics.Size() == 0U);
     StackPanel* root = static_cast<StackPanel*>(loaded.Value().Get());
     CHECK(root != nullptr);
-    CHECK(fixture.visual->Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
+    CHECK(fixture.Mount(*root, fixture.stackPanelType, {80.0, 48.0}));
     const Span<Visual* const> children = root->VisualChildren();
     CHECK(children.Size() == 2U);
     Border* border = static_cast<Border*>(children[0]);
@@ -907,7 +964,7 @@ bool TestXamlStackPanelBorderD3D11Presentation(
     CHECK(surface.DiscardFrame(frame));
     CHECK(device.DestroyResource(
         target.Value(), renderBackend.LastSubmittedFence()));
-    CHECK(fixture.visual->Unmount());
+    CHECK(fixture.Unmount());
     return true;
 }
 
@@ -972,12 +1029,7 @@ bool TestAutomaticTextBlockD3D11Presentation(
         XamlNodeReader reader(tokenizer, &diagnostics);
         XamlObjectWriter writer(*fixture.schema, &diagnostics);
         Result<Ref<Object>> loaded =
-            LoadXamlVisualTreeWithActivation(
-                *fixture.visual,
-                writer,
-                reader,
-                *fixture.activation,
-                fixture.Activation());
+            fixture.Load(writer, reader);
         CHECK(loaded && diagnostics.Size() == 0U);
         TextBlock* text =
             static_cast<TextBlock*>(loaded.Value().Get());
@@ -985,7 +1037,7 @@ bool TestAutomaticTextBlockD3D11Presentation(
         CHECK(text->LayoutService() == &textService);
         CHECK(text->SetForeground(
             {0.0F, 0.0F, 1.0F, 1.0F}));
-        CHECK(fixture.visual->Mount(
+        CHECK(fixture.Mount(
             *text, fixture.textBlockType,
             {80.0, 48.0}));
         CHECK(fixture.dispatcher.RunFramePhase(
@@ -1037,7 +1089,7 @@ bool TestAutomaticTextBlockD3D11Presentation(
         CHECK(device.DestroyResource(
             target.Value(),
             renderBackend.LastSubmittedFence()));
-        CHECK(fixture.visual->Unmount());
+        CHECK(fixture.Unmount());
     }
 
     CHECK(backend.WaitForFence(

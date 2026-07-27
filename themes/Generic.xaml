@@ -1,6 +1,9 @@
 <ResourceDictionary
     xmlns="urn:aero"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style TargetType="Button">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="Button">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -40,7 +43,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="RepeatButton">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="RepeatButton">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -80,7 +89,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="ToggleButton">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="ToggleButton">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -135,7 +150,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="CheckBox">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="CheckBox">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -190,7 +211,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="RadioButton">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="RadioButton">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -245,7 +272,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="ListBox">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="ListBox">
     <ControlTemplate.VisualTree>
       <Border x:Name="Chrome"
@@ -265,7 +298,13 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
+  <Style TargetType="ListBoxItem">
+    <Setter Property="Template">
+      <Setter.Value>
   <ControlTemplate TargetType="ListBoxItem">
     <ControlTemplate.VisualTree>
       <Grid>
@@ -314,4 +353,7 @@
       </VisualStateGroup>
     </ControlTemplate.VisualStateGroups>
   </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>

@@ -6,11 +6,11 @@
 #include <Aero/Core/Metadata/MetadataDsl.hpp>
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 #include <Aero/Controls/RuntimeMetadata.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Parsing/XamlNodeReader.hpp>
+#include <Aero/Markup/Runtime/XamlObjectWriter.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Parsing/XmlTokenizer.hpp>
 
 #include <cstdio>
 #include <memory>
@@ -223,7 +223,7 @@ struct Fixture final {
     MetadataDomain metadata;
     std::unique_ptr<MetadataRuntime> runtime;
     std::unique_ptr<XamlSchemaContext> schema;
-    std::unique_ptr<XamlActivationProviderRegistry> activation;
+    std::unique_ptr<ActivationProviderRegistry> activation;
     TypeId badgeType = Badge::StaticTypeId();
     TypeId cornerRadiusType = MakeTypeId(
         CustomNamespace, StringView("CornerRadius"));
@@ -336,7 +336,8 @@ struct Fixture final {
         runtime = std::make_unique<MetadataRuntime>(metadata);
         schema = std::make_unique<XamlSchemaContext>(metadata, *runtime);
         CHECK(schema->UsesRuntime());
-        activation = std::make_unique<XamlActivationProviderRegistry>(*schema);
+        activation = std::make_unique<ActivationProviderRegistry>(
+            metadata.Descriptors());
         CHECK(runtime->Freeze());
 
         const CornerRadius source{1.0, 2.0, 3.0, 4.0};
@@ -379,10 +380,11 @@ bool TestCustomControlUsesUnifiedMetadataAndActivation() {
         &diagnostics));
     XamlNodeReader reader(tokenizer, &diagnostics);
     XamlObjectWriter writer(*fixture.schema, &diagnostics);
-    Result<Ref<Object>> loaded = LoadXamlWithActivation(
+    Result<XamlLoadResult> loaded = LoadXamlWithActivation(
         writer, reader, *fixture.activation, fixture.Activation());
     CHECK(loaded && diagnostics.Size() == 0U);
-    Badge* badge = static_cast<Badge*>(loaded.Value().Get());
+    Badge* badge =
+        static_cast<Badge*>(loaded.Value().root.Get());
     CHECK(badge != nullptr && badge->HasWidth() && badge->Width() == 40.0);
     CHECK(badge->Code() == 7U);
     CHECK(fixture.metadata.Descriptors().IsDerivedFrom(

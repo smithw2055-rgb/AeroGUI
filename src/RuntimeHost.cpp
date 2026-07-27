@@ -8,18 +8,24 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/ObjectServices.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Markup/XamlActivation.hpp>
-#include <Aero/Markup/XamlCompiledDocument.hpp>
-#include <Aero/Markup/XamlNodeReader.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
-#include <Aero/Markup/XamlSchemaContext.hpp>
-#include <Aero/Markup/XamlVisualTree.hpp>
+#include <Aero/Markup/Runtime/XamlActivation.hpp>
+#include <Aero/Markup/Extensions/XamlDynamicResource.hpp>
+#include <Aero/Markup/Runtime/XamlLoader.hpp>
+#include <Aero/Markup/Resources/XamlResources.hpp>
+#include <Aero/Markup/Schema/XamlSchemaContext.hpp>
+#include <Aero/Markup/Resources/XamlPresentationObjectModel.hpp>
+#include <Aero/Markup/Runtime/XamlContentWriter.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Presentation/Style.hpp>
 #include <Aero/Presentation/VisualTreeMount.hpp>
+#include <Aero/BuiltinThemes.generated.hpp>
+
+#include "runtime/RuntimePresentationServices.hpp"
 
 #include <new>
 #include <utility>
@@ -36,6 +42,18 @@ Base::Status RuntimeInvalidState(const char* message) noexcept {
 Base::Status RuntimeNotInitialized(const char* message) noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::NotInitialized, message);
+}
+
+Base::Result<Base::ResourceUri> BuiltInThemeUri(
+    Base::StringView name) noexcept {
+    Base::String text;
+    Base::Result<void> assigned = text.TryAssign(
+        Base::StringView(
+            "pack://application:,,,/Aero.Themes;component/"));
+    if (!assigned) return assigned.GetStatus();
+    Base::Result<void> appended = text.TryAppend(name);
+    if (!appended) return appended.GetStatus();
+    return Base::ResourceUri::Parse(text.View());
 }
 
 template<class T, class... TArgs>
@@ -97,12 +115,23 @@ struct RuntimeHost::Impl final {
     Presentation::CommandManager* commands = nullptr;
     Controls::TemplateManager* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
+    Presentation::StyleManager* styles = nullptr;
+    Detail::RuntimePresentationServices presentationServices;
 
     XamlSchemaContext* schema = nullptr;
-    XamlActivationProviderRegistry* activation = nullptr;
-    XamlVisualTreeHost* visualTree = nullptr;
-    XamlObjectWriter* writer = nullptr;
+    XamlResourceExtension resourceXaml;
+    Core::ActivationProviderRegistry* activation = nullptr;
+    XamlDynamicResourceExtension* dynamicResourceXaml = nullptr;
+    XamlPresentationObjectModel* presentationXaml = nullptr;
+    XamlContentWriter* visualContentXaml = nullptr;
     Presentation::VisualTreeMount* visualMount = nullptr;
+    XamlSourceProviderRegistry xamlSources;
+    EmbeddedXamlSourceProvider embeddedXaml;
+    FileXamlSourceProvider fileXaml;
+    Presentation::ResourceDictionary applicationResources;
+    Presentation::ResourceDictionary themeResources;
+    Presentation::ResourceDictionary systemResources;
+    Presentation::ResourceDictionary dynamicResourceEnvironment;
 
     Presentation::HitTestManager hitTests;
     Presentation::FocusManager* focus = nullptr;
@@ -137,17 +166,143 @@ struct RuntimeHost::Impl final {
         return context;
     }
 
+    Base::Result<void> EnsureDefaultXamlProviders() noexcept {
+        Base::Result<Base::ResourceUri> light =
+            BuiltInThemeUri(Base::StringView("Light.xaml"));
+        if (!light) return light.GetStatus();
+        Base::Result<void> status = embeddedXaml.TryAdd(
+            light.Value(),
+            {Detail::AeroThemeLightSource,
+             static_cast<std::uint32_t>(
+                 sizeof(Detail::AeroThemeLightSource))});
+        if (!status) return status.GetStatus();
+        Base::Result<Base::ResourceUri> dark =
+            BuiltInThemeUri(Base::StringView("Dark.xaml"));
+        if (!dark) return dark.GetStatus();
+        status = embeddedXaml.TryAdd(
+            dark.Value(),
+            {Detail::AeroThemeDarkSource,
+             static_cast<std::uint32_t>(
+                 sizeof(Detail::AeroThemeDarkSource))});
+        if (!status) return status.GetStatus();
+        Base::Result<Base::ResourceUri> generic =
+            BuiltInThemeUri(Base::StringView("Generic.xaml"));
+        if (!generic) return generic.GetStatus();
+        status = embeddedXaml.TryAdd(
+            generic.Value(),
+            {Detail::AeroThemeGenericSource,
+             static_cast<std::uint32_t>(
+                 sizeof(Detail::AeroThemeGenericSource))});
+        if (!status) return status.GetStatus();
+
+        status = xamlSources.TryRegister(
+                embeddedXaml, Base::StringView("pack"));
+        if (!status &&
+            status.GetStatus().code !=
+                Base::ErrorCode::AlreadyExists) {
+            return status.GetStatus();
+        }
+        status = xamlSources.TryRegister(
+            fileXaml, Base::StringView("file"));
+        if (!status &&
+            status.GetStatus().code !=
+                Base::ErrorCode::AlreadyExists) {
+            return status.GetStatus();
+        }
+        status = xamlSources.TryRegister(fileXaml);
+        if (!status &&
+            status.GetStatus().code !=
+                Base::ErrorCode::AlreadyExists) {
+            return status.GetStatus();
+        }
+        return {};
+    }
+
+    Base::Result<void> BeginDocumentLoad() noexcept {
+        if (!initialized) {
+            return RuntimeNotInitialized(
+                "RuntimeHost must be initialized before XAML loading");
+        }
+        if (mounted || root || loadedDocument.root) {
+            return RuntimeInvalidState(
+                "RuntimeHost already owns a loaded document");
+        }
+        return {};
+    }
+
+    Base::Result<Base::Ref<Base::Object>> CompleteDocumentLoad(
+        Base::Result<XamlLoadResult> loaded) noexcept {
+        if (!loaded) {
+            return loaded.GetStatus();
+        }
+        XamlLoadResult result = std::move(loaded).Value();
+        loadedDocument = std::move(result);
+        return loadedDocument.root;
+    }
+
+    Base::Result<XamlLoadOptions> LoadOptions(
+        XamlActivationContext& context) noexcept {
+        XamlLoadOptions result;
+        result.resources = &dynamicResourceEnvironment;
+        result.activationFacets =
+            activation;
+        result.activation = &context;
+        return result;
+    }
+
     void ClearLoadedDocument() noexcept {
         loadedDocument.Clear();
     }
 
-    void DetachLoadedVisualObjects() noexcept {
-        if (values == nullptr) return;
-        for (Presentation::Visual* node : loadedDocument.visualContent.nodes) {
-            if (node != nullptr) {
-                (void)values->DetachObject(*node);
-            }
+    Presentation::ResourceEnvironment ResourceEnvironment() const noexcept {
+        return {
+            &applicationResources,
+            &themeResources,
+            &systemResources};
+    }
+
+    Base::Result<Presentation::ResourceDictionary*>
+    ResolveResourceLayer(
+        RuntimeResourceLayer layer) noexcept {
+        switch (layer) {
+        case RuntimeResourceLayer::Application:
+            return &applicationResources;
+        case RuntimeResourceLayer::Theme:
+            return &themeResources;
+        case RuntimeResourceLayer::System:
+            return &systemResources;
         }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "RuntimeHost resource layer is invalid");
+    }
+
+    Base::Result<void> RebuildDynamicResourceEnvironment() noexcept {
+        Base::Result<void> rebuilt =
+            dynamicResourceEnvironment.Clear();
+        if (rebuilt) {
+            rebuilt =
+                dynamicResourceEnvironment.TryAddMerged(
+                    systemResources);
+        }
+        if (rebuilt) {
+            rebuilt =
+                dynamicResourceEnvironment.TryAddMerged(
+                    themeResources);
+        }
+        if (rebuilt) {
+            rebuilt =
+                dynamicResourceEnvironment.TryAddMerged(
+                    applicationResources);
+        }
+        return rebuilt;
+    }
+
+    void DetachRuntimePresentation() noexcept {
+        presentationServices.Detach(
+            RootVisual(),
+            {loadedDocument.visualContent.nodes.Data(),
+             loadedDocument.visualContent.nodes.Size()});
     }
 
     Presentation::Visual* RootVisual() noexcept {
@@ -204,10 +359,27 @@ struct RuntimeHost::Impl final {
             *allocator, Base::MemoryTag::Presentation,
             visualStates, *values, *templates);
         if (!status) return status.GetStatus();
+        status = CreateRuntimeObject(
+            *allocator, Base::MemoryTag::Presentation,
+            styles, *values,
+            metadata.DependencyProperties());
+        if (!status) return status.GetStatus();
+        presentationServices.Configure(
+            *allocator,
+            metadata,
+            *values,
+            *styles,
+            *templates,
+            *visualStates,
+            ResourceEnvironment());
         return {};
     }
 
     void DestroyTemplateServices() noexcept {
+        presentationServices.Reset();
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Presentation,
+            styles);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
             visualStates);
@@ -353,22 +525,26 @@ struct RuntimeHost::Impl final {
 
     void ShutdownServices() noexcept {
         DestroyInteractions();
+        DetachRuntimePresentation();
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Markup,
+            dynamicResourceXaml);
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Markup,
+            presentationXaml);
         DestroyTemplateServices();
         if (visualMount != nullptr && visualMount->IsMounted()) {
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
         }
-        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
         ClearLoadedDocument();
-        if (writer != nullptr) writer->Reset();
 
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup, writer);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Markup, visualTree);
+            *allocator, Base::MemoryTag::Markup,
+            visualContentXaml);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation, visualMount);
         DestroyRuntimeObject(
@@ -421,7 +597,10 @@ struct RuntimeHost::Impl final {
         options = requested;
 
         Base::Result<void> status =
-            modules.RegisterMetadata(metadata);
+            EnsureDefaultXamlProviders();
+        if (status) {
+            status = modules.RegisterMetadata(metadata);
+        }
         if (status) status = metadata.Seal();
         if (!status) {
             terminal = true;
@@ -488,15 +667,50 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Markup,
-                activation, *schema);
+                activation,
+                metadataRuntime->Descriptors());
         }
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Markup,
-                visualTree, *tree, *layout,
-                *values, renderer);
+                visualContentXaml);
         }
-        if (status) status = visualTree->Register(*schema);
+        if (status) {
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Markup,
+                presentationXaml,
+                XamlPresentationObjectModelOptions{
+                    metadataRuntime,
+                    &metadata.DependencyProperties(),
+                    Core::InvalidTypeId,
+                    allocator});
+        }
+        if (status) {
+            status = RebuildDynamicResourceEnvironment();
+        }
+        if (status) {
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Markup,
+                dynamicResourceXaml,
+                XamlDynamicResourceExtensionOptions{
+                    values,
+                    &dynamicResourceEnvironment});
+        }
+        if (status) status = resourceXaml.Register(*schema);
+        if (status) {
+            status = dynamicResourceXaml->Register(
+                *schema,
+                Core::MakeTypeId(
+                    Base::StringView("urn:aero"),
+                    Base::StringView("DynamicResource")));
+        }
+        if (status) {
+            status = presentationXaml->Register(
+                *schema, *activation);
+        }
+        if (status) {
+            status = visualContentXaml->Register(*schema);
+        }
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Presentation,
@@ -505,11 +719,6 @@ struct RuntimeHost::Impl final {
         if (status) status = metadataRuntime->Freeze();
         if (status) status = schema->Freeze();
         if (status) status = activation->Freeze();
-        if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Markup,
-                writer, *schema);
-        }
         if (!status) {
             ShutdownServices();
             terminal = true;
@@ -519,54 +728,120 @@ struct RuntimeHost::Impl final {
         return {};
     }
 
-    Base::Result<Base::Ref<Base::Object>> LoadReader(
-        XamlNodeReader& reader) noexcept {
-        if (!initialized) {
-            return RuntimeNotInitialized(
-                "RuntimeHost must be initialized before XAML loading");
+    Base::Result<void> CommitResourceLayer(
+        XamlLoadResult result,
+        Presentation::ResourceDictionary& target,
+        bool merge) noexcept {
+        if (!result.root ||
+            result.root->RuntimeType() !=
+                Presentation::ResourceDictionary::StaticTypeId()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RuntimeHost resource document root must be ResourceDictionary");
         }
-        if (mounted || root || loadedDocument.root) {
-            return RuntimeInvalidState(
-                "RuntimeHost already owns a loaded document");
+        auto& dictionary =
+            static_cast<Presentation::ResourceDictionary&>(
+                *result.root);
+        if (merge) {
+            Base::Result<void> merged =
+                target.TryAddMerged(dictionary);
+            if (!merged) return merged.GetStatus();
+            Base::Result<void> rebuilt =
+                RebuildDynamicResourceEnvironment();
+            if (rebuilt) return {};
+            Base::Result<bool> removed =
+                target.RemoveMerged(dictionary);
+            Base::Result<void> restored =
+                removed && removed.Value()
+                ? RebuildDynamicResourceEnvironment()
+                : Base::Result<void>(
+                      removed
+                      ? Base::Status::Failure(
+                            Base::ErrorCode::InvalidState,
+                            "RuntimeHost resource merge rollback lost its dictionary")
+                      : removed.GetStatus());
+            return restored
+                ? Base::Result<void>(rebuilt.GetStatus())
+                : restored;
         }
-        writer->Reset();
-        static_cast<void>(visualTree->DiscardStaged());
-        Base::Result<XamlLoadResult> loaded =
-            LoadXamlVisualTreeDocumentWithActivation(
-                *visualTree, *writer, reader,
-                *activation, ActivationContext());
-        if (!loaded) {
-            static_cast<void>(visualTree->DiscardStaged());
-            writer->Reset();
-            return loaded.GetStatus();
-        }
-        loadedDocument = std::move(loaded).Value();
-        return loadedDocument.root;
+
+        Presentation::ResourceDictionary previous =
+            std::move(target);
+        target = std::move(dictionary);
+        Base::Result<void> rebuilt =
+            RebuildDynamicResourceEnvironment();
+        if (rebuilt) return {};
+        target = std::move(previous);
+        Base::Result<void> restored =
+            RebuildDynamicResourceEnvironment();
+        return restored
+            ? Base::Result<void>(rebuilt.GetStatus())
+            : restored;
     }
 
-    Base::Result<Base::Ref<Base::Object>> LoadCompiled(
-        const XamlCompiledDocument& document) noexcept {
+    Base::Result<void> LoadResourceLayer(
+        Base::StringView uri,
+        Presentation::ResourceDictionary& target,
+        Core::IDiagnosticSink* diagnostics,
+        bool merge = false) noexcept {
         if (!initialized) {
             return RuntimeNotInitialized(
-                "RuntimeHost must be initialized before XAML loading");
+                "RuntimeHost must be initialized before loading resources");
         }
         if (mounted || root || loadedDocument.root) {
             return RuntimeInvalidState(
-                "RuntimeHost already owns a loaded document");
+                "RuntimeHost resource layers must be loaded before a document");
         }
-        writer->Reset();
-        static_cast<void>(visualTree->DiscardStaged());
+        XamlActivationContext activationContext =
+            ActivationContext();
+        Base::Result<XamlLoadOptions> loadOptions =
+            LoadOptions(activationContext);
+        if (!loadOptions) {
+            return loadOptions.GetStatus();
+        }
+        XamlLoader loader(
+            *schema,
+            xamlSources,
+            diagnostics);
         Base::Result<XamlLoadResult> loaded =
-            LoadXamlVisualTreeDocumentWithActivation(
-                *visualTree, *writer, document,
-                *activation, ActivationContext());
+            loader.Load(uri, loadOptions.Value());
         if (!loaded) {
-            static_cast<void>(visualTree->DiscardStaged());
-            writer->Reset();
             return loaded.GetStatus();
         }
-        loadedDocument = std::move(loaded).Value();
-        return loadedDocument.root;
+        return CommitResourceLayer(
+            std::move(loaded).Value(),
+            target,
+            merge);
+    }
+
+    Base::Result<void> LoadCompiledResourceLayer(
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri,
+        Presentation::ResourceDictionary& target,
+        bool merge = false) noexcept {
+        if (!initialized) {
+            return RuntimeNotInitialized(
+                "RuntimeHost must be initialized before loading resources");
+        }
+        if (mounted || root || loadedDocument.root) {
+            return RuntimeInvalidState(
+                "RuntimeHost resource layers must be loaded before a document");
+        }
+        XamlActivationContext activationContext =
+            ActivationContext();
+        Base::Result<XamlLoadOptions> loadOptions =
+            LoadOptions(activationContext);
+        if (!loadOptions) return loadOptions.GetStatus();
+        XamlLoader loader(*schema, xamlSources);
+        Base::Result<XamlLoadResult> loaded =
+            loader.LoadCompiled(
+                bytes, originUri, loadOptions.Value());
+        if (!loaded) return loaded.GetStatus();
+
+        return CommitResourceLayer(
+            std::move(loaded).Value(),
+            target,
+            merge);
     }
 
     Base::Result<void> MountRoot(
@@ -620,18 +895,29 @@ struct RuntimeHost::Impl final {
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
         mounted = true;
+        Base::Result<void> presentation =
+            presentationServices.Apply(*rootVisual.Value());
+        if (!presentation) {
+            DetachRuntimePresentation();
+            static_cast<void>(visualMount->Unmount({
+                loadedDocument.visualContent.mountEdges.Data(),
+                loadedDocument.visualContent.mountEdges.Size()}));
+            mounted = false;
+            root.Reset();
+            ClearLoadedDocument();
+            return presentation.GetStatus();
+        }
         Base::Result<void> interactions =
             CreateInteractions();
         if (!interactions) {
             DestroyInteractions();
+            DetachRuntimePresentation();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
-            DetachLoadedVisualObjects();
             mounted = false;
             root.Reset();
             ClearLoadedDocument();
-            writer->Reset();
             return interactions.GetStatus();
         }
         return {};
@@ -642,29 +928,23 @@ struct RuntimeHost::Impl final {
         if (!mounted) {
             if (loadedDocument.root) {
                 ClearLoadedDocument();
-                writer->Reset();
             }
             return {};
         }
         DestroyInteractions();
-        DestroyTemplateServices();
+        DetachRuntimePresentation();
         Base::Result<void> unmounted =
             visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()});
-        DetachLoadedVisualObjects();
         mounted = false;
         root.Reset();
         ClearLoadedDocument();
-        writer->Reset();
         bindings->Shutdown();
         Base::Result<void> bindingsReady =
             bindings->Initialize();
-        Base::Result<void> templatesReady =
-            CreateTemplateServices();
         if (!unmounted) return unmounted.GetStatus();
-        if (!bindingsReady) return bindingsReady.GetStatus();
-        return templatesReady;
+        return bindingsReady;
     }
 };
 
@@ -728,39 +1008,171 @@ bool RuntimeHost::IsMounted() const noexcept {
 }
 
 Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::Load(XamlNodeReader& reader) noexcept {
-    return impl_->LoadReader(reader);
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::Load(
-    const XamlCompiledDocument& document) noexcept {
-    return impl_->LoadCompiled(document);
-}
-
-Base::Result<Base::Ref<Base::Object>>
 RuntimeHost::LoadXaml(
-    Base::StringView source,
+    Base::StringView uri,
     Core::IDiagnosticSink* diagnostics) noexcept {
-    Utf8XmlTokenizer tokenizer;
-    Base::Result<void> reset = tokenizer.Reset(source, diagnostics);
-    if (!reset) return reset.GetStatus();
-    XamlNodeReader reader(tokenizer, diagnostics);
-    return Load(reader);
+    Base::Result<void> ready = impl_->BeginDocumentLoad();
+    if (!ready) return ready.GetStatus();
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(
+        *impl_->schema,
+        impl_->xamlSources,
+        diagnostics);
+    return impl_->CompleteDocumentLoad(
+        loader.Load(uri, options.Value()));
+}
+
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::ParseXaml(
+    Base::StringView source,
+    const Base::ResourceUri& baseUri,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<void> ready = impl_->BeginDocumentLoad();
+    if (!ready) return ready.GetStatus();
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(
+        *impl_->schema,
+        impl_->xamlSources,
+        diagnostics);
+    return impl_->CompleteDocumentLoad(
+        loader.Parse(
+            source, baseUri, options.Value()));
 }
 
 Base::Result<Base::Ref<Base::Object>>
 RuntimeHost::LoadCompiledXaml(
-    Base::Span<const std::uint8_t> bytes) noexcept {
-    if (!IsInitialized()) {
-        return RuntimeNotInitialized(
-            "RuntimeHost must be initialized before XAML loading");
+    Base::Span<const std::uint8_t> bytes,
+    const Base::ResourceUri& originUri) noexcept {
+    Base::Result<void> ready = impl_->BeginDocumentLoad();
+    if (!ready) return ready.GetStatus();
+    XamlActivationContext activationContext =
+        impl_->ActivationContext();
+    Base::Result<XamlLoadOptions> options =
+        impl_->LoadOptions(activationContext);
+    if (!options) return options.GetStatus();
+    XamlLoader loader(
+        *impl_->schema,
+        impl_->xamlSources);
+    return impl_->CompleteDocumentLoad(
+        loader.LoadCompiled(
+            bytes, originUri, options.Value()));
+}
+
+Base::Result<void> RuntimeHost::RegisterXamlSourceProvider(
+    IXamlSourceProvider& provider,
+    Base::StringView scheme,
+    Base::StringView assembly) noexcept {
+    if (impl_ == nullptr || impl_->terminal) {
+        return RuntimeInvalidState(
+            "RuntimeHost cannot register a XAML source provider");
     }
-    Base::Result<XamlCompiledDocument> document =
-        XamlCompiledDocument::Deserialize(
-            bytes, impl_->metadata, {});
-    if (!document) return document.GetStatus();
-    return Load(document.Value());
+    return impl_->xamlSources.TryRegister(
+        provider, scheme, assembly);
+}
+
+Base::Result<void> RuntimeHost::LoadResources(
+    RuntimeResourceLayer layer,
+    Base::StringView uri,
+    RuntimeResourceLoadMode mode,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<Presentation::ResourceDictionary*> target =
+        impl_->ResolveResourceLayer(layer);
+    if (!target) return target.GetStatus();
+    return impl_->LoadResourceLayer(
+        uri,
+        *target.Value(),
+        diagnostics,
+        mode == RuntimeResourceLoadMode::Merge);
+}
+
+Base::Result<void>
+RuntimeHost::LoadCompiledResources(
+    RuntimeResourceLayer layer,
+    Base::Span<const std::uint8_t> bytes,
+    const Base::ResourceUri& originUri,
+    RuntimeResourceLoadMode mode) noexcept {
+    Base::Result<Presentation::ResourceDictionary*> target =
+        impl_->ResolveResourceLayer(layer);
+    if (!target) return target.GetStatus();
+    return impl_->LoadCompiledResourceLayer(
+        bytes,
+        originUri,
+        *target.Value(),
+        mode == RuntimeResourceLoadMode::Merge);
+}
+
+Base::Result<void> RuntimeHost::LoadBuiltInTheme(
+    BuiltInTheme theme) noexcept {
+    if (impl_ == nullptr) {
+        return RuntimeInvalidState(
+            "RuntimeHost has no implementation");
+    }
+    if (theme != BuiltInTheme::Light &&
+        theme != BuiltInTheme::Dark) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Built-in theme value is invalid");
+    }
+    const std::uint8_t* paletteBytes =
+        theme == BuiltInTheme::Light
+        ? Detail::AeroThemeLightCompiled
+        : Detail::AeroThemeDarkCompiled;
+    const std::uint32_t paletteSize =
+        theme == BuiltInTheme::Light
+        ? Detail::AeroThemeLightCompiledSize
+        : Detail::AeroThemeDarkCompiledSize;
+    Base::Result<Base::ResourceUri> paletteUri =
+        BuiltInThemeUri(
+            theme == BuiltInTheme::Light
+            ? Base::StringView("Light.xaml")
+            : Base::StringView("Dark.xaml"));
+    if (!paletteUri) return paletteUri.GetStatus();
+    Base::Result<Base::ResourceUri> genericUri =
+        BuiltInThemeUri(
+            Base::StringView("Generic.xaml"));
+    if (!genericUri) return genericUri.GetStatus();
+
+    Presentation::ResourceDictionary previous =
+        std::move(impl_->themeResources);
+    Base::Result<void> loaded = paletteSize != 0U
+        ? LoadCompiledResources(
+              RuntimeResourceLayer::Theme,
+              {paletteBytes, paletteSize},
+              paletteUri.Value())
+        : LoadResources(
+              RuntimeResourceLayer::Theme,
+              paletteUri.Value().Canonical());
+    if (loaded) {
+        loaded = Detail::AeroThemeGenericCompiledSize != 0U
+            ? LoadCompiledResources(
+                  RuntimeResourceLayer::Theme,
+                  {Detail::AeroThemeGenericCompiled,
+                   Detail::AeroThemeGenericCompiledSize},
+                  genericUri.Value(),
+                  RuntimeResourceLoadMode::Merge)
+            : LoadResources(
+                  RuntimeResourceLayer::Theme,
+                  genericUri.Value().Canonical(),
+                  RuntimeResourceLoadMode::Merge);
+    }
+    if (!loaded) {
+        impl_->themeResources =
+            std::move(previous);
+        Base::Result<void> restored =
+            impl_->RebuildDynamicResourceEnvironment();
+        return restored
+            ? Base::Result<void>(loaded.GetStatus())
+            : Base::Result<void>(restored.GetStatus());
+    }
+    return {};
 }
 
 Base::Result<void> RuntimeHost::Mount(
@@ -782,36 +1194,26 @@ Base::Result<void> RuntimeHost::Mount(
 }
 
 Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadAndMount(
-    XamlNodeReader& reader,
-    Presentation::Size availableSize) noexcept {
-    Base::Result<Base::Ref<Base::Object>> loaded =
-        Load(reader);
-    if (!loaded) return loaded.GetStatus();
-    Base::Result<void> mounted = Mount(availableSize);
-    if (!mounted) return mounted.GetStatus();
-    return impl_->root;
-}
-
-Base::Result<Base::Ref<Base::Object>>
-RuntimeHost::LoadAndMount(
-    const XamlCompiledDocument& document,
-    Presentation::Size availableSize) noexcept {
-    Base::Result<Base::Ref<Base::Object>> loaded =
-        Load(document);
-    if (!loaded) return loaded.GetStatus();
-    Base::Result<void> mounted = Mount(availableSize);
-    if (!mounted) return mounted.GetStatus();
-    return impl_->root;
-}
-
-Base::Result<Base::Ref<Base::Object>>
 RuntimeHost::LoadAndMountXaml(
-    Base::StringView source,
+    Base::StringView uri,
     Presentation::Size availableSize,
     Core::IDiagnosticSink* diagnostics) noexcept {
     Base::Result<Base::Ref<Base::Object>> loaded =
-        LoadXaml(source, diagnostics);
+        LoadXaml(uri, diagnostics);
+    if (!loaded) return loaded.GetStatus();
+    Base::Result<void> mounted = Mount(availableSize);
+    if (!mounted) return mounted.GetStatus();
+    return impl_->root;
+}
+
+Base::Result<Base::Ref<Base::Object>>
+RuntimeHost::ParseAndMountXaml(
+    Base::StringView source,
+    const Base::ResourceUri& baseUri,
+    Presentation::Size availableSize,
+    Core::IDiagnosticSink* diagnostics) noexcept {
+    Base::Result<Base::Ref<Base::Object>> loaded =
+        ParseXaml(source, baseUri, diagnostics);
     if (!loaded) return loaded.GetStatus();
     Base::Result<void> mounted = Mount(availableSize);
     if (!mounted) return mounted.GetStatus();
@@ -821,9 +1223,10 @@ RuntimeHost::LoadAndMountXaml(
 Base::Result<Base::Ref<Base::Object>>
 RuntimeHost::LoadAndMountCompiledXaml(
     Base::Span<const std::uint8_t> bytes,
-    Presentation::Size availableSize) noexcept {
+    Presentation::Size availableSize,
+    const Base::ResourceUri& originUri) noexcept {
     Base::Result<Base::Ref<Base::Object>> loaded =
-        LoadCompiledXaml(bytes);
+        LoadCompiledXaml(bytes, originUri);
     if (!loaded) return loaded.GetStatus();
     Base::Result<void> mounted = Mount(availableSize);
     if (!mounted) return mounted.GetStatus();
@@ -990,9 +1393,51 @@ XamlSchemaContext* RuntimeHost::Schema() noexcept {
     return impl_ != nullptr ? impl_->schema : nullptr;
 }
 
-XamlActivationProviderRegistry*
-RuntimeHost::Activation() noexcept {
-    return impl_ != nullptr ? impl_->activation : nullptr;
+Core::ActivationProviderRegistry*
+RuntimeHost::ActivationFacets() noexcept {
+    return impl_ != nullptr
+        ? impl_->activation
+        : nullptr;
+}
+
+XamlSourceProviderRegistry*
+RuntimeHost::XamlSources() noexcept {
+    return impl_ != nullptr
+        ? &impl_->xamlSources
+        : nullptr;
+}
+
+EmbeddedXamlSourceProvider*
+RuntimeHost::EmbeddedXamlSources() noexcept {
+    return impl_ != nullptr
+        ? &impl_->embeddedXaml
+        : nullptr;
+}
+
+Presentation::ResourceDictionary*
+RuntimeHost::ApplicationResources() noexcept {
+    return impl_ != nullptr
+        ? &impl_->applicationResources
+        : nullptr;
+}
+
+Presentation::ResourceDictionary*
+RuntimeHost::ThemeResources() noexcept {
+    return impl_ != nullptr
+        ? &impl_->themeResources
+        : nullptr;
+}
+
+Presentation::ResourceDictionary*
+RuntimeHost::SystemResources() noexcept {
+    return impl_ != nullptr
+        ? &impl_->systemResources
+        : nullptr;
+}
+
+Presentation::StyleManager*
+RuntimeHost::Styles() noexcept {
+    return impl_ != nullptr ? impl_->styles : nullptr;
 }
 
 std::uint32_t RuntimeHost::NamedObjectCount() const noexcept {
