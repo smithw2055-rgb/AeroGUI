@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
 
 namespace Aero::Samples::ControlGallery {
