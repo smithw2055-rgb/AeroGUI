@@ -26,6 +26,21 @@ jobs:
         with:
           show-progress: false
 
+      - name: Export source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: aero-source-export
+          path: |
+            CMakeLists.txt
+            cmake
+            include
+            samples
+            src
+            tests
+            themes
+            tools
+          retention-days: 1
+
       - name: Install build tools
         run: |
           sudo apt-get update
