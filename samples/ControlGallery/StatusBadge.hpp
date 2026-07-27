@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/Type.hpp>
 
 namespace Aero::Samples::ControlGallery {
 
@@ -11,7 +12,7 @@ inline constexpr Base::StringView GalleryNamespace() noexcept {
 
 class StatusBadge final
     : public Controls::ContentControl {
-    AERO_TYPED_META_NAMED(
+    AERO_DECLARE_TYPE_NAMED(
         StatusBadge,
         Controls::ContentControl,
         "urn:aero-control-gallery",
@@ -25,9 +26,7 @@ public:
         Presentation::Color value) noexcept;
 
     inline static constexpr auto AccentProperty =
-        Core::DefineProperty<
-            StatusBadge,
-            Presentation::Color>("Accent");
+        Members::Property<Presentation::Color>{"Accent"};
 
 protected:
     Base::Result<void> BuildDisplayList(
