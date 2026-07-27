@@ -70,12 +70,9 @@ Base::Result<void> StatusBadge::BuildDisplayList(
 
 Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept {
-    Aero::ModuleRegistration manifest;
-    manifest.name =
-        "Aero.Samples.ControlGallery.StatusBadge";
-    manifest.schemaVersion = 1U;
-    manifest.registerModule = &RegisterMetadata;
-    return manifest;
+    return Aero::DefineModule(
+        "Aero.Samples.ControlGallery.StatusBadge",
+        &RegisterMetadata);
 }
 
 Base::Result<void> RegisterControlGalleryModules(
