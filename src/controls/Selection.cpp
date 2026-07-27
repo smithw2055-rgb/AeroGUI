@@ -59,17 +59,12 @@ bool EqualIndices(
 } // namespace
 
 bool ListBoxItem::IsSelected() const noexcept {
-    Base::Result<Value> value =
-        GetValue(IsSelectedProperty);
-    return value && value.Value().AsBoolean();
+    return IsSelectedProperty.GetOr(*this, false);
 }
 
 Base::Result<void> ListBoxItem::SetIsSelected(
     bool value) noexcept {
-    return SetCurrentValue(
-        IsSelectedProperty,
-        Value::FromBoolean(
-            BuiltinTypes::Boolean, value));
+    return IsSelectedProperty.SetCurrent(*this, value);
 }
 
 Selector::Selector() noexcept
@@ -115,39 +110,22 @@ Selector::~Selector() {
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectionModeProperty);
-    return value
-        ? static_cast<SelectionMode>(
-            value.Value().AsUnsignedInteger())
-        : SelectionMode::Single;
+    return SelectionModeProperty.GetOr(
+        *this, SelectionMode::Single);
 }
 
 std::uint32_t Selector::SelectedIndex() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedIndexProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : UINT32_MAX;
+    return SelectedIndexProperty.GetOr(*this, UINT32_MAX);
 }
 
 Base::Ref<Base::Object>
 Selector::SelectedItem() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedItemProperty);
-    return value && !value.Value().IsNullObject()
-        ? value.Value().AsObject()
-        : Base::Ref<Base::Object>();
+    return SelectedItemProperty.GetOr(*this);
 }
 
 Base::Ref<Base::Object>
 Selector::SelectedValue() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectedValueProperty);
-    return value && !value.Value().IsNullObject()
-        ? value.Value().AsObject()
-        : Base::Ref<Base::Object>();
+    return SelectedValueProperty.GetOr(*this);
 }
 
 bool Selector::IsSelected(
@@ -176,11 +154,8 @@ Base::Result<void> Selector::SetSelectionMode(
             "Selector SelectionMode is invalid");
     }
     lastSelectionError_ = {};
-    Base::Result<void> stored = SetValue(
-        SelectionModeProperty,
-        Value::FromUnsignedInteger(
-            TypeOf<SelectionMode>(),
-            static_cast<std::uint64_t>(value)));
+    Base::Result<void> stored =
+        SelectionModeProperty.Set(*this, value);
     if (!stored) return stored.GetStatus();
     if (value == SelectionMode::Single &&
         selectedIndices_.Size() > 1U) {
@@ -463,11 +438,8 @@ Base::Result<void> Selector::PublishProperties() noexcept {
         : Base::Ref<Base::Object>();
     Base::Result<void> indexStored;
     if (activeProperty_ != SelectedIndexProperty) {
-        indexStored = SetCurrentValue(
-            SelectedIndexProperty,
-            Value::FromUnsignedInteger(
-                BuiltinTypes::UnsignedInteger,
-                primaryIndex_));
+        indexStored = SelectedIndexProperty.SetCurrent(
+            *this, primaryIndex_);
     }
     if (!indexStored) {
         synchronizingProperties_ = false;
@@ -475,10 +447,8 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     }
     Base::Result<void> itemStored;
     if (activeProperty_ != SelectedItemProperty) {
-        itemStored = SetCurrentValue(
-            SelectedItemProperty,
-            Value::FromObject(
-                TypeOf<Base::Object>(), selected));
+        itemStored = SelectedItemProperty.SetCurrent(
+            *this, selected);
     }
     if (!itemStored) {
         synchronizingProperties_ = false;
@@ -486,10 +456,8 @@ Base::Result<void> Selector::PublishProperties() noexcept {
     }
     Base::Result<void> valueStored;
     if (activeProperty_ != SelectedValueProperty) {
-        valueStored = SetCurrentValue(
-            SelectedValueProperty,
-            Value::FromObject(
-                TypeOf<Base::Object>(), selected));
+        valueStored = SelectedValueProperty.SetCurrent(
+            *this, selected);
     }
     synchronizingProperties_ = false;
     return valueStored;

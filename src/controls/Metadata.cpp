@@ -8,7 +8,7 @@
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Controls/Virtualization.hpp>
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Metadata.hpp>
 
 #include <cctype>
 #include <cmath>
@@ -468,9 +468,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     using namespace Aero::Core;
     Base::Result<void> status;
 
-    MetaTypeBuilder<Orientation> orientation =
-        MetaTypeBuilder<Orientation>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto orientation = DescribeEnum<Orientation, std::uint32_t>(context);
     orientation
         .EnumValue("Horizontal", Orientation::Horizontal)
         .EnumValue("Vertical", Orientation::Vertical)
@@ -478,9 +476,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = orientation.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ClickMode> clickMode =
-        MetaTypeBuilder<ClickMode>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto clickMode = DescribeEnum<ClickMode, std::uint32_t>(context);
     clickMode
         .EnumValue("Release", ClickMode::Release)
         .EnumValue("Press", ClickMode::Press)
@@ -489,9 +485,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = clickMode.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<SelectionMode> selectionMode =
-        MetaTypeBuilder<SelectionMode>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto selectionMode = DescribeEnum<SelectionMode, std::uint32_t>(context);
     selectionMode
         .EnumValue("Single", SelectionMode::Single)
         .EnumValue("Multiple", SelectionMode::Multiple)
@@ -500,14 +494,11 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = selectionMode.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ScrollChangedEventArgs> scrollChangedEventArgs =
-        MetaTypeBuilder<ScrollChangedEventArgs>::Struct(context);
+    auto scrollChangedEventArgs = DescribeStruct<ScrollChangedEventArgs>(context);
     status = scrollChangedEventArgs.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<FrameworkTemplate> frameworkTemplate =
-        MetaTypeBuilder<FrameworkTemplate>::Object(
-            context, TypeFlags::Abstract);
+    auto frameworkTemplate = Describe<FrameworkTemplate>(context, TypeFlags::Abstract);
     frameworkTemplate.Property(OrdinaryProperty(
         "Resources",
         Presentation::ResourceDictionary::StaticTypeId(),
@@ -517,8 +508,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = frameworkTemplate.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ControlTemplate> controlTemplate =
-        MetaTypeBuilder<ControlTemplate>::Object(context);
+    auto controlTemplate = Describe<ControlTemplate>(context);
     controlTemplate
         .Property({
             "TargetType",
@@ -535,12 +525,11 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             ContentKind::Collection,
             &AddTemplateVisualStateGroup,
             &ClearTemplateVisualStateGroups)
-        .DefaultFactory();
+        .Factory();
     status = controlTemplate.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<DataTemplate> dataTemplate =
-        MetaTypeBuilder<DataTemplate>::Object(context);
+    auto dataTemplate = Describe<DataTemplate>(context);
     dataTemplate
         .Property({
             "DataType",
@@ -558,12 +547,11 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             &SetDeferredTemplateVisualTree<DataTemplate>,
             &ClearDeferredTemplateVisualTree<DataTemplate>,
             ContentFlags::Visual)
-        .DefaultFactory();
+        .Factory();
     status = dataTemplate.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ItemsPanelTemplate> itemsPanelTemplate =
-        MetaTypeBuilder<ItemsPanelTemplate>::Object(context);
+    auto itemsPanelTemplate = Describe<ItemsPanelTemplate>(context);
     itemsPanelTemplate
         .Property(OrdinaryProperty(
             "Resources",
@@ -577,12 +565,11 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             &SetDeferredTemplateVisualTree<ItemsPanelTemplate>,
             &ClearDeferredTemplateVisualTree<ItemsPanelTemplate>,
             ContentFlags::Visual)
-        .DefaultFactory();
+        .Factory();
     status = itemsPanelTemplate.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Panel> panel =
-        MetaTypeBuilder<Panel>::Object(context, TypeFlags::Abstract);
+    auto panel = Describe<Panel>(context, TypeFlags::Abstract);
     panel.Content<Presentation::UIElement>(
         "Children", ContentKind::Collection,
         &SetPanelContent, &ClearPanelContent,
@@ -590,8 +577,7 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = panel.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Decorator> decorator =
-        MetaTypeBuilder<Decorator>::Object(context, TypeFlags::Abstract);
+    auto decorator = Describe<Decorator>(context, TypeFlags::Abstract);
     decorator.Content<Presentation::UIElement>(
         "Content", ContentKind::Single,
         &SetDecoratorContent, &ClearDecoratorContent,
@@ -599,21 +585,16 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = decorator.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Control> control =
-        MetaTypeBuilder<Control>::Object(context, TypeFlags::Abstract);
-    control.DependencyProperty(
-        Control::TemplateProperty,
-        "Template",
-        ControlTemplate::StaticTypeId(),
-        Value::NullObject(
+    auto control = Describe<Control>(context, TypeFlags::Abstract);
+    control.Property(
+            Control::TemplateProperty,
+            Value::NullObject(
             ControlTemplate::StaticTypeId()),
-        PropertyMetadataFlags::AffectsMeasure);
+            PropertyMetadataFlags::AffectsMeasure);
     status = control.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ContentControl> contentControl =
-        MetaTypeBuilder<ContentControl>::Object(
-            context, TypeFlags::Abstract);
+    auto contentControl = Describe<ContentControl>(context, TypeFlags::Abstract);
     contentControl.Content<Presentation::UIElement>(
         "Content", ContentKind::Single,
         &SetContentControlContent, &ClearContentControlContent,
@@ -621,392 +602,302 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = contentControl.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ButtonBase> buttonBase =
-        MetaTypeBuilder<ButtonBase>::Object(
-            context, TypeFlags::Abstract);
+    auto buttonBase = Describe<ButtonBase>(context, TypeFlags::Abstract);
     if (context.RoutedEvents() != nullptr) {
-        buttonBase.RoutedEvent(
-            ButtonBase::ClickEvent,
-            "Click", TypeOf<RoutedEventArgs>(),
-            RoutingStrategy::Bubble);
+        buttonBase.Event(
+                ButtonBase::ClickEvent,
+                RoutingStrategy::Bubble);
     }
     buttonBase
-        .DependencyProperty(
+        .Property(
             ButtonBase::ClickModeProperty,
-            "ClickMode", TypeOf<ClickMode>(),
-            Value::FromUnsignedInteger(
-                TypeOf<ClickMode>(),
-                static_cast<std::uint64_t>(
-                    ClickMode::Release)),
+            ClickMode::Release,
             PropertyMetadataFlags::None,
             &ValidateClickModeValue)
-        .DependencyProperty(
+        .Property(
             ButtonBase::CommandProperty,
-            "Command", TypeOf<ICommand>(),
             Value::NullObject(TypeOf<ICommand>()),
             PropertyMetadataFlags::None)
-        .DependencyProperty(
+        .Property(
             ButtonBase::CommandParameterProperty,
-            "CommandParameter", TypeOf<Base::Object>(),
             Value::NullObject(TypeOf<Base::Object>()),
             PropertyMetadataFlags::None)
-        .DependencyProperty(
+        .Property(
             ButtonBase::CommandTargetProperty,
-            "CommandTarget", TypeOf<UIElement>(),
             Value::NullObject(TypeOf<UIElement>()),
             PropertyMetadataFlags::None);
+    buttonBase
+        .Override(
+            UIElement::IsEnabledProperty,
+            true,
+            PropertyMetadataFlags::Inherits |
+                PropertyMetadataFlags::AffectsRender,
+            nullptr,
+            &CoerceButtonEnabled)
+        .Override(UIElement::IsTabStopProperty, true);
     status = buttonBase.Finish();
     if (!status) return status.GetStatus();
-    PropertyMetadata buttonEnabled;
-    buttonEnabled.defaultValue =
-        Value::FromBoolean(TypeOf<bool>(), true);
-    buttonEnabled.flags =
-        PropertyMetadataFlags::Inherits |
-        PropertyMetadataFlags::AffectsRender;
-    buttonEnabled.coerce = &CoerceButtonEnabled;
-    status = context.DependencyProperties().TryOverrideMetadata(
-        UIElement::IsEnabledProperty,
-        TypeOf<ButtonBase>(), buttonEnabled);
-    if (!status) return status.GetStatus();
-    PropertyMetadata buttonTabStop;
-    buttonTabStop.defaultValue =
-        Value::FromBoolean(TypeOf<bool>(), true);
-    status = context.DependencyProperties().TryOverrideMetadata(
-        UIElement::IsTabStopProperty,
-        TypeOf<ButtonBase>(), buttonTabStop);
-    if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Button> button =
-        MetaTypeBuilder<Button>::Object(context);
-    button.DefaultFactory();
+    auto button = Describe<Button>(context);
+    button.Factory();
     status = button.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<RepeatButton> repeatButton =
-        MetaTypeBuilder<RepeatButton>::Object(context);
+    auto repeatButton = Describe<RepeatButton>(context);
     repeatButton
-        .DependencyProperty(
+        .Property(
             RepeatButton::DelayProperty,
-            "Delay", TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), 400U),
+            400U,
             PropertyMetadataFlags::None,
             &ValidateUInt32)
-        .DependencyProperty(
+        .Property(
             RepeatButton::IntervalProperty,
-            "Interval", TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), 100U),
+            100U,
             PropertyMetadataFlags::None,
             &ValidatePositiveUInt32)
-        .DefaultFactory();
+        .Factory();
+    repeatButton.Override(
+        ButtonBase::ClickModeProperty,
+        ClickMode::Press);
     status = repeatButton.Finish();
     if (!status) return status.GetStatus();
-    PropertyMetadata repeatClickMode;
-    repeatClickMode.defaultValue =
-        Value::FromUnsignedInteger(
-            TypeOf<ClickMode>(),
-            static_cast<std::uint64_t>(ClickMode::Press));
-    status = context.DependencyProperties().TryOverrideMetadata(
-        ButtonBase::ClickModeProperty,
-        TypeOf<RepeatButton>(), repeatClickMode);
-    if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ToggleButton> toggleButton =
-        MetaTypeBuilder<ToggleButton>::Object(context);
+    auto toggleButton = Describe<ToggleButton>(context);
     if (context.RoutedEvents() != nullptr) {
         toggleButton
-            .RoutedEvent(
+            .Event(
                 ToggleButton::CheckedEvent,
-                "Checked", TypeOf<RoutedEventArgs>(),
                 RoutingStrategy::Bubble)
-            .RoutedEvent(
+            .Event(
                 ToggleButton::UncheckedEvent,
-                "Unchecked", TypeOf<RoutedEventArgs>(),
                 RoutingStrategy::Bubble)
-            .RoutedEvent(
+            .Event(
                 ToggleButton::IndeterminateEvent,
-                "Indeterminate", TypeOf<RoutedEventArgs>(),
                 RoutingStrategy::Bubble);
     }
     toggleButton
-        .DependencyProperty(
+        .Property(
             ToggleButton::IsCheckedProperty,
-            "IsChecked", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::BindsTwoWayByDefault |
                 PropertyMetadataFlags::AffectsRender,
             &ValidateBooleanValue)
-        .DependencyProperty(
+        .Property(
             ToggleButton::IsThreeStateProperty,
-            "IsThreeState", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsRender,
             &ValidateBooleanValue)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ToggleButton::IsIndeterminateProperty,
-            "IsIndeterminate", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsRender,
             &ValidateBooleanValue)
-        .DefaultFactory();
+        .Factory();
     status = toggleButton.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<CheckBox> checkBox =
-        MetaTypeBuilder<CheckBox>::Object(context);
-    checkBox.DefaultFactory();
+    auto checkBox = Describe<CheckBox>(context);
+    checkBox.Factory();
     status = checkBox.Finish();
     if (!status) return status.GetStatus();
 
     Base::Result<Value> emptyGroup =
         Value::TryFromString(TypeOf<Base::String>(), {});
     if (!emptyGroup) return emptyGroup.GetStatus();
-    MetaTypeBuilder<RadioButton> radioButton =
-        MetaTypeBuilder<RadioButton>::Object(context);
+    auto radioButton = Describe<RadioButton>(context);
     radioButton
-        .DependencyProperty(
+        .Property(
             RadioButton::GroupNameProperty,
-            "GroupName", TypeOf<Base::String>(),
             emptyGroup.Value(),
             PropertyMetadataFlags::None)
-        .DefaultFactory();
+        .Factory();
     status = radioButton.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ScrollContentPresenter> scrollPresenter =
-        MetaTypeBuilder<ScrollContentPresenter>::Object(context);
-    scrollPresenter.DefaultFactory();
+    auto scrollPresenter = Describe<ScrollContentPresenter>(context);
+    scrollPresenter.Factory();
     status = scrollPresenter.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ScrollViewer> scrollViewer =
-        MetaTypeBuilder<ScrollViewer>::Object(context);
+    auto scrollViewer = Describe<ScrollViewer>(context);
     if (context.RoutedEvents() != nullptr) {
-        scrollViewer.RoutedEvent(
-            ScrollViewer::ScrollChangedEvent,
-            "ScrollChanged",
-            TypeOf<ScrollChangedEventArgs>(),
-            RoutingStrategy::Bubble);
+        scrollViewer.Event(
+                ScrollViewer::ScrollChangedEvent,
+                RoutingStrategy::Bubble);
     }
     scrollViewer
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::HorizontalOffsetProperty,
-            "HorizontalOffset", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::VerticalOffsetProperty,
-            "VerticalOffset", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::ExtentWidthProperty,
-            "ExtentWidth", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::ExtentHeightProperty,
-            "ExtentHeight", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::ViewportWidthProperty,
-            "ViewportWidth", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             ScrollViewer::ViewportHeightProperty,
-            "ViewportHeight", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble)
-        .DependencyProperty(
+        .Property(
             ScrollViewer::CanHorizontallyScrollProperty,
-            "CanHorizontallyScroll", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
+            true,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateBooleanValue)
-        .DependencyProperty(
+        .Property(
             ScrollViewer::CanVerticallyScrollProperty,
-            "CanVerticallyScroll", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
+            true,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateBooleanValue)
-        .DependencyProperty(
+        .Property(
             ScrollViewer::CanContentScrollProperty,
-            "CanContentScroll", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateBooleanValue)
-        .DefaultFactory();
+        .Factory();
     status = scrollViewer.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Thumb> thumb =
-        MetaTypeBuilder<Thumb>::Object(context);
-    thumb.DefaultFactory();
+    auto thumb = Describe<Thumb>(context);
+    thumb.Factory();
     status = thumb.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Track> track =
-        MetaTypeBuilder<Track>::Object(context);
+    auto track = Describe<Track>(context);
     track
-        .DependencyProperty(
+        .Property(
             Track::OrientationProperty,
-            "Orientation", TypeOf<Orientation>(),
-            Value::FromUnsignedInteger(
-                TypeOf<Orientation>(),
-                static_cast<std::uint64_t>(
-                    Orientation::Vertical)),
+            Orientation::Vertical,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateOrientationValue)
-        .DependencyProperty(
+        .Property(
             Track::MinimumProperty,
-            "Minimum", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             Track::MaximumProperty,
-            "Maximum", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 1.0),
+            1.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             Track::ValueProperty,
-            "Value", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange |
                 PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             Track::ViewportSizeProperty,
-            "ViewportSize", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateNonnegativeDouble);
-    track.DefaultFactory();
+    track.Factory();
     status = track.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ScrollBar> scrollBar =
-        MetaTypeBuilder<ScrollBar>::Object(context);
+    auto scrollBar = Describe<ScrollBar>(context);
     scrollBar
-        .DependencyProperty(
+        .Property(
             ScrollBar::OrientationProperty,
-            "Orientation", TypeOf<Orientation>(),
-            Value::FromUnsignedInteger(
-                TypeOf<Orientation>(),
-                static_cast<std::uint64_t>(
-                    Orientation::Vertical)),
+            Orientation::Vertical,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateOrientationValue)
-        .DependencyProperty(
+        .Property(
             ScrollBar::MinimumProperty,
-            "Minimum", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             ScrollBar::MaximumProperty,
-            "Maximum", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 1.0),
+            1.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             ScrollBar::ValueProperty,
-            "Value", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange |
                 PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateFiniteDouble)
-        .DependencyProperty(
+        .Property(
             ScrollBar::ViewportSizeProperty,
-            "ViewportSize", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::AffectsArrange,
             &ValidateNonnegativeDouble)
-        .DependencyProperty(
+        .Property(
             ScrollBar::SmallChangeProperty,
-            "SmallChange", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 16.0),
+            16.0,
             PropertyMetadataFlags::None,
             &ValidatePositiveDouble)
-        .DependencyProperty(
+        .Property(
             ScrollBar::LargeChangeProperty,
-            "LargeChange", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            0.0,
             PropertyMetadataFlags::None,
             &ValidateNonnegativeDouble);
-    scrollBar.DefaultFactory();
+    scrollBar.Factory();
     status = scrollBar.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ItemContainer> itemContainer =
-        MetaTypeBuilder<ItemContainer>::Object(context);
-    itemContainer.DefaultFactory();
+    auto itemContainer = Describe<ItemContainer>(context);
+    itemContainer.Factory();
     status = itemContainer.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ItemsControl> itemsControl =
-        MetaTypeBuilder<ItemsControl>::Object(context);
-    itemsControl.ReadOnlyDependencyProperty(
-        ItemsControl::ItemCountProperty,
-        "ItemCount", TypeOf<std::uint32_t>(),
-        Value::FromUnsignedInteger(
-            TypeOf<std::uint32_t>(), 0U),
-        PropertyMetadataFlags::None,
-        &ValidateUInt32)
+    auto itemsControl = Describe<ItemsControl>(context);
+    itemsControl.ReadOnlyProperty(
+            ItemsControl::ItemCountProperty,
+            0U,
+            PropertyMetadataFlags::None,
+            &ValidateUInt32)
         .Content<Base::Object>(
             "Items", ContentKind::Collection,
             &AddItemsControlItem, &ClearItemsControlItems)
-        .DefaultFactory();
+        .Factory();
     status = itemsControl.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ItemsPresenter> itemsPresenter =
-        MetaTypeBuilder<ItemsPresenter>::Object(context);
-    itemsPresenter.DefaultFactory();
+    auto itemsPresenter = Describe<ItemsPresenter>(context);
+    itemsPresenter.Factory();
     status = itemsPresenter.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Selector> selector =
-        MetaTypeBuilder<Selector>::Object(
-            context, TypeFlags::Abstract);
+    auto selector = Describe<Selector>(context, TypeFlags::Abstract);
     selector
-        .DependencyProperty(
+        .Property(
             Selector::SelectionModeProperty,
-            "SelectionMode", TypeOf<SelectionMode>(),
-            Value::FromUnsignedInteger(
-                TypeOf<SelectionMode>(),
-                static_cast<std::uint64_t>(
-                    SelectionMode::Single)),
+            SelectionMode::Single,
             PropertyMetadataFlags::None,
             &ValidateSelectionModeValue)
-        .DependencyProperty(
+        .Property(
             Selector::SelectedIndexProperty,
-            "SelectedIndex", TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), UINT32_MAX),
+            UINT32_MAX,
             PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateUInt32)
-        .DependencyProperty(
+        .Property(
             Selector::SelectedItemProperty,
-            "SelectedItem", TypeOf<Base::Object>(),
             Value::FromObject(
                 TypeOf<Base::Object>(), {}),
             PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateObjectValue,
             &CoerceSelectedObject)
-        .DependencyProperty(
+        .Property(
             Selector::SelectedValueProperty,
-            "SelectedValue", TypeOf<Base::Object>(),
             Value::FromObject(
                 TypeOf<Base::Object>(), {}),
             PropertyMetadataFlags::BindsTwoWayByDefault,
@@ -1015,117 +906,93 @@ Base::Result<void> Detail::PopulateControlsMetadata(
     status = selector.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ListBox> listBox =
-        MetaTypeBuilder<ListBox>::Object(context);
-    listBox.DefaultFactory();
+    auto listBox = Describe<ListBox>(context);
+    listBox.Factory();
     status = listBox.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ListBoxItem> listBoxItem =
-        MetaTypeBuilder<ListBoxItem>::Object(context);
+    auto listBoxItem = Describe<ListBoxItem>(context);
     listBoxItem
-        .DependencyProperty(
+        .Property(
             ListBoxItem::IsSelectedProperty,
-            "IsSelected", TypeOf<bool>(),
-            Value::FromBoolean(
-                TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsRender |
                 PropertyMetadataFlags::BindsTwoWayByDefault,
             &ValidateBooleanValue)
-        .DefaultFactory();
+        .Factory();
     status = listBoxItem.Finish();
     if (!status) return status.GetStatus();
 
-    PropertyMetadata listBoxItemTabStop;
-    listBoxItemTabStop.defaultValue =
-        Value::FromBoolean(TypeOf<bool>(), true);
-    status =
-        context.DependencyProperties().TryOverrideMetadata(
-            Presentation::UIElement::IsTabStopProperty,
-            TypeOf<ListBoxItem>(),
-            listBoxItemTabStop);
-    if (!status) return status.GetStatus();
+    listBoxItem.Override(
+        Presentation::UIElement::IsTabStopProperty, true);
 
-    MetaTypeBuilder<UserControl> userControl =
-        MetaTypeBuilder<UserControl>::Object(context);
-    userControl.DefaultFactory();
+    auto userControl = Describe<UserControl>(context);
+    userControl.Factory();
     status = userControl.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<StackPanel> stackPanel =
-        MetaTypeBuilder<StackPanel>::Object(context);
+    auto stackPanel = Describe<StackPanel>(context);
     stackPanel
-        .DependencyProperty(StackPanel::OrientationProperty, "Orientation",
-            TypeOf<Orientation>(),
-            Value::FromUnsignedInteger(TypeOf<Orientation>(), 1U),
+        .Property(
+            StackPanel::OrientationProperty,
+            Orientation::Vertical,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateOrientationValue)
-        .DefaultFactory();
+        .Factory();
     status = stackPanel.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<VirtualizingStackPanel>
-        virtualizingStackPanel =
-            MetaTypeBuilder<
-                VirtualizingStackPanel>::Object(context);
+    auto virtualizingStackPanel = Describe<VirtualizingStackPanel>(context);
     virtualizingStackPanel
-        .DependencyProperty(
+        .Property(
             VirtualizingStackPanel::OrientationProperty,
-            "Orientation", TypeOf<Orientation>(),
-            Value::FromUnsignedInteger(
-                TypeOf<Orientation>(),
-                static_cast<std::uint64_t>(
-                    Orientation::Vertical)),
+            Orientation::Vertical,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateOrientationValue)
-        .DependencyProperty(
+        .Property(
             VirtualizingStackPanel::OverscanCountProperty,
-            "OverscanCount",
-            TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), 2U),
+            2U,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateUInt32)
-        .DependencyProperty(
+        .Property(
             VirtualizingStackPanel::
                 EstimatedItemExtentProperty,
-            "EstimatedItemExtent",
-            TypeOf<double>(),
-            Value::FromDouble(
-                TypeOf<double>(), 24.0),
+            24.0,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidatePositiveDouble)
-        .DefaultFactory();
+        .Factory();
     status = virtualizingStackPanel.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Canvas> canvas =
-        MetaTypeBuilder<Canvas>::Object(context);
+    auto canvas = Describe<Canvas>(context);
     canvas
-        .AttachedDependencyProperty(Canvas::LeftProperty, "Left",
-            TypeOf<double>(), Value::FromDouble(TypeOf<double>(), 0.0),
+        .AttachedProperty(
+            Canvas::LeftProperty,
+            0.0,
             PropertyMetadataFlags::AffectsParentMeasure,
             &ValidateFiniteDouble)
-        .AttachedDependencyProperty(Canvas::TopProperty, "Top",
-            TypeOf<double>(), Value::FromDouble(TypeOf<double>(), 0.0),
+        .AttachedProperty(
+            Canvas::TopProperty,
+            0.0,
             PropertyMetadataFlags::AffectsParentMeasure,
             &ValidateFiniteDouble)
-        .DefaultFactory();
+        .Factory();
     status = canvas.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Grid> grid =
-        MetaTypeBuilder<Grid>::Object(context);
+    auto grid = Describe<Grid>(context);
     grid
-        .AttachedDependencyProperty(Grid::RowProperty, "Row",
-            TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(TypeOf<std::uint32_t>(), 0U),
-            PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32)
-        .AttachedDependencyProperty(Grid::ColumnProperty, "Column",
-            TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(TypeOf<std::uint32_t>(), 0U),
-            PropertyMetadataFlags::AffectsParentMeasure, &ValidateUInt32)
-        .DefaultFactory();
+        .AttachedProperty(
+            Grid::RowProperty,
+            0U,
+            PropertyMetadataFlags::AffectsParentMeasure,
+            &ValidateUInt32)
+        .AttachedProperty(
+            Grid::ColumnProperty,
+            0U,
+            PropertyMetadataFlags::AffectsParentMeasure,
+            &ValidateUInt32)
+        .Factory();
     status = grid.Finish();
     if (!status) return status.GetStatus();
 
@@ -1140,30 +1007,33 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<Presentation::Thickness>(), &zero);
     if (!padding) return padding.GetStatus();
 
-    MetaTypeBuilder<Border> border =
-        MetaTypeBuilder<Border>::Object(context);
+    auto border = Describe<Border>(context);
     border
-        .DependencyProperty(Border::BackgroundProperty, "Background",
-            TypeOf<Presentation::Color>(), transparentValue.Value(),
-            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
-        .DependencyProperty(Border::BorderBrushProperty, "BorderBrush",
-            TypeOf<Presentation::Color>(), transparentValue.Value(),
-            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
-        .DependencyProperty(Border::BorderThicknessProperty,
-            "BorderThickness", TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+        .Property(
+            Border::BackgroundProperty,
+            transparentValue.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue)
+        .Property(
+            Border::BorderBrushProperty,
+            transparentValue.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue)
+        .Property(
+            Border::BorderThicknessProperty,
+            0.0,
             PropertyMetadataFlags::AffectsRender,
             &ValidateNonnegativeDouble)
-        .DependencyProperty(Border::PaddingProperty, "Padding",
-            TypeOf<Presentation::Thickness>(), padding.Value(),
+        .Property(
+            Border::PaddingProperty,
+            padding.Value(),
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateThicknessValue)
-        .DefaultFactory();
+        .Factory();
     status = border.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<TextBlock> textBlock =
-        MetaTypeBuilder<TextBlock>::Object(context);
+    auto textBlock = Describe<TextBlock>(context);
     Base::Result<Value> text =
         Value::TryFromString(TypeOf<Base::String>(), {});
     if (!text) return text.GetStatus();
@@ -1173,18 +1043,20 @@ Base::Result<void> Detail::PopulateControlsMetadata(
             TypeOf<Presentation::Color>(), &black);
     if (!foreground) return foreground.GetStatus();
     textBlock
-        .DependencyProperty(TextBlock::TextProperty, "Text",
-            TypeOf<Base::String>(), text.Value(),
+        .Property(
+            TextBlock::TextProperty,
+            text.Value(),
             PropertyMetadataFlags::AffectsMeasure)
-        .DependencyProperty(TextBlock::ForegroundProperty, "Foreground",
-            TypeOf<Presentation::Color>(), foreground.Value(),
-            PropertyMetadataFlags::AffectsRender, &ValidateColorValue)
-        .DefaultFactory();
+        .Property(
+            TextBlock::ForegroundProperty,
+            foreground.Value(),
+            PropertyMetadataFlags::AffectsRender,
+            &ValidateColorValue)
+        .Factory();
     status = textBlock.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<TextBox> textBox =
-        MetaTypeBuilder<TextBox>::Object(context);
+    auto textBox = Describe<TextBox>(context);
     const Presentation::Color selection{
         0.18F, 0.48F, 0.95F, 0.45F};
     Base::Result<Value> selectionBrush =
@@ -1195,82 +1067,56 @@ Base::Result<void> Detail::PopulateControlsMetadata(
         return selectionBrush.GetStatus();
     }
     textBox
-        .DependencyProperty(
+        .Property(
             TextBox::TextProperty,
-            "Text", TypeOf<Base::String>(),
             text.Value(),
             PropertyMetadataFlags::AffectsMeasure |
                 PropertyMetadataFlags::
                     BindsTwoWayByDefault,
             nullptr,
             &CoerceTextBoxText)
-        .DependencyProperty(
+        .Property(
             TextBox::IsReadOnlyProperty,
-            "IsReadOnly", TypeOf<bool>(),
-            Value::FromBoolean(
-                TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::None,
             &ValidateBooleanValue)
-        .DependencyProperty(
+        .Property(
             TextBox::MaximumLengthProperty,
-            "MaximumLength",
-            TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(),
-                UINT32_MAX),
+            UINT32_MAX,
             PropertyMetadataFlags::None,
             &ValidateUInt32,
             &CoerceTextBoxMaximumLength)
-        .DependencyProperty(
+        .Property(
             TextBox::AcceptsReturnProperty,
-            "AcceptsReturn", TypeOf<bool>(),
-            Value::FromBoolean(
-                TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsMeasure,
             &ValidateBooleanValue)
-        .DependencyProperty(
+        .Property(
             TextBox::ForegroundProperty,
-            "Foreground",
-            TypeOf<Presentation::Color>(),
             foreground.Value(),
             PropertyMetadataFlags::AffectsRender,
             &ValidateColorValue)
-        .DependencyProperty(
+        .Property(
             TextBox::SelectionBrushProperty,
-            "SelectionBrush",
-            TypeOf<Presentation::Color>(),
             selectionBrush.Value(),
             PropertyMetadataFlags::AffectsRender,
             &ValidateColorValue)
-        .DependencyProperty(
+        .Property(
             TextBox::CaretBrushProperty,
-            "CaretBrush",
-            TypeOf<Presentation::Color>(),
             foreground.Value(),
             PropertyMetadataFlags::AffectsRender,
             &ValidateColorValue)
-        .DefaultFactory();
+        .Factory();
     status = textBox.Finish();
     if (!status) return status.GetStatus();
-    PropertyMetadata textBoxTabStop;
-    textBoxTabStop.defaultValue =
-        Value::FromBoolean(
-            TypeOf<bool>(), true);
-    status =
-        context.DependencyProperties().
-            TryOverrideMetadata(
-                UIElement::IsTabStopProperty,
-                TypeOf<TextBox>(),
-                textBoxTabStop);
-    if (!status) return status.GetStatus();
+    textBox.Override(UIElement::IsTabStopProperty, true);
 
-    MetaTypeBuilder<ContentPresenter> contentPresenter =
-        MetaTypeBuilder<ContentPresenter>::Object(context);
+    auto contentPresenter = Describe<ContentPresenter>(context);
     contentPresenter.Content<Presentation::UIElement>(
         "Content", ContentKind::Single,
         &SetContentPresenterContent, &ClearContentPresenterContent,
         ContentFlags::Visual)
-        .DefaultFactory();
+        .Factory();
     return contentPresenter.Finish();
 }
 

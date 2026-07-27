@@ -1,7 +1,7 @@
 #include <Aero/Presentation/Metadata.hpp>
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Metadata.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
@@ -336,8 +336,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     Core::MetaRegistrationContext& context) noexcept {
     Base::Result<void> status;
 
-    MetaTypeBuilder<ResourceDictionary> resourceDictionary =
-        MetaTypeBuilder<ResourceDictionary>::Object(context);
+    auto resourceDictionary = Describe<ResourceDictionary>(context);
     resourceDictionary
         .Property({
             "Source",
@@ -351,12 +350,11 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .Content<Base::Object>(
             "Entries",
             ContentKind::Collection)
-        .DefaultFactory();
+        .Factory();
     status = resourceDictionary.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Setter> setter =
-        MetaTypeBuilder<Setter>::Object(context);
+    auto setter = Describe<Setter>(context);
     setter
         .Property({
             "TargetName",
@@ -370,12 +368,11 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
             "Value",
             TypeOf<Base::String>(),
             PropertyFlags::None})
-        .DefaultFactory();
+        .Factory();
     status = setter.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<PropertyTrigger> trigger =
-        MetaTypeBuilder<PropertyTrigger>::Object(context);
+    auto trigger = Describe<PropertyTrigger>(context);
     trigger
         .Property({
             "Property",
@@ -388,12 +385,11 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .Content<Setter>(
             "Setters",
             ContentKind::Collection)
-        .DefaultFactory();
+        .Factory();
     status = trigger.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Style> style =
-        MetaTypeBuilder<Style>::Object(context);
+    auto style = Describe<Style>(context);
     style
         .Property({
             "TargetType",
@@ -417,57 +413,45 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .Content<Setter>(
             "Setters",
             ContentKind::Collection)
-        .DefaultFactory();
+        .Factory();
     status = style.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<EventArgs> eventArgs =
-        MetaTypeBuilder<EventArgs>::Struct(context);
+    auto eventArgs = DescribeStruct<EventArgs>(context);
     status = eventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<RoutedEventArgs> routedEventArgs =
-        MetaTypeBuilder<RoutedEventArgs>::Struct(context);
+    auto routedEventArgs = DescribeStruct<RoutedEventArgs>(context);
     status = routedEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<InputEventArgs> inputEventArgs =
-        MetaTypeBuilder<InputEventArgs>::Struct(context);
+    auto inputEventArgs = DescribeStruct<InputEventArgs>(context);
     status = inputEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseEventArgs> mouseEventArgs =
-        MetaTypeBuilder<MouseEventArgs>::Struct(context);
+    auto mouseEventArgs = DescribeStruct<MouseEventArgs>(context);
     status = mouseEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseButtonEventArgs> mouseButtonEventArgs =
-        MetaTypeBuilder<MouseButtonEventArgs>::Struct(context);
+    auto mouseButtonEventArgs = DescribeStruct<MouseButtonEventArgs>(context);
     status = mouseButtonEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseWheelEventArgs> mouseWheelEventArgs =
-        MetaTypeBuilder<MouseWheelEventArgs>::Struct(context);
+    auto mouseWheelEventArgs = DescribeStruct<MouseWheelEventArgs>(context);
     status = mouseWheelEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyEventArgs> keyEventArgs =
-        MetaTypeBuilder<KeyEventArgs>::Struct(context);
+    auto keyEventArgs = DescribeStruct<KeyEventArgs>(context);
     status = keyEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<TextCompositionEventArgs> textCompositionEventArgs =
-        MetaTypeBuilder<TextCompositionEventArgs>::Struct(context);
+    auto textCompositionEventArgs = DescribeStruct<TextCompositionEventArgs>(context);
     status = textCompositionEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyboardFocusChangedEventArgs> focusEventArgs =
-        MetaTypeBuilder<KeyboardFocusChangedEventArgs>::Struct(context);
+    auto focusEventArgs = DescribeStruct<KeyboardFocusChangedEventArgs>(context);
     status = focusEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<CanExecuteRoutedEventArgs> canExecuteEventArgs =
-        MetaTypeBuilder<CanExecuteRoutedEventArgs>::Struct(context);
+    auto canExecuteEventArgs = DescribeStruct<CanExecuteRoutedEventArgs>(context);
     status = canExecuteEventArgs.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<ExecutedRoutedEventArgs> executedEventArgs =
-        MetaTypeBuilder<ExecutedRoutedEventArgs>::Struct(context);
+    auto executedEventArgs = DescribeStruct<ExecutedRoutedEventArgs>(context);
     status = executedEventArgs.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Length> length =
-        MetaTypeBuilder<Length>::Struct(context);
+    auto length = DescribeStruct<Length>(context);
     length
         .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr,
             &EqualLength, nullptr, true})
@@ -475,8 +459,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = length.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Thickness> thickness =
-        MetaTypeBuilder<Thickness>::Struct(context);
+    auto thickness = DescribeStruct<Thickness>(context);
     thickness
         .Field<&Thickness::left>("Left")
         .Field<&Thickness::top>("Top")
@@ -488,7 +471,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = thickness.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Color> color = MetaTypeBuilder<Color>::Struct(context);
+    auto color = DescribeStruct<Color>(context);
     color
         .Field<&Color::red>("Red")
         .Field<&Color::green>("Green")
@@ -500,9 +483,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = color.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<HorizontalAlignment> horizontal =
-        MetaTypeBuilder<HorizontalAlignment>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto horizontal = DescribeEnum<HorizontalAlignment, std::uint32_t>(context);
     horizontal
         .EnumValue("Stretch", HorizontalAlignment::Stretch)
         .EnumValue("Left", HorizontalAlignment::Left)
@@ -512,9 +493,7 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = horizontal.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<VerticalAlignment> vertical =
-        MetaTypeBuilder<VerticalAlignment>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto vertical = DescribeEnum<VerticalAlignment, std::uint32_t>(context);
     vertical
         .EnumValue("Stretch", VerticalAlignment::Stretch)
         .EnumValue("Top", VerticalAlignment::Top)
@@ -524,100 +503,97 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
     status = vertical.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ICommand> command =
-        MetaTypeBuilder<ICommand>::Object(context, TypeFlags::Abstract);
+    auto command = Describe<ICommand>(context, TypeFlags::Abstract);
     status = command.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<InputGesture> inputGesture =
-        MetaTypeBuilder<InputGesture>::Object(context, TypeFlags::Abstract);
+    auto inputGesture = Describe<InputGesture>(context, TypeFlags::Abstract);
     status = inputGesture.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyGesture> keyGesture =
-        MetaTypeBuilder<KeyGesture>::Object(context);
+    auto keyGesture = Describe<KeyGesture>(context);
     status = keyGesture.Finish();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<RoutedCommand> routedCommand =
-        MetaTypeBuilder<RoutedCommand>::Object(context);
+    auto routedCommand = Describe<RoutedCommand>(context);
     status = routedCommand.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Visual> visual =
-        MetaTypeBuilder<Visual>::Object(context, TypeFlags::Abstract);
+    auto visual = Describe<Visual>(context, TypeFlags::Abstract);
     status = visual.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<UIElement> uiElement =
-        MetaTypeBuilder<UIElement>::Object(context, TypeFlags::Abstract);
+    auto uiElement = Describe<UIElement>(context, TypeFlags::Abstract);
     if (context.RoutedEvents() != nullptr) {
         uiElement
-            .RoutedEvent(UIElement::MouseMoveEvent, "MouseMove",
-                TypeOf<MouseEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseDownEvent, "MouseDown",
-                TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseUpEvent, "MouseUp",
-                TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseWheelEvent, "MouseWheel",
-                TypeOf<MouseWheelEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::GotKeyboardFocusEvent,
-                "GotKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
+            .Event(
+                UIElement::MouseMoveEvent,
                 RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::LostKeyboardFocusEvent,
-                "LostKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
+            .Event(
+                UIElement::MouseDownEvent,
                 RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::KeyDownEvent, "KeyDown",
-                TypeOf<KeyEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::KeyUpEvent, "KeyUp",
-                TypeOf<KeyEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::TextInputEvent, "TextInput",
-                TypeOf<TextCompositionEventArgs>(),
+            .Event(
+                UIElement::MouseUpEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::MouseWheelEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::GotKeyboardFocusEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::LostKeyboardFocusEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::KeyDownEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::KeyUpEvent,
+                RoutingStrategy::Bubble)
+            .Event(
+                UIElement::TextInputEvent,
                 RoutingStrategy::Bubble);
     }
     uiElement
-        .DependencyProperty(UIElement::ClipToBoundsProperty, "ClipToBounds",
-            TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+        .Property(
+            UIElement::ClipToBoundsProperty,
+            false,
             PropertyMetadataFlags::AffectsArrange)
-        .DependencyProperty(UIElement::IsHitTestVisibleProperty,
-            "IsHitTestVisible", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
+        .Property(
+            UIElement::IsHitTestVisibleProperty,
+            true,
             PropertyMetadataFlags::None)
-        .DependencyProperty(UIElement::IsEnabledProperty,
-            "IsEnabled", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
+        .Property(
+            UIElement::IsEnabledProperty,
+            true,
             PropertyMetadataFlags::Inherits |
                 PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(UIElement::IsMouseOverProperty,
-            "IsMouseOver", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+        .ReadOnlyProperty(
+            UIElement::IsMouseOverProperty,
+            false,
             PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(UIElement::IsPressedProperty,
-            "IsPressed", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+        .ReadOnlyProperty(
+            UIElement::IsPressedProperty,
+            false,
             PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(
+        .ReadOnlyProperty(
             UIElement::IsKeyboardFocusedProperty,
-            "IsKeyboardFocused", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            false,
             PropertyMetadataFlags::AffectsRender)
-        .DependencyProperty(UIElement::IsTabStopProperty,
-            "IsTabStop", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+        .Property(
+            UIElement::IsTabStopProperty,
+            false,
             PropertyMetadataFlags::None)
-        .DependencyProperty(UIElement::TabIndexProperty,
-            "TabIndex", TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), 0U),
-            PropertyMetadataFlags::None, &ValidateUInt32)
-        .DependencyProperty(UIElement::IsFocusScopeProperty,
-            "IsFocusScope", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+        .Property(
+            UIElement::TabIndexProperty,
+            0U,
+            PropertyMetadataFlags::None,
+            &ValidateUInt32)
+        .Property(
+            UIElement::IsFocusScopeProperty,
+            false,
             PropertyMetadataFlags::None);
     status = uiElement.Finish();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<FrameworkElement> frameworkElement =
-        MetaTypeBuilder<FrameworkElement>::Object(
-            context, TypeFlags::Abstract);
+    auto frameworkElement = Describe<FrameworkElement>(context, TypeFlags::Abstract);
     const Length autoSource = Length::Auto();
     Base::Result<Value> automatic = context.Values().TryCreateValue(
         TypeOf<Length>(), &autoSource);
@@ -633,56 +609,68 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
             nullptr,
             &SetFrameworkElementResources,
             PropertyFlags::Structural))
-        .DependencyProperty(FrameworkElement::DataContextProperty,
-            "DataContext", TypeOf<Base::Object>(),
+        .Property(
+            FrameworkElement::DataContextProperty,
             Value::NullObject(TypeOf<Base::Object>()),
             PropertyMetadataFlags::Inherits)
-        .DependencyProperty(FrameworkElement::StyleProperty,
-            "Style", Style::StaticTypeId(),
+        .Property(
+            FrameworkElement::StyleProperty,
             Value::NullObject(Style::StaticTypeId()),
             PropertyMetadataFlags::None)
-        .DependencyProperty(FrameworkElement::WidthProperty, "Width",
-            TypeOf<Length>(), automatic.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
-        .DependencyProperty(FrameworkElement::HeightProperty, "Height",
-            TypeOf<Length>(), automatic.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
-        .DependencyProperty(FrameworkElement::MinWidthProperty, "MinWidth",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+        .Property(
+            FrameworkElement::WidthProperty,
+            automatic.Value(),
             PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMinWidth)
-        .DependencyProperty(FrameworkElement::MaxWidthProperty, "MaxWidth",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), DefaultMaximum),
+            &ValidateLength)
+        .Property(
+            FrameworkElement::HeightProperty,
+            automatic.Value(),
             PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMaxWidth)
-        .DependencyProperty(FrameworkElement::MinHeightProperty, "MinHeight",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
+            &ValidateLength)
+        .Property(
+            FrameworkElement::MinWidthProperty,
+            0.0,
             PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMinHeight)
-        .DependencyProperty(FrameworkElement::MaxHeightProperty, "MaxHeight",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), DefaultMaximum),
+            &ValidateNonnegativeDouble,
+            &CoerceMinWidth)
+        .Property(
+            FrameworkElement::MaxWidthProperty,
+            DefaultMaximum,
             PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMaxHeight)
-        .DependencyProperty(FrameworkElement::MarginProperty, "Margin",
-            TypeOf<Thickness>(), margin.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue)
-        .DependencyProperty(FrameworkElement::HorizontalAlignmentProperty,
-            "HorizontalAlignment", TypeOf<HorizontalAlignment>(),
+            &ValidateNonnegativeDouble,
+            &CoerceMaxWidth)
+        .Property(
+            FrameworkElement::MinHeightProperty,
+            0.0,
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble,
+            &CoerceMinHeight)
+        .Property(
+            FrameworkElement::MaxHeightProperty,
+            DefaultMaximum,
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateNonnegativeDouble,
+            &CoerceMaxHeight)
+        .Property(
+            FrameworkElement::MarginProperty,
+            margin.Value(),
+            PropertyMetadataFlags::AffectsMeasure,
+            &ValidateThicknessValue)
+        .Property(
+            FrameworkElement::HorizontalAlignmentProperty,
             Value::FromUnsignedInteger(
                 TypeOf<HorizontalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange, &ValidateHorizontalValue)
-        .DependencyProperty(FrameworkElement::VerticalAlignmentProperty,
-            "VerticalAlignment", TypeOf<VerticalAlignment>(),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateHorizontalValue)
+        .Property(
+            FrameworkElement::VerticalAlignmentProperty,
             Value::FromUnsignedInteger(
                 TypeOf<VerticalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange, &ValidateVerticalValue)
-        .DependencyProperty(FrameworkElement::UseLayoutRoundingProperty,
-            "UseLayoutRounding", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
+            PropertyMetadataFlags::AffectsArrange,
+            &ValidateVerticalValue)
+        .Property(
+            FrameworkElement::UseLayoutRoundingProperty,
+            false,
             PropertyMetadataFlags::AffectsMeasure);
     status = frameworkElement.Finish();
     return status;

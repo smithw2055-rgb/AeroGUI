@@ -286,6 +286,17 @@ public:
                      : std::move(fallback);
     }
 
+    template<class U = TValue,
+        std::enable_if_t<
+            std::is_same_v<U, Base::String>, int> = 0>
+    Base::StringView GetViewOr(
+        const DependencyObject& object,
+        Base::StringView fallback = {}) const noexcept {
+        Base::Result<Value> value =
+            object.GetValue(this->Handle());
+        return value ? value.Value().AsString() : fallback;
+    }
+
     Base::Result<void> Set(
         DependencyObject& object,
         const AccessType& value) const noexcept {
@@ -297,12 +308,38 @@ public:
             this->Handle(), encoded.Value());
     }
 
+    template<class U = TValue,
+        std::enable_if_t<
+            std::is_same_v<U, Base::String>, int> = 0>
+    Base::Result<void> Set(
+        DependencyObject& object,
+        Base::StringView value) const noexcept {
+        Base::Result<Value> encoded =
+            Value::TryFromString(ValueType(), value);
+        if (!encoded) return encoded.GetStatus();
+        return object.SetValue(
+            this->Handle(), encoded.Value());
+    }
+
     Base::Result<void> SetCurrent(
         DependencyObject& object,
         const AccessType& value) const noexcept {
         Base::Result<Value> encoded =
             MetadataDetail::EncodeRuntimeValue<TValue>(
                 value);
+        if (!encoded) return encoded.GetStatus();
+        return object.SetCurrentValue(
+            this->Handle(), encoded.Value());
+    }
+
+    template<class U = TValue,
+        std::enable_if_t<
+            std::is_same_v<U, Base::String>, int> = 0>
+    Base::Result<void> SetCurrent(
+        DependencyObject& object,
+        Base::StringView value) const noexcept {
+        Base::Result<Value> encoded =
+            Value::TryFromString(ValueType(), value);
         if (!encoded) return encoded.GetStatus();
         return object.SetCurrentValue(
             this->Handle(), encoded.Value());
@@ -510,6 +547,18 @@ public:
             clear,
             flags,
             contentContext);
+        return *this;
+    }
+
+    TypeBuilder& Property(
+        const PropertyRegistration& registration) noexcept {
+        builder_.Property(registration);
+        return *this;
+    }
+
+    TypeBuilder& Method(
+        const MethodRegistration& registration) noexcept {
+        builder_.Method(registration);
         return *this;
     }
 

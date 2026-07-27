@@ -16,12 +16,6 @@ constexpr double DefaultLineHeight = 18.0;
 constexpr double CaretWidth = 1.0;
 constexpr double ScrollLine = 16.0;
 
-Core::TypeId ValueTypeId(const char* name) noexcept {
-    return Core::MakeTypeId(Base::StringView(
-        name,
-        static_cast<std::uint32_t>(
-            std::strlen(name))));
-}
 
 bool IsValidColor(Color value) noexcept {
     return IsFinite(value) &&
@@ -193,11 +187,7 @@ std::uint32_t TextBox::Caret() const noexcept {
 }
 
 Base::StringView TextBox::Text() const noexcept {
-    Base::Result<Value> value =
-        GetValue(TextProperty);
-    return value
-        ? value.Value().AsString()
-        : Base::StringView();
+    return TextProperty.GetViewOr(*this);
 }
 
 Base::Result<void> TextBox::SetText(
@@ -212,15 +202,9 @@ Base::Result<void> TextBox::SetText(
     if (!checked) {
         return checked;
     }
-    Base::Result<Value> stored =
-        Value::TryFromString(
-            ValueTypeId("String"), value);
-    if (!stored) {
-        return stored.GetStatus();
-    }
     updatingTextProperty_ = true;
     Base::Result<void> changed =
-        SetValue(TextProperty, stored.Value());
+        TextProperty.Set(*this, value);
     updatingTextProperty_ = false;
     if (!changed) {
         return changed;
@@ -229,9 +213,7 @@ Base::Result<void> TextBox::SetText(
 }
 
 bool TextBox::IsReadOnly() const noexcept {
-    Base::Result<Value> value =
-        GetValue(IsReadOnlyProperty);
-    return value && value.Value().AsBoolean();
+    return IsReadOnlyProperty.GetOr(*this, false);
 }
 
 Base::Result<void> TextBox::SetReadOnly(
@@ -243,10 +225,8 @@ Base::Result<void> TextBox::SetReadOnly(
             return cancelled;
         }
     }
-    Base::Result<void> changed = SetValue(
-        IsReadOnlyProperty,
-        Value::FromBoolean(
-            ValueTypeId("Boolean"), value));
+    Base::Result<void> changed =
+        IsReadOnlyProperty.Set(*this, value);
     if (!changed) {
         return changed;
     }
@@ -254,12 +234,7 @@ Base::Result<void> TextBox::SetReadOnly(
 }
 
 std::uint32_t TextBox::MaximumLength() const noexcept {
-    Base::Result<Value> value =
-        GetValue(MaximumLengthProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : UINT32_MAX;
+    return MaximumLengthProperty.GetOr(*this, UINT32_MAX);
 }
 
 Base::Result<void> TextBox::SetMaximumLength(
@@ -276,52 +251,31 @@ Base::Result<void> TextBox::SetMaximumLength(
     if (!limited) {
         return limited;
     }
-    return SetValue(
-        MaximumLengthProperty,
-        Value::FromUnsignedInteger(
-            ValueTypeId("UInt32"),
-            value));
+    return MaximumLengthProperty.Set(*this, value);
 }
 
 bool TextBox::AcceptsReturn() const noexcept {
-    Base::Result<Value> value =
-        GetValue(AcceptsReturnProperty);
-    return value && value.Value().AsBoolean();
+    return AcceptsReturnProperty.GetOr(*this, false);
 }
 
 Base::Result<void> TextBox::SetAcceptsReturn(
     bool value) noexcept {
-    return SetValue(
-        AcceptsReturnProperty,
-        Value::FromBoolean(
-            ValueTypeId("Boolean"), value));
+    return AcceptsReturnProperty.Set(*this, value);
 }
 
 Color TextBox::Foreground() const noexcept {
-    Base::Result<Value> value =
-        GetValue(ForegroundProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.0F, 0.0F, 0.0F, 1.0F};
+    return ForegroundProperty.GetOr(
+        *this, Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
 Color TextBox::SelectionBrush() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectionBrushProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.18F, 0.48F, 0.95F, 0.45F};
+    return SelectionBrushProperty.GetOr(
+        *this, Color{0.18F, 0.48F, 0.95F, 0.45F});
 }
 
 Color TextBox::CaretBrush() const noexcept {
-    Base::Result<Value> value =
-        GetValue(CaretBrushProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.0F, 0.0F, 0.0F, 1.0F};
+    return CaretBrushProperty.GetOr(
+        *this, Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
 Base::Result<void> TextBox::SetForeground(
@@ -331,13 +285,7 @@ Base::Result<void> TextBox::SetForeground(
             Base::ErrorCode::InvalidArgument,
             "TextBox foreground color is invalid");
     }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            ForegroundProperty, stored.Value())
-        : stored.GetStatus();
+    return ForegroundProperty.Set(*this, value);
 }
 
 Base::Result<void> TextBox::SetSelectionBrush(
@@ -347,13 +295,7 @@ Base::Result<void> TextBox::SetSelectionBrush(
             Base::ErrorCode::InvalidArgument,
             "TextBox selection brush is invalid");
     }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            SelectionBrushProperty, stored.Value())
-        : stored.GetStatus();
+    return SelectionBrushProperty.Set(*this, value);
 }
 
 Base::Result<void> TextBox::SetCaretBrush(
@@ -363,13 +305,7 @@ Base::Result<void> TextBox::SetCaretBrush(
             Base::ErrorCode::InvalidArgument,
             "TextBox caret brush is invalid");
     }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            CaretBrushProperty, stored.Value())
-        : stored.GetStatus();
+    return CaretBrushProperty.Set(*this, value);
 }
 
 Base::Result<void> TextBox::SetSelection(
@@ -779,17 +715,9 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
     if (!copied) {
         return copied;
     }
-    Base::Result<Value> stored =
-        Value::TryFromString(
-            ValueTypeId("String"),
-            snapshot.View());
-    if (!stored) {
-        return stored.GetStatus();
-    }
     updatingTextProperty_ = true;
     Base::Result<void> committed =
-        SetCurrentValue(
-            TextProperty, stored.Value());
+        TextProperty.SetCurrent(*this, snapshot.View());
     updatingTextProperty_ = false;
     if (!committed) {
         return committed;

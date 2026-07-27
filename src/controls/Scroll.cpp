@@ -48,56 +48,6 @@ double ClampOffset(
         value, 0.0, std::max(0.0, extent - viewport));
 }
 
-double ReadDouble(
-    const DependencyObject& object,
-    DependencyPropertyHandle property,
-    double fallback = 0.0) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value ? value.Value().AsDouble() : fallback;
-}
-
-bool ReadBool(
-    const DependencyObject& object,
-    DependencyPropertyHandle property,
-    bool fallback) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value ? value.Value().AsBoolean() : fallback;
-}
-
-Orientation ReadOrientation(
-    const DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value
-        ? static_cast<Orientation>(
-            value.Value().AsUnsignedInteger())
-        : Orientation::Vertical;
-}
-
-Base::Result<void> StoreDouble(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    double value) noexcept {
-    return object.SetValue(
-        property,
-        Value::FromDouble(BuiltinTypes::Double, value));
-}
-
-Base::Result<void> StoreOrientation(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll orientation is invalid");
-    }
-    return object.SetValue(
-        property,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::Orientation,
-            static_cast<std::uint64_t>(value)));
-}
 
 } // namespace
 
@@ -555,66 +505,57 @@ ScrollViewer::~ScrollViewer() {
 }
 
 double ScrollViewer::HorizontalOffset() const noexcept {
-    return ReadDouble(*this, HorizontalOffsetProperty);
+    return HorizontalOffsetProperty.GetOr(*this, 0.0);
 }
 
 double ScrollViewer::VerticalOffset() const noexcept {
-    return ReadDouble(*this, VerticalOffsetProperty);
+    return VerticalOffsetProperty.GetOr(*this, 0.0);
 }
 
 double ScrollViewer::ExtentWidth() const noexcept {
-    return ReadDouble(*this, ExtentWidthProperty);
+    return ExtentWidthProperty.GetOr(*this, 0.0);
 }
 
 double ScrollViewer::ExtentHeight() const noexcept {
-    return ReadDouble(*this, ExtentHeightProperty);
+    return ExtentHeightProperty.GetOr(*this, 0.0);
 }
 
 double ScrollViewer::ViewportWidth() const noexcept {
-    return ReadDouble(*this, ViewportWidthProperty);
+    return ViewportWidthProperty.GetOr(*this, 0.0);
 }
 
 double ScrollViewer::ViewportHeight() const noexcept {
-    return ReadDouble(*this, ViewportHeightProperty);
+    return ViewportHeightProperty.GetOr(*this, 0.0);
 }
 
 Base::Result<void>
 ScrollViewer::SetCanHorizontallyScroll(
     bool value) noexcept {
-    return SetValue(
-        CanHorizontallyScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return CanHorizontallyScrollProperty.Set(*this, value);
 }
 
 Base::Result<void>
 ScrollViewer::SetCanVerticallyScroll(
     bool value) noexcept {
-    return SetValue(
-        CanVerticallyScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return CanVerticallyScrollProperty.Set(*this, value);
 }
 
 Base::Result<void>
 ScrollViewer::SetCanContentScroll(
     bool value) noexcept {
-    return SetValue(
-        CanContentScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return CanContentScrollProperty.Set(*this, value);
 }
 
 bool ScrollViewer::AllowsHorizontalScroll() const noexcept {
-    return ReadBool(
-        *this, CanHorizontallyScrollProperty, true);
+    return CanHorizontallyScrollProperty.GetOr(*this, true);
 }
 
 bool ScrollViewer::AllowsVerticalScroll() const noexcept {
-    return ReadBool(
-        *this, CanVerticallyScrollProperty, true);
+    return CanVerticallyScrollProperty.GetOr(*this, true);
 }
 
 bool ScrollViewer::UsesContentScrolling() const noexcept {
-    return ReadBool(
-        *this, CanContentScrollProperty, false);
+    return CanContentScrollProperty.GetOr(*this, false);
 }
 
 void ScrollViewer::OnScrollDataChanged(
@@ -713,29 +654,34 @@ Base::Result<bool> Thumb::EndDrag(
 }
 
 Orientation Track::GetOrientation() const noexcept {
-    return ReadOrientation(*this, OrientationProperty);
+    return OrientationProperty.GetOr(
+        *this, Orientation::Vertical);
 }
 
 double Track::Minimum() const noexcept {
-    return ReadDouble(*this, MinimumProperty);
+    return MinimumProperty.GetOr(*this, 0.0);
 }
 
 double Track::Maximum() const noexcept {
-    return ReadDouble(*this, MaximumProperty);
+    return MaximumProperty.GetOr(*this, 1.0);
 }
 
 double Track::Value() const noexcept {
-    return ReadDouble(*this, ValueProperty);
+    return ValueProperty.GetOr(*this, 0.0);
 }
 
 double Track::ViewportSize() const noexcept {
-    return ReadDouble(*this, ViewportSizeProperty);
+    return ViewportSizeProperty.GetOr(*this, 0.0);
 }
 
 Base::Result<void> Track::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    if (value > Orientation::Vertical) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Scroll orientation is invalid");
+    }
+    return OrientationProperty.Set(*this, value);
 }
 
 Base::Result<void> Track::SetRange(
@@ -749,10 +695,10 @@ Base::Result<void> Track::SetRange(
             "Track range is invalid");
     }
     Base::Result<void> low =
-        StoreDouble(*this, MinimumProperty, minimum);
+        MinimumProperty.Set(*this, minimum);
     if (!low) return low.GetStatus();
     Base::Result<void> high =
-        StoreDouble(*this, MaximumProperty, maximum);
+        MaximumProperty.Set(*this, maximum);
     if (!high) return high.GetStatus();
     return SetValue(Value());
 }
@@ -769,9 +715,8 @@ Base::Result<void> Track::SetValue(
             Base::ErrorCode::InvalidState,
             "Track range is invalid");
     }
-    return StoreDouble(
-        *this, ValueProperty,
-        std::clamp(value, Minimum(), Maximum()));
+    return ValueProperty.Set(
+        *this, std::clamp(value, Minimum(), Maximum()));
 }
 
 Base::Result<void> Track::SetViewportSize(
@@ -781,8 +726,7 @@ Base::Result<void> Track::SetViewportSize(
             Base::ErrorCode::InvalidArgument,
             "Track viewport must be finite and nonnegative");
     }
-    return StoreDouble(
-        *this, ViewportSizeProperty, value);
+    return ViewportSizeProperty.Set(*this, value);
 }
 
 double Track::ThumbLength(
@@ -846,32 +790,33 @@ Base::Result<double> Track::ValueFromThumbOffset(
 }
 
 Orientation ScrollBar::GetOrientation() const noexcept {
-    return ReadOrientation(*this, OrientationProperty);
+    return OrientationProperty.GetOr(
+        *this, Orientation::Vertical);
 }
 
 double ScrollBar::Minimum() const noexcept {
-    return ReadDouble(*this, MinimumProperty);
+    return MinimumProperty.GetOr(*this, 0.0);
 }
 
 double ScrollBar::Maximum() const noexcept {
-    return ReadDouble(*this, MaximumProperty);
+    return MaximumProperty.GetOr(*this, 1.0);
 }
 
 double ScrollBar::Value() const noexcept {
-    return ReadDouble(*this, ValueProperty);
+    return ValueProperty.GetOr(*this, 0.0);
 }
 
 double ScrollBar::ViewportSize() const noexcept {
-    return ReadDouble(*this, ViewportSizeProperty);
+    return ViewportSizeProperty.GetOr(*this, 0.0);
 }
 
 double ScrollBar::SmallChange() const noexcept {
-    return ReadDouble(*this, SmallChangeProperty, 16.0);
+    return SmallChangeProperty.GetOr(*this, 16.0);
 }
 
 double ScrollBar::LargeChange() const noexcept {
     const double configured =
-        ReadDouble(*this, LargeChangeProperty);
+        LargeChangeProperty.GetOr(*this, 0.0);
     return configured > 0.0
         ? configured
         : std::max(ViewportSize(), SmallChange());
@@ -879,8 +824,12 @@ double ScrollBar::LargeChange() const noexcept {
 
 Base::Result<void> ScrollBar::SetOrientation(
     Orientation value) noexcept {
-    return StoreOrientation(
-        *this, OrientationProperty, value);
+    if (value > Orientation::Vertical) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Scroll orientation is invalid");
+    }
+    return OrientationProperty.Set(*this, value);
 }
 
 Base::Result<void> ScrollBar::SetRange(
@@ -894,10 +843,10 @@ Base::Result<void> ScrollBar::SetRange(
             "ScrollBar range is invalid");
     }
     Base::Result<void> low =
-        StoreDouble(*this, MinimumProperty, minimum);
+        MinimumProperty.Set(*this, minimum);
     if (!low) return low.GetStatus();
     Base::Result<void> high =
-        StoreDouble(*this, MaximumProperty, maximum);
+        MaximumProperty.Set(*this, maximum);
     if (!high) return high.GetStatus();
     Base::Result<bool> clamped = SetValue(Value());
     return clamped ? Base::Result<void>{}
@@ -920,7 +869,7 @@ Base::Result<bool> ScrollBar::SetValue(
         std::clamp(value, Minimum(), Maximum());
     if (Same(clamped, Value())) return false;
     Base::Result<void> stored =
-        StoreDouble(*this, ValueProperty, clamped);
+        ValueProperty.Set(*this, clamped);
     if (!stored) return stored.GetStatus();
     return true;
 }
@@ -932,8 +881,7 @@ Base::Result<void> ScrollBar::SetViewportSize(
             Base::ErrorCode::InvalidArgument,
             "ScrollBar viewport must be finite and nonnegative");
     }
-    return StoreDouble(
-        *this, ViewportSizeProperty, value);
+    return ViewportSizeProperty.Set(*this, value);
 }
 
 Base::Result<void> ScrollBar::SetSmallChange(
@@ -943,8 +891,7 @@ Base::Result<void> ScrollBar::SetSmallChange(
             Base::ErrorCode::InvalidArgument,
             "ScrollBar SmallChange must be positive and finite");
     }
-    return StoreDouble(
-        *this, SmallChangeProperty, value);
+    return SmallChangeProperty.Set(*this, value);
 }
 
 Base::Result<void> ScrollBar::SetLargeChange(
@@ -954,8 +901,7 @@ Base::Result<void> ScrollBar::SetLargeChange(
             Base::ErrorCode::InvalidArgument,
             "ScrollBar LargeChange must be finite and nonnegative");
     }
-    return StoreDouble(
-        *this, LargeChangeProperty, value);
+    return LargeChangeProperty.Set(*this, value);
 }
 
 Base::Result<bool> ScrollBar::LineDecrement() noexcept {

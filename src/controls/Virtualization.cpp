@@ -55,11 +55,8 @@ VirtualizingStackPanel::SetOrientation(
     }
     if (value == GetOrientation()) return {};
     const double oldMainOffset = MainOffset();
-    Base::Result<void> stored = SetValue(
-        OrientationProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::Orientation,
-            static_cast<std::uint64_t>(value)));
+    Base::Result<void> stored =
+        OrientationProperty.Set(*this, value);
     if (!stored) return stored.GetStatus();
     orientation_ = value;
     data_.horizontalOffset = 0.0;
@@ -80,11 +77,8 @@ Base::Result<void>
 VirtualizingStackPanel::SetOverscanCount(
     std::uint32_t value) noexcept {
     if (value == OverscanCount()) return {};
-    Base::Result<void> stored = SetValue(
-        OverscanCountProperty,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::UnsignedInteger,
-            value));
+    Base::Result<void> stored =
+        OverscanCountProperty.Set(*this, value);
     if (!stored) return stored.GetStatus();
     overscanCount_ = value;
     return UpdateRealization(true);
@@ -108,10 +102,8 @@ VirtualizingStackPanel::SetEstimatedItemExtent(
         ItemIndexAtOffset(MainOffset());
     const double intraItem =
         MainOffset() - ItemOffset(anchor);
-    Base::Result<void> stored = SetValue(
-        EstimatedItemExtentProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double, value));
+    Base::Result<void> stored =
+        EstimatedItemExtentProperty.Set(*this, value);
     if (!stored) return stored.GetStatus();
     estimatedItemExtent_ = value;
     Base::Result<void> rebuilt =
@@ -359,27 +351,12 @@ VirtualizingStackPanel::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     const double oldEstimate =
         estimatedItemExtent_;
-    Base::Result<Value> orientation =
-        GetValue(OrientationProperty);
-    if (orientation) {
-        orientation_ = static_cast<Orientation>(
-            orientation.Value()
-                .AsUnsignedInteger());
-    }
-    Base::Result<Value> overscan =
-        GetValue(OverscanCountProperty);
-    if (overscan) {
-        overscanCount_ =
-            static_cast<std::uint32_t>(
-                overscan.Value()
-                    .AsUnsignedInteger());
-    }
-    Base::Result<Value> estimate =
-        GetValue(EstimatedItemExtentProperty);
-    if (estimate) {
-        estimatedItemExtent_ =
-            estimate.Value().AsDouble();
-    }
+    orientation_ = OrientationProperty.GetOr(
+        *this, Orientation::Vertical);
+    overscanCount_ = OverscanCountProperty.GetOr(
+        *this, 2U);
+    estimatedItemExtent_ =
+        EstimatedItemExtentProperty.GetOr(*this, 24.0);
     if (!Same(
             oldEstimate,
             estimatedItemExtent_)) {
