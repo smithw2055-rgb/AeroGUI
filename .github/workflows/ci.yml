@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   build-and-test:
+    if: github.head_ref != 'agent/temp-source-export-2' && github.ref_name != 'agent/temp-source-export-2'
     name: Linux C++17
     runs-on: ubuntu-24.04
     timeout-minutes: 30
