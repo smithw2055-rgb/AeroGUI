@@ -238,6 +238,9 @@ struct RuntimeHost::Impl final {
         XamlActivationContext& context) noexcept {
         XamlLoadOptions result;
         result.resources = &dynamicResourceEnvironment;
+        result.effectiveValues = values;
+        result.bindings = bindings;
+        result.fallbackResources = &dynamicResourceEnvironment;
         result.activationFacets =
             activation;
         result.activation = &context;
@@ -643,10 +646,7 @@ struct RuntimeHost::Impl final {
         if (status) {
             status = schemaBundle.Finalize(
                 modules,
-                SchemaBundleServices{
-                    values,
-                    &dynamicResourceEnvironment,
-                    allocator});
+                SchemaBundleServices{allocator});
         }
         if (status) {
             schema = &schemaBundle.XamlSchema();

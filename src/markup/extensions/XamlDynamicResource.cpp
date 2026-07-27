@@ -264,11 +264,6 @@ XamlDynamicResourceExtension::XamlDynamicResourceExtension(
 Base::Result<void> XamlDynamicResourceExtension::Register(
     XamlSchemaContext& schema,
     Core::TypeId dynamicResourceExtensionType) noexcept {
-    if (options_.effectiveValues == nullptr || options_.resources == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DynamicResource markup extension options are incomplete");
-    }
     return schema.TryRegisterMarkupExtension({
         dynamicResourceExtensionType,
         &XamlDynamicResourceExtension::ProvideValue,
@@ -281,8 +276,7 @@ Base::Result<XamlProvidedValue> XamlDynamicResourceExtension::ProvideValue(
     void* context) noexcept {
     XamlDynamicResourceExtension* extension =
         static_cast<XamlDynamicResourceExtension*>(context);
-    if (extension == nullptr || extension->options_.effectiveValues == nullptr ||
-        extension->options_.resources == nullptr ||
+    if (extension == nullptr ||
         services.schema == nullptr || services.targetObject == nullptr ||
         services.targetMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
@@ -303,17 +297,30 @@ Base::Result<XamlProvidedValue> XamlDynamicResourceExtension::ProvideValue(
     }
     Core::DependencyObject* target = targetResult.Value();
     const Core::DependencyPropertyHandle property{services.targetMember};
+    Core::EffectiveValueEngine* effectiveValues =
+        services.effectiveValues != nullptr
+        ? services.effectiveValues
+        : extension->options_.effectiveValues;
+    ResourceDictionary* fallbackResources =
+        services.fallbackResources != nullptr
+        ? services.fallbackResources
+        : extension->options_.resources;
+    if (effectiveValues == nullptr || fallbackResources == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource requires load-scoped effective-value and resource services");
+    }
     Base::Result<Core::PropertyExpression> expression =
         DynamicResource::CreateExpression(
-            *extension->options_.effectiveValues,
+            *effectiveValues,
             services.ambientResourceChain,
-            extension->options_.resources,
+            fallbackResources,
             *target,
             property,
             key);
     if (!expression) return expression.GetStatus();
     return XamlProvidedValue::Expression(
-        *extension->options_.effectiveValues,
+        *effectiveValues,
         expression.Value());
 }
 

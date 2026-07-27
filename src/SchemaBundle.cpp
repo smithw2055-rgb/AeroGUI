@@ -134,12 +134,6 @@ Base::Result<void> SchemaBundle::Finalize(
             Base::ErrorCode::AlreadyExists,
             "Schema bundle is already frozen");
     }
-    if (requested.effectiveValues == nullptr || requested.resources == nullptr) {
-        impl_->terminal = true;
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Schema bundle XAML services are incomplete");
-    }
     Base::IAllocator& programAllocator = requested.allocator != nullptr
         ? *requested.allocator
         : *impl_->allocator;
@@ -171,9 +165,7 @@ Base::Result<void> SchemaBundle::Finalize(
         Create<Markup::XamlDynamicResourceExtension>(
             *impl_->allocator,
             Base::MemoryTag::Markup,
-            Markup::XamlDynamicResourceExtensionOptions{
-                requested.effectiveValues,
-                requested.resources});
+            Markup::XamlDynamicResourceExtensionOptions{});
     if (!dynamicResource) {
         impl_->terminal = true;
         return dynamicResource.GetStatus();
@@ -228,8 +220,6 @@ Base::Result<void> SchemaBundle::Finalize(
             *impl_->activation,
             *impl_->runtime,
             impl_->metadata.DependencyProperties(),
-            *requested.effectiveValues,
-            *requested.resources,
             programAllocator);
         status = modules.RegisterXaml(context);
     }

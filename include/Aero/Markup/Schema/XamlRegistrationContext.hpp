@@ -6,9 +6,7 @@
 #include <Aero/Core/Metadata/Activation.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Schema/XamlSchemaContext.hpp>
-#include <Aero/Presentation/Resources.hpp>
 
 namespace Aero::Markup {
 
@@ -21,15 +19,11 @@ public:
         Core::ActivationProviderRegistry& activation,
         Core::MetadataRuntime& runtime,
         Core::DependencyPropertyRegistry& properties,
-        Core::EffectiveValueEngine& effectiveValues,
-        Presentation::ResourceDictionary& resources,
         Base::IAllocator& allocator) noexcept
         : schema_(&schema),
           activation_(&activation),
           runtime_(&runtime),
           properties_(&properties),
-          effectiveValues_(&effectiveValues),
-          resources_(&resources),
           allocator_(&allocator) {}
 
     XamlSchemaContext& Schema() const noexcept { return *schema_; }
@@ -39,12 +33,6 @@ public:
     Core::MetadataRuntime& Runtime() const noexcept { return *runtime_; }
     Core::DependencyPropertyRegistry& DependencyProperties() const noexcept {
         return *properties_;
-    }
-    Core::EffectiveValueEngine& EffectiveValues() const noexcept {
-        return *effectiveValues_;
-    }
-    Presentation::ResourceDictionary& Resources() const noexcept {
-        return *resources_;
     }
     Base::IAllocator& Allocator() const noexcept { return *allocator_; }
 
@@ -84,8 +72,6 @@ private:
     Core::ActivationProviderRegistry* activation_ = nullptr;
     Core::MetadataRuntime* runtime_ = nullptr;
     Core::DependencyPropertyRegistry* properties_ = nullptr;
-    Core::EffectiveValueEngine* effectiveValues_ = nullptr;
-    Presentation::ResourceDictionary* resources_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
 };
 

@@ -24,8 +24,6 @@ class ResourceDictionary;
 namespace Aero {
 
 struct SchemaBundleServices final {
-    Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Presentation::ResourceDictionary* resources = nullptr;
     Base::IAllocator* allocator = nullptr;
 };
 

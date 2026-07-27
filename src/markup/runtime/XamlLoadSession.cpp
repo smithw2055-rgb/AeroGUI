@@ -2184,6 +2184,9 @@ XamlServiceProvider XamlLoadSession::BuildServices(
     if (loadContext_ != nullptr) {
         services.templatedParent = loadContext_->templatedParent;
         services.baseUri = loadContext_->baseUri;
+        services.effectiveValues = loadContext_->effectiveValues;
+        services.bindings = loadContext_->bindings;
+        services.fallbackResources = loadContext_->fallbackResources;
     }
     services.source = source;
     services.nameScope = FindActiveNameScope();

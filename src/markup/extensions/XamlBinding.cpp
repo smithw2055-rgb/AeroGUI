@@ -144,11 +144,6 @@ XamlBindingExtension::XamlBindingExtension(
 Base::Result<void> XamlBindingExtension::Register(
     XamlSchemaContext& schema,
     Core::TypeId bindingExtensionType) noexcept {
-    if (options_.bindings == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Binding markup extension options are incomplete");
-    }
     return schema.TryRegisterMarkupExtension({
         bindingExtensionType,
         &XamlBindingExtension::ProvideValue,
@@ -161,7 +156,7 @@ Base::Result<XamlProvidedValue> XamlBindingExtension::ProvideValue(
     void* context) noexcept {
     XamlBindingExtension* extension =
         static_cast<XamlBindingExtension*>(context);
-    if (extension == nullptr || extension->options_.bindings == nullptr ||
+    if (extension == nullptr ||
         services.schema == nullptr || services.targetObject == nullptr ||
         services.nameScope == nullptr ||
         services.targetMember == Core::InvalidMemberId) {
@@ -215,6 +210,16 @@ Base::Result<XamlProvidedValue> XamlBindingExtension::ProvideValue(
             "Binding target property or metadata runtime was not found");
     }
 
+    Presentation::BindingManager* bindings =
+        services.bindings != nullptr
+        ? services.bindings
+        : extension->options_.bindings;
+    if (bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding requires a load-scoped BindingManager");
+    }
+
     Presentation::MetadataBindingDescriptor descriptor;
     descriptor.metadata = services.schema->Runtime();
     descriptor.source = source;
@@ -226,13 +231,13 @@ Base::Result<XamlProvidedValue> XamlBindingExtension::ProvideValue(
     descriptor.mode = mode;
     descriptor.updateSourceTrigger = updateSourceTrigger;
     Base::Result<Presentation::BindingHandle> attached =
-        extension->options_.bindings->Attach(descriptor);
+        bindings->Attach(descriptor);
     if (!attached) {
         return attached.GetStatus();
     }
 
     return XamlProvidedValue::Handled(
-        extension->options_.bindings,
+        bindings,
         attached.Value().value,
         &RollbackBinding);
 }

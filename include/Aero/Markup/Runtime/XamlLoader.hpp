@@ -17,6 +17,10 @@
 
 #include <cstdint>
 
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 class XamlSchemaContext;
@@ -201,6 +205,9 @@ struct XamlLoadOptions final {
     XamlLoadLimits limits;
     Base::ResourceUri baseUri;
     const ResourceDictionary* resources = nullptr;
+    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Presentation::BindingManager* bindings = nullptr;
+    ResourceDictionary* fallbackResources = nullptr;
     Core::ActivationProviderRegistry* activationFacets = nullptr;
     const Core::ObjectActivationContext* activation = nullptr;
     Base::Object* templatedParent = nullptr;

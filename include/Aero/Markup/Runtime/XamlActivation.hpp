@@ -9,6 +9,14 @@
 
 #include <cstdint>
 
+namespace Aero::Core {
+class EffectiveValueEngine;
+}
+
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 class XamlNodeReader;
@@ -34,6 +42,9 @@ struct XamlLoadContext final {
     // Optional application/module resources. Local document scopes take
     // precedence; this dictionary is the final StaticResource fallback.
     const ResourceDictionary* resources = nullptr;
+    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Presentation::BindingManager* bindings = nullptr;
+    ResourceDictionary* fallbackResources = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
     Base::Object* templatedParent = nullptr;
     Base::Ref<Base::Object> existingRoot;

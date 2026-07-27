@@ -115,10 +115,7 @@ int main(int argc, char** argv) {
     Aero::Presentation::ResourceDictionary resources;
     registered = schemaBundle.Finalize(
         modules,
-        Aero::SchemaBundleServices{
-            &values,
-            &resources,
-            nullptr});
+        Aero::SchemaBundleServices{});
     if (!registered) return Fail(registered.GetStatus());
     Aero::Markup::XamlSchemaContext& schema =
         schemaBundle.XamlSchema();

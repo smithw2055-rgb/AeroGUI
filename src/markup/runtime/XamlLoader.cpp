@@ -508,6 +508,9 @@ XamlLoader::Operation::LoadCompiled(
     context.activation = options.activation;
     context.activationFacets = options.activationFacets;
     context.resources = options.resources;
+    context.effectiveValues = options.effectiveValues;
+    context.bindings = options.bindings;
+    context.fallbackResources = options.fallbackResources;
     context.baseUri = &originUri;
     context.templatedParent = options.templatedParent;
     context.maxObjects = options.limits.maxObjects;
@@ -652,6 +655,9 @@ Base::Result<XamlLoadResult> XamlLoader::Operation::ParseCore(
     context.activation = options.activation;
     context.activationFacets = options.activationFacets;
     context.resources = options.resources;
+    context.effectiveValues = options.effectiveValues;
+    context.bindings = options.bindings;
+    context.fallbackResources = options.fallbackResources;
     context.baseUri = &baseUri;
     context.templatedParent = options.templatedParent;
     context.existingRoot = existingRoot;

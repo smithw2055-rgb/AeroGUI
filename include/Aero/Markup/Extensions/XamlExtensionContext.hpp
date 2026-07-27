@@ -7,6 +7,14 @@
 #include <Aero/Core/Metadata/Value.hpp>
 #include <Aero/Markup/Resources/XamlNamesResources.hpp>
 
+namespace Aero::Core {
+class EffectiveValueEngine;
+}
+
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 class XamlDeferredContentPlan;
@@ -32,6 +40,9 @@ struct XamlExtensionContext final {
     const NameScope* nameScope = nullptr;
     XamlNamespaceScope namespaces;
     XamlResourceResolver resources;
+    Core::EffectiveValueEngine* effectiveValues = nullptr;
+    Presentation::BindingManager* bindings = nullptr;
+    ResourceDictionary* fallbackResources = nullptr;
     // Innermost-to-outermost live dictionaries. The span is valid only for
     // the duration of the current member/markup-extension callback.
     Base::Span<const ResourceDictionary* const> ambientResourceChain;
