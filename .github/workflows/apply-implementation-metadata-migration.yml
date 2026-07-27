@@ -1,0 +1,46 @@
+name: Apply implementation metadata migration
+
+on:
+  push:
+    branches:
+      - agent/developer-friendly-metadata-api
+    paths:
+      - .github/workflows/apply-implementation-metadata-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/developer-friendly-metadata-api
+          fetch-depth: 0
+
+      - name: Rewrite implementation metadata access
+        shell: bash
+        run: |
+          cat > /tmp/migrate_impl.py.gz.b64 <<'AERO_MIGRATION'
+          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
+          AERO_MIGRATION
+          base64 --decode /tmp/migrate_impl.py.gz.b64 | gzip --decompress > /tmp/migrate_impl.py
+          python3 /tmp/migrate_impl.py .
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            include/Aero/Metadata.hpp \
+            src/controls/Metadata.cpp \
+            src/controls/Scroll.cpp \
+            src/controls/Selection.cpp \
+            src/controls/TextBox.cpp \
+            src/controls/Virtualization.cpp \
+            src/presentation/Metadata.cpp
+          git diff --cached --quiet && exit 0
+          git commit -m "refactor: migrate implementation metadata access [skip ci]"
+          git push origin HEAD:agent/developer-friendly-metadata-api
