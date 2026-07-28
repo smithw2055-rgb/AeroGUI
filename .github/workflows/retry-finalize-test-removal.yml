@@ -24,15 +24,26 @@ jobs:
       - name: Extract and apply verified patch
         shell: bash
         run: |
+          set -o pipefail
           git fetch origin agent/finalize-test-removal
           git checkout 75b5ef0fb04701c21424b0e981a40bc220f9cfdb -- .github/workflows/ci.yml
           rm -f .github/ci-migration-trigger .github/workflows/remove-tests-now.yml
           git show origin/agent/finalize-test-removal:.github/workflows/finalize-test-removal.yml \
             | awk '/cat > \/tmp\/final.patch/{capture=1; next} /^          PATCH$/{capture=0} capture' \
             | sed 's/^          //' > /tmp/final.patch
-          git apply --check /tmp/final.patch
+          git apply --check --verbose /tmp/final.patch 2>&1 | tee /tmp/apply.log
           git apply /tmp/final.patch
           git diff --check
+
+      - name: Upload patch diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finalize-patch-diagnostics
+          path: |
+            /tmp/final.patch
+            /tmp/apply.log
+          if-no-files-found: warn
 
       - name: Install build tools
         run: |
