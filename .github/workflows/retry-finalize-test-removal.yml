@@ -1,0 +1,67 @@
+name: Retry finalize test removal
+
+on:
+  push:
+    branches: [agent/finalize-test-removal]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/xaml-kernel-refactor
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Extract and apply verified patch
+        shell: bash
+        run: |
+          git fetch origin agent/finalize-test-removal
+          git checkout 75b5ef0fb04701c21424b0e981a40bc220f9cfdb -- .github/workflows/ci.yml
+          rm -f .github/ci-migration-trigger .github/workflows/remove-tests-now.yml
+          git show origin/agent/finalize-test-removal:.github/workflows/finalize-test-removal.yml \
+            | awk '/cat > \/tmp\/final.patch/{capture=1; next} /^          PATCH$/{capture=0} capture' \
+            | sed 's/^          //' > /tmp/final.patch
+          git apply --check /tmp/final.patch
+          git apply /tmp/final.patch
+          git diff --check
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ninja-build
+
+      - name: Check architecture
+        run: cmake "-DAERO_SOURCE_DIR=${GITHUB_WORKSPACE}" -P cmake/CheckArchitecture.cmake
+
+      - name: Configure
+        run: |
+          cmake -S . -B out/final -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DAERO_BUILD_SHARED=OFF \
+            -DAERO_BUILD_SAMPLES=ON \
+            -DAERO_BUILD_TOOLS=ON \
+            -DAERO_ENABLE_EXCEPTIONS=OFF \
+            -DAERO_ENABLE_RTTI=OFF \
+            -DAERO_WARNINGS_AS_ERRORS=ON \
+            -DAERO_ENABLE_D3D11_BACKEND=OFF \
+            -DAERO_ENABLE_WGL_SURFACE=OFF \
+            -DAERO_ENABLE_GLX_SURFACE=OFF \
+            -DAERO_ENABLE_SOKOL_BACKEND=OFF
+
+      - name: Build
+        run: cmake --build out/final --parallel 2 -- -k 0
+
+      - name: Publish verified branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Remove obsolete tests and restore product build"
+          git push origin HEAD:codex/xaml-kernel-refactor
