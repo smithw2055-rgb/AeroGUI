@@ -1,5 +1,7 @@
 #include <Aero/Presentation/Style.hpp>
 
+#include "ResourceAssignment.hpp"
+
 namespace Aero::Presentation {
 
 using namespace Aero::Core;
@@ -18,15 +20,181 @@ bool IsTargetCompatible(
 
 } // namespace
 
+
+Base::Result<void> Style::Impl::Freeze(
+    TypeId valueTargetType,
+    Base::Vector<StyleSetter>&& valueSetters,
+    Base::Vector<StylePropertyTrigger>&& valueTriggers) noexcept {
+    if (frozen) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "StyleProgram is already frozen");
+    }
+    if (valueTargetType == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "StyleProgram target type is invalid");
+    }
+    targetType = valueTargetType;
+    setters = std::move(valueSetters);
+    triggers = std::move(valueTriggers);
+    frozen = true;
+    return {};
+}
+
+void Style::Impl::Reset() noexcept {
+    targetType = InvalidTypeId;
+    setters.Clear();
+    triggers.Clear();
+    frozen = false;
+}
+
+Base::Result<void> Setter::SetPropertyName(
+    Base::StringView value) noexcept {
+    if (value.Empty()) {
+        return InvalidStyle(
+            "Setter property name is empty");
+    }
+    return propertyName_.TryAssign(value);
+}
+
+Base::Result<void> Setter::SetTargetName(
+    Base::StringView value) noexcept {
+    if (value.Empty()) {
+        return InvalidStyle(
+            "Setter target name is empty");
+    }
+    return targetName_.TryAssign(value);
+}
+
+Base::Result<void> Setter::SetAuthoredValue(
+    const PropertyValue& value) noexcept {
+    if (value.IsUnset()) {
+        return InvalidStyle(
+            "Setter authored value is unset");
+    }
+    authoredValue_ = value;
+    return {};
+}
+
+Base::Result<void> Setter::Resolve(
+    DependencyPropertyHandle property,
+    const PropertyValue& value) noexcept {
+    Base::Result<void> configured =
+        SetProperty(property);
+    if (!configured) return configured.GetStatus();
+    return SetValue(value);
+}
+
+Base::Result<void> PropertyTrigger::SetProperty(
+    DependencyPropertyHandle value) noexcept {
+    if (!value.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "PropertyTrigger property is invalid");
+    }
+    property_ = value;
+    return {};
+}
+
+Base::Result<void> PropertyTrigger::SetValue(
+    const PropertyValue& value) noexcept {
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "PropertyTrigger value is unset");
+    }
+    value_ = value;
+    return {};
+}
+
+Base::Result<void> PropertyTrigger::TryAddSetter(
+    const Setter& setter) noexcept {
+    if (!setter.Property().IsValid() ||
+        setter.Value().IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "PropertyTrigger setter is invalid");
+    }
+    return setters_.TryPushBack({
+        setter.Property(), setter.Value()});
+}
+
+Base::Result<void> PropertyTrigger::SetPropertyName(
+    Base::StringView value) noexcept {
+    if (value.Empty()) {
+        return InvalidStyle(
+            "Trigger property name is empty");
+    }
+    return propertyName_.TryAssign(value);
+}
+
+Base::Result<void> PropertyTrigger::SetAuthoredValue(
+    const PropertyValue& value) noexcept {
+    if (value.IsUnset()) {
+        return InvalidStyle(
+            "Trigger authored value is unset");
+    }
+    authoredValue_ = value;
+    return {};
+}
+
+Base::Result<void> PropertyTrigger::TryAddAuthoredSetter(
+    Base::Ref<Setter> setter) noexcept {
+    if (!setter) {
+        return InvalidStyle(
+            "Trigger authored setter is null");
+    }
+    return authoredSetters_.TryPushBack(
+        std::move(setter));
+}
+
+Base::Result<void>
+PropertyTrigger::ClearAuthoredSetters() noexcept {
+    authoredSetters_.Clear();
+    return {};
+}
+
+Base::Result<StylePropertyTrigger>
+PropertyTrigger::BuildPlan() const noexcept {
+    if (!property_.IsValid() || value_.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "PropertyTrigger is incomplete");
+    }
+    StylePropertyTrigger plan;
+    plan.property = property_;
+    plan.value = value_;
+    Base::Result<void> copied =
+        plan.setters.TryAppend(setters_.AsSpan());
+    if (!copied) {
+        return copied.GetStatus();
+    }
+    return plan;
+}
+
+Style::Style() noexcept
+    : Style(InvalidTypeId, nullptr) {}
+
 Style::Style(
     TypeId targetType,
     const Style* basedOn) noexcept
-    : targetType_(targetType),
+    : Style(
+          targetType,
+          basedOn,
+          StaticTypeId()) {}
+
+Style::Style(
+    TypeId targetType,
+    const Style* basedOn,
+    TypeId runtimeType) noexcept
+    : runtimeType_(runtimeType),
+      targetType_(targetType),
       basedOn_(basedOn),
       authored_(),
-      flattened_(),
       authoredTriggers_(),
-      flattenedTriggers_() {}
+      program_(),
+      resources_() {}
 
 Base::Result<void> Style::TrySetTargetType(TypeId targetType) noexcept {
     if (sealed_) {
@@ -75,6 +243,73 @@ Base::Result<void> Style::TryAddSetter(
     return authored_.TryPushBack({property, value});
 }
 
+Base::Result<void> Style::TrySetBasedOn(
+    Base::Ref<Base::Object> basedOn) noexcept {
+    if (basedOn &&
+        basedOn->RuntimeType() != RuntimeType()) {
+        return InvalidStyle(
+            "BasedOn object is not a compatible Style");
+    }
+    Base::Result<void> assigned =
+        TrySetBasedOn(
+            static_cast<Style*>(basedOn.Get()));
+    if (!assigned) return assigned.GetStatus();
+    basedOnOwner_ = std::move(basedOn);
+    return {};
+}
+
+Base::Result<void> Style::TryAddAuthoredSetter(
+    Base::Ref<Setter> setter) noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    if (!setter) {
+        return InvalidStyle(
+            "Style authored setter is null");
+    }
+    return authoredSetterObjects_.TryPushBack(
+        std::move(setter));
+}
+
+Base::Result<void> Style::TryAddAuthoredTrigger(
+    Base::Ref<PropertyTrigger> trigger) noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    if (!trigger) {
+        return InvalidStyle(
+            "Style authored trigger is null");
+    }
+    return authoredTriggerObjects_.TryPushBack(
+        std::move(trigger));
+}
+
+Base::Result<void> Style::ClearAuthoredSetters() noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    authoredSetterObjects_.Clear();
+    return {};
+}
+
+Base::Result<void> Style::ClearAuthoredTriggers() noexcept {
+    if (sealed_) {
+        return InvalidStyle(
+            "Cannot modify a sealed Style");
+    }
+    authoredTriggerObjects_.Clear();
+    return {};
+}
+
+Base::Result<void> Style::TryAddSetter(
+    const Setter& setter) noexcept {
+    return TryAddSetter(
+        setter.Property(), setter.Value());
+}
+
 Base::Result<void> Style::TryAddPropertyTrigger(
     StylePropertyTrigger trigger) noexcept {
     if (sealed_) {
@@ -87,6 +322,17 @@ Base::Result<void> Style::TryAddPropertyTrigger(
             "Style property trigger is incomplete");
     }
     return authoredTriggers_.TryPushBack(std::move(trigger));
+}
+
+Base::Result<void> Style::TryAddPropertyTrigger(
+    const PropertyTrigger& trigger) noexcept {
+    Base::Result<StylePropertyTrigger> plan =
+        trigger.BuildPlan();
+    if (!plan) {
+        return plan.GetStatus();
+    }
+    return TryAddPropertyTrigger(
+        std::move(plan).Value());
 }
 
 Base::Result<void> Style::Seal(
@@ -200,8 +446,20 @@ Base::Result<void> Style::Seal(
             nextTriggers.TryPushBack(trigger);
         if (!appended) return appended.GetStatus();
     }
-    flattened_ = std::move(next);
-    flattenedTriggers_ = std::move(nextTriggers);
+    Base::Result<void> frozenProgram = program_.Freeze(
+        targetType_, std::move(next), std::move(nextTriggers));
+    if (!frozenProgram) return frozenProgram.GetStatus();
+    Base::Result<void> sealedResources = resources_.Seal();
+    if (!sealedResources) {
+        program_.Reset();
+        return sealedResources.GetStatus();
+    }
+    authored_.Clear();
+    authoredTriggers_.Clear();
+    authoredSetterObjects_.Clear();
+    authoredTriggerObjects_.Clear();
+    basedOn_ = nullptr;
+    basedOnOwner_.Reset();
     sealed_ = true;
     return {};
 }
@@ -574,6 +832,14 @@ Base::Result<void> ThemeStyleManager::ClearSetters(
         if (!cleared) return cleared.GetStatus();
     }
     return {};
+}
+
+Base::Result<void> Style::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "Style Resources is already assigned");
 }
 
 } // namespace Aero::Presentation

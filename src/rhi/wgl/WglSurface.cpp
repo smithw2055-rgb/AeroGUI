@@ -1,4 +1,4 @@
-#include <Aero/Rhi/WglSurface.hpp>
+#include "rhi/WglSurface.hpp"
 
 #if !defined(_WIN32)
 #error "WglSurface.cpp is only supported on Windows"

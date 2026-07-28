@@ -126,6 +126,22 @@ bool TypeImplements(
         registry, info->BaseType(), target, depth + 1U);
 }
 
+template<class T>
+Base::Result<void> SortInfoById(
+    Base::Vector<const T*>& values) noexcept {
+    for (std::uint32_t index = 1U; index < values.Size(); ++index) {
+        const T* value = values[index];
+        std::uint32_t cursor = index;
+        while (cursor > 0U &&
+               value->Id() < values[cursor - 1U]->Id()) {
+            values[cursor] = values[cursor - 1U];
+            --cursor;
+        }
+        values[cursor] = value;
+    }
+    return {};
+}
+
 } // namespace
 
 MemberId MakeMethodId(
@@ -735,6 +751,162 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
     return {};
 }
 
+Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
+    if (!frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "TypeRegistry hash requires a frozen registry");
+    }
+
+    Base::Detail::StableMetadataIdBuilder builder;
+    constexpr char domain[] = "AERO.DESCRIPTORS.V2";
+    builder.AddText(
+        domain,
+        static_cast<std::uint32_t>(sizeof(domain) - 1U));
+    builder.AddU32(2U);
+
+    Base::Vector<const TypeInfo*> types;
+    Base::Result<void> result = types.TryReserve(TypeCount());
+    if (!result) return result.GetStatus();
+    for (const TypeInfo& type : Types()) {
+        result = types.TryPushBack(&type);
+        if (!result) return result.GetStatus();
+    }
+    result = SortInfoById(types);
+    if (!result) return result.GetStatus();
+
+    builder.AddU32(types.Size());
+    for (const TypeInfo* type : types) {
+        builder.AddU64(type->Id());
+        builder.AddU64(type->BaseType());
+        builder.AddU64(type->UnderlyingType());
+        builder.AddByte(static_cast<std::uint8_t>(type->Kind()));
+        builder.AddU32(static_cast<std::uint32_t>(type->Flags()));
+        builder.AddString(type->XamlNamespace());
+        builder.AddString(type->Name());
+
+        Base::Vector<TypeId> interfaces;
+        result = interfaces.TryAppend(type->Interfaces());
+        if (!result) return result.GetStatus();
+        for (std::uint32_t index = 1U;
+             index < interfaces.Size(); ++index) {
+            const TypeId value = interfaces[index];
+            std::uint32_t cursor = index;
+            while (cursor > 0U &&
+                   value < interfaces[cursor - 1U]) {
+                interfaces[cursor] = interfaces[cursor - 1U];
+                --cursor;
+            }
+            interfaces[cursor] = value;
+        }
+        builder.AddU32(interfaces.Size());
+        for (TypeId interfaceType : interfaces) {
+            builder.AddU64(interfaceType);
+        }
+    }
+
+    Base::Vector<const PropertyInfo*> properties;
+    result = properties.TryReserve(PropertyCount());
+    if (!result) return result.GetStatus();
+    Base::Vector<const FieldInfo*> fields;
+    result = fields.TryReserve(FieldCount());
+    if (!result) return result.GetStatus();
+    Base::Vector<const EnumValueInfo*> enumValues;
+    result = enumValues.TryReserve(EnumValueCount());
+    if (!result) return result.GetStatus();
+    Base::Vector<const EventInfo*> events;
+    result = events.TryReserve(EventCount());
+    if (!result) return result.GetStatus();
+    Base::Vector<const MethodInfo*> methods;
+    result = methods.TryReserve(MethodCount());
+    if (!result) return result.GetStatus();
+
+    for (const TypeInfo& type : Types()) {
+        for (const PropertyInfo& property : type.Properties()) {
+            result = properties.TryPushBack(&property);
+            if (!result) return result.GetStatus();
+        }
+        for (const FieldInfo& field : type.Fields()) {
+            result = fields.TryPushBack(&field);
+            if (!result) return result.GetStatus();
+        }
+        for (const EnumValueInfo& value : type.EnumValues()) {
+            result = enumValues.TryPushBack(&value);
+            if (!result) return result.GetStatus();
+        }
+        for (const EventInfo& eventInfo : type.Events()) {
+            result = events.TryPushBack(&eventInfo);
+            if (!result) return result.GetStatus();
+        }
+        for (const MethodInfo& method : type.Methods()) {
+            result = methods.TryPushBack(&method);
+            if (!result) return result.GetStatus();
+        }
+    }
+
+    result = SortInfoById(properties);
+    if (!result) return result.GetStatus();
+    builder.AddU32(properties.Size());
+    for (const PropertyInfo* property : properties) {
+        builder.AddU64(property->Id());
+        builder.AddU64(property->OwnerType());
+        builder.AddU64(property->ValueType());
+        builder.AddU32(static_cast<std::uint32_t>(property->Flags()));
+        builder.AddString(property->Name());
+    }
+
+    result = SortInfoById(fields);
+    if (!result) return result.GetStatus();
+    builder.AddU32(fields.Size());
+    for (const FieldInfo* field : fields) {
+        builder.AddU64(field->Id());
+        builder.AddU64(field->OwnerType());
+        builder.AddU64(field->ValueType());
+        builder.AddU32(static_cast<std::uint32_t>(field->Flags()));
+        builder.AddString(field->Name());
+    }
+
+    result = SortInfoById(enumValues);
+    if (!result) return result.GetStatus();
+    builder.AddU32(enumValues.Size());
+    for (const EnumValueInfo* value : enumValues) {
+        builder.AddU64(value->Id());
+        builder.AddU64(value->OwnerType());
+        builder.AddU64(value->RawValue());
+        builder.AddString(value->Name());
+    }
+
+    result = SortInfoById(events);
+    if (!result) return result.GetStatus();
+    builder.AddU32(events.Size());
+    for (const EventInfo* eventInfo : events) {
+        builder.AddU64(eventInfo->Id());
+        builder.AddU64(eventInfo->OwnerType());
+        builder.AddU64(eventInfo->EventArgsType());
+        builder.AddU32(
+            static_cast<std::uint32_t>(eventInfo->Flags()));
+        builder.AddString(eventInfo->Name());
+    }
+
+    result = SortInfoById(methods);
+    if (!result) return result.GetStatus();
+    builder.AddU32(methods.Size());
+    for (const MethodInfo* method : methods) {
+        builder.AddU64(method->Id());
+        builder.AddU64(method->OwnerType());
+        builder.AddU64(method->ReturnType());
+        builder.AddU32(static_cast<std::uint32_t>(method->Flags()));
+        builder.AddString(method->Name());
+        builder.AddU32(method->Parameters().Size());
+        for (const MethodParameterInfo& parameter :
+             method->Parameters()) {
+            builder.AddU64(parameter.Type());
+            builder.AddString(parameter.Name());
+        }
+    }
+    return builder.Finish();
+}
+
 const TypeInfo* TypeRegistry::FindType(TypeId id) const noexcept {
     const std::uint32_t* index = typeIndex_.Find(id);
     return index != nullptr ? TypeAt(*index) : nullptr;
@@ -809,6 +981,24 @@ const EnumValueInfo* TypeRegistry::FindEnumValue(
         if (value.RawValue() == rawValue) return &value;
     }
     return nullptr;
+}
+
+bool TypeRegistry::IsEnumValue(
+    TypeId type,
+    std::uint64_t rawValue) const noexcept {
+    const TypeInfo* info = FindType(type);
+    if (info == nullptr ||
+        info->Kind() != MetadataTypeKind::Enum) {
+        return false;
+    }
+    if (!info->IsFlagsEnum()) {
+        return FindEnumValue(type, rawValue) != nullptr;
+    }
+    std::uint64_t allowed = 0U;
+    for (const EnumValueInfo& value : info->EnumValues()) {
+        allowed |= value.RawValue();
+    }
+    return (rawValue & ~allowed) == 0U;
 }
 
 const EventInfo* TypeRegistry::FindEvent(MemberId id) const noexcept {

@@ -1,7 +1,5 @@
 #include <Aero/Controls/Scroll.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
-
 #include <algorithm>
 #include <cmath>
 
@@ -48,55 +46,44 @@ double ClampOffset(
         value, 0.0, std::max(0.0, extent - viewport));
 }
 
+template <typename TProperty>
 double ReadDouble(
     const DependencyObject& object,
-    DependencyPropertyHandle property,
+    const TProperty& property,
     double fallback = 0.0) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value ? value.Value().AsDouble() : fallback;
+    return object.GetValueOr(property, fallback);
 }
 
+template <typename TProperty>
 bool ReadBool(
     const DependencyObject& object,
-    DependencyPropertyHandle property,
+    const TProperty& property,
     bool fallback) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value ? value.Value().AsBoolean() : fallback;
+    return object.GetValueOr(property, fallback);
 }
 
+template <typename TProperty>
 Orientation ReadOrientation(
     const DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<Value> value = object.GetValue(property);
-    return value
-        ? static_cast<Orientation>(
-            value.Value().AsUnsignedInteger())
-        : Orientation::Vertical;
+    const TProperty& property) noexcept {
+    return object.GetValueOr(
+        property, Orientation::Vertical);
 }
 
+template <typename TProperty>
 Base::Result<void> StoreDouble(
     DependencyObject& object,
-    DependencyPropertyHandle property,
+    const TProperty& property,
     double value) noexcept {
-    return object.SetValue(
-        property,
-        Value::FromDouble(BuiltinTypes::Double, value));
+    return object.SetValue(property, value);
 }
 
+template <typename TProperty>
 Base::Result<void> StoreOrientation(
     DependencyObject& object,
-    DependencyPropertyHandle property,
+    const TProperty& property,
     Orientation value) noexcept {
-    if (value > Orientation::Vertical) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll orientation is invalid");
-    }
-    return object.SetValue(
-        property,
-        Value::FromUnsignedInteger(
-            BuiltinTypes::Orientation,
-            static_cast<std::uint64_t>(value)));
+    return object.SetValue(property, value);
 }
 
 } // namespace
@@ -581,25 +568,19 @@ double ScrollViewer::ViewportHeight() const noexcept {
 Base::Result<void>
 ScrollViewer::SetCanHorizontallyScroll(
     bool value) noexcept {
-    return SetValue(
-        CanHorizontallyScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return SetValue(CanHorizontallyScrollProperty, value);
 }
 
 Base::Result<void>
 ScrollViewer::SetCanVerticallyScroll(
     bool value) noexcept {
-    return SetValue(
-        CanVerticallyScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return SetValue(CanVerticallyScrollProperty, value);
 }
 
 Base::Result<void>
 ScrollViewer::SetCanContentScroll(
     bool value) noexcept {
-    return SetValue(
-        CanContentScrollProperty,
-        Value::FromBoolean(BuiltinTypes::Boolean, value));
+    return SetValue(CanContentScrollProperty, value);
 }
 
 bool ScrollViewer::AllowsHorizontalScroll() const noexcept {
@@ -622,35 +603,17 @@ void ScrollViewer::OnScrollDataChanged(
     const ScrollData& newData,
     ScrollInputKind kind) noexcept {
     static_cast<void>(SetReadOnlyCurrentValue(
-        HorizontalOffsetProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.horizontalOffset)));
+        HorizontalOffsetProperty, newData.horizontalOffset));
     static_cast<void>(SetReadOnlyCurrentValue(
-        VerticalOffsetProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.verticalOffset)));
+        VerticalOffsetProperty, newData.verticalOffset));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ExtentWidthProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.extentWidth)));
+        ExtentWidthProperty, newData.extentWidth));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ExtentHeightProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.extentHeight)));
+        ExtentHeightProperty, newData.extentHeight));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ViewportWidthProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.viewportWidth)));
+        ViewportWidthProperty, newData.viewportWidth));
     static_cast<void>(SetReadOnlyCurrentValue(
-        ViewportHeightProperty,
-        Value::FromDouble(
-            BuiltinTypes::Double,
-            newData.viewportHeight)));
+        ViewportHeightProperty, newData.viewportHeight));
     if (events_ != nullptr) {
         ScrollChangedEventArgs args;
         args.oldData = oldData;

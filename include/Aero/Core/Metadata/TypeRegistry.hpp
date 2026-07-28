@@ -19,12 +19,24 @@
 
 namespace Aero::Core {
 
-class MetaRegistrationContext;
+class MetadataContext;
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class MetadataBehaviorRegistrationStore;
 class MetadataRegistrationTypes;
+#endif
 class MetadataRuntime;
+template<class TOwner, class TValue>
+class DependencyPropertyRef;
+template<class TOwner, class TValue>
+class AttachedPropertyRef;
+template<class TOwner, class TValue>
+class ReadOnlyPropertyRef;
+template<class TOwner, class TArgs>
+class RoutedEventRef;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
+inline constexpr std::uint32_t MetadataSchemaFormatVersion = 2U;
+inline constexpr std::uint32_t MetadataRuntimeDataFormatVersion = 7U;
 
 enum class MetadataTypeKind : std::uint8_t {
     Object = 0U,
@@ -66,7 +78,8 @@ enum class PropertyFlags : std::uint32_t {
     AffectsParentArrange = 1U << 7U,
     Structural = 1U << 8U,
     Collection = 1U << 9U,
-    WriteOnly = 1U << 10U
+    WriteOnly = 1U << 10U,
+    AnyValue = 1U << 11U
 };
 
 enum class FieldFlags : std::uint32_t {
@@ -436,7 +449,9 @@ public:
     PropertyFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     PropertyInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -457,7 +472,9 @@ public:
     FieldFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     FieldInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -477,7 +494,9 @@ public:
     std::uint64_t RawValue() const noexcept { return rawValue_; }
     Base::StringView Name() const noexcept { return name_.View(); }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     EnumValueInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -494,7 +513,9 @@ public:
     Base::StringView Name() const noexcept { return name_.View(); }
     TypeId Type() const noexcept { return type_; }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     MethodParameterInfo() noexcept = default;
     TypeId type_ = InvalidTypeId;
     Base::String name_;
@@ -515,7 +536,9 @@ public:
         return {parameters_.Data(), parameters_.Size()};
     }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     MethodInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -537,7 +560,9 @@ public:
     EventFlags Flags() const noexcept { return flags_; }
     Base::StringView Name() const noexcept { return name_.View(); }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     EventInfo() noexcept = default;
     MemberId id_ = InvalidMemberId;
     TypeId ownerType_ = InvalidTypeId;
@@ -571,7 +596,9 @@ public:
     Base::Span<const MethodInfo> Methods() const noexcept { return {methods_.Data(), methods_.Size()}; }
     MemberId ContentMember() const noexcept { return contentMember_; }
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class TypeRegistry;
+#endif
     TypeInfo() noexcept = default;
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
@@ -605,11 +632,11 @@ struct MetaTypeTraits {
         return T::StaticMetadataName();
     }
     static constexpr TypeId BaseType() noexcept {
-        if constexpr (std::is_same_v<typename T::MetadataBaseType,
+        if constexpr (std::is_same_v<typename T::BaseType,
             NoMetadataBase>) {
             return InvalidTypeId;
         } else {
-            return MetaTypeTraits<typename T::MetadataBaseType>::Id();
+            return MetaTypeTraits<typename T::BaseType>::Id();
         }
     }
 };
@@ -640,6 +667,7 @@ constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringV
 }
 AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API TypeRegistry final {
 public:
     TypeRegistry() noexcept;
@@ -649,8 +677,44 @@ public:
     TypeRegistry(TypeRegistry&&) = delete;
     TypeRegistry& operator=(TypeRegistry&&) = delete;
     Base::Result<void> Freeze() noexcept;
+    Base::Result<Base::HashCode> ComputeHash() const noexcept;
     bool IsFrozen() const noexcept { return frozen_; }
     std::uint32_t TypeCount() const noexcept { return types_.Size(); }
+    std::uint32_t PropertyCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.Properties().Size();
+        }
+        return count;
+    }
+    std::uint32_t FieldCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.Fields().Size();
+        }
+        return count;
+    }
+    std::uint32_t EnumValueCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.EnumValues().Size();
+        }
+        return count;
+    }
+    std::uint32_t EventCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.Events().Size();
+        }
+        return count;
+    }
+    std::uint32_t MethodCount() const noexcept {
+        std::uint32_t count = 0U;
+        for (const TypeInfo& type : types_) {
+            count += type.Methods().Size();
+        }
+        return count;
+    }
     Base::Span<const TypeInfo> Types() const noexcept { return {types_.Data(), types_.Size()}; }
     const TypeInfo* FindType(TypeId id) const noexcept;
     const TypeInfo* FindType(Base::StringView xamlNamespace, Base::StringView name) const noexcept;
@@ -661,6 +725,7 @@ public:
     const EnumValueInfo* FindEnumValue(MemberId id) const noexcept;
     const EnumValueInfo* FindEnumValue(TypeId ownerType, Base::StringView name) const noexcept;
     const EnumValueInfo* FindEnumValue(TypeId ownerType, std::uint64_t rawValue) const noexcept;
+    bool IsEnumValue(TypeId type, std::uint64_t rawValue) const noexcept;
     const EventInfo* FindEvent(MemberId id) const noexcept;
     const EventInfo* FindEvent(TypeId ownerType, Base::StringView name, bool includeBaseTypes = true) const noexcept;
     const MethodInfo* FindMethod(MemberId id) const noexcept;
@@ -693,13 +758,25 @@ private:
     const EventInfo* EventAt(const MemberLocation& location) const noexcept;
     const MethodInfo* MethodAt(const MemberLocation& location) const noexcept;
 };
+#endif
 
 } // namespace Aero::Core
 
-#define AERO_TYPED_META_NAMED( \
+#define AERO_DECLARE_TYPE_NAMED( \
     typeName, metadataBaseType, metadataNamespace, metadataName) \
 public: \
-    using MetadataBaseType = metadataBaseType; \
+    using Self = typeName; \
+    using BaseType = metadataBaseType; \
+    struct Members final { \
+        template<class TValue> \
+        using Property = Aero::Core::DependencyPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using AttachedProperty = Aero::Core::AttachedPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using ReadOnlyProperty = Aero::Core::ReadOnlyPropertyRef<Self, TValue>; \
+        template<class TArgs> \
+        using RoutedEvent = Aero::Core::RoutedEventRef<Self, TArgs>; \
+    }; \
     static constexpr Aero::Base::StringView \
     StaticMetadataNamespace() noexcept { \
         return Aero::Base::StringView(metadataNamespace); \
@@ -716,7 +793,7 @@ public: \
         return StaticTypeIdValue_; \
     }
 
-#define AERO_TYPED_META(typeName, metadataBaseType) \
-    AERO_TYPED_META_NAMED( \
+#define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
+    AERO_DECLARE_TYPE_NAMED( \
         typeName, metadataBaseType, \
         Aero::Core::AeroNamespaceUri(), #typeName)

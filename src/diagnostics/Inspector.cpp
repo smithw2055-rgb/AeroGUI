@@ -1,4 +1,4 @@
-#include <Aero/Diagnostics/Inspector.hpp>
+#include "Inspector.hpp"
 
 #include <Aero/Controls/ControlPrimitives.hpp>
 

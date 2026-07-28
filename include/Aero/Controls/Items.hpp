@@ -4,6 +4,8 @@
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/Style.hpp>
 
+#include <utility>
+
 namespace Aero::Presentation {
 class RenderManager;
 }
@@ -80,52 +82,191 @@ private:
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
 
-using DataTemplateFactory = Base::Result<
+using DeferredObjectFactory = Base::Result<
     Base::Ref<Base::Object>> (*)(
         const Base::Ref<Base::Object>& item,
         void* context) noexcept;
 
-class AERO_API DataTemplate final {
+// Shared immutable deferred factory used by data and items-panel templates.
+// The payload is the data item for DataTemplate and an empty reference for
+// ItemsPanelTemplate. XAML compilers may retain node IR behind context.
+class AERO_API DeferredObjectProgram final {
 public:
+    Base::Result<void> Configure(
+        DeferredObjectFactory factory,
+        void* context = nullptr) noexcept;
+    Base::Result<void> Configure(
+        DeferredObjectFactory factory,
+        void* context,
+        Base::Ref<Base::Object> factoryOwner) noexcept;
+    Base::Result<void> SetBaseUri(
+        const Base::ResourceUri& value) noexcept;
+    Base::Result<void> Seal() noexcept;
+    Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const Base::Ref<Base::Object>& payload = {}) const noexcept;
+
+    DeferredObjectFactory Factory() const noexcept {
+        return factory_;
+    }
+    void* FactoryContext() const noexcept {
+        return context_;
+    }
+    const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
+        return factoryOwner_;
+    }
+    const Base::ResourceUri& BaseUri() const noexcept {
+        return baseUri_;
+    }
+    bool IsValid() const noexcept {
+        return factory_ != nullptr;
+    }
+    bool IsSealed() const noexcept {
+        return sealed_;
+    }
+
+private:
+    DeferredObjectFactory factory_ = nullptr;
+    void* context_ = nullptr;
+    Base::Ref<Base::Object> factoryOwner_;
+    Base::ResourceUri baseUri_;
+    bool sealed_ = false;
+};
+
+using DataTemplateFactory = DeferredObjectFactory;
+
+class AERO_API DataTemplate final : public Base::Object {
+    AERO_DECLARE_TYPE(DataTemplate, Base::Object)
+public:
+    DataTemplate() noexcept = default;
     DataTemplate(
         DataTemplateFactory factory,
-        void* context = nullptr) noexcept
-        : factory_(factory), context_(context) {}
+        void* context = nullptr,
+        Base::Ref<Base::Object> factoryOwner = {}) noexcept
+        { (void)program_.Configure(
+            factory, context, std::move(factoryOwner)); }
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::Result<void> Configure(
+        DataTemplateFactory factory,
+        void* context = nullptr,
+        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
+    Base::Result<void> SetDataType(
+        TypeId value) noexcept;
+    Base::Result<void> SetAuthoredVisualTree(
+        const Base::Ref<Base::Object>& value) noexcept;
+    const Base::Ref<Base::Object>&
+    AuthoredVisualTree() const noexcept {
+        return authoredVisualTree_;
+    }
+    void ClearAuthoredVisualTree() noexcept {
+        authoredVisualTree_.Reset();
+    }
+    Base::Result<void> Seal() noexcept;
+    TypeId DataType() const noexcept {
+        return dataType_;
+    }
+    ResourceKey ImplicitKey() const noexcept {
+        return ResourceKey::FromType(dataType_);
+    }
+    ResourceDictionary& Resources() noexcept {
+        return resources_;
+    }
+    const ResourceDictionary& Resources() const noexcept {
+        return resources_;
+    }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
+    Base::Result<void> SetBaseUri(
+        const Base::ResourceUri& value) noexcept {
+        return program_.SetBaseUri(value);
+    }
+    const Base::ResourceUri& BaseUri() const noexcept {
+        return program_.BaseUri();
+    }
     Base::Result<Base::Ref<Base::Object>>
         Instantiate(
             const Base::Ref<Base::Object>& item) const noexcept;
     bool IsValid() const noexcept {
-        return factory_ != nullptr;
+        return program_.IsValid();
+    }
+    DeferredObjectProgram& Program() noexcept {
+        return program_;
+    }
+    const DeferredObjectProgram& Program() const noexcept {
+        return program_;
     }
 
 private:
-    DataTemplateFactory factory_ = nullptr;
-    void* context_ = nullptr;
+    DeferredObjectProgram program_;
+    TypeId dataType_ = InvalidTypeId;
+    ResourceDictionary resources_;
+    Base::Ref<Base::Object> authoredVisualTree_;
 };
 
-using ItemsPanelFactory = Base::Result<
-    Base::Ref<Base::Object>> (*)(
-        void* context) noexcept;
-
-class AERO_API ItemsPanelTemplate final {
+class AERO_API ItemsPanelTemplate final
+    : public Base::Object {
+    AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
+    ItemsPanelTemplate() noexcept = default;
     ItemsPanelTemplate(
-        ItemsPanelFactory factory,
-        void* context = nullptr) noexcept
-        : factory_(factory), context_(context) {}
+        DeferredObjectFactory factory,
+        void* context = nullptr,
+        Base::Ref<Base::Object> factoryOwner = {}) noexcept
+        { (void)program_.Configure(
+            factory, context, std::move(factoryOwner)); }
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::Result<void> Configure(
+        DeferredObjectFactory factory,
+        void* context = nullptr,
+        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
+    Base::Result<void> SetAuthoredVisualTree(
+        const Base::Ref<Base::Object>& value) noexcept;
+    const Base::Ref<Base::Object>&
+    AuthoredVisualTree() const noexcept {
+        return authoredVisualTree_;
+    }
+    void ClearAuthoredVisualTree() noexcept {
+        authoredVisualTree_.Reset();
+    }
+    Base::Result<void> Seal() noexcept;
+    ResourceDictionary& Resources() noexcept {
+        return resources_;
+    }
+    const ResourceDictionary& Resources() const noexcept {
+        return resources_;
+    }
+    Base::Result<void> SetResources(
+        Base::Ref<ResourceDictionary> value) noexcept;
+    Base::Result<void> SetBaseUri(
+        const Base::ResourceUri& value) noexcept {
+        return program_.SetBaseUri(value);
+    }
+    const Base::ResourceUri& BaseUri() const noexcept {
+        return program_.BaseUri();
+    }
     Base::Result<Base::Ref<Base::Object>>
         Instantiate() const noexcept;
     bool IsValid() const noexcept {
-        return factory_ != nullptr;
+        return program_.IsValid();
+    }
+    DeferredObjectProgram& Program() noexcept {
+        return program_;
+    }
+    const DeferredObjectProgram& Program() const noexcept {
+        return program_;
     }
 
 private:
-    ItemsPanelFactory factory_ = nullptr;
-    void* context_ = nullptr;
+    DeferredObjectProgram program_;
+    ResourceDictionary resources_;
+    Base::Ref<Base::Object> authoredVisualTree_;
 };
 
 class AERO_API ItemContainer : public ContentControl {
-    AERO_TYPED_META(ItemContainer, ContentControl)
+    AERO_DECLARE_TYPE(ItemContainer, ContentControl)
 public:
     ItemContainer() noexcept
         : ContentControl(StaticTypeId()) {}
@@ -136,7 +277,7 @@ protected:
 };
 
 class AERO_API ItemsPresenter final : public Decorator {
-    AERO_TYPED_META(ItemsPresenter, Decorator)
+    AERO_DECLARE_TYPE(ItemsPresenter, Decorator)
 public:
     ItemsPresenter() noexcept
         : Decorator(StaticTypeId()) {}
@@ -160,7 +301,7 @@ class ItemContainerGenerator;
 class VirtualizingStackPanel;
 
 class AERO_API ItemsControl : public Control {
-    AERO_TYPED_META(ItemsControl, Control)
+    AERO_DECLARE_TYPE(ItemsControl, Control)
 public:
     ItemsControl() noexcept;
     ~ItemsControl() override;
@@ -205,9 +346,8 @@ public:
         return changed_.Remove(handler);
     }
 
-    inline static constexpr DependencyPropertyHandle
-        ItemCountProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ItemCount");
+    inline static constexpr Members::ReadOnlyProperty<
+        std::uint32_t> ItemCountProperty{"ItemCount"};
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;

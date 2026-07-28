@@ -144,6 +144,25 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
             "Dependency property value type is not assignable to the property type");
     }
 
+    if (expected->Kind() == MetadataTypeKind::Enum) {
+        std::uint64_t raw = 0U;
+        if (HasTypeFlag(expected->Flags(), TypeFlags::SignedEnum)) {
+            if (value.Kind() != PropertyValueKind::SignedInteger) {
+                return ValidationFailedStatus();
+            }
+            raw = static_cast<std::uint64_t>(
+                value.AsSignedInteger());
+        } else {
+            if (value.Kind() != PropertyValueKind::UnsignedInteger) {
+                return ValidationFailedStatus();
+            }
+            raw = value.AsUnsignedInteger();
+        }
+        if (!typeRegistry_->IsEnumValue(expected->Id(), raw)) {
+            return ValidationFailedStatus();
+        }
+    }
+
     if (!metadata.validate.Empty() && !metadata.validate(value)) {
         return ValidationFailedStatus();
     }

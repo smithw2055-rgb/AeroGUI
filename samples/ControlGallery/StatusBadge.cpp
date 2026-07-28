@@ -1,81 +1,50 @@
 #include "StatusBadge.hpp"
 
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
-#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
-#include <Aero/Core/ObjectServices.hpp>
-
-#include <utility>
-
 namespace Aero::Samples::ControlGallery {
 namespace {
 
 using namespace Base;
-using namespace Core;
 using namespace Presentation;
 
+const Color DefaultAccent{
+    0.12F, 0.55F, 0.34F, 1.0F};
+
+bool IsValidAccent(const Color& value) noexcept {
+    return Base::IsFiniteColor(value) &&
+        value.red >= 0.0F && value.red <= 1.0F &&
+        value.green >= 0.0F && value.green <= 1.0F &&
+        value.blue >= 0.0F && value.blue <= 1.0F &&
+        value.alpha >= 0.0F && value.alpha <= 1.0F;
+}
+
 Result<void> RegisterMetadata(
-    MetaRegistrationContext& context,
-    void*) noexcept {
-    const Color defaultAccent{
-        0.12F, 0.55F, 0.34F, 1.0F};
-    Result<Value> accent =
-        context.Values().TryCreateValue(
-            TypeOf<Color>(), &defaultAccent);
-    if (!accent) {
-        return accent.GetStatus();
-    }
-    MetaTypeBuilder<StatusBadge> badge =
-        MetaTypeBuilder<StatusBadge>::Object(
-            context);
+    Core::MetadataContext& context) noexcept {
+    auto badge = Aero::Describe<StatusBadge>(context);
     badge
-        .DefaultFactory()
-        .DependencyProperty(
+        .Factory()
+        .Property(
             StatusBadge::AccentProperty,
-            "Accent",
-            TypeOf<Color>(),
-            std::move(accent).Value(),
-            PropertyMetadataFlags::AffectsRender);
-    return badge.Finish();
+            Aero::PropertyOptions(DefaultAccent)
+                .AffectsRender()
+                .Validate(&IsValidAccent));
+    return badge.Result();
 }
 
 } // namespace
 
 Presentation::Color
 StatusBadge::Accent() const noexcept {
-    Base::Result<Core::Value> value =
-        GetValue(AccentProperty);
-    return value
-        ? *static_cast<const Presentation::Color*>(
-            value.Value().AsCustom())
-        : Presentation::Color{
-            0.12F, 0.55F, 0.34F, 1.0F};
+    return GetValueOr(AccentProperty, DefaultAccent);
 }
 
 Base::Result<void> StatusBadge::SetAccent(
     Presentation::Color value) noexcept {
-    if (!Base::IsFiniteColor(value) ||
-        value.red < 0.0F ||
-        value.red > 1.0F ||
-        value.green < 0.0F ||
-        value.green > 1.0F ||
-        value.blue < 0.0F ||
-        value.blue > 1.0F ||
-        value.alpha < 0.0F ||
-        value.alpha > 1.0F) {
+    if (!IsValidAccent(value)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "StatusBadge accent is invalid");
     }
-    Base::Result<Core::Value> stored =
-        Core::TryCreateRuntimeValue(
-            Core::TypeOf<Presentation::Color>(),
-            &value);
-    if (!stored) {
-        return stored.GetStatus();
-    }
-    return SetValue(
-        AccentProperty,
-        std::move(stored).Value());
+    return SetValue(AccentProperty, value);
 }
 
 Base::Result<void> StatusBadge::BuildDisplayList(
@@ -90,12 +59,9 @@ Base::Result<void> StatusBadge::BuildDisplayList(
 
 Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept {
-    Aero::ModuleRegistration manifest;
-    manifest.name =
-        "Aero.Samples.ControlGallery.StatusBadge";
-    manifest.schemaVersion = 1U;
-    manifest.registerModule = &RegisterMetadata;
-    return manifest;
+    return Aero::DefineModule(
+        "Aero.Samples.ControlGallery.StatusBadge",
+        &RegisterMetadata);
 }
 
 } // namespace Aero::Samples::ControlGallery

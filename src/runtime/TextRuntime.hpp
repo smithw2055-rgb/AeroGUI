@@ -1,0 +1,43 @@
+#pragma once
+
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Integration/ViewHost.hpp>
+
+namespace Aero::Controls::Detail {
+class TextLayoutService;
+}
+
+namespace Aero::Presentation {
+class IRenderBackend;
+}
+
+namespace Aero::Detail {
+
+class TextRuntime final {
+public:
+    explicit TextRuntime(
+        Base::IAllocator* allocator = nullptr) noexcept;
+    ~TextRuntime() noexcept;
+
+    TextRuntime(const TextRuntime&) = delete;
+    TextRuntime& operator=(const TextRuntime&) = delete;
+
+    Base::Result<void> Initialize(
+        Presentation::IRenderBackend& backend,
+        const Integration::TextOptions& options) noexcept;
+    Base::Result<bool> SynchronizeBackend() noexcept;
+    Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    void Shutdown() noexcept;
+
+    Controls::Detail::TextLayoutService*
+    Service() noexcept;
+
+private:
+    struct Impl;
+
+    Base::IAllocator* allocator_ = nullptr;
+    Impl* impl_ = nullptr;
+};
+
+} // namespace Aero::Detail

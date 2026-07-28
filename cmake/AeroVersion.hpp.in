@@ -1,0 +1,24 @@
+#pragma once
+
+#include <cstdint>
+
+namespace Aero {
+
+inline constexpr std::uint32_t VersionMajor = @AERO_VERSION_MAJOR@U;
+inline constexpr std::uint32_t VersionMinor = @AERO_VERSION_MINOR@U;
+inline constexpr std::uint32_t VersionPatch = @AERO_VERSION_PATCH@U;
+
+// Public binary and descriptor contracts. These values are intentionally
+// independent from the product semantic version so cache/tool compatibility can
+// be diagnosed precisely.
+inline constexpr std::uint32_t CppAbiVersion = @AERO_CPP_ABI_VERSION@U;
+inline constexpr std::uint32_t ModuleAbiVersion = @AERO_MODULE_ABI_VERSION@U;
+inline constexpr std::uint32_t XamlFacetAbiVersion = @AERO_XAML_FACET_ABI_VERSION@U;
+inline constexpr std::uint32_t XamlSchemaAbiVersion = @AERO_XAML_SCHEMA_ABI_VERSION@U;
+inline constexpr std::uint32_t XamlDocumentCacheAbiVersion = @AERO_XAML_DOCUMENT_CACHE_ABI_VERSION@U;
+inline constexpr std::uint32_t RuntimeAbiVersion = @AERO_RUNTIME_ABI_VERSION@U;
+inline constexpr std::uint32_t XamlSchemaManifestFormatVersion = @AERO_XAML_SCHEMA_MANIFEST_FORMAT_VERSION@U;
+inline constexpr std::uint32_t XamlCompiledCacheFormatVersion = @AERO_XAML_COMPILED_CACHE_FORMAT_VERSION@U;
+inline constexpr std::uint32_t XamlCompiledDocumentEncodingVersion = @AERO_XAML_COMPILED_DOCUMENT_ENCODING_VERSION@U;
+
+} // namespace Aero

@@ -1,98 +1,108 @@
 # Native window hosting
 
-AeroGUI separates the operating-system window from the GPU surface.
+AeroGUI separates the operating-system window from the product runtime and the
+private graphics implementation. The only public product frame entry is
+`View::RunFrame()`.
 
 ## Ownership boundary
 
-`Aero::Platform::IWindow` owns the native top-level window and its event pump:
+`Aero::Platform::IWindow` owns the native top-level window and event pump:
 
-- create/show/close lifecycle;
+- create, show and close;
 - client size and DPI scale;
 - expose, resize and close events;
 - normalized pointer, keyboard and UTF-8 text events;
-- an opaque `NativeWindowHandle` for graphics integration.
+- an opaque `NativeWindowHandle`.
 
-`Aero::Rhi::SurfaceSession` continues to own only graphics presentation state:
+`Aero::Integration::RenderEndpoint` is the only rendering object held by a
+`View`. It is reference counted and opaque: it does not expose a renderer,
+device, surface, command list, resource registry or the internal immutable
+render snapshot.
 
-- D3D11 swap chains;
-- WGL/GLX/EGL contexts and drawable bindings;
-- surface resize, acquire, present and context-loss recovery.
+An endpoint has one of three modes:
 
-The platform layer must not create a renderer or traverse a `RenderPlan`. The
-RHI layer must not run a Win32/X11 application event loop.
+- `Headless`: Runtime-owned CPU diagnostics and text-resource sink; no GPU
+  device is created.
+- `Embedded`: the host lends a native device/context and supplies the current
+  target callback. AeroGUI records and submits UI work but never calls Present.
+- `Window`: the endpoint owns the surface/swapchain/context and presents each
+  accepted GPU frame exactly once.
 
-## Operating-system carriers
+One endpoint can be bound to one `View`. The `View` keeps a strong reference,
+so the caller may release its reference after `ViewHost::CreateView()` returns.
+Multiple endpoints may borrow the same host native device.
 
-- `Aero/Platform/Win32Window.hpp` declares the Windows carrier. Its PImpl
-  implementation owns an HWND and translates Win32 messages into `WindowEvent`
-  values.
-- `Aero/Platform/X11Window.hpp` declares the X11 carrier. Its PImpl
-  implementation can create a default-visual window or attach to an existing
-  drawable. ControlGallery uses attachment because the GLX backend must choose
-  a compatible visual before creating its OpenGL context.
+## Public factories
 
-Neither public header includes `windows.h` or Xlib headers. Native SDK types stay
-inside `AeroPlatform`, preserving public-header self-containment and allowing
-non-Windows or X11-disabled builds to compile the same declarations. The X11
-implementation becomes a linkable Unsupported adapter when GLX/X11 is disabled.
+The default `Aero/Integration.hpp` exposes `ViewHost`, `RenderEndpoint`,
+source-provider registration and reload coordination. Backend factories are
+explicit opt-in headers:
 
-## Runtime resize
+- `Aero/Integration/D3D11.hpp`;
+- `Aero/Integration/OpenGL33.hpp`;
+- `Aero/Integration/HostedGraphics.hpp` for third-party backends.
 
-`RuntimeHost::Resize()` updates the mounted root's logical available size. The
-XAML visual-tree host invalidates both layout and the root render node, so the
-next `RunFrame()` publishes a new immutable `RenderPlan` containing the updated
-layout slots and render sizes.
+These headers use `std::uintptr_t`, function pointers and versioned POD
+contracts. They do not include Windows, D3D11, OpenGL or X11 system headers.
+`HostedGraphics.hpp` exposes a tagged read-only graphics command ABI, not the
+internal render snapshot or RHI classes.
 
-The OS window reports physical client pixels. Application hosts divide pointer
-positions and client dimensions by the event DPI scale before dispatching input
-or resizing the runtime. The RHI surface continues to use physical pixels.
+## Resize and frame flow
 
-## Win32 text services
+Logical and physical resize are separate operations:
 
-The visible Windows sample uses the existing platform contracts rather than
-adding text-specific behavior to the renderer:
+```cpp
+view.Resize({logicalWidth, logicalHeight});
+endpoint.Resize(physicalWidth, physicalHeight);
+```
 
-- `Win32Clipboard` reads and writes `CF_UNICODETEXT`, converting at the boundary
-  between UTF-8 runtime strings and UTF-16 Win32 storage;
-- `Win32ImeAdapter` subclasses the active HWND and consumes
-  `WM_IME_STARTCOMPOSITION`, `WM_IME_COMPOSITION` and
-  `WM_IME_ENDCOMPOSITION`;
-- composition updates are delivered through `ITextCompositionClient` to the
-  focused TextBox model;
-- the candidate and composition windows are positioned from the TextBox logical
-  caret rectangle using the HWND DPI;
-- the retained renderer continues to draw the normal TextBox caret, while the
-  adapter creates a Win32 native caret during active IME composition;
-- an IME update invalidates the HWND, causing the next expose event to run the
-  full RuntimeHost frame and publish a fresh RenderPlan.
+The host then calls `view.RunFrame()`. That call performs property, binding,
+lifecycle and layout phases, builds a candidate immutable snapshot and offers
+it to the bound endpoint. The current snapshot version advances only after the
+endpoint accepts the candidate. `ViewFrameResult` contains safe layout/render
+statistics only.
 
-The IME adapter accepts its TextBox client before an HWND exists. ControlGallery
-attaches it to the active HWND on the first native event, which preserves the
-existing runtime-before-surface startup order.
+`RenderSubmissionMode::Immediate` preserves synchronous submission.
+`DedicatedThread` uses the endpoint's private worker and two frame slots: an
+executing snapshot is never replaced, while a pending snapshot may be replaced
+by the newest accepted one. UI and `Visual` pointers never cross this boundary.
+HostedGraphics requires the `ThreadSafe` capability for this mode. The current
+D3D11 and OpenGL 3.3 factories reject it with `Unsupported` because their
+text/resource preparation and native contexts remain owner-thread affine.
+
+## Device and surface loss
+
+Hosts report loss through the endpoint:
+
+```cpp
+endpoint.NotifySurfaceLost(); // or NotifyDeviceLost()
+endpoint.Restore();
+view.RunFrame();
+```
+
+Reporting loss stops acceptance, discards pending frames and advances the
+endpoint generation. Backend image, mesh and glyph resources are invalidated
+inside the endpoint. A successful `Restore()` rebuilds the native surface or
+device, and the next `RunFrame()` submits a complete snapshot. Hosts do not
+manually shut down or reinitialize renderer, surface, presenter and device
+objects.
 
 ## ControlGallery GUI mode
-
-The existing non-interactive smoke path is unchanged. A visible GUI instance is
-started explicitly:
 
 ```text
 AeroControlGallery --backend=d3d11 --xaml=compiled --theme=light --interactive
 AeroControlGallery --backend=opengl --xaml=compiled --theme=dark --interactive
 ```
 
-In GUI mode the sample:
+The sample follows the public sequence:
 
-1. creates the OS window carrier;
-2. passes only its opaque native handle to the selected RHI surface;
-3. submits the current immutable `RenderPlan`;
-4. translates pointer, keyboard and text events into `RuntimeHost` input;
-5. converts physical resize events to logical runtime dimensions;
-6. runs the complete property/binding/layout/render frame pipeline;
-7. resizes the physical GPU surface;
-8. submits the newly published `runtime.Plan()`;
-9. routes Win32 IME and native clipboard operations through `AeroPlatform`;
-10. preserves the existing context-loss recovery path.
+1. create the OS window;
+2. create a Window endpoint from its opaque native handle;
+3. create the `View` through `Integration::ViewHost`;
+4. load content and dispatch normalized input;
+5. resize the `View` logically and the endpoint physically;
+6. call `View::RunFrame()`;
+7. use endpoint loss/restore operations for recovery.
 
-Non-Windows builds keep the memory clipboard and do not attach the Win32 IME
-host. The portable runtime and headless smoke paths therefore remain independent
-of native Windows APIs.
+Win32 clipboard and IME stay platform services supplied in `ViewHostOptions`;
+they do not become renderer or text-layout extension points.

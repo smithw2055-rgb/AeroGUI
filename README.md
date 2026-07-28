@@ -1,5 +1,26 @@
 # AeroGUI
 
+## Supported SDK boundary
+
+AeroGUI-R exposes three supported SDK layers:
+
+- Product SDK: `Aero/Runtime.hpp` and `Aero::Runtime`, with the sole runtime
+  path `RuntimeEnvironment -> View` and the sole public frame entry
+  `View::RunFrame()`.
+- Module SDK: `Aero/ModuleSdk.hpp` and `Aero::ModuleSdk`, for typed
+  metadata/property/event, control, Style/Template and safe Drawing authoring.
+- Integration SDK: `Aero/Integration.hpp` and `Aero::IntegrationSdk`, with an
+  opaque reference-counted `RenderEndpoint`.
+
+D3D11 and OpenGL factories are opt-in headers under `Aero/Integration`.
+Third-party graphics backends use the versioned C-compatible
+`Aero/Integration/HostedGraphics.hpp` contract. The default SDK headers do not
+expose the internal render snapshot, renderer, RHI device, surface session,
+presenter, resource registry or GPU handles. Embedded endpoints never Present;
+Window endpoints own their surface and Present. See
+[`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md) and
+[`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md).
+
 > 一个面向 C++17 的、跨平台的 WPF/XAML 语义运行时与原生 GPU UI 引擎。  
 > A clean-room, cross-platform WPF-style XAML runtime and native GPU UI engine for C++17.
 
@@ -16,9 +37,9 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 ## 项目状态
 
 - 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
-- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK 和 `aero-xamlc`。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 已提供 `Aero::IntegrationSdk` / `Aero::ModuleSdk` 分层入口、安装后消费门禁和标准 ControlGallery dogfood 流程。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
-- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v7；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed RHI 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
 - 已完成交互/集合基础切片：Command、统一 hover/pressed/focus/capture 状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton、Generic/Light/Dark 主题、ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox，以及带 realization window、overscan、recycling 和 10k benchmark 的 VirtualizingStackPanel。
 - 已完成 OpenGL 3.3 基础合同、RHI 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。`AeroRenderOpenGL33` 复用 backend-neutral `Renderer` 完成 RenderPlan lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
@@ -40,7 +61,7 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 - GLX、EGL、WGL 是 Platform 层的 context/surface adapter，不是绘制后端。
 - WebGL 1 不进入 v1，也不作为 WebGL 2 的静默 fallback。
 - `sokol_gfx` 只作为可选 bring-up、样例或并行验证适配器，不能成为核心 RHI、唯一渲染后端或主机平台方案。
-- FreeType、HarfBuzz、Expat、libtess2、Ryu 均通过私有 provider/adapter 边界可选集成，不允许第三方类型泄漏到公共 API。
+- FreeType 与 HarfBuzz 是内置文本管线的正式实现依赖；Expat、libtess2、Ryu 仍通过私有 provider/adapter 边界集成。第三方类型均不泄漏到公共 API。
 
 ## 设计来源
 
@@ -139,7 +160,7 @@ Aero::Text
 
 `Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
-本地 source 模式通过 `AERO_THIRD_PARTY_ROOT` 指向同时包含 `freetype/` 与 `harfbuzz/` 的目录，并显式启用 `AERO_WITH_FREETYPE` / `AERO_WITH_HARFBUZZ`。FreeType-only profile 提供有限的 simple-text shaping；组合 profile 分别导出 `Aero::TextFreeType` 与 `Aero::TextHarfBuzz`，宿主可将同一个 FreeType provider 与 HarfBuzz shaper 注册到 `FontManager`。
+仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewHostOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use
@@ -290,8 +311,8 @@ C++17 Runtime
 
 | 库 | 用途 | 推荐策略 |
 | --- | --- | --- |
-| FreeType | 字体文件访问、outline、hinting、glyph raster | 通用平台默认 provider；可由平台/宿主字体服务替换 |
-| HarfBuzz | OpenType/AAT shaping | 完整复杂文本 capability 的默认 provider；关闭时只声明有限文本能力 |
+| FreeType | 字体文件访问、outline、hinting、glyph raster | View runtime 内置字体实现，不开放宿主替换 |
+| HarfBuzz | OpenType/AAT shaping | View runtime 内置 shaping 实现，不开放宿主替换 |
 | Expat | 流式 XML tokenization | Runtime XAML 的默认候选；compiled-XAML-only 或宿主 parser 配置可关闭 |
 | libtess2 | CPU path tessellation | 实验性、可替换 fallback；必须封装、fuzz 并评估维护状态 |
 | Ryu | 确定性 float-to-string | 推荐用于 XAML/诊断/序列化；可由经过一致性验证的实现替换 |

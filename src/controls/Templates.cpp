@@ -1,5 +1,9 @@
 #include <Aero/Controls/Templates.hpp>
 
+#include "presentation/RenderingInternal.hpp"
+
+#include "../presentation/ResourceAssignment.hpp"
+
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -84,9 +88,10 @@ Base::Result<void> TemplateBuildContext::AddPart(
     Base::Ref<Base::Object> owner,
     Visual& part) noexcept {
     if (tree_ == nullptr || parent_ == nullptr ||
-        rootVisual_ == nullptr || name.Empty() ||
+        rootVisual_ == nullptr ||
         !owner || owner.Get() != &part ||
-        FindObject(name) != nullptr) {
+        (!name.Empty() &&
+         FindObject(name) != nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Template part registration is invalid");
@@ -266,6 +271,125 @@ void TemplateBuildContext::Rollback() noexcept {
     rootElement_ = nullptr;
 }
 
+Base::Result<void> FrameworkTemplate::Impl::Configure(
+    TemplateFactoryCallback valueFactory,
+    void* valueFactoryContext,
+    Base::Ref<Base::Object> valueFactoryOwner) noexcept {
+    if (sealed) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    if (valueFactory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "TemplateProgram requires an execution factory");
+    }
+    factory = valueFactory;
+    factoryContext = valueFactoryContext;
+    factoryOwner = std::move(valueFactoryOwner);
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::Impl::SetBaseUri(
+    const Base::ResourceUri& value) noexcept {
+    if (sealed) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    baseUri = value;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::Impl::TryAddNamespace(
+    Base::StringView prefix,
+    Base::StringView uri) noexcept {
+    if (sealed) {
+        return InvalidTemplate(
+            "Cannot modify a sealed TemplateProgram");
+    }
+    if (uri.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Template namespace URI is empty");
+    }
+    for (const TemplateNamespace& existing :
+         namespaces) {
+        if (existing.prefix.View() == prefix) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Template namespace prefix is duplicated");
+        }
+    }
+    TemplateNamespace entry;
+    Base::Result<void> assigned =
+        entry.prefix.TryAssign(prefix);
+    if (!assigned) return assigned.GetStatus();
+    assigned = entry.uri.TryAssign(uri);
+    if (!assigned) return assigned.GetStatus();
+    return namespaces.TryPushBack(std::move(entry));
+}
+
+Base::Result<void> FrameworkTemplate::Impl::Seal() noexcept {
+    if (sealed) return {};
+    if (factory == nullptr) {
+        return InvalidTemplate(
+            "TemplateProgram requires an execution factory");
+    }
+    sealed = true;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::Impl::FreezeRuntimePlan(
+    TypeId valueTargetType,
+    Base::Vector<TemplateBindingPlan>&& valueBindings,
+    Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
+    Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept {
+    if (sealed) {
+        return InvalidTemplate(
+            "TemplateProgram runtime plan is already frozen");
+    }
+    if (factory == nullptr ||
+        valueTargetType == InvalidTypeId) {
+        return InvalidTemplate(
+            "TemplateProgram runtime plan is incomplete");
+    }
+    targetType = valueTargetType;
+    bindings = std::move(valueBindings);
+    triggers = std::move(valueTriggers);
+    visualStateGroups = std::move(valueVisualStateGroups);
+    sealed = true;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::TrySetTargetType(
+    TypeId value) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    if (value == InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkTemplate TargetType is invalid");
+    }
+    targetType_ = value;
+    return {};
+}
+
+Base::Result<void> FrameworkTemplate::ConfigureFactory(
+    TemplateFactoryCallback factory,
+    void* factoryContext,
+    Base::Ref<Base::Object> factoryOwner) noexcept {
+    if (sealed_) {
+        return InvalidTemplate(
+            "Cannot modify a sealed FrameworkTemplate");
+    }
+    return program_.Configure(
+        factory,
+        factoryContext,
+        std::move(factoryOwner));
+}
+
 Base::Result<void> FrameworkTemplate::TryAddTemplateBinding(
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
@@ -287,6 +411,27 @@ Base::Result<void> FrameworkTemplate::TryAddTemplateBinding(
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
     return bindings_.TryPushBack(std::move(binding));
+}
+
+Base::Result<void> ControlTemplate::SetAuthoredVisualTree(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (IsSealed() || !value) {
+        return InvalidTemplate(
+            "ControlTemplate authored visual tree is invalid");
+    }
+    authoredVisualTree_ = value;
+    return {};
+}
+
+Base::Result<void>
+ControlTemplate::TryAddAuthoredVisualStateGroup(
+    const Base::Ref<Base::Object>& value) noexcept {
+    if (IsSealed() || !value) {
+        return InvalidTemplate(
+            "ControlTemplate authored visual state group is invalid");
+    }
+    return authoredVisualStateGroups_.TryPushBack(
+        value);
 }
 
 Base::Result<void> FrameworkTemplate::TryAddPropertyTrigger(
@@ -372,7 +517,7 @@ Base::Result<void> FrameworkTemplate::Seal(
     if (sealed_) return {};
     if (!properties.IsFrozen() ||
         targetType_ == InvalidTypeId ||
-        factory_ == nullptr ||
+        program_.Factory() == nullptr ||
         properties.Types().FindType(targetType_) == nullptr) {
         return InvalidTemplate(
             "FrameworkTemplate requires a factory and registered target type");
@@ -452,6 +597,20 @@ Base::Result<void> FrameworkTemplate::Seal(
             }
         }
     }
+    Base::Result<void> programSealed =
+        program_.FreezeRuntimePlan(
+            targetType_,
+            std::move(bindings_),
+            std::move(triggers_),
+            std::move(visualStateGroups_));
+    if (!programSealed) {
+        return programSealed.GetStatus();
+    }
+    Base::Result<void> resourcesSealed =
+        resources_.Seal();
+    if (!resourcesSealed) {
+        return resourcesSealed.GetStatus();
+    }
     sealed_ = true;
     return {};
 }
@@ -510,6 +669,27 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     instance.parts = std::move(context.parts_);
     instance.projections =
         std::move(context.projections_);
+    for (const TemplatePart& part :
+         instance.parts) {
+        if (!part.name.Empty() && part.owner) {
+            Base::Result<void> named =
+                instance.names.TryRegister(
+                    part.name.View(),
+                    *part.owner);
+            if (!named) {
+                context.parts_ =
+                    std::move(instance.parts);
+                context.projections_ =
+                    std::move(instance.projections);
+                context.rootVisual_ =
+                    instance.rootVisual;
+                context.rootElement_ =
+                    instance.rootElement;
+                context.Rollback();
+                return named.GetStatus();
+            }
+        }
+    }
     context.rootVisual_ = nullptr;
     context.rootElement_ = nullptr;
     Base::Result<void> tracked =
@@ -568,9 +748,18 @@ DependencyObject* TemplateManager::FindName(
     TemplateHandle handle,
     Base::StringView name) const noexcept {
     const std::uint32_t index = FindInstance(handle);
-    return index != UINT32_MAX
-        ? FindTarget(instances_[index], name)
-        : nullptr;
+    if (index == UINT32_MAX) return nullptr;
+    Base::Object* found =
+        instances_[index].names.Find(name);
+    if (found != nullptr) {
+        for (const TemplatePart& part :
+             instances_[index].parts) {
+            if (part.owner.Get() == found) {
+                return part.object;
+            }
+        }
+    }
+    return FindTarget(instances_[index], name);
 }
 
 TemplateHandle TemplateManager::AppliedHandle(
@@ -885,6 +1074,14 @@ void TemplateManager::OnPropertyChanged(
         }
         return;
     }
+}
+
+Base::Result<void> FrameworkTemplate::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Presentation::Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "FrameworkTemplate Resources is already assigned");
 }
 
 } // namespace Aero::Controls

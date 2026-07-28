@@ -12,6 +12,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Core/Metadata/Value.hpp>
 
 #include <cstdint>
@@ -20,9 +21,11 @@ namespace Aero::Core {
 
 class DependencyObject;
 class DependencyProperty;
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class MetadataBehaviorRegistrationStore;
 class DependencyPropertyRegistry;
-class MetaRegistrationContext;
+#endif
+class MetadataContext;
 
 struct DependencyPropertyHandle final {
     MemberId value = InvalidMemberId;
@@ -34,6 +37,77 @@ struct DependencyPropertyHandle final {
 
 constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(
     TypeId ownerType,
+    Base::StringView name) noexcept;
+
+template<class TOwner, class TValue>
+class DependencyPropertyRef {
+public:
+    using Owner = TOwner;
+    using ValueType = TValue;
+
+    constexpr explicit DependencyPropertyRef(
+        Base::StringView name) noexcept
+        : name_(name),
+          handle_(MakeDependencyPropertyHandle(
+              TOwner::StaticTypeIdValue_, name)) {}
+
+    constexpr Base::StringView Name() const noexcept {
+        return name_;
+    }
+    constexpr DependencyPropertyHandle Handle() const noexcept {
+        return handle_;
+    }
+    constexpr operator DependencyPropertyHandle() const noexcept {
+        return handle_;
+    }
+    constexpr MemberId Id() const noexcept {
+        return handle_.value;
+    }
+
+private:
+    Base::StringView name_;
+    DependencyPropertyHandle handle_;
+};
+
+template<class TOwner, class TValue>
+class AttachedPropertyRef final
+    : public DependencyPropertyRef<TOwner, TValue> {
+public:
+    using DependencyPropertyRef<TOwner, TValue>::DependencyPropertyRef;
+};
+
+template<class TOwner, class TValue>
+class ReadOnlyPropertyRef final {
+public:
+    using Owner = TOwner;
+    using ValueType = TValue;
+
+    constexpr explicit ReadOnlyPropertyRef(
+        Base::StringView name) noexcept
+        : name_(name),
+          handle_(MakeDependencyPropertyHandle(
+              TOwner::StaticTypeIdValue_, name)) {}
+
+    constexpr Base::StringView Name() const noexcept {
+        return name_;
+    }
+    constexpr DependencyPropertyHandle Handle() const noexcept {
+        return handle_;
+    }
+    constexpr MemberId Id() const noexcept {
+        return handle_.value;
+    }
+
+private:
+    Base::StringView name_;
+    DependencyPropertyHandle handle_;
+};
+
+template<class T>
+using PropertyAccess = T;
+
+constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(
+    TypeId ownerType,
     Base::StringView name) noexcept {
     return {MakeMemberId(ownerType, MemberKind::Property, name)};
 }
@@ -42,6 +116,20 @@ constexpr bool operator==(
     DependencyPropertyHandle left,
     DependencyPropertyHandle right) noexcept {
     return left.value == right.value;
+}
+
+template<class TOwner, class TValue>
+constexpr bool operator==(
+    DependencyPropertyHandle left,
+    const ReadOnlyPropertyRef<TOwner, TValue>& right) noexcept {
+    return left == right.Handle();
+}
+
+template<class TOwner, class TValue>
+constexpr bool operator==(
+    const ReadOnlyPropertyRef<TOwner, TValue>& left,
+    DependencyPropertyHandle right) noexcept {
+    return left.Handle() == right;
 }
 
 constexpr bool operator!=(
@@ -181,7 +269,12 @@ public:
     DependencyPropertyKey() noexcept = default;
 
     bool IsValid() const noexcept {
+#if !defined(AERO_SDK_SURFACE_ONLY)
         return registry_ != nullptr && property_.IsValid() && secret_ != 0U;
+#else
+        return registryState_ != nullptr &&
+            property_.IsValid() && secret_ != 0U;
+#endif
     }
 
     DependencyPropertyHandle Property() const noexcept {
@@ -189,10 +282,16 @@ public:
     }
 
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
+#endif
     friend class DependencyObject;
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
     const DependencyPropertyRegistry* registry_ = nullptr;
+#else
+    const void* registryState_ = nullptr;
+#endif
     DependencyPropertyHandle property_;
     std::uint64_t secret_ = 0U;
 };
@@ -246,7 +345,9 @@ public:
         TypeId forType) const noexcept;
 
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
+#endif
     friend class DependencyObject;
 
     struct MetadataEntry final {
@@ -260,7 +361,11 @@ private:
     const MetadataEntry* FindMetadataExact(
         TypeId forType) const noexcept;
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
     TypeRegistry* typeRegistry_ = nullptr;
+#else
+    void* typeState_ = nullptr;
+#endif
     DependencyPropertyHandle handle_;
     TypeId valueType_ = InvalidTypeId;
     TypeId registeredOwnerType_ = InvalidTypeId;
@@ -270,6 +375,7 @@ private:
     Base::Vector<MetadataEntry> metadata_;
 };
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API DependencyPropertyRegistry final {
 public:
     DependencyPropertyRegistry(
@@ -357,19 +463,51 @@ private:
         DependencyPropertyFlags propertyFlags,
         PropertyMetadataFlags metadataFlags) noexcept;
 };
+#endif
 
 class AERO_API DependencyObject : public DispatcherObject {
-    AERO_TYPED_META(DependencyObject, Base::Object)
+    AERO_DECLARE_TYPE(DependencyObject, Base::Object)
 public:
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
+#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry& PropertyRegistry() const noexcept {
         return *registry_;
     }
+#endif
 
     Base::Result<PropertyValue> GetValue(
         DependencyPropertyHandle property) const noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<PropertyAccess<TValue>> GetValue(
+        const DependencyPropertyRef<TOwner, TValue>& property) const noexcept;
+    template<class TOwner>
+    Base::Result<Base::StringView> GetValue(
+        const DependencyPropertyRef<TOwner, Base::String>&
+            property) const noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<PropertyAccess<TValue>> GetValue(
+        const AttachedPropertyRef<TOwner, TValue>& property) const noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<PropertyAccess<TValue>> GetValue(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept;
+    template<class TOwner, class TValue>
+    TValue GetValueOr(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const TValue& fallback) const noexcept;
+    template<class TOwner>
+    Base::StringView GetValueOr(
+        const DependencyPropertyRef<TOwner, Base::String>& property,
+        Base::StringView fallback) const noexcept;
+    template<class TOwner, class TValue>
+    TValue GetValueOr(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        const TValue& fallback) const noexcept;
+    template<class TOwner, class TValue>
+    TValue GetValueOr(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const TValue& fallback) const noexcept;
     Base::Result<PropertyValue> ReadLocalValue(
         DependencyPropertyHandle property) const noexcept;
     Base::Result<EffectiveValueSource> GetValueSource(
@@ -378,6 +516,18 @@ public:
     Base::Result<void> SetValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetValue(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
+    template<class TOwner>
+    Base::Result<void> SetValue(
+        const DependencyPropertyRef<TOwner, Base::String>& property,
+        Base::StringView value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetValue(
+        const AttachedPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
     Base::Result<void> SetValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
@@ -385,6 +535,10 @@ public:
     Base::Result<void> SetCurrentValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetCurrentValue(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
     Base::Result<void> SetCurrentValue(
         const DependencyPropertyKey& key,
         const PropertyValue& value) noexcept;
@@ -403,9 +557,23 @@ public:
     Base::Result<void> TryAddValueChangedHandler(
         DependencyPropertyHandle property,
         const DependencyPropertyChangedEventHandler& handler) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> TryAddValueChangedHandler(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const DependencyPropertyChangedEventHandler& handler) noexcept {
+        return TryAddValueChangedHandler(
+            property.Handle(), handler);
+    }
     Base::Result<bool> RemoveValueChangedHandler(
         DependencyPropertyHandle property,
         const DependencyPropertyChangedEventHandler& handler) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<bool> RemoveValueChangedHandler(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const DependencyPropertyChangedEventHandler& handler) noexcept {
+        return RemoveValueChangedHandler(
+            property.Handle(), handler);
+    }
 
     PropertyInvalidationFlags PendingInvalidations() const noexcept {
         return invalidations_;
@@ -424,6 +592,10 @@ protected:
     Base::Result<void> SetReadOnlyCurrentValue(
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept;
+    template<class TOwner, class TValue>
+    Base::Result<void> SetReadOnlyCurrentValue(
+        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        PropertyAccess<TValue> value) noexcept;
     virtual Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept;
 
@@ -474,7 +646,11 @@ private:
         DispatcherReentrancyGuard dispatcherGuard_;
     };
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry* registry_ = nullptr;
+#else
+    void* propertyState_ = nullptr;
+#endif
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
     Base::Vector<EffectiveValueEntry> values_;
@@ -503,5 +679,131 @@ private:
     PropertyInvalidationFlags AccumulateInvalidations(
         PropertyMetadataFlags metadataFlags) noexcept;
 };
+
+template<class TOwner, class TValue>
+Base::Result<PropertyAccess<TValue>> DependencyObject::GetValue(
+    const DependencyPropertyRef<TOwner, TValue>& property) const noexcept {
+    Base::Result<PropertyValue> stored = GetValue(property.Handle());
+    if (!stored) return stored.GetStatus();
+    return ValueCodec<TValue>::Decode(stored.Value());
+}
+
+template<class TOwner>
+Base::Result<Base::StringView> DependencyObject::GetValue(
+    const DependencyPropertyRef<TOwner, Base::String>&
+        property) const noexcept {
+    Base::Result<PropertyValue> stored = GetValue(property.Handle());
+    if (!stored) return stored.GetStatus();
+    if (stored.Value().Type() != TypeOf<Base::String>() ||
+        stored.Value().Kind() != ValueKind::String) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "String dependency property value is incompatible");
+    }
+    return stored.Value().AsString();
+}
+
+template<class TOwner, class TValue>
+Base::Result<PropertyAccess<TValue>> DependencyObject::GetValue(
+    const AttachedPropertyRef<TOwner, TValue>& property) const noexcept {
+    return GetValue(
+        static_cast<const DependencyPropertyRef<TOwner, TValue>&>(
+            property));
+}
+
+template<class TOwner, class TValue>
+Base::Result<PropertyAccess<TValue>> DependencyObject::GetValue(
+    const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
+    Base::Result<PropertyValue> stored =
+        GetValue(property.Handle());
+    if (!stored) return stored.GetStatus();
+    return ValueCodec<TValue>::Decode(stored.Value());
+}
+
+template<class TOwner, class TValue>
+TValue DependencyObject::GetValueOr(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    const TValue& fallback) const noexcept {
+    Base::Result<PropertyAccess<TValue>> value = GetValue(property);
+    return value ? std::move(value).Value() : fallback;
+}
+
+template<class TOwner>
+Base::StringView DependencyObject::GetValueOr(
+    const DependencyPropertyRef<TOwner, Base::String>& property,
+    Base::StringView fallback) const noexcept {
+    Base::Result<Base::StringView> value = GetValue(property);
+    return value ? value.Value() : fallback;
+}
+
+template<class TOwner, class TValue>
+TValue DependencyObject::GetValueOr(
+    const AttachedPropertyRef<TOwner, TValue>& property,
+    const TValue& fallback) const noexcept {
+    return GetValueOr(
+        static_cast<const DependencyPropertyRef<TOwner, TValue>&>(
+            property),
+        fallback);
+}
+
+template<class TOwner, class TValue>
+TValue DependencyObject::GetValueOr(
+    const ReadOnlyPropertyRef<TOwner, TValue>& property,
+    const TValue& fallback) const noexcept {
+    Base::Result<PropertyAccess<TValue>> value =
+        GetValue(property);
+    return value ? std::move(value).Value() : fallback;
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetValue(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    Base::Result<PropertyValue> stored =
+        ValueCodec<TValue>::Encode(value);
+    if (!stored) return stored.GetStatus();
+    return SetValue(property.Handle(), stored.Value());
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetCurrentValue(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    Base::Result<PropertyValue> stored =
+        ValueCodec<TValue>::Encode(value);
+    if (!stored) return stored.GetStatus();
+    return SetCurrentValue(property.Handle(), stored.Value());
+}
+
+template<class TOwner>
+Base::Result<void> DependencyObject::SetValue(
+    const DependencyPropertyRef<TOwner, Base::String>& property,
+    Base::StringView value) noexcept {
+    Base::Result<PropertyValue> stored =
+        Value::TryFromString(TypeOf<Base::String>(), value);
+    if (!stored) return stored.GetStatus();
+    return SetValue(property.Handle(), stored.Value());
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetValue(
+    const AttachedPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    return SetValue(
+        static_cast<const DependencyPropertyRef<TOwner, TValue>&>(
+            property),
+        std::move(value));
+}
+
+template<class TOwner, class TValue>
+Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
+    const ReadOnlyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    Base::Result<PropertyValue> stored =
+        ValueCodec<TValue>::Encode(value);
+    if (!stored) return stored.GetStatus();
+    return SetReadOnlyCurrentValue(
+        property.Handle(), stored.Value());
+}
 
 } // namespace Aero::Core

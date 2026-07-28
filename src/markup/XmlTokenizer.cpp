@@ -1,4 +1,6 @@
-#include <Aero/Markup/XmlTokenizer.hpp>
+#include <Aero/Markup/CompiledDocument.hpp>
+
+// Canonical XML tokenizer implementation.
 
 #include <Aero/Base/Utf8.hpp>
 

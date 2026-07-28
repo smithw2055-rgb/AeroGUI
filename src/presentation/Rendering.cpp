@@ -1,4 +1,6 @@
-#include <Aero/Presentation/Rendering.hpp>
+#include "RenderingInternal.hpp"
+
+#include "ResourceAssignment.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
@@ -319,31 +321,12 @@ FrameworkElement::~FrameworkElement() {
 
 Base::Result<Base::Ref<Base::Object>>
 FrameworkElement::GetDataContext() const noexcept {
-    Base::Result<Value> value = GetValue(DataContextProperty);
-    if (!value) return value.GetStatus();
-    if (value.Value().Kind() != ValueKind::Object) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "FrameworkElement DataContext is not an object value");
-    }
-    return value.Value().AsObject();
+    return GetValue(DataContextProperty);
 }
 
 Base::Result<void> FrameworkElement::SetDataContext(
     Base::Ref<Base::Object> value) noexcept {
-    const TypeId type = value
-        ? value->RuntimeType()
-        : BuiltinTypes::Object;
-    if (type == InvalidTypeId) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DataContext object has no runtime metadata type");
-    }
-    return SetValue(
-        DataContextProperty,
-        value
-            ? Value::FromObject(type, std::move(value))
-            : Value::NullObject(BuiltinTypes::Object));
+    return SetValue(DataContextProperty, std::move(value));
 }
 
 Base::Result<void> FrameworkElement::ClearDataContext() noexcept {
@@ -943,7 +926,19 @@ RenderDiagnostics RenderManager::Diagnostics() const noexcept {
 
 void RenderManager::RenderCommitHook(void* context) noexcept {
     auto* manager = static_cast<RenderManager*>(context);
-    (void)manager->Commit();
+    Base::Result<std::uint32_t> committed =
+        manager->Commit();
+    manager->lastCommitStatus_ = committed
+        ? Base::Status::Ok()
+        : committed.GetStatus();
+}
+
+Base::Result<void> FrameworkElement::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "FrameworkElement Resources is already assigned");
 }
 
 } // namespace Aero::Presentation

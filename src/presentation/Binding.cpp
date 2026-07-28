@@ -168,7 +168,7 @@ Base::Result<BindingHandle> BindingManager::Attach(
                 descriptor.targetProperty);
         if (targetProperty == nullptr ||
             (descriptor.convert == nullptr &&
-            !record.metadata->Descriptors().IsAssignableFrom(
+            !record.metadata->Types().IsAssignableFrom(
                 targetProperty->ValueType(),
                 record.pathPlan.ResultType()))) {
             --nextHandle_;
@@ -713,7 +713,7 @@ Base::Result<void> BindingManager::VerifyDescriptor(
                 "Binding DataContext property must contain an object");
         }
     } else if (descriptor.source->RuntimeType() == InvalidTypeId ||
-        descriptor.metadata->Descriptors().FindType(
+        descriptor.metadata->Types().FindType(
             descriptor.source->RuntimeType()) == nullptr) {
         return InvalidArgument(
             "Binding metadata source has no registered runtime type");
@@ -767,7 +767,7 @@ Base::Result<void> BindingManager::ResolveMetadataSource(
             record.descriptor.targetProperty);
     if (targetProperty == nullptr ||
         (record.descriptor.convert == nullptr &&
-        !record.metadata->Descriptors().IsAssignableFrom(
+        !record.metadata->Types().IsAssignableFrom(
             targetProperty->ValueType(),
             compiled.Value().ResultType()))) {
         return InvalidArgument(
@@ -934,36 +934,25 @@ Base::Result<void> BindingManager::SubscribeMetadataSource(
         return InvalidArgument(
             "Binding metadata source subscription is incomplete");
     }
-    const PropertyChangeNotificationFacet* facet =
-        record.metadata->Facets().FindPropertyChangeNotification(
-            record.metadataSource->RuntimeType());
-    if (facet == nullptr) return {};
-    Base::Result<std::uint64_t> subscribed = facet->subscribe(
+    Base::Result<std::uint64_t> subscribed =
+        record.metadata->SubscribePropertyChanged(
         *record.metadataSource,
         &BindingManager::MetadataPropertyChanged,
-        this,
-        facet->context);
+        this);
     if (!subscribed) return subscribed.GetStatus();
-    if (subscribed.Value() == 0U) {
-        return InvalidArgument(
-            "Binding notification subscription returned an invalid token");
-    }
-    record.notificationFacet = facet;
     record.notificationSubscription = subscribed.Value();
     return {};
 }
 
 void BindingManager::ReleaseMetadataSource(
     BindingRecord& record) noexcept {
-    if (record.notificationFacet != nullptr &&
-        record.notificationSubscription != 0U &&
+    if (record.notificationSubscription != 0U &&
+        record.metadata != nullptr &&
         record.metadataSource != nullptr) {
-        (void)record.notificationFacet->unsubscribe(
+        (void)record.metadata->UnsubscribePropertyChanged(
             *record.metadataSource,
-            record.notificationSubscription,
-            record.notificationFacet->context);
+            record.notificationSubscription);
     }
-    record.notificationFacet = nullptr;
     record.notificationSubscription = 0U;
 }
 

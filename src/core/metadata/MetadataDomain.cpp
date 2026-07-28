@@ -1,6 +1,10 @@
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
-#include <Aero/Core/Metadata/MetadataValueFacets.hpp>
+
+#include "RoutedEventCatalog.hpp"
+#include "MetadataValueFacets.hpp"
+#include "MetadataContextState.hpp"
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include <Aero/Core/Metadata/MetadataValueRegistrationStore.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>
@@ -16,6 +20,8 @@ struct MetadataDomain::Storage final {
         MetadataModuleId id = InvalidMetadataModuleId;
         std::uint32_t schemaVersion = 1U;
         MetadataModuleRegisterCallback registerModule = nullptr;
+        MetadataModuleRegisterContextCallback registerModuleWithContext =
+            nullptr;
         void* context = nullptr;
         Base::String name;
     };
@@ -25,8 +31,7 @@ struct MetadataDomain::Storage final {
     MetadataValueRegistrationStore valueRegistrations;
     DependencyPropertyRegistry dependencyProperties;
     RoutedEventCatalog routedEvents;
-    MetadataDescriptorStore descriptors;
-    MetadataFacetStore facets;
+    Detail::MetadataFacetStore facets;
     Base::Vector<ModuleRecord> modules;
     bool sealed = false;
 
@@ -36,7 +41,6 @@ struct MetadataDomain::Storage final {
           valueRegistrations(types),
           dependencyProperties(types, behaviorRegistrations),
           routedEvents(types, behaviorRegistrations),
-          descriptors(),
           facets(),
           modules() {}
 };
@@ -71,7 +75,10 @@ Base::Result<void> MetadataDomain::ValidateRegistration(
     const MetadataModuleRegistration& registration) noexcept {
     if (registration.id == InvalidMetadataModuleId ||
         registration.name.Empty() || registration.schemaVersion == 0U ||
-        registration.registerModule == nullptr) {
+        (registration.registerModule == nullptr &&
+         registration.registerModuleWithContext == nullptr) ||
+        (registration.registerModule != nullptr &&
+         registration.registerModuleWithContext != nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata module registration is incomplete");
@@ -95,20 +102,25 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
     auto applyAndAppend = [candidate](
         const MetadataModuleRegistration& registration) noexcept
         -> Base::Result<void> {
-        MetaRegistrationContext context(
-            candidate->types,
-            candidate->behaviorRegistrations,
-            candidate->valueRegistrations,
-            candidate->dependencyProperties,
-            &candidate->routedEvents);
-        Base::Result<void> applied = registration.registerModule(
-            context, registration.context);
+        Detail::MetadataContextState contextState{
+            &candidate->types,
+            &candidate->behaviorRegistrations,
+            &candidate->valueRegistrations,
+            &candidate->dependencyProperties,
+            &candidate->routedEvents};
+        MetadataContext context(&contextState);
+        Base::Result<void> applied = registration.registerModule != nullptr
+            ? registration.registerModule(context)
+            : registration.registerModuleWithContext(
+                  context, registration.context);
         if (!applied) return applied.GetStatus();
 
         Storage::ModuleRecord record;
         record.id = registration.id;
         record.schemaVersion = registration.schemaVersion;
         record.registerModule = registration.registerModule;
+        record.registerModuleWithContext =
+            registration.registerModuleWithContext;
         record.context = registration.context;
         Base::Result<void> assigned = record.name.TryAssign(registration.name);
         if (!assigned) return assigned.GetStatus();
@@ -121,6 +133,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             module.name.View(),
             module.schemaVersion,
             module.registerModule,
+            module.registerModuleWithContext,
             module.context};
         Base::Result<void> applied = applyAndAppend(replay);
         if (!applied) {
@@ -163,15 +176,9 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
             delete candidate;
             return frozen.GetStatus();
         }
-        frozen = candidate->descriptors.Build(candidate->types);
-        if (!frozen) {
-            delete candidate;
-            return frozen.GetStatus();
-        }
         frozen = candidate->facets.Build(
             candidate->types,
             candidate->behaviorRegistrations,
-            candidate->descriptors,
             candidate->dependencyProperties,
             candidate->routedEvents);
         if (!frozen) {
@@ -180,7 +187,7 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
         }
         frozen = candidate->facets.BuildValueFacets(
             candidate->valueRegistrations,
-            candidate->descriptors);
+            candidate->types);
         if (!frozen) {
             delete candidate;
             return frozen.GetStatus();
@@ -241,22 +248,12 @@ const DependencyPropertyRegistry& MetadataDomain::DependencyProperties() const n
     return storage_->dependencyProperties;
 }
 
-RoutedEventCatalog& MetadataDomain::RoutedEvents() noexcept {
+void* MetadataDomain::RoutedEventState() noexcept {
     AERO_ASSERT(storage_ != nullptr);
-    return storage_->routedEvents;
+    return &storage_->routedEvents;
 }
 
-const RoutedEventCatalog& MetadataDomain::RoutedEvents() const noexcept {
-    AERO_ASSERT(storage_ != nullptr);
-    return storage_->routedEvents;
-}
-
-const MetadataDescriptorStore& MetadataDomain::Descriptors() const noexcept {
-    AERO_ASSERT(storage_ != nullptr);
-    return storage_->descriptors;
-}
-
-const MetadataFacetStore& MetadataDomain::Facets() const noexcept {
+const Detail::MetadataFacetStore& MetadataDomain::RuntimeData() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->facets;
 }
@@ -270,12 +267,13 @@ Base::Result<Base::HashCode> MetadataDomain::ComputeSchemaHash() const noexcept 
     }
 
     Base::Result<Base::HashCode> descriptorHash =
-        storage_->descriptors.ComputeHash();
+        storage_->types.ComputeHash();
     if (!descriptorHash) return descriptorHash.GetStatus();
     Base::Result<Base::HashCode> facetHash = storage_->facets.ComputeHash();
     if (!facetHash) return facetHash.GetStatus();
     Base::Result<Base::HashCode> valueFacetHash =
-        ComputeMetadataValueFacetHash(storage_->facets, storage_->descriptors);
+        Detail::ComputeMetadataValueFacetHash(
+            storage_->facets, storage_->types);
     if (!valueFacetHash) return valueFacetHash.GetStatus();
 
     Base::HashCode hash = Base::MixHash64(

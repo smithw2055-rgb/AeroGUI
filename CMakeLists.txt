@@ -1,23 +1,51 @@
 cmake_minimum_required(VERSION 3.20)
 
+include(cmake/AeroVersions.cmake)
+
 project(AeroGUI
-    VERSION 0.1.0
+    VERSION ${AERO_VERSION}
     DESCRIPTION "C++17 retained-mode native GPU XAML UI runtime"
     LANGUAGES C CXX)
 
 find_package(Threads REQUIRED)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+set(AERO_GENERATED_INCLUDE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+file(MAKE_DIRECTORY "${AERO_GENERATED_INCLUDE_DIR}/Aero")
+configure_file(
+    cmake/AeroVersion.hpp.in
+    "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
+    @ONLY)
+include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
 
 option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
 option(AERO_BUILD_SAMPLES "Build AeroGUI sample applications" ON)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
+add_custom_target(AeroArchitectureCheck ALL
+    COMMAND "${CMAKE_COMMAND}"
+        "-DAERO_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckArchitecture.cmake"
+    VERBATIM)
+option(AERO_PRECOMPILE_BUILTIN_THEMES
+    "Precompile built-in XAML themes with a host aero-xamlc" ON)
+set(AERO_HOST_XAMLC_EXECUTABLE "" CACHE FILEPATH
+    "Host aero-xamlc executable used while cross-compiling or when tools are disabled")
+set(AERO_HOST_SCHEMA_GEN_EXECUTABLE "" CACHE FILEPATH
+    "Host aero-schema-gen executable used to create the built-in schema manifest")
+set(AERO_BUILTIN_SCHEMA_MANIFEST "" CACHE FILEPATH
+    "Pre-generated built-in .aeroschema file used instead of aero-schema-gen")
 option(AERO_ENABLE_EXCEPTIONS "Enable C++ exceptions in AeroGUI targets" OFF)
 option(AERO_ENABLE_RTTI "Enable C++ RTTI in AeroGUI targets" OFF)
 option(AERO_WARNINGS_AS_ERRORS "Treat AeroGUI warnings as errors" OFF)
 option(AERO_WITH_FREETYPE
-    "Build the optional FreeType text provider adapter" OFF)
+    "Build the built-in FreeType text provider adapter" ON)
 option(AERO_WITH_HARFBUZZ
-    "Build the optional HarfBuzz text shaping adapter" OFF)
+    "Build the built-in HarfBuzz text shaping adapter" ON)
+option(AERO_WITH_EXPAT
+    "Build the recommended Expat XML tokenizer adapter" ON)
 option(AERO_ENABLE_SOKOL_BACKEND
     "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
@@ -46,6 +74,7 @@ set(AERO_TEXT_TEST_ARABIC_FONT "" CACHE FILEPATH
     "Arabic font used by optional HarfBuzz conformance tests")
 
 include(cmake/AeroCompilerOptions.cmake)
+include(cmake/AeroAddXaml.cmake)
 
 if(AERO_BUILD_SHARED)
     set(AERO_LIBRARY_TYPE SHARED)
@@ -60,6 +89,7 @@ add_library(AeroBase ${AERO_LIBRARY_TYPE}
     src/base/Allocator.cpp
     src/base/CAPI.cpp
     src/base/Object.cpp
+    src/base/ResourceUri.cpp
     src/base/String.cpp
     src/base/Utf8.cpp)
 
@@ -143,19 +173,40 @@ set_target_properties(AeroText PROPERTIES
 
 aero_apply_compiler_options(AeroText)
 
-if(AERO_WITH_HARFBUZZ AND NOT AERO_WITH_FREETYPE)
+if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR
-        "AERO_WITH_HARFBUZZ currently requires AERO_WITH_FREETYPE")
+        "AeroRuntime requires the built-in FreeType and HarfBuzz text pipeline")
 endif()
 
 if(AERO_WITH_FREETYPE)
     if(AERO_THIRD_PARTY_ROOT STREQUAL "")
-        get_filename_component(_aero_sibling_third_party
-            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
-            ABSOLUTE)
-        if(EXISTS "${_aero_sibling_third_party}/freetype/freetype.c")
-            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
+        set(_aero_repository_third_party
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+        if(EXISTS
+                "${_aero_repository_third_party}/freetype/include/ft2build.h"
+           AND EXISTS
+                "${_aero_repository_third_party}/harfbuzz/CMakeLists.txt")
+            set(AERO_THIRD_PARTY_ROOT
+                "${_aero_repository_third_party}")
+        else()
+            get_filename_component(_aero_sibling_third_party
+                "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
+                ABSOLUTE)
+            if(EXISTS
+                    "${_aero_sibling_third_party}/freetype/include/ft2build.h"
+               AND EXISTS
+                    "${_aero_sibling_third_party}/harfbuzz/CMakeLists.txt")
+                set(AERO_THIRD_PARTY_ROOT
+                    "${_aero_sibling_third_party}")
+            endif()
         endif()
+    endif()
+    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
+        message(FATAL_ERROR
+            "AeroRuntime requires FreeType and HarfBuzz sources. "
+            "Set AERO_THIRD_PARTY_ROOT to a directory containing "
+            "freetype/ and harfbuzz/, or initialize the repository "
+            "submodules.")
     endif()
     if(AERO_TEXT_TEST_FONT STREQUAL "" AND
        EXISTS "${AERO_THIRD_PARTY_ROOT}/harfbuzz/perf/fonts/Roboto-Regular.ttf")
@@ -164,12 +215,16 @@ if(AERO_WITH_FREETYPE)
     endif()
 
     set(_aero_freetype_source
-        "${AERO_THIRD_PARTY_ROOT}/freetype/freetype.c")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype/FreeTypeSingleObject.c")
+    set(_aero_freetype_root
+        "${AERO_THIRD_PARTY_ROOT}/freetype")
     set(_aero_freetype_include
-        "${AERO_THIRD_PARTY_ROOT}/freetype/include")
+        "${_aero_freetype_root}/include")
     foreach(_aero_required_path IN ITEMS
             "${_aero_freetype_source}"
-            "${_aero_freetype_include}/ft2build.h")
+            "${_aero_freetype_include}/ft2build.h"
+            "${_aero_freetype_root}/src/base/ftsystem.c"
+            "${_aero_freetype_root}/src/truetype/truetype.c")
         if(NOT EXISTS "${_aero_required_path}")
             message(FATAL_ERROR
                 "AERO_WITH_FREETYPE requires: "
@@ -178,7 +233,13 @@ if(AERO_WITH_FREETYPE)
     endforeach()
 
     add_library(freetype STATIC "${_aero_freetype_source}")
-    target_include_directories(freetype PUBLIC "${_aero_freetype_include}")
+    target_include_directories(freetype
+        PRIVATE
+            "${_aero_freetype_root}"
+            "${_aero_freetype_include}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype"
+        INTERFACE
+            "$<BUILD_INTERFACE:${_aero_freetype_include}>")
     set_target_properties(freetype PROPERTIES
         POSITION_INDEPENDENT_CODE ON)
 
@@ -274,13 +335,18 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/Diagnostics.cpp
     src/core/Dispatcher.cpp
     src/core/property/EffectiveValueEngine.cpp
-    src/core/events/RoutedEventCatalog.cpp
+    src/core/metadata/RoutedEventCatalog.cpp
     src/core/metadata/CoreMetadata.cpp
-    src/core/metadata/MetadataDescriptors.cpp
+    src/core/metadata/MetadataAuthoring.cpp
+    src/core/metadata/MetadataContext.cpp
+    src/core/metadata/MetadataRuntimeData.cpp
     src/core/metadata/MetadataBehaviorRegistrationStore.cpp
     src/core/metadata/MetadataDomain.cpp
+    src/core/metadata/MetadataRegistrationValues.cpp
+    src/core/metadata/MetadataRuntime.cpp
     src/core/metadata/MetadataValueFacets.cpp
     src/core/metadata/MetadataValueRegistrationStore.cpp
+    src/core/metadata/ValueConversion.cpp
     src/core/ObjectServices.cpp
     src/core/metadata/TypeRegistry.cpp
     src/core/metadata/Value.cpp)
@@ -316,6 +382,7 @@ add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/MountService.cpp
     src/presentation/ObjectTree.cpp
     src/presentation/QueuedRenderBackend.cpp
+    src/presentation/Resources.cpp
     src/presentation/Rendering.cpp
     src/presentation/VisualTreeMount.cpp
     src/presentation/Style.cpp)
@@ -327,6 +394,8 @@ target_include_directories(AeroPresentation
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 target_link_libraries(AeroPresentation PUBLIC Aero::Core)
+target_compile_definitions(
+    AeroPresentation PUBLIC AERO_PRESENTATION_RESOURCE_MODEL=2)
 target_compile_features(AeroPresentation PUBLIC cxx_std_17)
 set_target_properties(AeroPresentation PROPERTIES
     CXX_STANDARD 17
@@ -344,7 +413,6 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Scroll.cpp
     src/controls/Selection.cpp
     src/controls/TextBox.cpp
-    src/controls/TextBlockLayoutService.cpp
     src/controls/Templates.cpp
     src/controls/Virtualization.cpp
     src/controls/VisualStates.cpp)
@@ -354,12 +422,15 @@ add_library(Aero::Controls ALIAS AeroControls)
 target_include_directories(AeroControls
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroControls
     PUBLIC
         Aero::Presentation
         Aero::Platform
         Aero::Text)
+target_compile_definitions(
+    AeroControls PUBLIC AERO_CONTROLS_TEMPLATE_ABI=2)
 target_compile_features(AeroControls PUBLIC cxx_std_17)
 set_target_properties(AeroControls PROPERTIES
     CXX_STANDARD 17
@@ -376,7 +447,8 @@ add_library(Aero::Inspector ALIAS
 target_include_directories(AeroInspector
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroInspector
     PUBLIC Aero::Controls)
 target_compile_features(AeroInspector
@@ -389,25 +461,98 @@ set_target_properties(AeroInspector PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroInspector)
 
-add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
-    src/markup/XamlBinding.cpp
-    src/markup/XamlCompiledCache.cpp
-    src/markup/XamlCompiledDocument.cpp
-    src/markup/Metadata.cpp
-    src/markup/XamlDynamicResource.cpp
-    src/markup/XamlStyle.cpp
-    src/markup/XamlTheme.cpp
-    src/markup/XamlThemeObjectModel.cpp
-    src/markup/XamlTypeExtension.cpp
+add_library(AeroMarkupKernel ${AERO_LIBRARY_TYPE}
+    src/markup/CompiledCache.cpp
+    src/markup/CompiledDocument.cpp
     src/markup/XmlTokenizer.cpp
-    src/markup/XamlActivation.cpp
-    src/markup/XamlNamesResources.cpp
-    src/markup/XamlLoadResult.cpp
-    src/markup/XamlNodeReader.cpp
-    src/markup/XamlRuntimeSchema.cpp
-    src/markup/XamlObjectWriter.cpp
-    src/markup/XamlSchemaContext.cpp
-    src/markup/XamlVisualTree.cpp)
+    src/markup/NodeReader.cpp)
+add_library(Aero::MarkupKernel ALIAS AeroMarkupKernel)
+
+target_include_directories(AeroMarkupKernel
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroMarkupKernel PUBLIC Aero::Core)
+target_compile_features(AeroMarkupKernel PUBLIC cxx_std_17)
+set_target_properties(AeroMarkupKernel PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroMarkupKernel)
+
+add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
+    src/markup/BindingExtension.cpp
+    src/markup/CompiledSchema.cpp
+    src/markup/Metadata.cpp
+    src/markup/FacetStore.cpp
+    src/markup/SchemaManifest.cpp
+    src/markup/DynamicResourceExtension.cpp
+    src/markup/StyleSupport.cpp
+    src/markup/TemplateSupport.cpp
+    src/markup/TemplateCompiler.cpp
+    src/markup/TypeExtension.cpp
+    src/markup/Scopes.cpp
+    src/markup/LoaderResult.cpp
+    src/markup/ObjectWriterState.cpp
+    src/markup/DocumentCache.cpp
+    src/markup/Loader.cpp
+    src/markup/Resources.cpp
+    src/markup/Schema.cpp
+    src/markup/ObjectWriter.cpp
+    src/markup/SchemaServices.cpp)
+
+if(AERO_WITH_EXPAT)
+    set(_aero_vendored_expat_target "")
+    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
+        get_filename_component(_aero_sibling_third_party
+            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
+            ABSOLUTE)
+        if(EXISTS
+           "${_aero_sibling_third_party}/expat/expat/CMakeLists.txt")
+            set(AERO_THIRD_PARTY_ROOT
+                "${_aero_sibling_third_party}")
+        endif()
+    endif()
+    set(_aero_expat_source
+        "${AERO_THIRD_PARTY_ROOT}/expat/expat")
+    if(EXISTS "${_aero_expat_source}/CMakeLists.txt")
+        set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+        set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+        add_subdirectory(
+            "${_aero_expat_source}"
+            "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat"
+            EXCLUDE_FROM_ALL)
+        set(_aero_expat_target expat::expat)
+        set(_aero_vendored_expat_target expat)
+    else()
+        find_package(EXPAT QUIET)
+        if(TARGET EXPAT::EXPAT)
+            set(_aero_expat_target EXPAT::EXPAT)
+        else()
+            message(FATAL_ERROR
+                "AERO_WITH_EXPAT requires Expat or "
+                "${_aero_expat_source}")
+        endif()
+    endif()
+    target_sources(AeroMarkupKernel PRIVATE
+        src/markup/ExpatXmlTokenizer.cpp)
+    if(_aero_vendored_expat_target)
+        target_link_libraries(AeroMarkupKernel PRIVATE
+            $<BUILD_INTERFACE:${_aero_expat_target}>
+            $<INSTALL_INTERFACE:Aero::RuntimeDetailExpat>)
+    else()
+        target_link_libraries(AeroMarkupKernel PRIVATE
+            $<BUILD_INTERFACE:${_aero_expat_target}>
+            $<INSTALL_INTERFACE:EXPAT::EXPAT>)
+    endif()
+endif()
 
 add_library(Aero::Markup ALIAS AeroMarkup)
 
@@ -416,7 +561,15 @@ target_include_directories(AeroMarkup
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
 
-target_link_libraries(AeroMarkup PUBLIC Aero::Controls)
+target_compile_definitions(
+    AeroMarkupKernel
+    PUBLIC
+        $<$<BOOL:${AERO_WITH_EXPAT}>:AERO_WITH_EXPAT=1>
+        $<$<NOT:$<BOOL:${AERO_WITH_EXPAT}>>:AERO_WITH_EXPAT=0>)
+target_link_libraries(AeroMarkup
+    PUBLIC Aero::MarkupKernel Aero::Controls)
+target_compile_definitions(
+    AeroMarkup PRIVATE AERO_MARKUP_PRESENTATION_RESOURCES=1)
 target_compile_features(AeroMarkup PUBLIC cxx_std_17)
 set_target_properties(AeroMarkup PROPERTIES
     CXX_STANDARD 17
@@ -427,20 +580,236 @@ set_target_properties(AeroMarkup PROPERTIES
 
 aero_apply_compiler_options(AeroMarkup)
 
-add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
+add_library(AeroModuleCatalog ${AERO_LIBRARY_TYPE}
     src/Module.cpp
     src/BuiltinModules.cpp
-    src/RuntimeHost.cpp
-    src/RuntimeSafety.cpp)
-add_library(Aero::Runtime ALIAS AeroRuntime)
-target_include_directories(AeroRuntime
+    src/SchemaBundle.cpp)
+add_library(Aero::DetailModuleCatalog ALIAS AeroModuleCatalog)
+target_include_directories(AeroModuleCatalog
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroRuntime
+target_link_libraries(AeroModuleCatalog PUBLIC Aero::Markup)
+target_compile_features(AeroModuleCatalog PUBLIC cxx_std_17)
+set_target_properties(AeroModuleCatalog PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON)
+aero_apply_compiler_options(AeroModuleCatalog)
+
+if(AERO_BUILD_TOOLS)
+    add_executable(aero-schema-gen tools/schema-gen/main.cpp)
+    add_executable(Aero::schema-gen ALIAS aero-schema-gen)
+    target_link_libraries(aero-schema-gen PRIVATE AeroModuleCatalog)
+    target_include_directories(aero-schema-gen PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_features(aero-schema-gen PRIVATE cxx_std_17)
+    set_target_properties(aero-schema-gen PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(aero-schema-gen)
+
+    add_executable(aero-xamlc tools/xamlc/main.cpp)
+    add_executable(Aero::xamlc ALIAS aero-xamlc)
+    target_link_libraries(aero-xamlc PRIVATE AeroModuleCatalog)
+    target_include_directories(aero-xamlc PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_features(aero-xamlc PRIVATE cxx_std_17)
+    set_target_properties(aero-xamlc PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO)
+    aero_apply_compiler_options(aero-xamlc)
+endif()
+
+set(_aero_schema_manifest "")
+set(_aero_schema_manifest_dependency "")
+set(_aero_generated_schema_manifest
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero/Aero.aeroschema")
+if(NOT AERO_BUILTIN_SCHEMA_MANIFEST STREQUAL "")
+    if(NOT EXISTS "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+        message(FATAL_ERROR
+            "AERO_BUILTIN_SCHEMA_MANIFEST does not exist: "
+            "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+    endif()
+    set(_aero_schema_manifest "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+    set(_aero_schema_manifest_dependency "${AERO_BUILTIN_SCHEMA_MANIFEST}")
+elseif(NOT AERO_HOST_SCHEMA_GEN_EXECUTABLE STREQUAL "")
+    if(NOT EXISTS "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}")
+        message(FATAL_ERROR
+            "AERO_HOST_SCHEMA_GEN_EXECUTABLE does not exist: "
+            "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}")
+    endif()
+    add_custom_command(
+        OUTPUT "${_aero_generated_schema_manifest}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero"
+        COMMAND "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}"
+            "${_aero_generated_schema_manifest}"
+        DEPENDS "${AERO_HOST_SCHEMA_GEN_EXECUTABLE}"
+        VERBATIM)
+    add_custom_target(AeroBuiltInSchema ALL
+        DEPENDS "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest_dependency AeroBuiltInSchema)
+elseif(TARGET aero-schema-gen AND NOT CMAKE_CROSSCOMPILING)
+    add_custom_command(
+        OUTPUT "${_aero_generated_schema_manifest}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero"
+        COMMAND "$<TARGET_FILE:aero-schema-gen>"
+            "${_aero_generated_schema_manifest}"
+        DEPENDS aero-schema-gen
+        VERBATIM)
+    add_custom_target(AeroBuiltInSchema ALL
+        DEPENDS "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest "${_aero_generated_schema_manifest}")
+    set(_aero_schema_manifest_dependency AeroBuiltInSchema)
+endif()
+
+set(_aero_xaml_schema_arguments "")
+if(NOT _aero_schema_manifest STREQUAL "")
+    set(_aero_xaml_schema_arguments
+        --schema "${_aero_schema_manifest}")
+endif()
+
+set(_aero_xamlc_command "")
+set(_aero_xamlc_dependency "")
+if(AERO_PRECOMPILE_BUILTIN_THEMES)
+    if(NOT AERO_HOST_XAMLC_EXECUTABLE STREQUAL "")
+        if(NOT EXISTS "${AERO_HOST_XAMLC_EXECUTABLE}")
+            message(FATAL_ERROR
+                "AERO_HOST_XAMLC_EXECUTABLE does not exist: "
+                "${AERO_HOST_XAMLC_EXECUTABLE}")
+        endif()
+        set(_aero_xamlc_command "${AERO_HOST_XAMLC_EXECUTABLE}")
+        set(_aero_xamlc_dependency "${AERO_HOST_XAMLC_EXECUTABLE}")
+    elseif(CMAKE_CROSSCOMPILING)
+        message(STATUS
+            "Cross-compiling without AERO_HOST_XAMLC_EXECUTABLE; "
+            "built-in themes will use embedded source fallback")
+        set(AERO_PRECOMPILE_BUILTIN_THEMES OFF)
+    elseif(TARGET aero-xamlc)
+        set(_aero_xamlc_command "$<TARGET_FILE:aero-xamlc>")
+        set(_aero_xamlc_dependency aero-xamlc)
+    else()
+        message(FATAL_ERROR
+            "AERO_PRECOMPILE_BUILTIN_THEMES requires AERO_BUILD_TOOLS=ON "
+            "or AERO_HOST_XAMLC_EXECUTABLE")
+    endif()
+endif()
+
+set(_aero_compiled_theme_directory
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/Aero")
+set(_aero_light_theme_compiled
+    "${_aero_compiled_theme_directory}/Light.axir")
+set(_aero_dark_theme_compiled
+    "${_aero_compiled_theme_directory}/Dark.axir")
+set(_aero_generic_theme_compiled
+    "${_aero_compiled_theme_directory}/Generic.axir")
+set(_aero_generated_theme_header
+    "${_aero_compiled_theme_directory}/BuiltinThemes.generated.hpp")
+if(AERO_PRECOMPILE_BUILTIN_THEMES)
+    add_custom_command(
+        OUTPUT
+            "${_aero_light_theme_compiled}"
+            "${_aero_dark_theme_compiled}"
+            "${_aero_generic_theme_compiled}"
+            "${_aero_generated_theme_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_compiled_theme_directory}"
+        COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
+            --origin
+            "pack://application:,,,/Aero.Themes;component/Light.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "${_aero_light_theme_compiled}"
+        COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
+            --origin
+            "pack://application:,,,/Aero.Themes;component/Dark.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "${_aero_dark_theme_compiled}"
+        COMMAND "${_aero_xamlc_command}"
+            ${_aero_xaml_schema_arguments}
+            --origin
+            "pack://application:,,,/Aero.Themes;component/Generic.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            "${_aero_generic_theme_compiled}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOUTPUT=${_aero_generated_theme_header}"
+            "-DLIGHT_COMPILED=${_aero_light_theme_compiled}"
+            "-DDARK_COMPILED=${_aero_dark_theme_compiled}"
+            "-DGENERIC_COMPILED=${_aero_generic_theme_compiled}"
+            "-DLIGHT_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "-DDARK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "-DGENERIC_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
+        DEPENDS
+            ${_aero_xamlc_dependency}
+            ${_aero_schema_manifest_dependency}
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
+        VERBATIM)
+else()
+    add_custom_command(
+        OUTPUT "${_aero_generated_theme_header}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "${_aero_compiled_theme_directory}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DOUTPUT=${_aero_generated_theme_header}"
+            "-DLIGHT_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "-DDARK_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "-DGENERIC_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
+        DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
+        VERBATIM)
+endif()
+
+if(AERO_PRECOMPILE_BUILTIN_THEMES)
+    add_custom_target(AeroCompiledThemes
+        DEPENDS
+            "${_aero_light_theme_compiled}"
+            "${_aero_dark_theme_compiled}"
+            "${_aero_generic_theme_compiled}"
+            "${_aero_generated_theme_header}")
+else()
+    add_custom_target(AeroCompiledThemes
+        DEPENDS "${_aero_generated_theme_header}")
+endif()
+
+add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
+    src/RuntimeEnvironment.cpp
+    src/ViewRuntime.cpp
+    src/IntegrationReloadCoordinator.cpp
+    src/integration/RenderEndpoint.cpp
+    src/RuntimeSafety.cpp
+    src/UiDocument.cpp
+    src/runtime/RuntimePresentationServices.cpp
+    src/runtime/TextRuntime.cpp
+    "${_aero_generated_theme_header}")
+add_library(Aero::Runtime ALIAS AeroRuntime)
+add_dependencies(AeroRuntime AeroCompiledThemes)
+target_include_directories(AeroRuntime
     PUBLIC
-        Aero::Markup
-        Aero::Platform)
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(AeroRuntime
+    PRIVATE
+        AeroModuleCatalog
+        Aero::Platform
+        Aero::TextHarfBuzz)
 target_compile_features(AeroRuntime PUBLIC cxx_std_17)
 set_target_properties(AeroRuntime PROPERTIES
     CXX_STANDARD 17
@@ -449,6 +818,57 @@ set_target_properties(AeroRuntime PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRuntime)
+
+# Product-facing SDK aggregates. Lower-level targets remain available for
+# specialized embedders, while normal applications can depend on one stable entry.
+add_library(AeroModuleSdk INTERFACE)
+add_library(Aero::ModuleSdk ALIAS AeroModuleSdk)
+target_link_libraries(AeroModuleSdk INTERFACE
+    Aero::Controls Aero::Presentation Aero::Core)
+
+add_library(AeroIntegrationSdk INTERFACE)
+add_library(Aero::IntegrationSdk ALIAS AeroIntegrationSdk)
+target_link_libraries(AeroIntegrationSdk INTERFACE
+    Aero::Runtime AeroIntegration)
+
+# Compile-only layer consumers keep the three SDK entry points independently
+# consumable and catch accidental reverse header dependencies.
+add_library(AeroProductHeaderConsumer OBJECT
+    tools/sdk-consumers/ProductConsumer.cpp)
+target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::Runtime)
+aero_apply_compiler_options(AeroProductHeaderConsumer)
+
+add_library(AeroModuleHeaderConsumer OBJECT
+    tools/sdk-consumers/ModuleConsumer.cpp)
+target_link_libraries(AeroModuleHeaderConsumer PRIVATE Aero::ModuleSdk)
+aero_apply_compiler_options(AeroModuleHeaderConsumer)
+
+add_library(AeroIntegrationHeaderConsumer OBJECT
+    tools/sdk-consumers/IntegrationConsumer.cpp)
+target_link_libraries(
+    AeroIntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+aero_apply_compiler_options(AeroIntegrationHeaderConsumer)
+
+add_library(AeroD3D11IntegrationHeaderConsumer OBJECT
+    tools/sdk-consumers/D3D11IntegrationConsumer.cpp)
+target_link_libraries(
+    AeroD3D11IntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+aero_apply_compiler_options(
+    AeroD3D11IntegrationHeaderConsumer)
+
+add_library(AeroOpenGL33IntegrationHeaderConsumer OBJECT
+    tools/sdk-consumers/OpenGL33IntegrationConsumer.cpp)
+target_link_libraries(
+    AeroOpenGL33IntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+aero_apply_compiler_options(
+    AeroOpenGL33IntegrationHeaderConsumer)
+
+add_library(AeroHostedGraphicsHeaderConsumer OBJECT
+    tools/sdk-consumers/HostedGraphicsConsumer.cpp)
+target_link_libraries(
+    AeroHostedGraphicsHeaderConsumer PRIVATE Aero::IntegrationSdk)
+aero_apply_compiler_options(
+    AeroHostedGraphicsHeaderConsumer)
 
 set(AERO_DEFAULT_THEME_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"
@@ -464,28 +884,18 @@ add_custom_target(AeroDefaultThemes ALL
     VERBATIM)
 add_dependencies(AeroMarkup AeroDefaultThemes)
 
-if(AERO_BUILD_TOOLS)
-    add_executable(aero-xamlc tools/xamlc/main.cpp)
-    target_link_libraries(aero-xamlc PRIVATE Aero::Runtime)
-    target_compile_features(aero-xamlc PRIVATE cxx_std_17)
-    set_target_properties(aero-xamlc PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO)
-    aero_apply_compiler_options(aero-xamlc)
-endif()
-
 add_library(AeroRhi ${AERO_LIBRARY_TYPE}
     src/rhi/Graphics.cpp
     src/rhi/Rhi.cpp
     src/rhi/Surface.cpp)
 
-add_library(Aero::Rhi ALIAS AeroRhi)
+add_library(Aero::DetailRhi ALIAS AeroRhi)
 
 target_include_directories(AeroRhi
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_link_libraries(AeroRhi PUBLIC Aero::Base)
 target_compile_features(AeroRhi PUBLIC cxx_std_17)
@@ -502,12 +912,14 @@ add_library(AeroRhiOpenGL33 ${AERO_LIBRARY_TYPE}
     src/rhi/opengl33/OpenGL33Backend.cpp
     src/rhi/opengl33/OpenGL33Context.cpp
     src/rhi/opengl33/OpenGL33StateCache.cpp)
-add_library(Aero::RhiOpenGL33 ALIAS AeroRhiOpenGL33)
+add_library(Aero::DetailRhiOpenGL33 ALIAS AeroRhiOpenGL33)
 target_include_directories(AeroRhiOpenGL33
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroRhiOpenGL33 PUBLIC Aero::Rhi)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(
+    AeroRhiOpenGL33 PUBLIC Aero::DetailRhi)
 target_compile_features(AeroRhiOpenGL33 PUBLIC cxx_std_17)
 target_compile_definitions(
     AeroRhiOpenGL33 PUBLIC AERO_HAS_OPENGL33_BACKEND=1)
@@ -526,13 +938,14 @@ if(AERO_ENABLE_WGL_SURFACE)
     endif()
     add_library(AeroRhiWGL ${AERO_LIBRARY_TYPE}
         src/rhi/wgl/WglSurface.cpp)
-    add_library(Aero::RhiWGL ALIAS AeroRhiWGL)
+    add_library(Aero::DetailRhiWGL ALIAS AeroRhiWGL)
     target_include_directories(AeroRhiWGL
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(AeroRhiWGL
-        PUBLIC Aero::RhiOpenGL33
+        PUBLIC Aero::DetailRhiOpenGL33
         PRIVATE gdi32 opengl32 user32)
     target_compile_features(AeroRhiWGL PUBLIC cxx_std_17)
     target_compile_definitions(
@@ -555,13 +968,14 @@ if(AERO_ENABLE_GLX_SURFACE)
     find_package(OpenGL REQUIRED)
     add_library(AeroRhiGLX ${AERO_LIBRARY_TYPE}
         src/rhi/glx/GlxSurface.cpp)
-    add_library(Aero::RhiGLX ALIAS AeroRhiGLX)
+    add_library(Aero::DetailRhiGLX ALIAS AeroRhiGLX)
     target_include_directories(AeroRhiGLX
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(AeroRhiGLX
-        PUBLIC Aero::RhiOpenGL33
+        PUBLIC Aero::DetailRhiOpenGL33
         PRIVATE X11::X11 OpenGL::GL Threads::Threads)
     target_compile_features(AeroRhiGLX PUBLIC cxx_std_17)
     target_compile_definitions(
@@ -576,13 +990,16 @@ if(AERO_ENABLE_GLX_SURFACE)
 endif()
 
 add_library(AeroRender ${AERO_LIBRARY_TYPE}
-    src/render/Renderer.cpp)
-add_library(Aero::Render ALIAS AeroRender)
+    src/render/Renderer.cpp
+    src/render/TextRuntimeService.cpp)
+add_library(Aero::DetailRender ALIAS AeroRender)
 target_include_directories(AeroRender
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroRender PUBLIC Aero::Presentation Aero::Rhi)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(
+    AeroRender PUBLIC Aero::Presentation Aero::DetailRhi)
 target_compile_features(AeroRender PUBLIC cxx_std_17)
 set_target_properties(AeroRender PROPERTIES
     CXX_STANDARD 17
@@ -594,13 +1011,17 @@ aero_apply_compiler_options(AeroRender)
 
 add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33RendererBackend.cpp)
-add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
+add_library(
+    Aero::DetailRenderOpenGL33 ALIAS AeroRenderOpenGL33)
 target_include_directories(AeroRenderOpenGL33
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroRenderOpenGL33
-    PUBLIC Aero::Render Aero::RhiOpenGL33)
+    PUBLIC
+        Aero::DetailRender
+        Aero::DetailRhiOpenGL33)
 target_compile_features(AeroRenderOpenGL33 PUBLIC cxx_std_17)
 set_target_properties(AeroRenderOpenGL33 PROPERTIES
     CXX_STANDARD 17
@@ -609,24 +1030,6 @@ set_target_properties(AeroRenderOpenGL33 PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRenderOpenGL33)
-
-add_library(AeroTextRender ${AERO_LIBRARY_TYPE}
-    src/render/TextBlockRenderService.cpp)
-add_library(Aero::TextRender ALIAS AeroTextRender)
-target_include_directories(AeroTextRender
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroTextRender
-    PUBLIC Aero::Controls Aero::Text Aero::Rhi)
-target_compile_features(AeroTextRender PUBLIC cxx_std_17)
-set_target_properties(AeroTextRender PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroTextRender)
 
 if(AERO_ENABLE_SOKOL_BACKEND)
     if(AERO_SOKOL_BRIDGE_SOURCE STREQUAL "")
@@ -825,13 +1228,14 @@ if(AERO_ENABLE_D3D11_BACKEND)
     add_library(AeroRhiD3D11 ${AERO_LIBRARY_TYPE}
         src/rhi/d3d11/D3D11Backend.cpp
         ${_aero_d3d11_backend_fragments})
-    add_library(Aero::RhiD3D11 ALIAS AeroRhiD3D11)
+    add_library(Aero::DetailRhiD3D11 ALIAS AeroRhiD3D11)
     target_include_directories(AeroRhiD3D11
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
+            $<INSTALL_INTERFACE:include>
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_link_libraries(AeroRhiD3D11
-        PUBLIC Aero::Rhi
+        PUBLIC Aero::DetailRhi
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_features(AeroRhiD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRhiD3D11 PROPERTIES
@@ -846,15 +1250,20 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11RendererBackend.cpp)
-    add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
+    add_library(
+        Aero::DetailRenderD3D11 ALIAS AeroRenderD3D11)
     add_dependencies(AeroRenderD3D11 AeroD3D11RenderPlanShaders)
     target_include_directories(AeroRenderD3D11
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>
-        PRIVATE "${_aero_d3d11_shader_directory}")
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            "${_aero_d3d11_shader_directory}")
     target_link_libraries(AeroRenderD3D11
-        PUBLIC Aero::Render Aero::RhiD3D11)
+        PUBLIC
+            Aero::DetailRender
+            Aero::DetailRhiD3D11)
     target_compile_features(AeroRenderD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRenderD3D11 PROPERTIES
         CXX_STANDARD 17
@@ -864,26 +1273,228 @@ if(AERO_ENABLE_D3D11_BACKEND)
         WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
     aero_apply_compiler_options(AeroRenderD3D11)
 
-    add_library(AeroTextRenderD3D11 ${AERO_LIBRARY_TYPE}
-        src/render/d3d11/D3D11TextBlockRenderService.cpp)
-    add_library(Aero::TextRenderD3D11 ALIAS AeroTextRenderD3D11)
-    target_include_directories(AeroTextRenderD3D11
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>)
-    target_link_libraries(AeroTextRenderD3D11
-        PUBLIC Aero::TextRender Aero::RenderD3D11)
-    target_compile_features(AeroTextRenderD3D11 PUBLIC cxx_std_17)
-    set_target_properties(AeroTextRenderD3D11 PROPERTIES
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED YES
-        CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON
-        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-    aero_apply_compiler_options(AeroTextRenderD3D11)
 else()
     target_compile_definitions(AeroRhi PUBLIC AERO_HAS_D3D11_BACKEND=0)
 endif()
+
+set(_aero_integration_sources
+    src/integration/HostedGraphics.cpp
+    src/integration/OpenGL33Endpoint.cpp)
+if(WIN32)
+    list(APPEND _aero_integration_sources
+        src/integration/D3D11Endpoint.cpp)
+endif()
+
+add_library(AeroIntegration ${AERO_LIBRARY_TYPE}
+    ${_aero_integration_sources})
+target_include_directories(AeroIntegration
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(AeroIntegration
+    PUBLIC Aero::Runtime
+    PRIVATE
+        Aero::DetailRender
+        Aero::DetailRhi
+        Aero::DetailRenderOpenGL33
+        Aero::DetailRhiOpenGL33)
+if(WIN32)
+    target_link_libraries(AeroIntegration PRIVATE
+        Aero::DetailRenderD3D11
+        Aero::DetailRhiD3D11)
+    if(TARGET AeroRhiWGL)
+        target_link_libraries(
+            AeroIntegration PRIVATE Aero::DetailRhiWGL)
+    endif()
+elseif(TARGET AeroRhiGLX)
+    target_link_libraries(
+        AeroIntegration PRIVATE Aero::DetailRhiGLX)
+endif()
+target_compile_features(AeroIntegration PUBLIC cxx_std_17)
+set_target_properties(AeroIntegration PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED}
+    EXPORT_NAME IntegrationDetailFacade)
+aero_apply_compiler_options(AeroIntegration)
+
+# Keep the public SDK dependency graph pointed in one direction. The runtime
+# owns no GPU backend, while ModuleSdk remains a header-only authoring facade.
+get_target_property(_aero_runtime_links AeroRuntime LINK_LIBRARIES)
+if("${_aero_runtime_links}" MATCHES
+        "(^|;)(Aero::DetailRhi|Aero::DetailRender|AeroRhi|AeroRender)")
+    message(FATAL_ERROR
+        "AeroRuntime must not link render or RHI implementation targets")
+endif()
+get_target_property(
+    _aero_module_sdk_links AeroModuleSdk INTERFACE_LINK_LIBRARIES)
+if("${_aero_module_sdk_links}" MATCHES
+        "(^|;)(AeroModuleCatalog|Aero::DetailModuleCatalog)(;|$)")
+    message(FATAL_ERROR
+        "AeroModuleSdk must not link the ModuleCatalog implementation")
+endif()
+unset(_aero_runtime_links)
+unset(_aero_module_sdk_links)
+
+# Installable SDK and CMake package.
+set_target_properties(
+    AeroBase PROPERTIES EXPORT_NAME Base)
+set_target_properties(
+    AeroCore PROPERTIES EXPORT_NAME Core)
+set_target_properties(
+    AeroPlatform PROPERTIES EXPORT_NAME Platform)
+set_target_properties(
+    AeroText PROPERTIES EXPORT_NAME Text)
+set_target_properties(
+    freetype PROPERTIES EXPORT_NAME RuntimeDetailFreeType)
+set_target_properties(
+    AeroTextFreeType PROPERTIES
+        EXPORT_NAME RuntimeDetailTextFreeType)
+set_target_properties(
+    harfbuzz PROPERTIES EXPORT_NAME RuntimeDetailHarfBuzz)
+set_target_properties(
+    AeroTextHarfBuzz PROPERTIES
+        EXPORT_NAME RuntimeDetailTextHarfBuzz)
+if(_aero_vendored_expat_target)
+    set_target_properties(
+        ${_aero_vendored_expat_target} PROPERTIES
+            EXPORT_NAME RuntimeDetailExpat)
+endif()
+set_target_properties(
+    AeroPresentation PROPERTIES EXPORT_NAME Presentation)
+set_target_properties(
+    AeroControls PROPERTIES EXPORT_NAME Controls)
+set_target_properties(
+    AeroInspector PROPERTIES EXPORT_NAME Inspector)
+set_target_properties(
+    AeroMarkupKernel PROPERTIES EXPORT_NAME MarkupKernel)
+set_target_properties(
+    AeroMarkup PROPERTIES EXPORT_NAME Markup)
+set_target_properties(
+    AeroModuleCatalog PROPERTIES
+        EXPORT_NAME RuntimeDetailModuleCatalog)
+set_target_properties(
+    AeroRuntime PROPERTIES EXPORT_NAME Runtime)
+set_target_properties(
+    AeroModuleSdk PROPERTIES EXPORT_NAME ModuleSdk)
+set_target_properties(
+    AeroIntegrationSdk PROPERTIES EXPORT_NAME IntegrationSdk)
+set_target_properties(
+    AeroRhi PROPERTIES EXPORT_NAME IntegrationDetailRhi)
+set_target_properties(
+    AeroRhiOpenGL33 PROPERTIES
+        EXPORT_NAME IntegrationDetailRhiOpenGL33)
+set_target_properties(
+    AeroRender PROPERTIES
+        EXPORT_NAME IntegrationDetailRender)
+set_target_properties(
+    AeroRenderOpenGL33 PROPERTIES
+        EXPORT_NAME IntegrationDetailRenderOpenGL33)
+
+set(_aero_sdk_targets
+    AeroBase
+    AeroCore
+    AeroPlatform
+    AeroText
+    freetype
+    AeroTextFreeType
+    harfbuzz
+    AeroTextHarfBuzz
+    AeroPresentation
+    AeroControls
+    AeroInspector
+    AeroMarkupKernel
+    AeroMarkup
+    AeroModuleCatalog
+    AeroRuntime
+    AeroIntegration
+    AeroModuleSdk
+    AeroIntegrationSdk
+    AeroRhi
+    AeroRhiOpenGL33
+    AeroRender
+    AeroRenderOpenGL33)
+
+if(_aero_vendored_expat_target)
+    list(APPEND _aero_sdk_targets
+        ${_aero_vendored_expat_target})
+endif()
+
+foreach(_aero_optional_target IN ITEMS
+        AeroRhiWGL
+        AeroRhiGLX
+        AeroRhiD3D11
+        AeroRenderD3D11)
+    if(TARGET ${_aero_optional_target})
+        list(APPEND _aero_sdk_targets ${_aero_optional_target})
+        string(REGEX REPLACE "^Aero" "" _aero_export_name
+            "${_aero_optional_target}")
+        set_target_properties(${_aero_optional_target}
+            PROPERTIES
+                EXPORT_NAME
+                    "IntegrationDetail${_aero_export_name}")
+    endif()
+endforeach()
+
+install(TARGETS ${_aero_sdk_targets}
+    EXPORT AeroTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(TARGET aero-schema-gen)
+    set_target_properties(aero-schema-gen PROPERTIES EXPORT_NAME schema-gen)
+    install(TARGETS aero-schema-gen
+        EXPORT AeroTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+if(TARGET aero-xamlc)
+    set_target_properties(aero-xamlc PROPERTIES EXPORT_NAME xamlc)
+    install(TARGETS aero-xamlc
+        EXPORT AeroTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+install(DIRECTORY include/Aero
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "Version.hpp" EXCLUDE)
+install(FILES
+    "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Aero)
+install(DIRECTORY themes/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/themes
+    FILES_MATCHING PATTERN "*.xaml")
+if(NOT _aero_schema_manifest STREQUAL "")
+    install(FILES "${_aero_schema_manifest}"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/Aero/schema
+        RENAME Aero.aeroschema)
+endif()
+
+set(AERO_PACKAGE_WITH_EXPAT OFF)
+if(AERO_WITH_EXPAT AND NOT _aero_vendored_expat_target)
+    set(AERO_PACKAGE_WITH_EXPAT ON)
+endif()
+set(AERO_PACKAGE_WITH_GLX ${AERO_ENABLE_GLX_SURFACE})
+configure_package_config_file(
+    cmake/AeroConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+install(EXPORT AeroTargets
+    FILE AeroTargets.cmake
+    NAMESPACE Aero::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/AeroConfigVersion.cmake"
+    cmake/AeroAddXaml.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Aero)
 
 if(AERO_BUILD_TESTS)
     enable_testing()

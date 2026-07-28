@@ -9,7 +9,7 @@
 - M0/M1 的架构、Foundation、Core、ABI 和严格 C++17 构建约束已落地主线；
 - M2 的 runtime XAML、布局、RenderTransaction/RenderPlan、AeroRHI_Null 与 Windows D3D11/WARP 垂直切片已落地；
 - M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
-- compiled document encoding 固定为 v1，compiled cache format 固定为 v3；
+- compiled document encoding 固定为 v1，compiled cache format 固定为 v7；
 - Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
 - M3.5 文本垂直切片已完成 provider-neutral `AeroText` 合同、FreeType/HarfBuzz adapter、glyph atlas、TextLayout 与 atlas-backed TextBlock/D3D11 接入；完整 Unicode line breaking/bidi 仍是后续增量；
 - Command、统一交互状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton 与 Generic/Light/Dark 主题已完成并有 XAML/交互回归；

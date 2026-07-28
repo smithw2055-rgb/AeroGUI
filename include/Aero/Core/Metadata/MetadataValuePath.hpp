@@ -73,8 +73,8 @@ private:
     Base::Result<Value> GetObject(
         const Base::Object& object,
         Base::Span<const Base::StringView> path) const noexcept {
-        const MetadataPropertyDescriptor* property =
-            runtime_->Descriptors().FindProperty(
+        const PropertyInfo* property =
+            runtime_->Types().FindProperty(
                 object.RuntimeType(), path[0], true);
         if (property == nullptr) {
             return Base::Status::Failure(
@@ -99,8 +99,8 @@ private:
             return GetObject(*value.AsObject(), path);
         }
         if (value.Kind() != ValueKind::Custom) return UnsupportedNode();
-        const MetadataFieldDescriptor* field =
-            runtime_->Descriptors().FindField(value.Type(), path[0]);
+        const FieldInfo* field =
+            runtime_->Types().FindField(value.Type(), path[0]);
         if (field == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -116,8 +116,8 @@ private:
         Base::Object& object,
         Base::Span<const Base::StringView> path,
         const Value& value) const noexcept {
-        const MetadataPropertyDescriptor* property =
-            runtime_->Descriptors().FindProperty(
+        const PropertyInfo* property =
+            runtime_->Types().FindProperty(
                 object.RuntimeType(), path[0], true);
         if (property == nullptr) {
             return Base::Status::Failure(
@@ -154,8 +154,8 @@ private:
                           : Base::Result<bool>(result.GetStatus());
         }
         if (owner.Kind() != ValueKind::Custom) return UnsupportedNode();
-        const MetadataFieldDescriptor* field =
-            runtime_->Descriptors().FindField(owner.Type(), path[0]);
+        const FieldInfo* field =
+            runtime_->Types().FindField(owner.Type(), path[0]);
         if (field == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,

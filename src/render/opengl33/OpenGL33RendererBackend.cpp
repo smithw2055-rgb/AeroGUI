@@ -1,6 +1,9 @@
-#include <Aero/Render/OpenGL33RendererBackend.hpp>
+#include "OpenGL33RendererBackend.hpp"
 
 #include <new>
+
+#include "../TextBackendAccess.hpp"
+#include "../TextRuntimeBackend.hpp"
 
 namespace Aero::Render {
 namespace {
@@ -422,13 +425,17 @@ RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept {
 struct OpenGL33RenderPlanBackend::Impl final {
     Impl(
         Rhi::RhiDevice& device,
+        std::uint64_t generation,
         Base::IAllocator* allocator) noexcept
         : renderer(
               device,
               MakeOpenGL33RendererShaderSet(),
-              allocator) {}
+              allocator),
+          textRuntime(
+              device, renderer, generation, *allocator) {}
 
     Renderer renderer;
+    Detail::TextRuntimeBackend textRuntime;
     Rhi::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -472,7 +479,10 @@ OpenGL33RenderPlanBackend::Initialize() noexcept {
             return OutOfMemory(
                 "Failed to allocate OpenGL render adapter state");
         }
-        impl_ = new (memory) Impl(*device_, allocator_);
+        ++textGeneration_;
+        if (textGeneration_ == 0U) ++textGeneration_;
+        impl_ = new (memory) Impl(
+            *device_, textGeneration_, allocator_);
     }
     Base::Result<void> initialized = impl_->renderer.Initialize();
     if (!initialized) {
@@ -487,6 +497,7 @@ void OpenGL33RenderPlanBackend::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
+    impl_->textRuntime.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -578,6 +589,15 @@ OpenGL33RenderPlanBackend::UnregisterGlyphRun(
         ? impl_->renderer.UnregisterGlyphRun(glyphRun)
         : Base::Result<void>(NotInitialized(
             "OpenGL render adapter is not initialized"));
+}
+
+void* OpenGL33RenderPlanBackend::QueryInternalService(
+    std::uint64_t service) noexcept {
+    if (!IsInitialized() ||
+        service != Detail::TextBackendServiceId) {
+        return nullptr;
+    }
+    return &impl_->textRuntime.Services();
 }
 
 Base::Result<void> OpenGL33RenderPlanBackend::Submit(

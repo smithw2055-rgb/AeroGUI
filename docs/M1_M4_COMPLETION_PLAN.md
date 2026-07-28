@@ -25,7 +25,7 @@ Implementation status: **portable implementation complete; CI validated**.
 
 Deliverables:
 
-- `Aero::RuntimeHost` composition root;
+- `Aero::View` composition root;
 - deterministic initialization and reverse-order shutdown;
 - one frame-phase entry point;
 - automatic input/control/TextBox interaction wiring;
@@ -77,13 +77,13 @@ Remaining migration:
 
 - move XAML, templates and item generation to the shared service;
 - move eligible queue flags/revisions from public elements into sidecars;
-- refactor ControlGallery to use only RuntimeHost and shared mount services.
+- refactor ControlGallery to use only View and shared mount services.
 
 Acceptance target:
 
 - one attachment transaction path;
 - no duplicate logical/visual/layout/render ownership sequencing in controls;
-- ControlGallery uses RuntimeHost rather than manual service construction.
+- ControlGallery uses View rather than manual service construction.
 
 ### Slice D — Unicode text completion
 

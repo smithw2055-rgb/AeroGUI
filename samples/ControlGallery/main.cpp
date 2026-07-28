@@ -150,6 +150,7 @@ int RunCombination(
         "ControlGallery xaml=%s theme=%s "
         "backend=%s hash=0x%016llX "
         "nodes=%u commands=%u "
+        "glyph=%u "
         "names=%u items=%u realized=%u "
         "created=%u\n",
         mode == GalleryLoadMode::Runtime
@@ -163,6 +164,7 @@ int RunCombination(
             output.planHash),
         output.nodeCount,
         output.commandCount,
+        output.textCommandCount,
         output.namedObjectCount,
         output.itemCount,
         output.realizedItemCount,

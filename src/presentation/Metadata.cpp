@@ -1,16 +1,19 @@
 #include <Aero/Presentation/Metadata.hpp>
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Core/Metadata/MetadataDsl.hpp>
+#include <Aero/Core/Metadata/Describe.hpp>
+#include <Aero/Core/Metadata/ValueConversion.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Presentation/Style.hpp>
 
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
-#include <limits>
+#include <utility>
 
 namespace Aero::Presentation {
 
@@ -19,52 +22,20 @@ namespace {
 
 constexpr double DefaultMaximum = 1.0e12;
 
-bool EqualsAsciiInsensitive(Base::StringView value, const char* literal) noexcept {
-    std::uint32_t size = 0U;
-    while (literal[size] != '\0') ++size;
-    if (value.SizeBytes() != size) return false;
-    for (std::uint32_t index = 0U; index < size; ++index) {
-        if (std::tolower(static_cast<unsigned char>(value[index])) !=
-            std::tolower(static_cast<unsigned char>(literal[index]))) return false;
-    }
-    return true;
-}
-
-Base::StringView Trim(Base::StringView value) noexcept {
-    std::uint32_t begin = 0U;
-    std::uint32_t end = value.SizeBytes();
-    while (begin < end && std::isspace(static_cast<unsigned char>(value[begin]))) ++begin;
-    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1U]))) --end;
-    return value.Substr(begin, end - begin);
-}
-
-Base::Result<double> ParseDouble(Base::StringView text) noexcept {
-    Base::String buffer;
-    Base::Result<void> assigned = buffer.TryAssign(Trim(text));
-    if (!assigned) return assigned.GetStatus();
-    char* end = nullptr;
-    const double value = std::strtod(buffer.CStr(), &end);
-    if (end == buffer.CStr() || *end != '\0' || !std::isfinite(value)) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "Text is not a finite number");
-    }
-    return value;
-}
-
-Base::Result<Value> ConvertLength(TypeId type, Base::StringView text,
-    void* context) noexcept {
-    auto* values = static_cast<MetadataValueRegistrationStore*>(context);
-    const Base::StringView value = Trim(text);
+Base::Result<Length> ConvertLength(
+    Base::StringView text) noexcept {
+    const Base::StringView value = ValueConversion::Trim(text);
     Length length = Length::Auto();
-    if (!EqualsAsciiInsensitive(value, "auto")) {
-        Base::Result<double> parsed = ParseDouble(value);
+    if (!ValueConversion::EqualsAsciiInsensitive(value, "auto")) {
+        Base::Result<double> parsed =
+            ValueConversion::ParseDouble(value);
         if (!parsed || parsed.Value() < 0.0) {
             return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
                 "Length must be Auto or a nonnegative number");
         }
         length = Length::Pixels(parsed.Value());
     }
-    return MetadataRegistrationValues(*values).TryCreateValue(type, &length);
+    return length;
 }
 
 Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
@@ -116,13 +87,9 @@ Base::Result<Thickness> ParseThickness(Base::StringView input) noexcept {
     return result;
 }
 
-Base::Result<Value> ConvertThickness(TypeId type, Base::StringView text,
-    void* context) noexcept {
-    Base::Result<Thickness> parsed = ParseThickness(text);
-    if (!parsed) return parsed.GetStatus();
-    return MetadataRegistrationValues(
-        *static_cast<MetadataValueRegistrationStore*>(context)).TryCreateValue(
-            type, &parsed.Value());
+Base::Result<Thickness> ConvertThickness(
+    Base::StringView text) noexcept {
+    return ParseThickness(text);
 }
 
 int Hex(char value) noexcept {
@@ -132,9 +99,9 @@ int Hex(char value) noexcept {
     return -1;
 }
 
-Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
-    void* context) noexcept {
-    const Base::StringView value = Trim(text);
+Base::Result<Color> ConvertColor(
+    Base::StringView text) noexcept {
+    const Base::StringView value = ValueConversion::Trim(text);
     if ((value.SizeBytes() != 7U && value.SizeBytes() != 9U) || value[0] != '#') {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "Color requires #RRGGBB or #AARRGGBB");
@@ -154,9 +121,7 @@ Base::Result<Value> ConvertColor(TypeId type, Base::StringView text,
         ? Color{bytes[0] / 255.0F, bytes[1] / 255.0F, bytes[2] / 255.0F, 1.0F}
         : Color{bytes[1] / 255.0F, bytes[2] / 255.0F,
             bytes[3] / 255.0F, bytes[0] / 255.0F};
-    return MetadataRegistrationValues(
-        *static_cast<MetadataValueRegistrationStore*>(context)).TryCreateValue(
-            type, &color);
+    return color;
 }
 
 bool EqualLength(const void* left, const void* right, void*) noexcept {
@@ -177,147 +142,306 @@ bool EqualColor(const void* left, const void* right, void*) noexcept {
         a.blue == b.blue && a.alpha == b.alpha;
 }
 
-Base::Result<Value> ConvertHorizontal(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    HorizontalAlignment result;
-    if (EqualsAsciiInsensitive(value, "stretch")) result = HorizontalAlignment::Stretch;
-    else if (EqualsAsciiInsensitive(value, "left")) result = HorizontalAlignment::Left;
-    else if (EqualsAsciiInsensitive(value, "center")) result = HorizontalAlignment::Center;
-    else if (EqualsAsciiInsensitive(value, "right")) result = HorizontalAlignment::Right;
-    else return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "HorizontalAlignment is invalid");
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
-}
-Base::Result<Value> ConvertVertical(TypeId type, Base::StringView text,
-    void*) noexcept {
-    const Base::StringView value = Trim(text);
-    VerticalAlignment result;
-    if (EqualsAsciiInsensitive(value, "stretch")) result = VerticalAlignment::Stretch;
-    else if (EqualsAsciiInsensitive(value, "top")) result = VerticalAlignment::Top;
-    else if (EqualsAsciiInsensitive(value, "center")) result = VerticalAlignment::Center;
-    else if (EqualsAsciiInsensitive(value, "bottom")) result = VerticalAlignment::Bottom;
-    else return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-        "VerticalAlignment is invalid");
-    return Value::FromUnsignedInteger(type, static_cast<std::uint64_t>(result));
-}
-bool ValidateLength(const Value& value) noexcept {
-    if (value.Kind() != ValueKind::Custom) return false;
-    const Length& length = *static_cast<const Length*>(value.AsCustom());
+bool ValidateLength(const Length& length) noexcept {
     return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
 }
-bool ValidateNonnegativeDouble(const Value& value) noexcept {
-    return value.Kind() == ValueKind::Double &&
-        std::isfinite(value.AsDouble()) && value.AsDouble() >= 0.0;
-}
-bool ValidateUInt32(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <=
-            std::numeric_limits<std::uint32_t>::max();
-}
-bool ValidateThicknessValue(const Value& value) noexcept {
-    if (value.Kind() != ValueKind::Custom) return false;
-    const Thickness& t = *static_cast<const Thickness*>(value.AsCustom());
+bool ValidateThicknessValue(const Thickness& t) noexcept {
     return IsFinite(t) && t.left >= 0.0 && t.top >= 0.0 &&
         t.right >= 0.0 && t.bottom >= 0.0;
 }
-bool ValidateHorizontalValue(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= static_cast<std::uint64_t>(HorizontalAlignment::Right);
-}
-bool ValidateVerticalValue(const Value& value) noexcept {
-    return value.Kind() == ValueKind::UnsignedInteger &&
-        value.AsUnsignedInteger() <= static_cast<std::uint64_t>(VerticalAlignment::Bottom);
-}
-Base::Result<Value> CheckMinimum(DependencyObject& object,
-    const Value& value, DependencyPropertyHandle maximum) noexcept {
-    Base::Result<Value> other = object.GetValue(maximum);
-    if (!other || value.AsDouble() > other.Value().AsDouble()) {
+template<class TProperty>
+Base::Result<double> CheckMinimum(
+    DependencyObject& object,
+    const double& value,
+    const TProperty& maximum) noexcept {
+    Base::Result<double> other = object.GetValue(maximum);
+    if (!other || value > other.Value()) {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "Minimum layout size exceeds maximum layout size");
     }
     return value;
 }
-Base::Result<Value> CheckMaximum(DependencyObject& object,
-    const Value& value, DependencyPropertyHandle minimum) noexcept {
-    Base::Result<Value> other = object.GetValue(minimum);
-    if (!other || value.AsDouble() < other.Value().AsDouble()) {
+template<class TProperty>
+Base::Result<double> CheckMaximum(
+    DependencyObject& object,
+    const double& value,
+    const TProperty& minimum) noexcept {
+    Base::Result<double> other = object.GetValue(minimum);
+    if (!other || value < other.Value()) {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "Maximum layout size is below minimum layout size");
     }
     return value;
 }
-Base::Result<Value> CoerceMinWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, FrameworkElement::MaxWidthProperty); }
-Base::Result<Value> CoerceMaxWidth(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinWidthProperty); }
-Base::Result<Value> CoerceMinHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMinimum(o, v, FrameworkElement::MaxHeightProperty); }
-Base::Result<Value> CoerceMaxHeight(DependencyObject& o, const DependencyProperty&,
-    const Value& v) noexcept { return CheckMaximum(o, v, FrameworkElement::MinHeightProperty); }
+Base::Result<double> CoerceMinWidth(
+    DependencyObject& object,
+    const DependencyProperty&,
+    const double& value) noexcept {
+    return CheckMinimum(
+        object, value, FrameworkElement::MaxWidthProperty);
+}
+Base::Result<double> CoerceMaxWidth(
+    DependencyObject& object,
+    const DependencyProperty&,
+    const double& value) noexcept {
+    return CheckMaximum(
+        object, value, FrameworkElement::MinWidthProperty);
+}
+Base::Result<double> CoerceMinHeight(
+    DependencyObject& object,
+    const DependencyProperty&,
+    const double& value) noexcept {
+    return CheckMinimum(
+        object, value, FrameworkElement::MaxHeightProperty);
+}
+Base::Result<double> CoerceMaxHeight(
+    DependencyObject& object,
+    const DependencyProperty&,
+    const double& value) noexcept {
+    return CheckMaximum(
+        object, value, FrameworkElement::MinHeightProperty);
+}
+
+TypeReference GetStyleTargetType(
+    const Style& style) noexcept {
+    return {style.TargetType()};
+}
+
+Base::Result<void> SetStyleTargetType(
+    Style& style,
+    TypeReference value) noexcept {
+    return style.TrySetTargetType(value.type);
+}
+
+Base::Result<void> SetStyleBasedOn(
+    Style& style,
+    Base::Ref<Style> value) noexcept {
+    return style.TrySetBasedOn(
+        Base::Ref<Base::Object>(
+            std::move(value)));
+}
+
+Base::Result<void> AddMergedDictionary(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    return static_cast<ResourceDictionary&>(owner)
+        .TryAddMerged(
+            static_cast<ResourceDictionary&>(*value));
+}
+
+Base::Result<void> ClearMergedDictionaries(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<ResourceDictionary&>(owner)
+        .ClearMergedDictionaries();
+}
+
+Base::Result<void> AddStyleSetter(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<Setter> retained =
+        Base::Ref<Setter>::TryFromBorrowed(
+            static_cast<Setter&>(*value));
+    if (!retained) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Style Setter cannot be retained");
+    }
+    return static_cast<Style&>(owner)
+        .TryAddAuthoredSetter(
+            std::move(retained));
+}
+
+Base::Result<void> ClearStyleSetters(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<Style&>(owner)
+        .ClearAuthoredSetters();
+}
+
+Base::Result<void> AddStyleTrigger(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<PropertyTrigger> retained =
+        Base::Ref<PropertyTrigger>::TryFromBorrowed(
+            static_cast<PropertyTrigger&>(*value));
+    if (!retained) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Style Trigger cannot be retained");
+    }
+    return static_cast<Style&>(owner)
+        .TryAddAuthoredTrigger(
+            std::move(retained));
+}
+
+Base::Result<void> ClearStyleTriggers(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<Style&>(owner)
+        .ClearAuthoredTriggers();
+}
+
+Base::Result<void> AddTriggerSetter(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    Base::Ref<Setter> retained =
+        Base::Ref<Setter>::TryFromBorrowed(
+            static_cast<Setter&>(*value));
+    if (!retained) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Trigger Setter cannot be retained");
+    }
+    return static_cast<PropertyTrigger&>(owner)
+        .TryAddAuthoredSetter(
+            std::move(retained));
+}
+
+Base::Result<void> ClearTriggerSetters(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<PropertyTrigger&>(owner)
+        .ClearAuthoredSetters();
+}
 
 } // namespace
 
 Base::Result<void> Detail::PopulatePresentationMetadata(
-    Core::MetaRegistrationContext& context) noexcept {
+    Core::MetadataContext& context) noexcept {
     Base::Result<void> status;
 
-    MetaTypeBuilder<EventArgs> eventArgs =
-        MetaTypeBuilder<EventArgs>::Struct(context);
-    status = eventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<RoutedEventArgs> routedEventArgs =
-        MetaTypeBuilder<RoutedEventArgs>::Struct(context);
-    status = routedEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<InputEventArgs> inputEventArgs =
-        MetaTypeBuilder<InputEventArgs>::Struct(context);
-    status = inputEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseEventArgs> mouseEventArgs =
-        MetaTypeBuilder<MouseEventArgs>::Struct(context);
-    status = mouseEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseButtonEventArgs> mouseButtonEventArgs =
-        MetaTypeBuilder<MouseButtonEventArgs>::Struct(context);
-    status = mouseButtonEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<MouseWheelEventArgs> mouseWheelEventArgs =
-        MetaTypeBuilder<MouseWheelEventArgs>::Struct(context);
-    status = mouseWheelEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyEventArgs> keyEventArgs =
-        MetaTypeBuilder<KeyEventArgs>::Struct(context);
-    status = keyEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<TextCompositionEventArgs> textCompositionEventArgs =
-        MetaTypeBuilder<TextCompositionEventArgs>::Struct(context);
-    status = textCompositionEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyboardFocusChangedEventArgs> focusEventArgs =
-        MetaTypeBuilder<KeyboardFocusChangedEventArgs>::Struct(context);
-    status = focusEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<CanExecuteRoutedEventArgs> canExecuteEventArgs =
-        MetaTypeBuilder<CanExecuteRoutedEventArgs>::Struct(context);
-    status = canExecuteEventArgs.Finish();
-    if (!status) return status.GetStatus();
-    MetaTypeBuilder<ExecutedRoutedEventArgs> executedEventArgs =
-        MetaTypeBuilder<ExecutedRoutedEventArgs>::Struct(context);
-    status = executedEventArgs.Finish();
+    auto resourceDictionary =
+        Describe<ResourceDictionary>(context);
+    resourceDictionary
+        .Property<
+            Base::ResourceUri,
+            &ResourceDictionary::Source,
+            &ResourceDictionary::SetSource>(
+            "Source",
+            PropertyFlags::None)
+        .Collection<ResourceDictionary>(
+            "MergedDictionaries",
+            &AddMergedDictionary,
+            &ClearMergedDictionaries)
+        .Content<Base::Object>(
+            "Entries",
+            ContentKind::Collection)
+        .Factory();
+    status = resourceDictionary.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Length> length =
-        MetaTypeBuilder<Length>::Struct(context);
+    auto setter = Describe<Setter>(context);
+    setter
+        .Property(
+            "TargetName",
+            &Setter::TargetName,
+            &Setter::SetTargetName)
+        .Property(
+            "Property",
+            &Setter::PropertyName,
+            &Setter::SetPropertyName)
+        .Property<
+            Value,
+            &Setter::AuthoredValue,
+            &Setter::SetAuthoredValue>(
+            "Value",
+            PropertyFlags::AnyValue)
+        .Factory();
+    status = setter.Result();
+    if (!status) return status.GetStatus();
+
+    auto trigger = Describe<PropertyTrigger>(context);
+    trigger
+        .Property(
+            "Property",
+            &PropertyTrigger::PropertyName,
+            &PropertyTrigger::SetPropertyName)
+        .Property<
+            Value,
+            &PropertyTrigger::AuthoredValue,
+            &PropertyTrigger::SetAuthoredValue>(
+            "Value",
+            PropertyFlags::AnyValue)
+        .Content<Setter>(
+            "Setters",
+            ContentKind::Collection,
+            &AddTriggerSetter,
+            &ClearTriggerSetters)
+        .Factory();
+    status = trigger.Result();
+    if (!status) return status.GetStatus();
+
+    auto style = Describe<Style>(context);
+    style
+        .Property<
+            TypeReference,
+            &GetStyleTargetType,
+            &SetStyleTargetType>(
+            "TargetType",
+            PropertyFlags::None)
+        .Property<
+            Base::Ref<Style>,
+            &SetStyleBasedOn>(
+            "BasedOn",
+            PropertyFlags::WriteOnly)
+        .Property<
+            Base::Ref<ResourceDictionary>,
+            &Style::SetResources>(
+                "Resources",
+                PropertyFlags::Structural)
+        .Collection<PropertyTrigger>(
+            "Triggers",
+            &AddStyleTrigger,
+            &ClearStyleTriggers)
+        .Content<Setter>(
+            "Setters",
+            ContentKind::Collection,
+            &AddStyleSetter,
+            &ClearStyleSetters)
+        .Factory();
+    status = style.Result();
+    if (!status) return status.GetStatus();
+
+    status = Describe<EventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<RoutedEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<InputEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<MouseEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<MouseButtonEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<MouseWheelEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<KeyEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<TextCompositionEventArgs>(context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<KeyboardFocusChangedEventArgs>(
+        context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<CanExecuteRoutedEventArgs>(
+        context).Result();
+    if (!status) return status.GetStatus();
+    status = Describe<ExecutedRoutedEventArgs>(
+        context).Result();
+    if (!status) return status.GetStatus();
+
+    auto length = Describe<Length>(context);
     length
         .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr,
             &EqualLength, nullptr, true})
-        .TextConverter(&ConvertLength, &context.ValueRegistrations());
-    status = length.Finish();
+        .TextConverter<&ConvertLength>();
+    status = length.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Thickness> thickness =
-        MetaTypeBuilder<Thickness>::Struct(context);
+    auto thickness = Describe<Thickness>(context);
     thickness
         .Field<&Thickness::left>("Left")
         .Field<&Thickness::top>("Top")
@@ -325,11 +449,11 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .Field<&Thickness::bottom>("Bottom")
         .ValueSemantics({sizeof(Thickness), alignof(Thickness), nullptr,
             nullptr, &EqualThickness, nullptr, true})
-        .TextConverter(&ConvertThickness, &context.ValueRegistrations());
-    status = thickness.Finish();
+        .TextConverter<&ConvertThickness>();
+    status = thickness.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Color> color = MetaTypeBuilder<Color>::Struct(context);
+    auto color = Describe<Color>(context);
     color
         .Field<&Color::red>("Red")
         .Field<&Color::green>("Green")
@@ -337,185 +461,153 @@ Base::Result<void> Detail::PopulatePresentationMetadata(
         .Field<&Color::alpha>("Alpha")
         .ValueSemantics({sizeof(Color), alignof(Color), nullptr, nullptr,
             &EqualColor, nullptr, true})
-        .TextConverter(&ConvertColor, &context.ValueRegistrations());
-    status = color.Finish();
+        .TextConverter<&ConvertColor>();
+    status = color.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<HorizontalAlignment> horizontal =
-        MetaTypeBuilder<HorizontalAlignment>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto horizontal = Describe<HorizontalAlignment>(context);
     horizontal
-        .EnumValue("Stretch", HorizontalAlignment::Stretch)
-        .EnumValue("Left", HorizontalAlignment::Left)
-        .EnumValue("Center", HorizontalAlignment::Center)
-        .EnumValue("Right", HorizontalAlignment::Right)
-        .TextConverter(&ConvertHorizontal);
-    status = horizontal.Finish();
+        .Value("Stretch", HorizontalAlignment::Stretch)
+        .Value("Left", HorizontalAlignment::Left)
+        .Value("Center", HorizontalAlignment::Center)
+        .Value("Right", HorizontalAlignment::Right);
+    status = horizontal.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<VerticalAlignment> vertical =
-        MetaTypeBuilder<VerticalAlignment>::Enum(
-            context, TypeOf<std::uint32_t>());
+    auto vertical = Describe<VerticalAlignment>(context);
     vertical
-        .EnumValue("Stretch", VerticalAlignment::Stretch)
-        .EnumValue("Top", VerticalAlignment::Top)
-        .EnumValue("Center", VerticalAlignment::Center)
-        .EnumValue("Bottom", VerticalAlignment::Bottom)
-        .TextConverter(&ConvertVertical);
-    status = vertical.Finish();
+        .Value("Stretch", VerticalAlignment::Stretch)
+        .Value("Top", VerticalAlignment::Top)
+        .Value("Center", VerticalAlignment::Center)
+        .Value("Bottom", VerticalAlignment::Bottom);
+    status = vertical.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<ICommand> command =
-        MetaTypeBuilder<ICommand>::Object(context, TypeFlags::Abstract);
-    status = command.Finish();
+    status = Describe<ICommand>(
+        context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<InputGesture> inputGesture =
-        MetaTypeBuilder<InputGesture>::Object(context, TypeFlags::Abstract);
-    status = inputGesture.Finish();
+    status = Describe<InputGesture>(
+        context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<KeyGesture> keyGesture =
-        MetaTypeBuilder<KeyGesture>::Object(context);
-    status = keyGesture.Finish();
+    status = Describe<KeyGesture>(context).Result();
     if (!status) return status.GetStatus();
-    MetaTypeBuilder<RoutedCommand> routedCommand =
-        MetaTypeBuilder<RoutedCommand>::Object(context);
-    status = routedCommand.Finish();
+    status = Describe<RoutedCommand>(context).Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<Visual> visual =
-        MetaTypeBuilder<Visual>::Object(context, TypeFlags::Abstract);
-    status = visual.Finish();
+    status = Describe<Visual>(
+        context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<UIElement> uiElement =
-        MetaTypeBuilder<UIElement>::Object(context, TypeFlags::Abstract);
-    if (context.RoutedEvents() != nullptr) {
-        uiElement
-            .RoutedEvent(UIElement::MouseMoveEvent, "MouseMove",
-                TypeOf<MouseEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseDownEvent, "MouseDown",
-                TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseUpEvent, "MouseUp",
-                TypeOf<MouseButtonEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::MouseWheelEvent, "MouseWheel",
-                TypeOf<MouseWheelEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::GotKeyboardFocusEvent,
-                "GotKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
-                RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::LostKeyboardFocusEvent,
-                "LostKeyboardFocus", TypeOf<KeyboardFocusChangedEventArgs>(),
-                RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::KeyDownEvent, "KeyDown",
-                TypeOf<KeyEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::KeyUpEvent, "KeyUp",
-                TypeOf<KeyEventArgs>(), RoutingStrategy::Bubble)
-            .RoutedEvent(UIElement::TextInputEvent, "TextInput",
-                TypeOf<TextCompositionEventArgs>(),
-                RoutingStrategy::Bubble);
-    }
+    auto uiElement = Describe<UIElement>(
+        context, TypeFlags::Abstract);
     uiElement
-        .DependencyProperty(UIElement::ClipToBoundsProperty, "ClipToBounds",
-            TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsArrange)
-        .DependencyProperty(UIElement::IsHitTestVisibleProperty,
-            "IsHitTestVisible", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
-            PropertyMetadataFlags::None)
-        .DependencyProperty(UIElement::IsEnabledProperty,
-            "IsEnabled", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), true),
-            PropertyMetadataFlags::Inherits |
-                PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(UIElement::IsMouseOverProperty,
-            "IsMouseOver", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(UIElement::IsPressedProperty,
-            "IsPressed", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsRender)
-        .ReadOnlyDependencyProperty(
+        .Event(UIElement::MouseMoveEvent)
+        .Event(UIElement::MouseDownEvent)
+        .Event(UIElement::MouseUpEvent)
+        .Event(UIElement::MouseWheelEvent)
+        .Event(UIElement::GotKeyboardFocusEvent)
+        .Event(UIElement::LostKeyboardFocusEvent)
+        .Event(UIElement::KeyDownEvent)
+        .Event(UIElement::KeyUpEvent)
+        .Event(UIElement::TextInputEvent)
+        .Property(
+            UIElement::ClipToBoundsProperty,
+            PropertyOptions(false).AffectsArrange())
+        .Property(
+            UIElement::IsHitTestVisibleProperty,
+            PropertyOptions(true))
+        .Property(
+            UIElement::IsEnabledProperty,
+            PropertyOptions(true)
+                .Inherits()
+                .AffectsRender())
+        .Property(
+            UIElement::IsMouseOverProperty,
+            PropertyOptions(false).AffectsRender())
+        .Property(
+            UIElement::IsPressedProperty,
+            PropertyOptions(false).AffectsRender())
+        .Property(
             UIElement::IsKeyboardFocusedProperty,
-            "IsKeyboardFocused", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsRender)
-        .DependencyProperty(UIElement::IsTabStopProperty,
-            "IsTabStop", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::None)
-        .DependencyProperty(UIElement::TabIndexProperty,
-            "TabIndex", TypeOf<std::uint32_t>(),
-            Value::FromUnsignedInteger(
-                TypeOf<std::uint32_t>(), 0U),
-            PropertyMetadataFlags::None, &ValidateUInt32)
-        .DependencyProperty(UIElement::IsFocusScopeProperty,
-            "IsFocusScope", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::None);
-    status = uiElement.Finish();
+            PropertyOptions(false).AffectsRender())
+        .Property(
+            UIElement::IsTabStopProperty,
+            PropertyOptions(false))
+        .Property(
+            UIElement::TabIndexProperty,
+            PropertyOptions(std::uint32_t{0}))
+        .Property(
+            UIElement::IsFocusScopeProperty,
+            PropertyOptions(false));
+    status = uiElement.Result();
     if (!status) return status.GetStatus();
 
-    MetaTypeBuilder<FrameworkElement> frameworkElement =
-        MetaTypeBuilder<FrameworkElement>::Object(
-            context, TypeFlags::Abstract);
-    const Length autoSource = Length::Auto();
-    Base::Result<Value> automatic = context.Values().TryCreateValue(
-        TypeOf<Length>(), &autoSource);
-    if (!automatic) return automatic.GetStatus();
-    const Thickness zero{};
-    Base::Result<Value> margin = context.Values().TryCreateValue(
-        TypeOf<Thickness>(), &zero);
-    if (!margin) return margin.GetStatus();
+    auto frameworkElement = Describe<FrameworkElement>(
+        context, TypeFlags::Abstract);
     frameworkElement
-        .DependencyProperty(FrameworkElement::DataContextProperty,
-            "DataContext", TypeOf<Base::Object>(),
-            Value::NullObject(TypeOf<Base::Object>()),
-            PropertyMetadataFlags::Inherits)
-        .DependencyProperty(FrameworkElement::WidthProperty, "Width",
-            TypeOf<Length>(), automatic.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
-        .DependencyProperty(FrameworkElement::HeightProperty, "Height",
-            TypeOf<Length>(), automatic.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateLength)
-        .DependencyProperty(FrameworkElement::MinWidthProperty, "MinWidth",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMinWidth)
-        .DependencyProperty(FrameworkElement::MaxWidthProperty, "MaxWidth",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), DefaultMaximum),
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMaxWidth)
-        .DependencyProperty(FrameworkElement::MinHeightProperty, "MinHeight",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), 0.0),
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMinHeight)
-        .DependencyProperty(FrameworkElement::MaxHeightProperty, "MaxHeight",
-            TypeOf<double>(),
-            Value::FromDouble(TypeOf<double>(), DefaultMaximum),
-            PropertyMetadataFlags::AffectsMeasure,
-            &ValidateNonnegativeDouble, &CoerceMaxHeight)
-        .DependencyProperty(FrameworkElement::MarginProperty, "Margin",
-            TypeOf<Thickness>(), margin.Value(),
-            PropertyMetadataFlags::AffectsMeasure, &ValidateThicknessValue)
-        .DependencyProperty(FrameworkElement::HorizontalAlignmentProperty,
-            "HorizontalAlignment", TypeOf<HorizontalAlignment>(),
-            Value::FromUnsignedInteger(
-                TypeOf<HorizontalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange, &ValidateHorizontalValue)
-        .DependencyProperty(FrameworkElement::VerticalAlignmentProperty,
-            "VerticalAlignment", TypeOf<VerticalAlignment>(),
-            Value::FromUnsignedInteger(
-                TypeOf<VerticalAlignment>(), 0U),
-            PropertyMetadataFlags::AffectsArrange, &ValidateVerticalValue)
-        .DependencyProperty(FrameworkElement::UseLayoutRoundingProperty,
-            "UseLayoutRounding", TypeOf<bool>(),
-            Value::FromBoolean(TypeOf<bool>(), false),
-            PropertyMetadataFlags::AffectsMeasure);
-    status = frameworkElement.Finish();
+        .Property<
+            Base::Ref<ResourceDictionary>,
+            &FrameworkElement::SetResources>(
+                "Resources",
+                PropertyFlags::Structural)
+        .Property(
+            FrameworkElement::DataContextProperty,
+            PropertyOptions(Base::Ref<Base::Object>{})
+                .Inherits())
+        .Property(
+            FrameworkElement::StyleProperty,
+            PropertyOptions(Base::Ref<Style>{}))
+        .Property(
+            FrameworkElement::WidthProperty,
+            PropertyOptions(Length::Auto())
+                .AffectsMeasure()
+                .Validate(&ValidateLength))
+        .Property(
+            FrameworkElement::HeightProperty,
+            PropertyOptions(Length::Auto())
+                .AffectsMeasure()
+                .Validate(&ValidateLength))
+        .Property(
+            FrameworkElement::MinWidthProperty,
+            PropertyOptions(0.0)
+                .AffectsMeasure()
+                .Validate(&Validate::NonNegative<double>)
+                .Coerce(&CoerceMinWidth))
+        .Property(
+            FrameworkElement::MaxWidthProperty,
+            PropertyOptions(DefaultMaximum)
+                .AffectsMeasure()
+                .Validate(&Validate::NonNegative<double>)
+                .Coerce(&CoerceMaxWidth))
+        .Property(
+            FrameworkElement::MinHeightProperty,
+            PropertyOptions(0.0)
+                .AffectsMeasure()
+                .Validate(&Validate::NonNegative<double>)
+                .Coerce(&CoerceMinHeight))
+        .Property(
+            FrameworkElement::MaxHeightProperty,
+            PropertyOptions(DefaultMaximum)
+                .AffectsMeasure()
+                .Validate(&Validate::NonNegative<double>)
+                .Coerce(&CoerceMaxHeight))
+        .Property(
+            FrameworkElement::MarginProperty,
+            PropertyOptions(Thickness{})
+                .AffectsMeasure()
+                .Validate(&ValidateThicknessValue))
+        .Property(
+            FrameworkElement::HorizontalAlignmentProperty,
+            PropertyOptions(HorizontalAlignment::Stretch)
+                .AffectsArrange())
+        .Property(
+            FrameworkElement::VerticalAlignmentProperty,
+            PropertyOptions(VerticalAlignment::Stretch)
+                .AffectsArrange())
+        .Property(
+            FrameworkElement::UseLayoutRoundingProperty,
+            PropertyOptions(false).AffectsMeasure());
+    status = frameworkElement.Result();
     return status;
 }
 

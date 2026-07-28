@@ -1,14 +1,24 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 
+#include <new>
+#include <type_traits>
+#include <utility>
+
 namespace Aero::Core {
 
+namespace Detail {
 class MetadataFacetStore;
+class MetadataAuthoringSession;
+}
 class MetadataRegistrationTypes;
+template<class T>
+class TypeDescription;
 
 // Mutable registration storage for executable type/member behavior.
 //
@@ -19,6 +29,7 @@ class AERO_API MetadataBehaviorRegistrationStore final {
 public:
     explicit MetadataBehaviorRegistrationStore(TypeRegistry& types) noexcept
         : types_(&types) {}
+    ~MetadataBehaviorRegistrationStore() noexcept;
 
     MetadataBehaviorRegistrationStore(
         const MetadataBehaviorRegistrationStore&) = delete;
@@ -35,14 +46,52 @@ public:
     const TypeRegistry& Types() const noexcept { return *types_; }
 
 private:
-    friend class MetadataFacetStore;
+    friend class Detail::MetadataFacetStore;
+    friend class Detail::MetadataAuthoringSession;
     friend class MetadataRegistrationTypes;
     friend class TypeRegistry;
+
+    struct OwnedBehaviorContext final {
+        Base::IAllocator* allocator = nullptr;
+        void* value = nullptr;
+        void (*destroy)(OwnedBehaviorContext&) noexcept = nullptr;
+        void (*destroyValue)(void*) noexcept = nullptr;
+        std::size_t size = 0U;
+        std::size_t alignment = 0U;
+    };
+
+    template<class TContext>
+    Base::Result<std::decay_t<TContext>*> TryOwnContext(
+        TContext&& value) noexcept {
+        using Stored = std::decay_t<TContext>;
+        Stored temporary(
+            std::forward<TContext>(value));
+        Base::Result<void*> stored = TryOwnContextRaw(
+            sizeof(Stored),
+            alignof(Stored),
+            &temporary,
+            [](void* destination, void* source) noexcept {
+                new (destination) Stored(std::move(
+                    *static_cast<Stored*>(source)));
+            },
+            [](void* storedValue) noexcept {
+                static_cast<Stored*>(storedValue)->~Stored();
+            });
+        if (!stored) return stored.GetStatus();
+        return static_cast<Stored*>(stored.Value());
+    }
+    Base::Result<void*> TryOwnContextRaw(
+        std::size_t size,
+        std::size_t alignment,
+        void* source,
+        void (*construct)(void*, void*) noexcept,
+        void (*destroyValue)(void*) noexcept) noexcept;
+    void ReleaseLastContext(void* value) noexcept;
 
     const TypeFactoryRegistration* FindTypeFactory(
         TypeId type) const noexcept;
     const ContentAccessorRegistration* FindContentAccessor(
-        TypeId type) const noexcept;
+        MemberId member) const noexcept;
     const PropertyAccessorRegistration* FindPropertyAccessor(
         MemberId member) const noexcept;
     const ValueMemberAccessorRegistration* FindValueMemberAccessor(
@@ -64,6 +113,7 @@ private:
         propertyChangeNotifications_;
     Base::Vector<CollectionChangeNotificationRegistration>
         collectionChangeNotifications_;
+    Base::Vector<OwnedBehaviorContext> ownedContexts_;
     bool frozen_ = false;
 };
 
@@ -117,6 +167,20 @@ public:
     }
 
 private:
+    template<class>
+    friend class TypeDescription;
+    friend class Detail::MetadataAuthoringSession;
+
+    template<class TContext>
+    Base::Result<std::decay_t<TContext>*> TryOwnBehaviorContext(
+        TContext&& value) const noexcept {
+        return behaviors_->TryOwnContext(
+            std::forward<TContext>(value));
+    }
+    void ReleaseLastBehaviorContext(void* value) const noexcept {
+        behaviors_->ReleaseLastContext(value);
+    }
+
     Base::Result<void> ValidateRegistrationPair() const noexcept;
 
     TypeRegistry* types_ = nullptr;

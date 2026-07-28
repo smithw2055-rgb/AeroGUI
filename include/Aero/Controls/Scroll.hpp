@@ -46,7 +46,7 @@ public:
 class ScrollInteractionManager;
 
 struct ScrollChangedEventArgs final : RoutedEventArgs {
-    AERO_TYPED_META(ScrollChangedEventArgs, RoutedEventArgs)
+    AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
     ScrollChangedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
     ScrollData oldData;
@@ -61,7 +61,7 @@ using ScrollChangedEventHandler =
 class AERO_API ScrollContentPresenter
     : public Decorator,
       public IScrollInfo {
-    AERO_TYPED_META(ScrollContentPresenter, Decorator)
+    AERO_DECLARE_TYPE(ScrollContentPresenter, Decorator)
 public:
     ScrollContentPresenter() noexcept;
     ~ScrollContentPresenter() override = default;
@@ -143,17 +143,17 @@ private:
 
 class AERO_API ScrollViewer final
     : public ScrollContentPresenter {
-    AERO_TYPED_META(ScrollViewer, ScrollContentPresenter)
+    AERO_DECLARE_TYPE(ScrollViewer, ScrollContentPresenter)
 public:
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
-    inline static constexpr RoutedEventHandle
-        ScrollChangedEvent = MakeRoutedEventHandle(
-            StaticTypeIdValue_, "ScrollChanged");
+    inline static constexpr Members::RoutedEvent<
+        ScrollChangedEventArgs>
+        ScrollChangedEvent{"ScrollChanged"};
     UIElement::RoutedEvent_<ScrollChangedEventHandler>
         ScrollChanged() noexcept {
-        return {*this, ScrollChangedEvent};
+        return Event(ScrollChangedEvent);
     }
 
     double HorizontalOffset() const noexcept;
@@ -170,42 +170,24 @@ public:
     Base::Result<void> SetCanContentScroll(
         bool value) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        HorizontalOffsetProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "HorizontalOffset");
-    inline static constexpr DependencyPropertyHandle
-        VerticalOffsetProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "VerticalOffset");
-    inline static constexpr DependencyPropertyHandle
-        ExtentWidthProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "ExtentWidth");
-    inline static constexpr DependencyPropertyHandle
-        ExtentHeightProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "ExtentHeight");
-    inline static constexpr DependencyPropertyHandle
-        ViewportWidthProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "ViewportWidth");
-    inline static constexpr DependencyPropertyHandle
-        ViewportHeightProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "ViewportHeight");
-    inline static constexpr DependencyPropertyHandle
-        CanHorizontallyScrollProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "CanHorizontallyScroll");
-    inline static constexpr DependencyPropertyHandle
-        CanVerticallyScrollProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "CanVerticallyScroll");
-    inline static constexpr DependencyPropertyHandle
-        CanContentScrollProperty =
-            MakeDependencyPropertyHandle(
-                StaticTypeIdValue_, "CanContentScroll");
+    inline static constexpr Members::ReadOnlyProperty<double>
+        HorizontalOffsetProperty{"HorizontalOffset"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        VerticalOffsetProperty{"VerticalOffset"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ExtentWidthProperty{"ExtentWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ExtentHeightProperty{"ExtentHeight"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ViewportWidthProperty{"ViewportWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ViewportHeightProperty{"ViewportHeight"};
+    inline static constexpr Members::Property<bool>
+        CanHorizontallyScrollProperty{"CanHorizontallyScroll"};
+    inline static constexpr Members::Property<bool>
+        CanVerticallyScrollProperty{"CanVerticallyScroll"};
+    inline static constexpr Members::Property<bool>
+        CanContentScrollProperty{"CanContentScroll"};
 
 protected:
     void OnScrollDataChanged(
@@ -228,7 +210,7 @@ struct ThumbDragDelta final {
 };
 
 class AERO_API Thumb final : public Control {
-    AERO_TYPED_META(Thumb, Control)
+    AERO_DECLARE_TYPE(Thumb, Control)
 public:
     Thumb() noexcept : Control(StaticTypeId()) {}
     ~Thumb() override = default;
@@ -252,7 +234,7 @@ private:
 };
 
 class AERO_API Track final : public Control {
-    AERO_TYPED_META(Track, Control)
+    AERO_DECLARE_TYPE(Track, Control)
 public:
     Track() noexcept : Control(StaticTypeId()) {}
     ~Track() override = default;
@@ -282,25 +264,20 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        OrientationProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Orientation");
-    inline static constexpr DependencyPropertyHandle
-        MinimumProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Minimum");
-    inline static constexpr DependencyPropertyHandle
-        MaximumProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Maximum");
-    inline static constexpr DependencyPropertyHandle
-        ValueProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Value");
-    inline static constexpr DependencyPropertyHandle
-        ViewportSizeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ViewportSize");
+    inline static constexpr Members::Property<Orientation>
+        OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<double>
+        MinimumProperty{"Minimum"};
+    inline static constexpr Members::Property<double>
+        MaximumProperty{"Maximum"};
+    inline static constexpr Members::Property<double>
+        ValueProperty{"Value"};
+    inline static constexpr Members::Property<double>
+        ViewportSizeProperty{"ViewportSize"};
 };
 
 class AERO_API ScrollBar final : public Control {
-    AERO_TYPED_META(ScrollBar, Control)
+    AERO_DECLARE_TYPE(ScrollBar, Control)
 public:
     ScrollBar() noexcept : Control(StaticTypeId()) {}
     ~ScrollBar() override = default;
@@ -334,27 +311,20 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) noexcept;
 
-    inline static constexpr DependencyPropertyHandle
-        OrientationProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Orientation");
-    inline static constexpr DependencyPropertyHandle
-        MinimumProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Minimum");
-    inline static constexpr DependencyPropertyHandle
-        MaximumProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Maximum");
-    inline static constexpr DependencyPropertyHandle
-        ValueProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Value");
-    inline static constexpr DependencyPropertyHandle
-        ViewportSizeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "ViewportSize");
-    inline static constexpr DependencyPropertyHandle
-        SmallChangeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SmallChange");
-    inline static constexpr DependencyPropertyHandle
-        LargeChangeProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "LargeChange");
+    inline static constexpr Members::Property<Orientation>
+        OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<double>
+        MinimumProperty{"Minimum"};
+    inline static constexpr Members::Property<double>
+        MaximumProperty{"Maximum"};
+    inline static constexpr Members::Property<double>
+        ValueProperty{"Value"};
+    inline static constexpr Members::Property<double>
+        ViewportSizeProperty{"ViewportSize"};
+    inline static constexpr Members::Property<double>
+        SmallChangeProperty{"SmallChange"};
+    inline static constexpr Members::Property<double>
+        LargeChangeProperty{"LargeChange"};
 };
 
 class AERO_API ScrollInteractionManager final {

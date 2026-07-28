@@ -1,5 +1,7 @@
 #include <Aero/Presentation/VisualTreeMount.hpp>
 
+#include "RenderingInternal.hpp"
+
 namespace Aero::Presentation {
 
 VisualTreeMount::VisualTreeMount(

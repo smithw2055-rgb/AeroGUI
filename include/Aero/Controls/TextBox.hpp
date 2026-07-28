@@ -1,12 +1,16 @@
 #pragma once
 
 #include <Aero/Controls/Scroll.hpp>
-#include <Aero/Controls/TextBlockLayoutService.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Text/EditableText.hpp>
 
 namespace Aero::Controls {
+
+namespace Detail {
+class TextLayoutService;
+class TextServicesAccess;
+}
 
 class AERO_API ITextDisplayPolicy {
 public:
@@ -64,7 +68,7 @@ class AERO_API TextBox final
     : public FrameworkElement,
       public IScrollInfo,
       public Platform::ITextCompositionClient {
-    AERO_TYPED_META(TextBox, FrameworkElement)
+    AERO_DECLARE_TYPE(TextBox, FrameworkElement)
 public:
     TextBox() noexcept;
     ~TextBox() override;
@@ -100,11 +104,6 @@ public:
     Base::Result<void> Undo() noexcept;
     Base::Result<void> Redo() noexcept;
 
-    Base::Result<void> SetLayoutService(
-        ITextBlockLayoutService* service) noexcept;
-    ITextBlockLayoutService* LayoutService() const noexcept {
-        return layoutService_;
-    }
     Base::Result<void> SetDisplayPolicy(
         ITextDisplayPolicy* policy) noexcept;
     ITextDisplayPolicy* DisplayPolicy() const noexcept {
@@ -156,27 +155,23 @@ public:
     Base::Result<bool> PageVertical(
         double direction) noexcept override;
 
-    inline static constexpr DependencyPropertyHandle
-        TextProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Text");
-    inline static constexpr DependencyPropertyHandle
-        IsReadOnlyProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "IsReadOnly");
-    inline static constexpr DependencyPropertyHandle
-        MaximumLengthProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "MaximumLength");
-    inline static constexpr DependencyPropertyHandle
-        AcceptsReturnProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "AcceptsReturn");
-    inline static constexpr DependencyPropertyHandle
-        ForegroundProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "Foreground");
-    inline static constexpr DependencyPropertyHandle
-        SelectionBrushProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "SelectionBrush");
-    inline static constexpr DependencyPropertyHandle
-        CaretBrushProperty = MakeDependencyPropertyHandle(
-            StaticTypeIdValue_, "CaretBrush");
+    inline static constexpr Members::Property<Base::String>
+        TextProperty{"Text"};
+    inline static constexpr Members::Property<bool>
+        IsReadOnlyProperty{"IsReadOnly"};
+    inline static constexpr Members::Property<std::uint32_t>
+        MaximumLengthProperty{"MaximumLength"};
+    inline static constexpr Members::Property<bool>
+        AcceptsReturnProperty{"AcceptsReturn"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        ForegroundProperty{"Foreground"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        SelectionBrushProperty{"SelectionBrush"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        CaretBrushProperty{"CaretBrush"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -188,6 +183,7 @@ protected:
 
 private:
     friend class TextBoxInteractionManager;
+    friend class Detail::TextServicesAccess;
 
     struct CaretStop final {
         double x = 0.0;
@@ -198,7 +194,7 @@ private:
 
     Text::EditableTextModel model_;
     Text::EditableTextModel compositionModel_;
-    ITextBlockLayoutService* layoutService_ = nullptr;
+    Detail::TextLayoutService* layoutService_ = nullptr;
     ITextDisplayPolicy* displayPolicy_ = nullptr;
     PlainTextDisplayPolicy plainPolicy_;
     Base::String displayText_;

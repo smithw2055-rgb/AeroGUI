@@ -2,10 +2,8 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
-#include <Aero/Markup/XamlObjectWriter.hpp>
+#include <Aero/Integration/RenderEndpoint.hpp>
 #include <Aero/Platform/Window.hpp>
-#include <Aero/Presentation/Rendering.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -26,6 +24,7 @@ struct GallerySnapshot final {
     std::uint64_t planHash = 0U;
     std::uint32_t nodeCount = 0U;
     std::uint32_t commandCount = 0U;
+    std::uint32_t textCommandCount = 0U;
     std::uint32_t namedObjectCount = 0U;
     std::uint32_t itemCount = 0U;
     std::uint32_t realizedItemCount = 0U;
@@ -46,12 +45,15 @@ public:
         Base::StringView assetDirectory,
         GalleryLoadMode loadMode,
         GalleryTheme theme) noexcept;
+    Base::Result<void> UseRenderEndpoint(
+        Base::Ref<Integration::RenderEndpoint>
+            endpoint) noexcept;
+    Base::Result<void> ReleaseRenderEndpoint() noexcept;
     Base::Result<bool> HandleWindowEvent(
         const Platform::WindowEvent& event) noexcept;
     void Shutdown() noexcept;
 
     const GallerySnapshot& Snapshot() const noexcept;
-    const Presentation::RenderPlan& Plan() const noexcept;
 
 private:
     struct Impl;

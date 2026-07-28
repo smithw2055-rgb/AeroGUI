@@ -1,10 +1,11 @@
 #include <Aero/Controls/TextBox.hpp>
 
+#include "TextLayoutService.hpp"
+
 #include <Aero/Core/ObjectServices.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -15,21 +16,6 @@ constexpr double DefaultAdvance = 8.0;
 constexpr double DefaultLineHeight = 18.0;
 constexpr double CaretWidth = 1.0;
 constexpr double ScrollLine = 16.0;
-
-Core::TypeId ValueTypeId(const char* name) noexcept {
-    return Core::MakeTypeId(Base::StringView(
-        name,
-        static_cast<std::uint32_t>(
-            std::strlen(name))));
-}
-
-bool IsValidColor(Color value) noexcept {
-    return IsFinite(value) &&
-        value.red >= 0.0F && value.red <= 1.0F &&
-        value.green >= 0.0F && value.green <= 1.0F &&
-        value.blue >= 0.0F && value.blue <= 1.0F &&
-        value.alpha >= 0.0F && value.alpha <= 1.0F;
-}
 
 double ClampOffset(
     double value,
@@ -157,8 +143,7 @@ PasswordTextDisplayPolicy::BuildDisplayText(
 
 TextBox::TextBox() noexcept
     : FrameworkElement(StaticTypeId()),
-      layoutService_(
-          GetCurrentTextBlockLayoutService()),
+      layoutService_(nullptr),
       displayPolicy_(&plainPolicy_) {}
 
 TextBox::~TextBox() {
@@ -193,11 +178,7 @@ std::uint32_t TextBox::Caret() const noexcept {
 }
 
 Base::StringView TextBox::Text() const noexcept {
-    Base::Result<Value> value =
-        GetValue(TextProperty);
-    return value
-        ? value.Value().AsString()
-        : Base::StringView();
+    return GetValueOr(TextProperty, Base::StringView());
 }
 
 Base::Result<void> TextBox::SetText(
@@ -212,15 +193,9 @@ Base::Result<void> TextBox::SetText(
     if (!checked) {
         return checked;
     }
-    Base::Result<Value> stored =
-        Value::TryFromString(
-            ValueTypeId("String"), value);
-    if (!stored) {
-        return stored.GetStatus();
-    }
     updatingTextProperty_ = true;
     Base::Result<void> changed =
-        SetValue(TextProperty, stored.Value());
+        SetValue(TextProperty, value);
     updatingTextProperty_ = false;
     if (!changed) {
         return changed;
@@ -229,9 +204,7 @@ Base::Result<void> TextBox::SetText(
 }
 
 bool TextBox::IsReadOnly() const noexcept {
-    Base::Result<Value> value =
-        GetValue(IsReadOnlyProperty);
-    return value && value.Value().AsBoolean();
+    return GetValueOr(IsReadOnlyProperty, false);
 }
 
 Base::Result<void> TextBox::SetReadOnly(
@@ -243,10 +216,8 @@ Base::Result<void> TextBox::SetReadOnly(
             return cancelled;
         }
     }
-    Base::Result<void> changed = SetValue(
-        IsReadOnlyProperty,
-        Value::FromBoolean(
-            ValueTypeId("Boolean"), value));
+    Base::Result<void> changed =
+        SetValue(IsReadOnlyProperty, value);
     if (!changed) {
         return changed;
     }
@@ -254,12 +225,7 @@ Base::Result<void> TextBox::SetReadOnly(
 }
 
 std::uint32_t TextBox::MaximumLength() const noexcept {
-    Base::Result<Value> value =
-        GetValue(MaximumLengthProperty);
-    return value
-        ? static_cast<std::uint32_t>(
-            value.Value().AsUnsignedInteger())
-        : UINT32_MAX;
+    return GetValueOr(MaximumLengthProperty, UINT32_MAX);
 }
 
 Base::Result<void> TextBox::SetMaximumLength(
@@ -276,100 +242,49 @@ Base::Result<void> TextBox::SetMaximumLength(
     if (!limited) {
         return limited;
     }
-    return SetValue(
-        MaximumLengthProperty,
-        Value::FromUnsignedInteger(
-            ValueTypeId("UInt32"),
-            value));
+    return SetValue(MaximumLengthProperty, value);
 }
 
 bool TextBox::AcceptsReturn() const noexcept {
-    Base::Result<Value> value =
-        GetValue(AcceptsReturnProperty);
-    return value && value.Value().AsBoolean();
+    return GetValueOr(AcceptsReturnProperty, false);
 }
 
 Base::Result<void> TextBox::SetAcceptsReturn(
     bool value) noexcept {
-    return SetValue(
-        AcceptsReturnProperty,
-        Value::FromBoolean(
-            ValueTypeId("Boolean"), value));
+    return SetValue(AcceptsReturnProperty, value);
 }
 
 Color TextBox::Foreground() const noexcept {
-    Base::Result<Value> value =
-        GetValue(ForegroundProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.0F, 0.0F, 0.0F, 1.0F};
+    return GetValueOr(
+        ForegroundProperty,
+        Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
 Color TextBox::SelectionBrush() const noexcept {
-    Base::Result<Value> value =
-        GetValue(SelectionBrushProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.18F, 0.48F, 0.95F, 0.45F};
+    return GetValueOr(
+        SelectionBrushProperty,
+        Color{0.18F, 0.48F, 0.95F, 0.45F});
 }
 
 Color TextBox::CaretBrush() const noexcept {
-    Base::Result<Value> value =
-        GetValue(CaretBrushProperty);
-    return value
-        ? *static_cast<const Color*>(
-            value.Value().AsCustom())
-        : Color{0.0F, 0.0F, 0.0F, 1.0F};
+    return GetValueOr(
+        CaretBrushProperty,
+        Color{0.0F, 0.0F, 0.0F, 1.0F});
 }
 
 Base::Result<void> TextBox::SetForeground(
     Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBox foreground color is invalid");
-    }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            ForegroundProperty, stored.Value())
-        : stored.GetStatus();
+    return SetValue(ForegroundProperty, value);
 }
 
 Base::Result<void> TextBox::SetSelectionBrush(
     Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBox selection brush is invalid");
-    }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            SelectionBrushProperty, stored.Value())
-        : stored.GetStatus();
+    return SetValue(SelectionBrushProperty, value);
 }
 
 Base::Result<void> TextBox::SetCaretBrush(
     Color value) noexcept {
-    if (!IsValidColor(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBox caret brush is invalid");
-    }
-    Base::Result<Value> stored =
-        Core::TryCreateRuntimeValue(
-            ValueTypeId("Color"), &value);
-    return stored
-        ? SetValue(
-            CaretBrushProperty, stored.Value())
-        : stored.GetStatus();
+    return SetValue(CaretBrushProperty, value);
 }
 
 Base::Result<void> TextBox::SetSelection(
@@ -444,25 +359,6 @@ Base::Result<void> TextBox::Redo() noexcept {
         return redone;
     }
     return CommitModelText();
-}
-
-Base::Result<void> TextBox::SetLayoutService(
-    ITextBlockLayoutService* service) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return access;
-    }
-    if (service == layoutService_) {
-        return {};
-    }
-    ReleaseGlyphRuns();
-    layoutService_ = service;
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
-    return InvalidateRender();
 }
 
 Base::Result<void> TextBox::SetDisplayPolicy(
@@ -779,17 +675,9 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
     if (!copied) {
         return copied;
     }
-    Base::Result<Value> stored =
-        Value::TryFromString(
-            ValueTypeId("String"),
-            snapshot.View());
-    if (!stored) {
-        return stored.GetStatus();
-    }
     updatingTextProperty_ = true;
     Base::Result<void> committed =
-        SetCurrentValue(
-            TextProperty, stored.Value());
+        SetCurrentValue(TextProperty, snapshot);
     updatingTextProperty_ = false;
     if (!committed) {
         return committed;
@@ -1225,11 +1113,11 @@ Base::Result<Size> TextBox::MeasureOverride(
     textSize_ = {};
     if (layoutService_ != nullptr &&
         !displayText_.Empty()) {
-        TextBlockLayoutRequest request;
+        Detail::TextLayoutRequest request;
         request.text = displayText_.View();
         request.availableSize = availableSize;
         request.dpiScale = DpiScale();
-        TextBlockLayoutResult result;
+        Detail::TextLayoutResult result;
         Base::Result<void> prepared =
             layoutService_->ShapeAndPrepare(
                 request, result);

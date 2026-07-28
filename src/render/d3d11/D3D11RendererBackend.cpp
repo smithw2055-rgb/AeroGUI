@@ -1,4 +1,4 @@
-#include <Aero/Render/D3D11RendererBackend.hpp>
+#include "D3D11RendererBackend.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -9,6 +9,9 @@
 #include <windows.h>
 
 #include <new>
+
+#include "../TextBackendAccess.hpp"
+#include "../TextRuntimeBackend.hpp"
 
 #include "AeroD3D11RenderPlanPixelShader.hpp"
 #include "AeroD3D11RenderPlanVertexShader.hpp"
@@ -104,13 +107,17 @@ RendererShaderSet MakeD3D11RendererShaderSet() noexcept {
 struct D3D11RenderPlanBackend::Impl final {
     Impl(
         Rhi::RhiDevice& device,
+        std::uint64_t generation,
         Base::IAllocator* allocator) noexcept
         : renderer(
               device,
               MakeD3D11RendererShaderSet(),
-              allocator) {}
+              allocator),
+          textRuntime(
+              device, renderer, generation, *allocator) {}
 
     Renderer renderer;
+    Detail::TextRuntimeBackend textRuntime;
     Rhi::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -145,7 +152,10 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
             return OutOfMemory(
                 "Failed to allocate D3D11 render adapter state");
         }
-        impl_ = new (memory) Impl(*device_, allocator_);
+        ++textGeneration_;
+        if (textGeneration_ == 0U) ++textGeneration_;
+        impl_ = new (memory) Impl(
+            *device_, textGeneration_, allocator_);
     }
     Base::Result<void> initialized = impl_->renderer.Initialize();
     if (!initialized) {
@@ -160,6 +170,7 @@ void D3D11RenderPlanBackend::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
+    impl_->textRuntime.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -233,6 +244,15 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
         ? impl_->renderer.UnregisterGlyphRun(glyphRun)
         : Base::Result<void>(NotInitialized(
             "D3D11 render adapter is not initialized"));
+}
+
+void* D3D11RenderPlanBackend::QueryInternalService(
+    std::uint64_t service) noexcept {
+    if (!IsInitialized() ||
+        service != Detail::TextBackendServiceId) {
+        return nullptr;
+    }
+    return &impl_->textRuntime.Services();
 }
 
 Base::Result<void> D3D11RenderPlanBackend::Submit(

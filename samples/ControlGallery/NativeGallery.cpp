@@ -1,8 +1,6 @@
 #include "GalleryRuntime.hpp"
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Rhi/Graphics.hpp>
-#include <Aero/Rhi/Surface.hpp>
 
 namespace Aero::Samples::ControlGallery {
 namespace {
@@ -14,13 +12,13 @@ Base::Status UnsupportedBackend(
         message);
 }
 
-Base::Result<void> ValidatePlan(
-    const Presentation::RenderPlan& plan) noexcept {
-    if (plan.Nodes().Empty() ||
-        plan.Commands().Empty()) {
+Base::Result<void> ValidateSnapshot(
+    const GallerySnapshot& snapshot) noexcept {
+    if (snapshot.nodeCount == 0U ||
+        snapshot.commandCount == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "ControlGallery render plan is empty");
+            "ControlGallery render snapshot is empty");
     }
     return {};
 }
@@ -33,7 +31,7 @@ Base::Result<void> RunNativeGallery(
     bool simulateContextLoss,
     bool interactive) noexcept {
     Base::Result<void> valid =
-        ValidatePlan(runtime.Plan());
+        ValidateSnapshot(runtime.Snapshot());
     if (!valid) {
         return valid.GetStatus();
     }
