@@ -9,11 +9,6 @@ Detail::MetadataContextState& State(void* value) noexcept {
     return *static_cast<Detail::MetadataContextState*>(value);
 }
 
-const Detail::MetadataContextState& State(
-    const void* value) noexcept {
-    return *static_cast<const Detail::MetadataContextState*>(value);
-}
-
 } // namespace
 
 MetadataRegistrationTypes MetadataContext::Types() noexcept {

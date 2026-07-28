@@ -160,7 +160,7 @@ Aero::Text
 
 `Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
-本地 source 模式通过 `AERO_THIRD_PARTY_ROOT` 指向同时包含 `freetype/` 与 `harfbuzz/` 的目录。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewHostOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
+仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewHostOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use

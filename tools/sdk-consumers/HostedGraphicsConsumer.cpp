@@ -24,6 +24,7 @@ Aero::Integration::HostedGraphicsResult Submit(
     return Aero::Integration::HostedGraphicsResult::Success;
 }
 
+[[maybe_unused]]
 Aero::Base::Result<
     Aero::Base::Ref<Aero::Integration::RenderEndpoint>>
 CreateHostedEndpoint() noexcept {

@@ -4,6 +4,7 @@
 
 namespace {
 
+[[maybe_unused]]
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>
 CreateIntegratedView(
     Aero::RuntimeEnvironment& environment,

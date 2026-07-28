@@ -2,6 +2,7 @@
 
 namespace {
 
+[[maybe_unused]]
 Aero::Base::Result<
     Aero::Base::Ref<Aero::Integration::RenderEndpoint>>
 CreateOpenGL33Endpoint(

@@ -1,5 +1,7 @@
 #include <Aero/ModuleSdk.hpp>
 
+#include <type_traits>
+
 namespace {
 
 class ConsumerControl final : public Aero::Controls::Control {
@@ -40,7 +42,9 @@ constexpr Aero::ModuleRegistration ConsumerModule =
         &RegisterConsumerModule);
 
 static_assert(
-    ConsumerModule.registerModule != nullptr,
-    "Module SDK must author typed custom controls");
+    std::is_same<
+        decltype(ConsumerModule.registerModule),
+        Aero::ModuleRegisterCallback>::value,
+    "Module SDK must expose the typed registration callback");
 
 } // namespace

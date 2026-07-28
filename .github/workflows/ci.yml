@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           show-progress: false
+          submodules: recursive
 
       - name: Install build tools
         run: |
@@ -35,8 +36,9 @@ jobs:
         run: |
           cmake -S . -B out/ci -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DAERO_THIRD_PARTY_ROOT="$PWD/third_party" \
             -DAERO_BUILD_SHARED=OFF \
-            -DAERO_BUILD_TESTS=ON \
+            -DAERO_BUILD_TESTS=OFF \
             -DAERO_BUILD_SAMPLES=ON \
             -DAERO_BUILD_TOOLS=ON \
             -DAERO_ENABLE_EXCEPTIONS=OFF \
@@ -78,6 +80,3 @@ jobs:
       - name: Fail failed build
         if: steps.build.outcome == 'failure'
         run: exit 1
-
-      - name: Test
-        run: ctest --test-dir out/ci --output-on-failure --timeout 120

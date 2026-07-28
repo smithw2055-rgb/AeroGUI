@@ -2,7 +2,8 @@
 
 namespace {
 
-void ConsumeProductSdk(Aero::RuntimeEnvironment& environment) {
+[[maybe_unused]] void ConsumeProductSdk(
+    Aero::RuntimeEnvironment& environment) {
     Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
         environment.CreateView();
     if (view) {

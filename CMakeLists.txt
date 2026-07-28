@@ -180,12 +180,33 @@ endif()
 
 if(AERO_WITH_FREETYPE)
     if(AERO_THIRD_PARTY_ROOT STREQUAL "")
-        get_filename_component(_aero_sibling_third_party
-            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
-            ABSOLUTE)
-        if(EXISTS "${_aero_sibling_third_party}/freetype/freetype.c")
-            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
+        set(_aero_repository_third_party
+            "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+        if(EXISTS
+                "${_aero_repository_third_party}/freetype/include/ft2build.h"
+           AND EXISTS
+                "${_aero_repository_third_party}/harfbuzz/CMakeLists.txt")
+            set(AERO_THIRD_PARTY_ROOT
+                "${_aero_repository_third_party}")
+        else()
+            get_filename_component(_aero_sibling_third_party
+                "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
+                ABSOLUTE)
+            if(EXISTS
+                    "${_aero_sibling_third_party}/freetype/include/ft2build.h"
+               AND EXISTS
+                    "${_aero_sibling_third_party}/harfbuzz/CMakeLists.txt")
+                set(AERO_THIRD_PARTY_ROOT
+                    "${_aero_sibling_third_party}")
+            endif()
         endif()
+    endif()
+    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
+        message(FATAL_ERROR
+            "AeroRuntime requires FreeType and HarfBuzz sources. "
+            "Set AERO_THIRD_PARTY_ROOT to a directory containing "
+            "freetype/ and harfbuzz/, or initialize the repository "
+            "submodules.")
     endif()
     if(AERO_TEXT_TEST_FONT STREQUAL "" AND
        EXISTS "${AERO_THIRD_PARTY_ROOT}/harfbuzz/perf/fonts/Roboto-Regular.ttf")
@@ -194,12 +215,16 @@ if(AERO_WITH_FREETYPE)
     endif()
 
     set(_aero_freetype_source
-        "${AERO_THIRD_PARTY_ROOT}/freetype/freetype.c")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype/FreeTypeSingleObject.c")
+    set(_aero_freetype_root
+        "${AERO_THIRD_PARTY_ROOT}/freetype")
     set(_aero_freetype_include
-        "${AERO_THIRD_PARTY_ROOT}/freetype/include")
+        "${_aero_freetype_root}/include")
     foreach(_aero_required_path IN ITEMS
             "${_aero_freetype_source}"
-            "${_aero_freetype_include}/ft2build.h")
+            "${_aero_freetype_include}/ft2build.h"
+            "${_aero_freetype_root}/src/base/ftsystem.c"
+            "${_aero_freetype_root}/src/truetype/truetype.c")
         if(NOT EXISTS "${_aero_required_path}")
             message(FATAL_ERROR
                 "AERO_WITH_FREETYPE requires: "
@@ -209,7 +234,10 @@ if(AERO_WITH_FREETYPE)
 
     add_library(freetype STATIC "${_aero_freetype_source}")
     target_include_directories(freetype
-        PRIVATE "${_aero_freetype_include}"
+        PRIVATE
+            "${_aero_freetype_root}"
+            "${_aero_freetype_include}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/text/freetype"
         INTERFACE
             "$<BUILD_INTERFACE:${_aero_freetype_include}>")
     set_target_properties(freetype PROPERTIES
