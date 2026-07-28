@@ -3,12 +3,15 @@ name: Retry finalize test removal
 on:
   push:
     branches: [agent/finalize-test-removal]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   finalize:
+    if: github.event_name == 'push' || github.head_ref == 'agent/finalize-test-removal'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout target branch
