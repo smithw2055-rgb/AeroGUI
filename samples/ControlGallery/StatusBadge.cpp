@@ -64,9 +64,4 @@ MakeStatusBadgeModuleManifest() noexcept {
         &RegisterMetadata);
 }
 
-Base::Result<void> RegisterControlGalleryModules(
-    Aero::ModuleCatalog& modules) noexcept {
-    return modules.Add(MakeStatusBadgeModuleManifest());
-}
-
 } // namespace Aero::Samples::ControlGallery

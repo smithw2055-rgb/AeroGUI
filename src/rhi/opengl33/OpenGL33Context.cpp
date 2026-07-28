@@ -1,4 +1,4 @@
-#include <Aero/Rhi/OpenGL33.hpp>
+#include "rhi/OpenGL33.hpp"
 
 namespace Aero::Rhi {
 namespace {

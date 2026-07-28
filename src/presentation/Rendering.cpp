@@ -1,4 +1,4 @@
-#include <Aero/Presentation/Rendering.hpp>
+#include "RenderingInternal.hpp"
 
 #include "ResourceAssignment.hpp"
 
@@ -926,7 +926,11 @@ RenderDiagnostics RenderManager::Diagnostics() const noexcept {
 
 void RenderManager::RenderCommitHook(void* context) noexcept {
     auto* manager = static_cast<RenderManager*>(context);
-    (void)manager->Commit();
+    Base::Result<std::uint32_t> committed =
+        manager->Commit();
+    manager->lastCommitStatus_ = committed
+        ? Base::Status::Ok()
+        : committed.GetStatus();
 }
 
 Base::Result<void> FrameworkElement::SetResources(

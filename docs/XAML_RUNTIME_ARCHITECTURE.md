@@ -17,7 +17,7 @@ ResourceUri
   -> XamlLoadSession
   -> XamlObjectWriter
   -> Resource / Style / Template plans
-  -> RuntimeHost mount and presentation services
+  -> View mount and presentation services
 ```
 
 - URI XAML 由 provider 读取。
@@ -39,25 +39,22 @@ markup-extension 行为集中在一次冻结的 `XamlFacetStore` 中。每次加
 依赖清单和资源 `Source` 解析由 session 的 pre-commit finalizer 完成，因此不会
 出现“对象已经提交、资源依赖随后失败”的半成功状态。
 
-## SchemaBundle 与模块组合
+## 冻结 Metadata 与模块组合
 
-运行时与宿主工具不再分别拼装 Metadata 和 XAML 行为。`ModuleCatalog` 对每个
-模块执行两个明确阶段：
+模块只有一个 metadata-only 注册回调。`DefineModule()` 描述模块标识、依赖与
+`MetadataContext` 回调；typed property、routed event、Style、Template 和控件
+authoring 记录都通过窄注册桥接提交。不存在第二个 markup 回调，也不向第三方模块
+开放 `SchemaBuilder` 或 XAML facet 注册。
 
-1. `registerModule` 向 `MetadataDomain` 注册类型、成员和通用 Metadata Facet。
-2. Metadata seal 后，`registerXaml` 通过 `XamlRegistrationContext` 注册
-   XAML member、markup extension、生命周期、NameScope、ResourceScope、
-   deferred content、隐式资源键和 property-target 能力。
+`ModuleCatalog`、模块依赖排序和 `SchemaBundle` 都是 `src` 内部实现。Runtime、
+`aero-schema-gen` 与 `aero-xamlc` 通过私有 access 消费同一种冻结 metadata，
+默认 Product 与 Module 头不暴露 catalog、registration store 或 registry。
+冲突检查和提交由 `MetadataContext::Impl` 完成；任一模块注册失败时，本次候选
+metadata 整体丢弃，不污染已经冻结的状态。
 
-`SchemaBundle::Prepare()` 完成 Metadata 注册与 seal，`Finalize()` 创建并冻结
-`MetadataRuntime`、`XamlSchemaContext` 和 activation facets。Runtime、
-`aero-xamlc` 与后续设计工具都消费同一种冻结的 `SchemaBundle`，避免应用自定义
-控件在运行时可用、离线编译器却无法识别的双注册问题。
-
-类型能力按切面独立继承。派生类型只覆盖它实际注册的能力，例如只注册
-`XamlPropertyTargetFacet` 不会遮蔽基类的 `XamlResourceScopeFacet`。兼容的
-`XamlTypeFacet` 聚合入口仍然存在，但注册时会被分解成独立能力记录。Facet store
-在 Freeze 时建立 member/type 索引，并按 priority 确定 member-provider 顺序。
+内置 `XamlFacetStore` 仍服务于 object writer 和内建 markup extension，但它由
+Runtime 在 metadata 冻结后构造并保持私有，不复制进 Core Metadata，也不是模块
+扩展面。
 
 ## URI 与 provider
 
@@ -138,45 +135,45 @@ template 使用空 payload；两者都携带规范 base URI 和资源字典。
 
 `XamlPresentationObjectModel` 是 Style/Setter/Trigger/Template 的唯一公开
 schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对象编译为
-不可变 plan，不再作为 RuntimeHost 或 `aero-xamlc` 的独立产品调用层。Binding、
+不可变 plan，不再作为 View 或 `aero-xamlc` 的独立产品调用层。Binding、
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
 表达式由 writer 安装并纳入事务，已处理结果携带可选 rollback token。
 
-## RuntimeEnvironment、RuntimeView 与 UiDocument
+## RuntimeEnvironment、View 与 UiDocument
 
 产品运行时分为三个所有权层次：
 
 ```text
 RuntimeEnvironment
   -> ModuleCatalog + frozen SchemaBundle
-  -> creates RuntimeView
+  -> creates View
 
-RuntimeView
+View
   -> independent resources, bindings, input, layout and rendering state
-  -> wraps one RuntimeHost view instance
+  -> wraps one View view instance
 
 UiDocument
   -> root + NameScope + document resources
   -> canonical URI + dependency graph + declaration/mount plan
 ```
 
-多个 `RuntimeView` 可以共享同一个不可变 `SchemaBundle`，但不共享 View 级别的
+多个 `View` 可以共享同一个不可变 schema state，但不共享 View 级别的
 Binding、DynamicResource、输入、布局或渲染状态。Binding 和 DynamicResource
 所需的 manager、effective-value engine 与 fallback resources 由每次加载的
 `XamlExtensionContext` 提供，不再被固化进冻结 Schema。
 
 `UiDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
 和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有
-`RuntimeHost` 保留为单 View 兼容封装，并提供 `LoadUiDocument`、
-`ParseUiDocument`、`LoadCompiledUiDocument` 与 `Mount(UiDocument&&, ...)`。
-旧的 root-only API 继续兼容，但产品代码优先使用 Document API。
+`View` 是唯一的单 View 产品入口，并提供 `Load`、
+`Parse`、`LoadCompiled` 与 `SetContent(UiDocument&&, ...)`。
+旧的 root-only API 已移除，产品代码统一使用 Document API。
 
-## RuntimeHost
+## View
 
-`RuntimeHost` 拥有 provider registry、application/theme/system 资源层、Core
-activation facets、StyleManager、TemplateManager 和 DynamicResource 环境。
-Style/Template 的解析、应用和卸载策略由内部 `RuntimePresentationServices` 承担；
-`RuntimeHost` 只组合服务和管理 mount 生命周期。
+`View::Impl` 组合独立的 View runtime、provider/cache、资源环境、输入、布局、
+Style/Template、文本和渲染桥。manager、registry 与执行记录全部位于 `src`；
+`View` 公共面只暴露加载、挂载、资源/主题、尺寸、输入、时间、查询和
+`RunFrame()`。`View::Impl` 负责生命周期编排，不把所有子系统实现合并为一个巨型类。
 
 Generic/Light/Dark 都是普通 ResourceDictionary。Light/Dark 提供调色板资源，
 Generic 提供隐式 Style，ControlTemplate 由 Style 的 `Template` setter 提供。
@@ -228,10 +225,10 @@ compiled cache format 当前为 7。document 只保存加载链实际消费的 o
 runtime/compiled 使用相同 object writer。
 
 当 cache identity 或 metadata schema 不兼容且调用方提供了可加载的 origin
-URI 时，`XamlLoader::LoadCompiled` 回退到该源文档；没有源 URI 时返回明确的
+URI 时，内部 compiled loader 回退到该源文档；没有源 URI 时返回明确的
 `Unsupported` 或 `ValidationFailed`。
 
-`aero-xamlc` 与 RuntimeHost 注册相同的 Resource、DynamicResource、Style、
+`aero-xamlc` 与 View 注册相同的 Resource、DynamicResource、Style、
 Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 `<Color Value="..."/>`）在 compiled schema validation 与 object writer 中
 使用相同帧语义，不再需要主题专用 object model。
@@ -247,7 +244,7 @@ Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 
 `RuntimeEnvironment` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
 验证的 serialized AXIR、source revision 和 dependency URI，不保存实例对象或
-View service。多个 `RuntimeView` 可以复用同一缓存，同时继续拥有独立的
+View service。多个 `View` 可以复用同一缓存，同时继续拥有独立的
 Binding、资源环境、布局和渲染状态。
 
 Provider 可通过 `Revision()` 暴露低成本版本探测。缓存命中时 Loader 直接重放
@@ -256,8 +253,8 @@ load 仍走原 object-writer 语义，随后以不影响结果语义的附加步
 cache 失败不会改变文档加载结果。
 
 `XamlDependencyGraph` 同时维护正向和反向 URI edges。ResourceDictionary Source
-变化会传递失效上层文档。`XamlReloadCoordinator` 由宿主显式轮询或接收资产变更
-通知，构建新的 `UiDocument` 后调用 `RuntimeHost::ReplaceMountedDocument()`。
+变化会传递失效上层文档。`Integration::ReloadCoordinator` 由宿主显式轮询或接收资产变更
+通知，构建新的 `UiDocument` 后调用 `View::SetContent()`。
 
 Binding handle 与 DynamicResource expression 的 committed rollback records 现在
 随 document 所有权移动。文档替换后旧 effects 被逆序撤销；replacement 失败时

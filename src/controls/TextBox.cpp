@@ -1,5 +1,7 @@
 #include <Aero/Controls/TextBox.hpp>
 
+#include "TextLayoutService.hpp"
+
 #include <Aero/Core/ObjectServices.hpp>
 
 #include <algorithm>
@@ -141,8 +143,7 @@ PasswordTextDisplayPolicy::BuildDisplayText(
 
 TextBox::TextBox() noexcept
     : FrameworkElement(StaticTypeId()),
-      layoutService_(
-          GetCurrentTextBlockLayoutService()),
+      layoutService_(nullptr),
       displayPolicy_(&plainPolicy_) {}
 
 TextBox::~TextBox() {
@@ -358,25 +359,6 @@ Base::Result<void> TextBox::Redo() noexcept {
         return redone;
     }
     return CommitModelText();
-}
-
-Base::Result<void> TextBox::SetLayoutService(
-    ITextBlockLayoutService* service) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return access;
-    }
-    if (service == layoutService_) {
-        return {};
-    }
-    ReleaseGlyphRuns();
-    layoutService_ = service;
-    Base::Result<void> measure =
-        InvalidateMeasure();
-    if (!measure) {
-        return measure;
-    }
-    return InvalidateRender();
 }
 
 Base::Result<void> TextBox::SetDisplayPolicy(
@@ -1131,11 +1113,11 @@ Base::Result<Size> TextBox::MeasureOverride(
     textSize_ = {};
     if (layoutService_ != nullptr &&
         !displayText_.Empty()) {
-        TextBlockLayoutRequest request;
+        Detail::TextLayoutRequest request;
         request.text = displayText_.View();
         request.availableSize = availableSize;
         request.dpiScale = DpiScale();
-        TextBlockLayoutResult result;
+        Detail::TextLayoutResult result;
         Base::Result<void> prepared =
             layoutService_->ShapeAndPrepare(
                 request, result);

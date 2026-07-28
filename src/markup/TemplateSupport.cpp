@@ -161,7 +161,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                     ControlTemplate::StaticTypeId()) {
                 auto& program =
                     static_cast<ControlTemplate&>(
-                        object).Program();
+                        object).RuntimeData();
                 if (program.BaseUri().Empty()) {
                     baseUri = program.SetBaseUri(
                         *services.baseUri);
@@ -296,7 +296,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             program.Value();
 
         Base::Result<void> configured =
-            controlTemplate.ConfigureProgram(
+            controlTemplate.ConfigureFactory(
                 &Detail::BuildCompiledTemplate,
                 programContext,
                 std::move(programOwner));

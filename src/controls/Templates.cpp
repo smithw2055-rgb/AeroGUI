@@ -1,5 +1,7 @@
 #include <Aero/Controls/Templates.hpp>
 
+#include "presentation/RenderingInternal.hpp"
+
 #include "../presentation/ResourceAssignment.hpp"
 
 #include <Aero/Controls/Controls.hpp>
@@ -269,39 +271,39 @@ void TemplateBuildContext::Rollback() noexcept {
     rootElement_ = nullptr;
 }
 
-Base::Result<void> TemplateProgram::Configure(
-    TemplateFactoryCallback factory,
-    void* factoryContext,
-    Base::Ref<Base::Object> factoryOwner) noexcept {
-    if (sealed_) {
+Base::Result<void> FrameworkTemplate::Impl::Configure(
+    TemplateFactoryCallback valueFactory,
+    void* valueFactoryContext,
+    Base::Ref<Base::Object> valueFactoryOwner) noexcept {
+    if (sealed) {
         return InvalidTemplate(
             "Cannot modify a sealed TemplateProgram");
     }
-    if (factory == nullptr) {
+    if (valueFactory == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TemplateProgram requires an execution factory");
     }
-    factory_ = factory;
-    factoryContext_ = factoryContext;
-    factoryOwner_ = std::move(factoryOwner);
+    factory = valueFactory;
+    factoryContext = valueFactoryContext;
+    factoryOwner = std::move(valueFactoryOwner);
     return {};
 }
 
-Base::Result<void> TemplateProgram::SetBaseUri(
+Base::Result<void> FrameworkTemplate::Impl::SetBaseUri(
     const Base::ResourceUri& value) noexcept {
-    if (sealed_) {
+    if (sealed) {
         return InvalidTemplate(
             "Cannot modify a sealed TemplateProgram");
     }
-    baseUri_ = value;
+    baseUri = value;
     return {};
 }
 
-Base::Result<void> TemplateProgram::TryAddNamespace(
+Base::Result<void> FrameworkTemplate::Impl::TryAddNamespace(
     Base::StringView prefix,
     Base::StringView uri) noexcept {
-    if (sealed_) {
+    if (sealed) {
         return InvalidTemplate(
             "Cannot modify a sealed TemplateProgram");
     }
@@ -311,7 +313,7 @@ Base::Result<void> TemplateProgram::TryAddNamespace(
             "Template namespace URI is empty");
     }
     for (const TemplateNamespace& existing :
-         namespaces_) {
+         namespaces) {
         if (existing.prefix.View() == prefix) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -324,37 +326,38 @@ Base::Result<void> TemplateProgram::TryAddNamespace(
     if (!assigned) return assigned.GetStatus();
     assigned = entry.uri.TryAssign(uri);
     if (!assigned) return assigned.GetStatus();
-    return namespaces_.TryPushBack(std::move(entry));
+    return namespaces.TryPushBack(std::move(entry));
 }
 
-Base::Result<void> TemplateProgram::Seal() noexcept {
-    if (sealed_) return {};
-    if (factory_ == nullptr) {
+Base::Result<void> FrameworkTemplate::Impl::Seal() noexcept {
+    if (sealed) return {};
+    if (factory == nullptr) {
         return InvalidTemplate(
             "TemplateProgram requires an execution factory");
     }
-    sealed_ = true;
+    sealed = true;
     return {};
 }
 
-Base::Result<void> TemplateProgram::FreezeRuntimePlan(
-    TypeId targetType,
-    Base::Vector<TemplateBindingPlan>&& bindings,
-    Base::Vector<TemplatePropertyTrigger>&& triggers,
-    Base::Vector<VisualStateGroup>&& visualStateGroups) noexcept {
-    if (sealed_) {
+Base::Result<void> FrameworkTemplate::Impl::FreezeRuntimePlan(
+    TypeId valueTargetType,
+    Base::Vector<TemplateBindingPlan>&& valueBindings,
+    Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
+    Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept {
+    if (sealed) {
         return InvalidTemplate(
             "TemplateProgram runtime plan is already frozen");
     }
-    if (factory_ == nullptr || targetType == InvalidTypeId) {
+    if (factory == nullptr ||
+        valueTargetType == InvalidTypeId) {
         return InvalidTemplate(
             "TemplateProgram runtime plan is incomplete");
     }
-    targetType_ = targetType;
-    bindings_ = std::move(bindings);
-    triggers_ = std::move(triggers);
-    visualStateGroups_ = std::move(visualStateGroups);
-    sealed_ = true;
+    targetType = valueTargetType;
+    bindings = std::move(valueBindings);
+    triggers = std::move(valueTriggers);
+    visualStateGroups = std::move(valueVisualStateGroups);
+    sealed = true;
     return {};
 }
 
@@ -373,7 +376,7 @@ Base::Result<void> FrameworkTemplate::TrySetTargetType(
     return {};
 }
 
-Base::Result<void> FrameworkTemplate::ConfigureProgram(
+Base::Result<void> FrameworkTemplate::ConfigureFactory(
     TemplateFactoryCallback factory,
     void* factoryContext,
     Base::Ref<Base::Object> factoryOwner) noexcept {

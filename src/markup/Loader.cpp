@@ -1,6 +1,7 @@
-#include <Aero/Markup/Loader.hpp>
+#include "Loader.hpp"
 #include "LoaderResult.hpp"
 #include "LoadContext.hpp"
+#include "LoadOptionsAccess.hpp"
 #include "ObjectWriterState.hpp"
 #include "../UiDocumentAccess.hpp"
 
@@ -656,16 +657,18 @@ Loader::Impl::Operation::LoadCompiledDocument(
     const Base::ResourceUri& originUri,
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
     LoadContext context;
-    context.resources = options.resources;
-    context.effectiveValues = options.effectiveValues;
-    context.bindings = options.bindings;
-    context.fallbackResources = options.fallbackResources;
+    context.resources = runtime.resources;
+    context.effectiveValues = runtime.effectiveValues;
+    context.bindings = runtime.bindings;
+    context.fallbackResources = runtime.fallbackResources;
     context.baseUri = &originUri;
-    context.templatedParent = options.templatedParent;
+    context.templatedParent = runtime.templatedParent;
     context.existingRoot = existingRoot;
-    context.effectLifetime = options.effectLifetime;
-    context.effectCommitMode = options.effectCommitMode;
+    context.effectLifetime = runtime.effectLifetime;
+    context.effectCommitMode = runtime.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     FinalizeContext finalize{
         this, &options, &originUri, &document};
@@ -673,12 +676,12 @@ Loader::Impl::Operation::LoadCompiledDocument(
     context.finalizeContext = &finalize;
     ObjectWriter writer(*schema_, diagnostics_);
     Base::Result<LoaderResult> loaded =
-        options.dispatcher != nullptr &&
-        options.dependencyProperties != nullptr
+        runtime.dispatcher != nullptr &&
+        runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
               Core::ObjectServicesScope services(
-                  *options.dispatcher,
-                  *options.dependencyProperties,
+                  *runtime.dispatcher,
+                  *runtime.dependencyProperties,
                   schema_->Runtime());
               ObjectWriterState state(writer);
               return state.Load(document, context);
@@ -695,6 +698,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
     const Base::ResourceUri& uri,
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -739,12 +744,12 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
         return pushed.GetStatus();
     }
 
-    if (options.documentCache != nullptr) {
+    if (runtime.documentCache != nullptr) {
         Base::Result<std::uint64_t> probedRevision =
             provider.Value().provider->Revision(uri);
         if (probedRevision && probedRevision.Value() != 0U) {
             Base::Result<DocumentCacheLookup> cached =
-                options.documentCache->Lookup(
+                runtime.documentCache->Lookup(
                     uri,
                     probedRevision.Value(),
                     provider.Value().cacheIdentity,
@@ -758,7 +763,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
                         options,
                         existingRoot);
                 if (loaded) {
-                    static_cast<void>(options.documentCache->Store(
+                    static_cast<void>(runtime.documentCache->Store(
                         uri,
                         probedRevision.Value(),
                         provider.Value().cacheIdentity,
@@ -810,7 +815,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
         origin,
         options,
         existingRoot);
-    if (loaded && options.documentCache != nullptr) {
+    if (loaded && runtime.documentCache != nullptr) {
         static_cast<void>(PopulateDocumentCache(
             source.Value(),
             origin,
@@ -828,7 +833,10 @@ Base::Result<void> Loader::Impl::Operation::PopulateDocumentCache(
     std::uint64_t sourceIdentity,
     const LoaderResult& loaded,
     const LoadOptions& options) noexcept {
-    if (options.documentCache == nullptr || source.bytes.Empty()) return {};
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
+    if (runtime.documentCache == nullptr ||
+        source.bytes.Empty()) return {};
 #if AERO_WITH_EXPAT
     ExpatXmlTokenizer tokenizer(options.limits.xml);
 #else
@@ -845,7 +853,7 @@ Base::Result<void> Loader::Impl::Operation::PopulateDocumentCache(
             compiled.Value().TryAddDependency(dependency);
         if (!added) return added.GetStatus();
     }
-    return options.documentCache->Store(
+    return runtime.documentCache->Store(
         origin,
         source.revision,
         sourceIdentity,
@@ -858,6 +866,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     const Base::ResourceUri& baseUri,
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -886,15 +896,15 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     }
     NodeReader reader(tokenizer, diagnostics_);
     LoadContext context;
-    context.resources = options.resources;
-    context.effectiveValues = options.effectiveValues;
-    context.bindings = options.bindings;
-    context.fallbackResources = options.fallbackResources;
+    context.resources = runtime.resources;
+    context.effectiveValues = runtime.effectiveValues;
+    context.bindings = runtime.bindings;
+    context.fallbackResources = runtime.fallbackResources;
     context.baseUri = &baseUri;
-    context.templatedParent = options.templatedParent;
+    context.templatedParent = runtime.templatedParent;
     context.existingRoot = existingRoot;
-    context.effectLifetime = options.effectLifetime;
-    context.effectCommitMode = options.effectCommitMode;
+    context.effectLifetime = runtime.effectLifetime;
+    context.effectCommitMode = runtime.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
     FinalizeContext finalize{
         this, &options, &baseUri, nullptr};
@@ -902,12 +912,12 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     context.finalizeContext = &finalize;
     ObjectWriter writer(*schema_, diagnostics_);
     Base::Result<LoaderResult> loaded =
-        options.dispatcher != nullptr &&
-        options.dependencyProperties != nullptr
+        runtime.dispatcher != nullptr &&
+        runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
               Core::ObjectServicesScope services(
-                  *options.dispatcher,
-                  *options.dependencyProperties,
+                  *runtime.dispatcher,
+                  *runtime.dependencyProperties,
                   schema_->Runtime());
               ObjectWriterState state(writer);
               return state.Load(reader, context);
@@ -1228,6 +1238,8 @@ Base::Result<void> Loader::Impl::Operation::AppendDependency(
 
 Base::Result<void> Loader::Impl::Operation::ValidateOptions(
     const LoadOptions& options) const noexcept {
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
     if (schema_ == nullptr || providers_ == nullptr ||
         !schema_->IsFrozen()) {
         return Base::Status::Failure(
@@ -1246,8 +1258,8 @@ Base::Result<void> Loader::Impl::Operation::ValidateOptions(
             Base::ErrorCode::InvalidArgument,
             "XAML load limits must be positive");
     }
-    if ((options.dispatcher == nullptr) !=
-        (options.dependencyProperties == nullptr)) {
+    if ((runtime.dispatcher == nullptr) !=
+        (runtime.dependencyProperties == nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML object services require dispatcher and property metadata");

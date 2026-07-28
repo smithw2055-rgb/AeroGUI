@@ -29,7 +29,9 @@ add_executable(AeroControlGallery
     NativeGallery.cpp
     main.cpp)
 target_link_libraries(AeroControlGallery
-    PRIVATE Aero::EngineHost AeroControlGalleryModule)
+    PRIVATE Aero::IntegrationSdk AeroControlGalleryModule)
+target_include_directories(AeroControlGallery PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(AeroControlGallery PRIVATE
     "AERO_CONTROL_GALLERY_ASSET_DIR=\"${_aero_control_gallery_assets}\"")
 target_compile_features(AeroControlGallery
@@ -45,7 +47,7 @@ aero_add_schema_manifest(AeroControlGallerySchema
         "${CMAKE_CURRENT_BINARY_DIR}/generated/ControlGallery.aeroschema"
     MODULE_HEADER "StatusBadge.hpp"
     MODULE_FUNCTION
-        "Aero::Samples::ControlGallery::RegisterControlGalleryModules"
+        "Aero::Samples::ControlGallery::MakeStatusBadgeModuleManifest"
     LIBRARIES AeroControlGalleryModule)
 
 aero_add_xaml(AeroControlGallery
@@ -95,43 +97,15 @@ if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
         AND AERO_ENABLE_WGL_SURFACE)
     target_sources(AeroControlGallery PRIVATE
         NativeGalleryWindows.cpp)
-    target_link_libraries(AeroControlGallery
-        PRIVATE
-            Aero::RenderD3D11
-            Aero::RenderOpenGL33
-            Aero::RhiWGL
-            user32)
     target_compile_definitions(
         AeroControlGallery PRIVATE
         AERO_CONTROL_GALLERY_WINDOWS_NATIVE=1)
 elseif(AERO_ENABLE_GLX_SURFACE)
     target_sources(AeroControlGallery PRIVATE
         NativeGalleryGlx.cpp)
-    target_link_libraries(AeroControlGallery
-        PRIVATE
-            Aero::RenderOpenGL33
-            Aero::RhiGLX
-            X11::X11)
     target_compile_definitions(
         AeroControlGallery PRIVATE
         AERO_CONTROL_GALLERY_GLX_NATIVE=1)
-endif()
-
-if(TARGET Aero::TextFreeType)
-    target_compile_definitions(
-        AeroControlGallery PRIVATE
-        AERO_CONTROL_GALLERY_WITH_FREETYPE=1)
-    target_link_libraries(
-        AeroControlGallery
-        PRIVATE
-            Aero::TextRender
-            Aero::TextFreeType)
-    if(WIN32 AND AERO_ENABLE_D3D11_BACKEND
-            AND AERO_ENABLE_WGL_SURFACE)
-        target_link_libraries(
-            AeroControlGallery
-            PRIVATE Aero::TextRenderD3D11)
-    endif()
 endif()
 
 if(AERO_BUILD_TESTS)

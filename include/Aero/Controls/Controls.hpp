@@ -3,11 +3,15 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Controls/TextBlockLayoutService.hpp>
 
 #include <cstddef>
 
 namespace Aero::Controls {
+
+namespace Detail {
+class TextLayoutService;
+class TextServicesAccess;
+}
 
 using namespace Aero::Core;
 using namespace Aero::Presentation;
@@ -154,13 +158,8 @@ public:
         return glyphRuns_.AsSpan();
     }
     Size GlyphRunSize() const noexcept { return glyphRunSize_; }
-    ITextBlockLayoutService* LayoutService() const noexcept {
-        return layoutService_;
-    }
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
-    Base::Result<void> SetLayoutService(
-        ITextBlockLayoutService* service) noexcept;
     inline static constexpr Members::Property<Base::String>
         TextProperty{"Text"};
     inline static constexpr Members::Property<
@@ -171,9 +170,11 @@ protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
 private:
+    friend class Detail::TextServicesAccess;
+
     void ReleaseServiceGlyphRun() noexcept;
 
-    ITextBlockLayoutService* layoutService_ = nullptr;
+    Detail::TextLayoutService* layoutService_ = nullptr;
     Base::Vector<RenderGlyphRunId> glyphRuns_;
     Size glyphRunSize_;
     bool serviceOwnsGlyphRun_ = false;

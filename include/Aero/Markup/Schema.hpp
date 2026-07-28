@@ -15,14 +15,30 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/CompiledDocument.hpp>
-#include <Aero/Markup/Extensions.hpp>
 
 #include <cstdint>
 
+namespace Aero::Presentation {
+class ResourceDictionary;
+class ResourceKey;
+}
+
+namespace Aero {
+class SchemaBundle;
+}
+
 namespace Aero::Markup {
+
+struct ExtensionContext;
+struct ProvidedValue;
+class Loader;
+class ObjectWriter;
+class ObjectWriterState;
+class SchemaManifest;
 
 namespace Detail {
 class SchemaAccess;
+class XamlStyleSchemaFacet;
 
 AERO_API Base::Result<void> PopulateMarkupMetadata(
     Core::MetadataContext& context) noexcept;
@@ -73,16 +89,9 @@ public:
     Schema(const Schema&) = delete;
     Schema& operator=(const Schema&) = delete;
 
-    Base::Result<void> Freeze() noexcept;
-
     bool IsFrozen() const noexcept { return frozen_; }
-    bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
     const Core::TypeRegistry& Types() const noexcept {
         return runtime_->Types();
-    }
-    Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
-    const Core::MetadataDomain& Domain() const noexcept {
-        return *domain_;
     }
     Base::Result<const Core::TypeInfo*> ResolveType(
         Base::StringView xamlNamespace,
@@ -93,6 +102,23 @@ public:
         MemberSyntax syntax) const noexcept;
     Base::Result<ResolvedMember> ResolveContentMember(
         Core::TypeId targetType) const noexcept;
+
+private:
+    friend class ::Aero::SchemaBundle;
+    friend class CompiledDocument;
+    friend class Detail::SchemaAccess;
+    friend class Loader;
+    friend class ObjectWriter;
+    friend class ObjectWriterState;
+    friend class SchemaManifest;
+    friend class Detail::XamlStyleSchemaFacet;
+
+    Base::Result<void> Freeze() noexcept;
+    bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
+    Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
+    const Core::MetadataDomain& Domain() const noexcept {
+        return *domain_;
+    }
 
     Base::Result<Base::Ref<Base::Object>> CreateObject(
         Core::TypeId type) const noexcept;
@@ -143,9 +169,6 @@ public:
 
     MemberWritePolicy ResolveMemberWritePolicy(
         const ResolvedMember& member) const noexcept;
-
-private:
-    friend class Detail::SchemaAccess;
 
     struct Impl;
 

@@ -1,4 +1,4 @@
-#include <Aero/Markup/Extensions.hpp>
+#include "Extensions.hpp"
 
 #include <utility>
 #include "SchemaInternal.hpp"
@@ -37,7 +37,8 @@ Base::Result<ProvidedValue> TypeExtension::ProvideValue(
             "x:Type extension context is invalid");
     }
     Base::Result<Core::Value> value =
-        services.schema->ConvertText(
+        Detail::SchemaAccess::ConvertText(
+            *services.schema,
             Core::TypeOf<Core::TypeReference>(),
             arguments,
             &services);

@@ -1,7 +1,7 @@
-#include <Aero/SchemaBundle.hpp>
+#include "SchemaBundle.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Markup/Extensions.hpp>
+#include "markup/Extensions.hpp"
 #include "core/metadata/MetadataDomainAccess.hpp"
 #include "markup/PresentationObjectModel.hpp"
 #include "markup/ResourceSupport.hpp"

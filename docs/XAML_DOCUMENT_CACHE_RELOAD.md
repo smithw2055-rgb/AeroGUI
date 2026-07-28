@@ -8,7 +8,7 @@
 
 - 相同 XAML source revision 重复加载时跳过 XML tokenization 和 node 编译。
 - 缓存内容只包含可重放 AXIR，不保存 View 对象、BindingManager 或 GPU 状态。
-- 一个 `RuntimeEnvironment` 的缓存可以供多个 `RuntimeView` 复用；调用必须位于同一宿主线程，或由宿主提供外部同步。
+- 一个 `RuntimeEnvironment` 的缓存可以供多个 `View` 复用；调用必须位于同一宿主线程，或由宿主提供外部同步。
 - ResourceDictionary `Source` 等依赖形成正反向 URI 图。
 - 任意依赖变化时，可以确定性失效所有受影响的上层文档。
 - 新文档先完整加载，成功后再替换已挂载文档。
@@ -31,11 +31,11 @@ Schema 或旧 cache format 不会被静默重放。缓存写入是优化操作�
 加载已成功时，缓存分配或编译失败不会反向破坏该加载结果。
 
 缓存提供 entry-count 和 compiled-byte 双预算。超出预算时按最久未访问顺序
-淘汰。依赖图与实例对象分离；缓存永远不保存 `UiDocument` 或 RuntimeView 指针。
+淘汰。依赖图与实例对象分离；缓存永远不保存 `UiDocument` 或 View 指针。
 
 ## Revision probe
 
-`IXamlSourceProvider::Revision()` 是可选能力：
+`Integration::ISourceProvider::Revision()` 是可选能力：
 
 - Embedded provider 直接返回注册 revision。
 - File provider 使用文件大小和最后写入时间生成 revision。
@@ -62,7 +62,7 @@ source 逆序删除，避免提前丢失反向边。
 
 成功 XAML load 产生的 Binding 和 DynamicResource 不会立即写入 View service。
 `XamlLoadSession` 只把 deferred effect plan 移入 `XamlLoadResult` 和 `UiDocument`；
-`RuntimeHost::Mount()` 在视觉树、Presentation service 与交互注册全部成功后提交
+`View::SetContent()` 在视觉树、Presentation service 与交互注册全部成功后提交
 这些 effects。提交中途失败会逆序撤销已提交项。
 
 文档清理顺序为：
@@ -77,7 +77,7 @@ shutdown 会先使该 lifetime 失效，从而避免晚释放 document 访问悬
 
 ## 完整文档替换
 
-`RuntimeHost::ReplaceMountedDocument()` 接受一个已经成功加载的 `UiDocument`：
+`View::SetContent()` 接受一个已经成功加载的 `UiDocument`：
 
 1. 验证 replacement 属于当前 View，且 root 是 Visual。
 2. replacement effects 保持 deferred，不影响当前文档。
@@ -91,7 +91,7 @@ shutdown 会先使该 lifetime 失效，从而避免晚释放 document 访问悬
 ## Reload coordinator
 
 ```cpp
-Aero::XamlReloadCoordinator reload(view.Host());
+Aero::Integration::ReloadCoordinator reload(view.Host());
 reload.Start("Views/Main.xaml", {1280.0f, 720.0f});
 
 // 由宿主开发循环显式调用。
@@ -109,12 +109,12 @@ Coordinator 会：
 - 检查已跟踪 root/dependency revisions
 - 通过反向依赖图失效受影响 cache entries
 - 从 root URI 构建新的 `UiDocument`
-- 调用 `ReplaceMountedDocument()`
+- 调用 `View::SetContent()`
 - 成功后刷新 dependency/revision snapshot
 
 AeroGUI 不创建隐藏线程，也不规定文件监听实现；桌面、游戏引擎、移动平台和
 浏览器宿主可以使用各自的事件来源。Coordinator 的所有调用必须发生在
-`RuntimeHost` 所属线程；跨线程文件事件应先投递回该线程。
+`View` 所属线程；跨线程文件事件应先投递回该线程。
 
 ## 当前边界
 

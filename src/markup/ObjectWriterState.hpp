@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Extensions.hpp"
+
 #include "DeferredContent.hpp"
 #include "LoadContext.hpp"
 

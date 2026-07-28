@@ -3,6 +3,8 @@
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
+#include "../core/metadata/RoutedEventCatalog.hpp"
+
 #include <Aero/Base/Assert.hpp>
 
 #include <utility>
@@ -22,6 +24,11 @@ Base::Status InvalidArgument(const char* message) noexcept {
 
 Base::Status NotFound(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::NotFound, message);
+}
+
+RoutedEventCatalog& EventCatalog(void* state) noexcept {
+    AERO_ASSERT(state != nullptr);
+    return *static_cast<RoutedEventCatalog*>(state);
 }
 
 } // namespace
@@ -679,12 +686,33 @@ void ObjectTree::LifecycleHook(void* context) noexcept {
 }
 
 RoutedEventManager::RoutedEventManager(
-    RoutedEventCatalog& catalog) noexcept
-    : catalog_(&catalog),
+    void* eventState) noexcept
+    : eventState_(eventState),
       classHandlers_() {}
 
 RoutedEventManager::~RoutedEventManager() noexcept {
     CleanupClassHandlers();
+}
+
+Base::Result<void> RoutedEventManager::ValidateClassHandler(
+    RoutedEventHandle event,
+    TypeId classType,
+    TypeId eventArgsType) const noexcept {
+    RoutedEventCatalog& catalog =
+        EventCatalog(eventState_);
+    if (!catalog.IsFrozen()) {
+        return InvalidState(
+            "RoutedEventCatalog must be frozen before handlers");
+    }
+    const RoutedEventCatalog::Definition* definition =
+        catalog.Find(event);
+    if (definition == nullptr ||
+        catalog.Types().FindType(classType) == nullptr ||
+        definition->eventArgsType != eventArgsType) {
+        return InvalidArgument(
+            "Class handler registration is invalid");
+    }
+    return {};
 }
 
 Base::Result<void> RoutedEventManager::BuildRoute(
@@ -728,7 +756,7 @@ void RoutedEventManager::InvokeNode(
     if (element == nullptr) return;
     for (const ClassHandlerRecord& record : classHandlers_) {
         if (record.event == args.routedEvent &&
-            catalog_->Types().IsDerivedFrom(
+            EventCatalog(eventState_).Types().IsDerivedFrom(
                 element->RuntimeType(), record.classType) &&
             (!args.handled || record.handledEventsToo)) {
             record.handler.Invoke(element, args);
@@ -753,7 +781,9 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
     if (!access) {
         return access;
     }
-    if (!catalog_->IsFrozen()) {
+    RoutedEventCatalog& catalog =
+        EventCatalog(eventState_);
+    if (!catalog.IsFrozen()) {
         return InvalidState(
             "RoutedEventCatalog must be frozen before dispatch");
     }
@@ -761,7 +791,8 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
         return InvalidState(
             "Routed event nesting limit was exceeded");
     }
-    const RoutedEventCatalog::Definition* definition = catalog_->Find(event);
+    const RoutedEventCatalog::Definition* definition =
+        catalog.Find(event);
     if (definition == nullptr) {
         return NotFound("Routed event was not found");
     }

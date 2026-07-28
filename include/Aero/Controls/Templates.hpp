@@ -7,14 +7,22 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
+#endif
 
 #include <type_traits>
 
 namespace Aero::Presentation {
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class LayoutManager;
 class RenderManager;
+#endif
+}
+
+namespace Aero::Markup::Detail {
+class XamlTemplateSchemaFacet;
 }
 
 namespace Aero::Controls {
@@ -23,6 +31,9 @@ using namespace Aero::Core;
 using namespace Aero::Presentation;
 
 class ContentPresenter;
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
+class TemplateManager;
+#endif
 
 struct TemplateHandle final {
     std::uint64_t value = 0U;
@@ -31,6 +42,7 @@ struct TemplateHandle final {
     }
 };
 
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 struct TemplatePart final {
     Base::String name;
     Base::Ref<Base::Object> owner;
@@ -116,6 +128,9 @@ private:
     Base::Vector<TemplatePart> parts_;
     Base::Vector<TemplateContentProjection> projections_;
 };
+#else
+class TemplateBuildContext;
+#endif
 
 using TemplateFactoryCallback = Base::Result<void> (*)(
     TemplateBuildContext& context,
@@ -160,70 +175,6 @@ struct VisualStateGroup final {
     Base::Vector<VisualState> states;
 };
 
-// Immutable deferred construction and property program shared by native and
-// XAML-authored templates. FrameworkTemplate moves all validated runtime data
-// here during Seal(), leaving authoring collections out of the hot path.
-class AERO_API TemplateProgram final {
-public:
-    TemplateProgram() noexcept = default;
-    TemplateProgram(
-        TemplateFactoryCallback factory,
-        void* factoryContext = nullptr) noexcept
-        : factory_(factory),
-          factoryContext_(factoryContext) {}
-
-    Base::Result<void> Configure(
-        TemplateFactoryCallback factory,
-        void* factoryContext = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
-    Base::Result<void> SetBaseUri(
-        const Base::ResourceUri& value) noexcept;
-    Base::Result<void> TryAddNamespace(
-        Base::StringView prefix,
-        Base::StringView uri) noexcept;
-    Base::Result<void> Seal() noexcept;
-
-    TemplateFactoryCallback Factory() const noexcept { return factory_; }
-    void* FactoryContext() const noexcept { return factoryContext_; }
-    const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
-        return factoryOwner_;
-    }
-    const Base::ResourceUri& BaseUri() const noexcept { return baseUri_; }
-    Base::Span<const TemplateNamespace> Namespaces() const noexcept {
-        return {namespaces_.Data(), namespaces_.Size()};
-    }
-    TypeId TargetType() const noexcept { return targetType_; }
-    Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
-        return {bindings_.Data(), bindings_.Size()};
-    }
-    Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
-        return {triggers_.Data(), triggers_.Size()};
-    }
-    Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
-        return {visualStateGroups_.Data(), visualStateGroups_.Size()};
-    }
-    bool IsSealed() const noexcept { return sealed_; }
-
-private:
-    friend class FrameworkTemplate;
-    Base::Result<void> FreezeRuntimePlan(
-        TypeId targetType,
-        Base::Vector<TemplateBindingPlan>&& bindings,
-        Base::Vector<TemplatePropertyTrigger>&& triggers,
-        Base::Vector<VisualStateGroup>&& visualStateGroups) noexcept;
-
-    TemplateFactoryCallback factory_ = nullptr;
-    void* factoryContext_ = nullptr;
-    Base::Ref<Base::Object> factoryOwner_;
-    Base::ResourceUri baseUri_;
-    Base::Vector<TemplateNamespace> namespaces_;
-    TypeId targetType_ = InvalidTypeId;
-    Base::Vector<TemplateBindingPlan> bindings_;
-    Base::Vector<TemplatePropertyTrigger> triggers_;
-    Base::Vector<VisualStateGroup> visualStateGroups_;
-    bool sealed_ = false;
-};
-
 class AERO_API FrameworkTemplate : public Base::Object {
     AERO_DECLARE_TYPE(FrameworkTemplate, Base::Object)
 public:
@@ -243,7 +194,7 @@ public:
     }
     Base::Result<void> TrySetTargetType(
         TypeId value) noexcept;
-    Base::Result<void> ConfigureProgram(
+    Base::Result<void> ConfigureFactory(
         TemplateFactoryCallback factory,
         void* factoryContext = nullptr,
         Base::Ref<Base::Object> factoryOwner = {}) noexcept;
@@ -258,9 +209,9 @@ public:
         class TTargetValue>
     Base::Result<void> Bind(
         Base::StringView targetName,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TSourceOwner, TSourceValue>& sourceProperty,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TTargetOwner, TTargetValue>& targetProperty) noexcept {
         static_assert(
             std::is_same_v<TSourceValue, TTargetValue>,
@@ -277,9 +228,9 @@ public:
         class TTargetValue>
     Base::Result<void> Bind(
         Base::StringView targetName,
-        const ReadOnlyPropertyRef<
+        const Core::ReadOnlyPropertyRef<
             TSourceOwner, TSourceValue>& sourceProperty,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TTargetOwner, TTargetValue>& targetProperty) noexcept {
         static_assert(
             std::is_same_v<TSourceValue, TTargetValue>,
@@ -293,8 +244,10 @@ public:
         TemplatePropertyTrigger trigger) noexcept;
     Base::Result<void> TryAddVisualStateGroup(
         VisualStateGroup group) noexcept;
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
+#endif
 
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
@@ -305,12 +258,6 @@ public:
     }
     void* FactoryContext() const noexcept {
         return program_.FactoryContext();
-    }
-    TemplateProgram& Program() noexcept {
-        return program_;
-    }
-    const TemplateProgram& Program() const noexcept {
-        return program_;
     }
     ResourceDictionary& Resources() noexcept {
         return resources_;
@@ -337,8 +284,71 @@ public:
     }
 
 private:
+    friend class Markup::Detail::XamlTemplateSchemaFacet;
+
+    struct Impl final {
+        Impl() noexcept = default;
+        Impl(
+            TemplateFactoryCallback valueFactory,
+            void* valueFactoryContext = nullptr) noexcept
+            : factory(valueFactory),
+              factoryContext(valueFactoryContext) {}
+
+        Base::Result<void> Configure(
+            TemplateFactoryCallback valueFactory,
+            void* valueFactoryContext = nullptr,
+            Base::Ref<Base::Object> valueFactoryOwner = {}) noexcept;
+        Base::Result<void> SetBaseUri(
+            const Base::ResourceUri& value) noexcept;
+        Base::Result<void> TryAddNamespace(
+            Base::StringView prefix,
+            Base::StringView uri) noexcept;
+        Base::Result<void> Seal() noexcept;
+        Base::Result<void> FreezeRuntimePlan(
+            TypeId valueTargetType,
+            Base::Vector<TemplateBindingPlan>&& valueBindings,
+            Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
+            Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
+
+        TemplateFactoryCallback Factory() const noexcept { return factory; }
+        void* FactoryContext() const noexcept { return factoryContext; }
+        const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
+            return factoryOwner;
+        }
+        const Base::ResourceUri& BaseUri() const noexcept { return baseUri; }
+        Base::Span<const TemplateNamespace> Namespaces() const noexcept {
+            return {namespaces.Data(), namespaces.Size()};
+        }
+        TypeId TargetType() const noexcept { return targetType; }
+        Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
+            return {bindings.Data(), bindings.Size()};
+        }
+        Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
+            return {triggers.Data(), triggers.Size()};
+        }
+        Base::Span<const VisualStateGroup> VisualStateGroups() const noexcept {
+            return {
+                visualStateGroups.Data(),
+                visualStateGroups.Size()};
+        }
+
+        TemplateFactoryCallback factory = nullptr;
+        void* factoryContext = nullptr;
+        Base::Ref<Base::Object> factoryOwner;
+        Base::ResourceUri baseUri;
+        Base::Vector<TemplateNamespace> namespaces;
+        TypeId targetType = InvalidTypeId;
+        Base::Vector<TemplateBindingPlan> bindings;
+        Base::Vector<TemplatePropertyTrigger> triggers;
+        Base::Vector<VisualStateGroup> visualStateGroups;
+        bool sealed = false;
+    };
+
+    Impl& RuntimeData() noexcept { return program_; }
+    const Impl& RuntimeData() const noexcept { return program_; }
+
     TypeId targetType_ = InvalidTypeId;
-    TemplateProgram program_;
+    Impl program_;
     ResourceDictionary resources_;
     Base::Vector<TemplateBindingPlan> bindings_;
     Base::Vector<TemplatePropertyTrigger> triggers_;
@@ -394,6 +404,7 @@ private:
     NameScope authoredNames_;
 };
 
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class AERO_API TemplateManager final {
 public:
     TemplateManager(
@@ -527,5 +538,6 @@ private:
     void PruneStale() noexcept;
     void RemoveActiveAt(std::uint32_t index) noexcept;
 };
+#endif
 
 } // namespace Aero::Controls

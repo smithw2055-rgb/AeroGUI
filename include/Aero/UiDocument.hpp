@@ -21,8 +21,6 @@ namespace Detail {
 class UiDocumentAccess;
 }
 
-class RuntimeHost;
-
 // Move-only ownership for one successfully loaded XAML document. The document
 // keeps names, resources, dependency URIs, and the declaration/mount plan alive
 // independently from a View until it is mounted or discarded.

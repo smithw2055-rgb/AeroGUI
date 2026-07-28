@@ -1,4 +1,4 @@
-#include <Aero/Markup/Extensions.hpp>
+#include "Extensions.hpp"
 
 // Dynamic-resource markup-extension implementation.
 #include "SchemaInternal.hpp"
@@ -344,7 +344,8 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             "DynamicResource requires a resource key");
     }
     Base::Result<Core::DependencyObject*> targetResult =
-        services.schema->ResolvePropertyTarget(
+        Detail::SchemaAccess::ResolvePropertyTarget(
+            *services.schema,
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();

@@ -1,4 +1,4 @@
-#include <Aero/Markup/Extensions.hpp>
+#include "Extensions.hpp"
 
 // Binding markup-extension implementation.
 #include "SchemaInternal.hpp"
@@ -231,7 +231,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     Base::Result<Core::DependencyObject*> targetResult =
-        services.schema->ResolvePropertyTarget(
+        Detail::SchemaAccess::ResolvePropertyTarget(
+            *services.schema,
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();
@@ -258,7 +259,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const Core::DependencyProperty* targetProperty =
         target->PropertyRegistry().Find(targetHandle);
     if (targetProperty == nullptr ||
-        services.schema->Runtime() == nullptr) {
+        Detail::SchemaAccess::Runtime(
+            *services.schema) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Binding target property or metadata runtime was not found");
@@ -286,7 +288,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
     auto* state = new (memory) DeferredBindingState();
     state->manager = bindings;
-    state->metadata = services.schema->Runtime();
+    state->metadata = Detail::SchemaAccess::Runtime(
+        *services.schema);
     state->source = source;
     state->target = target;
     state->targetProperty = targetHandle;

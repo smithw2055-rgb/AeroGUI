@@ -6,7 +6,11 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#else
+#include <Aero/Core/Property/DependencyProperty.hpp>
+#endif
 #include <Aero/Presentation/Resources.hpp>
 
 #include <utility>
@@ -69,10 +73,10 @@ public:
     }
     template<class TOwner, class TValue>
     Base::Result<void> Set(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const Core::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            ValueCodec<TValue>::Encode(value);
+            Core::ValueCodec<TValue>::Encode(value);
         if (!encoded) return encoded.GetStatus();
         Base::Result<void> selected =
             SetProperty(property.Handle());
@@ -176,41 +180,6 @@ private:
     Base::Vector<Base::Ref<Setter>> authoredSetters_;
 };
 
-// Frozen execution plan produced from Style authoring objects. Runtime
-// managers consume only this snapshot; Setter/Trigger authoring objects are
-// not consulted after Style::Seal().
-class AERO_API StyleProgram final {
-public:
-    StyleProgram() noexcept = default;
-    StyleProgram(StyleProgram&&) noexcept = default;
-    StyleProgram& operator=(StyleProgram&&) noexcept = default;
-
-    StyleProgram(const StyleProgram&) = delete;
-    StyleProgram& operator=(const StyleProgram&) = delete;
-
-    TypeId TargetType() const noexcept { return targetType_; }
-    Base::Span<const StyleSetter> Setters() const noexcept {
-        return {setters_.Data(), setters_.Size()};
-    }
-    Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
-        return {triggers_.Data(), triggers_.Size()};
-    }
-    bool IsFrozen() const noexcept { return frozen_; }
-
-private:
-    friend class Style;
-    Base::Result<void> Freeze(
-        TypeId targetType,
-        Base::Vector<StyleSetter>&& setters,
-        Base::Vector<StylePropertyTrigger>&& triggers) noexcept;
-    void Reset() noexcept;
-
-    TypeId targetType_ = InvalidTypeId;
-    Base::Vector<StyleSetter> setters_;
-    Base::Vector<StylePropertyTrigger> triggers_;
-    bool frozen_ = false;
-};
-
 // Host-owned immutable style plan. Styles are authored through setters and
 // sealed only after DependencyProperty metadata is frozen. BasedOn setters are
 // flattened deterministically; a derived style replaces a base setter for the
@@ -247,11 +216,11 @@ public:
     public:
         template<class TOwner, class TValue>
         Base::Result<void> Set(
-            const DependencyPropertyRef<TOwner, TValue>& property,
+            const Core::DependencyPropertyRef<TOwner, TValue>& property,
             const TValue& value) noexcept {
             if (!status_.IsOk()) return status_;
             Base::Result<PropertyValue> encoded =
-                ValueCodec<TValue>::Encode(value);
+                Core::ValueCodec<TValue>::Encode(value);
             if (!encoded) return encoded.GetStatus();
             StylePropertyTrigger trigger;
             trigger.property = condition_;
@@ -287,20 +256,20 @@ public:
 
     template<class TOwner, class TValue>
     Base::Result<void> Set(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const Core::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            ValueCodec<TValue>::Encode(value);
+            Core::ValueCodec<TValue>::Encode(value);
         if (!encoded) return encoded.GetStatus();
         return TryAddSetter(
             property.Handle(), encoded.Value());
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
-        const DependencyPropertyRef<TOwner, TValue>& property,
+        const Core::DependencyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            ValueCodec<TValue>::Encode(value);
+            Core::ValueCodec<TValue>::Encode(value);
         if (!encoded) {
             return TriggerBuilder(encoded.GetStatus());
         }
@@ -311,10 +280,10 @@ public:
     }
     template<class TOwner, class TValue>
     TriggerBuilder When(
-        const ReadOnlyPropertyRef<TOwner, TValue>& property,
+        const Core::ReadOnlyPropertyRef<TOwner, TValue>& property,
         const TValue& value) noexcept {
         Base::Result<PropertyValue> encoded =
-            ValueCodec<TValue>::Encode(value);
+            Core::ValueCodec<TValue>::Encode(value);
         if (!encoded) {
             return TriggerBuilder(encoded.GetStatus());
         }
@@ -350,15 +319,16 @@ public:
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
+#endif
 
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
     }
     const Style* BasedOn() const noexcept { return basedOn_; }
     bool IsSealed() const noexcept { return sealed_; }
-    const StyleProgram& Program() const noexcept { return program_; }
     Base::Span<const StyleSetter> Setters() const noexcept {
         return program_.Setters();
     }
@@ -375,6 +345,33 @@ public:
         Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
+    struct Impl final {
+        Impl() noexcept = default;
+        Impl(Impl&&) noexcept = default;
+        Impl& operator=(Impl&&) noexcept = default;
+
+        Impl(const Impl&) = delete;
+        Impl& operator=(const Impl&) = delete;
+
+        TypeId TargetType() const noexcept { return targetType; }
+        Base::Span<const StyleSetter> Setters() const noexcept {
+            return {setters.Data(), setters.Size()};
+        }
+        Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
+            return {triggers.Data(), triggers.Size()};
+        }
+        Base::Result<void> Freeze(
+            TypeId valueTargetType,
+            Base::Vector<StyleSetter>&& valueSetters,
+            Base::Vector<StylePropertyTrigger>&& valueTriggers) noexcept;
+        void Reset() noexcept;
+
+        TypeId targetType = InvalidTypeId;
+        Base::Vector<StyleSetter> setters;
+        Base::Vector<StylePropertyTrigger> triggers;
+        bool frozen = false;
+    };
+
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
@@ -385,7 +382,7 @@ private:
         authoredTriggerObjects_;
     Base::Vector<StyleSetter> authored_;
     Base::Vector<StylePropertyTrigger> authoredTriggers_;
-    StyleProgram program_;
+    Impl program_;
     ResourceDictionary resources_;
     bool sealed_ = false;
 };
@@ -393,6 +390,7 @@ private:
 // Applies sealed style setters through EffectiveValueEngine, thereby retaining
 // the existing precedence contract: local values and local expressions remain
 // above Style values, and template/animation layers remain independent.
+#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class AERO_API StyleManager final {
 public:
     explicit StyleManager(
@@ -500,5 +498,6 @@ private:
         DependencyObject& object,
         const Style& style) noexcept;
 };
+#endif
 
 } // namespace Aero::Presentation

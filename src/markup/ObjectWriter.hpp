@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Extensions.hpp"
+
 // Private object materializer used by Loader.
 
 #include <Aero/Base/Allocator.hpp>

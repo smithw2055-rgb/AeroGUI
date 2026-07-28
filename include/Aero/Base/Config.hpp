@@ -23,5 +23,10 @@
 #  define AERO_FORCE_INLINE inline __attribute__((always_inline))
 #endif
 
+#if defined(_MSC_VER)
+static_assert(_MSVC_LANG >= 201703L,
+    "AeroGUI requires a compiler operating in ISO C++17 mode or newer");
+#else
 static_assert(__cplusplus >= 201703L,
     "AeroGUI requires a compiler operating in ISO C++17 mode or newer");
+#endif

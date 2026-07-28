@@ -1,12 +1,16 @@
 #pragma once
 
 #include <Aero/Controls/Scroll.hpp>
-#include <Aero/Controls/TextBlockLayoutService.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Text/EditableText.hpp>
 
 namespace Aero::Controls {
+
+namespace Detail {
+class TextLayoutService;
+class TextServicesAccess;
+}
 
 class AERO_API ITextDisplayPolicy {
 public:
@@ -100,11 +104,6 @@ public:
     Base::Result<void> Undo() noexcept;
     Base::Result<void> Redo() noexcept;
 
-    Base::Result<void> SetLayoutService(
-        ITextBlockLayoutService* service) noexcept;
-    ITextBlockLayoutService* LayoutService() const noexcept {
-        return layoutService_;
-    }
     Base::Result<void> SetDisplayPolicy(
         ITextDisplayPolicy* policy) noexcept;
     ITextDisplayPolicy* DisplayPolicy() const noexcept {
@@ -184,6 +183,7 @@ protected:
 
 private:
     friend class TextBoxInteractionManager;
+    friend class Detail::TextServicesAccess;
 
     struct CaretStop final {
         double x = 0.0;
@@ -194,7 +194,7 @@ private:
 
     Text::EditableTextModel model_;
     Text::EditableTextModel compositionModel_;
-    ITextBlockLayoutService* layoutService_ = nullptr;
+    Detail::TextLayoutService* layoutService_ = nullptr;
     ITextDisplayPolicy* displayPolicy_ = nullptr;
     PlainTextDisplayPolicy plainPolicy_;
     Base::String displayText_;

@@ -1,6 +1,6 @@
 #pragma once
 
-// Private transaction result consumed by Loader, UiDocument, and RuntimeHost.
+// Private transaction result consumed by Loader, UiDocument, and ViewRuntime.
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -9,7 +9,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Markup/Loader.hpp>
+#include "Loader.hpp"
 #include <Aero/Markup/Resources.hpp>
 #include <Aero/Presentation/VisualTreeMount.hpp>
 

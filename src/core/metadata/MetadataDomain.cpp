@@ -1,6 +1,10 @@
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
+
+#include "RoutedEventCatalog.hpp"
 #include "MetadataValueFacets.hpp"
+#include "MetadataContextState.hpp"
 #include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include <Aero/Core/Metadata/MetadataValueRegistrationStore.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>
@@ -98,12 +102,13 @@ Base::Result<MetadataDomain::Storage*> MetadataDomain::BuildCandidate(
     auto applyAndAppend = [candidate](
         const MetadataModuleRegistration& registration) noexcept
         -> Base::Result<void> {
-        MetadataContext context(
-            candidate->types,
-            candidate->behaviorRegistrations,
-            candidate->valueRegistrations,
-            candidate->dependencyProperties,
-            &candidate->routedEvents);
+        Detail::MetadataContextState contextState{
+            &candidate->types,
+            &candidate->behaviorRegistrations,
+            &candidate->valueRegistrations,
+            &candidate->dependencyProperties,
+            &candidate->routedEvents};
+        MetadataContext context(&contextState);
         Base::Result<void> applied = registration.registerModule != nullptr
             ? registration.registerModule(context)
             : registration.registerModuleWithContext(
@@ -243,14 +248,9 @@ const DependencyPropertyRegistry& MetadataDomain::DependencyProperties() const n
     return storage_->dependencyProperties;
 }
 
-RoutedEventCatalog& MetadataDomain::RoutedEvents() noexcept {
+void* MetadataDomain::RoutedEventState() noexcept {
     AERO_ASSERT(storage_ != nullptr);
-    return storage_->routedEvents;
-}
-
-const RoutedEventCatalog& MetadataDomain::RoutedEvents() const noexcept {
-    AERO_ASSERT(storage_ != nullptr);
-    return storage_->routedEvents;
+    return &storage_->routedEvents;
 }
 
 const Detail::MetadataFacetStore& MetadataDomain::RuntimeData() const noexcept {

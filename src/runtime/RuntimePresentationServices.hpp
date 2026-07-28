@@ -20,7 +20,7 @@ class Visual;
 namespace Aero::Detail {
 
 // Internal policy service that applies resource-selected Style and Template
-// objects to a mounted visual tree. RuntimeHost owns lifecycle and delegates the
+// objects to a mounted visual tree. ViewRuntime owns lifecycle and delegates the
 // presentation rules to this service.
 class RuntimePresentationServices final {
 public:

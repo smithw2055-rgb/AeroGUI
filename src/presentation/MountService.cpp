@@ -1,5 +1,7 @@
 #include <Aero/Presentation/MountService.hpp>
 
+#include "RenderingInternal.hpp"
+
 namespace Aero::Presentation {
 
 MountService::MountService(

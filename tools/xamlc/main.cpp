@@ -2,7 +2,8 @@
 #include <Aero/Markup/CompiledDocument.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/SchemaBundle.hpp>
+#include "ModuleCatalog.hpp"
+#include "SchemaBundle.hpp"
 #include <Aero/Version.hpp>
 
 #include <cstdio>

@@ -1,70 +1,46 @@
 #pragma once
 
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
-#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
-#include <Aero/Core/Events/RoutedEventCatalog.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Base/Config.hpp>
 
 namespace Aero::Core {
 
 class MetadataDomain;
+#if !defined(AERO_SDK_SURFACE_ONLY)
+class DependencyPropertyRegistry;
+class MetadataRegistrationTypes;
+class MetadataValueRegistrationStore;
+#endif
+class MetadataRegistrationValues;
+
 template<class T>
 class TypeDescription;
+
 namespace Detail {
-template<class T>
-class DescriptionBuilder;
+class MetadataAuthoringSession;
 }
 
-class MetadataContext final {
+// Opaque, callback-scoped registration context. Module authors consume it
+// through Describe<T>; registration stores and runtime registries remain
+// owned by MetadataDomain and are not part of the Module SDK surface.
+class AERO_API MetadataContext final {
 private:
     friend class MetadataDomain;
     template<class T>
     friend class TypeDescription;
-    template<class T>
-    friend class Detail::DescriptionBuilder;
+    friend class Detail::MetadataAuthoringSession;
 
-    MetadataContext(
-        TypeRegistry& typeRegistry,
-        MetadataBehaviorRegistrationStore& behaviors,
-        MetadataValueRegistrationStore& values,
-        DependencyPropertyRegistry& properties,
-        RoutedEventCatalog* events = nullptr) noexcept
-        : types_(&typeRegistry),
-          behaviorRegistrations_(&behaviors),
-          valueRegistrations_(&values),
-          dependencyProperties_(&properties),
-          routedEvents_(events) {}
+    explicit MetadataContext(void* state) noexcept
+        : state_(state) {}
 
-    MetadataRegistrationTypes Types() noexcept {
-        return MetadataRegistrationTypes(*types_, *behaviorRegistrations_);
-    }
+    MetadataRegistrationValues Values() noexcept;
+    MetadataRegistrationValues Values() const noexcept;
+#if !defined(AERO_SDK_SURFACE_ONLY)
+    MetadataRegistrationTypes Types() noexcept;
+    MetadataValueRegistrationStore& ValueRegistrations() noexcept;
+    DependencyPropertyRegistry& DependencyProperties() noexcept;
+#endif
 
-    MetadataRegistrationValues Values() noexcept {
-        return MetadataRegistrationValues(*valueRegistrations_);
-    }
-
-    MetadataRegistrationValues Values() const noexcept {
-        return MetadataRegistrationValues(
-            static_cast<const MetadataValueRegistrationStore&>(
-                *valueRegistrations_));
-    }
-
-    MetadataValueRegistrationStore& ValueRegistrations() noexcept {
-        return *valueRegistrations_;
-    }
-    DependencyPropertyRegistry& DependencyProperties() noexcept {
-        return *dependencyProperties_;
-    }
-    RoutedEventCatalog* RoutedEvents() const noexcept {
-        return routedEvents_;
-    }
-
-private:
-    TypeRegistry* types_ = nullptr;
-    MetadataBehaviorRegistrationStore* behaviorRegistrations_ = nullptr;
-    MetadataValueRegistrationStore* valueRegistrations_ = nullptr;
-    DependencyPropertyRegistry* dependencyProperties_ = nullptr;
-    RoutedEventCatalog* routedEvents_ = nullptr;
+    void* state_ = nullptr;
 };
 
 } // namespace Aero::Core

@@ -7,7 +7,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Markup/Extensions.hpp>
+#include "Extensions.hpp"
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Version.hpp>
 

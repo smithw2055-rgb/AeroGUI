@@ -1,5 +1,7 @@
 #include "SchemaInternal.hpp"
 
+// Query surface is public; execution operations are reached by source-side
+// friends and SchemaAccess.
 #include <new>
 
 namespace Aero::Markup {

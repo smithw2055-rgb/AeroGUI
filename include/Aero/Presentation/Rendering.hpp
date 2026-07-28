@@ -52,7 +52,7 @@ AERO_API bool IsFinite(Transform2D value) noexcept;
 AERO_API bool IsValidOpacity(double value) noexcept;
 
 // Commands contain only immutable value data. Backends must never retain pointers
-// to active UI objects while consuming a RenderPlan.
+// to active UI objects while consuming an immutable frame snapshot.
 enum class RenderCommandKind : std::uint8_t {
     PushClip = 0U,
     PopClip,
@@ -94,7 +94,9 @@ public:
 
 private:
     friend class DisplayListBuilder;
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class RenderManager;
+#endif
     Base::Vector<RenderCommand> commands_;
 };
 
@@ -137,7 +139,9 @@ private:
         const RenderCommand& command) noexcept;
 };
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class RenderManager;
+#endif
 class FrameworkElement;
 
 class FrameworkElementChildRange final {
@@ -299,8 +303,12 @@ protected:
         DisplayListBuilder& builder) noexcept;
 
 private:
+#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class RenderManager;
     RenderManager* renderManager_ = nullptr;
+#else
+    void* renderOwner_ = nullptr;
+#endif
     double dpiScale_ = 1.0;
     RenderNodeId nodeId_ = InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
@@ -310,122 +318,6 @@ private:
     bool buildingDisplayList_ = false;
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;
-};
-
-struct RenderNodeSnapshot final {
-    RenderNodeId id = InvalidRenderNodeId;
-    RenderNodeId parentId = InvalidRenderNodeId;
-    Rect layoutSlot;
-    Rect clip;
-    Size renderSize;
-    std::uint32_t commandOffset = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint64_t elementRevision = 0U;
-};
-
-class AERO_API RenderPlan final {
-public:
-    RenderPlan() noexcept : nodes_(), commands_() {}
-
-    Base::Span<const RenderNodeSnapshot> Nodes() const noexcept {
-        return {nodes_.Data(), nodes_.Size()};
-    }
-    Base::Span<const RenderCommand> Commands() const noexcept {
-        return {commands_.Data(), commands_.Size()};
-    }
-    std::uint64_t Version() const noexcept { return version_; }
-    std::uint64_t StableHash() const noexcept;
-
-private:
-    friend class RenderManager;
-    Base::Vector<RenderNodeSnapshot> nodes_;
-    Base::Vector<RenderCommand> commands_;
-    std::uint64_t version_ = 0U;
-};
-
-class AERO_API IRenderBackend {
-public:
-    virtual ~IRenderBackend() = default;
-    virtual Base::Result<void> Submit(
-        const RenderPlan& plan) noexcept = 0;
-};
-
-class AERO_API NullRenderBackend final : public IRenderBackend {
-public:
-    Base::Result<void> Submit(
-        const RenderPlan& plan) noexcept override;
-
-    std::uint64_t LastVersion() const noexcept {
-        return lastVersion_;
-    }
-    std::uint64_t LastHash() const noexcept { return lastHash_; }
-    std::uint32_t SubmissionCount() const noexcept {
-        return submissionCount_;
-    }
-
-private:
-    std::uint64_t lastVersion_ = 0U;
-    std::uint64_t lastHash_ = 0U;
-    std::uint32_t submissionCount_ = 0U;
-};
-
-struct RenderDiagnostics final {
-    std::uint64_t commitVersion = 0U;
-    std::uint32_t nodeCount = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint32_t dirtyCount = 0U;
-    std::uint64_t planHash = 0U;
-};
-
-class AERO_API RenderManager final {
-public:
-    RenderManager(
-        Dispatcher& dispatcher,
-        IRenderBackend& backend) noexcept;
-    ~RenderManager() noexcept;
-
-    RenderManager(const RenderManager&) = delete;
-    RenderManager& operator=(const RenderManager&) = delete;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> SetRoot(FrameworkElement* root) noexcept;
-    Base::Result<void> Attach(
-        FrameworkElement& parent,
-        FrameworkElement& child) noexcept;
-    Base::Result<void> Detach(
-        FrameworkElement& parent,
-        FrameworkElement& child) noexcept;
-    Base::Result<void> Invalidate(
-        FrameworkElement& element) noexcept;
-    Base::Result<std::uint32_t> Commit() noexcept;
-
-    const RenderPlan& CurrentPlan() const noexcept {
-        return currentPlan_;
-    }
-    RenderDiagnostics Diagnostics() const noexcept;
-
-private:
-    Dispatcher* dispatcher_ = nullptr;
-    IRenderBackend* backend_ = nullptr;
-    FrameworkElement* root_ = nullptr;
-    Base::Vector<Detail::VisualLease> dirty_;
-    RenderPlan currentPlan_;
-    DispatcherFrameHookHandle phaseHook_;
-    RenderNodeId nextNodeId_ = 1U;
-    std::uint64_t commitVersion_ = 0U;
-    bool committing_ = false;
-
-    Base::Result<void> VerifyElement(
-        const FrameworkElement& element) const noexcept;
-    Base::Result<void> QueueDirty(
-        FrameworkElement& element) noexcept;
-    void RemoveQueued(FrameworkElement& element) noexcept;
-    void MarkCommittedSubtree(FrameworkElement& element) noexcept;
-    Base::Result<void> BuildSubtree(
-        FrameworkElement& element,
-        RenderNodeId parentId,
-        RenderPlan& plan) noexcept;
-    static void RenderCommitHook(void* context) noexcept;
 };
 
 } // namespace Aero::Presentation

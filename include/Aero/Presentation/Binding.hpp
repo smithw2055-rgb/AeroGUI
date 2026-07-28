@@ -144,10 +144,10 @@ public:
         class TTargetOwner>
     Base::Result<BindingHandle> Attach(
         DependencyObject& source,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TSourceOwner, TValue>& sourceProperty,
         DependencyObject& target,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TTargetOwner, TValue>& targetProperty,
         BindingMode mode = BindingMode::OneWay) noexcept {
         BindingDescriptor descriptor;
@@ -166,10 +166,10 @@ public:
         class TTargetOwner>
     Base::Result<BindingHandle> Attach(
         DependencyObject& source,
-        const ReadOnlyPropertyRef<
+        const Core::ReadOnlyPropertyRef<
             TSourceOwner, TValue>& sourceProperty,
         DependencyObject& target,
-        const DependencyPropertyRef<
+        const Core::DependencyPropertyRef<
             TTargetOwner, TValue>& targetProperty,
         BindingMode mode = BindingMode::OneWay) noexcept {
         BindingDescriptor descriptor;

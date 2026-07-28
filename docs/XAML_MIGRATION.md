@@ -6,15 +6,15 @@
 
 | 旧调用 | 新调用 |
 | --- | --- |
-| `RuntimeHost::LoadXaml(text)` | `RuntimeHost::ParseXaml(text, baseUri)` |
-| 手工读文件后 parse | 注册 provider 后 `RuntimeHost::LoadXaml(uri)` |
-| 自建 compiled object-writer 路径 | `LoadCompiledXaml(bytes, originUri)` |
+| `View::Load(text)` | `View::Parse(text, baseUri)` |
+| 手工读文件后 parse | 注册 provider 后 `View::Load(uri)` |
+| 自建 compiled object-writer 路径 | `View::LoadCompiled(bytes, originUri)` |
 | XAML activation wrapper | `Core::ActivationProviderRegistry` |
-| `RuntimeHost::Load(reader/document)` | `ParseXaml` / `LoadCompiledXaml` |
+| 旧 `Load(reader/document)` | `View::Parse` / `View::LoadCompiled` |
 | root-only object-writer load | 保留完整 `XamlLoadResult` |
 | 独立注册 Style/Template XAML extension | `XamlPresentationObjectModel::Register` |
 
-`LoadXaml` 的参数现在是 URI，不再猜测字符串是路径还是 XAML 内容。相对 URI
+`View::Load` 的参数是 URI，不猜测字符串是路径还是 XAML 内容。相对 URI
 需要有效 base URI；网络 scheme 默认失败。
 
 ## 资源与主题迁移
@@ -55,7 +55,7 @@ host.LoadBuiltInTheme(Aero::BuiltInTheme::Dark);
 - 不要在控件构造函数或 Gallery glue code 中手工应用主题属性。
 
 本地 DP 值优先于 Style；卸载前无需手工清理 Style/Template provider，
-RuntimeHost 会统一 detach。
+View 会统一 detach。
 
 ## DataTemplate 与 ItemsPanelTemplate
 

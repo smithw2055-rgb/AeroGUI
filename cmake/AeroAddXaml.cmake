@@ -1,10 +1,9 @@
 include(CMakeParseArguments)
 
 # Build a host-side schema generator for an application module set. The module
-# function must have this signature:
+# manifest function must have this signature:
 #
-#   Aero::Base::Result<void> RegisterModules(
-#       Aero::ModuleCatalog& modules) noexcept;
+#   Aero::ModuleRegistration MakeModuleManifest() noexcept;
 #
 # The generated .aeroschema contains descriptor data only; target factories and
 # callbacks remain in the runtime libraries and never enter the host-tool file.
@@ -53,7 +52,8 @@ function(aero_add_schema_manifest target)
     set(_aero_schema_template [=[
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/SchemaBundle.hpp>
+#include "ModuleCatalog.hpp"
+#include "SchemaBundle.hpp"
 #include <@AERO_SCHEMA_GENERATED_HEADER@>
 
 #include <cstdio>
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
     }
     Aero::ModuleCatalog modules;
     Aero::Base::Result<void> status =
-        @AERO_SCHEMA_GENERATED_FUNCTION@(modules);
+        modules.Add(@AERO_SCHEMA_GENERATED_FUNCTION@());
     if (!status) return Fail(status.GetStatus());
 
     Aero::SchemaBundle bundle;
@@ -96,8 +96,8 @@ int main(int argc, char** argv) {
     status = bundle.Finalize({});
     if (!status) return Fail(status.GetStatus());
 
-    Aero::Base::Result<Aero::Markup::XamlSchemaManifest> manifest =
-        Aero::Markup::XamlSchemaManifest::Capture(bundle.XamlSchema());
+    Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
+        Aero::Markup::SchemaManifest::Capture(bundle.Schema());
     if (!manifest) return Fail(manifest.GetStatus());
     Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =
         manifest.Value().Serialize();
@@ -119,7 +119,11 @@ int main(int argc, char** argv) {
     add_executable("${_aero_schema_generator}" EXCLUDE_FROM_ALL
         "${_aero_schema_source}")
     target_link_libraries("${_aero_schema_generator}"
-        PRIVATE Aero::ModuleCatalog ${AERO_SCHEMA_LIBRARIES})
+        PRIVATE
+            Aero::DetailModuleCatalog
+            ${AERO_SCHEMA_LIBRARIES})
+    target_include_directories("${_aero_schema_generator}"
+        PRIVATE "${PROJECT_SOURCE_DIR}/src")
     target_compile_features("${_aero_schema_generator}"
         PRIVATE cxx_std_17)
     aero_apply_compiler_options("${_aero_schema_generator}")

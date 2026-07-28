@@ -1,4 +1,5 @@
-#include <Aero/Presentation/QueuedRenderBackend.hpp>
+#include "RenderingInternal.hpp"
+#include "QueuedRenderBackend.hpp"
 
 #include <mutex>
 #include <new>

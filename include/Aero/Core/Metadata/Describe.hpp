@@ -1,35 +1,20 @@
 #pragma once
 
-#include <Aero/Core/Metadata/Detail/DescriptionBuilder.hpp>
+#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 #include <Aero/Core/Metadata/ValueCodec.hpp>
+#include <Aero/Core/RoutedEvent.hpp>
 
 #include <functional>
 #include <type_traits>
 #include <utility>
 
+#define AERO_METADATA_DESCRIBE_IMPLEMENTATION 1
+#include <Aero/Core/Metadata/Describe.inl>
+#undef AERO_METADATA_DESCRIBE_IMPLEMENTATION
+
 namespace Aero::Core {
 
 namespace Detail {
-
-template<class T>
-DescriptionBuilder<T> CreateDescriptionBuilder(
-    MetadataContext& context,
-    TypeFlags flags) noexcept {
-    if constexpr (std::is_enum_v<T>) {
-        return DescriptionBuilder<T>::Enum(
-            context,
-            TypeOf<std::uint32_t>(),
-            flags);
-    } else if constexpr (
-        std::is_arithmetic_v<T> ||
-        std::is_same_v<T, Base::String>) {
-        return DescriptionBuilder<T>::Primitive(context, flags);
-    } else if constexpr (std::is_base_of_v<Base::Object, T>) {
-        return DescriptionBuilder<T>::Object(context, flags);
-    } else {
-        return DescriptionBuilder<T>::Struct(context, flags);
-    }
-}
 
 template<class T>
 struct IsResultVoid final : std::false_type {};
@@ -53,9 +38,7 @@ Base::Result<Value> ConvertTypedText(
             Base::ErrorCode::InvalidArgument,
             "Typed metadata text converter received a mismatched type");
     }
-    auto* registrations =
-        static_cast<MetadataValueRegistrationStore*>(context);
-    if (registrations == nullptr) {
+    if (context == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Typed metadata text converter has no value registry");
@@ -63,9 +46,10 @@ Base::Result<Value> ConvertTypedText(
     Base::Result<T> converted =
         std::invoke(Converter, text);
     if (!converted) return converted.GetStatus();
-    MetadataRegistrationValues values(*registrations);
+    MetadataRegistrationValues registrations =
+        MakeRegistrationValues(context);
     return ValueCodec<T>::Encode(
-        values, converted.Value());
+        registrations, converted.Value());
 }
 
 template<class TOwner, class TValue, auto Getter>
@@ -371,10 +355,8 @@ public:
     explicit TypeDescription(
         MetadataContext& context,
         TypeFlags flags = TypeFlags::None) noexcept
-        : context_(&context),
-          builder_(
-              Detail::CreateDescriptionBuilder<T>(
-                  context, flags)) {}
+        : builder_(Detail::CreateDescriptionSession<T>(
+              context, flags)) {}
 
     TypeDescription(const TypeDescription&) = delete;
     TypeDescription& operator=(const TypeDescription&) = delete;
@@ -382,7 +364,8 @@ public:
     TypeDescription& operator=(TypeDescription&&) noexcept = default;
 
     TypeDescription& Factory() noexcept {
-        builder_.DefaultFactory();
+        builder_.Factory(
+            &Detail::CreateDefaultObject<T>);
         return *this;
     }
     TypeDescription& Factory(ObjectFactory factory) noexcept {
@@ -391,7 +374,7 @@ public:
     }
     template<class TInterface>
     TypeDescription& Implements() noexcept {
-        builder_.template Implements<TInterface>();
+        builder_.Implements(TypeOf<TInterface>());
         return *this;
     }
 
@@ -515,9 +498,8 @@ public:
         if (!builder_.Ok()) return *this;
         using Adapter = Detail::OrdinaryPropertyAdapter<
             T, TValue, TGetter, TSetter>;
-        MetadataRegistrationTypes types = context_->Types();
         Base::Result<Adapter*> adapter =
-            types.TryOwnBehaviorContext(
+            builder_.OwnBehaviorContext(
                 Adapter{getter, setter});
         if (!adapter) {
             builder_.Fail(adapter.GetStatus());
@@ -532,12 +514,9 @@ public:
         registration.get = &Adapter::Get;
         registration.set = &Adapter::Set;
         registration.context = adapter.Value();
-        Base::Result<MemberId> registered =
-            types.TryRegisterProperty(
-                TypeOf<T>(), registration);
-        if (!registered) {
-            types.ReleaseLastBehaviorContext(adapter.Value());
-            builder_.Fail(registered.GetStatus());
+        builder_.Property(registration);
+        if (!builder_.Ok()) {
+            builder_.ReleaseBehaviorContext(adapter.Value());
         }
         return *this;
     }
@@ -546,7 +525,18 @@ public:
     TypeDescription& Field(
         Base::StringView name,
         FieldFlags flags = FieldFlags::None) noexcept {
-        builder_.template Field<Member>(name, flags);
+        using Traits = Detail::MemberPointerTraits<Member>;
+        using Owner = typename Traits::OwnerType;
+        using FieldType = typename Traits::FieldType;
+        static_assert(std::is_same_v<Owner, T>,
+            "Metadata field member must belong to the described struct");
+        builder_.Field({
+            name,
+            ValueCodec<FieldType>::Type(),
+            flags,
+            &Detail::GetField<Owner, FieldType, Member>,
+            &Detail::SetField<Owner, FieldType, Member>,
+            nullptr});
         return *this;
     }
 
@@ -567,11 +557,8 @@ public:
         const DependencyPropertyRef<TOwner, TValue>& property,
         const PropertyOptions<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        MetadataRegistrationValues values =
-            context_->Values();
         Base::Result<::Aero::Core::Value> encoded =
-            ValueCodec<TValue>::Encode(
-                values, options.DefaultValue());
+            builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
             return *this;
@@ -584,13 +571,9 @@ public:
         metadata.validate = options.Validator();
         metadata.coerce = options.Coercer();
         metadata.changed = options.ChangeCallback();
-        builder_.Fail(
-            context_->DependencyProperties()
-                .TryOverrideMetadata(
-                    property.Handle(),
-                    TypeOf<T>(),
-                    metadata)
-                .GetStatus());
+        builder_.Override(
+            property.Handle(), TypeOf<T>(),
+            std::move(metadata));
         return *this;
     }
 
@@ -653,15 +636,15 @@ public:
     }
 
     TypeDescription& ValueSemantics() noexcept {
-        builder_.ValueSemantics();
+        builder_.ValueSemantics(
+            Detail::MakeValueTypeRegistration<T>());
         return *this;
     }
 
     template<auto Converter>
     TypeDescription& TextConverter() noexcept {
         builder_.TextConverter(
-            &Detail::ConvertTypedText<T, Converter>,
-            &context_->ValueRegistrations());
+            &Detail::ConvertTypedText<T, Converter>);
         return *this;
     }
 
@@ -689,7 +672,13 @@ public:
         static_assert(
             std::is_enum_v<T>,
             "Describe<T>::Value requires an enum type");
-        builder_.EnumValue(name, value);
+        using Underlying = std::underlying_type_t<T>;
+        using Unsigned = std::make_unsigned_t<Underlying>;
+        builder_.EnumValueRaw(
+            name,
+            static_cast<std::uint64_t>(
+                static_cast<Unsigned>(
+                    static_cast<Underlying>(value))));
         return *this;
     }
 
@@ -706,43 +695,23 @@ private:
         DependencyPropertyFlags propertyFlags,
         const PropertyOptions<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
-        MetadataRegistrationValues values =
-            context_->Values();
         Base::Result<::Aero::Core::Value> encoded =
-            ValueCodec<TValue>::Encode(
-                values, options.DefaultValue());
+            builder_.Encode(options.DefaultValue());
         if (!encoded) {
             builder_.Fail(encoded.GetStatus());
             return *this;
         }
-        if (propertyFlags == DependencyPropertyFlags::Attached) {
-            builder_.AttachedDependencyProperty(
-                handle, name, ValueCodec<TValue>::Type(),
-                std::move(encoded).Value(), options.Flags(),
-                options.Validator(), options.Coercer(),
-                options.ChangeCallback(),
-                options.DefaultUpdateSourceTrigger());
-        } else if (propertyFlags ==
-            DependencyPropertyFlags::ReadOnly) {
-            builder_.ReadOnlyDependencyProperty(
-                handle, name, ValueCodec<TValue>::Type(),
-                std::move(encoded).Value(), options.Flags(),
-                options.Validator(), options.Coercer(),
-                options.ChangeCallback(),
-                options.DefaultUpdateSourceTrigger());
-        } else {
-            builder_.DependencyProperty(
-                handle, name, ValueCodec<TValue>::Type(),
-                std::move(encoded).Value(), options.Flags(),
-                options.Validator(), options.Coercer(),
-                options.ChangeCallback(),
-                options.DefaultUpdateSourceTrigger());
-        }
+        builder_.DependencyProperty(
+            handle, name, ValueCodec<TValue>::Type(),
+            std::move(encoded).Value(), options.Flags(),
+            propertyFlags,
+            options.Validator(), options.Coercer(),
+            options.ChangeCallback(),
+            options.DefaultUpdateSourceTrigger());
         return *this;
     }
 
-    MetadataContext* context_ = nullptr;
-    Detail::DescriptionBuilder<T> builder_;
+    Detail::MetadataAuthoringSession builder_;
 };
 
 template<class T>

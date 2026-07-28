@@ -1,4 +1,6 @@
 #include <Aero/Controls/Controls.hpp>
+
+#include "TextLayoutService.hpp"
 #include <Aero/Core/ObjectServices.hpp>
 
 #include <algorithm>
@@ -438,7 +440,7 @@ Base::Result<void> Border::BuildDisplayList(
 
 TextBlock::TextBlock() noexcept
     : FrameworkElement(StaticTypeId()),
-      layoutService_(GetCurrentTextBlockLayoutService()) {}
+      layoutService_(nullptr) {}
 
 TextBlock::~TextBlock() {
     ReleaseServiceGlyphRun();
@@ -460,20 +462,6 @@ Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
     return SetValue(ForegroundProperty, value);
-}
-
-Base::Result<void> TextBlock::SetLayoutService(
-    ITextBlockLayoutService* service) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (layoutService_ == service) return {};
-    ReleaseServiceGlyphRun();
-    layoutService_ = service;
-    glyphRuns_.Clear();
-    glyphRunSize_ = {};
-    Base::Result<void> measure = InvalidateMeasure();
-    if (!measure) return measure.GetStatus();
-    return InvalidateRender();
 }
 
 Base::Result<void> TextBlock::SetGlyphRun(
@@ -521,11 +509,11 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             return Size{};
         }
 
-        TextBlockLayoutRequest request;
+        Detail::TextLayoutRequest request;
         request.text = text;
         request.availableSize = availableSize;
         request.dpiScale = DpiScale();
-        TextBlockLayoutResult output;
+        Detail::TextLayoutResult output;
         Base::Result<void> prepared =
             layoutService_->ShapeAndPrepare(request, output);
         if (!prepared) return prepared.GetStatus();

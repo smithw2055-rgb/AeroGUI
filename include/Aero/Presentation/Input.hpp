@@ -4,6 +4,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Presentation/InputValues.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 
@@ -13,15 +14,10 @@ using namespace Aero::Core;
 
 class CommandManager;
 
-struct HitTestResult final {
-    UIElement* target = nullptr;
-    Point position;
-    bool HasTarget() const noexcept { return target != nullptr; }
-};
-
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
 // Callers register the C++ cast for each concrete layout type; this avoids
 // RTTI and keeps the Core runtime usable with /GR- builds.
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API HitTestManager final {
 public:
     HitTestManager() noexcept = default;
@@ -40,20 +36,7 @@ private:
     Base::Result<HitTestResult> HitTestElement(
         UIElement& element, Point position) const noexcept;
 };
-
-struct PointerInput final {
-    std::uint32_t pointerId = 0U;
-    PointerAction action = PointerAction::Move;
-    Point position;
-    MouseButton changedButton = MouseButton::Left;
-    double wheelDeltaX = 0.0;
-    double wheelDeltaY = 0.0;
-};
-
-struct PointerDispatchResult final {
-    HitTestResult hit;
-    bool routed = false;
-};
+#endif
 
 using PointerStateChangedHandler =
     Base::Delegate<void(UIElement&)>;
@@ -61,66 +44,7 @@ using PointerCaptureChangedHandler =
     Base::Delegate<void(
         std::uint32_t, UIElement*, bool)>;
 
-// The platform host normalizes native keyboard input into this small value
-// type. key is a non-zero platform-neutral key identifier; text composition
-// and IME remain a separate input path.
-struct KeyboardInput final {
-    KeyboardAction action = KeyboardAction::Down;
-    std::uint32_t key = 0U;
-    std::uint32_t modifiers = 0U;
-    bool isRepeat = false;
-};
-
-inline constexpr std::uint32_t KeyboardKeyTab = 9U;
-inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
-inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
-inline constexpr std::uint32_t KeyboardKeySpace = 32U;
-inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
-inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;
-inline constexpr std::uint32_t KeyboardKeyLeft = 0x25U;
-inline constexpr std::uint32_t KeyboardKeyUp = 0x26U;
-inline constexpr std::uint32_t KeyboardKeyRight = 0x27U;
-inline constexpr std::uint32_t KeyboardKeyDown = 0x28U;
-inline constexpr std::uint32_t KeyboardKeyDelete = 0x2EU;
-inline constexpr std::uint32_t KeyboardKeyA = 0x41U;
-inline constexpr std::uint32_t KeyboardKeyC = 0x43U;
-inline constexpr std::uint32_t KeyboardKeyV = 0x56U;
-inline constexpr std::uint32_t KeyboardKeyX = 0x58U;
-inline constexpr std::uint32_t KeyboardKeyY = 0x59U;
-inline constexpr std::uint32_t KeyboardKeyZ = 0x5AU;
-
-enum class KeyboardModifiers : std::uint32_t {
-    None = 0U,
-    Shift = 1U << 0U,
-    Control = 1U << 1U,
-    Alt = 1U << 2U,
-};
-
-constexpr bool HasKeyboardModifier(
-    std::uint32_t modifiers,
-    KeyboardModifiers value) noexcept {
-    return (modifiers & static_cast<std::uint32_t>(value)) != 0U;
-}
-
-struct KeyboardDispatchResult final {
-    UIElement* target = nullptr;
-    bool routed = false;
-    bool commandExecuted = false;
-    bool focusMoved = false;
-};
-
-// Text is delivered separately from physical/logical keyboard events. The
-// UTF-8 view is borrowed for the duration of Dispatch() and handlers must not
-// retain it; IME composition is intentionally a later, distinct protocol.
-struct TextInput final {
-    Base::StringView text;
-};
-
-struct TextInputDispatchResult final {
-    UIElement* target = nullptr;
-    bool routed = false;
-};
-
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API PointerInputManager final {
 public:
     PointerInputManager(HitTestManager& hitTests, RoutedEventManager& events,
@@ -183,12 +107,14 @@ private:
     bool HasPressed(VisualHandle target,
         std::uint32_t ignoredIndex) const noexcept;
 };
+#endif
 
 enum class FocusNavigationDirection : std::uint8_t {
     Next,
     Previous,
 };
 
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API FocusManager final {
 public:
     FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
@@ -224,9 +150,11 @@ private:
         Base::Vector<FocusCandidate>& candidates,
         std::uint32_t& order) noexcept;
 };
+#endif
 
 // UI-thread keyboard router. It delivers KeyDown/KeyUp to the current focus
 // target and uses the same routed-event snapshot semantics as pointer input.
+#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
@@ -261,5 +189,6 @@ private:
     RoutedEventManager* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
 };
+#endif
 
 } // namespace Aero::Presentation

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Markup/Loader.hpp>
+#include "Loader.hpp"
 #include "LoaderResult.hpp"
 
 namespace Aero::Markup {
@@ -20,6 +20,9 @@ struct LoadContext final {
     Base::Ref<EffectLifetime> effectLifetime;
     EffectCommitMode effectCommitMode =
         EffectCommitMode::Immediate;
+    DocumentCache* documentCache = nullptr;
+    Core::Dispatcher* dispatcher = nullptr;
+    Core::DependencyPropertyRegistry* dependencyProperties = nullptr;
     std::uint32_t maxObjects = UINT32_MAX;
     LoadFinalizeCallback finalize = nullptr;
     void* finalizeContext = nullptr;

@@ -4,6 +4,10 @@
 #include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
 
+namespace Aero {
+class RuntimeEnvironment;
+}
+
 namespace Aero::Samples::ControlGallery {
 
 inline constexpr Base::StringView GalleryNamespace() noexcept {
@@ -35,7 +39,5 @@ protected:
 
 Aero::ModuleRegistration
 MakeStatusBadgeModuleManifest() noexcept;
-Base::Result<void> RegisterControlGalleryModules(
-    Aero::ModuleCatalog& modules) noexcept;
 
 } // namespace Aero::Samples::ControlGallery

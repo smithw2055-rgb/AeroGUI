@@ -3,6 +3,61 @@
 #include <cstdint>
 
 namespace Aero::Core {
+
+Base::Result<void*>
+MetadataBehaviorRegistrationStore::TryOwnContextRaw(
+    std::size_t size,
+    std::size_t alignment,
+    void* source,
+    void (*construct)(void*, void*) noexcept,
+    void (*destroyValue)(void*) noexcept) noexcept {
+    if (size == 0U ||
+        alignment == 0U ||
+        source == nullptr ||
+        construct == nullptr ||
+        destroyValue == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Metadata behavior context descriptor is invalid");
+    }
+
+    Base::IAllocator& allocator =
+        Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        size,
+        alignment,
+        Base::MemoryTag::General});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Metadata behavior context allocation failed");
+    }
+    construct(memory, source);
+
+    OwnedBehaviorContext context;
+    context.allocator = &allocator;
+    context.value = memory;
+    context.destroyValue = destroyValue;
+    context.size = size;
+    context.alignment = alignment;
+    context.destroy =
+        [](OwnedBehaviorContext& owned) noexcept {
+            owned.destroyValue(owned.value);
+            owned.allocator->Deallocate(
+                owned.value,
+                owned.size,
+                owned.alignment,
+                Base::MemoryTag::General);
+            owned = {};
+        };
+    Base::Result<void> retained =
+        ownedContexts_.TryPushBack(context);
+    if (!retained) {
+        context.destroy(context);
+        return retained.GetStatus();
+    }
+    return memory;
+}
 namespace {
 
 bool IsValidPropertyBehavior(

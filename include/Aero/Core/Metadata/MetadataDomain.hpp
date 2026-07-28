@@ -4,7 +4,7 @@
 #include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/Events/RoutedEventCatalog.hpp>
+#include <Aero/Core/RoutedEvent.hpp>
 #include <Aero/Core/Metadata/MetadataContext.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 
@@ -78,8 +78,6 @@ public:
     // is confined to module callbacks and their MetadataContext.
     const TypeRegistry& Types() const noexcept;
     const DependencyPropertyRegistry& DependencyProperties() const noexcept;
-    const RoutedEventCatalog& RoutedEvents() const noexcept;
-
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
 
 private:
@@ -90,7 +88,7 @@ private:
     Storage* storage_ = nullptr;
 
     DependencyPropertyRegistry& DependencyProperties() noexcept;
-    RoutedEventCatalog& RoutedEvents() noexcept;
+    void* RoutedEventState() noexcept;
     const Detail::MetadataFacetStore& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;

@@ -11,9 +11,9 @@ public:
         return domain.DependencyProperties();
     }
 
-    static RoutedEventCatalog& RoutedEvents(
+    static void* RoutedEventState(
         MetadataDomain& domain) noexcept {
-        return domain.RoutedEvents();
+        return domain.RoutedEventState();
     }
 };
 

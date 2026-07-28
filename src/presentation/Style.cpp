@@ -21,32 +21,32 @@ bool IsTargetCompatible(
 } // namespace
 
 
-Base::Result<void> StyleProgram::Freeze(
-    TypeId targetType,
-    Base::Vector<StyleSetter>&& setters,
-    Base::Vector<StylePropertyTrigger>&& triggers) noexcept {
-    if (frozen_) {
+Base::Result<void> Style::Impl::Freeze(
+    TypeId valueTargetType,
+    Base::Vector<StyleSetter>&& valueSetters,
+    Base::Vector<StylePropertyTrigger>&& valueTriggers) noexcept {
+    if (frozen) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "StyleProgram is already frozen");
     }
-    if (targetType == InvalidTypeId) {
+    if (valueTargetType == InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "StyleProgram target type is invalid");
     }
-    targetType_ = targetType;
-    setters_ = std::move(setters);
-    triggers_ = std::move(triggers);
-    frozen_ = true;
+    targetType = valueTargetType;
+    setters = std::move(valueSetters);
+    triggers = std::move(valueTriggers);
+    frozen = true;
     return {};
 }
 
-void StyleProgram::Reset() noexcept {
-    targetType_ = InvalidTypeId;
-    setters_.Clear();
-    triggers_.Clear();
-    frozen_ = false;
+void Style::Impl::Reset() noexcept {
+    targetType = InvalidTypeId;
+    setters.Clear();
+    triggers.Clear();
+    frozen = false;
 }
 
 Base::Result<void> Setter::SetPropertyName(

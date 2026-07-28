@@ -14,6 +14,7 @@ namespace Aero::Core {
 
 namespace Detail {
 class MetadataFacetStore;
+class MetadataAuthoringSession;
 }
 class MetadataRegistrationTypes;
 template<class T>
@@ -46,6 +47,7 @@ public:
 
 private:
     friend class Detail::MetadataFacetStore;
+    friend class Detail::MetadataAuthoringSession;
     friend class MetadataRegistrationTypes;
     friend class TypeRegistry;
 
@@ -53,45 +55,37 @@ private:
         Base::IAllocator* allocator = nullptr;
         void* value = nullptr;
         void (*destroy)(OwnedBehaviorContext&) noexcept = nullptr;
+        void (*destroyValue)(void*) noexcept = nullptr;
+        std::size_t size = 0U;
+        std::size_t alignment = 0U;
     };
 
     template<class TContext>
     Base::Result<std::decay_t<TContext>*> TryOwnContext(
         TContext&& value) noexcept {
         using Stored = std::decay_t<TContext>;
-        Base::IAllocator& allocator = Base::GetDefaultAllocator();
-        void* memory = allocator.Allocate({
+        Stored temporary(
+            std::forward<TContext>(value));
+        Base::Result<void*> stored = TryOwnContextRaw(
             sizeof(Stored),
             alignof(Stored),
-            Base::MemoryTag::General});
-        if (memory == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Metadata behavior context allocation failed");
-        }
-        auto* stored = new (memory) Stored(
-            std::forward<TContext>(value));
-        OwnedBehaviorContext context;
-        context.allocator = &allocator;
-        context.value = stored;
-        context.destroy = [](OwnedBehaviorContext& owned) noexcept {
-            auto* typed = static_cast<Stored*>(owned.value);
-            typed->~Stored();
-            owned.allocator->Deallocate(
-                typed,
-                sizeof(Stored),
-                alignof(Stored),
-                Base::MemoryTag::General);
-            owned = {};
-        };
-        Base::Result<void> retained =
-            ownedContexts_.TryPushBack(context);
-        if (!retained) {
-            context.destroy(context);
-            return retained.GetStatus();
-        }
-        return stored;
+            &temporary,
+            [](void* destination, void* source) noexcept {
+                new (destination) Stored(std::move(
+                    *static_cast<Stored*>(source)));
+            },
+            [](void* storedValue) noexcept {
+                static_cast<Stored*>(storedValue)->~Stored();
+            });
+        if (!stored) return stored.GetStatus();
+        return static_cast<Stored*>(stored.Value());
     }
+    Base::Result<void*> TryOwnContextRaw(
+        std::size_t size,
+        std::size_t alignment,
+        void* source,
+        void (*construct)(void*, void*) noexcept,
+        void (*destroyValue)(void*) noexcept) noexcept;
     void ReleaseLastContext(void* value) noexcept;
 
     const TypeFactoryRegistration* FindTypeFactory(
@@ -175,6 +169,7 @@ public:
 private:
     template<class>
     friend class TypeDescription;
+    friend class Detail::MetadataAuthoringSession;
 
     template<class TContext>
     Base::Result<std::decay_t<TContext>*> TryOwnBehaviorContext(

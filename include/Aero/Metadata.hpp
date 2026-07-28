@@ -4,7 +4,7 @@
 #include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/Events/RoutedEventCatalog.hpp>
+#include <Aero/Core/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
 namespace Aero {

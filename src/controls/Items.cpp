@@ -1,5 +1,7 @@
 #include <Aero/Controls/Items.hpp>
 
+#include "presentation/RenderingInternal.hpp"
+
 #include "../presentation/ResourceAssignment.hpp"
 #include <Aero/Controls/Virtualization.hpp>
 
