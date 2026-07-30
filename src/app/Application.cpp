@@ -3,7 +3,7 @@
 
 #include <new>
 
-namespace Aero::App {
+namespace Aero {
 namespace {
 
 thread_local Application* currentApplication = nullptr;
@@ -33,7 +33,7 @@ void Application::Shutdown(int exitCode) noexcept {
 }
 
 void Application::Attach(
-    Detail::IApplicationPeer* peer,
+    App::Detail::IApplicationPeer* peer,
     Window* mainWindow) noexcept {
     peer_ = peer;
     mainWindow_ = mainWindow;
@@ -50,4 +50,4 @@ void Application::Detach() noexcept {
     mainWindow_ = nullptr;
 }
 
-} // namespace Aero::App
+} // namespace Aero
