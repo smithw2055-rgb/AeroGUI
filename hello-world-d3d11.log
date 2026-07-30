@@ -1,5 +1,0 @@
-backend=d3d11
-frame=0 background=0.071,0.298,0.478,1.000 word-width=0.00 gui-fill=0.165,0.651,0.886,0.000 hello-foreground=1.000,1.000,1.000,0.000 world-foreground=1.000,1.000,1.000,0.000 logo=49.0x41.5 word=0.0x41.5
-frame=15 background=0.071,0.298,0.478,1.000 word-width=0.00 gui-fill=0.165,0.651,0.886,0.000 hello-foreground=1.000,1.000,1.000,0.000 world-foreground=1.000,1.000,1.000,0.000 logo=49.0x41.5 word=0.0x41.5
-frame=30 background=0.071,0.298,0.478,1.000 word-width=112.28 gui-fill=0.165,0.651,0.886,0.000 hello-foreground=1.000,1.000,1.000,0.000 world-foreground=1.000,1.000,1.000,0.000 logo=49.0x41.5 word=112.3x41.5
-frame=60 background=0.071,0.298,0.478,1.000 word-width=276.80 gui-fill=0.165,0.651,0.886,1.000 hello-foreground=1.000,1.000,1.000,0.970 world-foreground=1.000,1.000,1.000,0.117 logo=49.0x41.5 word=276.8x41.5
