@@ -17,6 +17,6 @@ using Application = ::Aero::Application;
 using Window = ::Aero::Window;
 
 class ApplicationHost;
-using Launcher = ApplicationHost;
+class Launcher;
 
 } // namespace Aero::App
