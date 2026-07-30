@@ -21,11 +21,31 @@ name as their stable identity.
    are temporary migration boundaries and must not become a second documented
    API.
 
+## Product headers
+
+The public API is organized around three product surfaces and one authoring
+extension:
+
+- `<Aero/Gui.hpp>` is the retained-mode WPF/XAML class library. It contains the
+  dependency-object spine, routed events, layout values, styles, resources,
+  controls, data binding, input, media and shapes.
+- `<Aero/App.hpp>` adds `Application`, `Window`, `App::Launcher` and optional App
+  services for a default desktop application lifetime.
+- `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
+  for engines and existing application frameworks.
+- `<Aero/ModuleSdk.hpp>` layers `Meta` authoring and module registration over the
+  normal GUI class library for custom-control authors.
+
+The current CMake targets still use the transitional Runtime, ModuleSdk and
+IntegrationSdk names. Renaming and packaging them as Gui, App and Integration
+must happen atomically with the install/export configuration so a public header
+never promises a link target that does not provide its implementation.
+
 ## Public namespaces
 
 | WPF semantic area | Aero C++ namespace | Examples |
 | --- | --- | --- |
-| `System.Windows` | `Aero` | `Application`, `Window`, `DependencyObject`, `UIElement`, `FrameworkElement`, `Style` |
+| `System.Windows` | `Aero` | `Application`, `Window`, `DependencyObject`, `UIElement`, `FrameworkElement`, `Style`, `ResourceDictionary` |
 | `System.Windows.Controls` | `Aero::Controls` | `Button`, `Grid`, `TextBox`, `ItemsControl` |
 | `System.Windows.Controls.Primitives` | `Aero::Controls::Primitives` | `ButtonBase`, `Selector`, `RangeBase`, `Thumb` |
 | `System.Windows.Data` | `Aero::Data` | `Binding`, `BindingMode`, `IValueConverter` |
@@ -54,7 +74,11 @@ Canonical examples:
 Aero::Application
 Aero::Window
 Aero::DependencyObject
+Aero::UIElement
+Aero::FrameworkElement
+Aero::RoutedEventArgs
 Aero::Style
+Aero::ResourceDictionary
 
 Aero::Controls::Button
 Aero::Data::Binding
@@ -100,7 +124,8 @@ local name.
 `Aero::Application` and `Aero::Window` are WPF-facing XAML objects.
 `Aero::App::Launcher` owns the optional default application lifetime: platform
 window creation, event pumping, endpoint selection and View orchestration.
-Embedded engines may use Core and Integration without using Launcher.
+Embedded engines may consume the GUI and Integration surfaces without using
+Launcher.
 
 Optional platform services belong to `Aero::App::Services`, which is owned by
 Launcher. `Aero::Application` does not own audio, graphics, native-window or
@@ -127,8 +152,10 @@ The compatibility names may be removed before the first stable ABI release.
 
 1. Application and Window namespace boundary.
 2. Launcher composition and App services.
-3. Split metadata bootstrap and move Application metadata ownership to App.
-4. Controls primitives and WPF-aligned public control domains.
-5. Data, Media, Animation, Input, Documents and Shapes.
-6. Meta authoring API and private Facet projection.
-7. Removal of compatibility aliases before stable SDK release.
+3. Establish the Gui, App, Integration and Module authoring product headers.
+4. Split metadata bootstrap and move Application metadata ownership to App.
+5. Controls primitives and WPF-aligned public control domains.
+6. Data, Media, Animation, Input, Documents and Shapes.
+7. Meta authoring API and private Facet projection.
+8. Align CMake install/export targets with the public product headers.
+9. Remove compatibility aliases before stable SDK release.
