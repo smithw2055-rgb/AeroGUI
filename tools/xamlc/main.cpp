@@ -1,4 +1,3 @@
-#include <Aero/App/Metadata.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Markup/CompiledDocument.hpp>
 #include <Aero/Markup/Schema.hpp>
@@ -141,11 +140,9 @@ CompileWithBuiltInSchema(
     Aero::Markup::NodeReader& reader,
     const Aero::Base::ResourceUri& origin) noexcept {
     Aero::ModuleCatalog modules;
-    Aero::Base::Result<void> status =
-        modules.Add(Aero::App::AppModule());
-    if (!status) return status.GetStatus();
     Aero::SchemaBundle bundle;
-    status = bundle.Prepare(modules);
+    Aero::Base::Result<void> status =
+        bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();
