@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
 
@@ -17,5 +18,8 @@ using ScrollBar = ::Aero::Controls::ScrollBar;
 using Selector = ::Aero::Controls::Selector;
 using Thumb = ::Aero::Controls::Thumb;
 using Track = ::Aero::Controls::Track;
+using Popup = ::Aero::Controls::Popup;
+using PlacementMode = ::Aero::Controls::PlacementMode;
+using PopupAnimation = ::Aero::Controls::PopupAnimation;
 
 } // namespace Aero::Controls::Primitives
