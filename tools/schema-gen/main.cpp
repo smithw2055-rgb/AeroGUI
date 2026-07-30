@@ -1,3 +1,4 @@
+#include <Aero/App/Metadata.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
 #include "ModuleCatalog.hpp"
@@ -50,8 +51,11 @@ bool WriteFile(
 Aero::Base::Result<Aero::Markup::SchemaManifest>
 BuildBuiltInManifest() noexcept {
     Aero::ModuleCatalog modules;
+    Aero::Base::Result<void> status =
+        modules.Add(Aero::App::AppModule());
+    if (!status) return status.GetStatus();
     Aero::SchemaBundle bundle;
-    Aero::Base::Result<void> status = bundle.Prepare(modules);
+    status = bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();
