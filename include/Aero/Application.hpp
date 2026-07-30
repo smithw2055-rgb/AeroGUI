@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Resources.hpp>
 
 #include <utility>
 
@@ -51,12 +51,11 @@ public:
         return startupUri_.TryAssign(value);
     }
 
-    Base::Ref<Presentation::ResourceDictionary>
-    Resources() const noexcept {
+    Base::Ref<ResourceDictionary> Resources() const noexcept {
         return resources_;
     }
     Base::Result<void> SetResources(
-        Base::Ref<Presentation::ResourceDictionary> value) noexcept {
+        Base::Ref<ResourceDictionary> value) noexcept {
         resources_ = std::move(value);
         return {};
     }
@@ -76,7 +75,7 @@ private:
     void Detach() noexcept;
 
     Base::String startupUri_;
-    Base::Ref<Presentation::ResourceDictionary> resources_;
+    Base::Ref<ResourceDictionary> resources_;
     App::Detail::IApplicationPeer* peer_ = nullptr;
     Window* mainWindow_ = nullptr;
 };
