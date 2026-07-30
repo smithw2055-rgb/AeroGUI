@@ -73,9 +73,27 @@ static_assert(
 
 static_assert(
     std::is_same<
+        Aero::Media::Geometry,
+        Aero::Presentation::Geometry>::value,
+    "Media geometry projection must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
         Aero::Media::Animation::Timeline,
         Aero::Animation::Timeline>::value,
     "Media.Animation projection must preserve timeline runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::ResourceDictionary,
+        Aero::Presentation::ResourceDictionary>::value,
+    "Root ResourceDictionary projection must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::Style,
+        Aero::Presentation::Style>::value,
+    "Root Style projection must preserve runtime type identity");
 
 static_assert(
     std::is_same<
