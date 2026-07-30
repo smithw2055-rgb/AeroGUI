@@ -1,6 +1,6 @@
 #include <Aero/App/Window.hpp>
 
-namespace Aero::App {
+namespace Aero {
 
 Base::Result<void> Window::Show() noexcept {
     if (peer_ == nullptr) {
@@ -33,4 +33,4 @@ View* Window::HostedView() noexcept {
         : nullptr;
 }
 
-} // namespace Aero::App
+} // namespace Aero
