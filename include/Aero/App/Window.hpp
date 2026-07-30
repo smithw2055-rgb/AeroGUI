@@ -18,6 +18,10 @@ public:
 
 } // namespace Aero::App::Detail
 
+namespace Aero::Integration {
+class WindowInterop;
+}
+
 namespace Aero {
 
 // WPF-aligned XAML content root for a native top-level window. Window keeps the
@@ -49,8 +53,6 @@ public:
     Base::Result<void> Show() noexcept;
     void Close() noexcept;
     bool IsOpen() const noexcept;
-    Platform::IWindow* NativeWindow() noexcept;
-    View* HostedView() noexcept;
 
     inline static constexpr Members::Property<Base::String>
         TitleProperty{"Title"};
@@ -60,6 +62,11 @@ public:
 
 private:
     friend class App::ApplicationHost;
+    friend class Integration::WindowInterop;
+
+    Platform::IWindow* NativeWindow() noexcept;
+    View* HostedView() noexcept;
+
     void Attach(App::Detail::IWindowPeer* peer) noexcept {
         peer_ = peer;
     }
