@@ -4,6 +4,7 @@
 
 #include <cinttypes>
 #include <cstdio>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

@@ -1,6 +1,7 @@
 #include "ObjectWriterState.hpp"
 
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace {

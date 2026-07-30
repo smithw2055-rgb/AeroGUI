@@ -4,6 +4,10 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Presentation/Input.hpp>
 
+namespace Aero::Presentation {
+class RoutedEventManager;
+}
+
 namespace Aero::Controls {
 
 enum class TickPlacement : std::uint8_t {
@@ -706,94 +710,7 @@ public:
         OrientationProperty{"Orientation"};
 };
 
-class AERO_API ScrollInteractionManager final {
-public:
-    ScrollInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events) noexcept;
-    ~ScrollInteractionManager() noexcept;
 
-    Base::Result<void> Attach(
-        ScrollViewer& viewer) noexcept;
-    Base::Result<bool> Detach(
-        ScrollViewer& viewer) noexcept;
-
-private:
-    struct ViewerRecord final {
-        ScrollViewer* viewer = nullptr;
-        VisualHandle handle;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    Base::Vector<ViewerRecord> viewers_;
-    MouseWheelEventHandler wheelHandler_;
-
-    void OnMouseWheel(
-        Base::Object* sender,
-        const MouseWheelEventArgs& args) noexcept;
-    std::uint32_t FindViewer(
-        const ScrollViewer& viewer) const noexcept;
-};
-
-class AERO_API SliderInteractionManager final {
-public:
-    SliderInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        PointerInputManager& pointer,
-        FocusManager& focus) noexcept;
-    ~SliderInteractionManager() noexcept;
-
-    Base::Result<void> Attach(
-        Slider& slider) noexcept;
-    Base::Result<bool> Detach(
-        Slider& slider) noexcept;
-
-private:
-    struct SliderRecord final {
-        VisualHandle handle;
-        std::uint32_t pointerId = 0U;
-        bool dragging = false;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    Base::Vector<SliderRecord> sliders_;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseEventHandler mouseMoveHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    PointerCaptureChangedHandler captureChangedHandler_;
-
-    std::uint32_t Find(
-        const Slider& slider) const noexcept;
-    Slider* Resolve(
-        std::uint32_t index) noexcept;
-    void RemoveAt(
-        std::uint32_t index) noexcept;
-    Base::Result<void> SetFromPoint(
-        Slider& slider,
-        Point point) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnMouseMove(
-        Base::Object* sender,
-        const MouseEventArgs& args) noexcept;
-    void OnMouseUp(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-    void OnCaptureChanged(
-        std::uint32_t pointerId,
-        UIElement* target,
-        bool captured) noexcept;
-};
 
 } // namespace Aero::Controls
 

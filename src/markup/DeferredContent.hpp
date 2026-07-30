@@ -8,6 +8,10 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Presentation/Binding.hpp>
 
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 struct DeferredContentEdge final {

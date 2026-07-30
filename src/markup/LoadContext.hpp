@@ -3,6 +3,10 @@
 #include "Loader.hpp"
 #include "LoaderResult.hpp"
 
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 using LoadFinalizeCallback = Base::Result<void> (*)(

@@ -8,6 +8,8 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 namespace {

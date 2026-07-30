@@ -13,6 +13,8 @@
 
 #include <cstdio>
 #include <utility>
+#include "../controls/RuntimeManagers.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Markup::Detail {
 namespace {

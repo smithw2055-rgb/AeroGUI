@@ -8,6 +8,7 @@
 #include <Aero/Base/Assert.hpp>
 
 #include <utility>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

@@ -3,6 +3,7 @@
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
 #include "ResourceAssignment.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

@@ -2,6 +2,7 @@
 
 #include <utility>
 #include "SchemaInternal.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 Base::Result<void> TypeExtension::Register(

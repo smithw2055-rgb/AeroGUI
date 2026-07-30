@@ -1,4 +1,5 @@
 #include "Extensions.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 // Dynamic-resource markup-extension implementation.
 #include "SchemaInternal.hpp"

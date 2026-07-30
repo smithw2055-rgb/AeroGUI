@@ -9,6 +9,14 @@
 
 #include <memory>
 
+namespace Aero::Controls {
+class TemplateManager;
+}
+
+namespace Aero::Presentation {
+class AnimationManager;
+}
+
 namespace Aero::Detail {
 
 // Source-side bridge for repository-owned diagnostics and samples. Product

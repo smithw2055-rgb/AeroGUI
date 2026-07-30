@@ -16,6 +16,7 @@
 #include <type_traits>
 
 namespace Aero::Presentation {
+class AnimationManager;
 class LayoutManager;
 class RenderManager;
 }
@@ -480,102 +481,6 @@ private:
     std::uint32_t generatedNameSequence_ = 0U;
 };
 
-class AERO_API TemplateManager final {
-public:
-    TemplateManager(
-        ObjectTree& tree,
-        EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties,
-        LayoutManager* layout = nullptr,
-        RenderManager* renderer = nullptr,
-        Core::MetadataRuntime* metadata = nullptr,
-        Presentation::BindingManager* bindings = nullptr) noexcept
-        : tree_(&tree),
-          providerSession_(values),
-          values_(&providerSession_),
-          properties_(&properties),
-          layout_(layout),
-          renderer_(renderer),
-          metadata_(metadata),
-          bindings_(bindings),
-          mounts_(tree, layout, renderer),
-          propertyChangedHandler_(
-              this, &TemplateManager::OnPropertyChanged) {}
-    ~TemplateManager() noexcept;
-
-    Base::Result<TemplateHandle> Apply(
-        Control& control,
-        const ControlTemplate& plan) noexcept;
-    Base::Result<bool> Clear(
-        TemplateHandle handle) noexcept;
-    Base::Result<bool> Clear(
-        Control& control) noexcept;
-    DependencyObject* FindName(
-        TemplateHandle handle,
-        Base::StringView name) const noexcept;
-    DependencyObject* FindPart(
-        TemplateHandle handle,
-        TypeId type) const noexcept;
-    TemplateHandle AppliedHandle(
-        const Control& control) const noexcept;
-    const ControlTemplate* AppliedTemplate(
-        TemplateHandle handle) const noexcept;
-
-private:
-    struct Instance final {
-        TemplateHandle handle;
-        Control* parent = nullptr;
-        const ControlTemplate* plan = nullptr;
-        Visual* rootVisual = nullptr;
-        UIElement* rootElement = nullptr;
-        Base::Vector<TemplatePart> parts;
-        Base::Vector<TemplateContentProjection> projections;
-        NameScope names;
-        Base::Vector<Presentation::BindingHandle>
-            metadataBindings;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    Core::Detail::TemplatedParentProviderSession providerSession_;
-    Core::Detail::TemplatedParentProviderSession* values_ = nullptr;
-    DependencyPropertyRegistry* properties_ = nullptr;
-    LayoutManager* layout_ = nullptr;
-    RenderManager* renderer_ = nullptr;
-    Core::MetadataRuntime* metadata_ = nullptr;
-    Presentation::BindingManager* bindings_ = nullptr;
-    MountService mounts_;
-    Base::Vector<Instance> instances_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    std::uint64_t nextHandle_ = 1U;
-
-    std::uint32_t FindInstance(
-        TemplateHandle handle) const noexcept;
-    std::uint32_t FindInstance(
-        const Control& control) const noexcept;
-    DependencyObject* FindTarget(
-        const Instance& instance,
-        Base::StringView name) const noexcept;
-    Base::Result<void> Subscribe(
-        Instance& instance) noexcept;
-    void Unsubscribe(Instance& instance) noexcept;
-    Base::Result<void> ApplyBindings(
-        Instance& instance,
-        DependencyPropertyHandle changed =
-            DependencyPropertyHandle{}) noexcept;
-    Base::Result<void> AttachMetadataBindings(
-        Instance& instance) noexcept;
-    void DetachMetadataBindings(
-        Instance& instance) noexcept;
-    Base::Result<void> EvaluateTriggers(
-        Instance& instance) noexcept;
-    Base::Result<void> ClearProviders(
-        Instance& instance) noexcept;
-    Base::Result<void> ClearAt(
-        std::uint32_t index) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-};
 
 // Applies visual-state setters through the Animation provider and starts an
 // optional Storyboard through the shared AnimationManager.

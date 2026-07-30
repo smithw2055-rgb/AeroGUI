@@ -11,6 +11,8 @@
 
 #include <new>
 #include <utility>
+#include "presentation/RuntimeManagers.hpp"
+#include "controls/RuntimeManagers.hpp"
 
 namespace Aero::Integration {
 

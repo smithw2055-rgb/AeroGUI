@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

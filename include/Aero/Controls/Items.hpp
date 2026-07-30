@@ -8,10 +8,13 @@
 #include <utility>
 
 namespace Aero::Presentation {
+class StyleManager;
+class LayoutManager;
 class RenderManager;
 }
 
 namespace Aero::Controls {
+class TemplateManager;
 
 using ItemsChangeAction = Core::ItemsChangeAction;
 using ItemsChangedEvent = Core::ItemsChangedEvent;

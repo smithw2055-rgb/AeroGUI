@@ -1,6 +1,8 @@
 #include "Inspector.hpp"
 
 #include <Aero/Controls/ControlPrimitives.hpp>
+#include "../presentation/RuntimeManagers.hpp"
+#include "../controls/RuntimeManagers.hpp"
 
 namespace Aero::Diagnostics {
 namespace {
@@ -41,7 +43,7 @@ Result<void> AppendTree(
     if (!appended) {
         return appended.GetStatus();
     }
-    const Span<Visual* const> children =
+    const Base::Span<Visual* const> children =
         kind == TreeKind::Logical
         ? node.LogicalChildren()
         : node.VisualChildren();

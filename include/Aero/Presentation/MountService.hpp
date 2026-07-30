@@ -7,6 +7,7 @@
 #include <Aero/Presentation/Rendering.hpp>
 
 namespace Aero::Presentation {
+class LayoutManager;
 
 struct MountEdgeState final {
     Visual* logicalParent = nullptr;

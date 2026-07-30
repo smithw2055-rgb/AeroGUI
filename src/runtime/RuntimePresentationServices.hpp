@@ -14,6 +14,7 @@ class VisualStateManager;
 }
 
 namespace Aero::Presentation {
+class BindingManager;
 class StyleManager;
 class Visual;
 }
