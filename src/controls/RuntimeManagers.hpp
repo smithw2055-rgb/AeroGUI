@@ -6,6 +6,7 @@
 // These services are owned by View/runtime composition and are not part
 // of the normal WPF control-authoring surface.
 #include <Aero/Controls/Buttons.hpp>
+#include <Aero/Documents/Documents.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Trees.hpp>
@@ -115,6 +116,73 @@ private:
         std::uint32_t pointerId,
         UIElement* target,
         bool captured) noexcept;
+    void OnRequerySuggested() noexcept;
+};
+class AERO_API ControlRuntimeAccess::HyperlinkInteractionManager final {
+public:
+    HyperlinkInteractionManager(
+        ObjectTree& tree,
+        RoutedEventManager& events,
+        PointerInputManager& pointer,
+        FocusManager& focus,
+        CommandManager& commands) noexcept;
+    ~HyperlinkInteractionManager() noexcept;
+
+    Base::Result<void> Initialize() noexcept;
+    Base::Result<void> Attach(Documents::Hyperlink& link) noexcept;
+    Base::Result<bool> Detach(Documents::Hyperlink& link) noexcept;
+    Base::Result<void> RefreshCanExecute(
+        Documents::Hyperlink& link) noexcept;
+
+private:
+    struct Record final {
+        VisualHandle handle;
+        Base::Ref<ICommand> command;
+        std::uint32_t pointerId = 0U;
+        bool pointerDown = false;
+        bool keyboardDown = false;
+        bool commandEnabled = true;
+    };
+
+    ObjectTree* tree_ = nullptr;
+    RoutedEventManager* events_ = nullptr;
+    PointerInputManager* pointer_ = nullptr;
+    FocusManager* focus_ = nullptr;
+    CommandManager* commands_ = nullptr;
+    Base::Vector<Record> links_;
+    MouseButtonEventHandler mouseDownHandler_;
+    MouseButtonEventHandler mouseUpHandler_;
+    KeyEventHandler keyDownHandler_;
+    KeyEventHandler keyUpHandler_;
+    KeyboardFocusChangedEventHandler focusChangedHandler_;
+    DependencyPropertyChangedEventHandler propertyChangedHandler_;
+    RequerySuggestedHandler requeryHandler_;
+    bool initialized_ = false;
+
+    std::uint32_t Find(const Documents::Hyperlink& link) const noexcept;
+    Documents::Hyperlink* Resolve(std::uint32_t index) noexcept;
+    Base::Result<void> SubscribeCommand(
+        Documents::Hyperlink& link, Record& record) noexcept;
+    void UnsubscribeCommand(Record& record) noexcept;
+    Base::Result<void> Invoke(Documents::Hyperlink& link) noexcept;
+    void OnMouseDown(
+        Base::Object* sender,
+        const MouseButtonEventArgs& args) noexcept;
+    void OnMouseUp(
+        Base::Object* sender,
+        const MouseButtonEventArgs& args) noexcept;
+    void OnKeyDown(
+        Base::Object* sender,
+        const KeyEventArgs& args) noexcept;
+    void OnKeyUp(
+        Base::Object* sender,
+        const KeyEventArgs& args) noexcept;
+    void OnFocusChanged(
+        Base::Object* sender,
+        const KeyboardFocusChangedEventArgs& args) noexcept;
+    void OnPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnRequerySuggested() noexcept;
 };
 class AERO_API ControlRuntimeAccess::TextBoxInteractionManager final {

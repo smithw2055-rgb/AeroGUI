@@ -1,4 +1,5 @@
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Documents/Documents.hpp>
 
 #include "TextLayoutService.hpp"
 #include <Aero/Core/ObjectServices.hpp>
@@ -1594,7 +1595,7 @@ Base::StringView TextBlock::FontFamily() const noexcept {
 }
 
 FontWeight TextBlock::GetFontWeight() const noexcept {
-    if (RuntimeType() == Bold::StaticTypeId()) {
+    if (RuntimeType() == Documents::Bold::StaticTypeId()) {
         return FontWeight::Bold;
     }
     return GetValueOr(
@@ -1603,7 +1604,7 @@ FontWeight TextBlock::GetFontWeight() const noexcept {
 }
 
 Text::FontStyle TextBlock::GetFontStyle() const noexcept {
-    if (RuntimeType() == Italic::StaticTypeId()) {
+    if (RuntimeType() == Documents::Italic::StaticTypeId()) {
         return Text::FontStyle::Italic;
     }
     return GetValueOr(
@@ -1612,7 +1613,7 @@ Text::FontStyle TextBlock::GetFontStyle() const noexcept {
 }
 
 TextDecorations TextBlock::GetTextDecorations() const noexcept {
-    if (RuntimeType() == Underline::StaticTypeId()) {
+    if (RuntimeType() == Documents::Underline::StaticTypeId()) {
         return TextDecorations::Underline;
     }
     return GetValueOr(
@@ -1745,8 +1746,8 @@ Base::Result<void> TextBlock::SetInlineValue(
             Base::ErrorCode::InvalidArgument,
             "TextBlock inline content must be text or an object");
     }
-    Base::Result<Base::Ref<Run>> created =
-        Base::MakeRef<Run>();
+    Base::Result<Base::Ref<Documents::Run>> created =
+        Base::MakeRef<Documents::Run>();
     if (!created) return created.GetStatus();
     Base::Result<void> text =
         created.Value()->SetText(value.AsString());
@@ -1769,14 +1770,12 @@ Base::Result<void> TextBlock::AddOwnedInline(
     if (!access) return access.GetStatus();
     const TypeRegistry& types = PropertyRegistry().Types();
     const TypeId type = inlineObject->RuntimeType();
-    const bool supported =
-        types.IsDerivedFrom(type, TextBlock::StaticTypeId()) ||
-        type == LineBreak::StaticTypeId() ||
-        types.IsDerivedFrom(type, Hyperlink::StaticTypeId());
+    const bool supported = types.IsDerivedFrom(
+        type, Documents::Inline::StaticTypeId());
     if (!supported) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "TextBlock content must be Run, Span, LineBreak, or Hyperlink");
+            "TextBlock content must derive from Documents::Inline");
     }
     for (const Base::Ref<Base::Object>& owned :
          ownedInlines_) {
@@ -1828,7 +1827,7 @@ Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
 bool TextBlock::IsLineBreak(
     const UIElement& child) const noexcept {
     return child.RuntimeType() ==
-        LineBreak::StaticTypeId();
+        Documents::LineBreak::StaticTypeId();
 }
 
 Base::Result<void> TextBlock::SynchronizeInlineStyle(
@@ -1921,7 +1920,7 @@ Base::Result<void> TextBlock::SynchronizeInlineStyle(
     if (!weightSource) return weightSource.GetStatus();
     if (weightSource.Value() !=
             EffectiveValueSource::Local &&
-        child.RuntimeType() != Bold::StaticTypeId()) {
+        child.RuntimeType() != Documents::Bold::StaticTypeId()) {
         result = text.SetCurrentValue(
             FontWeightProperty,
             GetFontWeight());
@@ -1933,7 +1932,7 @@ Base::Result<void> TextBlock::SynchronizeInlineStyle(
     if (!styleSource) return styleSource.GetStatus();
     if (styleSource.Value() !=
             EffectiveValueSource::Local &&
-        child.RuntimeType() != Italic::StaticTypeId()) {
+        child.RuntimeType() != Documents::Italic::StaticTypeId()) {
         result = text.SetCurrentValue(
             FontStyleProperty,
             GetFontStyle());
@@ -1948,7 +1947,7 @@ Base::Result<void> TextBlock::SynchronizeInlineStyle(
     if (decorationSource.Value() !=
             EffectiveValueSource::Local &&
         child.RuntimeType() !=
-            Underline::StaticTypeId()) {
+            Documents::Underline::StaticTypeId()) {
         result = text.SetCurrentValue(
             TextDecorationsProperty,
             GetTextDecorations());

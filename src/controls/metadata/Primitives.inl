@@ -240,22 +240,6 @@ Base::Result<void> PopulateControlsPrimitives(
     status = radioButton.Result();
     if (!status) return status.GetStatus();
 
-    auto hyperlink = Describe<Hyperlink>(context);
-    hyperlink
-        .Property(
-            Hyperlink::NavigateUriProperty,
-            PropertyOptions(Base::String{}))
-        .Property(
-            Hyperlink::TextDecorationsProperty,
-            PropertyOptions(TextDecorations::Underline)
-                .AffectsRender())
-        .Override(
-            UIElement::IsTabStopProperty,
-            PropertyOptions(true))
-        .Factory();
-    status = hyperlink.Result();
-    if (!status) return status.GetStatus();
-
     status = Describe<ScrollContentPresenter>(context)
         .Property(
             ScrollContentPresenter::

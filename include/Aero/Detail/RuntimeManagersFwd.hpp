@@ -61,6 +61,7 @@ namespace Aero::Detail {
 class ControlRuntimeAccess final {
 public:
     class ControlInteractionManager;
+    class HyperlinkInteractionManager;
     class TextBoxInteractionManager;
     class ScrollInteractionManager;
     class SliderInteractionManager;

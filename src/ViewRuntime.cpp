@@ -8,6 +8,7 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Documents/Documents.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Metadata.hpp>
 #include <Aero/Controls/Menus.hpp>
@@ -228,6 +229,8 @@ struct ViewRuntime::Impl final {
     Presentation::KeyboardInputManager* keyboard = nullptr;
     Presentation::TextInputManager* textInput = nullptr;
     Controls::ControlInteractionManager* controlInteractions = nullptr;
+    Detail::ControlRuntimeAccess::
+        HyperlinkInteractionManager* hyperlinkInteractions = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
     struct StoryboardSession final {
         explicit StoryboardSession(
@@ -1689,6 +1692,14 @@ struct ViewRuntime::Impl final {
                 Base::Result<void> attached =
                     controlInteractions->Attach(
                         *static_cast<Controls::ButtonBase*>(node));
+                if (!attached) return attached.GetStatus();
+            }
+            if (hyperlinkInteractions != nullptr &&
+                metadata->Types().IsDerivedFrom(
+                    type, Documents::Hyperlink::StaticTypeId())) {
+                Base::Result<void> attached =
+                    hyperlinkInteractions->Attach(
+                        *static_cast<Documents::Hyperlink*>(node));
                 if (!attached) return attached.GetStatus();
             }
             if (metadata->Types().IsDerivedFrom(
@@ -3786,6 +3797,9 @@ struct ViewRuntime::Impl final {
             textBoxInteractions);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
+            hyperlinkInteractions);
+        DestroyRuntimeObject(
+            *allocator, Base::MemoryTag::Presentation,
             controlInteractions);
     }
 
@@ -3854,6 +3868,13 @@ struct ViewRuntime::Impl final {
                 *commands, visualStates);
             if (!status) return status.GetStatus();
             status = controlInteractions->Initialize();
+            if (!status) return status.GetStatus();
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Presentation,
+                hyperlinkInteractions,
+                *tree, *events, *pointer, *focus, *commands);
+            if (!status) return status.GetStatus();
+            status = hyperlinkInteractions->Initialize();
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
