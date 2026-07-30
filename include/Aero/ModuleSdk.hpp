@@ -15,3 +15,4 @@
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/Threading.hpp>
