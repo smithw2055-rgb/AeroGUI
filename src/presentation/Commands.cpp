@@ -182,6 +182,13 @@ Base::Result<void> RoutedCommand::Execute(
     return {};
 }
 
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
 CommandManager::CommandManager(ObjectTree& tree) noexcept
     : tree_(&tree),
       bindings_(&Base::GetDefaultAllocator()) {}
@@ -455,4 +462,4 @@ void CommandManager::InvalidateRequerySuggested() const noexcept {
     if (!requerySuggested_.Empty()) requerySuggested_.Invoke();
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

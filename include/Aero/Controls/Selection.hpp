@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Presentation/Input.hpp>
@@ -142,7 +144,7 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend class ListBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -166,7 +168,6 @@ private:
     void SyncContainers() noexcept;
 };
 
-class ListBoxInteractionManager;
 
 class AERO_API ListBox : public Selector {
     AERO_DECLARE_TYPE(ListBox, Selector)
@@ -185,7 +186,7 @@ protected:
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend class ListBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ListBoxInteractionManager* interactions_ = nullptr;
 };
 
@@ -205,7 +206,6 @@ public:
         IsSelectedProperty{"IsSelected"};
 };
 
-class ComboBoxInteractionManager;
 
 class AERO_API ComboBox final : public Selector {
     AERO_DECLARE_TYPE(ComboBox, Selector)
@@ -296,7 +296,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class ComboBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ComboBoxInteractionManager* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =

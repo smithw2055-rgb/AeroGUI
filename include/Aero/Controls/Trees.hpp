@@ -1,11 +1,12 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Presentation/Input.hpp>
 
 namespace Aero::Controls {
 
-class TreeViewInteractionManager;
 class VisualStateManager;
 
 class AERO_API TreeViewItem
@@ -154,7 +155,7 @@ protected:
             noexcept override;
 
 private:
-    friend class TreeViewInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     TreeViewInteractionManager* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;

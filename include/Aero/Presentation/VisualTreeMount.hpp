@@ -1,12 +1,13 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Presentation/MountService.hpp>
 
 namespace Aero::Presentation {
-class LayoutManager;
 
 struct VisualTreeMountEdge final {
     UIElement* parent = nullptr;

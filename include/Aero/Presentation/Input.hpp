@@ -12,7 +12,6 @@ namespace Aero::Presentation {
 
 using namespace Aero::Core;
 
-class CommandManager;
 
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
 // Callers register the C++ cast for each concrete layout type; this avoids

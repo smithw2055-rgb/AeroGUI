@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
@@ -10,10 +12,6 @@
 #include <Aero/Presentation/ObjectTree.hpp>
 
 #include <cstdint>
-
-namespace Aero::Controls {
-class ControlInteractionManager;
-}
 
 namespace Aero::Presentation {
 
@@ -145,7 +143,6 @@ AERO_API Size Inflate(Size value, Thickness padding) noexcept;
 AERO_API Rect Intersect(Rect left, Rect right) noexcept;
 AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
-class LayoutManager;
 class UIElement;
 class Transform;
 class Effect;
@@ -460,11 +457,8 @@ protected:
     }
 
 private:
-    friend class LayoutManager;
-    friend class RoutedEventManager;
-    friend class PointerInputManager;
-    friend class FocusManager;
-    friend class Aero::Controls::ControlInteractionManager;
+    friend class Aero::Detail::PresentationRuntimeAccess;
+    friend class Aero::Detail::ControlRuntimeAccess;
 
     struct HandlerRecord final {
         RoutedEventHandle event;

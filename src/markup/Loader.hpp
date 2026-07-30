@@ -21,7 +21,6 @@
 #include <cstdint>
 
 namespace Aero::Presentation {
-class BindingManager;
 class ResourceDictionary;
 }
 

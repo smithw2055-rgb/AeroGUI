@@ -382,6 +382,13 @@ Base::Result<Base::String> FormatBindingString(
 
 } // namespace
 
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
 BindingManager::BindingManager(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
       bindings_(),
@@ -1604,4 +1611,4 @@ void BindingManager::RemoveAt(std::uint32_t index) noexcept {
     bindings_.PopBack();
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

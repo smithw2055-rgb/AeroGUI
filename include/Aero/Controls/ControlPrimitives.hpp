@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Presentation/Brushes.hpp>
@@ -15,7 +17,6 @@ class RuntimePresentationServices;
 }
 
 namespace Aero::Presentation {
-class RoutedEventManager;
 }
 
 namespace Aero::Controls {
@@ -80,7 +81,6 @@ namespace Aero::Controls {
 class ControlTemplate;
 class ItemContainerGenerator;
 class DataTemplate;
-class TemplateManager;
 
 class AERO_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
@@ -503,7 +503,6 @@ protected:
     Base::Result<void> BuildDisplayList(
         DisplayListBuilder& builder) noexcept override;
 private:
-    friend class TemplateManager;
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimePresentationServices;
     void AttachTemplateManager(
