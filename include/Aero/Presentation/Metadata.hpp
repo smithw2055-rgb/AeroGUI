@@ -22,7 +22,7 @@ inline constexpr Base::StringView PresentationMetadataModuleName() noexcept {
 
 inline Base::Result<void> TryRegisterPresentationMetadata(
     Core::MetadataDomain& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 10U;
+    constexpr std::uint32_t SchemaVersion = 11U;
     const Base::StringView name = PresentationMetadataModuleName();
     return domain.TryRegisterModule({
         Core::MakeMetadataModuleId(name),
