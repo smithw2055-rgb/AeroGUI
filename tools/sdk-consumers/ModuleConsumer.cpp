@@ -23,15 +23,15 @@ public:
 };
 
 Aero::Base::Result<void> RegisterConsumerModule(
-    Aero::MetadataContext& context) noexcept {
-    return Aero::Describe<ConsumerControl>(context)
+    Aero::Meta::Context& context) noexcept {
+    return Aero::Meta::Describe<ConsumerControl>(context)
         .Property(
             ConsumerControl::ActiveProperty,
-            Aero::PropertyOptions(false)
+            Aero::Meta::PropertyOptions(false)
                 .AffectsRender())
         .Event(
             ConsumerControl::ActivatedEvent,
-            Aero::Core::RoutingStrategy::Bubble)
+            Aero::Meta::Routing::Bubble)
         .Factory()
         .Result();
 }
@@ -46,6 +46,12 @@ static_assert(
         decltype(ConsumerModule.registerModule),
         Aero::ModuleRegisterCallback>::value,
     "Module SDK must expose the typed registration callback");
+
+static_assert(
+    std::is_same<
+        Aero::Meta::Context,
+        Aero::MetadataContext>::value,
+    "Meta context must preserve the compatibility authoring identity");
 
 static_assert(
     std::is_same<
