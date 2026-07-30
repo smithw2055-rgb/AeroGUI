@@ -11,8 +11,6 @@ namespace {
 
 constexpr std::uint32_t InvalidIndex = UINT32_MAX;
 constexpr std::uint32_t LegacyProviderOrigin = 1U;
-constexpr std::uint32_t LocalProviderOrigin = 2U;
-constexpr std::uint32_t AnimationProviderOrigin = 3U;
 
 Base::Status InvalidProviderStatus() noexcept {
     return Base::Status::Failure(
@@ -57,9 +55,6 @@ EffectiveValueEngine::~EffectiveValueEngine() noexcept {
         static_cast<void>(dispatcher_->RemoveFrameHook(phaseHook_));
     }
 
-    for (Entry& entry : entries_) {
-        ReleaseExpression(entry.localExpression);
-    }
     for (DependencyObject* object : inheritanceSubscriptions_) {
         if (object == nullptr) continue;
         for (const DependencyProperty& property : registry_->Properties()) {
@@ -300,67 +295,41 @@ PropertyProviderToken EffectiveValueEngine::LegacyToken(
 }
 
 Base::Result<void> EffectiveValueEngine::SetProviderContribution(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    PropertyProviderToken token,
-    const PropertyValue& value) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) {
-        return InvalidProviderStatus();
-    }
-
-    Base::Result<std::uint32_t> ensured =
-        EnsureEntry(object, property);
+    DependencyObject& object, DependencyPropertyHandle property,
+    PropertyProviderToken token, const PropertyValue& value) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) return InvalidProviderStatus();
+    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
-    const std::uint32_t index = ensured.Value();
-
-    Base::Result<void> queued = QueueEntry(index);
+    Base::Result<void> queued = QueueEntry(ensured.Value());
     if (!queued) return queued.GetStatus();
-    return entries_[index].baseProviders.Set(token, value);
+    return object.SetProviderContributionInternal(property, token, value);
 }
 
 Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
+    DependencyObject& object, DependencyPropertyHandle property,
     PropertyProviderToken token) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) {
-        return InvalidProviderStatus();
-    }
-
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (!token.IsValid() || !IsMutableBaseRank(token.rank)) return InvalidProviderStatus();
     const std::uint32_t index = FindEntryIndex(object, property);
     if (index == InvalidIndex) return false;
-    if (!entries_[index].baseProviders.Remove(token)) return false;
-
-    Base::Result<void> queued = QueueEntry(index);
-    if (!queued) return queued.GetStatus();
+    Base::Result<bool> cleared = object.ClearProviderContributionInternal(property, token);
+    if (!cleared || !cleared.Value()) return cleared;
+    Base::Result<void> queued = QueueEntry(index); if (!queued) return queued.GetStatus();
     return true;
 }
 
 Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
-    DependencyObject& object,
-    std::uint32_t origin) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    if (origin == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "A property provider origin must be nonzero");
-    }
-
+    DependencyObject& object, std::uint32_t origin) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (origin == 0U) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+        "A property provider origin must be nonzero");
     std::uint32_t removed = 0U;
-    for (std::uint32_t index = 0U;
-         index < entries_.Size();
-         ++index) {
-        Entry& entry = entries_[index];
-        if (entry.object != &object) continue;
-        const std::uint32_t entryRemoved =
-            entry.baseProviders.RemoveOrigin(origin);
-        if (entryRemoved == 0U) continue;
-        removed += entryRemoved;
-        Base::Result<void> queued = QueueEntry(index);
+    for (std::uint32_t index = 0U; index < entries_.Size(); ++index) {
+        Entry& entry = entries_[index]; if (entry.object != &object) continue;
+        Base::Result<bool> cleared = object.ClearProviderOriginInternal(entry.property, origin);
+        if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) continue;
+        ++removed; Base::Result<void> queued = QueueEntry(index);
         if (!queued) return queued.GetStatus();
     }
     return removed;
@@ -459,94 +428,43 @@ Base::Result<void> EffectiveValueEngine::ClearTriggerValue(
 }
 
 Base::Result<void> EffectiveValueEngine::SetLocalExpression(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
+    DependencyObject& object, DependencyPropertyHandle property,
     const PropertyExpression& expression) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    if (!expression.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "A property expression requires an evaluate callback");
-    }
-
-    Base::Result<std::uint32_t> ensured =
-        EnsureEntry(object, property);
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
-    const std::uint32_t index = ensured.Value();
-    Base::Result<void> queued = QueueEntry(index);
-    if (!queued) return queued.GetStatus();
-
-    PropertyExpression old;
-    const bool hadOld =
-        entries_[index].localExpression.hasExpression;
-    if (hadOld) {
-        old = entries_[index].localExpression.expression;
-    }
-    entries_[index].localExpression.expression = expression;
-    entries_[index].localExpression.hasExpression = true;
-    if (hadOld && old.cleanup != nullptr) {
-        old.cleanup(old.context);
-    }
-    return {};
+    Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
+    return object.SetLocalExpressionInternal(property, expression);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-
+    DependencyObject& object, DependencyPropertyHandle property) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == InvalidIndex ||
-        !entries_[index].localExpression.hasExpression) {
-        return {};
-    }
-    Base::Result<void> queued = QueueEntry(index);
-    if (!queued) return queued.GetStatus();
-    ReleaseExpression(entries_[index].localExpression);
-    return {};
+    if (index == InvalidIndex) return {};
+    Base::Result<bool> cleared = object.ClearLocalExpressionInternal(property);
+    if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) return {};
+    return QueueEntry(index);
 }
 
 Base::Result<void> EffectiveValueEngine::SetAnimationValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
+    DependencyObject& object, DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-    if (value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Animation values cannot be Unset");
-    }
-
-    Base::Result<std::uint32_t> ensured =
-        EnsureEntry(object, property);
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    Base::Result<std::uint32_t> ensured = EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
-    const std::uint32_t index = ensured.Value();
-    Base::Result<void> queued = QueueEntry(index);
-    if (!queued) return queued.GetStatus();
-    entries_[index].animation.value = value;
-    entries_[index].animation.hasValue = true;
-    return {};
+    Base::Result<void> queued = QueueEntry(ensured.Value()); if (!queued) return queued.GetStatus();
+    return object.SetAnimationValueInternal(property, value);
 }
 
 Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-
+    DependencyObject& object, DependencyPropertyHandle property) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == InvalidIndex ||
-        !entries_[index].animation.hasValue) {
-        return {};
-    }
-    Base::Result<void> queued = QueueEntry(index);
-    if (!queued) return queued.GetStatus();
-    entries_[index].animation.value = PropertyValue::Unset();
-    entries_[index].animation.hasValue = false;
-    return {};
+    if (index == InvalidIndex) return {};
+    Base::Result<bool> cleared = object.ClearAnimationValueInternal(property);
+    if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) return {};
+    return QueueEntry(index);
 }
 
 Base::Result<void> EffectiveValueEngine::Invalidate(
@@ -557,6 +475,8 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
     Base::Result<std::uint32_t> ensured =
         EnsureEntry(object, property);
     if (!ensured) return ensured.GetStatus();
+    Base::Result<bool> invalidated = object.InvalidateBaseValueInternal(property);
+    if (!invalidated) return invalidated.GetStatus();
     Base::Result<void> queued = QueueEntry(ensured.Value());
     if (!queued) return queued.GetStatus();
     return QueueDescendants(object, property);
@@ -727,136 +647,29 @@ void EffectiveValueEngine::OnInheritancePropertyChanged(
     static_cast<void>(QueueDescendants(object, args.property));
 }
 
-Base::Result<EffectiveValueEngine::Resolution>
-EffectiveValueEngine::Resolve(Entry& entry) noexcept {
+
+Base::Result<void> EffectiveValueEngine::Apply(Entry& entry) noexcept {
     const DependencyProperty* property = registry_->Find(entry.property);
-    if (property == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property is no longer registered");
-    }
-    const PropertyMetadata* metadata =
-        property->MetadataFor(entry.object->RuntimeType());
-    if (metadata == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property metadata is unavailable for the object");
-    }
-
-    Resolution resolution;
-    if (entry.animation.hasValue) {
-        resolution.value = entry.animation.value;
-        resolution.provider = PropertyValueRank::Animation;
-        resolution.token = {
-            PropertyValueRank::Animation,
-            AnimationProviderOrigin,
-            0U};
-        return resolution;
-    }
-
-    if (entry.localExpression.hasExpression) {
-        const PropertyExpression expression =
-            entry.localExpression.expression;
-        Base::Result<PropertyValue> evaluated = expression.evaluate(
-            expression.context,
-            *entry.object,
-            entry.property);
-        if (!evaluated) return evaluated.GetStatus();
-        if (evaluated.Value().IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "A property expression returned Unset");
-        }
-        resolution.value = std::move(evaluated).Value();
-        resolution.provider = PropertyValueRank::LocalExpression;
-        resolution.token = {
-            PropertyValueRank::Local,
-            LocalProviderOrigin,
-            1U};
-        resolution.expressionKind = expression.kind;
-        resolution.hasExpression = true;
-        return resolution;
-    }
-
-    Base::Result<PropertyValue> local =
-        entry.object->ReadLocalValue(entry.property);
-    if (!local) return local.GetStatus();
-    if (!local.Value().IsUnset()) {
-        resolution.value = std::move(local).Value();
-        resolution.provider = PropertyValueRank::Local;
-        resolution.token = {
-            PropertyValueRank::Local,
-            LocalProviderOrigin,
-            0U};
-        return resolution;
-    }
-
-    const PropertyProviderContribution* provider =
-        entry.baseProviders.Winner();
-    if (provider != nullptr) {
-        resolution.value = provider->value;
-        resolution.provider = provider->token.rank;
-        resolution.token = provider->token;
-        return resolution;
-    }
-
+    if (property == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "Dependency property is no longer registered");
+    const PropertyMetadata* metadata = property->MetadataFor(entry.object->RuntimeType());
+    if (metadata == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
+        "Dependency property metadata is unavailable for the object");
+    PropertyValue inheritedValue;
+    const PropertyValue* inherited = nullptr;
     if (HasFlag(metadata->flags, PropertyMetadataFlags::Inherits)) {
         DependencyObject* parent = InheritanceParent(*entry.object);
-        while (parent != nullptr &&
-               property->MetadataFor(parent->RuntimeType()) == nullptr) {
+        while (parent != nullptr && property->MetadataFor(parent->RuntimeType()) == nullptr)
             parent = InheritanceParent(*parent);
-        }
         if (parent != nullptr) {
-            Base::Result<PropertyValue> inherited =
-                parent->GetValue(entry.property);
-            if (!inherited) return inherited.GetStatus();
-            resolution.value = std::move(inherited).Value();
-            resolution.provider = PropertyValueRank::Inherited;
-            return resolution;
+            Base::Result<PropertyValue> value = parent->GetValue(entry.property);
+            if (!value) return value.GetStatus();
+            inheritedValue = std::move(value).Value(); inherited = &inheritedValue;
         }
     }
-
-    resolution.value = metadata->defaultValue;
-    resolution.provider = PropertyValueRank::Default;
-    return resolution;
-}
-
-Base::Result<void> EffectiveValueEngine::Apply(
-    Entry& entry,
-    const Resolution& resolution) noexcept {
-    // This remains the final compatibility seam. DependencyObject will receive
-    // the provider/source record directly in the next slice; until then the
-    // engine preserves the real source in diagnostics while SetCurrentValue
-    // updates the existing object entry.
-    Base::Result<void> applied =
-        entry.object->SetCurrentValue(entry.property, resolution.value);
-    if (!applied) return applied.GetStatus();
-
-    entry.diagnostics.provider = resolution.provider;
-    entry.diagnostics.token = resolution.token;
-    entry.diagnostics.expressionKind = resolution.expressionKind;
-    entry.diagnostics.hasExpression = resolution.hasExpression;
-    entry.diagnostics.isInherited =
-        resolution.provider == PropertyValueRank::Inherited;
-    entry.diagnostics.isAnimated =
-        resolution.provider == PropertyValueRank::Animation;
-    entry.diagnostics.isCoerced = false;
-    entry.diagnostics.isCurrentValue = false;
-    entry.diagnostics.revision = nextRevision_++;
-
-    const DependencyProperty* property = registry_->Find(entry.property);
-    const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(entry.object->RuntimeType())
-        : nullptr;
-    if (metadata != nullptr &&
-        HasFlag(
-            metadata->flags,
-            PropertyMetadataFlags::Inherits)) {
-        Base::Result<void> descendants =
-            QueueDescendants(*entry.object, entry.property);
-        if (!descendants) return descendants.GetStatus();
-    }
-    return {};
+    Base::Result<void> stored = entry.object->SetInheritedValueInternal(entry.property, inherited);
+    if (!stored) return stored.GetStatus();
+    return entry.object->RecomputeEffectiveValueInternal(entry.property);
 }
 
 Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
@@ -895,12 +708,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
 
         Entry& entry = entries_[selected];
         entry.queued = false;
-        Base::Result<Resolution> resolved = Resolve(entry);
-        if (!resolved) {
-            entry.queued = true;
-            return resolved.GetStatus();
-        }
-        Base::Result<void> applied = Apply(entry, resolved.Value());
+        Base::Result<void> applied = Apply(entry);
         if (!applied) {
             entry.queued = true;
             return applied.GetStatus();
@@ -910,43 +718,27 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
     return processed;
 }
 
-Base::Result<EffectiveValueDiagnostics>
-EffectiveValueEngine::Diagnostics(
-    const DependencyObject& object,
-    DependencyPropertyHandle property) const noexcept {
+Base::Result<EffectiveValueDiagnostics> EffectiveValueEngine::Diagnostics(
+    const DependencyObject& object, DependencyPropertyHandle property) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    const std::uint32_t index = FindEntryIndex(object, property);
-    if (index == InvalidIndex) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "The property is not tracked by the effective value engine");
-    }
-    return entries_[index].diagnostics;
+    return object.GetValueSourceInfo(property);
 }
 
-Base::Result<void> EffectiveValueEngine::DetachObject(
-    DependencyObject& object) noexcept {
-    Base::Result<void> ready = VerifyMutable();
-    if (!ready) return ready.GetStatus();
-
+Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     std::uint32_t entry = 0U;
     while (entry < entries_.Size()) {
         if (entries_[entry].object == &object) {
+            Base::Result<void> cleared = object.ClearEngineValueStateInternal(entries_[entry].property);
+            if (!cleared) return cleared.GetStatus();
             RemoveEntry(entry);
-        } else {
-            ++entry;
-        }
+        } else ++entry;
     }
-
     std::uint32_t parent = 0U;
     while (parent < parents_.Size()) {
-        if (parents_[parent].child == &object ||
-            parents_[parent].parent == &object) {
-            RemoveParent(parent);
-        } else {
-            ++parent;
-        }
+        if (parents_[parent].child == &object || parents_[parent].parent == &object)
+            RemoveParent(parent); else ++parent;
     }
     RemoveInheritanceSubscription(object);
     return {};
@@ -960,21 +752,10 @@ std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
     return count;
 }
 
-void EffectiveValueEngine::ReleaseExpression(
-    ExpressionSlot& slot) noexcept {
-    if (!slot.hasExpression) return;
-    const PropertyExpression expression = slot.expression;
-    slot.expression = {};
-    slot.hasExpression = false;
-    if (expression.cleanup != nullptr) {
-        expression.cleanup(expression.context);
-    }
-}
 
 void EffectiveValueEngine::RemoveEntry(
     std::uint32_t index) noexcept {
     AERO_ASSERT(index < entries_.Size());
-    ReleaseExpression(entries_[index].localExpression);
     for (std::uint32_t current = index + 1U;
          current < entries_.Size();
          ++current) {

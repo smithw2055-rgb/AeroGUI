@@ -2,12 +2,18 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Core/Metadata/Value.hpp>
 
 #include <cstdint>
 #include <utility>
 
 namespace Aero::Core {
+
+class DependencyObject;
+struct DependencyPropertyHandle;
+
+using PropertyValueKind = ValueKind;
+using PropertyValue = Value;
 
 // Base-value precedence is ordered from weakest to strongest. Animation and
 // coercion are represented here for diagnostics, but are applied after the
@@ -41,6 +47,8 @@ using EffectiveValueProvider = PropertyValueRank;
 // share one anonymous provider identity even before their managers adopt
 // PropertyProviderSession directly.
 inline constexpr std::uint32_t LegacyStyleTriggerOrigin = 1U;
+inline constexpr std::uint32_t LocalValueProviderOrigin = 2U;
+inline constexpr std::uint32_t AnimationValueProviderOrigin = 3U;
 inline constexpr std::uint32_t CompatibilityThemeStyleSetterOrigin = 16U;
 inline constexpr std::uint32_t CompatibilityStyleSetterOrigin = 17U;
 inline constexpr std::uint32_t CompatibilityTemplatedParentSetterOrigin = 18U;
@@ -52,6 +60,23 @@ enum class PropertyExpressionKind : std::uint8_t {
     Custom = 0U,
     Binding,
     DynamicResource
+};
+
+using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
+    void* context,
+    DependencyObject& object,
+    DependencyPropertyHandle property) noexcept;
+using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
+
+struct PropertyExpression final {
+    void* context = nullptr;
+    PropertyExpressionEvaluateCallback evaluate = nullptr;
+    PropertyExpressionCleanupCallback cleanup = nullptr;
+    PropertyExpressionKind kind = PropertyExpressionKind::Custom;
+
+    bool IsValid() const noexcept {
+        return evaluate != nullptr;
+    }
 };
 
 struct PropertyProviderToken final {
