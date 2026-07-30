@@ -1,15 +1,11 @@
 #pragma once
 
+#include <Aero/App/Fwd.hpp>
 #include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Platform/Window.hpp>
 
-namespace Aero {
-class View;
-}
+namespace Aero::App::Detail {
 
-namespace Aero::App {
-
-namespace Detail {
 class IWindowPeer {
 public:
     virtual ~IWindowPeer() = default;
@@ -19,11 +15,14 @@ public:
     virtual Platform::IWindow* NativeWindow() noexcept = 0;
     virtual View* HostedView() noexcept = 0;
 };
-}
 
-// A Window is both the XAML content root and the application/window boundary.
-// Its visual behavior comes from ContentControl; its native lifetime is
-// delegated to the cross-platform ApplicationHost peer.
+} // namespace Aero::App::Detail
+
+namespace Aero {
+
+// WPF-aligned XAML content root for a native top-level window. Window keeps the
+// ContentControl authoring model while delegating native lifetime and rendering
+// integration to an internal App peer.
 class AERO_API Window final : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
@@ -60,13 +59,13 @@ public:
             FontFamilyProperty;
 
 private:
-    friend class ApplicationHost;
-    void Attach(Detail::IWindowPeer* peer) noexcept {
+    friend class App::ApplicationHost;
+    void Attach(App::Detail::IWindowPeer* peer) noexcept {
         peer_ = peer;
     }
     void Detach() noexcept { peer_ = nullptr; }
 
-    Detail::IWindowPeer* peer_ = nullptr;
+    App::Detail::IWindowPeer* peer_ = nullptr;
 };
 
-} // namespace Aero::App
+} // namespace Aero
