@@ -445,6 +445,26 @@ set_target_properties(AeroPresentation PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroPresentation)
 
+# Application object model and metadata are shared by the default App
+# product and the built-in schema catalog without pulling in native hosts.
+add_library(AeroAppModel ${AERO_LIBRARY_TYPE}
+    src/app/Application.cpp
+    src/app/Metadata.cpp)
+add_library(Aero::DetailAppModel ALIAS AeroAppModel)
+target_include_directories(AeroAppModel
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroAppModel PUBLIC Aero::Presentation)
+target_compile_features(AeroAppModel PUBLIC cxx_std_17)
+set_target_properties(AeroAppModel PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroAppModel)
+
 add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Bars.cpp
     src/controls/Buttons.cpp
@@ -639,7 +659,9 @@ target_include_directories(AeroModuleCatalog
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroModuleCatalog PUBLIC Aero::Markup)
+target_link_libraries(AeroModuleCatalog
+    PUBLIC Aero::Markup
+    PRIVATE Aero::DetailAppModel)
 target_compile_features(AeroModuleCatalog PUBLIC cxx_std_17)
 set_target_properties(AeroModuleCatalog PROPERTIES
     CXX_STANDARD 17
@@ -873,24 +895,28 @@ set_target_properties(AeroRuntime PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroRuntime)
 
-# Product-facing SDK aggregates. Lower-level targets remain available for
-# specialized embedders, while normal applications can depend on one stable entry.
+# Product-facing SDK aggregates. Gui is the retained WPF/XAML class library;
+# App and Integration layer lifetime and native hosting above it.
+add_library(AeroGui INTERFACE)
+add_library(Aero::Gui ALIAS AeroGui)
+target_link_libraries(AeroGui INTERFACE Aero::Markup)
+
 add_library(AeroModuleSdk INTERFACE)
 add_library(Aero::ModuleSdk ALIAS AeroModuleSdk)
-target_link_libraries(AeroModuleSdk INTERFACE
-    Aero::Controls Aero::Presentation Aero::Core)
+target_link_libraries(AeroModuleSdk INTERFACE Aero::Gui)
 
 add_library(AeroIntegrationSdk INTERFACE)
+add_library(Aero::Integration ALIAS AeroIntegrationSdk)
 add_library(Aero::IntegrationSdk ALIAS AeroIntegrationSdk)
 target_link_libraries(AeroIntegrationSdk INTERFACE
     Aero::Runtime AeroIntegration)
 
-# Compile-only layer consumers keep the three SDK entry points independently
+# Compile-only consumers keep the product entry points independently
 # consumable and catch accidental reverse header dependencies.
-add_library(AeroProductHeaderConsumer OBJECT
-    tools/sdk-consumers/ProductConsumer.cpp)
-target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::Runtime)
-aero_apply_compiler_options(AeroProductHeaderConsumer)
+add_library(AeroGuiHeaderConsumer OBJECT
+    tools/sdk-consumers/GuiConsumer.cpp)
+target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroGuiHeaderConsumer)
 
 add_library(AeroModuleHeaderConsumer OBJECT
     tools/sdk-consumers/ModuleConsumer.cpp)
@@ -900,27 +926,27 @@ aero_apply_compiler_options(AeroModuleHeaderConsumer)
 add_library(AeroIntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/IntegrationConsumer.cpp)
 target_link_libraries(
-    AeroIntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+    AeroIntegrationHeaderConsumer PRIVATE Aero::Integration)
 aero_apply_compiler_options(AeroIntegrationHeaderConsumer)
 
 add_library(AeroD3D11IntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/D3D11IntegrationConsumer.cpp)
 target_link_libraries(
-    AeroD3D11IntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+    AeroD3D11IntegrationHeaderConsumer PRIVATE Aero::Integration)
 aero_apply_compiler_options(
     AeroD3D11IntegrationHeaderConsumer)
 
 add_library(AeroOpenGL33IntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/OpenGL33IntegrationConsumer.cpp)
 target_link_libraries(
-    AeroOpenGL33IntegrationHeaderConsumer PRIVATE Aero::IntegrationSdk)
+    AeroOpenGL33IntegrationHeaderConsumer PRIVATE Aero::Integration)
 aero_apply_compiler_options(
     AeroOpenGL33IntegrationHeaderConsumer)
 
 add_library(AeroHostedGraphicsHeaderConsumer OBJECT
     tools/sdk-consumers/HostedGraphicsConsumer.cpp)
 target_link_libraries(
-    AeroHostedGraphicsHeaderConsumer PRIVATE Aero::IntegrationSdk)
+    AeroHostedGraphicsHeaderConsumer PRIVATE Aero::Integration)
 aero_apply_compiler_options(
     AeroHostedGraphicsHeaderConsumer)
 
@@ -1377,7 +1403,6 @@ set_target_properties(AeroIntegration PROPERTIES
 aero_apply_compiler_options(AeroIntegration)
 
 add_library(AeroApp ${AERO_LIBRARY_TYPE}
-    src/app/Application.cpp
     src/app/ApplicationHost.cpp
     src/app/Window.cpp)
 add_library(Aero::App ALIAS AeroApp)
@@ -1387,8 +1412,9 @@ target_include_directories(AeroApp
         $<INSTALL_INTERFACE:include>)
 target_link_libraries(AeroApp
     PUBLIC
-        Aero::IntegrationSdk
-        Aero::Controls
+        Aero::Integration
+        Aero::Gui
+        Aero::DetailAppModel
         Aero::Audio)
 target_compile_definitions(AeroApp PRIVATE
     AERO_APP_HAS_D3D11=$<BOOL:${AERO_ENABLE_D3D11_BACKEND}>
@@ -1401,6 +1427,11 @@ set_target_properties(AeroApp PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroApp)
+
+add_library(AeroProductHeaderConsumer OBJECT
+    tools/sdk-consumers/ProductConsumer.cpp)
+target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::App)
+aero_apply_compiler_options(AeroProductHeaderConsumer)
 
 # Keep the public SDK dependency graph pointed in one direction. The runtime
 # owns no GPU backend, while ModuleSdk remains a header-only authoring facade.
@@ -1449,6 +1480,8 @@ endif()
 set_target_properties(
     AeroPresentation PROPERTIES EXPORT_NAME Presentation)
 set_target_properties(
+    AeroAppModel PROPERTIES EXPORT_NAME AppDetailModel)
+set_target_properties(
     AeroControls PROPERTIES EXPORT_NAME Controls)
 set_target_properties(
     AeroInspector PROPERTIES EXPORT_NAME Inspector)
@@ -1464,9 +1497,11 @@ set_target_properties(
 set_target_properties(
     AeroApp PROPERTIES EXPORT_NAME App)
 set_target_properties(
+    AeroGui PROPERTIES EXPORT_NAME Gui)
+set_target_properties(
     AeroModuleSdk PROPERTIES EXPORT_NAME ModuleSdk)
 set_target_properties(
-    AeroIntegrationSdk PROPERTIES EXPORT_NAME IntegrationSdk)
+    AeroIntegrationSdk PROPERTIES EXPORT_NAME Integration)
 set_target_properties(
     AeroRhi PROPERTIES EXPORT_NAME IntegrationDetailRhi)
 set_target_properties(
@@ -1490,6 +1525,7 @@ set(_aero_sdk_targets
     harfbuzz
     AeroTextHarfBuzz
     AeroPresentation
+    AeroAppModel
     AeroControls
     AeroInspector
     AeroMarkupKernel
@@ -1498,6 +1534,7 @@ set(_aero_sdk_targets
     AeroRuntime
     AeroIntegration
     AeroApp
+    AeroGui
     AeroModuleSdk
     AeroIntegrationSdk
     AeroRhi
