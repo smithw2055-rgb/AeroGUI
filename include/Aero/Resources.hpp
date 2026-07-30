@@ -10,9 +10,3 @@ using ResourceKey = Presentation::ResourceKey;
 using ResourceDictionary = Presentation::ResourceDictionary;
 
 } // namespace Aero
-
-namespace Aero::Media {
-
-using Geometry = ::Aero::Presentation::Geometry;
-
-} // namespace Aero::Media
