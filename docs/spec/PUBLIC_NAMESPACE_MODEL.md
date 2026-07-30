@@ -38,7 +38,7 @@ name as their stable identity.
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Aero metadata authoring | `Aero::Meta` | `Context`, `Describe`, `TypeId` |
 | Host and renderer integration | `Aero::Integration` | `RenderEndpoint`, `ViewHost`, native integration APIs |
-| Default application framework | `Aero::App` | `Launcher`, `LaunchOptions`, application services |
+| Default application framework | `Aero::App` | `Launcher`, `LaunchOptions`, `Services` |
 | Private implementation | `Aero::Detail` or domain `Detail` | property, style, template, XAML and render runtimes |
 
 ## Root namespace rule
@@ -102,6 +102,11 @@ local name.
 window creation, event pumping, endpoint selection and View orchestration.
 Embedded engines may use Core and Integration without using Launcher.
 
+Optional platform services belong to `Aero::App::Services`, which is owned by
+Launcher. `Aero::Application` does not own audio, graphics, native-window or
+other platform device services. Constructing an Application must therefore
+remain valid in headless and embedded runtimes.
+
 During the first migration phase:
 
 - `Aero::Application` and `Aero::Window` are the real type definitions.
@@ -110,6 +115,8 @@ During the first migration phase:
   the existing low-level `ApplicationHost` implementation.
 - Launcher installs the `Aero.App` metadata module before the runtime schema is
   frozen.
+- Launcher owns `Aero::App::Services`; audio is created lazily through that
+  service boundary rather than through Application.
 - Schema generation and XAML compilation install the same App module so
   `Application` has one metadata definition across runtime and tooling.
 - New code and documentation use the canonical names.
@@ -119,7 +126,7 @@ The compatibility names may be removed before the first stable ABI release.
 ## Migration order
 
 1. Application and Window namespace boundary.
-2. Application metadata ownership and launcher composition.
+2. Application metadata ownership, launcher composition and App services.
 3. Controls primitives and WPF-aligned public control domains.
 4. Data, Media, Animation, Input, Documents and Shapes.
 5. Meta authoring API and private Facet projection.
