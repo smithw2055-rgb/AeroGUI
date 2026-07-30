@@ -605,6 +605,62 @@ Base::Result<void> Style::Seal(
     return {};
 }
 
+Base::Result<void> ThemeStyleRegistry::TryRegister(
+    TypeId controlType,
+    const Style& style) noexcept {
+    if (properties_ == nullptr || !properties_->IsFrozen() ||
+        controlType == InvalidTypeId ||
+        properties_->Types().FindType(controlType) == nullptr ||
+        !style.IsSealed() ||
+        style.TargetType() != controlType) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Theme style registration requires a sealed exact-type Style");
+    }
+    for (const Entry& entry : entries_) {
+        if (entry.controlType == controlType) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "A theme style is already registered for this control type");
+        }
+    }
+    return entries_.TryPushBack({controlType, &style});
+}
+
+const Style* ThemeStyleRegistry::Find(
+    TypeId controlType) const noexcept {
+    if (properties_ == nullptr) return nullptr;
+    TypeId current = controlType;
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId &&
+         depth <= properties_->Types().TypeCount();
+         ++depth) {
+        for (const Entry& entry : entries_) {
+            if (entry.controlType == current) return entry.style;
+        }
+        const TypeInfo* type =
+            properties_->Types().FindType(current);
+        if (type == nullptr) break;
+        current = type->BaseType();
+    }
+    return nullptr;
+}
+
+Base::Result<void> Style::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "Style Resources is already assigned");
+}
+
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
 Base::Result<void> StyleManager::VerifyTarget(
     const DependencyObject& object,
     const Style& style) const noexcept {
@@ -1073,47 +1129,6 @@ void StyleManager::TriggerPhaseHook(
     }
 }
 
-Base::Result<void> ThemeStyleRegistry::TryRegister(
-    TypeId controlType,
-    const Style& style) noexcept {
-    if (properties_ == nullptr || !properties_->IsFrozen() ||
-        controlType == InvalidTypeId ||
-        properties_->Types().FindType(controlType) == nullptr ||
-        !style.IsSealed() ||
-        style.TargetType() != controlType) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Theme style registration requires a sealed exact-type Style");
-    }
-    for (const Entry& entry : entries_) {
-        if (entry.controlType == controlType) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "A theme style is already registered for this control type");
-        }
-    }
-    return entries_.TryPushBack({controlType, &style});
-}
-
-const Style* ThemeStyleRegistry::Find(
-    TypeId controlType) const noexcept {
-    if (properties_ == nullptr) return nullptr;
-    TypeId current = controlType;
-    for (std::uint32_t depth = 0U;
-         current != InvalidTypeId &&
-         depth <= properties_->Types().TypeCount();
-         ++depth) {
-        for (const Entry& entry : entries_) {
-            if (entry.controlType == current) return entry.style;
-        }
-        const TypeInfo* type =
-            properties_->Types().FindType(current);
-        if (type == nullptr) break;
-        current = type->BaseType();
-    }
-    return nullptr;
-}
-
 Base::Result<bool> ThemeStyleManager::ApplyDefault(
     DependencyObject& object) noexcept {
     if (values_ == nullptr || registry_ == nullptr) {
@@ -1188,12 +1203,4 @@ Base::Result<void> ThemeStyleManager::ClearSetters(
     return {};
 }
 
-Base::Result<void> Style::SetResources(
-    Base::Ref<ResourceDictionary> value) noexcept {
-    return Detail::AssignResourceDictionary(
-        resources_,
-        std::move(value),
-        "Style Resources is already assigned");
-}
-
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

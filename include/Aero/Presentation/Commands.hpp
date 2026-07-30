@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -13,7 +15,6 @@
 
 namespace Aero::Presentation {
 
-class CommandManager;
 struct KeyboardInput;
 
 using CanExecuteChangedHandler = Base::Delegate<void()>;

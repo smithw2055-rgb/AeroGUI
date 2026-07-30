@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Controls/Trees.hpp>
 #include <Aero/Presentation/Commands.hpp>
@@ -13,7 +15,6 @@ enum class MenuItemRole : std::uint8_t {
     SubmenuHeader
 };
 
-class MenuInteractionManager;
 
 class AERO_API MenuItem final
     : public TreeViewItem {
@@ -75,7 +76,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class MenuInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Popup* submenuPopup_ = nullptr;
@@ -107,7 +108,7 @@ protected:
             noexcept override;
 
 private:
-    friend class MenuInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     MenuInteractionManager* interactions_ =
         nullptr;
 };

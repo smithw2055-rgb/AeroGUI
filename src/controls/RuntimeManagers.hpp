@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
 // of the normal WPF control-authoring surface.
@@ -12,12 +14,13 @@
 #include <Aero/Controls/Menus.hpp>
 #include "../presentation/RuntimeManagers.hpp"
 
-namespace Aero::Controls {
+namespace Aero::Detail {
 
 using namespace Aero::Core;
 using namespace Aero::Presentation;
+using namespace Aero::Controls;
 
-class AERO_API ControlInteractionManager final {
+class AERO_API ControlRuntimeAccess::ControlInteractionManager final {
 public:
     ControlInteractionManager(
         ObjectTree& tree,
@@ -39,7 +42,7 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
 
 private:
-    friend class ButtonBase;
+    friend class Aero::Controls::ButtonBase;
     struct ButtonRecord final {
         VisualHandle handle;
         Base::Ref<ICommand> command;
@@ -114,7 +117,7 @@ private:
         bool captured) noexcept;
     void OnRequerySuggested() noexcept;
 };
-class AERO_API TextBoxInteractionManager final {
+class AERO_API ControlRuntimeAccess::TextBoxInteractionManager final {
 public:
     TextBoxInteractionManager(
         ObjectTree& tree,
@@ -192,7 +195,7 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API ScrollInteractionManager final {
+class AERO_API ControlRuntimeAccess::ScrollInteractionManager final {
 public:
     ScrollInteractionManager(
         ObjectTree& tree,
@@ -221,7 +224,7 @@ private:
     std::uint32_t FindViewer(
         const ScrollViewer& viewer) const noexcept;
 };
-class AERO_API SliderInteractionManager final {
+class AERO_API ControlRuntimeAccess::SliderInteractionManager final {
 public:
     SliderInteractionManager(
         ObjectTree& tree,
@@ -279,7 +282,7 @@ private:
         UIElement* target,
         bool captured) noexcept;
 };
-class AERO_API TreeViewInteractionManager final {
+class AERO_API ControlRuntimeAccess::TreeViewInteractionManager final {
 public:
     TreeViewInteractionManager(
         ObjectTree& tree,
@@ -323,7 +326,7 @@ private:
         Base::Object* sender,
         const KeyEventArgs& args) noexcept;
 };
-class AERO_API ComboBoxInteractionManager final {
+class AERO_API ControlRuntimeAccess::ComboBoxInteractionManager final {
 public:
     ComboBoxInteractionManager(
         ObjectTree& tree,
@@ -356,7 +359,7 @@ private:
         Base::Object* sender,
         const KeyEventArgs& args) noexcept;
 };
-class AERO_API ListBoxInteractionManager final {
+class AERO_API ControlRuntimeAccess::ListBoxInteractionManager final {
 public:
     ListBoxInteractionManager(
         ObjectTree& tree,
@@ -401,7 +404,7 @@ private:
         Base::Object* sender,
         const KeyEventArgs& args) noexcept;
 };
-class AERO_API TemplateManager final {
+class AERO_API ControlRuntimeAccess::TemplateManager final {
 public:
     TemplateManager(
         ObjectTree& tree,
@@ -497,7 +500,7 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
-class AERO_API MenuInteractionManager final {
+class AERO_API ControlRuntimeAccess::MenuInteractionManager final {
 public:
     MenuInteractionManager(
         ObjectTree& tree,
@@ -539,4 +542,4 @@ private:
         const KeyEventArgs& args) noexcept;
 };
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

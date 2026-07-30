@@ -1425,6 +1425,13 @@ std::uint32_t ComboBox::FindContainerIndex(
     return UINT32_MAX;
 }
 
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
 ComboBoxInteractionManager::
 ComboBoxInteractionManager(
     ObjectTree& tree,
@@ -1930,4 +1937,4 @@ void ListBoxInteractionManager::OnKeyDown(
     args.handled = true;
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

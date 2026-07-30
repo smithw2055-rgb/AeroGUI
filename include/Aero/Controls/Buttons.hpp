@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Input.hpp>
@@ -18,7 +20,6 @@ enum class ToggleState : std::uint8_t {
     Indeterminate,
 };
 
-class ControlInteractionManager;
 
 class AERO_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
@@ -62,7 +63,7 @@ protected:
     Base::Result<void> OnApplyTemplate() noexcept override;
 
 private:
-    friend class ControlInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ControlInteractionManager* interactionManager_ = nullptr;
     bool commandEnabled_ = true;
 };
@@ -161,7 +162,7 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend class ControlInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     Base::Result<void> SetToggleState(
         ToggleState value) noexcept;
 };

@@ -1,10 +1,11 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include "Loader.hpp"
 #include "LoaderResult.hpp"
 
 namespace Aero::Presentation {
-class BindingManager;
 }
 
 namespace Aero::Markup {

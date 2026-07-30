@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
 // of the normal WPF control-authoring surface.
@@ -11,12 +13,12 @@
 #include <Aero/Presentation/Animation.hpp>
 #include <Aero/Presentation/Style.hpp>
 
-namespace Aero::Presentation {
+namespace Aero::Detail {
 
 using namespace Aero::Core;
+using namespace Aero::Presentation;
 
-
-class AERO_API RoutedEventManager final {
+class AERO_API PresentationRuntimeAccess::RoutedEventManager final {
 public:
     explicit RoutedEventManager(void* eventState) noexcept;
     ~RoutedEventManager() noexcept;
@@ -37,7 +39,7 @@ private:
     struct ClassHandlerRecord final {
         RoutedEventHandle event;
         TypeId classType = InvalidTypeId;
-        Detail::RoutedHandlerStorage handler;
+        Presentation::Detail::RoutedHandlerStorage handler;
         std::uint64_t sequence = 0U;
         bool handledEventsToo = false;
     };
@@ -50,7 +52,7 @@ private:
     Base::Result<void> BuildRoute(
         Visual& source,
         RoutingStrategy strategy,
-        Base::Vector<Detail::VisualLease>& route) noexcept;
+        Base::Vector<Presentation::Detail::VisualLease>& route) noexcept;
     void InvokeNode(Visual& node, RoutedEventArgs& args) noexcept;
     void CleanupClassHandlers() noexcept;
     Base::Result<void> ValidateClassHandler(
@@ -58,7 +60,7 @@ private:
         TypeId classType,
         TypeId eventArgsType) const noexcept;
 };
-class AERO_API CommandManager final {
+class AERO_API PresentationRuntimeAccess::CommandManager final {
 public:
     explicit CommandManager(ObjectTree& tree) noexcept;
 
@@ -120,7 +122,7 @@ private:
     void PruneStaleBindings() noexcept;
     void PruneStaleInputBindings() noexcept;
 };
-class AERO_API HitTestManager final {
+class AERO_API PresentationRuntimeAccess::HitTestManager final {
 public:
     HitTestManager() noexcept = default;
     Base::Result<void> SetOverlays(
@@ -151,7 +153,7 @@ private:
     bool IsOverlay(
         const UIElement& element) const noexcept;
 };
-class AERO_API PointerInputManager final {
+class AERO_API PresentationRuntimeAccess::PointerInputManager final {
 public:
     PointerInputManager(HitTestManager& hitTests, RoutedEventManager& events,
         Visual& root) noexcept;
@@ -213,7 +215,7 @@ private:
     bool HasPressed(VisualHandle target,
         std::uint32_t ignoredIndex) const noexcept;
 };
-class AERO_API FocusManager final {
+class AERO_API PresentationRuntimeAccess::FocusManager final {
 public:
     FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
 
@@ -248,7 +250,7 @@ private:
         Base::Vector<FocusCandidate>& candidates,
         std::uint32_t& order) noexcept;
 };
-class AERO_API KeyboardInputManager final {
+class AERO_API PresentationRuntimeAccess::KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
         ObjectTree& tree) noexcept;
@@ -268,7 +270,7 @@ private:
     ObjectTree* tree_ = nullptr;
     CommandManager* commands_ = nullptr;
 };
-class AERO_API TextInputManager final {
+class AERO_API PresentationRuntimeAccess::TextInputManager final {
 public:
     TextInputManager(FocusManager& focus, RoutedEventManager& events,
         ObjectTree& tree) noexcept;
@@ -281,7 +283,7 @@ private:
     RoutedEventManager* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
 };
-class AERO_API LayoutManager final {
+class AERO_API PresentationRuntimeAccess::LayoutManager final {
 public:
     explicit LayoutManager(Dispatcher& dispatcher) noexcept;
     ~LayoutManager() noexcept;
@@ -302,12 +304,12 @@ public:
     }
 
 private:
-    friend class UIElement;
+    friend class Aero::Presentation::UIElement;
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;
-    Base::Vector<Detail::VisualLease> measureQueue_;
-    Base::Vector<Detail::VisualLease> arrangeQueue_;
+    Base::Vector<Presentation::Detail::VisualLease> measureQueue_;
+    Base::Vector<Presentation::Detail::VisualLease> arrangeQueue_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
@@ -323,7 +325,7 @@ private:
     Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
     static void LayoutHook(void* context) noexcept;
 };
-class AERO_API BindingManager final {
+class AERO_API PresentationRuntimeAccess::BindingManager final {
 public:
     explicit BindingManager(Dispatcher& dispatcher) noexcept;
     ~BindingManager() noexcept;
@@ -520,7 +522,7 @@ private:
     void ReleaseMetadataSource(BindingRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
 };
-class AERO_API AnimationManager final {
+class AERO_API PresentationRuntimeAccess::AnimationManager final {
 public:
     AnimationManager(
         Core::Dispatcher& dispatcher,
@@ -637,7 +639,7 @@ private:
 
     static void AnimationFrameHook(void* context) noexcept;
 };
-class AERO_API StyleManager final {
+class AERO_API PresentationRuntimeAccess::StyleManager final {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
         DependencyObject& owner,
@@ -733,7 +735,7 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
-class AERO_API ThemeStyleManager final {
+class AERO_API PresentationRuntimeAccess::ThemeStyleManager final {
 public:
     ThemeStyleManager(
         EffectiveValueEngine& values,
@@ -786,10 +788,10 @@ Base::Result<void> RoutedEventManager::RegisterClassHandler(
     ClassHandlerRecord value;
     value.event = event;
     value.classType = classType;
-    value.handler = Detail::RoutedHandlerStorage(handler);
+    value.handler = Presentation::Detail::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
     return classHandlers_.TryPushBack(std::move(value));
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail
