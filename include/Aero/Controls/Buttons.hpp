@@ -67,16 +67,19 @@ private:
     bool commandEnabled_ = true;
 };
 
-class AERO_API Button final : public ButtonBase {
+class AERO_API Button : public ButtonBase {
     AERO_DECLARE_TYPE(Button, ButtonBase)
 public:
-    Button() noexcept : ButtonBase(StaticTypeId()) {}
+    Button() noexcept : Button(StaticTypeId()) {}
     ~Button() override = default;
+
+protected:
+    explicit Button(TypeId runtimeType) noexcept
+        : ButtonBase(runtimeType) {}
 };
 
-// WPF-shaped hyperlink interaction surface. Inline flow integration is kept
-// separate from the click/navigation contract so Hyperlink can already be
-// used as a standalone content control and participate in routed Click events.
+// Temporary standalone link control. This is intentionally not projected as
+// Aero::Documents::Hyperlink until the inline text content model exists.
 class AERO_API Hyperlink final : public ButtonBase {
     AERO_DECLARE_TYPE(Hyperlink, ButtonBase)
 public:
@@ -96,10 +99,10 @@ public:
         TextDecorationsProperty{"TextDecorations"};
 };
 
-class AERO_API RepeatButton final : public ButtonBase {
+class AERO_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
-    RepeatButton() noexcept : ButtonBase(StaticTypeId()) {}
+    RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override = default;
 
     std::uint32_t Delay() const noexcept;
@@ -111,12 +114,16 @@ public:
         DelayProperty{"Delay"};
     inline static constexpr Members::Property<std::uint32_t>
         IntervalProperty{"Interval"};
+
+protected:
+    explicit RepeatButton(TypeId runtimeType) noexcept
+        : ButtonBase(runtimeType) {}
 };
 
 class AERO_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
-    ToggleButton() noexcept : ButtonBase(StaticTypeId()) {}
+    ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~ToggleButton() override = default;
 
     bool IsChecked() const noexcept;
@@ -159,17 +166,21 @@ private:
         ToggleState value) noexcept;
 };
 
-class AERO_API CheckBox final : public ToggleButton {
+class AERO_API CheckBox : public ToggleButton {
     AERO_DECLARE_TYPE(CheckBox, ToggleButton)
 public:
-    CheckBox() noexcept : ToggleButton(StaticTypeId()) {}
+    CheckBox() noexcept : CheckBox(StaticTypeId()) {}
     ~CheckBox() override = default;
+
+protected:
+    explicit CheckBox(TypeId runtimeType) noexcept
+        : ToggleButton(runtimeType) {}
 };
 
-class AERO_API RadioButton final : public ToggleButton {
+class AERO_API RadioButton : public ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, ToggleButton)
 public:
-    RadioButton() noexcept : ToggleButton(StaticTypeId()) {}
+    RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override = default;
 
     Base::StringView GroupName() const noexcept;
@@ -178,6 +189,10 @@ public:
 
     inline static constexpr Members::Property<Base::String>
         GroupNameProperty{"GroupName"};
+
+protected:
+    explicit RadioButton(TypeId runtimeType) noexcept
+        : ToggleButton(runtimeType) {}
 };
 
 class AERO_API ControlInteractionManager final {
