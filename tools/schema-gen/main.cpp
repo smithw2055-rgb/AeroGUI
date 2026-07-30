@@ -51,7 +51,8 @@ Aero::Base::Result<Aero::Markup::SchemaManifest>
 BuildBuiltInManifest() noexcept {
     Aero::ModuleCatalog modules;
     Aero::SchemaBundle bundle;
-    Aero::Base::Result<void> status = bundle.Prepare(modules);
+    Aero::Base::Result<void> status =
+        bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();

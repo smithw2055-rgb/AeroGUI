@@ -141,7 +141,8 @@ CompileWithBuiltInSchema(
     const Aero::Base::ResourceUri& origin) noexcept {
     Aero::ModuleCatalog modules;
     Aero::SchemaBundle bundle;
-    Aero::Base::Result<void> status = bundle.Prepare(modules);
+    Aero::Base::Result<void> status =
+        bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
     if (!status) return status.GetStatus();

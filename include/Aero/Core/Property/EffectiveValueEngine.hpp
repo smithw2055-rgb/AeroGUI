@@ -5,55 +5,14 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Core/Property/PropertyValueSource.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 
 #include <cstdint>
 
 namespace Aero::Core {
 
-enum class EffectiveValueProvider : std::uint8_t {
-    Default = 0U,
-    Inherited,
-    ThemeStyle,
-    Style,
-    Template,
-    Trigger,
-    Local,
-    LocalExpression,
-    Animation
-};
-
-enum class PropertyExpressionKind : std::uint8_t {
-    Custom = 0U,
-    Binding,
-    DynamicResource
-};
-
-using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
-    void* context,
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept;
-using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
-
-struct PropertyExpression final {
-    void* context = nullptr;
-    PropertyExpressionEvaluateCallback evaluate = nullptr;
-    PropertyExpressionCleanupCallback cleanup = nullptr;
-    PropertyExpressionKind kind = PropertyExpressionKind::Custom;
-
-    bool IsValid() const noexcept {
-        return evaluate != nullptr;
-    }
-};
-
-struct EffectiveValueDiagnostics final {
-    EffectiveValueProvider provider = EffectiveValueProvider::Default;
-    PropertyExpressionKind expressionKind = PropertyExpressionKind::Custom;
-    bool hasExpression = false;
-    bool isInherited = false;
-    bool isAnimated = false;
-    std::uint64_t revision = 0U;
-};
+using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
 class AERO_API EffectiveValueEngine final {
 public:
@@ -78,37 +37,29 @@ public:
     DependencyObject* InheritanceParent(
         const DependencyObject& child) const noexcept;
 
-    Base::Result<void> SetStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
+    // Allocates a process-local provider origin unique to this value engine.
+    // Provider sessions allocate lazily on the owning Dispatcher and retain the
+    // origin for the lifetime of their Style, Theme or Template application.
+    Base::Result<std::uint32_t> AllocateProviderOrigin() noexcept {
+        Base::Result<void> access = dispatcher_->VerifyAccess();
+        if (!access) return access.GetStatus();
+        return providerOrigins_.Allocate();
+    }
 
-    Base::Result<void> SetThemeStyleValue(
+    // Canonical contribution API. Style, Template, Theme and Trigger runtimes
+    // allocate a stable origin and use declaration ordinal within that origin.
+    Base::Result<void> SetProviderContribution(
         DependencyObject& object,
         DependencyPropertyHandle property,
+        PropertyProviderToken token,
         const PropertyValue& value) noexcept;
-    Base::Result<void> ClearThemeStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
-    Base::Result<void> SetTemplateValue(
+    Base::Result<bool> ClearProviderContribution(
         DependencyObject& object,
         DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearTemplateValue(
+        PropertyProviderToken token) noexcept;
+    Base::Result<std::uint32_t> ClearProviderOrigin(
         DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
-    Base::Result<void> SetTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
+        std::uint32_t origin) noexcept;
 
     // Ownership of expression.context transfers only after this call succeeds.
     Base::Result<void> SetLocalExpression(
@@ -153,26 +104,9 @@ public:
     }
 
 private:
-    struct ProviderSlot final {
-        PropertyValue value;
-        bool hasValue = false;
-    };
-
-    struct ExpressionSlot final {
-        PropertyExpression expression;
-        bool hasExpression = false;
-    };
-
     struct Entry final {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
-        ProviderSlot themeStyle;
-        ProviderSlot style;
-        ProviderSlot templated;
-        ProviderSlot trigger;
-        ProviderSlot animation;
-        ExpressionSlot localExpression;
-        EffectiveValueDiagnostics diagnostics;
         std::uint64_t queueSequence = 0U;
         bool queued = false;
     };
@@ -180,14 +114,6 @@ private:
     struct ParentLink final {
         DependencyObject* child = nullptr;
         DependencyObject* parent = nullptr;
-    };
-
-    struct Resolution final {
-        PropertyValue value;
-        EffectiveValueProvider provider = EffectiveValueProvider::Default;
-        PropertyExpressionKind expressionKind =
-            PropertyExpressionKind::Custom;
-        bool hasExpression = false;
     };
 
     Dispatcher* dispatcher_ = nullptr;
@@ -198,8 +124,8 @@ private:
     DependencyPropertyChangedEventHandler
         inheritanceChangedHandler_;
     DispatcherFrameHookHandle phaseHook_;
+    PropertyProviderOriginAllocator providerOrigins_;
     std::uint64_t nextQueueSequence_ = 1U;
-    std::uint64_t nextRevision_ = 1U;
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
@@ -211,16 +137,6 @@ private:
         DependencyPropertyHandle property) noexcept;
     std::uint32_t FindParentIndex(
         const DependencyObject& child) const noexcept;
-
-    Base::Result<void> SetProviderValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        EffectiveValueProvider provider,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearProviderValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        EffectiveValueProvider provider) noexcept;
 
     Base::Result<void> QueueEntry(
         std::uint32_t index) noexcept;
@@ -235,16 +151,13 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
-    Base::Result<Resolution> Resolve(
-        Entry& entry) noexcept;
     Base::Result<void> Apply(
-        Entry& entry,
-        const Resolution& resolution) noexcept;
+        Entry& entry) noexcept;
 
-    void ReleaseExpression(ExpressionSlot& slot) noexcept;
     void RemoveEntry(std::uint32_t index) noexcept;
     void RemoveParent(std::uint32_t index) noexcept;
 
+    static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
     static void PropertyChangesHook(void* context) noexcept;
 };
 

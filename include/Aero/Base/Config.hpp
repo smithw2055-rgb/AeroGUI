@@ -3,6 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 
+// Historical SDK umbrella headers used these macros to produce different class
+// definitions from the same public header. That model is no longer supported:
+// every translation unit must see one invariant public type definition.
+#if defined(AERO_SDK_SURFACE_ONLY) || \
+    defined(AERO_MODULE_SDK_AUTHORING_ONLY)
+#  error "AeroGUI public type-shaping SDK macros have been removed"
+#endif
+
 // Incremented when the Base::Object virtual interface changed for Meta RTTI.
 #define AERO_BASE_ABI_VERSION 2
 

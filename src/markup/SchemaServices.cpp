@@ -168,35 +168,67 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
 Base::Result<void> Schema::BeginInit(
     Core::TypeId type,
     Base::Object& object) const noexcept {
-    const XamlLifecycleFacet* facet = impl_->facets.FindLifecycle(
-        type, runtime_->Types());
-    if (facet == nullptr || facet->beginInit == nullptr) return {};
-    return facet->beginInit(object, facet->context);
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, runtime_->Types(), lifecycle);
+    if (!collected) return collected.GetStatus();
+
+    for (const XamlLifecycleFacet* facet : lifecycle) {
+        if (facet == nullptr || facet->beginInit == nullptr) continue;
+        Base::Result<void> initialized =
+            facet->beginInit(object, facet->context);
+        if (!initialized) return initialized.GetStatus();
+    }
+    return {};
 }
 
 Base::Result<void> Schema::EndInit(
     Core::TypeId type,
     Base::Object& object,
     const ExtensionContext& services) const noexcept {
-    const XamlLifecycleFacet* facet = impl_->facets.FindLifecycle(
-        type, runtime_->Types());
-    if (facet == nullptr) return {};
-    if (facet->endInitWithServices != nullptr) {
-        return facet->endInitWithServices(
-            object, services, facet->context);
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, runtime_->Types(), lifecycle);
+    if (!collected) return collected.GetStatus();
+
+    for (std::uint32_t index = lifecycle.Size();
+         index > 0U;
+         --index) {
+        const XamlLifecycleFacet* facet =
+            lifecycle[index - 1U];
+        if (facet == nullptr) continue;
+        Base::Result<void> initialized;
+        if (facet->endInitWithServices != nullptr) {
+            initialized = facet->endInitWithServices(
+                object, services, facet->context);
+        } else if (facet->endInit != nullptr) {
+            initialized = facet->endInit(
+                object, facet->context);
+        }
+        if (!initialized) return initialized.GetStatus();
     }
-    return facet->endInit != nullptr
-        ? facet->endInit(object, facet->context)
-        : Base::Result<void>();
+    return {};
 }
 
 void Schema::AbortInit(
     Core::TypeId type,
     Base::Object& object) const noexcept {
-    const XamlLifecycleFacet* facet = impl_->facets.FindLifecycle(
-        type, runtime_->Types());
-    if (facet != nullptr && facet->abortInit != nullptr) {
-        facet->abortInit(object, facet->context);
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, runtime_->Types(), lifecycle);
+    if (!collected) return;
+
+    for (std::uint32_t index = lifecycle.Size();
+         index > 0U;
+         --index) {
+        const XamlLifecycleFacet* facet =
+            lifecycle[index - 1U];
+        if (facet != nullptr && facet->abortInit != nullptr) {
+            facet->abortInit(object, facet->context);
+        }
     }
 }
 

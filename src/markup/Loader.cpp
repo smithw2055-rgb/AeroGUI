@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <new>
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace LoaderDiagnosticCodes {

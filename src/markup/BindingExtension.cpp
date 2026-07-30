@@ -1,4 +1,5 @@
 #include "Extensions.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 // Binding markup-extension implementation.
 #include "DeferredContent.hpp"

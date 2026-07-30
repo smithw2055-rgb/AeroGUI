@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 namespace {
@@ -2192,6 +2194,13 @@ double ProgressBar::NormalizedValue() const noexcept {
         : 0.0;
 }
 
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
 ScrollInteractionManager::ScrollInteractionManager(
     ObjectTree& tree,
     RoutedEventManager& events) noexcept
@@ -2696,4 +2705,4 @@ void SliderInteractionManager::OnCaptureChanged(
     }
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

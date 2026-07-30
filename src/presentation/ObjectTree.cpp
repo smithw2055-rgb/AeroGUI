@@ -8,6 +8,7 @@
 #include <Aero/Base/Assert.hpp>
 
 #include <utility>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 
@@ -685,6 +686,13 @@ void ObjectTree::LifecycleHook(void* context) noexcept {
     (void)tree->FlushLifecycle();
 }
 
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
 RoutedEventManager::RoutedEventManager(
     void* eventState) noexcept
     : eventState_(eventState),
@@ -718,18 +726,18 @@ Base::Result<void> RoutedEventManager::ValidateClassHandler(
 Base::Result<void> RoutedEventManager::BuildRoute(
     Visual& source,
     RoutingStrategy strategy,
-    Base::Vector<Detail::VisualLease>& route) noexcept {
+    Base::Vector<Presentation::Detail::VisualLease>& route) noexcept {
     if (strategy == RoutingStrategy::Direct) {
-        Base::Result<Detail::VisualLease> lease =
-            Detail::VisualLease::Acquire(source);
+        Base::Result<Presentation::Detail::VisualLease> lease =
+            Presentation::Detail::VisualLease::Acquire(source);
         if (!lease) return lease.GetStatus();
         return route.TryPushBack(std::move(lease).Value());
     }
 
     Visual* current = &source;
     while (current != nullptr) {
-        Base::Result<Detail::VisualLease> lease =
-            Detail::VisualLease::Acquire(*current);
+        Base::Result<Presentation::Detail::VisualLease> lease =
+            Presentation::Detail::VisualLease::Acquire(*current);
         if (!lease) return lease.GetStatus();
         Base::Result<void> appended =
             route.TryPushBack(std::move(lease).Value());
@@ -741,7 +749,7 @@ Base::Result<void> RoutedEventManager::BuildRoute(
     if (strategy == RoutingStrategy::Tunnel) {
         for (std::uint32_t left = 0U, right = route.Size() - 1U;
              left < right; ++left, --right) {
-            Detail::VisualLease temporary = std::move(route[left]);
+            Presentation::Detail::VisualLease temporary = std::move(route[left]);
             route[left] = std::move(route[right]);
             route[right] = std::move(temporary);
         }
@@ -797,7 +805,7 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
         return NotFound("Routed event was not found");
     }
 
-    Base::Vector<Detail::VisualLease> route;
+    Base::Vector<Presentation::Detail::VisualLease> route;
     Base::Result<void> built =
         BuildRoute(source, definition->strategy, route);
     if (!built) {
@@ -816,7 +824,7 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
     }
 
     ++raiseDepth_;
-    for (const Detail::VisualLease& lease : route) {
+    for (const Presentation::Detail::VisualLease& lease : route) {
         Visual* node = lease.Resolve();
         if (node != nullptr) InvokeNode(*node, args);
     }
@@ -828,4 +836,4 @@ void RoutedEventManager::CleanupClassHandlers() noexcept {
     classHandlers_.Clear();
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

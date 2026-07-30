@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <new>
 #include <utility>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 namespace {
@@ -146,7 +147,14 @@ bool IsTimingValid(const TimelineTiming& timing) noexcept {
 
 } // namespace
 
-struct AnimationManager::Track final {
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
+struct PresentationRuntimeAccess::AnimationManager::Track final {
     enum class Kind : std::uint8_t {
         Double,
         Color,
@@ -1306,4 +1314,4 @@ void AnimationManager::AnimationFrameHook(void* context) noexcept {
     if (!ticked) manager->lastTickStatus_ = ticked.GetStatus();
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

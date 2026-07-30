@@ -10,6 +10,7 @@
 
 #include <new>
 #include <utility>
+#include "presentation/RuntimeManagers.hpp"
 
 namespace Aero {
 namespace {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
@@ -10,18 +12,13 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/RoutedEvent.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#if !defined(AERO_SDK_SURFACE_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#endif
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Presentation/InputValues.hpp>
 
 #include <cstdint>
 
 namespace Aero::Core {
-#if defined(AERO_SDK_SURFACE_ONLY)
-class EffectiveValueEngine;
-#endif
 }
 
 namespace Aero::Presentation {
@@ -29,9 +26,6 @@ namespace Aero::Presentation {
 using namespace Aero::Core;
 
 class ObjectTree;
-#if !defined(AERO_SDK_SURFACE_ONLY)
-class RoutedEventManager;
-#endif
 class Visual;
 class UIElement;
 class FrameworkElement;
@@ -258,9 +252,7 @@ public:
 
 private:
     friend class ObjectTree;
-#if !defined(AERO_SDK_SURFACE_ONLY)
-    friend class RoutedEventManager;
-#endif
+    friend class Aero::Detail::PresentationRuntimeAccess;
     friend struct Detail::VisualLease;
 
     Base::Result<Base::Ref<Detail::VisualLifetime>>
@@ -389,77 +381,6 @@ private:
     static void LifecycleHook(void* context) noexcept;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
-class AERO_API RoutedEventManager final {
-public:
-    explicit RoutedEventManager(void* eventState) noexcept;
-    ~RoutedEventManager() noexcept;
 
-    template<class TArgs>
-    Base::Result<void> RegisterClassHandler(
-        RoutedEventHandle event,
-        TypeId classType,
-        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
-        bool handledEventsToo = false) noexcept;
-
-    Base::Result<void> RaiseEvent(
-        UIElement& source,
-        RoutedEventHandle event,
-        RoutedEventArgs* args = nullptr) noexcept;
-
-private:
-    struct ClassHandlerRecord final {
-        RoutedEventHandle event;
-        TypeId classType = InvalidTypeId;
-        Detail::RoutedHandlerStorage handler;
-        std::uint64_t sequence = 0U;
-        bool handledEventsToo = false;
-    };
-
-    void* eventState_ = nullptr;
-    Base::Vector<ClassHandlerRecord> classHandlers_;
-    std::uint64_t nextClassSequence_ = 1U;
-    std::uint32_t raiseDepth_ = 0U;
-
-    Base::Result<void> BuildRoute(
-        Visual& source,
-        RoutingStrategy strategy,
-        Base::Vector<Detail::VisualLease>& route) noexcept;
-    void InvokeNode(Visual& node, RoutedEventArgs& args) noexcept;
-    void CleanupClassHandlers() noexcept;
-    Base::Result<void> ValidateClassHandler(
-        RoutedEventHandle event,
-        TypeId classType,
-        TypeId eventArgsType) const noexcept;
-};
-
-template<class TArgs>
-Base::Result<void> RoutedEventManager::RegisterClassHandler(
-    RoutedEventHandle event,
-    TypeId classType,
-    const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
-    bool handledEventsToo) noexcept {
-    static_assert(std::is_base_of<RoutedEventArgs, TArgs>::value,
-        "Routed event arguments must derive from RoutedEventArgs");
-    if (raiseDepth_ != 0U) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Cannot mutate class handlers during routed event dispatch");
-    }
-    if (handler.Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Class handler registration is invalid");
-    }
-    Base::Result<void> valid = ValidateClassHandler(
-        event, classType, TArgs::StaticTypeId());
-    if (!valid) return valid.GetStatus();
-    ClassHandlerRecord value;
-    value.event = event;
-    value.classType = classType;
-    value.handler = Detail::RoutedHandlerStorage(handler);
-    value.handledEventsToo = handledEventsToo;
-    value.sequence = nextClassSequence_++;
-    return classHandlers_.TryPushBack(std::move(value));
-}
-#endif
 
 } // namespace Aero::Presentation

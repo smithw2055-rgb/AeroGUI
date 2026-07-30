@@ -50,14 +50,80 @@ const T* FindInherited(
     return nullptr;
 }
 
+template<class T, class ExactLookup>
+const T* FindByPolicy(
+    Core::TypeId type,
+    const Core::TypeRegistry& descriptors,
+    ExactLookup&& lookup) noexcept {
+    if constexpr (
+        T::InheritancePolicy ==
+        XamlFacetInheritancePolicy::ExactOnly) {
+        return lookup(type);
+    } else {
+        return FindInherited<T>(
+            type, descriptors,
+            std::forward<ExactLookup>(lookup));
+    }
+}
+
 template<class T>
 const T* FindExact(
+    const Base::Vector<T>& values,
+    const Base::HashMap<Core::TypeId, std::uint32_t>& index,
+    bool frozen,
+    Core::TypeId type) noexcept {
+    if (frozen) {
+        const std::uint32_t* position = index.Find(type);
+        return position != nullptr && *position < values.Size()
+            ? &values[*position]
+            : nullptr;
+    }
+    for (const T& value : values) {
+        if (value.type == type) return &value;
+    }
+    return nullptr;
+}
+
+template<class T>
+const T* FindExactLinear(
     const Base::Vector<T>& values,
     Core::TypeId type) noexcept {
     for (const T& value : values) {
         if (value.type == type) return &value;
     }
     return nullptr;
+}
+
+template<class T>
+Base::Result<void> BuildIndex(
+    const Base::Vector<T>& values,
+    Base::HashMap<Core::TypeId, std::uint32_t>& index) noexcept {
+    index.Clear();
+    Base::Result<void> reserved = index.TryReserve(values.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t position = 0U;
+         position < values.Size();
+         ++position) {
+        Base::Result<
+            Base::HashMap<Core::TypeId, std::uint32_t>::InsertResult>
+            inserted = index.TryInsert(values[position].type, position);
+        if (!inserted) return inserted.GetStatus();
+        if (!inserted.Value().inserted) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "XAML facet index contains a duplicate type");
+        }
+    }
+    return {};
+}
+
+template<class T>
+void RollbackTo(
+    Base::Vector<T>& values,
+    std::uint32_t size) noexcept {
+    while (values.Size() > size) {
+        values.PopBack();
+    }
 }
 
 } // namespace
@@ -71,18 +137,37 @@ Base::Result<void> XamlFacetStore::TryAdd(
             Base::ErrorCode::Unsupported,
             "XAML type facet ABI version is incompatible");
     }
-    Base::Result<void> valid = ValidateObjectType(facet.type, descriptors);
+    Base::Result<void> valid =
+        ValidateObjectType(facet.type, descriptors);
     if (!valid) return valid.GetStatus();
-    if (FindTypeExact(facet.type) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "XAML compatibility type facet is already registered");
-    }
-    Base::Result<void> added = types_.TryPushBack(facet);
-    if (!added) return added.GetStatus();
 
+    const std::uint32_t lifecycleSize = lifecycles_.Size();
+    const std::uint32_t nameScopeSize = nameScopes_.Size();
+    const std::uint32_t resourceScopeSize = resourceScopes_.Size();
+    const std::uint32_t deferredSize = deferredContents_.Size();
+    const std::uint32_t implicitKeySize = implicitResourceKeys_.Size();
+    const std::uint32_t propertyTargetSize = propertyTargets_.Size();
+
+    const auto rollback = [this,
+        lifecycleSize,
+        nameScopeSize,
+        resourceScopeSize,
+        deferredSize,
+        implicitKeySize,
+        propertyTargetSize]() noexcept {
+        RollbackTo(lifecycles_, lifecycleSize);
+        RollbackTo(nameScopes_, nameScopeSize);
+        RollbackTo(resourceScopes_, resourceScopeSize);
+        RollbackTo(deferredContents_, deferredSize);
+        RollbackTo(implicitResourceKeys_, implicitKeySize);
+        RollbackTo(propertyTargets_, propertyTargetSize);
+    };
+
+    bool projected = false;
+    Base::Result<void> added;
     if (facet.beginInit != nullptr || facet.endInit != nullptr ||
-        facet.abortInit != nullptr || facet.endInitWithServices != nullptr) {
+        facet.abortInit != nullptr ||
+        facet.endInitWithServices != nullptr) {
         added = TryAdd(XamlLifecycleFacet{
             facet.type,
             facet.beginInit,
@@ -90,7 +175,11 @@ Base::Result<void> XamlFacetStore::TryAdd(
             facet.abortInit,
             facet.endInitWithServices,
             facet.context}, descriptors);
-        if (!added) return added.GetStatus();
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
     }
     if (facet.createsNameScope || facet.registerName != nullptr) {
         added = TryAdd(XamlNameScopeFacet{
@@ -98,7 +187,11 @@ Base::Result<void> XamlFacetStore::TryAdd(
             facet.createsNameScope,
             facet.registerName,
             facet.context}, descriptors);
-        if (!added) return added.GetStatus();
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
     }
     if (facet.createsResourceScope || facet.addResource != nullptr ||
         facet.resolveResourceScope != nullptr) {
@@ -108,25 +201,49 @@ Base::Result<void> XamlFacetStore::TryAdd(
             facet.addResource,
             facet.resolveResourceScope,
             facet.context}, descriptors);
-        if (!added) return added.GetStatus();
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
     }
     if (facet.defersVisualContent) {
-        added = TryAdd(XamlDeferredContentFacet{facet.type, true}, descriptors);
-        if (!added) return added.GetStatus();
+        added = TryAdd(
+            XamlDeferredContentFacet{facet.type, true},
+            descriptors);
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
     }
     if (facet.resolveImplicitResourceKey != nullptr) {
         added = TryAdd(XamlImplicitResourceKeyFacet{
             facet.type,
             facet.resolveImplicitResourceKey,
             facet.context}, descriptors);
-        if (!added) return added.GetStatus();
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
     }
     if (facet.resolvePropertyTarget != nullptr) {
         added = TryAdd(XamlPropertyTargetFacet{
             facet.type,
             facet.resolvePropertyTarget,
             facet.context}, descriptors);
-        if (!added) return added.GetStatus();
+        if (!added) {
+            rollback();
+            return added.GetStatus();
+        }
+        projected = true;
+    }
+
+    if (!projected) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML aggregate facet contains no capabilities");
     }
     return {};
 }
@@ -147,7 +264,7 @@ Base::Result<void> XamlFacetStore::TryAdd( \
         return Base::Status::Failure( \
             Base::ErrorCode::InvalidArgument, message); \
     } \
-    if (FindExact(storage, facet.type) != nullptr) { \
+    if (FindExactLinear(storage, facet.type) != nullptr) { \
         return Base::Status::Failure( \
             Base::ErrorCode::AlreadyExists, message); \
     } \
@@ -213,34 +330,77 @@ Base::Result<void> XamlFacetStore::TryAdd(
 Base::Result<void> XamlFacetStore::Freeze() noexcept {
     if (frozen_) return {};
 
-    Base::Result<void> reserved =
-        markupExtensionIndex_.TryReserve(markupExtensions_.Size());
-    if (!reserved) return reserved.GetStatus();
-    for (std::uint32_t index = 0U; index < markupExtensions_.Size(); ++index) {
-        Base::Result<Base::HashMap<Core::TypeId, std::uint32_t>::InsertResult>
-            inserted = markupExtensionIndex_.TryInsert(
-                markupExtensions_[index].type, index);
-        if (!inserted) return inserted.GetStatus();
-    }
+    Base::Result<void> indexed =
+        BuildIndex(lifecycles_, lifecycleIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(nameScopes_, nameScopeIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(resourceScopes_, resourceScopeIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(deferredContents_, deferredContentIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(implicitResourceKeys_, implicitResourceKeyIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(propertyTargets_, propertyTargetIndex_);
+    if (!indexed) return indexed.GetStatus();
+    indexed = BuildIndex(markupExtensions_, markupExtensionIndex_);
+    if (!indexed) return indexed.GetStatus();
 
     frozen_ = true;
     return {};
 }
 
-const XamlTypeFacet* XamlFacetStore::FindType(
+Base::Result<void> XamlFacetStore::CollectLifecycle(
     Core::TypeId type,
-    const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlTypeFacet>(
-        type, descriptors,
-        [this](Core::TypeId current) noexcept {
-            return FindTypeExact(current);
-        });
+    const Core::TypeRegistry& descriptors,
+    Base::Vector<const XamlLifecycleFacet*>& output) const noexcept {
+    output.Clear();
+    if (type == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Lifecycle facet collection requires a valid type");
+    }
+
+    Core::TypeId current = type;
+    std::uint32_t depth = 0U;
+    while (current != Core::InvalidTypeId &&
+           depth <= descriptors.TypeCount()) {
+        const XamlLifecycleFacet* facet =
+            FindLifecycleExact(current);
+        if (facet != nullptr) {
+            Base::Result<void> added = output.TryPushBack(facet);
+            if (!added) {
+                output.Clear();
+                return added.GetStatus();
+            }
+        }
+        const Core::TypeInfo* descriptor =
+            descriptors.FindType(current);
+        if (descriptor == nullptr) break;
+        current = descriptor->BaseType();
+        ++depth;
+    }
+    if (current != Core::InvalidTypeId) {
+        output.Clear();
+        return Base::Status::Failure(
+            Base::ErrorCode::CycleDetected,
+            "Lifecycle facet inheritance chain contains a cycle");
+    }
+
+    for (std::uint32_t left = 0U,
+         right = output.Size(); left < right / 2U; ++left) {
+        const std::uint32_t opposite = right - left - 1U;
+        const XamlLifecycleFacet* temporary = output[left];
+        output[left] = output[opposite];
+        output[opposite] = temporary;
+    }
+    return {};
 }
 
 const XamlLifecycleFacet* XamlFacetStore::FindLifecycle(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlLifecycleFacet>(
+    return FindByPolicy<XamlLifecycleFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindLifecycleExact(current);
@@ -250,7 +410,7 @@ const XamlLifecycleFacet* XamlFacetStore::FindLifecycle(
 const XamlNameScopeFacet* XamlFacetStore::FindNameScope(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlNameScopeFacet>(
+    return FindByPolicy<XamlNameScopeFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindNameScopeExact(current);
@@ -260,7 +420,7 @@ const XamlNameScopeFacet* XamlFacetStore::FindNameScope(
 const XamlResourceScopeFacet* XamlFacetStore::FindResourceScope(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlResourceScopeFacet>(
+    return FindByPolicy<XamlResourceScopeFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindResourceScopeExact(current);
@@ -270,17 +430,18 @@ const XamlResourceScopeFacet* XamlFacetStore::FindResourceScope(
 const XamlDeferredContentFacet* XamlFacetStore::FindDeferredContent(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlDeferredContentFacet>(
+    return FindByPolicy<XamlDeferredContentFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindDeferredContentExact(current);
         });
 }
 
-const XamlImplicitResourceKeyFacet* XamlFacetStore::FindImplicitResourceKey(
+const XamlImplicitResourceKeyFacet*
+XamlFacetStore::FindImplicitResourceKey(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlImplicitResourceKeyFacet>(
+    return FindByPolicy<XamlImplicitResourceKeyFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindImplicitResourceKeyExact(current);
@@ -290,7 +451,7 @@ const XamlImplicitResourceKeyFacet* XamlFacetStore::FindImplicitResourceKey(
 const XamlPropertyTargetFacet* XamlFacetStore::FindPropertyTarget(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
-    return FindInherited<XamlPropertyTargetFacet>(
+    return FindByPolicy<XamlPropertyTargetFacet>(
         type, descriptors,
         [this](Core::TypeId current) noexcept {
             return FindPropertyTargetExact(current);
@@ -299,52 +460,44 @@ const XamlPropertyTargetFacet* XamlFacetStore::FindPropertyTarget(
 
 const XamlMarkupExtensionFacet* XamlFacetStore::FindMarkupExtension(
     Core::TypeId type) const noexcept {
-    if (frozen_) {
-        const std::uint32_t* index = markupExtensionIndex_.Find(type);
-        return index != nullptr && *index < markupExtensions_.Size()
-            ? &markupExtensions_[*index]
-            : nullptr;
-    }
-    for (const XamlMarkupExtensionFacet& facet : markupExtensions_) {
-        if (facet.type == type) return &facet;
-    }
-    return nullptr;
-}
-
-const XamlTypeFacet* XamlFacetStore::FindTypeExact(
-    Core::TypeId type) const noexcept {
-    return FindExact(types_, type);
+    return FindExact(
+        markupExtensions_, markupExtensionIndex_, frozen_, type);
 }
 
 const XamlLifecycleFacet* XamlFacetStore::FindLifecycleExact(
     Core::TypeId type) const noexcept {
-    return FindExact(lifecycles_, type);
+    return FindExact(lifecycles_, lifecycleIndex_, frozen_, type);
 }
 
 const XamlNameScopeFacet* XamlFacetStore::FindNameScopeExact(
     Core::TypeId type) const noexcept {
-    return FindExact(nameScopes_, type);
+    return FindExact(nameScopes_, nameScopeIndex_, frozen_, type);
 }
 
 const XamlResourceScopeFacet* XamlFacetStore::FindResourceScopeExact(
     Core::TypeId type) const noexcept {
-    return FindExact(resourceScopes_, type);
+    return FindExact(resourceScopes_, resourceScopeIndex_, frozen_, type);
 }
 
-const XamlDeferredContentFacet* XamlFacetStore::FindDeferredContentExact(
+const XamlDeferredContentFacet*
+XamlFacetStore::FindDeferredContentExact(
     Core::TypeId type) const noexcept {
-    return FindExact(deferredContents_, type);
+    return FindExact(
+        deferredContents_, deferredContentIndex_, frozen_, type);
 }
 
 const XamlImplicitResourceKeyFacet*
 XamlFacetStore::FindImplicitResourceKeyExact(
     Core::TypeId type) const noexcept {
-    return FindExact(implicitResourceKeys_, type);
+    return FindExact(
+        implicitResourceKeys_, implicitResourceKeyIndex_, frozen_, type);
 }
 
-const XamlPropertyTargetFacet* XamlFacetStore::FindPropertyTargetExact(
+const XamlPropertyTargetFacet*
+XamlFacetStore::FindPropertyTargetExact(
     Core::TypeId type) const noexcept {
-    return FindExact(propertyTargets_, type);
+    return FindExact(
+        propertyTargets_, propertyTargetIndex_, frozen_, type);
 }
 
 } // namespace Aero::Markup::Detail

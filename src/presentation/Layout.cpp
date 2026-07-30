@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 
@@ -569,6 +570,13 @@ Base::Result<void> UIElement::ArrangeChild(
     return manager_->ArrangeElement(child, finalRect);
 }
 
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
+
 LayoutManager::LayoutManager(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
       measureQueue_(),
@@ -707,8 +715,8 @@ Base::Result<void> LayoutManager::SetRoot(
 Base::Result<void> LayoutManager::QueueMeasure(
     UIElement& element) noexcept {
     if (element.measureQueued_) return {};
-    Base::Result<Detail::VisualLease> lease =
-        Detail::VisualLease::Acquire(element);
+    Base::Result<Presentation::Detail::VisualLease> lease =
+        Presentation::Detail::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         measureQueue_.TryPushBack(std::move(lease).Value());
@@ -720,8 +728,8 @@ Base::Result<void> LayoutManager::QueueMeasure(
 Base::Result<void> LayoutManager::QueueArrange(
     UIElement& element) noexcept {
     if (element.arrangeQueued_) return {};
-    Base::Result<Detail::VisualLease> lease =
-        Detail::VisualLease::Acquire(element);
+    Base::Result<Presentation::Detail::VisualLease> lease =
+        Presentation::Detail::VisualLease::Acquire(element);
     if (!lease) return lease.GetStatus();
     Base::Result<void> appended =
         arrangeQueue_.TryPushBack(std::move(lease).Value());
@@ -731,7 +739,7 @@ Base::Result<void> LayoutManager::QueueArrange(
 }
 
 void LayoutManager::RemoveQueued(UIElement& element) noexcept {
-    auto remove = [&](Base::Vector<Detail::VisualLease>& queue) noexcept {
+    auto remove = [&](Base::Vector<Presentation::Detail::VisualLease>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
             if (queue[index].Resolve() != &element) {
                 ++index;
@@ -763,13 +771,13 @@ Base::Result<void> LayoutManager::InvalidateMeasure(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Detail::VisualLease> leases;
+    Base::Vector<Presentation::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.TryReserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->measureQueued_) continue;
-        Base::Result<Detail::VisualLease> lease =
-            Detail::VisualLease::Acquire(*item);
+        Base::Result<Presentation::Detail::VisualLease> lease =
+            Presentation::Detail::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.TryPushBack(std::move(lease).Value());
@@ -806,13 +814,13 @@ Base::Result<void> LayoutManager::InvalidateArrange(
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<Detail::VisualLease> leases;
+    Base::Vector<Presentation::Detail::VisualLease> leases;
     Base::Result<void> reserved = leases.TryReserve(path.Size());
     if (!reserved) return reserved.GetStatus();
     for (UIElement* item : path) {
         if (item->arrangeQueued_) continue;
-        Base::Result<Detail::VisualLease> lease =
-            Detail::VisualLease::Acquire(*item);
+        Base::Result<Presentation::Detail::VisualLease> lease =
+            Presentation::Detail::VisualLease::Acquire(*item);
         if (!lease) return lease.GetStatus();
         Base::Result<void> staged =
             leases.TryPushBack(std::move(lease).Value());
@@ -848,11 +856,11 @@ Base::Result<void> LayoutManager::MeasureElement(
         return {};
     }
 
-    Detail::VisualLease pendingArrange;
+    Presentation::Detail::VisualLease pendingArrange;
     const bool queueArrange = !element.arrangeQueued_;
     if (queueArrange) {
-        Base::Result<Detail::VisualLease> lease =
-            Detail::VisualLease::Acquire(element);
+        Base::Result<Presentation::Detail::VisualLease> lease =
+            Presentation::Detail::VisualLease::Acquire(element);
         if (!lease) return lease.GetStatus();
         pendingArrange = std::move(lease).Value();
         Base::Result<void> reserved = arrangeQueue_.TryReserve(
@@ -1194,16 +1202,16 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
         }
     }
 
-    Base::Vector<Detail::VisualLease> measure =
+    Base::Vector<Presentation::Detail::VisualLease> measure =
         std::move(measureQueue_);
-    measureQueue_ = Base::Vector<Detail::VisualLease>();
-    for (const Detail::VisualLease& lease : measure) {
+    measureQueue_ = Base::Vector<Presentation::Detail::VisualLease>();
+    for (const Presentation::Detail::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->measureQueued_ = false;
     }
-    for (const Detail::VisualLease& lease : measure) {
+    for (const Presentation::Detail::VisualLease& lease : measure) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1224,16 +1232,16 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
         }
     }
 
-    Base::Vector<Detail::VisualLease> arrange =
+    Base::Vector<Presentation::Detail::VisualLease> arrange =
         std::move(arrangeQueue_);
-    arrangeQueue_ = Base::Vector<Detail::VisualLease>();
-    for (const Detail::VisualLease& lease : arrange) {
+    arrangeQueue_ = Base::Vector<Presentation::Detail::VisualLease>();
+    for (const Presentation::Detail::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->arrangeQueued_ = false;
     }
-    for (const Detail::VisualLease& lease : arrange) {
+    for (const Presentation::Detail::VisualLease& lease : arrange) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1289,13 +1297,13 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
     // A converged root has recursively measured and arranged every attached
     // descendant. Remove stale queue leases created during template
     // application so the next frame starts from a clean layout state.
-    for (const Detail::VisualLease& lease : measureQueue_) {
+    for (const Presentation::Detail::VisualLease& lease : measureQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element != nullptr) element->measureQueued_ = false;
     }
-    for (const Detail::VisualLease& lease : arrangeQueue_) {
+    for (const Presentation::Detail::VisualLease& lease : arrangeQueue_) {
         Visual* visual = lease.Resolve();
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
@@ -1330,4 +1338,4 @@ void LayoutManager::LayoutHook(void* context) noexcept {
     }
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

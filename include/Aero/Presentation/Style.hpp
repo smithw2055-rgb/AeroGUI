@@ -6,11 +6,8 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#else
-#include <Aero/Core/Property/DependencyProperty.hpp>
-#endif
+#include <Aero/Core/Property/PropertyProviderSession.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
@@ -530,10 +527,8 @@ public:
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
-#endif
 
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
@@ -601,100 +596,6 @@ private:
 // Applies sealed style setters through EffectiveValueEngine, thereby retaining
 // the existing precedence contract: local values and local expressions remain
 // above Style values, and template/animation layers remain independent.
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
-class AERO_API StyleManager final {
-public:
-    using TriggerActionHandler = Base::Result<void>(*)(
-        DependencyObject& owner,
-        Base::Span<const Base::Ref<Base::Object>> actions,
-        void* context) noexcept;
-
-    explicit StyleManager(
-        EffectiveValueEngine& values,
-        DependencyPropertyRegistry& properties) noexcept
-        : values_(&values), properties_(&properties),
-          applications_(),
-          propertyChangedHandler_(
-              this, &StyleManager::OnPropertyChanged) {}
-    ~StyleManager() noexcept;
-
-    Base::Result<void> Apply(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    Base::Result<void> Clear(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    // Tree/object ownership code calls this before destroying an object.
-    Base::Result<bool> DetachObject(
-        DependencyObject& object) noexcept;
-    const Style* AppliedStyle(
-        const DependencyObject& object)
-        const noexcept;
-    void SetTriggerActionHandler(
-        TriggerActionHandler handler,
-        void* context) noexcept {
-        triggerActionHandler_ = handler;
-        triggerActionContext_ = context;
-    }
-    const Base::Status& LastActionStatus() const noexcept {
-        return lastActionStatus_;
-    }
-
-private:
-    EffectiveValueEngine* values_ = nullptr;
-    DependencyPropertyRegistry* properties_ = nullptr;
-    struct Application final {
-        DependencyObject* object = nullptr;
-        const Style* style = nullptr;
-        Base::Vector<std::uint8_t> triggerStates;
-    };
-    Base::Vector<Application> applications_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    Dispatcher* dispatcher_ = nullptr;
-    DispatcherFrameHookHandle triggerPhaseHook_;
-    Base::Vector<DependencyObject*>
-        pendingTriggerEvaluations_;
-    TriggerActionHandler triggerActionHandler_ = nullptr;
-    void* triggerActionContext_ = nullptr;
-    Base::Status lastActionStatus_;
-
-    Base::Result<void> VerifyTarget(
-        const DependencyObject& object,
-        const Style& style) const noexcept;
-    std::uint32_t FindApplication(
-        const DependencyObject& object) const noexcept;
-    Base::Result<void> ClearSetters(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    Base::Result<void> SubscribeTriggers(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    void UnsubscribeTriggers(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    Base::Result<void> EvaluateTriggers(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    Base::Result<void> ExecuteTriggerActions(
-        DependencyObject& object,
-        Base::Span<const Base::Ref<Base::Object>>
-            actions) noexcept;
-    Base::Result<void> EnsureTriggerPhaseHook(
-        DependencyObject& object) noexcept;
-    Base::Result<void> QueueTriggerEvaluation(
-        DependencyObject& object) noexcept;
-    void RemovePendingTriggerEvaluation(
-        DependencyObject& object) noexcept;
-    Base::Result<std::uint32_t>
-        FlushPendingTriggerEvaluations() noexcept;
-    static void TriggerPhaseHook(void* context) noexcept;
-    Base::Result<void> ClearTriggerSetters(
-        DependencyObject& object,
-        const Style& style) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-};
 
 // Type-keyed default styles are resolved through the registered base-type
 // chain and occupy the ThemeStyle provider below explicit Style values.
@@ -718,33 +619,5 @@ private:
     Base::Vector<Entry> entries_;
 };
 
-class AERO_API ThemeStyleManager final {
-public:
-    ThemeStyleManager(
-        EffectiveValueEngine& values,
-        const ThemeStyleRegistry& registry) noexcept
-        : values_(&values), registry_(&registry) {}
-
-    Base::Result<bool> ApplyDefault(
-        DependencyObject& object) noexcept;
-    Base::Result<bool> Clear(
-        DependencyObject& object) noexcept;
-
-private:
-    struct Application final {
-        DependencyObject* object = nullptr;
-        const Style* style = nullptr;
-    };
-    EffectiveValueEngine* values_ = nullptr;
-    const ThemeStyleRegistry* registry_ = nullptr;
-    Base::Vector<Application> applications_;
-
-    std::uint32_t FindApplication(
-        const DependencyObject& object) const noexcept;
-    Base::Result<void> ClearSetters(
-        DependencyObject& object,
-        const Style& style) noexcept;
-};
-#endif
 
 } // namespace Aero::Presentation

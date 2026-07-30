@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 // Canonical markup-extension API.
 
 #include <Aero/Base/Config.hpp>
@@ -16,6 +18,9 @@
 #include <Aero/Markup/Resources.hpp>
 
 #include <cstdint>
+
+namespace Aero::Presentation {
+}
 
 namespace Aero::Markup {
 

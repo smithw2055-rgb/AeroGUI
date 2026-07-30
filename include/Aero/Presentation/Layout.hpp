@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
@@ -10,12 +12,6 @@
 #include <Aero/Presentation/ObjectTree.hpp>
 
 #include <cstdint>
-
-#if !defined(AERO_SDK_SURFACE_ONLY)
-namespace Aero::Controls {
-class ControlInteractionManager;
-}
-#endif
 
 namespace Aero::Presentation {
 
@@ -147,9 +143,6 @@ AERO_API Size Inflate(Size value, Thickness padding) noexcept;
 AERO_API Rect Intersect(Rect left, Rect right) noexcept;
 AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
-class LayoutManager;
-#endif
 class UIElement;
 class Transform;
 class Effect;
@@ -464,13 +457,8 @@ protected:
     }
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
-    friend class LayoutManager;
-    friend class RoutedEventManager;
-    friend class PointerInputManager;
-    friend class FocusManager;
-    friend class Aero::Controls::ControlInteractionManager;
-#endif
+    friend class Aero::Detail::PresentationRuntimeAccess;
+    friend class Aero::Detail::ControlRuntimeAccess;
 
     struct HandlerRecord final {
         RoutedEventHandle event;
@@ -479,11 +467,7 @@ private:
         bool handledEventsToo = false;
     };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     LayoutManager* manager_ = nullptr;
-#else
-    void* layoutState_ = nullptr;
-#endif
     Base::Vector<HandlerRecord> handlers_;
     std::uint64_t nextHandlerSequence_ = 1U;
     Size desiredSize_;
@@ -516,49 +500,5 @@ struct LayoutDiagnostics final {
     std::uint32_t pendingArrangeCount = 0U;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
-class AERO_API LayoutManager final {
-public:
-    explicit LayoutManager(Dispatcher& dispatcher) noexcept;
-    ~LayoutManager() noexcept;
-    LayoutManager(const LayoutManager&) = delete;
-    LayoutManager& operator=(const LayoutManager&) = delete;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> Attach(UIElement& parent, UIElement& child) noexcept;
-    Base::Result<void> Detach(UIElement& parent, UIElement& child) noexcept;
-    Base::Result<void> SetRoot(UIElement* root, Size availableSize) noexcept;
-    Base::Result<void> InvalidateMeasure(UIElement& element) noexcept;
-    Base::Result<void> InvalidateArrange(UIElement& element) noexcept;
-    Base::Result<std::uint32_t> Flush() noexcept;
-    LayoutDiagnostics Diagnostics() const noexcept;
-    std::uint64_t PassVersion() const noexcept { return passVersion_; }
-    Base::Status LastFlushStatus() const noexcept {
-        return lastFlushStatus_;
-    }
-
-private:
-    friend class UIElement;
-    Dispatcher* dispatcher_ = nullptr;
-    UIElement* root_ = nullptr;
-    Size rootAvailableSize_;
-    Base::Vector<Detail::VisualLease> measureQueue_;
-    Base::Vector<Detail::VisualLease> arrangeQueue_;
-    DispatcherFrameHookHandle phaseHook_;
-    std::uint64_t passVersion_ = 0U;
-    std::uint32_t measuredCount_ = 0U;
-    std::uint32_t arrangedCount_ = 0U;
-    Base::Status lastFlushStatus_;
-    bool flushing_ = false;
-
-    Base::Result<void> VerifyElement(const UIElement& element) const noexcept;
-    Base::Result<void> QueueMeasure(UIElement& element) noexcept;
-    Base::Result<void> QueueArrange(UIElement& element) noexcept;
-    void RemoveQueued(UIElement& element) noexcept;
-    Base::Result<void> MeasureElement(UIElement& element, Size constraint) noexcept;
-    Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
-    static void LayoutHook(void* context) noexcept;
-};
-#endif
 
 } // namespace Aero::Presentation

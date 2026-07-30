@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Collections/ItemsSource.hpp>
 #include <Aero/Presentation/MountService.hpp>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 // Private template compiler used by ObjectWriter finalization.
 
 #include "DeferredContent.hpp"
@@ -18,6 +20,9 @@
 #include <Aero/Presentation/AnimationXaml.hpp>
 
 #include <cstdint>
+
+namespace Aero::Presentation {
+}
 
 namespace Aero::Markup::Detail {
 

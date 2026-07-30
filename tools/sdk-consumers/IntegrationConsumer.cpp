@@ -16,4 +16,10 @@ CreateIntegratedView(
         environment, options);
 }
 
+[[maybe_unused]]
+Aero::View* HostedWindowView(
+    Aero::Window& window) noexcept {
+    return Aero::Integration::WindowInterop::HostedView(window);
+}
+
 } // namespace

@@ -10,9 +10,7 @@ namespace Aero::Core {
 
 class MetadataContext;
 class MetadataRegistrationValues;
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class TypeRegistry;
-#endif
 class ValueTypeSemantics;
 struct TextValueConverterRegistration;
 struct ValueTypeRegistration;
@@ -47,9 +45,7 @@ public:
     const TextValueConverterRegistration* FindTextConverter(
         TypeId type) const noexcept;
     bool IsFrozen() const noexcept;
-#if !defined(AERO_SDK_SURFACE_ONLY)
     const TypeRegistry& Types() const noexcept;
-#endif
 
 private:
     friend class MetadataContext;

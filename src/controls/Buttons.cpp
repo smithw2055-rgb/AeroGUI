@@ -1,6 +1,8 @@
 #include <Aero/Controls/Buttons.hpp>
 
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 
@@ -162,6 +164,24 @@ Base::Result<void> Hyperlink::SetTextDecorations(
     TextDecorations value) noexcept {
     return SetValue(TextDecorationsProperty, value);
 }
+
+Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
+    Base::Result<void> applied =
+        ContentControl::OnApplyTemplate();
+    if (!applied) return applied.GetStatus();
+    if (interactionManager_ != nullptr) {
+        return interactionManager_->
+            SyncVisualState(*this, false);
+    }
+    return {};
+}
+
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
 
 ControlInteractionManager::ControlInteractionManager(
     ObjectTree& tree,
@@ -773,17 +793,6 @@ ControlInteractionManager::SyncVisualState(
     return {};
 }
 
-Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
-    Base::Result<void> applied =
-        ContentControl::OnApplyTemplate();
-    if (!applied) return applied.GetStatus();
-    if (interactionManager_ != nullptr) {
-        return interactionManager_->
-            SyncVisualState(*this, false);
-    }
-    return {};
-}
-
 void ControlInteractionManager::OnMouseDown(
     Base::Object* sender,
     const MouseButtonEventArgs& args) noexcept {
@@ -994,4 +1003,4 @@ void ControlInteractionManager::OnRequerySuggested() noexcept {
     }
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

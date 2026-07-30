@@ -2,6 +2,8 @@
 #include <Aero/Controls/Templates.hpp>
 
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 using namespace Presentation;
@@ -338,6 +340,13 @@ Base::Result<bool> TreeView::SelectItem(
     return true;
 }
 
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
 TreeViewInteractionManager::
 TreeViewInteractionManager(
     ObjectTree& tree,
@@ -650,4 +659,4 @@ void TreeViewInteractionManager::OnKeyDown(
     args.handled = true;
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

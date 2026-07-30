@@ -8,6 +8,8 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 namespace {
@@ -2307,6 +2309,13 @@ TextBox::UpdateCandidateWindow() noexcept {
         SetCandidateWindow(candidate);
 }
 
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
 TextBoxInteractionManager::
 TextBoxInteractionManager(
     ObjectTree& tree,
@@ -3210,4 +3219,4 @@ void TextBoxInteractionManager::OnCaptureChanged(
     }
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

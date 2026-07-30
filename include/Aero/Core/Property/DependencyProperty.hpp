@@ -14,6 +14,7 @@
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Core/Property/PropertyValueSource.hpp>
 
 #include <cstdint>
 
@@ -21,10 +22,9 @@ namespace Aero::Core {
 
 class DependencyObject;
 class DependencyProperty;
-#if !defined(AERO_SDK_SURFACE_ONLY)
+class EffectiveValueEngine;
 class MetadataBehaviorRegistrationStore;
 class DependencyPropertyRegistry;
-#endif
 class MetadataContext;
 
 struct DependencyPropertyHandle final {
@@ -241,6 +241,8 @@ struct DependencyPropertyChangedEventArgs final {
     const PropertyValue& newValue;
     EffectiveValueSource oldSource = EffectiveValueSource::Default;
     EffectiveValueSource newSource = EffectiveValueSource::Default;
+    PropertyValueSourceInfo oldSourceInfo;
+    PropertyValueSourceInfo newSourceInfo;
 };
 
 using ValidateValueCallback = Base::Delegate<bool(
@@ -271,12 +273,7 @@ public:
     DependencyPropertyKey() noexcept = default;
 
     bool IsValid() const noexcept {
-#if !defined(AERO_SDK_SURFACE_ONLY)
         return registry_ != nullptr && property_.IsValid() && secret_ != 0U;
-#else
-        return registryState_ != nullptr &&
-            property_.IsValid() && secret_ != 0U;
-#endif
     }
 
     DependencyPropertyHandle Property() const noexcept {
@@ -284,16 +281,10 @@ public:
     }
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
-#endif
     friend class DependencyObject;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     const DependencyPropertyRegistry* registry_ = nullptr;
-#else
-    const void* registryState_ = nullptr;
-#endif
     DependencyPropertyHandle property_;
     std::uint64_t secret_ = 0U;
 };
@@ -350,9 +341,7 @@ public:
         TypeId forType) const noexcept;
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
-#endif
     friend class DependencyObject;
 
     struct MetadataEntry final {
@@ -366,11 +355,7 @@ private:
     const MetadataEntry* FindMetadataExact(
         TypeId forType) const noexcept;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     TypeRegistry* typeRegistry_ = nullptr;
-#else
-    void* typeState_ = nullptr;
-#endif
     DependencyPropertyHandle handle_;
     TypeId valueType_ = InvalidTypeId;
     TypeId registeredOwnerType_ = InvalidTypeId;
@@ -380,7 +365,6 @@ private:
     Base::Vector<MetadataEntry> metadata_;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API DependencyPropertyRegistry final {
 public:
     DependencyPropertyRegistry(
@@ -469,7 +453,6 @@ private:
         DependencyPropertyFlags propertyFlags,
         PropertyMetadataFlags metadataFlags) noexcept;
 };
-#endif
 
 class AERO_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
@@ -477,11 +460,9 @@ public:
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry& PropertyRegistry() const noexcept {
         return *registry_;
     }
-#endif
 
     Base::Result<PropertyValue> GetValue(
         DependencyPropertyHandle property) const noexcept;
@@ -517,6 +498,8 @@ public:
     Base::Result<PropertyValue> ReadLocalValue(
         DependencyPropertyHandle property) const noexcept;
     Base::Result<EffectiveValueSource> GetValueSource(
+        DependencyPropertyHandle property) const noexcept;
+    Base::Result<PropertyValueSourceInfo> GetValueSourceInfo(
         DependencyPropertyHandle property) const noexcept;
 
     Base::Result<void> SetValue(
@@ -592,7 +575,7 @@ public:
 
 protected:
     explicit DependencyObject(TypeId runtimeType) noexcept;
-    ~DependencyObject() override = default;
+    ~DependencyObject() override;
     // Framework-owned state properties use this path so public SetValue calls
     // remain read-only while derived runtime types can publish state changes.
     Base::Result<void> SetReadOnlyCurrentValue(
@@ -606,6 +589,8 @@ protected:
         PropertyInvalidationFlags flags) noexcept;
 
 private:
+    friend class EffectiveValueEngine;
+
     enum class ChangeKind : std::uint8_t {
         SetLocal,
         SetCurrent,
@@ -615,12 +600,20 @@ private:
 
     struct EffectiveValueEntry final {
         DependencyPropertyHandle property;
+        PropertyProviderSet baseProviders;
+        PropertyExpression localExpression;
         PropertyValue localValue;
         PropertyValue currentValue;
+        PropertyValue inheritedValue;
+        PropertyValue animationValue;
+        PropertyValue baseValue;
         PropertyValue effectiveValue;
-        EffectiveValueSource source = EffectiveValueSource::Default;
+        PropertyValueSourceInfo sourceInfo;
         bool hasLocal = false;
         bool hasCurrent = false;
+        bool hasExpression = false;
+        bool hasInherited = false;
+        bool hasAnimation = false;
     };
 
     struct ChangeHandlerRecord final {
@@ -652,11 +645,7 @@ private:
         DispatcherReentrancyGuard dispatcherGuard_;
     };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry* registry_ = nullptr;
-#else
-    void* propertyState_ = nullptr;
-#endif
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
     Base::Vector<EffectiveValueEntry> values_;
@@ -664,6 +653,7 @@ private:
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     std::uint32_t changeHandlerNotificationDepth_ = 0U;
+    std::uint64_t nextValueRevision_ = 1U;
 
     Base::Result<void> VerifyReady() const noexcept;
     std::uint32_t FindEntryIndex(
@@ -671,6 +661,47 @@ private:
     Base::Result<MutationScope> BeginMutation(
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
+
+    Base::Result<std::uint32_t> EnsureEffectiveEntry(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetProviderContributionInternal(
+        DependencyPropertyHandle property,
+        PropertyProviderToken token,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearProviderContributionInternal(
+        DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Base::Result<bool> ClearProviderOriginInternal(
+        DependencyPropertyHandle property,
+        std::uint32_t origin) noexcept;
+    Base::Result<void> SetLocalExpressionInternal(
+        DependencyPropertyHandle property,
+        const PropertyExpression& expression) noexcept;
+    Base::Result<bool> ClearLocalExpressionInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<bool> InvalidateBaseValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetAnimationValueInternal(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearAnimationValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetInheritedValueInternal(
+        DependencyPropertyHandle property,
+        const PropertyValue* value) noexcept;
+    Base::Result<void> RecomputeEffectiveValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> ClearEngineValueStateInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> RecomputeEffectiveValueCore(
+        DependencyPropertyHandle property,
+        const DependencyProperty& registered,
+        const PropertyMetadata& metadata,
+        const PropertyValue& oldEffective,
+        const PropertyValueSourceInfo& oldSourceInfo) noexcept;
+    void ReleaseExpression(EffectiveValueEntry& entry) noexcept;
+    static EffectiveValueSource ToLegacySource(
+        const PropertyValueSourceInfo& source) noexcept;
 
     Base::Result<void> ApplyChange(
         DependencyPropertyHandle property,

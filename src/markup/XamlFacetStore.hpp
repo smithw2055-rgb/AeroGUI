@@ -11,6 +11,8 @@
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Version.hpp>
 
+#include <cstdint>
+
 namespace Aero::Markup::Detail {
 
 using XamlInitializationCallback = Base::Result<void> (*)(
@@ -51,6 +53,14 @@ using XamlProvideValueCallback =
         const ExtensionContext& services,
         void* context) noexcept;
 
+enum class XamlFacetInheritancePolicy : std::uint8_t {
+    ExactOnly = 0U,
+    NearestBase,
+    ComposeBaseToDerived
+};
+
+// Compatibility registration DTO. TryAdd() atomically projects this record to
+// the narrow facets below and retains no aggregate runtime record.
 struct XamlTypeFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
@@ -71,6 +81,9 @@ struct XamlTypeFacet final {
 };
 
 struct XamlLifecycleFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::ComposeBaseToDerived;
+
     Core::TypeId type = Core::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
     XamlInitializationCallback endInit = nullptr;
@@ -81,6 +94,9 @@ struct XamlLifecycleFacet final {
 };
 
 struct XamlNameScopeFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
     Core::TypeId type = Core::InvalidTypeId;
     bool createsNameScope = true;
     XamlRegisterNameCallback registerName = nullptr;
@@ -89,6 +105,9 @@ struct XamlNameScopeFacet final {
 };
 
 struct XamlResourceScopeFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
     Core::TypeId type = Core::InvalidTypeId;
     bool createsResourceScope = true;
     XamlAddResourceCallback addResource = nullptr;
@@ -98,12 +117,18 @@ struct XamlResourceScopeFacet final {
 };
 
 struct XamlDeferredContentFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
     Core::TypeId type = Core::InvalidTypeId;
     bool defersVisualContent = true;
     std::uint32_t abiVersion = XamlFacetAbiVersion;
 };
 
 struct XamlImplicitResourceKeyFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
     Core::TypeId type = Core::InvalidTypeId;
     XamlResolveImplicitResourceKeyCallback resolve = nullptr;
     void* context = nullptr;
@@ -111,6 +136,9 @@ struct XamlImplicitResourceKeyFacet final {
 };
 
 struct XamlPropertyTargetFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
     Core::TypeId type = Core::InvalidTypeId;
     XamlResolvePropertyTargetCallback resolve = nullptr;
     void* context = nullptr;
@@ -118,6 +146,9 @@ struct XamlPropertyTargetFacet final {
 };
 
 struct XamlMarkupExtensionFacet final {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::ExactOnly;
+
     Core::TypeId type = Core::InvalidTypeId;
     XamlProvideValueCallback provideValue = nullptr;
     void* context = nullptr;
@@ -159,9 +190,10 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
 
-    const XamlTypeFacet* FindType(
+    Base::Result<void> CollectLifecycle(
         Core::TypeId type,
-        const Core::TypeRegistry& descriptors) const noexcept;
+        const Core::TypeRegistry& descriptors,
+        Base::Vector<const XamlLifecycleFacet*>& output) const noexcept;
     const XamlLifecycleFacet* FindLifecycle(
         Core::TypeId type,
         const Core::TypeRegistry& descriptors) const noexcept;
@@ -184,7 +216,8 @@ public:
         Core::TypeId type) const noexcept;
 
 private:
-    Base::Vector<XamlTypeFacet> types_;
+    using FacetIndex = Base::HashMap<Core::TypeId, std::uint32_t>;
+
     Base::Vector<XamlLifecycleFacet> lifecycles_;
     Base::Vector<XamlNameScopeFacet> nameScopes_;
     Base::Vector<XamlResourceScopeFacet> resourceScopes_;
@@ -192,11 +225,16 @@ private:
     Base::Vector<XamlImplicitResourceKeyFacet> implicitResourceKeys_;
     Base::Vector<XamlPropertyTargetFacet> propertyTargets_;
     Base::Vector<XamlMarkupExtensionFacet> markupExtensions_;
-    Base::HashMap<Core::TypeId, std::uint32_t> markupExtensionIndex_;
+
+    FacetIndex lifecycleIndex_;
+    FacetIndex nameScopeIndex_;
+    FacetIndex resourceScopeIndex_;
+    FacetIndex deferredContentIndex_;
+    FacetIndex implicitResourceKeyIndex_;
+    FacetIndex propertyTargetIndex_;
+    FacetIndex markupExtensionIndex_;
     bool frozen_ = false;
 
-    const XamlTypeFacet* FindTypeExact(
-        Core::TypeId type) const noexcept;
     const XamlLifecycleFacet* FindLifecycleExact(
         Core::TypeId type) const noexcept;
     const XamlNameScopeFacet* FindNameScopeExact(

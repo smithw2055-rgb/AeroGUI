@@ -3,6 +3,7 @@
 #include <Aero/Presentation/Input.hpp>
 
 #include <cctype>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 
@@ -180,6 +181,13 @@ Base::Result<void> RoutedCommand::Execute(
     if (!executed) return executed.GetStatus();
     return {};
 }
+
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
 
 CommandManager::CommandManager(ObjectTree& tree) noexcept
     : tree_(&tree),
@@ -454,4 +462,4 @@ void CommandManager::InvalidateRequerySuggested() const noexcept {
     if (!requerySuggested_.Empty()) requerySuggested_.Invoke();
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

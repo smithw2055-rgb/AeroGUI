@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Presentation/Commands.hpp>
 #include <Aero/Presentation/Input.hpp>
@@ -18,7 +20,6 @@ enum class ToggleState : std::uint8_t {
     Indeterminate,
 };
 
-class ControlInteractionManager;
 
 class AERO_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
@@ -62,21 +63,24 @@ protected:
     Base::Result<void> OnApplyTemplate() noexcept override;
 
 private:
-    friend class ControlInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ControlInteractionManager* interactionManager_ = nullptr;
     bool commandEnabled_ = true;
 };
 
-class AERO_API Button final : public ButtonBase {
+class AERO_API Button : public ButtonBase {
     AERO_DECLARE_TYPE(Button, ButtonBase)
 public:
-    Button() noexcept : ButtonBase(StaticTypeId()) {}
+    Button() noexcept : Button(StaticTypeId()) {}
     ~Button() override = default;
+
+protected:
+    explicit Button(TypeId runtimeType) noexcept
+        : ButtonBase(runtimeType) {}
 };
 
-// WPF-shaped hyperlink interaction surface. Inline flow integration is kept
-// separate from the click/navigation contract so Hyperlink can already be
-// used as a standalone content control and participate in routed Click events.
+// Temporary standalone link control. This is intentionally not projected as
+// Aero::Documents::Hyperlink until the inline text content model exists.
 class AERO_API Hyperlink final : public ButtonBase {
     AERO_DECLARE_TYPE(Hyperlink, ButtonBase)
 public:
@@ -96,10 +100,10 @@ public:
         TextDecorationsProperty{"TextDecorations"};
 };
 
-class AERO_API RepeatButton final : public ButtonBase {
+class AERO_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:
-    RepeatButton() noexcept : ButtonBase(StaticTypeId()) {}
+    RepeatButton() noexcept : RepeatButton(StaticTypeId()) {}
     ~RepeatButton() override = default;
 
     std::uint32_t Delay() const noexcept;
@@ -111,12 +115,16 @@ public:
         DelayProperty{"Delay"};
     inline static constexpr Members::Property<std::uint32_t>
         IntervalProperty{"Interval"};
+
+protected:
+    explicit RepeatButton(TypeId runtimeType) noexcept
+        : ButtonBase(runtimeType) {}
 };
 
 class AERO_API ToggleButton : public ButtonBase {
     AERO_DECLARE_TYPE(ToggleButton, ButtonBase)
 public:
-    ToggleButton() noexcept : ButtonBase(StaticTypeId()) {}
+    ToggleButton() noexcept : ToggleButton(StaticTypeId()) {}
     ~ToggleButton() override = default;
 
     bool IsChecked() const noexcept;
@@ -154,22 +162,26 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend class ControlInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     Base::Result<void> SetToggleState(
         ToggleState value) noexcept;
 };
 
-class AERO_API CheckBox final : public ToggleButton {
+class AERO_API CheckBox : public ToggleButton {
     AERO_DECLARE_TYPE(CheckBox, ToggleButton)
 public:
-    CheckBox() noexcept : ToggleButton(StaticTypeId()) {}
+    CheckBox() noexcept : CheckBox(StaticTypeId()) {}
     ~CheckBox() override = default;
+
+protected:
+    explicit CheckBox(TypeId runtimeType) noexcept
+        : ToggleButton(runtimeType) {}
 };
 
-class AERO_API RadioButton final : public ToggleButton {
+class AERO_API RadioButton : public ToggleButton {
     AERO_DECLARE_TYPE(RadioButton, ToggleButton)
 public:
-    RadioButton() noexcept : ToggleButton(StaticTypeId()) {}
+    RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override = default;
 
     Base::StringView GroupName() const noexcept;
@@ -178,105 +190,12 @@ public:
 
     inline static constexpr Members::Property<Base::String>
         GroupNameProperty{"GroupName"};
+
+protected:
+    explicit RadioButton(TypeId runtimeType) noexcept
+        : ToggleButton(runtimeType) {}
 };
 
-class AERO_API ControlInteractionManager final {
-public:
-    ControlInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        PointerInputManager& pointer,
-        FocusManager& focus,
-        CommandManager& commands,
-        VisualStateManager* states = nullptr) noexcept;
-    ~ControlInteractionManager() noexcept;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> Attach(ButtonBase& button) noexcept;
-    Base::Result<bool> Detach(ButtonBase& button) noexcept;
-    Base::Result<void> RefreshCanExecute(
-        ButtonBase& button) noexcept;
-    // Host-driven deterministic clock for RepeatButton. A single call emits
-    // at most 1024 repeats and skips excess backlog.
-    Base::Result<std::uint32_t> AdvanceTime(
-        std::uint32_t elapsedMilliseconds) noexcept;
-
-private:
-    friend class ButtonBase;
-    struct ButtonRecord final {
-        VisualHandle handle;
-        Base::Ref<ICommand> command;
-        std::uint32_t pointerId = 0U;
-        bool pointerDown = false;
-        bool keyboardDown = false;
-        bool wasMouseOver = false;
-        std::uint64_t repeatElapsed = 0U;
-        std::uint64_t nextRepeat = 0U;
-        ToggleState toggleState = ToggleState::Unchecked;
-        bool updatingToggle = false;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
-    VisualStateManager* states_ = nullptr;
-    Base::Vector<ButtonRecord> buttons_;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    KeyEventHandler keyUpHandler_;
-    KeyboardFocusChangedEventHandler focusChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    PointerStateChangedHandler pointerStateChangedHandler_;
-    PointerCaptureChangedHandler captureChangedHandler_;
-    RequerySuggestedHandler requeryHandler_;
-    bool initialized_ = false;
-
-    std::uint32_t FindButton(const ButtonBase& button) const noexcept;
-    ButtonBase* ResolveButton(std::uint32_t index) noexcept;
-    Base::Result<void> SubscribeCommand(
-        ButtonBase& button,
-        ButtonRecord& record) noexcept;
-    void UnsubscribeCommand(ButtonRecord& record) noexcept;
-    void RemoveAt(std::uint32_t index) noexcept;
-    Base::Result<void> InvokeClick(ButtonBase& button) noexcept;
-    Base::Result<void> ApplyToggleState(
-        ToggleButton& button,
-        ToggleState state) noexcept;
-    void PublishToggleState(
-        ToggleButton& button,
-        ButtonRecord& record) noexcept;
-    void UncheckRadioPeers(RadioButton& button) noexcept;
-    Base::Result<void> SyncVisualState(
-        ButtonBase& button,
-        bool useTransitions = true) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnMouseUp(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-    void OnKeyUp(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-    void OnFocusChanged(
-        Base::Object* sender,
-        const KeyboardFocusChangedEventArgs& args) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnPointerStateChanged(UIElement& element) noexcept;
-    void OnCaptureChanged(
-        std::uint32_t pointerId,
-        UIElement* target,
-        bool captured) noexcept;
-    void OnRequerySuggested() noexcept;
-};
 
 } // namespace Aero::Controls
 

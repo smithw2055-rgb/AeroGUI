@@ -53,6 +53,8 @@
 #include <cstdio>
 #include <new>
 #include <utility>
+#include "presentation/RuntimeManagers.hpp"
+#include "controls/RuntimeManagers.hpp"
 
 namespace Aero {
 namespace {
@@ -3043,6 +3045,46 @@ struct ViewRuntime::Impl final {
             current, condition.value);
     }
 
+    Base::Result<void> EnsureDataTemplateProviderTokens(
+        Detail::DataTemplateTriggerContext& context) noexcept {
+        if (values == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "DataTemplate Trigger value engine is unavailable");
+        }
+        if (context.providerOrigin == 0U) {
+            Base::Result<std::uint32_t> origin =
+                values->AllocateProviderOrigin();
+            if (!origin) return origin.GetStatus();
+            context.providerOrigin = origin.Value();
+        }
+
+        std::uint64_t ordinal = 0U;
+        for (Detail::DataTemplatePropertyTrigger& trigger :
+             context.triggers) {
+            for (Detail::DataTemplateTriggerSetter& setter :
+                 trigger.setters) {
+                if (ordinal > UINT32_MAX) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::OutOfRange,
+                        "DataTemplate Trigger setter ordinal limit reached");
+                }
+                const Core::PropertyProviderToken expected{
+                    Core::PropertyValueRank::TemplateTrigger,
+                    context.providerOrigin,
+                    static_cast<std::uint32_t>(ordinal)};
+                if (setter.token.IsValid() && setter.token != expected) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidState,
+                        "DataTemplate Trigger provider token is inconsistent");
+                }
+                setter.token = expected;
+                ++ordinal;
+            }
+        }
+        return {};
+    }
+
     Base::Result<void> EvaluateDataTemplateTrigger(
         Detail::DataTemplateTriggerContext& context,
         std::uint32_t triggerIndex) noexcept {
@@ -3053,6 +3095,10 @@ struct ViewRuntime::Impl final {
                 Base::ErrorCode::InvalidState,
                 "DataTemplate Trigger runtime is unavailable");
         }
+        Base::Result<void> providerTokens =
+            EnsureDataTemplateProviderTokens(context);
+        if (!providerTokens) return providerTokens.GetStatus();
+
         Detail::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         bool active = !trigger.conditions.Empty();
@@ -3069,28 +3115,28 @@ struct ViewRuntime::Impl final {
         if (active == trigger.active) return {};
 
         if (active) {
-            for (const Detail::DataTemplateTriggerSetter&
-                     setter :
+            for (const Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
                 Base::Result<void> applied =
-                    values->SetTriggerValue(
+                    values->SetProviderContribution(
                         *setter.target,
                         setter.property,
+                        setter.token,
                         setter.value);
                 if (!applied) {
                     return applied.GetStatus();
                 }
             }
         } else {
-            for (const Detail::DataTemplateTriggerSetter&
-                     setter :
+            for (const Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
-                Base::Result<void> cleared =
-                    values->ClearTriggerValue(
+                Base::Result<bool> cleared =
+                    values->ClearProviderContribution(
                         *setter.target,
-                        setter.property);
+                        setter.property,
+                        setter.token);
                 if (!cleared) {
                     return cleared.GetStatus();
                 }
@@ -3505,8 +3551,52 @@ struct ViewRuntime::Impl final {
         return false;
     }
 
+    void ClearDataTemplateTriggerProviders(
+        Detail::DataTemplateTriggerContext& context) noexcept {
+        if (values != nullptr) {
+            for (Detail::DataTemplatePropertyTrigger& trigger :
+                 context.triggers) {
+                for (Detail::DataTemplateTriggerSetter& setter :
+                     trigger.setters) {
+                    if (!setter.target || !setter.token.IsValid()) continue;
+                    static_cast<void>(
+                        values->ClearProviderContribution(
+                            *setter.target,
+                            setter.property,
+                            setter.token));
+                    setter.token = {};
+                }
+                trigger.active = false;
+            }
+        }
+        context.providerOrigin = 0U;
+    }
+
+    void ClearDataTemplateTriggerProvidersInSubtree(
+        Presentation::Visual& visual) noexcept {
+        Presentation::FrameworkElement* element =
+            visual.AsFrameworkElement();
+        if (element != nullptr) {
+            for (const Base::Ref<Base::Object>& authored :
+                 element->AuthoredTriggers()) {
+                if (authored && authored->RuntimeType() ==
+                    Detail::DataTemplateTriggerContext::StaticTypeId()) {
+                    ClearDataTemplateTriggerProviders(
+                        static_cast<Detail::DataTemplateTriggerContext&>(
+                            *authored));
+                }
+            }
+        }
+        for (Presentation::Visual* child : visual.VisualChildren()) {
+            if (child != nullptr) {
+                ClearDataTemplateTriggerProvidersInSubtree(*child);
+            }
+        }
+    }
+
     void ClearAnimationSubscriptionsFor(
         Presentation::Visual& fragmentRoot) noexcept {
+        ClearDataTemplateTriggerProvidersInSubtree(fragmentRoot);
         for (std::uint32_t index = 0U;
              index < dataTemplateTriggerSubscriptions.Size();) {
             DataTemplateTriggerSubscription& subscription =

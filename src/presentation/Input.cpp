@@ -5,6 +5,7 @@
 #include <Aero/Presentation/Transforms.hpp>
 
 #include <cmath>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 
@@ -52,6 +53,13 @@ bool ParentToLocal(
 }
 
 } // namespace
+
+} // namespace Aero::Presentation
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Presentation;
 
 Base::Result<void> HitTestManager::SetOverlays(
     Base::Span<UIElement* const> overlays,
@@ -1106,4 +1114,4 @@ Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
     return result;
 }
 
-} // namespace Aero::Presentation
+} // namespace Aero::Detail

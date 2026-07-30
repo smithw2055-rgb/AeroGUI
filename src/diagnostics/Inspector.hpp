@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include "presentation/RenderingInternal.hpp"
 
 #include <Aero/Base/Geometry.hpp>
@@ -14,6 +16,12 @@
 #include <Aero/Presentation/Style.hpp>
 
 #include <cstdint>
+
+namespace Aero::Controls {
+}
+
+namespace Aero::Presentation {
+}
 
 namespace Aero::Diagnostics {
 

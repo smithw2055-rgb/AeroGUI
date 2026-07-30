@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -13,7 +15,6 @@
 
 namespace Aero::Presentation {
 
-class CommandManager;
 struct KeyboardInput;
 
 using CanExecuteChangedHandler = Base::Delegate<void()>;
@@ -208,67 +209,5 @@ struct InputBindingHandle final {
 
 using RequerySuggestedHandler = Base::Delegate<void()>;
 
-class AERO_API CommandManager final {
-public:
-    explicit CommandManager(ObjectTree& tree) noexcept;
-
-    Base::Result<CommandBindingHandle> TryAddBinding(
-        UIElement& owner,
-        const CommandBinding& binding) noexcept;
-    Base::Result<bool> RemoveBinding(
-        CommandBindingHandle handle) noexcept;
-    Base::Result<InputBindingHandle> TryAddInputBinding(
-        UIElement& owner,
-        Base::Ref<KeyBinding> binding) noexcept;
-
-    Base::Result<bool> CanExecute(
-        RoutedCommand& command,
-        const Core::Value& parameter,
-        UIElement& target) noexcept;
-    Base::Result<bool> Execute(
-        RoutedCommand& command,
-        const Core::Value& parameter,
-        UIElement& target) noexcept;
-    Base::Result<bool> ProcessInput(
-        UIElement& target,
-        const KeyboardInput& input) noexcept;
-
-    Base::Result<void> TryAddRequerySuggested(
-        const RequerySuggestedHandler& handler) noexcept;
-    bool RemoveRequerySuggested(
-        const RequerySuggestedHandler& handler) noexcept;
-    void InvalidateRequerySuggested() const noexcept;
-
-private:
-    struct BindingRecord final {
-        CommandBindingHandle handle;
-        VisualHandle owner;
-        CommandBinding binding;
-    };
-    struct RouteBinding final {
-        VisualHandle owner;
-        CommandBinding binding;
-    };
-    struct InputBindingRecord final {
-        InputBindingHandle handle;
-        VisualHandle owner;
-        Base::Ref<KeyBinding> binding;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    Base::Vector<BindingRecord> bindings_;
-    Base::Vector<InputBindingRecord> inputBindings_;
-    std::uint64_t nextBinding_ = 1U;
-    std::uint64_t nextInputBinding_ = 1U;
-    RequerySuggestedHandler requerySuggested_;
-
-    Base::Result<void> VerifyTarget(UIElement& target) const noexcept;
-    Base::Result<void> SnapshotRoute(
-        UIElement& target,
-        RoutedCommand* command,
-        Base::Vector<RouteBinding>& route) noexcept;
-    void PruneStaleBindings() noexcept;
-    void PruneStaleInputBindings() noexcept;
-};
 
 } // namespace Aero::Presentation

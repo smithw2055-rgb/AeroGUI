@@ -1,11 +1,12 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Presentation/Input.hpp>
 
 namespace Aero::Controls {
 
-class TreeViewInteractionManager;
 class VisualStateManager;
 
 class AERO_API TreeViewItem
@@ -154,55 +155,11 @@ protected:
             noexcept override;
 
 private:
-    friend class TreeViewInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     TreeViewInteractionManager* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;
 };
 
-class AERO_API TreeViewInteractionManager final {
-public:
-    TreeViewInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        FocusManager& focus,
-        VisualStateManager* states = nullptr)
-        noexcept;
-    ~TreeViewInteractionManager() noexcept;
-
-    Base::Result<void> Attach(
-        TreeView& treeView) noexcept;
-    Base::Result<bool> Detach(
-        TreeView& treeView) noexcept;
-
-private:
-    ObjectTree* tree_ = nullptr;
-    [[maybe_unused]]
-    RoutedEventManager* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    VisualStateManager* states_ = nullptr;
-    Base::Vector<VisualHandle> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    std::uint32_t FindTreeView(
-        const TreeView& treeView) const noexcept;
-    TreeView* ResolveTreeView(
-        std::uint32_t index) noexcept;
-    TreeViewItem* FindItem(
-        TreeView& treeView,
-        Base::Object* source) const noexcept;
-    Base::Result<void> CollectVisibleItems(
-        Visual& parent,
-        Base::Vector<TreeViewItem*>& items)
-        noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args)
-        noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-};
 
 } // namespace Aero::Controls

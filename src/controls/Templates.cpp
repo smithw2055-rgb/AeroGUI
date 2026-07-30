@@ -12,6 +12,8 @@
 
 #include <cstdio>
 #include <utility>
+#include "RuntimeManagers.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 
@@ -928,14 +930,6 @@ Base::Result<void> FrameworkTemplate::Seal(
     return {};
 }
 
-TemplateManager::~TemplateManager() noexcept {
-    while (!instances_.Empty()) {
-        if (!ClearAt(instances_.Size() - 1U)) {
-            break;
-        }
-    }
-}
-
 Base::Result<bool> Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -975,6 +969,40 @@ DependencyObject* Control::GetTemplateChild(
     }
     return templateManager_->FindPart(
         TemplateHandle{templateHandleValue_}, type);
+}
+
+Base::Result<void> FrameworkTemplate::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    return Presentation::Detail::AssignResourceDictionary(
+        resources_,
+        std::move(value),
+        "FrameworkTemplate Resources is already assigned");
+}
+
+Base::Result<void> FrameworkTemplate::TryAddAuthoredTrigger(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger || sealed_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Template Trigger cannot be added after sealing");
+    }
+    return authoredTriggers_.TryPushBack(
+        std::move(trigger));
+}
+
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
+TemplateManager::~TemplateManager() noexcept {
+    while (!instances_.Empty()) {
+        if (!ClearAt(instances_.Size() - 1U)) {
+            break;
+        }
+    }
 }
 
 Base::Result<TemplateHandle> TemplateManager::Apply(
@@ -1639,23 +1667,4 @@ void TemplateManager::OnPropertyChanged(
     }
 }
 
-Base::Result<void> FrameworkTemplate::SetResources(
-    Base::Ref<ResourceDictionary> value) noexcept {
-    return Presentation::Detail::AssignResourceDictionary(
-        resources_,
-        std::move(value),
-        "FrameworkTemplate Resources is already assigned");
-}
-
-Base::Result<void> FrameworkTemplate::TryAddAuthoredTrigger(
-    Base::Ref<Base::Object> trigger) noexcept {
-    if (!trigger || sealed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Template Trigger cannot be added after sealing");
-    }
-    return authoredTriggers_.TryPushBack(
-        std::move(trigger));
-}
-
-} // namespace Aero::Controls
+} // namespace Aero::Detail

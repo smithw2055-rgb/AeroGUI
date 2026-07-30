@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Controls/Trees.hpp>
 #include <Aero/Presentation/Commands.hpp>
@@ -13,7 +15,6 @@ enum class MenuItemRole : std::uint8_t {
     SubmenuHeader
 };
 
-class MenuInteractionManager;
 
 class AERO_API MenuItem final
     : public TreeViewItem {
@@ -75,7 +76,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class MenuInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Popup* submenuPopup_ = nullptr;
@@ -107,7 +108,7 @@ protected:
             noexcept override;
 
 private:
-    friend class MenuInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     MenuInteractionManager* interactions_ =
         nullptr;
 };
@@ -170,47 +171,6 @@ public:
         ContextMenuProperty{"ContextMenu"};
 };
 
-class AERO_API MenuInteractionManager final {
-public:
-    MenuInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        FocusManager& focus,
-        CommandManager& commands) noexcept;
-    ~MenuInteractionManager() noexcept;
-
-    Base::Result<void> Attach(
-        Menu& menu) noexcept;
-    Base::Result<bool> Detach(
-        Menu& menu) noexcept;
-
-private:
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
-    Base::Vector<VisualHandle> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    std::uint32_t FindMenu(
-        const Menu& menu) const noexcept;
-    Menu* ResolveMenu(
-        std::uint32_t index) noexcept;
-    MenuItem* FindItem(
-        Menu& menu,
-        Base::Object* source) const noexcept;
-    Base::Result<void> Invoke(
-        Menu& menu,
-        MenuItem& item) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args)
-        noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-};
 
 } // namespace Aero::Controls
 

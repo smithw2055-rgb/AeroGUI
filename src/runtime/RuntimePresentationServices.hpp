@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
@@ -9,12 +11,10 @@
 #include <Aero/Presentation/Resources.hpp>
 
 namespace Aero::Controls {
-class TemplateManager;
 class VisualStateManager;
 }
 
 namespace Aero::Presentation {
-class StyleManager;
 class Visual;
 }
 

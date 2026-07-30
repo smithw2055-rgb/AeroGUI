@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Presentation/Input.hpp>
@@ -142,7 +144,7 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend class ListBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -166,7 +168,6 @@ private:
     void SyncContainers() noexcept;
 };
 
-class ListBoxInteractionManager;
 
 class AERO_API ListBox : public Selector {
     AERO_DECLARE_TYPE(ListBox, Selector)
@@ -185,7 +186,7 @@ protected:
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend class ListBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ListBoxInteractionManager* interactions_ = nullptr;
 };
 
@@ -205,7 +206,6 @@ public:
         IsSelectedProperty{"IsSelected"};
 };
 
-class ComboBoxInteractionManager;
 
 class AERO_API ComboBox final : public Selector {
     AERO_DECLARE_TYPE(ComboBox, Selector)
@@ -296,7 +296,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class ComboBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     ComboBoxInteractionManager* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
@@ -354,85 +354,7 @@ private:
         Base::Object* source) const noexcept;
 };
 
-class AERO_API ComboBoxInteractionManager final {
-public:
-    ComboBoxInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        FocusManager& focus) noexcept;
-    ~ComboBoxInteractionManager() noexcept;
 
-    Base::Result<void> Attach(
-        ComboBox& comboBox) noexcept;
-    Base::Result<bool> Detach(
-        ComboBox& comboBox) noexcept;
-
-private:
-    ObjectTree* tree_ = nullptr;
-    [[maybe_unused]]
-    RoutedEventManager* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    Base::Vector<VisualHandle> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    std::uint32_t FindComboBox(
-        const ComboBox& comboBox) const noexcept;
-    ComboBox* ResolveComboBox(
-        std::uint32_t index) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-};
-
-class AERO_API ListBoxInteractionManager final {
-public:
-    ListBoxInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        FocusManager& focus,
-        VisualStateManager* states = nullptr) noexcept;
-    ~ListBoxInteractionManager() noexcept;
-
-    Base::Result<void> Attach(ListBox& listBox) noexcept;
-    Base::Result<bool> Detach(ListBox& listBox) noexcept;
-
-private:
-    struct Record final {
-        VisualHandle handle;
-        std::uint32_t anchorIndex = UINT32_MAX;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    [[maybe_unused]] RoutedEventManager* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    VisualStateManager* states_ = nullptr;
-    Base::Vector<Record> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    std::uint32_t FindListBox(
-        const ListBox& listBox) const noexcept;
-    ListBox* ResolveListBox(
-        std::uint32_t index) noexcept;
-    std::uint32_t FindContainerIndex(
-        ListBox& listBox,
-        Base::Object* source) const noexcept;
-    Base::Result<bool> ApplyUserSelection(
-        ListBox& listBox,
-        Record& record,
-        std::uint32_t index,
-        std::uint32_t modifiers) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-};
 
 } // namespace Aero::Controls
 
