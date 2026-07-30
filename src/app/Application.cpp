@@ -1,4 +1,4 @@
-#include <Aero/App/Application.hpp>
+#include <Aero/Application.hpp>
 #include <Aero/Audio/Audio.hpp>
 
 #include <new>
