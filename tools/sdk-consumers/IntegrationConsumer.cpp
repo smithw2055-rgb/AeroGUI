@@ -1,5 +1,5 @@
-#include <Aero/Integration.hpp>
 #include <Aero/Integration/WindowInterop.hpp>
+#include <Aero/Integration.hpp>
 
 #include <utility>
 
