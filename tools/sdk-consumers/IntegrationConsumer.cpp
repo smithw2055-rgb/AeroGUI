@@ -1,4 +1,5 @@
 #include <Aero/Integration.hpp>
+#include <Aero/Integration/WindowInterop.hpp>
 
 #include <utility>
 
@@ -14,6 +15,12 @@ CreateIntegratedView(
     options.renderEndpoint = std::move(endpoint);
     return Aero::Integration::ViewHost::CreateView(
         environment, options);
+}
+
+[[maybe_unused]]
+Aero::View* HostedWindowView(
+    Aero::Window& window) noexcept {
+    return Aero::Integration::WindowInterop::HostedView(window);
 }
 
 } // namespace
