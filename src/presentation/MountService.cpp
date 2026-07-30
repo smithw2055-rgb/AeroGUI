@@ -1,6 +1,7 @@
 #include <Aero/Presentation/MountService.hpp>
 
 #include "RenderingInternal.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

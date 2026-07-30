@@ -1,6 +1,7 @@
 #include "Extensions.hpp"
 
 #include "SchemaInternal.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace {

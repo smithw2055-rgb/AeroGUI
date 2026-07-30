@@ -4,6 +4,8 @@
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 #include <Aero/Presentation/Style.hpp>
+#include "../presentation/RuntimeManagers.hpp"
+#include "../controls/RuntimeManagers.hpp"
 
 namespace Aero::Detail {
 namespace {

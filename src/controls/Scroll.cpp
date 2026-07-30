@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 namespace {

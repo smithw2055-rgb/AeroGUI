@@ -170,47 +170,6 @@ public:
         ContextMenuProperty{"ContextMenu"};
 };
 
-class AERO_API MenuInteractionManager final {
-public:
-    MenuInteractionManager(
-        ObjectTree& tree,
-        RoutedEventManager& events,
-        FocusManager& focus,
-        CommandManager& commands) noexcept;
-    ~MenuInteractionManager() noexcept;
-
-    Base::Result<void> Attach(
-        Menu& menu) noexcept;
-    Base::Result<bool> Detach(
-        Menu& menu) noexcept;
-
-private:
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
-    Base::Vector<VisualHandle> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    KeyEventHandler keyDownHandler_;
-
-    std::uint32_t FindMenu(
-        const Menu& menu) const noexcept;
-    Menu* ResolveMenu(
-        std::uint32_t index) noexcept;
-    MenuItem* FindItem(
-        Menu& menu,
-        Base::Object* source) const noexcept;
-    Base::Result<void> Invoke(
-        Menu& menu,
-        MenuItem& item) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        const MouseButtonEventArgs& args)
-        noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
-};
 
 } // namespace Aero::Controls
 

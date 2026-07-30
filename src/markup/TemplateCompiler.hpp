@@ -19,6 +19,10 @@
 
 #include <cstdint>
 
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup::Detail {
 
 class XamlVisualStateObject final : public Base::Object {

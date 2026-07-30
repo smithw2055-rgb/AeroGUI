@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <new>
 #include <utility>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 namespace {

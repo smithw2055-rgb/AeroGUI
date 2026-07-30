@@ -6,6 +6,7 @@
 #include <Aero/Presentation/MountService.hpp>
 
 namespace Aero::Presentation {
+class LayoutManager;
 
 struct VisualTreeMountEdge final {
     UIElement* parent = nullptr;

@@ -5,6 +5,7 @@
 #include <Aero/Presentation/Transforms.hpp>
 
 #include <cmath>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

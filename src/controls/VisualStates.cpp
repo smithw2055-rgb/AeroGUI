@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <utility>
+#include "RuntimeManagers.hpp"
+#include "../presentation/RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 namespace {

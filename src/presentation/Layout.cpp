@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

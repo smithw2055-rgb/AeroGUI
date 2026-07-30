@@ -2,6 +2,8 @@
 #include <Aero/Controls/Templates.hpp>
 
 #include <utility>
+#include "../presentation/RuntimeManagers.hpp"
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 using namespace Presentation;

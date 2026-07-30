@@ -1,4 +1,5 @@
 #include <Aero/Markup/Schema.hpp>
+#include "../presentation/RuntimeManagers.hpp"
 
 // Markup-specific metadata declarations.
 

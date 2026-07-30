@@ -2,6 +2,10 @@
 
 #include <Aero/Controls/ControlPrimitives.hpp>
 
+namespace Aero::Presentation {
+class RoutedEventManager;
+}
+
 namespace Aero::Detail {
 
 // Private runtime bridge. Routed-event services remain an implementation

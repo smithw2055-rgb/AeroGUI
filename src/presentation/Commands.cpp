@@ -3,6 +3,7 @@
 #include <Aero/Presentation/Input.hpp>
 
 #include <cctype>
+#include "RuntimeManagers.hpp"
 
 namespace Aero::Presentation {
 

@@ -15,6 +15,15 @@
 
 #include <cstdint>
 
+namespace Aero::Controls {
+class TemplateManager;
+}
+
+namespace Aero::Presentation {
+class StyleManager;
+class BindingManager;
+}
+
 namespace Aero::Diagnostics {
 
 struct InspectorTreeNode final {

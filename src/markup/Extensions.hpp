@@ -17,6 +17,10 @@
 
 #include <cstdint>
 
+namespace Aero::Presentation {
+class BindingManager;
+}
+
 namespace Aero::Markup {
 
 class DeferredContentPlan;
