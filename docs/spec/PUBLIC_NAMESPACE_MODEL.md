@@ -113,12 +113,12 @@ During the first migration phase:
 - `Aero::App::Application` and `Aero::App::Window` are compatibility aliases.
 - `Aero::App::Launcher` is the canonical application entry point and composes
   the existing low-level `ApplicationHost` implementation.
-- Launcher installs the `Aero.App` metadata module before the runtime schema is
-  frozen.
 - Launcher owns `Aero::App::Services`; audio is created lazily through that
   service boundary rather than through Application.
-- Schema generation and XAML compilation install the same App module so
-  `Application` has one metadata definition across runtime and tooling.
+- Application metadata remains registered once by the current Presentation
+  metadata bootstrap. Its ownership will move to the App layer only when that
+  large registration unit is split, so runtime and tooling never see duplicate
+  type registration during the migration.
 - New code and documentation use the canonical names.
 
 The compatibility names may be removed before the first stable ABI release.
@@ -126,8 +126,9 @@ The compatibility names may be removed before the first stable ABI release.
 ## Migration order
 
 1. Application and Window namespace boundary.
-2. Application metadata ownership, launcher composition and App services.
-3. Controls primitives and WPF-aligned public control domains.
-4. Data, Media, Animation, Input, Documents and Shapes.
-5. Meta authoring API and private Facet projection.
-6. Removal of compatibility aliases before stable SDK release.
+2. Launcher composition and App services.
+3. Split metadata bootstrap and move Application metadata ownership to App.
+4. Controls primitives and WPF-aligned public control domains.
+5. Data, Media, Animation, Input, Documents and Shapes.
+6. Meta authoring API and private Facet projection.
+7. Removal of compatibility aliases before stable SDK release.
