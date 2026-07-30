@@ -22,16 +22,34 @@ public:
         ActivatedEvent{"Activated"};
 };
 
+class ConsumerButton final : public Aero::Controls::Button {
+    AERO_DECLARE_TYPE_NAMED(
+        ConsumerButton,
+        Aero::Controls::Button,
+        "urn:aero-sdk-consumer",
+        "ConsumerButton")
+
+public:
+    ConsumerButton() noexcept
+        : Button(StaticTypeId()) {}
+};
+
 Aero::Base::Result<void> RegisterConsumerModule(
     Aero::Meta::Context& context) noexcept {
-    return Aero::Meta::Describe<ConsumerControl>(context)
-        .Property(
-            ConsumerControl::ActiveProperty,
-            Aero::Meta::PropertyOptions(false)
-                .AffectsRender())
-        .Event(
-            ConsumerControl::ActivatedEvent,
-            Aero::Meta::Routing::Bubble)
+    Aero::Base::Result<void> status =
+        Aero::Meta::Describe<ConsumerControl>(context)
+            .Property(
+                ConsumerControl::ActiveProperty,
+                Aero::Meta::PropertyOptions(false)
+                    .AffectsRender())
+            .Event(
+                ConsumerControl::ActivatedEvent,
+                Aero::Meta::Routing::Bubble)
+            .Factory()
+            .Result();
+    if (!status) return status.GetStatus();
+
+    return Aero::Meta::Describe<ConsumerButton>(context)
         .Factory()
         .Result();
 }
@@ -86,6 +104,12 @@ static_assert(
         Aero::HorizontalAlignment,
         Aero::Presentation::HorizontalAlignment>::value,
     "Root alignment must preserve value type identity");
+
+static_assert(
+    std::is_base_of<
+        Aero::Controls::Button,
+        ConsumerButton>::value,
+    "Standard Button must remain derivable for custom controls");
 
 static_assert(
     std::is_same<
