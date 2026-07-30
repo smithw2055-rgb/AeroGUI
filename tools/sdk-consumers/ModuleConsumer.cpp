@@ -1,5 +1,6 @@
 #include <Aero/ModuleSdk.hpp>
 #include <Aero/Controls/Primitives.hpp>
+#include <Aero/Media.hpp>
 
 #include <type_traits>
 
@@ -53,5 +54,17 @@ static_assert(
         Aero::Controls::Primitives::ButtonBase,
         Aero::Controls::ButtonBase>::value,
     "Controls.Primitives projection must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::Media::Brush,
+        Aero::Presentation::Brush>::value,
+    "Media projection must preserve brush runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::Media::Animation::Timeline,
+        Aero::Animation::Timeline>::value,
+    "Media.Animation projection must preserve timeline runtime type identity");
 
 } // namespace
