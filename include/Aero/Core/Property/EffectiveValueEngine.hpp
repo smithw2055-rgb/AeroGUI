@@ -5,29 +5,12 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Core/Property/PropertyValueSource.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 
 #include <cstdint>
 
 namespace Aero::Core {
-
-enum class EffectiveValueProvider : std::uint8_t {
-    Default = 0U,
-    Inherited,
-    ThemeStyle,
-    Style,
-    Template,
-    Trigger,
-    Local,
-    LocalExpression,
-    Animation
-};
-
-enum class PropertyExpressionKind : std::uint8_t {
-    Custom = 0U,
-    Binding,
-    DynamicResource
-};
 
 using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
     void* context,
@@ -48,10 +31,13 @@ struct PropertyExpression final {
 
 struct EffectiveValueDiagnostics final {
     EffectiveValueProvider provider = EffectiveValueProvider::Default;
+    PropertyProviderToken token;
     PropertyExpressionKind expressionKind = PropertyExpressionKind::Custom;
     bool hasExpression = false;
     bool isInherited = false;
     bool isAnimated = false;
+    bool isCoerced = false;
+    bool isCurrentValue = false;
     std::uint64_t revision = 0U;
 };
 
@@ -78,6 +64,23 @@ public:
     DependencyObject* InheritanceParent(
         const DependencyObject& child) const noexcept;
 
+    // Canonical contribution API. Style, Template, Theme and Trigger runtimes
+    // allocate a stable origin and use declaration ordinal within that origin.
+    Base::Result<void> SetProviderContribution(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        PropertyProviderToken token,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearProviderContribution(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Base::Result<std::uint32_t> ClearProviderOrigin(
+        DependencyObject& object,
+        std::uint32_t origin) noexcept;
+
+    // Compatibility one-slot APIs map to fixed tokens. They remain until all
+    // Style/Template callers use SetProviderContribution directly.
     Base::Result<void> SetStyleValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
@@ -166,10 +169,7 @@ private:
     struct Entry final {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
-        ProviderSlot themeStyle;
-        ProviderSlot style;
-        ProviderSlot templated;
-        ProviderSlot trigger;
+        PropertyProviderSet baseProviders;
         ProviderSlot animation;
         ExpressionSlot localExpression;
         EffectiveValueDiagnostics diagnostics;
@@ -185,6 +185,7 @@ private:
     struct Resolution final {
         PropertyValue value;
         EffectiveValueProvider provider = EffectiveValueProvider::Default;
+        PropertyProviderToken token;
         PropertyExpressionKind expressionKind =
             PropertyExpressionKind::Custom;
         bool hasExpression = false;
@@ -212,16 +213,6 @@ private:
     std::uint32_t FindParentIndex(
         const DependencyObject& child) const noexcept;
 
-    Base::Result<void> SetProviderValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        EffectiveValueProvider provider,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearProviderValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        EffectiveValueProvider provider) noexcept;
-
     Base::Result<void> QueueEntry(
         std::uint32_t index) noexcept;
     Base::Result<void> QueueDescendants(
@@ -245,6 +236,9 @@ private:
     void RemoveEntry(std::uint32_t index) noexcept;
     void RemoveParent(std::uint32_t index) noexcept;
 
+    static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
+    static PropertyProviderToken LegacyToken(
+        PropertyValueRank rank) noexcept;
     static void PropertyChangesHook(void* context) noexcept;
 };
 

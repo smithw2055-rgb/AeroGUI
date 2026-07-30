@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Core/Property/PropertyValueSource.hpp>
 
 namespace Aero {
 
@@ -14,6 +15,8 @@ using DependencyPropertyChangedEventHandler =
     Core::DependencyPropertyChangedEventHandler;
 using PropertyMetadata = Core::PropertyMetadata;
 using PropertyMetadataFlags = Core::PropertyMetadataFlags;
+using PropertyValueRank = Core::PropertyValueRank;
+using PropertyValueSourceInfo = Core::PropertyValueSourceInfo;
 using UpdateSourceTrigger = Core::UpdateSourceTrigger;
 
 } // namespace Aero

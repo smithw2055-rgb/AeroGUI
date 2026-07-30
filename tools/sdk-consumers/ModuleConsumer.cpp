@@ -59,6 +59,36 @@ constexpr Aero::ModuleRegistration ConsumerModule =
         "Aero.SdkConsumer",
         &RegisterConsumerModule);
 
+constexpr Aero::Core::PropertyProviderToken LegacyStyleTriggerToken{
+    Aero::Core::PropertyValueRank::StyleTrigger,
+    Aero::Core::LegacyStyleTriggerOrigin,
+    0U};
+
+[[maybe_unused]] Aero::Core::PropertyProviderSet ProviderSet;
+
+[[maybe_unused]] bool ExerciseLegacyStyleTriggerStack() {
+    Aero::Core::PropertyProviderSet providers;
+    const Aero::Core::PropertyValue first =
+        Aero::Core::PropertyValue::FromBoolean(
+            Aero::Core::TypeOf<bool>(), false);
+    const Aero::Core::PropertyValue second =
+        Aero::Core::PropertyValue::FromBoolean(
+            Aero::Core::TypeOf<bool>(), true);
+    if (!providers.Set(LegacyStyleTriggerToken, first) ||
+        !providers.Set(LegacyStyleTriggerToken, second)) {
+        return false;
+    }
+    const Aero::Core::PropertyProviderContribution* winner =
+        providers.Winner();
+    if (providers.Count() != 2U || winner == nullptr ||
+        winner->token.ordinal != 1U ||
+        !winner->value.AsBoolean()) {
+        return false;
+    }
+    return providers.Remove(LegacyStyleTriggerToken) &&
+        providers.Empty();
+}
+
 static_assert(
     std::is_same<
         decltype(ConsumerModule.registerModule),
@@ -170,5 +200,28 @@ static_assert(
         Aero::Threading::Dispatcher,
         Aero::Core::Dispatcher>::value,
     "Threading projection must preserve dispatcher identity");
+
+static_assert(
+    LegacyStyleTriggerToken.IsValid(),
+    "Property provider tokens require a non-default rank and origin");
+
+static_assert(
+    Aero::Core::FirstCanonicalProviderOrigin >
+        Aero::Core::LegacyStyleTriggerOrigin,
+    "Canonical providers must not reuse reserved compatibility origins");
+
+static_assert(
+    static_cast<unsigned>(
+        Aero::Core::PropertyValueRank::Local) >
+    static_cast<unsigned>(
+        Aero::Core::PropertyValueRank::StyleTrigger),
+    "Local values must outrank style triggers");
+
+static_assert(
+    static_cast<unsigned>(
+        Aero::Core::PropertyValueRank::StyleTrigger) >
+    static_cast<unsigned>(
+        Aero::Core::PropertyValueRank::TemplateTrigger),
+    "Style triggers must outrank template triggers");
 
 } // namespace

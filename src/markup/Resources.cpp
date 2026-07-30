@@ -137,47 +137,32 @@ Base::Result<void> ResourceExtension::Register(
 
     schema_ = &schema;
     Base::Result<void> status =
-        Detail::SchemaAccess::AddType(schema, {
-        ResourceDictionary::StaticTypeId(),
-        nullptr,
-        nullptr,
-        nullptr,
-        this,
-        false,
-        true,
-        nullptr,
-        &AddResource,
-        &ResolveDictionaryScope});
+        Detail::SchemaAccess::AddResourceScope(schema, {
+            ResourceDictionary::StaticTypeId(),
+            true,
+            &AddResource,
+            &ResolveDictionaryScope,
+            this});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = Detail::SchemaAccess::AddType(schema, {
+    status = Detail::SchemaAccess::AddResourceScope(schema, {
         FrameworkElement::StaticTypeId(),
-        nullptr,
-        nullptr,
-        nullptr,
-        this,
-        false,
         true,
-        nullptr,
         &AddFrameworkResource,
-        &ResolveFrameworkScope});
+        &ResolveFrameworkScope,
+        this});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = Detail::SchemaAccess::AddType(schema, {
+    status = Detail::SchemaAccess::AddResourceScope(schema, {
         App::Application::StaticTypeId(),
-        nullptr,
-        nullptr,
-        nullptr,
-        this,
-        false,
         true,
-        nullptr,
         &AddApplicationResource,
-        &ResolveApplicationScope});
+        &ResolveApplicationScope,
+        this});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
