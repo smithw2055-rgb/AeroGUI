@@ -17,7 +17,6 @@ class CommandManager;
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
 // Callers register the C++ cast for each concrete layout type; this avoids
 // RTTI and keeps the Core runtime usable with /GR- builds.
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API HitTestManager final {
 public:
     HitTestManager() noexcept = default;
@@ -49,7 +48,6 @@ private:
     bool IsOverlay(
         const UIElement& element) const noexcept;
 };
-#endif
 
 using PointerStateChangedHandler =
     Base::Delegate<void(UIElement&)>;
@@ -57,7 +55,6 @@ using PointerCaptureChangedHandler =
     Base::Delegate<void(
         std::uint32_t, UIElement*, bool)>;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API PointerInputManager final {
 public:
     PointerInputManager(HitTestManager& hitTests, RoutedEventManager& events,
@@ -120,7 +117,6 @@ private:
     bool HasPressed(VisualHandle target,
         std::uint32_t ignoredIndex) const noexcept;
 };
-#endif
 
 enum class FocusNavigationDirection : std::uint8_t {
     Next,
@@ -160,7 +156,6 @@ public:
         TabIndexProperty{"TabIndex"};
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API FocusManager final {
 public:
     FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
@@ -196,11 +191,9 @@ private:
         Base::Vector<FocusCandidate>& candidates,
         std::uint32_t& order) noexcept;
 };
-#endif
 
 // UI-thread keyboard router. It delivers KeyDown/KeyUp to the current focus
 // target and uses the same routed-event snapshot semantics as pointer input.
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API KeyboardInputManager final {
 public:
     KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
@@ -235,7 +228,6 @@ private:
     RoutedEventManager* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
 };
-#endif
 
 } // namespace Aero::Presentation
 

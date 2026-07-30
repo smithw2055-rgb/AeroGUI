@@ -80,9 +80,7 @@ namespace Aero::Controls {
 class ControlTemplate;
 class ItemContainerGenerator;
 class DataTemplate;
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class TemplateManager;
-#endif
 
 class AERO_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
@@ -447,7 +445,6 @@ public:
     std::uint64_t TemplateGeneration() const noexcept {
         return templateGeneration_;
     }
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     // Returns true only when this call materialized a new template instance.
     // Repeated calls are intentionally idempotent.
     Base::Result<bool> ApplyTemplate() noexcept;
@@ -455,7 +452,6 @@ public:
         Base::StringView name) const noexcept;
     DependencyObject* GetTemplateChild(
         TypeId type) const noexcept;
-#endif
     UIElement* TemplateChild() const noexcept {
         return templateChild_;
     }
@@ -507,7 +503,6 @@ protected:
     Base::Result<void> BuildDisplayList(
         DisplayListBuilder& builder) noexcept override;
 private:
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     friend class TemplateManager;
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimePresentationServices;
@@ -529,7 +524,6 @@ private:
         }
     }
     TemplateManager* templateManager_ = nullptr;
-#endif
     RoutedEventManager* routedEvents_ = nullptr;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;

@@ -6,12 +6,15 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Presentation/Style.hpp>
 
+#include <cstdint>
+
 namespace Aero::Detail {
 
 struct DataTemplateTriggerSetter final {
     Base::Ref<Core::DependencyObject> target;
     Core::DependencyPropertyHandle property;
     Core::PropertyValue value;
+    Core::PropertyProviderToken token;
 };
 
 struct DataTemplateTriggerCondition final {
@@ -63,6 +66,7 @@ public:
     }
 
     Presentation::FrameworkElement* root = nullptr;
+    std::uint32_t providerOrigin = 0U;
     Base::Vector<NamedObject> names;
     Base::Vector<DataTemplatePropertyTrigger> triggers;
 };

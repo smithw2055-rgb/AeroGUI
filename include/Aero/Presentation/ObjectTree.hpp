@@ -10,18 +10,13 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/RoutedEvent.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#if !defined(AERO_SDK_SURFACE_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#endif
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Presentation/InputValues.hpp>
 
 #include <cstdint>
 
 namespace Aero::Core {
-#if defined(AERO_SDK_SURFACE_ONLY)
-class EffectiveValueEngine;
-#endif
 }
 
 namespace Aero::Presentation {
@@ -29,9 +24,7 @@ namespace Aero::Presentation {
 using namespace Aero::Core;
 
 class ObjectTree;
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class RoutedEventManager;
-#endif
 class Visual;
 class UIElement;
 class FrameworkElement;
@@ -258,9 +251,7 @@ public:
 
 private:
     friend class ObjectTree;
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class RoutedEventManager;
-#endif
     friend struct Detail::VisualLease;
 
     Base::Result<Base::Ref<Detail::VisualLifetime>>
@@ -389,7 +380,6 @@ private:
     static void LifecycleHook(void* context) noexcept;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API RoutedEventManager final {
 public:
     explicit RoutedEventManager(void* eventState) noexcept;
@@ -460,6 +450,5 @@ Base::Result<void> RoutedEventManager::RegisterClassHandler(
     value.sequence = nextClassSequence_++;
     return classHandlers_.TryPushBack(std::move(value));
 }
-#endif
 
 } // namespace Aero::Presentation

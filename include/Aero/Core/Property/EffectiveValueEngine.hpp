@@ -61,42 +61,6 @@ public:
         DependencyObject& object,
         std::uint32_t origin) noexcept;
 
-    // Compatibility APIs remain while callers move to manager-owned sessions.
-    // Non-trigger tokens are normalized by PropertyProviderSet into isolated
-    // Style, ThemeStyle and TemplatedParent origins. SetTriggerValue retains the
-    // ordered legacy Style-trigger bridge until Style and Template are split.
-    Base::Result<void> SetStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
-    Base::Result<void> SetThemeStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearThemeStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
-    Base::Result<void> SetTemplateValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearTemplateValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
-    Base::Result<void> SetTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept;
-    Base::Result<void> ClearTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept;
-
     // Ownership of expression.context transfers only after this call succeeds.
     Base::Result<void> SetLocalExpression(
         DependencyObject& object,
@@ -162,7 +126,6 @@ private:
     DispatcherFrameHookHandle phaseHook_;
     PropertyProviderOriginAllocator providerOrigins_;
     std::uint64_t nextQueueSequence_ = 1U;
-    std::uint64_t nextRevision_ = 1U;
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
@@ -195,8 +158,6 @@ private:
     void RemoveParent(std::uint32_t index) noexcept;
 
     static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
-    static PropertyProviderToken LegacyToken(
-        PropertyValueRank rank) noexcept;
     static void PropertyChangesHook(void* context) noexcept;
 };
 

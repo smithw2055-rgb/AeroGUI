@@ -6,12 +6,8 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Core/Property/PropertyProviderSession.hpp>
-#else
-#include <Aero/Core/Property/DependencyProperty.hpp>
-#endif
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
@@ -531,10 +527,8 @@ public:
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
-#endif
 
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
@@ -602,7 +596,6 @@ private:
 // Applies sealed style setters through EffectiveValueEngine, thereby retaining
 // the existing precedence contract: local values and local expressions remain
 // above Style values, and template/animation layers remain independent.
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class AERO_API StyleManager final {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
@@ -752,6 +745,5 @@ private:
         DependencyObject& object,
         const Style& style) noexcept;
 };
-#endif
 
 } // namespace Aero::Presentation

@@ -6,9 +6,10 @@ This specification defines the authoritative dependency-property value model for
 AeroGUI. WPF observable behavior is the contract; Meta, Facet, Style compilers
 and Template runtimes are providers of that one property system.
 
-Phase 2 established ranked token storage. Phase 3 moves the Style, ThemeStyle and
-ControlTemplate managers onto manager-owned provider sessions with canonical
-origins allocated by the shared `EffectiveValueEngine`.
+Phase 2 established ranked token storage, Phase 3 moved Style, ThemeStyle and
+ControlTemplate onto manager-owned sessions, and Phase 4 made the
+`DependencyObject` entry authoritative. Phase 5 removes the transitional
+provider bridge and makes full source information available in change events.
 
 ## Product rule
 
@@ -61,23 +62,11 @@ token or origin. It must never clear an unrelated provider at the same rank.
 sessions attached to that engine allocate through it, so Style, ThemeStyle and
 Template origins cannot collide even when they target the same object/property.
 
-Origins below `FirstCanonicalProviderOrigin` are reserved compatibility values.
-Canonical manager-owned sessions allocate from the canonical range.
-
-The remaining compatibility origins are isolated by semantic domain:
-
-```text
-ThemeStyle setter
-Style setter
-Templated-parent setter
-Template trigger bridge
-Theme trigger bridge
-Legacy Style-trigger stack
-```
-
-A legacy setter call is normalized to its domain-specific reserved origin before
-entering `PropertyProviderSet`; Style, ThemeStyle and Template setters no longer
-share one anonymous origin.
+Origins `1` and `2` are fixed engine-owned identities for local/expression and
+animation diagnostics. Manager-owned provider sessions allocate unique origins
+from `FirstCanonicalProviderOrigin`; there are no compatibility origins or token
+normalization rules. Reusing an exact token replaces that contribution, while
+distinct ordinals represent simultaneous setters or triggers.
 
 ## Manager-owned provider sessions
 
@@ -115,20 +104,13 @@ Each session tracks contributions per target object and property. It provides:
 The session type is private runtime infrastructure. It is not part of the normal
 control-authoring SDK.
 
-## Legacy Style-trigger bridge
+## Property change source diagnostics
 
-The old three-argument `EffectiveValueEngine::SetTriggerValue()` API remains for
-historical callers that have not adopted a provider session. Repeated writes use
-the reserved `LegacyStyleTriggerOrigin` and are expanded into an ordered
-contribution stack so multiple active legacy triggers still coexist.
-
-The corresponding clear removes only that reserved Style-trigger origin. It does
-not affect canonical Style sessions, template triggers, theme triggers or
-templated-parent triggers.
-
-`StyleManager` and `TemplateManager` no longer depend on this bridge. It can be
-removed after repository-wide search confirms that no direct historical caller
-remains.
+`DependencyPropertyChangedEventArgs` retains the legacy `oldSource` and
+`newSource` fields and also carries complete `oldSourceInfo` and
+`newSourceInfo` snapshots. Handlers can inspect rank, provider token, expression
+kind, inheritance, animation, coercion, current-value state and revision without
+performing a second lookup.
 
 ## Unified effective entry
 
@@ -145,14 +127,16 @@ inheritance-parent graph. It no longer owns value state or lands values through
 1. Common value-rank, provider-token and source-info types. **Done.**
 2. WPF-specific setter and trigger ranks. **Done.**
 3. Token-scoped contribution storage and targeted removal. **Done.**
-4. Simultaneous legacy Style trigger contributions. **Done.**
+4. Simultaneous trigger contributions through stable session ordinals. **Done.**
 5. Engine-wide canonical origin allocation. **Done.**
 6. Style, ThemeStyle and Template manager-owned sessions. **Done.**
 7. Move source diagnostics into the `DependencyObject` effective entry. **Done.**
 8. Move provider, expression and animation storage into that entry. **Done.**
 9. Preserve the unanimated base value and coerced effective value. **Done.**
 10. Route Binding and DynamicResource through the shared expression state. **Done.**
-11. Remove the remaining legacy trigger bridge after the final caller audit.
+11. Remove legacy Engine provider APIs and compatibility origins. **Done.**
+12. Add complete source snapshots to dependency-property change events. **Done.**
+13. Remove public-header type-shaping branches. **Done.**
 
 ## Invariants
 
