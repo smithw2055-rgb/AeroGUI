@@ -106,8 +106,12 @@ During the first migration phase:
 
 - `Aero::Application` and `Aero::Window` are the real type definitions.
 - `Aero::App::Application` and `Aero::App::Window` are compatibility aliases.
-- `Aero::App::Launcher` is a compatibility alias of the existing
-  `ApplicationHost` implementation.
+- `Aero::App::Launcher` is the canonical application entry point and composes
+  the existing low-level `ApplicationHost` implementation.
+- Launcher installs the `Aero.App` metadata module before the runtime schema is
+  frozen.
+- Schema generation and XAML compilation install the same App module so
+  `Application` has one metadata definition across runtime and tooling.
 - New code and documentation use the canonical names.
 
 The compatibility names may be removed before the first stable ABI release.
@@ -115,7 +119,8 @@ The compatibility names may be removed before the first stable ABI release.
 ## Migration order
 
 1. Application and Window namespace boundary.
-2. Controls primitives and WPF-aligned public control domains.
-3. Data, Media, Animation, Input, Documents and Shapes.
-4. Meta authoring API and private Facet projection.
-5. Removal of compatibility aliases before stable SDK release.
+2. Application metadata ownership and launcher composition.
+3. Controls primitives and WPF-aligned public control domains.
+4. Data, Media, Animation, Input, Documents and Shapes.
+5. Meta authoring API and private Facet projection.
+6. Removal of compatibility aliases before stable SDK release.
