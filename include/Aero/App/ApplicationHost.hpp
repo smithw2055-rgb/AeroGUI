@@ -70,12 +70,9 @@ struct LaunchOptions final {
 
 using ApplicationHostOptions = LaunchOptions;
 
-// Owns one complete default application lifetime: runtime environment, XAML
-// application, native window, graphics endpoint, View and event pump.
-//
-// Aero::App::Launcher is the canonical SDK spelling. ApplicationHost remains
-// the implementation and source-compatibility name during the namespace
-// migration.
+// Low-level implementation host retained for source compatibility and custom
+// composition. New applications should use Aero::App::Launcher, which installs
+// the App metadata module before delegating to this host.
 class AERO_API ApplicationHost final {
 public:
     explicit ApplicationHost(
