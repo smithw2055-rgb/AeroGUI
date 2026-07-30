@@ -12,10 +12,10 @@ inline constexpr Base::StringView AppMetadataModuleName() noexcept {
 
 namespace Detail {
 
-// Application and Window are WPF-facing types, while App owns their optional
-// default application-framework registration. Window remains registered by the
-// Controls module during this migration slice and is moved here in the next
-// metadata-ownership step.
+// App owns the process-level Application XAML object. Window is a WPF-facing
+// ContentControl and remains part of the UI/Controls schema; App supplies its
+// optional native peer and default launcher lifetime rather than redefining its
+// control metadata.
 inline Base::Result<void> PopulateAppMetadata(
     Core::MetadataContext& context) noexcept {
     auto application = Core::Describe<::Aero::Application>(context);
