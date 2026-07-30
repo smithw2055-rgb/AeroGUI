@@ -33,11 +33,11 @@ namespace Aero {
 // WPF-aligned XAML content root for a native top-level window. Window keeps the
 // ContentControl authoring model while delegating native lifetime and rendering
 // integration to an internal App peer.
-class AERO_API Window final : public Controls::ContentControl {
+class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
     Window() noexcept
-        : ContentControl(StaticTypeId()) {}
+        : Window(StaticTypeId()) {}
     ~Window() noexcept override = default;
 
     Base::StringView Title() const noexcept {
@@ -65,6 +65,10 @@ public:
     inline static constexpr auto FontFamilyProperty =
         Presentation::FrameworkElement::
             FontFamilyProperty;
+
+protected:
+    explicit Window(Core::TypeId runtimeType) noexcept
+        : ContentControl(runtimeType) {}
 
 private:
     friend class App::ApplicationHost;
