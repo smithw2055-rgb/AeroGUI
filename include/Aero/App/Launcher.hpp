@@ -2,12 +2,13 @@
 
 #include <Aero/App/ApplicationHost.hpp>
 #include <Aero/App/Metadata.hpp>
+#include <Aero/App/Services.hpp>
 
 namespace Aero::App {
 
 // Canonical default application-framework entry point. Launcher composes the
-// existing host implementation and guarantees that the WPF-facing App metadata
-// module is installed before RuntimeEnvironment freezes its schema.
+// existing host implementation, installs App metadata before schema freeze and
+// owns optional process services separately from the WPF Application object.
 class AERO_API Launcher final {
 public:
     explicit Launcher(
@@ -47,8 +48,17 @@ public:
         return host_.MainWindow();
     }
 
+    Services& GetServices() noexcept {
+        return services_;
+    }
+
+    const Services& GetServices() const noexcept {
+        return services_;
+    }
+
 private:
     ApplicationHost host_;
+    Services services_;
     Base::Status appModuleStatus_;
 };
 
