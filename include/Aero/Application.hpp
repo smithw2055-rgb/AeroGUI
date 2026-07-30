@@ -35,11 +35,12 @@ namespace Aero {
 class AERO_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
-    Application() noexcept = default;
+    Application() noexcept
+        : Application(StaticTypeId()) {}
     ~Application() noexcept override = default;
 
     Core::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
+        return runtimeType_;
     }
     static Application* Current() noexcept;
 
@@ -66,6 +67,10 @@ public:
 
     void Shutdown(int exitCode = 0) noexcept;
 
+protected:
+    explicit Application(Core::TypeId runtimeType) noexcept
+        : runtimeType_(runtimeType) {}
+
 private:
     friend class App::ApplicationHost;
 
@@ -74,6 +79,7 @@ private:
         Window* mainWindow) noexcept;
     void Detach() noexcept;
 
+    Core::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
     Base::Ref<ResourceDictionary> resources_;
     App::Detail::IApplicationPeer* peer_ = nullptr;
