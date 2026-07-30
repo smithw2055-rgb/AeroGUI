@@ -9,19 +9,15 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Presentation/AnimationXaml.hpp>
 #include <Aero/Presentation/Binding.hpp>
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Core/Property/PropertyProviderSession.hpp>
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
-#endif
 
 #include <type_traits>
 
 namespace Aero::Presentation {
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class LayoutManager;
 class RenderManager;
-#endif
 }
 
 namespace Aero::Markup::Detail {
@@ -36,9 +32,7 @@ using namespace Aero::Presentation;
 class ContentPresenter;
 class ItemsPanelTemplate;
 class ItemsPresenter;
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class TemplateManager;
-#endif
 
 struct TemplateHandle final {
     std::uint64_t value = 0U;
@@ -47,7 +41,6 @@ struct TemplateHandle final {
     }
 };
 
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 struct TemplatePart final {
     Base::String name;
     Base::Ref<Base::Object> owner;
@@ -147,9 +140,6 @@ private:
     Base::Vector<TemplatePart> parts_;
     Base::Vector<TemplateContentProjection> projections_;
 };
-#else
-class TemplateBuildContext;
-#endif
 
 using TemplateFactoryCallback = Base::Result<void> (*)(
     TemplateBuildContext& context,
@@ -296,10 +286,8 @@ public:
         TemplatePropertyTrigger trigger) noexcept;
     Base::Result<void> TryAddVisualStateGroup(
         VisualStateGroup group) noexcept;
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
     Base::Result<void> Seal(
         const DependencyPropertyRegistry& properties) noexcept;
-#endif
 
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
@@ -492,7 +480,6 @@ private:
     std::uint32_t generatedNameSequence_ = 0U;
 };
 
-#if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class AERO_API TemplateManager final {
 public:
     TemplateManager(
@@ -686,6 +673,5 @@ private:
     void PruneStale() noexcept;
     void RemoveActiveAt(std::uint32_t index) noexcept;
 };
-#endif
 
 } // namespace Aero::Controls

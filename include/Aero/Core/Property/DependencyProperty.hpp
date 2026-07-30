@@ -23,10 +23,8 @@ namespace Aero::Core {
 class DependencyObject;
 class DependencyProperty;
 class EffectiveValueEngine;
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class MetadataBehaviorRegistrationStore;
 class DependencyPropertyRegistry;
-#endif
 class MetadataContext;
 
 struct DependencyPropertyHandle final {
@@ -243,6 +241,8 @@ struct DependencyPropertyChangedEventArgs final {
     const PropertyValue& newValue;
     EffectiveValueSource oldSource = EffectiveValueSource::Default;
     EffectiveValueSource newSource = EffectiveValueSource::Default;
+    PropertyValueSourceInfo oldSourceInfo;
+    PropertyValueSourceInfo newSourceInfo;
 };
 
 using ValidateValueCallback = Base::Delegate<bool(
@@ -273,12 +273,7 @@ public:
     DependencyPropertyKey() noexcept = default;
 
     bool IsValid() const noexcept {
-#if !defined(AERO_SDK_SURFACE_ONLY)
         return registry_ != nullptr && property_.IsValid() && secret_ != 0U;
-#else
-        return registryState_ != nullptr &&
-            property_.IsValid() && secret_ != 0U;
-#endif
     }
 
     DependencyPropertyHandle Property() const noexcept {
@@ -286,16 +281,10 @@ public:
     }
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
-#endif
     friend class DependencyObject;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     const DependencyPropertyRegistry* registry_ = nullptr;
-#else
-    const void* registryState_ = nullptr;
-#endif
     DependencyPropertyHandle property_;
     std::uint64_t secret_ = 0U;
 };
@@ -352,9 +341,7 @@ public:
         TypeId forType) const noexcept;
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class DependencyPropertyRegistry;
-#endif
     friend class DependencyObject;
 
     struct MetadataEntry final {
@@ -368,11 +355,7 @@ private:
     const MetadataEntry* FindMetadataExact(
         TypeId forType) const noexcept;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     TypeRegistry* typeRegistry_ = nullptr;
-#else
-    void* typeState_ = nullptr;
-#endif
     DependencyPropertyHandle handle_;
     TypeId valueType_ = InvalidTypeId;
     TypeId registeredOwnerType_ = InvalidTypeId;
@@ -382,7 +365,6 @@ private:
     Base::Vector<MetadataEntry> metadata_;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API DependencyPropertyRegistry final {
 public:
     DependencyPropertyRegistry(
@@ -471,7 +453,6 @@ private:
         DependencyPropertyFlags propertyFlags,
         PropertyMetadataFlags metadataFlags) noexcept;
 };
-#endif
 
 class AERO_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
@@ -479,11 +460,9 @@ public:
     TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry& PropertyRegistry() const noexcept {
         return *registry_;
     }
-#endif
 
     Base::Result<PropertyValue> GetValue(
         DependencyPropertyHandle property) const noexcept;
@@ -666,11 +645,7 @@ private:
         DispatcherReentrancyGuard dispatcherGuard_;
     };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     DependencyPropertyRegistry* registry_ = nullptr;
-#else
-    void* propertyState_ = nullptr;
-#endif
     TypeId runtimeType_ = InvalidTypeId;
     bool objectServicesAvailable_ = false;
     Base::Vector<EffectiveValueEntry> values_;
@@ -723,7 +698,7 @@ private:
         const DependencyProperty& registered,
         const PropertyMetadata& metadata,
         const PropertyValue& oldEffective,
-        EffectiveValueSource oldSource) noexcept;
+        const PropertyValueSourceInfo& oldSourceInfo) noexcept;
     void ReleaseExpression(EffectiveValueEntry& entry) noexcept;
     static EffectiveValueSource ToLegacySource(
         const PropertyValueSourceInfo& source) noexcept;

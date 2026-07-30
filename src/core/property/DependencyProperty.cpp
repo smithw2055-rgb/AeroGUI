@@ -1144,7 +1144,7 @@ Base::Result<void> DependencyObject::SetInheritedValueInternal(
 Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     DependencyPropertyHandle propertyHandle, const DependencyProperty& property,
     const PropertyMetadata& metadata, const PropertyValue& oldEffective,
-    EffectiveValueSource oldSource) noexcept {
+    const PropertyValueSourceInfo& oldSourceInfo) noexcept {
     std::uint32_t index = FindEntryIndex(propertyHandle);
     if (index == InvalidIndex) {
         Base::Result<std::uint32_t> ensured = EnsureEffectiveEntry(propertyHandle);
@@ -1219,11 +1219,18 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     entry.baseValue = baseValue;
     entry.effectiveValue = newEffective;
     entry.sourceInfo = source;
+    const EffectiveValueSource oldSource = ToLegacySource(oldSourceInfo);
     const EffectiveValueSource newSource = ToLegacySource(source);
     if (newEffective != oldEffective) {
         const PropertyInvalidationFlags flags = AccumulateInvalidations(metadata.flags);
         const DependencyPropertyChangedEventArgs args{
-            propertyHandle, oldEffective, newEffective, oldSource, newSource};
+            propertyHandle,
+            oldEffective,
+            newEffective,
+            oldSource,
+            newSource,
+            oldSourceInfo,
+            source};
         if (!metadata.changed.Empty()) metadata.changed(*this, args);
         NotifyValueChanged(args);
         Base::Result<void> invalidated = OnPropertyInvalidated(flags);
@@ -1255,10 +1262,10 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     const std::uint32_t index = FindEntryIndex(propertyHandle);
     const PropertyValue oldEffective = index != InvalidIndex
         ? values_[index].effectiveValue : metadata->defaultValue;
-    const EffectiveValueSource oldSource = index != InvalidIndex
-        ? ToLegacySource(values_[index].sourceInfo) : EffectiveValueSource::Default;
+    const PropertyValueSourceInfo oldSourceInfo = index != InvalidIndex
+        ? values_[index].sourceInfo : PropertyValueSourceInfo{};
     return RecomputeEffectiveValueCore(propertyHandle, *property, *metadata,
-        oldEffective, oldSource);
+        oldEffective, oldSourceInfo);
 }
 
 Base::Result<void> DependencyObject::ClearEngineValueStateInternal(
@@ -1310,9 +1317,9 @@ Base::Result<void> DependencyObject::ApplyChange(
     }
     EffectiveValueEntry& entry = values_[index];
     const PropertyValue oldEffective = hadEntry ? entry.effectiveValue : metadata->defaultValue;
-    const EffectiveValueSource oldSource = hadEntry
-        ? ToLegacySource(entry.sourceInfo) : EffectiveValueSource::Default;
-    const std::uint64_t oldRevision = entry.sourceInfo.revision;
+    const PropertyValueSourceInfo oldSourceInfo = hadEntry
+        ? entry.sourceInfo : PropertyValueSourceInfo{};
+    const std::uint64_t oldRevision = oldSourceInfo.revision;
     const PropertyValue oldLocal = entry.localValue;
     const PropertyValue oldCurrent = entry.currentValue;
     const PropertyExpression oldExpression = entry.localExpression;
@@ -1335,7 +1342,7 @@ Base::Result<void> DependencyObject::ApplyChange(
     case ChangeKind::ReCoerce: break;
     }
     Base::Result<void> recomputed = RecomputeEffectiveValueCore(
-        propertyHandle, *property, *metadata, oldEffective, oldSource);
+        propertyHandle, *property, *metadata, oldEffective, oldSourceInfo);
     if (recomputed) {
         if (removesExpression && oldExpression.cleanup != nullptr) {
             oldExpression.cleanup(oldExpression.context);

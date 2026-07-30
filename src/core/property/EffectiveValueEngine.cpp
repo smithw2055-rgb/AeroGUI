@@ -10,7 +10,6 @@ namespace Aero::Core {
 namespace {
 
 constexpr std::uint32_t InvalidIndex = UINT32_MAX;
-constexpr std::uint32_t LegacyProviderOrigin = 1U;
 
 Base::Status InvalidProviderStatus() noexcept {
     return Base::Status::Failure(
@@ -289,10 +288,6 @@ bool EffectiveValueEngine::IsMutableBaseRank(
     }
 }
 
-PropertyProviderToken EffectiveValueEngine::LegacyToken(
-    PropertyValueRank rank) noexcept {
-    return {rank, LegacyProviderOrigin, 0U};
-}
 
 Base::Result<void> EffectiveValueEngine::SetProviderContribution(
     DependencyObject& object, DependencyPropertyHandle property,
@@ -333,98 +328,6 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
         if (!queued) return queued.GetStatus();
     }
     return removed;
-}
-
-Base::Result<void> EffectiveValueEngine::SetStyleValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return SetProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::StyleSetter),
-        value);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearStyleValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<bool> cleared = ClearProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::StyleSetter));
-    return cleared
-        ? Base::Result<void>()
-        : Base::Result<void>(cleared.GetStatus());
-}
-
-Base::Result<void> EffectiveValueEngine::SetThemeStyleValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return SetProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::ThemeStyleSetter),
-        value);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearThemeStyleValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<bool> cleared = ClearProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::ThemeStyleSetter));
-    return cleared
-        ? Base::Result<void>()
-        : Base::Result<void>(cleared.GetStatus());
-}
-
-Base::Result<void> EffectiveValueEngine::SetTemplateValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return SetProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::TemplatedParentSetter),
-        value);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearTemplateValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<bool> cleared = ClearProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::TemplatedParentSetter));
-    return cleared
-        ? Base::Result<void>()
-        : Base::Result<void>(cleared.GetStatus());
-}
-
-Base::Result<void> EffectiveValueEngine::SetTriggerValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property,
-    const PropertyValue& value) noexcept {
-    return SetProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::StyleTrigger),
-        value);
-}
-
-Base::Result<void> EffectiveValueEngine::ClearTriggerValue(
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept {
-    Base::Result<bool> cleared = ClearProviderContribution(
-        object,
-        property,
-        LegacyToken(PropertyValueRank::StyleTrigger));
-    return cleared
-        ? Base::Result<void>()
-        : Base::Result<void>(cleared.GetStatus());
 }
 
 Base::Result<void> EffectiveValueEngine::SetLocalExpression(
