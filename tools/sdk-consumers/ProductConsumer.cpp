@@ -20,6 +20,7 @@ namespace {
     Aero::Window& window) noexcept {
     static_cast<void>(launcher.CurrentApplication());
     static_cast<void>(launcher.MainWindow());
+    static_cast<void>(launcher.GetServices());
     static_cast<void>(application.MainWindow());
     static_cast<void>(window.IsOpen());
 }
