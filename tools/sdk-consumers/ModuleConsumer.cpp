@@ -1,9 +1,4 @@
 #include <Aero/ModuleSdk.hpp>
-#include <Aero/Controls/Primitives.hpp>
-#include <Aero/Data.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/Media.hpp>
-#include <Aero/Shapes.hpp>
 
 #include <type_traits>
 
