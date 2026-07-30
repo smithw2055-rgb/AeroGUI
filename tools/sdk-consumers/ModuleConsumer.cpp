@@ -55,6 +55,34 @@ static_assert(
 
 static_assert(
     std::is_same<
+        Aero::DependencyObject,
+        Aero::Core::DependencyObject>::value,
+    "Root DependencyObject must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::UIElement,
+        Aero::Presentation::UIElement>::value,
+    "Root UIElement must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::FrameworkElement,
+        Aero::Presentation::FrameworkElement>::value,
+    "Root FrameworkElement must preserve runtime type identity");
+
+static_assert(
+    std::is_same<Aero::Thickness, Aero::Base::Thickness>::value,
+    "Root Thickness must preserve value type identity");
+
+static_assert(
+    std::is_same<
+        Aero::HorizontalAlignment,
+        Aero::Presentation::HorizontalAlignment>::value,
+    "Root alignment must preserve value type identity");
+
+static_assert(
+    std::is_same<
         Aero::Controls::Primitives::ButtonBase,
         Aero::Controls::ButtonBase>::value,
     "Controls.Primitives projection must preserve runtime type identity");
@@ -106,5 +134,11 @@ static_assert(
         Aero::Shapes::Rectangle,
         Aero::Controls::Rectangle>::value,
     "Shapes projection must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::Threading::Dispatcher,
+        Aero::Core::Dispatcher>::value,
+    "Threading projection must preserve dispatcher identity");
 
 } // namespace
