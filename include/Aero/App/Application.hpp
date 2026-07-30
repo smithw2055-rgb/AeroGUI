@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/App/Fwd.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
@@ -9,28 +10,26 @@
 
 #include <utility>
 
-namespace Aero::App {
-
-class Window;
-
-} // namespace Aero::App
-
 namespace Aero::Audio {
 class Engine;
 }
 
-namespace Aero::App {
+namespace Aero::App::Detail {
 
-namespace Detail {
 class IApplicationPeer {
 public:
     virtual ~IApplicationPeer() = default;
     virtual void RequestExit(int exitCode) noexcept = 0;
 };
-}
 
-// Process-level XAML application object. It owns application resources and
-// startup policy; ApplicationHost supplies the native event/render lifetime.
+} // namespace Aero::App::Detail
+
+namespace Aero {
+
+// Process-level WPF/XAML application object. It owns application resources and
+// startup policy; Aero::App::Launcher supplies the default native event/render
+// lifetime. The implementation intentionally remains independent of a specific
+// desktop backend so Application can also participate in embedded runtimes.
 class AERO_API Application final : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
@@ -70,18 +69,18 @@ public:
     void Shutdown(int exitCode = 0) noexcept;
 
 private:
-    friend class ApplicationHost;
+    friend class App::ApplicationHost;
 
     void Attach(
-        Detail::IApplicationPeer* peer,
+        App::Detail::IApplicationPeer* peer,
         Window* mainWindow) noexcept;
     void Detach() noexcept;
 
     Base::String startupUri_;
     Base::Ref<Presentation::ResourceDictionary> resources_;
     Audio::Engine* audio_ = nullptr;
-    Detail::IApplicationPeer* peer_ = nullptr;
+    App::Detail::IApplicationPeer* peer_ = nullptr;
     Window* mainWindow_ = nullptr;
 };
 
-} // namespace Aero::App
+} // namespace Aero
