@@ -11,5 +11,6 @@
 #include <Aero/Data.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Resources.hpp>
 #include <Aero/Shapes.hpp>
+#include <Aero/Style.hpp>
