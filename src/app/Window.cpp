@@ -1,4 +1,4 @@
-#include <Aero/App/Window.hpp>
+#include <Aero/Window.hpp>
 
 namespace Aero {
 
