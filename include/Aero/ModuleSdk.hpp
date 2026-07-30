@@ -3,9 +3,13 @@
 // ModuleSdk collects the normal metadata-authoring and WPF semantic surfaces.
 // It must never create alternate public class definitions through include-time
 // macros.
+#include <Aero/DependencyObject.hpp>
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/UIElement.hpp>
 #include <Aero/Drawing.hpp>
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Templates.hpp>
