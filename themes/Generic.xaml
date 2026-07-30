@@ -73,55 +73,7 @@
 
   <Style TargetType="Hyperlink">
     <Setter Property="Foreground" Value="{StaticResource AccentFill}"/>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="Hyperlink">
-          <ControlTemplate.VisualTree>
-            <Grid>
-              <Border x:Name="Chrome"
-                      Background="#00000000"
-                      BorderBrush="#00000000"
-                      BorderThickness="0"
-                      Padding="2">
-                <ContentPresenter x:Name="ContentPresenter"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
-              </Border>
-              <Border x:Name="FocusCue"
-                      BorderBrush="#00000000"
-                      BorderThickness="1"/>
-            </Grid>
-          </ControlTemplate.VisualTree>
-          <ControlTemplate.VisualStateGroups>
-            <VisualStateGroup Name="CommonStates">
-              <VisualStateGroup.Transitions>
-                <VisualTransition GeneratedDuration="0:0:0.09"/>
-              </VisualStateGroup.Transitions>
-              <VisualState Name="Normal"/>
-              <VisualState Name="PointerOver">
-                <Setter TargetName="Chrome"
-                        Property="Background"
-                        Value="#221098DF"/>
-              </VisualState>
-              <VisualState Name="Pressed">
-                <Setter TargetName="Chrome"
-                        Property="Background"
-                        Value="#441098DF"/>
-              </VisualState>
-              <VisualState Name="Disabled"/>
-            </VisualStateGroup>
-            <VisualStateGroup Name="FocusStates">
-              <VisualState Name="Focused">
-                <Setter TargetName="FocusCue"
-                        Property="BorderBrush"
-                        Value="{StaticResource AccentBorder}"/>
-              </VisualState>
-              <VisualState Name="Unfocused"/>
-            </VisualStateGroup>
-          </ControlTemplate.VisualStateGroups>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
+    <Setter Property="TextDecorations" Value="Underline"/>
   </Style>
 
   <Style TargetType="RepeatButton">

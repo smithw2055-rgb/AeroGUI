@@ -87,29 +87,50 @@ Base::Result<void> PopulateControlsTextMedia(
     status = textBlock.Result();
     if (!status) return status.GetStatus();
 
-    auto run = Describe<Run>(context);
+    auto textElement = Describe<Documents::TextElement>(
+        context, TypeFlags::Abstract);
+    textElement
+        .AddOwner(
+            Documents::TextElement::FontWeightProperty,
+            PropertyOptions(FontWeight::Normal).Inherits())
+        .AddOwner(
+            Documents::TextElement::ForegroundProperty,
+            PropertyOptions(Base::Ref<Brush>{})
+                .Inherits().AffectsRender())
+        .AddOwner(
+            Documents::TextElement::FontSizeProperty,
+            PropertyOptions(16.0).Inherits().AffectsMeasure()
+                .Validate(&ValidatePositiveFiniteDouble));
+    status = textElement.Result();
+    if (!status) return status.GetStatus();
+
+    status = Describe<Documents::Inline>(
+        context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    auto run = Describe<Documents::Run>(context);
     run
         .Property<
             Base::String,
-            &Run::Content,
-            &Run::SetContent>(
+            &Documents::Run::Content,
+            &Documents::Run::SetContent>(
             "Content",
             PropertyFlags::Structural)
         .Content(
             MakeMemberId(
-                Run::StaticTypeId(),
+                Documents::Run::StaticTypeId(),
                 MemberKind::Property,
                 "Content"))
         .Factory();
     status = run.Result();
     if (!status) return status.GetStatus();
 
-    auto span = Describe<Span>(context);
+    auto span = Describe<Documents::Span>(context);
     span.Factory();
     status = span.Result();
     if (!status) return status.GetStatus();
 
-    auto bold = Describe<Bold>(context);
+    auto bold = Describe<Documents::Bold>(context);
     bold
         .Override(
             TextBlock::FontWeightProperty,
@@ -119,7 +140,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = bold.Result();
     if (!status) return status.GetStatus();
 
-    auto italic = Describe<Italic>(context);
+    auto italic = Describe<Documents::Italic>(context);
     italic
         .Override(
             TextBlock::FontStyleProperty,
@@ -129,20 +150,45 @@ Base::Result<void> PopulateControlsTextMedia(
     status = italic.Result();
     if (!status) return status.GetStatus();
 
-    auto underline = Describe<Underline>(context);
+    auto underline = Describe<Documents::Underline>(context);
     underline
         .Override(
             TextBlock::TextDecorationsProperty,
-            PropertyOptions(
-                TextDecorations::Underline)
+            PropertyOptions(TextDecorations::Underline)
                 .AffectsRender())
         .Factory();
     status = underline.Result();
     if (!status) return status.GetStatus();
 
-    auto lineBreak = Describe<LineBreak>(context);
+    auto lineBreak = Describe<Documents::LineBreak>(context);
     lineBreak.Factory();
     status = lineBreak.Result();
+    if (!status) return status.GetStatus();
+
+    auto hyperlink = Describe<Documents::Hyperlink>(context);
+    hyperlink
+        .Event(Documents::Hyperlink::ClickEvent)
+        .Property(
+            Documents::Hyperlink::NavigateUriProperty,
+            PropertyOptions(Base::String{}))
+        .Property(
+            Documents::Hyperlink::CommandProperty,
+            PropertyOptions(Base::Ref<ICommand>{}))
+        .Property(
+            Documents::Hyperlink::CommandParameterProperty,
+            PropertyOptions(Base::Ref<Base::Object>{}))
+        .Property(
+            Documents::Hyperlink::CommandTargetProperty,
+            PropertyOptions(Base::Ref<UIElement>{}))
+        .Override(
+            TextBlock::TextDecorationsProperty,
+            PropertyOptions(TextDecorations::Underline)
+                .AffectsRender())
+        .Override(
+            UIElement::IsTabStopProperty,
+            PropertyOptions(true))
+        .Factory();
+    status = hyperlink.Result();
     if (!status) return status.GetStatus();
 
     const Presentation::Color transparent{

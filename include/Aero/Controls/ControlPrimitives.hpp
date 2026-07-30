@@ -30,9 +30,8 @@ enum class FontWeight : std::uint8_t {
     Bold
 };
 
-// Inline formatting surface shared by text controls and Hyperlink. It lives
-// here so Button-derived Hyperlink can expose the WPF property without a
-// dependency cycle through Controls.hpp.
+// Inline formatting value shared by retained text controls and the
+// Aero::Documents inline hierarchy.
 enum class TextDecorations : std::uint8_t {
     None = 0U,
     Underline

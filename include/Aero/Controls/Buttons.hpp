@@ -79,27 +79,6 @@ protected:
         : ButtonBase(runtimeType) {}
 };
 
-// Temporary standalone link control. This is intentionally not projected as
-// Aero::Documents::Hyperlink until the inline text content model exists.
-class AERO_API Hyperlink final : public ButtonBase {
-    AERO_DECLARE_TYPE(Hyperlink, ButtonBase)
-public:
-    Hyperlink() noexcept : ButtonBase(StaticTypeId()) {}
-    ~Hyperlink() override = default;
-
-    Base::StringView NavigateUri() const noexcept;
-    TextDecorations GetTextDecorations() const noexcept;
-    Base::Result<void> SetNavigateUri(
-        Base::StringView value) noexcept;
-    Base::Result<void> SetTextDecorations(
-        TextDecorations value) noexcept;
-
-    inline static constexpr Members::Property<Base::String>
-        NavigateUriProperty{"NavigateUri"};
-    inline static constexpr Members::Property<TextDecorations>
-        TextDecorationsProperty{"TextDecorations"};
-};
-
 class AERO_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
 public:

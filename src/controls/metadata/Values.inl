@@ -160,21 +160,6 @@ Base::Result<void> PopulateControlsValues(
     status = fontWeight.Result();
     if (!status) return status.GetStatus();
 
-    auto textElement = Describe<TextElement>(context, TypeFlags::Abstract);
-    textElement
-        .Property(
-            TextElement::FontWeightProperty,
-            PropertyOptions(FontWeight::Normal).Inherits())
-        .Property(
-            TextElement::ForegroundProperty,
-            PropertyOptions(Base::Ref<Brush>{}).Inherits().AffectsRender())
-        .Property(
-            TextElement::FontSizeProperty,
-            PropertyOptions(16.0).Inherits().AffectsMeasure()
-                .Validate(&ValidatePositiveFiniteDouble));
-    status = textElement.Result();
-    if (!status) return status.GetStatus();
-
     auto fontStyle = Describe<Text::FontStyle>(context);
     fontStyle
         .Value("Normal", Text::FontStyle::Normal)

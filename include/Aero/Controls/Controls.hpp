@@ -28,22 +28,6 @@ enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
 enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
 enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
-// WPF text-formatting attached-property owner. ContentPresenter and other
-// non-text elements use this surface to pass formatting to generated text.
-class AERO_API TextElement final : public Base::Object {
-    AERO_DECLARE_TYPE(TextElement, Base::Object)
-public:
-    Core::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr Members::AttachedProperty<FontWeight>
-        FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::AttachedProperty<
-        Base::Ref<Brush>> ForegroundProperty{"Foreground"};
-    inline static constexpr Members::AttachedProperty<double>
-        FontSizeProperty{"FontSize"};
-};
-
 } // namespace Aero::Controls
 
 namespace Aero::Core {
@@ -574,61 +558,6 @@ private:
     Base::Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;
     bool serviceOwnsGlyphRun_ = false;
-};
-
-class AERO_API Run final : public TextBlock {
-    AERO_DECLARE_TYPE(Run, TextBlock)
-public:
-    Run() noexcept : TextBlock(StaticTypeId()) {}
-    ~Run() override = default;
-    Base::StringView Content() const noexcept {
-        return Text();
-    }
-    Base::Result<void> SetContent(
-        Base::StringView value) noexcept {
-        return SetText(value);
-    }
-};
-
-class AERO_API Span : public TextBlock {
-    AERO_DECLARE_TYPE(Span, TextBlock)
-public:
-    Span() noexcept : TextBlock(StaticTypeId()) {}
-    ~Span() override = default;
-protected:
-    explicit Span(TypeId runtimeType) noexcept : TextBlock(runtimeType) {}
-};
-
-class AERO_API Bold final : public Span {
-    AERO_DECLARE_TYPE(Bold, Span)
-public:
-    Bold() noexcept : Span(StaticTypeId()) {}
-    ~Bold() override = default;
-};
-
-class AERO_API Italic final : public Span {
-    AERO_DECLARE_TYPE(Italic, Span)
-public:
-    Italic() noexcept : Span(StaticTypeId()) {}
-    ~Italic() override = default;
-};
-
-class AERO_API Underline final : public Span {
-    AERO_DECLARE_TYPE(Underline, Span)
-public:
-    Underline() noexcept : Span(StaticTypeId()) {}
-    ~Underline() override = default;
-};
-
-class AERO_API LineBreak final : public FrameworkElement {
-    AERO_DECLARE_TYPE(LineBreak, FrameworkElement)
-public:
-    LineBreak() noexcept : FrameworkElement(StaticTypeId()) {}
-    ~LineBreak() override = default;
-protected:
-    Base::Result<Size> MeasureOverride(Size) noexcept override {
-        return Size{};
-    }
 };
 
 // WPF-shaped vector path. The first implementation intentionally accepts the

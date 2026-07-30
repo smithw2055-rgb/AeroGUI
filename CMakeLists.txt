@@ -470,6 +470,8 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Buttons.cpp
     src/controls/ContentControls.cpp
     src/controls/Controls.cpp
+    src/controls/DocumentInteraction.cpp
+    src/controls/Documents.cpp
     src/controls/Images.cpp
     src/controls/Items.cpp
     src/controls/ListView.cpp

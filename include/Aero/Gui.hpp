@@ -10,6 +10,7 @@
 #include <Aero/UIElement.hpp>
 
 #include <Aero/Controls.hpp>
+#include <Aero/Documents.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/Drawing.hpp>
 #include <Aero/Input.hpp>

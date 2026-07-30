@@ -144,27 +144,6 @@ Base::Result<void> RadioButton::SetGroupName(
     return SetValue(GroupNameProperty, value);
 }
 
-Base::StringView Hyperlink::NavigateUri() const noexcept {
-    return GetValueOr(
-        NavigateUriProperty,
-        Base::StringView{});
-}
-
-TextDecorations Hyperlink::GetTextDecorations() const noexcept {
-    return GetValueOr(
-        TextDecorationsProperty, TextDecorations::Underline);
-}
-
-Base::Result<void> Hyperlink::SetNavigateUri(
-    Base::StringView value) noexcept {
-    return SetValue(NavigateUriProperty, value);
-}
-
-Base::Result<void> Hyperlink::SetTextDecorations(
-    TextDecorations value) noexcept {
-    return SetValue(TextDecorationsProperty, value);
-}
-
 Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
     Base::Result<void> applied =
         ContentControl::OnApplyTemplate();
