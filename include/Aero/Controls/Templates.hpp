@@ -10,6 +10,7 @@
 #include <Aero/Presentation/AnimationXaml.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
+#include <Aero/Core/Property/PropertyProviderSession.hpp>
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #endif
@@ -503,7 +504,8 @@ public:
         Core::MetadataRuntime* metadata = nullptr,
         Presentation::BindingManager* bindings = nullptr) noexcept
         : tree_(&tree),
-          values_(&values),
+          providerSession_(values),
+          values_(&providerSession_),
           properties_(&properties),
           layout_(layout),
           renderer_(renderer),
@@ -547,7 +549,8 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    EffectiveValueEngine* values_ = nullptr;
+    Core::Detail::TemplatedParentProviderSession providerSession_;
+    Core::Detail::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutManager* layout_ = nullptr;
     RenderManager* renderer_ = nullptr;

@@ -8,6 +8,7 @@
 #include <Aero/Base/Vector.hpp>
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include <Aero/Core/Property/PropertyProviderSession.hpp>
 #else
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #endif
@@ -612,7 +613,9 @@ public:
     explicit StyleManager(
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties) noexcept
-        : values_(&values), properties_(&properties),
+        : providerSession_(values),
+          values_(&providerSession_),
+          properties_(&properties),
           applications_(),
           propertyChangedHandler_(
               this, &StyleManager::OnPropertyChanged) {}
@@ -641,7 +644,8 @@ public:
     }
 
 private:
-    EffectiveValueEngine* values_ = nullptr;
+    Core::Detail::StyleProviderSession providerSession_;
+    Core::Detail::StyleProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     struct Application final {
         DependencyObject* object = nullptr;
@@ -723,7 +727,9 @@ public:
     ThemeStyleManager(
         EffectiveValueEngine& values,
         const ThemeStyleRegistry& registry) noexcept
-        : values_(&values), registry_(&registry) {}
+        : providerSession_(values),
+          values_(&providerSession_),
+          registry_(&registry) {}
 
     Base::Result<bool> ApplyDefault(
         DependencyObject& object) noexcept;
@@ -735,7 +741,8 @@ private:
         DependencyObject* object = nullptr;
         const Style* style = nullptr;
     };
-    EffectiveValueEngine* values_ = nullptr;
+    Core::Detail::ThemeStyleProviderSession providerSession_;
+    Core::Detail::ThemeStyleProviderSession* values_ = nullptr;
     const ThemeStyleRegistry* registry_ = nullptr;
     Base::Vector<Application> applications_;
 

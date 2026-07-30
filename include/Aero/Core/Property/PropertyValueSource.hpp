@@ -35,14 +35,18 @@ enum class PropertyValueRank : std::uint8_t {
 
 using EffectiveValueProvider = PropertyValueRank;
 
-// Origin 1 is reserved by the compatibility EffectiveValueEngine APIs. The
-// legacy StyleManager writes every active Trigger setter through one fixed
-// token. PropertyProviderSet expands repeated writes of that token into an
-// ordered contribution stack and removes that stack as one compatibility
-// origin. Canonical token-aware callers allocate origins at or above
-// FirstCanonicalProviderOrigin.
+// Origin 1 remains the temporary stack used by the old three-argument
+// SetTriggerValue() API. The old Style, ThemeStyle and Template setter APIs are
+// normalized to separate reserved canonical origins, so those domains no longer
+// share one anonymous provider identity even before their managers adopt
+// PropertyProviderSession directly.
 inline constexpr std::uint32_t LegacyStyleTriggerOrigin = 1U;
-inline constexpr std::uint32_t FirstCanonicalProviderOrigin = 16U;
+inline constexpr std::uint32_t CompatibilityThemeStyleSetterOrigin = 16U;
+inline constexpr std::uint32_t CompatibilityStyleSetterOrigin = 17U;
+inline constexpr std::uint32_t CompatibilityTemplatedParentSetterOrigin = 18U;
+inline constexpr std::uint32_t CompatibilityTemplateTriggerOrigin = 19U;
+inline constexpr std::uint32_t CompatibilityThemeStyleTriggerOrigin = 20U;
+inline constexpr std::uint32_t FirstCanonicalProviderOrigin = 32U;
 
 enum class PropertyExpressionKind : std::uint8_t {
     Custom = 0U,
@@ -74,6 +78,59 @@ constexpr bool operator!=(
     return !(left == right);
 }
 
+// LegacyToken() currently supplies origin 1 for all compatibility APIs. Normalize
+// the non-trigger ranks here so existing StyleManager, ThemeStyleManager and
+// TemplateManager call sites immediately acquire isolated provider identities.
+constexpr PropertyProviderToken NormalizeCompatibilityProviderToken(
+    PropertyProviderToken token) noexcept {
+    if (token.origin != LegacyStyleTriggerOrigin || token.ordinal != 0U) {
+        return token;
+    }
+    switch (token.rank) {
+    case PropertyValueRank::ThemeStyleSetter:
+        token.origin = CompatibilityThemeStyleSetterOrigin;
+        break;
+    case PropertyValueRank::StyleSetter:
+        token.origin = CompatibilityStyleSetterOrigin;
+        break;
+    case PropertyValueRank::TemplatedParentSetter:
+        token.origin = CompatibilityTemplatedParentSetterOrigin;
+        break;
+    case PropertyValueRank::TemplateTrigger:
+        token.origin = CompatibilityTemplateTriggerOrigin;
+        break;
+    case PropertyValueRank::ThemeStyleTrigger:
+        token.origin = CompatibilityThemeStyleTriggerOrigin;
+        break;
+    default:
+        break;
+    }
+    return token;
+}
+
+class PropertyProviderOriginAllocator final {
+public:
+    explicit constexpr PropertyProviderOriginAllocator(
+        std::uint32_t first = FirstCanonicalProviderOrigin) noexcept
+        : next_(first) {}
+
+    Base::Result<std::uint32_t> Allocate() noexcept {
+        if (next_ < FirstCanonicalProviderOrigin || next_ == UINT32_MAX) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Property provider origin limit reached");
+        }
+        return next_++;
+    }
+
+    std::uint32_t Next() const noexcept {
+        return next_;
+    }
+
+private:
+    std::uint32_t next_ = FirstCanonicalProviderOrigin;
+};
+
 struct PropertyValueSourceInfo final {
     PropertyValueRank rank = PropertyValueRank::Default;
     PropertyProviderToken token;
@@ -95,13 +152,14 @@ struct PropertyProviderContribution final {
 // Token-scoped provider storage used while Style, Template and Trigger are
 // migrated away from one mutable slot per precedence layer. Later declarations
 // win within one origin; later allocated origins win between active providers
-// at the same rank. Origin allocation is owned by the compiling/runtime service
-// and must therefore be stable and deterministic.
+// at the same rank. Origin allocation is owned by EffectiveValueEngine and is
+// therefore unique for all provider sessions attached to that engine.
 class PropertyProviderSet final {
 public:
     Base::Result<void> Set(
         PropertyProviderToken token,
         const PropertyValue& value) noexcept {
+        token = NormalizeCompatibilityProviderToken(token);
         if (!token.IsValid() || value.IsUnset()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -124,6 +182,7 @@ public:
     Base::Result<void> Set(
         PropertyProviderToken token,
         PropertyValue&& value) noexcept {
+        token = NormalizeCompatibilityProviderToken(token);
         if (!token.IsValid() || value.IsUnset()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
@@ -147,10 +206,9 @@ public:
     }
 
     bool Remove(PropertyProviderToken token) noexcept {
+        token = NormalizeCompatibilityProviderToken(token);
         if (IsLegacyStyleTriggerToken(token)) {
-            return Remove(
-                token.rank,
-                token.origin) != 0U;
+            return Remove(token.rank, token.origin) != 0U;
         }
         const std::uint32_t index = Find(token);
         if (index == UINT32_MAX) return false;
@@ -225,6 +283,7 @@ public:
 
     const PropertyProviderContribution* FindContribution(
         PropertyProviderToken token) const noexcept {
+        token = NormalizeCompatibilityProviderToken(token);
         const std::uint32_t index = Find(token);
         return index != UINT32_MAX
             ? &contributions_[index]

@@ -64,6 +64,15 @@ public:
     DependencyObject* InheritanceParent(
         const DependencyObject& child) const noexcept;
 
+    // Allocates a process-local provider origin unique to this value engine.
+    // Provider sessions allocate lazily on the owning Dispatcher and retain the
+    // origin for the lifetime of their Style, Theme or Template application.
+    Base::Result<std::uint32_t> AllocateProviderOrigin() noexcept {
+        Base::Result<void> access = dispatcher_->VerifyAccess();
+        if (!access) return access.GetStatus();
+        return providerOrigins_.Allocate();
+    }
+
     // Canonical contribution API. Style, Template, Theme and Trigger runtimes
     // allocate a stable origin and use declaration ordinal within that origin.
     Base::Result<void> SetProviderContribution(
@@ -79,8 +88,10 @@ public:
         DependencyObject& object,
         std::uint32_t origin) noexcept;
 
-    // Compatibility one-slot APIs map to fixed tokens. They remain until all
-    // Style/Template callers use SetProviderContribution directly.
+    // Compatibility APIs remain while callers move to manager-owned sessions.
+    // Non-trigger tokens are normalized by PropertyProviderSet into isolated
+    // Style, ThemeStyle and TemplatedParent origins. SetTriggerValue retains the
+    // ordered legacy Style-trigger bridge until Style and Template are split.
     Base::Result<void> SetStyleValue(
         DependencyObject& object,
         DependencyPropertyHandle property,
@@ -199,6 +210,7 @@ private:
     DependencyPropertyChangedEventHandler
         inheritanceChangedHandler_;
     DispatcherFrameHookHandle phaseHook_;
+    PropertyProviderOriginAllocator providerOrigins_;
     std::uint64_t nextQueueSequence_ = 1U;
     std::uint64_t nextRevision_ = 1U;
     bool flushing_ = false;
