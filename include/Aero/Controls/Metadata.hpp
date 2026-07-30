@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Core/Metadata/CoreMetadata.hpp>
-#include <Aero/Presentation/Metadata.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Core/Metadata/MetadataDomain.hpp>
 
 namespace Aero::Controls {
 
@@ -31,13 +31,5 @@ inline Base::Result<void> TryRegisterControlsMetadata(
         nullptr});
 }
 
-inline Base::Result<void> TryRegisterBuiltInUiMetadata(
-    Core::MetadataDomain& domain) noexcept {
-    Base::Result<void> result = Core::TryRegisterCoreMetadata(domain);
-    if (!result) return result.GetStatus();
-    result = Presentation::TryRegisterPresentationMetadata(domain);
-    if (!result) return result.GetStatus();
-    return TryRegisterControlsMetadata(domain);
-}
 
 } // namespace Aero::Controls

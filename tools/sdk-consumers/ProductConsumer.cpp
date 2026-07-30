@@ -1,5 +1,4 @@
 #include <Aero/App.hpp>
-#include <Aero/Runtime.hpp>
 
 #include <type_traits>
 
@@ -28,15 +27,6 @@ public:
     ConsumerWindow() noexcept
         : Window(StaticTypeId()) {}
 };
-
-[[maybe_unused]] void ConsumeProductSdk(
-    Aero::RuntimeEnvironment& environment) {
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
-        environment.CreateView();
-    if (view) {
-        static_cast<void>(view.Value()->RunFrame());
-    }
-}
 
 [[maybe_unused]] void ConsumeApplicationSdk(
     Aero::App::Launcher& launcher,
