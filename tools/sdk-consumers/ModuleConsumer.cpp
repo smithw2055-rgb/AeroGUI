@@ -18,7 +18,7 @@ public:
     inline static constexpr Members::Property<bool>
         ActiveProperty{"Active"};
     inline static constexpr Members::RoutedEvent<
-        Aero::Presentation::RoutedEventArgs>
+        Aero::RoutedEventArgs>
         ActivatedEvent{"Activated"};
 };
 
@@ -70,6 +70,12 @@ static_assert(
         Aero::FrameworkElement,
         Aero::Presentation::FrameworkElement>::value,
     "Root FrameworkElement must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::RoutedEventArgs,
+        Aero::Presentation::RoutedEventArgs>::value,
+    "Root routed-event arguments must preserve type identity");
 
 static_assert(
     std::is_same<Aero::Thickness, Aero::Base::Thickness>::value,
