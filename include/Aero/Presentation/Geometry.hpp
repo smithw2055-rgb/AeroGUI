@@ -8,5 +8,6 @@ using Point = Base::Point;
 using Size = Base::Size;
 using Rect = Base::Rect;
 using Thickness = Base::Thickness;
+using CornerRadius = Base::CornerRadius;
 
 } // namespace Aero::Presentation

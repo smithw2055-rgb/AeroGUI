@@ -7,6 +7,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
+#include <Aero/Presentation/AnimationXaml.hpp>
+#include <Aero/Presentation/Binding.hpp>
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
@@ -31,6 +33,8 @@ using namespace Aero::Core;
 using namespace Aero::Presentation;
 
 class ContentPresenter;
+class ItemsPanelTemplate;
+class ItemsPresenter;
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class TemplateManager;
 #endif
@@ -55,6 +59,7 @@ struct TemplatePart final {
 struct TemplateContentProjection final {
     ContentControl* owner = nullptr;
     ContentPresenter* presenter = nullptr;
+    ContentControl* contentHost = nullptr;
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
     PresentationMountState projectedMount;
@@ -81,6 +86,9 @@ public:
     Base::Result<bool> ProjectContent(
         ContentControl& owner,
         ContentPresenter& presenter) noexcept;
+    Base::Result<bool> ProjectContent(
+        ContentControl& owner,
+        ContentControl& presenter) noexcept;
 
     Control& TemplatedParent() const noexcept {
         return *parent_;
@@ -116,6 +124,16 @@ private:
         Base::Ref<Base::Object> owner,
         Visual& visual,
         MountEdgeState mount) noexcept;
+    Base::Result<void> PopulateItemsPresenter(
+        ItemsPresenter& presenter,
+        const ItemsPanelTemplate* itemsPanel) noexcept;
+    Base::Result<void> PopulateContentPresenter(
+        ContentPresenter& presenter) noexcept;
+    Base::Result<bool> ProjectContentCore(
+        ContentControl& owner,
+        Visual& presenterVisual,
+        ContentPresenter* presenter,
+        ContentControl* contentHost) noexcept;
     void Rollback() noexcept;
 
     ObjectTree* tree_ = nullptr;
@@ -147,15 +165,31 @@ struct TemplateBindingPlan final {
     DependencyPropertyHandle targetProperty;
 };
 
+struct TemplateMetadataBindingPlan final {
+    Base::String targetName;
+    Base::String path;
+    Base::String stringFormat;
+    DependencyPropertyHandle targetProperty;
+    Presentation::BindingMode mode =
+        Presentation::BindingMode::OneWay;
+    Core::UpdateSourceTrigger updateSourceTrigger =
+        Core::UpdateSourceTrigger::PropertyChanged;
+};
+
 struct TemplateTriggerSetter final {
     Base::String targetName;
     DependencyPropertyHandle property;
     PropertyValue value;
 };
 
-struct TemplatePropertyTrigger final {
+struct TemplateTriggerCondition final {
+    Base::String sourceName;
     DependencyPropertyHandle property;
     PropertyValue value;
+};
+
+struct TemplatePropertyTrigger final {
+    Base::Vector<TemplateTriggerCondition> conditions;
     Base::Vector<TemplateTriggerSetter> setters;
 };
 
@@ -168,11 +202,21 @@ struct VisualStateSetter final {
 struct VisualState final {
     Base::String name;
     Base::Vector<VisualStateSetter> setters;
+    Base::Ref<Animation::Storyboard> storyboard;
+};
+
+struct VisualTransition final {
+    Base::String from;
+    Base::String to;
+    Presentation::AnimationTime generatedDurationMicroseconds = 0U;
+    Base::Ref<Animation::EasingFunctionBase> generatedEasingFunction;
+    Base::Ref<Animation::Storyboard> storyboard;
 };
 
 struct VisualStateGroup final {
     Base::String name;
     Base::Vector<VisualState> states;
+    Base::Vector<VisualTransition> transitions;
 };
 
 class AERO_API FrameworkTemplate : public Base::Object {
@@ -202,6 +246,13 @@ public:
         Base::StringView targetName,
         DependencyPropertyHandle sourceProperty,
         DependencyPropertyHandle targetProperty) noexcept;
+    Base::Result<void> TryAddTemplatedParentBinding(
+        Base::StringView targetName,
+        Base::StringView path,
+        Base::StringView stringFormat,
+        DependencyPropertyHandle targetProperty,
+        Presentation::BindingMode mode,
+        Core::UpdateSourceTrigger updateSourceTrigger) noexcept;
     template<
         class TSourceOwner,
         class TSourceValue,
@@ -272,6 +323,13 @@ public:
             : Base::Span<const TemplateBindingPlan>{
                   bindings_.Data(), bindings_.Size()};
     }
+    Base::Span<const TemplateMetadataBindingPlan>
+    MetadataBindings() const noexcept {
+        return sealed_ ? program_.MetadataBindings()
+            : Base::Span<const TemplateMetadataBindingPlan>{
+                  metadataBindings_.Data(),
+                  metadataBindings_.Size()};
+    }
     Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
         return sealed_ ? program_.Triggers()
             : Base::Span<const TemplatePropertyTrigger>{
@@ -281,6 +339,17 @@ public:
         return sealed_ ? program_.VisualStateGroups()
             : Base::Span<const VisualStateGroup>{
                   visualStateGroups_.Data(), visualStateGroups_.Size()};
+    }
+    Base::Result<void> TryAddAuthoredTrigger(
+        Base::Ref<Base::Object> trigger) noexcept;
+    void ClearAuthoredTriggers() noexcept {
+        authoredTriggers_.Clear();
+    }
+    Base::Span<const Base::Ref<Base::Object>>
+    AuthoredTriggers() const noexcept {
+        return {
+            authoredTriggers_.Data(),
+            authoredTriggers_.Size()};
     }
 
 private:
@@ -307,6 +376,8 @@ private:
         Base::Result<void> FreezeRuntimePlan(
             TypeId valueTargetType,
             Base::Vector<TemplateBindingPlan>&& valueBindings,
+            Base::Vector<TemplateMetadataBindingPlan>&&
+                valueMetadataBindings,
             Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
             Base::Vector<VisualStateGroup>&& valueVisualStateGroups) noexcept;
 
@@ -322,6 +393,12 @@ private:
         TypeId TargetType() const noexcept { return targetType; }
         Base::Span<const TemplateBindingPlan> Bindings() const noexcept {
             return {bindings.Data(), bindings.Size()};
+        }
+        Base::Span<const TemplateMetadataBindingPlan>
+        MetadataBindings() const noexcept {
+            return {
+                metadataBindings.Data(),
+                metadataBindings.Size()};
         }
         Base::Span<const TemplatePropertyTrigger> Triggers() const noexcept {
             return {triggers.Data(), triggers.Size()};
@@ -339,6 +416,8 @@ private:
         Base::Vector<TemplateNamespace> namespaces;
         TypeId targetType = InvalidTypeId;
         Base::Vector<TemplateBindingPlan> bindings;
+        Base::Vector<TemplateMetadataBindingPlan>
+            metadataBindings;
         Base::Vector<TemplatePropertyTrigger> triggers;
         Base::Vector<VisualStateGroup> visualStateGroups;
         bool sealed = false;
@@ -351,8 +430,12 @@ private:
     Impl program_;
     ResourceDictionary resources_;
     Base::Vector<TemplateBindingPlan> bindings_;
+    Base::Vector<TemplateMetadataBindingPlan>
+        metadataBindings_;
     Base::Vector<TemplatePropertyTrigger> triggers_;
     Base::Vector<VisualStateGroup> visualStateGroups_;
+    Base::Vector<Base::Ref<Base::Object>>
+        authoredTriggers_;
     bool sealed_ = false;
 };
 
@@ -390,6 +473,9 @@ public:
         return authoredNames_.TryRegister(
             name, object);
     }
+    Base::Result<Base::String>
+    EnsureAuthoredName(
+        Base::Object& object) noexcept;
     const NameScope& AuthoredNames() const noexcept {
         return authoredNames_;
     }
@@ -402,6 +488,7 @@ private:
     Base::Vector<Base::Ref<Base::Object>>
         authoredVisualStateGroups_;
     NameScope authoredNames_;
+    std::uint32_t generatedNameSequence_ = 0U;
 };
 
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
@@ -412,12 +499,16 @@ public:
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties,
         LayoutManager* layout = nullptr,
-        RenderManager* renderer = nullptr) noexcept
+        RenderManager* renderer = nullptr,
+        Core::MetadataRuntime* metadata = nullptr,
+        Presentation::BindingManager* bindings = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
           properties_(&properties),
           layout_(layout),
           renderer_(renderer),
+          metadata_(metadata),
+          bindings_(bindings),
           mounts_(tree, layout, renderer),
           propertyChangedHandler_(
               this, &TemplateManager::OnPropertyChanged) {}
@@ -433,6 +524,9 @@ public:
     DependencyObject* FindName(
         TemplateHandle handle,
         Base::StringView name) const noexcept;
+    DependencyObject* FindPart(
+        TemplateHandle handle,
+        TypeId type) const noexcept;
     TemplateHandle AppliedHandle(
         const Control& control) const noexcept;
     const ControlTemplate* AppliedTemplate(
@@ -448,6 +542,8 @@ private:
         Base::Vector<TemplatePart> parts;
         Base::Vector<TemplateContentProjection> projections;
         NameScope names;
+        Base::Vector<Presentation::BindingHandle>
+            metadataBindings;
     };
 
     ObjectTree* tree_ = nullptr;
@@ -455,6 +551,8 @@ private:
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutManager* layout_ = nullptr;
     RenderManager* renderer_ = nullptr;
+    Core::MetadataRuntime* metadata_ = nullptr;
+    Presentation::BindingManager* bindings_ = nullptr;
     MountService mounts_;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
@@ -474,6 +572,10 @@ private:
         Instance& instance,
         DependencyPropertyHandle changed =
             DependencyPropertyHandle{}) noexcept;
+    Base::Result<void> AttachMetadataBindings(
+        Instance& instance) noexcept;
+    void DetachMetadataBindings(
+        Instance& instance) noexcept;
     Base::Result<void> EvaluateTriggers(
         Instance& instance) noexcept;
     Base::Result<void> ClearProviders(
@@ -485,21 +587,25 @@ private:
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 
-// Applies setter-only visual states through the Animation provider. State
-// changes are immediate; animated transitions intentionally remain a later
-// extension. A sealed template rejects property conflicts between groups so
-// clearing one group cannot disturb another.
+// Applies visual-state setters through the Animation provider and starts an
+// optional Storyboard through the shared AnimationManager.
 class AERO_API VisualStateManager final {
 public:
     VisualStateManager(
         EffectiveValueEngine& values,
-        TemplateManager& templates) noexcept
-        : values_(&values), templates_(&templates) {}
+        TemplateManager& templates,
+        Presentation::AnimationManager& animations,
+        DependencyPropertyRegistry& properties) noexcept
+        : values_(&values),
+          templates_(&templates),
+          animations_(&animations),
+          properties_(&properties) {}
 
     Base::Result<bool> GoToState(
         Control& control,
         Base::StringView groupName,
-        Base::StringView stateName) noexcept;
+        Base::StringView stateName,
+        bool useTransitions = true) noexcept;
     Base::Result<bool> ClearState(
         Control& control,
         Base::StringView groupName) noexcept;
@@ -514,10 +620,21 @@ private:
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
+        Base::Vector<Presentation::AnimationHandle>
+            animations;
+    };
+
+    struct TransitionValue final {
+        DependencyObject* target = nullptr;
+        DependencyPropertyHandle property;
+        PropertyValue from;
+        PropertyValue to;
     };
 
     EffectiveValueEngine* values_ = nullptr;
     TemplateManager* templates_ = nullptr;
+    Presentation::AnimationManager* animations_ = nullptr;
+    DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<ActiveGroup> active_;
 
     std::uint32_t FindActive(
@@ -529,12 +646,40 @@ private:
     static const VisualState* FindState(
         const VisualStateGroup& group,
         Base::StringView stateName) noexcept;
+    static const VisualTransition* FindTransition(
+        const VisualStateGroup& group,
+        Base::StringView fromState,
+        Base::StringView toState) noexcept;
     Base::Result<void> ApplyState(
         TemplateHandle handle,
         const VisualState& state) noexcept;
     Base::Result<void> ClearStateValues(
         TemplateHandle handle,
         const VisualState& state) noexcept;
+    Base::Result<void> StartStateAnimations(
+        Control& control,
+        TemplateHandle handle,
+        const VisualState& state,
+        ActiveGroup& active,
+        const Presentation::TimelineTiming& parent = {}) noexcept;
+    Base::Result<void> StartStoryboardAnimations(
+        Control& control,
+        TemplateHandle handle,
+        Animation::Storyboard& storyboard,
+        ActiveGroup& active,
+        const Presentation::TimelineTiming& parent = {}) noexcept;
+    Base::Result<void> CaptureTransitionValues(
+        TemplateHandle handle,
+        const VisualState& next,
+        Base::Vector<TransitionValue>& values) noexcept;
+    Base::Result<void> StartTransitionAnimations(
+        Control& control,
+        TemplateHandle handle,
+        const VisualTransition& transition,
+        Base::Span<const TransitionValue> values,
+        ActiveGroup& active) noexcept;
+    Base::Result<void> ClearStateAnimations(
+        ActiveGroup& active) noexcept;
     void PruneStale() noexcept;
     void RemoveActiveAt(std::uint32_t index) noexcept;
 };

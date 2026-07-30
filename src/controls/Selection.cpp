@@ -1,5 +1,7 @@
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/ContentControls.hpp>
 #include <Aero/Controls/Templates.hpp>
+#include <Aero/Controls/TextBox.hpp>
 
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
 
@@ -425,6 +427,18 @@ Base::Result<bool> Selector::ApplySelection(
             : Base::Ref<Base::Object>();
         selectionChanged_.Invoke(*this, event);
     }
+    RoutedEventArgs routedArgs;
+    Base::Result<void> routed =
+        RaiseRoutedEvent(
+            SelectionChangedRoutedEvent,
+            &routedArgs);
+    if (!routed &&
+        routed.GetStatus().code !=
+            Base::ErrorCode::NotInitialized) {
+        lastSelectionError_ =
+            routed.GetStatus();
+        return routed.GetStatus();
+    }
     lastSelectionError_ = {};
     return true;
 }
@@ -809,6 +823,812 @@ Base::Result<bool> ListBox::BringIntoView(
         return verticalChanged.GetStatus();
     }
     return changed || verticalChanged.Value();
+}
+
+bool ComboBoxItem::IsSelected() const noexcept {
+    return GetValueOr(
+        IsSelectedProperty, false);
+}
+
+Base::Result<void> ComboBoxItem::SetIsSelected(
+    bool value) noexcept {
+    return SetCurrentValue(
+        IsSelectedProperty, value);
+}
+
+ComboBox::ComboBox() noexcept
+    : Selector(StaticTypeId()),
+      selectionChangedHandler_(
+          this,
+          &ComboBox::OnSelectionChanged),
+      dropDownChangedHandler_(
+          this,
+          &ComboBox::OnDropDownPropertyChanged),
+      maxDropDownHeightChangedHandler_(
+          this,
+          &ComboBox::
+              OnMaxDropDownHeightPropertyChanged),
+      editableChangedHandler_(
+          this,
+          &ComboBox::OnEditablePropertyChanged),
+      textChangedHandler_(
+          this,
+          &ComboBox::OnTextPropertyChanged),
+      foregroundChangedHandler_(
+          this,
+          &ComboBox::OnForegroundPropertyChanged),
+      editableTextChangedHandler_(
+          this,
+          &ComboBox::OnEditableTextChanged) {
+    static_cast<void>(TryAddSelectionChanged(
+        selectionChangedHandler_));
+    static_cast<void>(TryAddValueChangedHandler(
+        IsDropDownOpenProperty,
+        dropDownChangedHandler_));
+    static_cast<void>(TryAddValueChangedHandler(
+        MaxDropDownHeightProperty,
+        maxDropDownHeightChangedHandler_));
+    static_cast<void>(TryAddValueChangedHandler(
+        IsEditableProperty,
+        editableChangedHandler_));
+    static_cast<void>(TryAddValueChangedHandler(
+        TextProperty,
+        textChangedHandler_));
+    static_cast<void>(TryAddValueChangedHandler(
+        Control::ForegroundProperty,
+        foregroundChangedHandler_));
+}
+
+ComboBox::~ComboBox() {
+    if (interactions_ != nullptr) {
+        static_cast<void>(
+            interactions_->Detach(*this));
+    }
+    static_cast<void>(RemoveSelectionChanged(
+        selectionChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        IsDropDownOpenProperty,
+        dropDownChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        MaxDropDownHeightProperty,
+        maxDropDownHeightChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        IsEditableProperty,
+        editableChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        TextProperty,
+        textChangedHandler_));
+    static_cast<void>(RemoveValueChangedHandler(
+        Control::ForegroundProperty,
+        foregroundChangedHandler_));
+}
+
+bool ComboBox::IsDropDownOpen() const noexcept {
+    return GetValueOr(
+        IsDropDownOpenProperty, false);
+}
+
+Base::Result<void> ComboBox::SetIsDropDownOpen(
+    bool value) noexcept {
+    return SetValue(
+        IsDropDownOpenProperty, value);
+}
+
+double ComboBox::MaxDropDownHeight() const noexcept {
+    return GetValueOr(
+        MaxDropDownHeightProperty, 240.0);
+}
+
+Base::Result<void> ComboBox::SetMaxDropDownHeight(
+    double value) noexcept {
+    return SetValue(
+        MaxDropDownHeightProperty, value);
+}
+
+bool ComboBox::IsEditable() const noexcept {
+    return GetValueOr(
+        IsEditableProperty, false);
+}
+
+bool ComboBox::IsReadOnly() const noexcept {
+    return GetValueOr(IsReadOnlyProperty, false);
+}
+
+Base::Result<void> ComboBox::SetIsReadOnly(
+    bool value) noexcept {
+    return SetValue(IsReadOnlyProperty, value);
+}
+
+Base::Result<void> ComboBox::SetIsEditable(
+    bool value) noexcept {
+    return SetValue(
+        IsEditableProperty, value);
+}
+
+Base::StringView ComboBox::Text() const noexcept {
+    return GetValueOr(
+        TextProperty, Base::StringView());
+}
+
+Base::Result<void> ComboBox::SetText(
+    Base::StringView value) noexcept {
+    return SetValue(TextProperty, value);
+}
+
+Base::String ComboBox::SelectionBoxText() const
+    noexcept {
+    return GetValueOr(
+        SelectionBoxTextProperty,
+        Base::String{});
+}
+
+Base::Result<Base::Ref<ItemContainer>>
+ComboBox::CreateContainer(
+    const Base::Ref<Base::Object>&) noexcept {
+    Base::Result<Base::Ref<ComboBoxItem>> made =
+        Base::MakeRef<ComboBoxItem>();
+    if (!made) return made.GetStatus();
+    return Base::Ref<ItemContainer>(
+        std::move(made).Value());
+}
+
+Base::Result<void> ComboBox::PrepareContainer(
+    ItemContainer& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    Base::Result<void> prepared =
+        Selector::PrepareContainer(
+            container, item, index);
+    if (!prepared) return prepared.GetStatus();
+    if (PropertyRegistry().Types().IsDerivedFrom(
+            container.RuntimeType(),
+            ComboBoxItem::StaticTypeId())) {
+        auto& comboItem =
+            static_cast<ComboBoxItem&>(
+                container);
+        Base::Result<void> selected =
+            comboItem.SetIsSelected(
+                IsSelected(index));
+        if (!selected) {
+            return selected.GetStatus();
+        }
+        return comboItem.SetTabStop(true);
+    }
+    return {};
+}
+
+void ComboBox::ClearContainer(
+    ItemContainer& container) noexcept {
+    if (PropertyRegistry().Types().IsDerivedFrom(
+            container.RuntimeType(),
+            ComboBoxItem::StaticTypeId())) {
+        static_cast<void>(
+            static_cast<ComboBoxItem&>(
+                container).
+                SetIsSelected(false));
+    }
+    Selector::ClearContainer(container);
+}
+
+void ComboBox::SynchronizeContainers() noexcept {
+    ItemContainerGenerator* generator =
+        AttachedGenerator();
+    if (generator == nullptr) return;
+    for (std::uint32_t index =
+             generator->FirstGeneratedIndex();
+         index <
+             generator->FirstGeneratedIndex() +
+                 generator->GeneratedCount();
+         ++index) {
+        ItemContainer* container =
+            generator->ContainerFromIndex(index);
+        if (container == nullptr ||
+            !PropertyRegistry().Types().
+                IsDerivedFrom(
+                    container->RuntimeType(),
+                    ComboBoxItem::StaticTypeId())) {
+            continue;
+        }
+        static_cast<void>(
+            static_cast<ComboBoxItem&>(
+                *container).
+                SetIsSelected(
+                    IsSelected(index)));
+    }
+}
+
+void ComboBox::OnContainersChanged() noexcept {
+    Selector::OnContainersChanged();
+    SynchronizeContainers();
+}
+
+Base::Result<void> ComboBox::OnApplyTemplate()
+    noexcept {
+    Base::Result<void> applied =
+        Selector::OnApplyTemplate();
+    if (!applied) return applied.GetStatus();
+
+    DependencyObject* selection =
+        GetTemplateChild("SelectionBox");
+    selectionBox_ =
+        selection != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                selection->RuntimeType(),
+                TextBlock::StaticTypeId())
+        ? static_cast<TextBlock*>(selection)
+        : nullptr;
+    DependencyObject* contentSite =
+        GetTemplateChild("ContentSite");
+    selectionPresenter_ =
+        contentSite != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                contentSite->RuntimeType(),
+                ContentPresenter::StaticTypeId())
+        ? static_cast<ContentPresenter*>(
+              contentSite)
+        : nullptr;
+    if (selectionBox_ == nullptr &&
+        selectionPresenter_ != nullptr &&
+        selectionPresenter_->Content() != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                selectionPresenter_->Content()->
+                    RuntimeType(),
+                TextBlock::StaticTypeId())) {
+        selectionBox_ =
+            static_cast<TextBlock*>(
+                selectionPresenter_->Content());
+    }
+    if (selectionBox_ != nullptr) {
+        Base::Result<void> foreground =
+            selectionBox_->SetForegroundBrush(
+                ForegroundBrush());
+        if (!foreground) {
+            return foreground.GetStatus();
+        }
+    }
+    DependencyObject* editable =
+        GetTemplateChild("PART_EditableTextBox");
+    editableTextBox_ =
+        editable != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                editable->RuntimeType(),
+                TextBox::StaticTypeId())
+        ? static_cast<TextBox*>(editable)
+        : nullptr;
+    DependencyObject* border =
+        GetTemplateChild("DropDownBorder");
+    dropDownBorder_ =
+        border != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                border->RuntimeType(),
+                FrameworkElement::StaticTypeId())
+        ? static_cast<FrameworkElement*>(border)
+        : nullptr;
+    DependencyObject* popup =
+        GetTemplateChild("PART_Popup");
+    popup_ =
+        popup != nullptr &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                popup->RuntimeType(),
+                Popup::StaticTypeId())
+        ? static_cast<Popup*>(popup)
+        : nullptr;
+    if ((selectionBox_ == nullptr &&
+         selectionPresenter_ == nullptr) ||
+        (IsEditable() &&
+         editableTextBox_ == nullptr) ||
+        popup_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "ComboBox template requires PART_Popup and a selection presenter; editable templates also require PART_EditableTextBox");
+    }
+    if (editableTextBox_ != nullptr) {
+        Base::Result<void> editableHandler =
+            editableTextBox_->TryAddHandler(
+                TextBox::TextChangedEvent,
+                editableTextChangedHandler_);
+        if (!editableHandler) {
+            return editableHandler.GetStatus();
+        }
+    }
+    Base::Result<void> opened =
+        popup_->SetIsOpen(
+            IsDropDownOpen());
+    if (!opened) return opened.GetStatus();
+    if (dropDownBorder_ != nullptr) {
+        Base::Result<void> limited =
+            dropDownBorder_->SetMaxSize(
+                {1.0e12,
+                 MaxDropDownHeight()});
+        if (!limited) {
+            return limited.GetStatus();
+        }
+    }
+    Base::Result<void> selectionUpdated =
+        UpdateSelectionBox();
+    if (!selectionUpdated) {
+        return selectionUpdated.GetStatus();
+    }
+    return UpdateEditablePresentation();
+}
+
+void ComboBox::OnTemplateDetached() noexcept {
+    if (editableTextBox_ != nullptr) {
+        static_cast<void>(
+            editableTextBox_->RemoveHandler(
+                TextBox::TextChangedEvent,
+                editableTextChangedHandler_));
+    }
+    selectionBox_ = nullptr;
+    selectionPresenter_ = nullptr;
+    editableTextBox_ = nullptr;
+    popup_ = nullptr;
+    dropDownBorder_ = nullptr;
+    Selector::OnTemplateDetached();
+}
+
+void ComboBox::OnSelectionChanged(
+    Selector&,
+    const SelectionChangedEvent&) noexcept {
+    static_cast<void>(UpdateSelectionBox());
+    SynchronizeContainers();
+    if (IsDropDownOpen()) {
+        static_cast<void>(
+            SetIsDropDownOpen(false));
+    }
+}
+
+void ComboBox::OnForegroundPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&) noexcept {
+    if (selectionBox_ != nullptr) {
+        static_cast<void>(
+            selectionBox_->SetForegroundBrush(
+                ForegroundBrush()));
+    }
+    if (editableTextBox_ != nullptr) {
+        static_cast<void>(
+            editableTextBox_->SetForeground(
+                Foreground()));
+    }
+}
+
+void ComboBox::OnEditablePropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&)
+        noexcept {
+    static_cast<void>(
+        UpdateEditablePresentation());
+}
+
+void ComboBox::OnTextPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&)
+        noexcept {
+    if (editableTextBox_ == nullptr ||
+        synchronizingEditableText_ ||
+        editableTextBox_->Text() == Text()) {
+        return;
+    }
+    synchronizingEditableText_ = true;
+    static_cast<void>(
+        editableTextBox_->SetText(Text()));
+    synchronizingEditableText_ = false;
+}
+
+void ComboBox::OnEditableTextChanged(
+    Base::Object* sender,
+    const RoutedEventArgs&) noexcept {
+    if (sender != editableTextBox_ ||
+        editableTextBox_ == nullptr ||
+        synchronizingEditableText_) {
+        return;
+    }
+    Base::String edited;
+    Base::Result<void> copied =
+        edited.TryAssign(
+            editableTextBox_->Text());
+    if (!copied) {
+        return;
+    }
+    synchronizingEditableText_ = true;
+    static_cast<void>(
+        SetCurrentValue(
+            TextProperty,
+            std::move(edited)));
+    synchronizingEditableText_ = false;
+}
+
+void ComboBox::OnDropDownPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&
+        args) noexcept {
+    if (popup_ != nullptr) {
+        static_cast<void>(
+            popup_->SetIsOpen(
+                args.newValue.AsBoolean()));
+    }
+    RoutedEventArgs eventArgs;
+    Base::Result<void> raised =
+        RaiseRoutedEvent(
+            args.newValue.AsBoolean()
+                ? DropDownOpenedEvent
+                : DropDownClosedEvent,
+            &eventArgs);
+    if (!raised &&
+        raised.GetStatus().code !=
+            Base::ErrorCode::NotInitialized) {
+        static_cast<void>(raised);
+    }
+}
+
+void ComboBox::
+OnMaxDropDownHeightPropertyChanged(
+    DependencyObject&,
+    const DependencyPropertyChangedEventArgs&)
+    noexcept {
+    if (dropDownBorder_ != nullptr) {
+        static_cast<void>(
+            dropDownBorder_->SetMaxSize(
+                {1.0e12,
+                 MaxDropDownHeight()}));
+    }
+}
+
+Base::Result<void>
+ComboBox::UpdateSelectionBox() noexcept {
+    Base::StringView text;
+    Base::Ref<Base::Object> selected =
+        SelectedItem();
+    if (selected &&
+        selected->RuntimeType() ==
+            BoxedItemValue::StaticTypeId()) {
+        const Core::Value& value =
+            static_cast<const BoxedItemValue&>(
+                *selected).Value();
+        if (value.Kind() ==
+                Core::ValueKind::String) {
+            text = value.AsString();
+        }
+    } else if (selected &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                selected->RuntimeType(),
+                TextBlock::StaticTypeId())) {
+        text = static_cast<TextBlock*>(
+            selected.Get())->Text();
+    } else if (
+        selected &&
+        PropertyRegistry().Types().
+            IsDerivedFrom(
+                selected->RuntimeType(),
+                ContentControl::StaticTypeId())) {
+        UIElement* content =
+            static_cast<ContentControl*>(
+                selected.Get())->Content();
+        if (content != nullptr &&
+            PropertyRegistry().Types().
+                IsDerivedFrom(
+                    content->RuntimeType(),
+                    TextBlock::StaticTypeId())) {
+            text = static_cast<TextBlock*>(
+                content)->Text();
+        }
+    }
+    Base::String value;
+    Base::Result<void> assigned =
+        value.TryAssign(text);
+    if (!assigned) return assigned.GetStatus();
+    Base::Result<void> published =
+        SetReadOnlyCurrentValue(
+            SelectionBoxTextProperty, value);
+    if (!published) return published.GetStatus();
+    Base::Result<Core::Value> itemValue =
+        Core::Value::TryFromString(
+            Core::TypeOf<Base::String>(),
+            text);
+    if (!itemValue) {
+        return itemValue.GetStatus();
+    }
+    published = SetReadOnlyCurrentValue(
+        SelectionBoxItemProperty,
+        std::move(itemValue).Value());
+    if (!published) return published.GetStatus();
+    Base::Result<void> displayed =
+        selectionBox_ != nullptr
+        ? selectionBox_->SetText(text)
+        : Base::Result<void>();
+    if (!displayed) {
+        return displayed.GetStatus();
+    }
+    if (!text.Empty()) {
+        Base::Result<void> textPublished =
+            SetCurrentValue(TextProperty, value);
+        if (!textPublished) {
+            return textPublished.GetStatus();
+        }
+    }
+    return UpdateEditablePresentation();
+}
+
+Base::Result<void>
+ComboBox::UpdateEditablePresentation() noexcept {
+    if (selectionBox_ != nullptr) {
+        Base::Result<void> visible =
+            selectionBox_->SetVisibility(
+                IsEditable()
+                ? Visibility::Collapsed
+                : Visibility::Visible);
+        if (!visible) {
+            return visible.GetStatus();
+        }
+    }
+    if (editableTextBox_ == nullptr) {
+        return {};
+    }
+    Base::Result<void> visible =
+        editableTextBox_->SetVisibility(
+            IsEditable()
+            ? Visibility::Visible
+            : Visibility::Collapsed);
+    if (!visible) {
+        return visible.GetStatus();
+    }
+    if (editableTextBox_->Text() == Text()) {
+        return {};
+    }
+    synchronizingEditableText_ = true;
+    Base::Result<void> updated =
+        editableTextBox_->SetText(Text());
+    synchronizingEditableText_ = false;
+    return updated;
+}
+
+std::uint32_t ComboBox::FindContainerIndex(
+    Base::Object* source) const noexcept {
+    if (source == nullptr ||
+        !PropertyRegistry().Types().
+            IsDerivedFrom(
+                source->RuntimeType(),
+                UIElement::StaticTypeId())) {
+        return UINT32_MAX;
+    }
+    Visual* visual =
+        static_cast<UIElement*>(source);
+    while (visual != nullptr &&
+        visual != this) {
+        UIElement* element =
+            visual->AsUIElement();
+        if (element != nullptr &&
+            PropertyRegistry().Types().
+                IsDerivedFrom(
+                    element->RuntimeType(),
+                    ComboBoxItem::StaticTypeId())) {
+            ItemContainerGenerator* generator =
+                AttachedGenerator();
+            return generator != nullptr
+                ? generator->IndexFromContainer(
+                    static_cast<ComboBoxItem&>(
+                        *element))
+                : UINT32_MAX;
+        }
+        visual = visual->VisualParent();
+    }
+    return UINT32_MAX;
+}
+
+ComboBoxInteractionManager::
+ComboBoxInteractionManager(
+    ObjectTree& tree,
+    RoutedEventManager& events,
+    FocusManager& focus) noexcept
+    : tree_(&tree),
+      events_(&events),
+      focus_(&focus),
+      mouseDownHandler_(
+          this,
+          &ComboBoxInteractionManager::
+              OnMouseDown),
+      keyDownHandler_(
+          this,
+          &ComboBoxInteractionManager::
+              OnKeyDown) {}
+
+ComboBoxInteractionManager::
+~ComboBoxInteractionManager() noexcept {
+    while (!records_.Empty()) {
+        ComboBox* comboBox =
+            ResolveComboBox(
+                records_.Size() - 1U);
+        if (comboBox == nullptr) {
+            records_.PopBack();
+        } else {
+            static_cast<void>(
+                Detach(*comboBox));
+        }
+    }
+}
+
+std::uint32_t
+ComboBoxInteractionManager::FindComboBox(
+    const ComboBox& comboBox) const noexcept {
+    for (std::uint32_t index = 0U;
+         index < records_.Size(); ++index) {
+        if (tree_->ResolveHandle(
+                records_[index]) ==
+            &comboBox) {
+            return index;
+        }
+    }
+    return UINT32_MAX;
+}
+
+ComboBox*
+ComboBoxInteractionManager::ResolveComboBox(
+    std::uint32_t index) noexcept {
+    Visual* visual =
+        tree_->ResolveHandle(records_[index]);
+    return visual != nullptr
+        ? static_cast<ComboBox*>(
+            visual->AsUIElement())
+        : nullptr;
+}
+
+Base::Result<void>
+ComboBoxInteractionManager::Attach(
+    ComboBox& comboBox) noexcept {
+    if (comboBox.interactions_ != nullptr ||
+        comboBox.OwningTree() != tree_ ||
+        FindComboBox(comboBox) != UINT32_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "ComboBox interaction attach state is invalid");
+    }
+    Base::Result<VisualHandle> handle =
+        tree_->GetHandle(comboBox);
+    if (!handle) return handle.GetStatus();
+    Base::Result<void> mouse =
+        comboBox.TryAddHandler(
+            UIElement::MouseDownEvent,
+            mouseDownHandler_,
+            true);
+    if (!mouse) return mouse.GetStatus();
+    Base::Result<void> key =
+        comboBox.TryAddHandler(
+            UIElement::KeyDownEvent,
+            keyDownHandler_);
+    if (!key) {
+        static_cast<void>(
+            comboBox.RemoveHandler(
+                UIElement::MouseDownEvent,
+                mouseDownHandler_));
+        return key.GetStatus();
+    }
+    Base::Result<void> stored =
+        records_.TryPushBack(handle.Value());
+    if (!stored) {
+        static_cast<void>(
+            comboBox.RemoveHandler(
+                UIElement::KeyDownEvent,
+                keyDownHandler_));
+        static_cast<void>(
+            comboBox.RemoveHandler(
+                UIElement::MouseDownEvent,
+                mouseDownHandler_));
+        return stored.GetStatus();
+    }
+    comboBox.interactions_ = this;
+    return {};
+}
+
+Base::Result<bool>
+ComboBoxInteractionManager::Detach(
+    ComboBox& comboBox) noexcept {
+    const std::uint32_t index =
+        FindComboBox(comboBox);
+    if (index == UINT32_MAX) return false;
+    static_cast<void>(
+        comboBox.RemoveHandler(
+            UIElement::MouseDownEvent,
+            mouseDownHandler_));
+    static_cast<void>(
+        comboBox.RemoveHandler(
+            UIElement::KeyDownEvent,
+            keyDownHandler_));
+    for (std::uint32_t current = index;
+         current + 1U < records_.Size();
+         ++current) {
+        records_[current] =
+            records_[current + 1U];
+    }
+    records_.PopBack();
+    comboBox.interactions_ = nullptr;
+    return true;
+}
+
+void ComboBoxInteractionManager::OnMouseDown(
+    Base::Object* sender,
+    const MouseButtonEventArgs& args) noexcept {
+    if (args.changedButton !=
+        MouseButton::Left) {
+        return;
+    }
+    auto& comboBox =
+        *static_cast<ComboBox*>(sender);
+    if (!comboBox.IsEnabled()) return;
+    const std::uint32_t index =
+        comboBox.FindContainerIndex(
+            args.originalSource);
+    if (index != UINT32_MAX) {
+        Base::Result<bool> selected =
+            comboBox.SetSelectedIndex(index);
+        if (!selected) return;
+        static_cast<void>(
+            comboBox.SetIsDropDownOpen(
+                false));
+    } else {
+        Base::Result<void> toggled =
+            comboBox.SetIsDropDownOpen(
+                !comboBox.IsDropDownOpen());
+        if (!toggled) return;
+    }
+    static_cast<void>(
+        focus_->SetFocus(&comboBox));
+    args.handled = true;
+}
+
+void ComboBoxInteractionManager::OnKeyDown(
+    Base::Object* sender,
+    const KeyEventArgs& args) noexcept {
+    auto& comboBox =
+        *static_cast<ComboBox*>(sender);
+    if (!comboBox.IsEnabled()) return;
+    if (args.key == KeyboardKeyEscape) {
+        if (!comboBox.IsDropDownOpen()) return;
+        static_cast<void>(
+            comboBox.SetIsDropDownOpen(
+                false));
+        args.handled = true;
+        return;
+    }
+    if (args.key == KeyboardKeyEnter ||
+        args.key == KeyboardKeySpace) {
+        static_cast<void>(
+            comboBox.SetIsDropDownOpen(
+                !comboBox.
+                    IsDropDownOpen()));
+        args.handled = true;
+        return;
+    }
+    if (args.key != KeyboardKeyUp &&
+        args.key != KeyboardKeyDown) {
+        return;
+    }
+    if (comboBox.ItemCount() == 0U) return;
+    std::uint32_t selected =
+        comboBox.SelectedIndex();
+    if (selected == UINT32_MAX) {
+        selected = 0U;
+    } else if (
+        args.key == KeyboardKeyDown &&
+        selected + 1U <
+            comboBox.ItemCount()) {
+        ++selected;
+    } else if (
+        args.key == KeyboardKeyUp &&
+        selected > 0U) {
+        --selected;
+    }
+    Base::Result<bool> changed =
+        comboBox.SetSelectedIndex(selected);
+    if (!changed) return;
+    args.handled = true;
 }
 
 ListBoxInteractionManager::ListBoxInteractionManager(

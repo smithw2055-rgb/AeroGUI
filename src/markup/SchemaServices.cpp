@@ -61,9 +61,11 @@ Base::Result<Core::TypeReference> ResolveTypeReference(
     Base::Result<Base::StringView> uri =
         services.namespaces.Lookup(prefix);
     if (!uri) return uri.GetStatus();
-    const Core::TypeInfo* type =
-        services.schema->Types().FindType(
+    Base::Result<const Core::TypeInfo*> resolved =
+        services.schema->ResolveType(
             uri.Value(), localName);
+    if (!resolved) return resolved.GetStatus();
+    const Core::TypeInfo* type = resolved.Value();
     if (type == nullptr ||
         HasTypeFlag(
             type->Flags(),
@@ -113,6 +115,13 @@ Base::Result<Core::Value> Schema::ConvertText(
                   reference.Value())
             : Base::Result<Core::Value>(
                   reference.GetStatus());
+    }
+    // Members flagged AnyValue still need a concrete runtime value. Preserve
+    // literal XAML text as a String so style and template finalizers can
+    // convert it after resolving the actual target dependency property.
+    if (type == Core::TypeOf<Core::Value>()) {
+        return Core::Value::TryFromString(
+            Core::TypeOf<Base::String>(), text);
     }
     if (type == Core::TypeOf<Base::ResourceUri>() &&
         services != nullptr &&
@@ -231,9 +240,20 @@ Base::Result<void> Schema::AddResource(
     const Core::Value& value) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
         scopeType, runtime_->Types());
-    if (facet == nullptr || facet->addResource == nullptr) return {};
-    return facet->addResource(
-        scopeOwner, key, value, facet->context);
+    if (facet == nullptr) return {};
+    if (facet->addResource != nullptr) {
+        return facet->addResource(
+            scopeOwner, key, value, facet->context);
+    }
+    Presentation::ResourceDictionary* resources =
+        facet->resolveResourceScope != nullptr
+        ? facet->resolveResourceScope(
+              scopeOwner,
+              facet->context)
+        : nullptr;
+    return resources != nullptr
+        ? resources->TryAdd(key, value)
+        : Base::Result<void>();
 }
 
 Presentation::ResourceDictionary* Schema::ResolveResourceScope(

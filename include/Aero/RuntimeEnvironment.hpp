@@ -20,12 +20,16 @@ class IDiagnosticSink;
 namespace Aero {
 
 class View;
+namespace Controls {
+class ContentControl;
+}
 namespace Detail {
 class ViewAccess;
 }
 
 namespace Integration {
 class ISourceProvider;
+class RenderEndpoint;
 class ReloadCoordinator;
 class ViewHost;
 struct ViewHostOptions;
@@ -91,6 +95,14 @@ public:
     Base::Result<void> SetContent(
         UiDocument&& document,
         Presentation::Size availableSize) noexcept;
+    // Mounts a separately loaded XAML document into an already mounted
+    // ContentControl. The document keeps its own names, resources and
+    // deferred effects until UnmountContent() is called.
+    Base::Result<void> MountContent(
+        Controls::ContentControl& host,
+        UiDocument&& document) noexcept;
+    Base::Result<void> UnmountContent(
+        Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadContent(
         Base::StringView uri,
         Presentation::Size availableSize,
@@ -111,6 +123,11 @@ public:
         const Base::ResourceUri& originUri,
         RuntimeResourceLoadMode mode =
             RuntimeResourceLoadMode::Replace) noexcept;
+    Base::Result<void> SetResourceDictionary(
+        RuntimeResourceLayer layer,
+        Presentation::ResourceDictionary& dictionary,
+        RuntimeResourceLoadMode mode =
+            RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> LoadBuiltInTheme(
         BuiltInTheme theme) noexcept;
 
@@ -126,6 +143,14 @@ public:
         const Presentation::TextInput& input) noexcept;
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
+    Base::Result<std::uint32_t> AdvanceAnimationTime(
+        std::uint32_t elapsedMilliseconds) noexcept;
+    Base::Result<void>
+        SetRenderBatchingEnabledForTesting(
+            bool enabled) noexcept;
+    Base::Result<void> SetRenderEndpoint(
+        Base::Ref<Integration::RenderEndpoint> endpoint,
+        bool automaticAnimationClock = true) noexcept;
 
     const Base::Ref<Base::Object>& Root() const noexcept;
     Base::Object* FindNamedObject(

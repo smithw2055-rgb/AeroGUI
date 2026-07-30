@@ -47,6 +47,18 @@ struct RenderEndpointStatistics final {
     std::uint64_t generation = 1U;
 };
 
+struct RenderFrameStatistics final {
+    std::uint32_t sourceCommandCount = 0U;
+    std::uint32_t drawPacketCount = 0U;
+    std::uint32_t batchCount = 0U;
+    std::uint32_t drawCallCount = 0U;
+    std::uint32_t mergedPacketCount = 0U;
+    std::uint32_t barrierCount = 0U;
+    std::uint32_t instanceCount = 0U;
+    std::uint32_t stateBindingCount = 0U;
+    bool batchingEnabled = true;
+};
+
 namespace Detail {
 class RenderEndpointAccess;
 }
@@ -75,6 +87,8 @@ public:
     RenderEndpointState State() const noexcept;
     std::uint64_t Generation() const noexcept;
     RenderEndpointStatistics Statistics() const noexcept;
+    RenderFrameStatistics
+        LastFrameStatistics() const noexcept;
 
     Base::Result<void> Resize(
         std::uint32_t width,
@@ -84,6 +98,9 @@ public:
     Base::Result<void> Restore() noexcept;
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
+    // Test-only A/B gate. Production endpoints start with batching enabled.
+    Base::Result<void> SetBatchingEnabledForTesting(
+        bool enabled) noexcept;
 
 private:
     friend class Detail::RenderEndpointAccess;

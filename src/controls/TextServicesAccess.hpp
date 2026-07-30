@@ -40,6 +40,22 @@ public:
             static_cast<void>(text.InvalidateRender());
         }
     }
+
+    static void Attach(
+        PasswordBox& password,
+        TextLayoutService* service,
+        bool invalidate = false) noexcept {
+        Attach(
+            password.editor_,
+            service,
+            invalidate);
+        if (invalidate) {
+            static_cast<void>(
+                password.InvalidateMeasure());
+            static_cast<void>(
+                password.InvalidateRender());
+        }
+    }
 };
 
 } // namespace Aero::Controls::Detail

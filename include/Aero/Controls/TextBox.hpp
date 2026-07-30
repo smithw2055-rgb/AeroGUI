@@ -63,12 +63,21 @@ private:
 };
 
 class TextBoxInteractionManager;
+class PasswordBox;
+
+class AERO_API TextBoxBase : public Control {
+    AERO_DECLARE_TYPE(TextBoxBase, Control)
+protected:
+    explicit TextBoxBase(TypeId runtimeType) noexcept
+        : Control(runtimeType) {}
+    ~TextBoxBase() override = default;
+};
 
 class AERO_API TextBox final
-    : public FrameworkElement,
+    : public TextBoxBase,
       public IScrollInfo,
       public Platform::ITextCompositionClient {
-    AERO_DECLARE_TYPE(TextBox, FrameworkElement)
+    AERO_DECLARE_TYPE(TextBox, TextBoxBase)
 public:
     TextBox() noexcept;
     ~TextBox() override;
@@ -85,15 +94,56 @@ public:
     bool AcceptsReturn() const noexcept;
     Base::Result<void> SetAcceptsReturn(
         bool value) noexcept;
+    Text::TextWrapping TextWrapping() const noexcept;
+    Base::Result<void> SetTextWrapping(
+        Text::TextWrapping value) noexcept;
+    Base::StringView Placeholder() const noexcept;
+    Base::Result<void> SetPlaceholder(
+        Base::StringView value) noexcept;
+    Color PlaceholderForeground() const noexcept;
+    Base::Result<void> SetPlaceholderForeground(
+        Color value) noexcept;
+    double FontSize() const noexcept;
+    Base::Result<void> SetFontSize(
+        double value) noexcept;
+    Base::StringView FontFamily() const noexcept;
+    Base::Result<void> SetFontFamily(
+        Base::StringView value) noexcept;
+    FontWeight GetFontWeight() const noexcept;
+    Base::Result<void> SetFontWeight(
+        FontWeight value) noexcept;
+    Text::FontStyle GetFontStyle() const noexcept;
+    Base::Result<void> SetFontStyle(
+        Text::FontStyle value) noexcept;
+    Text::TextAlignment TextAlignment() const noexcept;
+    Base::Result<void> SetTextAlignment(
+        Text::TextAlignment value) noexcept;
+    std::uint32_t MaxLines() const noexcept;
+    Base::Result<void> SetMaxLines(
+        std::uint32_t value) noexcept;
+    std::uint32_t MinLines() const noexcept;
+    Base::Result<void> SetMinLines(
+        std::uint32_t value) noexcept;
     Color Foreground() const noexcept;
     Color SelectionBrush() const noexcept;
+    double SelectionOpacity() const noexcept;
     Color CaretBrush() const noexcept;
     Base::Result<void> SetForeground(
         Color value) noexcept;
     Base::Result<void> SetSelectionBrush(
         Color value) noexcept;
+    Base::Result<void> SetSelectionOpacity(
+        double value) noexcept;
     Base::Result<void> SetCaretBrush(
         Color value) noexcept;
+
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs>
+        TextChangedEvent{"TextChanged"};
+    UIElement::RoutedEvent_<RoutedEventHandler>
+        TextChanged() noexcept {
+        return Event(TextChangedEvent);
+    }
 
     Text::TextSelection Selection() const noexcept;
     std::uint32_t Caret() const noexcept;
@@ -160,15 +210,43 @@ public:
     inline static constexpr Members::Property<bool>
         IsReadOnlyProperty{"IsReadOnly"};
     inline static constexpr Members::Property<std::uint32_t>
-        MaximumLengthProperty{"MaximumLength"};
+        MaxLengthProperty{"MaxLength"};
+    inline static constexpr Members::Property<Base::String>
+        PlaceholderProperty{"Placeholder"};
+    inline static constexpr auto MaximumLengthProperty =
+        MaxLengthProperty;
     inline static constexpr Members::Property<bool>
         AcceptsReturnProperty{"AcceptsReturn"};
+    inline static constexpr Members::Property<
+        Text::TextWrapping>
+        TextWrappingProperty{"TextWrapping"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        PlaceholderForegroundProperty{
+            "PlaceholderForeground"};
+    inline static constexpr Members::Property<double>
+        FontSizeProperty{"FontSize"};
+    inline static constexpr auto FontFamilyProperty =
+        FrameworkElement::FontFamilyProperty;
+    inline static constexpr Members::Property<FontWeight>
+        FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::Property<Text::FontStyle>
+        FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::Property<
+        Text::TextAlignment>
+        TextAlignmentProperty{"TextAlignment"};
+    inline static constexpr Members::Property<std::uint32_t>
+        MaxLinesProperty{"MaxLines"};
+    inline static constexpr Members::Property<std::uint32_t>
+        MinLinesProperty{"MinLines"};
     inline static constexpr Members::Property<
         Presentation::Color>
         ForegroundProperty{"Foreground"};
     inline static constexpr Members::Property<
         Presentation::Color>
         SelectionBrushProperty{"SelectionBrush"};
+    inline static constexpr Members::Property<double>
+        SelectionOpacityProperty{"SelectionOpacity"};
     inline static constexpr Members::Property<
         Presentation::Color>
         CaretBrushProperty{"CaretBrush"};
@@ -183,6 +261,7 @@ protected:
 
 private:
     friend class TextBoxInteractionManager;
+    friend class PasswordBox;
     friend class Detail::TextServicesAccess;
 
     struct CaretStop final {
@@ -202,6 +281,7 @@ private:
     Base::Vector<RenderGlyphRunId> glyphRuns_;
     Base::Vector<CaretStop> caretStops_;
     Size textSize_;
+    std::uint32_t wrapColumns_ = UINT32_MAX;
     ScrollData scroll_;
     ScrollViewer* scrollViewer_ = nullptr;
     Platform::ITextInputMethodHost*
@@ -210,6 +290,11 @@ private:
     bool serviceOwnsGlyphRuns_ = false;
     bool updatingTextProperty_ = false;
     bool compositionActive_ = false;
+    bool showingPlaceholder_ = false;
+    UIElement* coordinateOwner_ = nullptr;
+    PasswordBox* passwordOwner_ = nullptr;
+    DependencyPropertyChangedEventHandler
+        textChangedHandler_;
 
     Base::Result<void> SynchronizeModel() noexcept;
     Base::Result<void> CommitModelText() noexcept;
@@ -236,6 +321,10 @@ private:
     Base::Result<void> SanitizeInput(
         Base::StringView input,
         Base::String& output) const noexcept;
+    Base::Result<void> ConstrainManualInput(
+        Base::String& input,
+        const Text::EditableTextModel& target,
+        Text::TextSelection selection) const noexcept;
     void ReleaseGlyphRuns() noexcept;
     double LineHeight() const noexcept;
     const Text::EditableTextModel&
@@ -244,6 +333,106 @@ private:
     UpdateCandidateWindow() noexcept;
     Base::Result<void>
     CancelCompositionForFocusLoss() noexcept;
+    Base::Result<void> BuildEditorDisplayList(
+        DisplayListBuilder& builder,
+        Size viewport,
+        bool drawCaret) noexcept;
+    void OnTextPropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&
+            args) noexcept;
+};
+
+class AERO_API PasswordBox final : public TextBoxBase {
+    AERO_DECLARE_TYPE(PasswordBox, TextBoxBase)
+public:
+    PasswordBox() noexcept;
+    ~PasswordBox() override = default;
+
+    Base::StringView Password() const noexcept {
+        return password_.View();
+    }
+    Base::Result<void> SetPassword(
+        Base::StringView value) noexcept;
+    Base::StringView PasswordChar() const noexcept;
+    Base::Result<void> SetPasswordChar(
+        Base::StringView value) noexcept;
+    std::uint32_t MaximumLength() const noexcept;
+    Base::Result<void> SetMaximumLength(
+        std::uint32_t value) noexcept;
+    Color Foreground() const noexcept;
+    Color SelectionBrush() const noexcept;
+    double SelectionOpacity() const noexcept;
+    Color CaretBrush() const noexcept;
+    Base::Result<void> SetForeground(
+        Color value) noexcept;
+    Base::Result<void> SetSelectionBrush(
+        Color value) noexcept;
+    Base::Result<void> SetSelectionOpacity(
+        double value) noexcept;
+    Base::Result<void> SetCaretBrush(
+        Color value) noexcept;
+    Text::TextSelection Selection() const noexcept;
+    std::uint32_t Caret() const noexcept;
+    Base::Result<void> SetSelection(
+        std::uint32_t anchor,
+        std::uint32_t caret) noexcept;
+    Base::Result<void> SelectAll() noexcept;
+    Base::Result<void> SetInputMethodHost(
+        Platform::ITextInputMethodHost* host) noexcept;
+    Platform::ITextInputMethodHost*
+    InputMethodHost() const noexcept;
+    bool IsComposing() const noexcept;
+
+    inline static constexpr Members::RoutedEvent<
+        RoutedEventArgs>
+        PasswordChangedEvent{"PasswordChanged"};
+    UIElement::RoutedEvent_<RoutedEventHandler>
+        PasswordChanged() noexcept {
+        return Event(PasswordChangedEvent);
+    }
+    inline static constexpr Members::Property<Base::String>
+        PasswordCharProperty{"PasswordChar"};
+    inline static constexpr Members::Property<std::uint32_t>
+        MaxLengthProperty{"MaxLength"};
+    inline static constexpr auto MaximumLengthProperty =
+        MaxLengthProperty;
+    inline static constexpr Members::Property<Base::String>
+        PlaceholderProperty{"Placeholder"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        ForegroundProperty{"Foreground"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        SelectionBrushProperty{"SelectionBrush"};
+    inline static constexpr Members::Property<double>
+        SelectionOpacityProperty{"SelectionOpacity"};
+    inline static constexpr Members::Property<
+        Presentation::Color>
+        CaretBrushProperty{"CaretBrush"};
+
+protected:
+    Base::Result<Size> MeasureOverride(
+        Size availableSize) noexcept override;
+    Base::Result<Size> ArrangeOverride(
+        Size finalSize) noexcept override;
+    Base::Result<void> BuildDisplayList(
+        DisplayListBuilder& builder) noexcept override;
+
+private:
+    friend class TextBox;
+    friend class TextBoxInteractionManager;
+    friend class Detail::TextServicesAccess;
+    Base::String password_;
+    Text::EditableTextModel validation_;
+    PasswordTextDisplayPolicy passwordPolicy_;
+    TextBox editor_;
+    bool synchronizingEditor_ = false;
+
+    Base::Result<void>
+        SynchronizeEditorFromPassword() noexcept;
+    Base::Result<void>
+        SynchronizePasswordFromEditor() noexcept;
 };
 
 class AERO_API TextBoxInteractionManager final {
@@ -258,8 +447,12 @@ public:
 
     Base::Result<void> Attach(
         TextBox& textBox) noexcept;
+    Base::Result<void> Attach(
+        PasswordBox& passwordBox) noexcept;
     Base::Result<bool> Detach(
         TextBox& textBox) noexcept;
+    Base::Result<bool> Detach(
+        PasswordBox& passwordBox) noexcept;
 
 private:
     struct Record final {
@@ -267,6 +460,7 @@ private:
         std::uint32_t pointerId = 0U;
         std::uint32_t anchor = 0U;
         bool dragging = false;
+        bool password = false;
     };
 
     ObjectTree* tree_ = nullptr;
@@ -286,8 +480,10 @@ private:
     bool captureSubscribed_ = false;
 
     std::uint32_t Find(
-        const TextBox& textBox) const noexcept;
-    TextBox* Resolve(
+        const UIElement& owner) const noexcept;
+    UIElement* ResolveOwner(
+        std::uint32_t index) noexcept;
+    TextBox* ResolveEditor(
         std::uint32_t index) noexcept;
     void RemoveAt(
         std::uint32_t index) noexcept;

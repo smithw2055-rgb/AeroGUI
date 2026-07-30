@@ -4,6 +4,8 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include <Aero/Presentation/Effects.hpp>
+#include <Aero/Presentation/Transforms.hpp>
 
 #include <cmath>
 #include <cstring>
@@ -317,6 +319,87 @@ FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
 FrameworkElement::~FrameworkElement() {
     AERO_ASSERT(renderManager_ == nullptr);
     AERO_ASSERT(!renderAttached_);
+    Base::Ref<Transform> renderTransform =
+        RenderTransform();
+    if (renderTransform) {
+        renderTransform->DetachOwner(
+            this,
+            TransformOwnerRole::Render);
+    }
+    Base::Ref<Transform> layoutTransform =
+        LayoutTransform();
+    if (layoutTransform) {
+        layoutTransform->DetachOwner(
+            this,
+            TransformOwnerRole::Layout);
+    }
+}
+
+Base::Ref<Transform>
+FrameworkElement::LayoutTransform() const noexcept {
+    Base::Result<Base::Ref<Transform>> value =
+        GetValue(LayoutTransformProperty);
+    return value
+        ? std::move(value).Value()
+        : Base::Ref<Transform>{};
+}
+
+Base::Result<void> FrameworkElement::SetLayoutTransform(
+    Base::Ref<Transform> value) noexcept {
+    return SetValue(
+        LayoutTransformProperty,
+        std::move(value));
+}
+
+Base::Transform2D
+FrameworkElement::LocalVisualTransform() const noexcept {
+    Base::Transform2D result;
+    Size visualSize = RenderSize();
+    Base::Ref<Transform> layoutTransform =
+        LayoutTransform();
+    if (layoutTransform) {
+        result = layoutTransform->Matrix();
+        const Rect bounds = TransformBounds(
+            result,
+            {0.0, 0.0,
+             visualSize.width,
+             visualSize.height});
+        Base::Transform2D normalize;
+        normalize.dx = -bounds.x;
+        normalize.dy = -bounds.y;
+        result = ComposeTransforms(
+            result,
+            normalize);
+        visualSize = {
+            bounds.width,
+            bounds.height};
+    }
+
+    Base::Ref<Transform> renderTransform =
+        RenderTransform();
+    if (renderTransform) {
+        const Point origin = RenderTransformOrigin();
+        const double originX =
+            origin.x * visualSize.width;
+        const double originY =
+            origin.y * visualSize.height;
+        Base::Transform2D before;
+        before.dx = -originX;
+        before.dy = -originY;
+        Base::Transform2D after;
+        after.dx = originX;
+        after.dy = originY;
+        const Base::Transform2D render =
+            ComposeTransforms(
+                ComposeTransforms(
+                    before,
+                    renderTransform->Matrix()),
+                after);
+        result = ComposeTransforms(
+            result,
+            render);
+    }
+    return result;
 }
 
 Base::Result<Base::Ref<Base::Object>>
@@ -370,7 +453,22 @@ std::uint64_t RenderPlan::StableHash() const noexcept {
         hash = HashScalar(hash, node.parentId);
         hash = HashRect(hash, node.layoutSlot);
         hash = HashRect(hash, node.clip);
+        hash = HashScalar(hash, node.clipsToBounds);
         hash = HashSize(hash, node.renderSize);
+        hash = HashTransform(hash, node.renderTransform);
+        hash = HashScalar(
+            hash,
+            static_cast<std::uint8_t>(
+                node.blendMode));
+        hash = HashScalar(
+            hash,
+            static_cast<std::uint8_t>(
+                node.effect.kind));
+        hash = HashScalar(hash, node.effect.radius);
+        hash = HashScalar(hash, node.effect.direction);
+        hash = HashScalar(hash, node.effect.depth);
+        hash = HashScalar(hash, node.effect.opacity);
+        hash = HashColor(hash, node.effect.color);
         hash = HashScalar(hash, node.commandOffset);
         hash = HashScalar(hash, node.commandCount);
         hash = HashScalar(hash, node.elementRevision);
@@ -421,6 +519,7 @@ Base::Result<void> NullRenderBackend::Submit(
         if (!IsValidLayoutRect(node.layoutSlot) ||
             !IsValidLayoutRect(node.clip) ||
             !IsValidLayoutSize(node.renderSize) ||
+            !Base::IsFiniteTransform(node.renderTransform) ||
             node.commandOffset > commands.Size() ||
             node.commandCount > commands.Size() - node.commandOffset) {
             return InvalidArgument("RenderPlan node snapshot is invalid");
@@ -610,6 +709,7 @@ Base::Result<void> RenderManager::SetRoot(
         }
         root_ = nullptr;
         dirty_.Clear();
+        overlays_.Clear();
         return {};
     }
 
@@ -808,16 +908,122 @@ Base::Result<void> RenderManager::Invalidate(
     return {};
 }
 
+Base::Result<void> FrameworkElement::TryAddAuthoredTrigger(
+    Base::Ref<Base::Object> trigger) noexcept {
+    if (!trigger) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "FrameworkElement trigger cannot be null");
+    }
+    return authoredTriggers_.TryPushBack(std::move(trigger));
+}
+
+Base::Result<void>
+FrameworkElement::ClearAuthoredTriggers() noexcept {
+    authoredTriggers_.Clear();
+    return {};
+}
+
+bool RenderManager::IsOverlay(
+    const FrameworkElement& element) const noexcept {
+    for (const OverlayRecord& overlay :
+         overlays_) {
+        if (overlay.element == &element) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Base::Result<void> RenderManager::SetOverlays(
+    Base::Span<FrameworkElement* const> overlays,
+    Base::Span<const Point> origins) noexcept {
+    Base::Result<void> access = dispatcher_->VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (committing_) {
+        return InvalidState(
+            "Render overlays cannot change during commit");
+    }
+
+    if (overlays.Size() != origins.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Render overlay elements and origins must have equal lengths");
+    }
+    Base::Vector<OverlayRecord> next;
+    Base::Result<void> reserved =
+        next.TryReserve(overlays.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U;
+         index < overlays.Size();
+         ++index) {
+        FrameworkElement* overlay =
+            overlays[index];
+        if (overlay == nullptr ||
+            overlay->renderManager_ != this) {
+            return InvalidState(
+                "Render overlay must belong to this render tree");
+        }
+        if (!IsFinite(origins[index])) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Render overlay origin must be finite");
+        }
+        bool duplicate = false;
+        for (const OverlayRecord& current :
+             next) {
+            duplicate =
+                duplicate ||
+                current.element == overlay;
+        }
+        if (duplicate) continue;
+        Base::Result<void> appended =
+            next.TryPushBack(
+                {overlay, origins[index]});
+        if (!appended) return appended.GetStatus();
+    }
+
+    bool changed = next.Size() != overlays_.Size();
+    if (!changed) {
+        for (std::uint32_t index = 0U;
+             index < next.Size();
+             ++index) {
+            if (next[index].element !=
+                    overlays_[index].element ||
+                next[index].origin.x !=
+                    overlays_[index].origin.x ||
+                next[index].origin.y !=
+                    overlays_[index].origin.y) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) return {};
+    overlays_ = std::move(next);
+    if (root_ != nullptr) {
+        return Invalidate(*root_);
+    }
+    return {};
+}
+
 Base::Result<void> RenderManager::BuildSubtree(
     FrameworkElement& element,
     RenderNodeId parentId,
-    RenderPlan& plan) noexcept {
-    if (!element.IsArrangeValid() || element.buildingDisplayList_) {
+    RenderPlan& plan,
+    bool overlayRoot) noexcept {
+    const bool visible =
+        element.GetVisibility() ==
+        Visibility::Visible;
+    if ((visible && !element.IsArrangeValid()) ||
+        element.buildingDisplayList_) {
         return InvalidState("FrameworkElement must be arranged and non-reentrant");
     }
     element.buildingDisplayList_ = true;
     DisplayListBuilder builder;
-    Base::Result<void> built = element.BuildDisplayList(builder);
+    Base::Result<void> built = visible
+        ? element.BuildDisplayList(builder)
+        : Base::Result<void>();
     if (!built) {
         element.buildingDisplayList_ = false;
         return built;
@@ -843,8 +1049,56 @@ Base::Result<void> RenderManager::BuildSubtree(
     snapshot.id = element.nodeId_;
     snapshot.parentId = parentId;
     snapshot.layoutSlot = element.LayoutSlot();
+    if (overlayRoot) {
+        for (const OverlayRecord& overlay :
+             overlays_) {
+            if (overlay.element == &element) {
+                snapshot.layoutSlot.x =
+                    overlay.origin.x;
+                snapshot.layoutSlot.y =
+                    overlay.origin.y;
+                break;
+            }
+        }
+    }
     snapshot.clip = element.LayoutClip();
+    snapshot.clipsToBounds = element.ClipToBounds();
     snapshot.renderSize = element.RenderSize();
+    snapshot.renderTransform =
+        element.LocalVisualTransform();
+    snapshot.blendMode =
+        element.GetBlendMode();
+    Base::Ref<Effect> effect =
+        element.GetEffect();
+    if (effect) {
+        if (effect->RuntimeType() ==
+            BlurEffect::StaticTypeId()) {
+            BlurEffect* blur =
+                static_cast<BlurEffect*>(
+                    effect.Get());
+            snapshot.effect.kind =
+                RenderEffectKind::Blur;
+            snapshot.effect.radius =
+                blur->Radius();
+        } else if (effect->RuntimeType() ==
+            DropShadowEffect::StaticTypeId()) {
+            DropShadowEffect* shadow =
+                static_cast<DropShadowEffect*>(
+                    effect.Get());
+            snapshot.effect.kind =
+                RenderEffectKind::DropShadow;
+            snapshot.effect.radius =
+                shadow->BlurRadius();
+            snapshot.effect.direction =
+                shadow->Direction();
+            snapshot.effect.depth =
+                shadow->ShadowDepth();
+            snapshot.effect.opacity =
+                shadow->Opacity();
+            snapshot.effect.color =
+                shadow->Color();
+        }
+    }
     snapshot.commandOffset = plan.commands_.Size();
     snapshot.commandCount = list.CommandCount();
     snapshot.elementRevision = element.renderRevision_ + 1U;
@@ -859,8 +1113,12 @@ Base::Result<void> RenderManager::BuildSubtree(
         return commandAppend;
     }
 
+    if (!visible) return {};
     for (FrameworkElement* child : element.RenderChildren()) {
-        Base::Result<void> childResult = BuildSubtree(*child, element.nodeId_, plan);
+        if (IsOverlay(*child)) continue;
+        Base::Result<void> childResult =
+            BuildSubtree(
+                *child, element.nodeId_, plan);
         if (!childResult) {
             return childResult;
         }
@@ -899,6 +1157,24 @@ Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
         committing_ = false;
         return built.GetStatus();
     }
+    for (const OverlayRecord& record :
+         overlays_) {
+        FrameworkElement* overlay =
+            record.element;
+        if (overlay == nullptr ||
+            overlay == root_ ||
+            !overlay->renderAttached_ ||
+            overlay->GetVisibility() != Visibility::Visible ||
+            !overlay->IsArrangeValid()) {
+            continue;
+        }
+        built = BuildSubtree(
+            *overlay, root_->nodeId_, next, true);
+        if (!built) {
+            committing_ = false;
+            return built.GetStatus();
+        }
+    }
     Base::Result<void> submitted = backend_->Submit(next);
     if (!submitted) {
         committing_ = false;
@@ -919,6 +1195,11 @@ RenderDiagnostics RenderManager::Diagnostics() const noexcept {
     diagnostics.commitVersion = commitVersion_;
     diagnostics.nodeCount = currentPlan_.Nodes().Size();
     diagnostics.commandCount = currentPlan_.Commands().Size();
+    for (const RenderCommand& command : currentPlan_.Commands()) {
+        if (command.kind == RenderCommandKind::DrawGlyphRun) {
+            ++diagnostics.glyphCommandCount;
+        }
+    }
     diagnostics.dirtyCount = dirty_.Size();
     diagnostics.planHash = currentPlan_.StableHash();
     return diagnostics;

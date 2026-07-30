@@ -144,7 +144,9 @@ using PropertyValue = Value;
 enum class DependencyPropertyFlags : std::uint32_t {
     None = 0U,
     Attached = 1U << 0U,
-    ReadOnly = 1U << 1U
+    ReadOnly = 1U << 1U,
+    AnyValue = 1U << 2U,
+    Structural = 1U << 3U
 };
 
 enum class PropertyMetadataFlags : std::uint32_t {
@@ -336,6 +338,9 @@ public:
     bool IsAttached() const noexcept {
         return HasFlag(flags_, DependencyPropertyFlags::Attached);
     }
+    bool AcceptsAnyValue() const noexcept {
+        return HasFlag(flags_, DependencyPropertyFlags::AnyValue);
+    }
     std::uint32_t MetadataCount() const noexcept {
         return metadata_.Size();
     }
@@ -445,6 +450,7 @@ private:
 
     Base::Result<void> ValidateMetadata(
         TypeId valueType,
+        DependencyPropertyFlags propertyFlags,
         const PropertyMetadata& metadata) const noexcept;
     Base::Result<void> ValidateValue(
         const DependencyProperty& property,

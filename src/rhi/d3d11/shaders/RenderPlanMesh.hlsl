@@ -1,6 +1,7 @@
 struct VSInput {
     float2 position : ATTR0;
     float4 color : ATTR1;
+    float coverage : ATTR2;
     uint instanceId : SV_InstanceID;
 };
 
@@ -22,6 +23,7 @@ cbuffer MeshConstants : register(b0) {
 struct VSOutput {
     float4 position : SV_Position;
     float4 color : COLOR0;
+    float coverage : TEXCOORD0;
 };
 
 VSOutput vs_main(VSInput input) {
@@ -34,6 +36,7 @@ VSOutput vs_main(VSInput input) {
     VSOutput output;
     output.position = float4(ndc, 0.0, 1.0);
     output.color = input.color * tints[input.instanceId];
+    output.coverage = input.coverage;
     return output;
 }
 
@@ -51,5 +54,7 @@ float4 ps_main(VSOutput input) : SV_Target {
             discard;
         }
     }
-    return input.color;
+    float4 color = input.color;
+    color.a *= saturate(input.coverage);
+    return color;
 }

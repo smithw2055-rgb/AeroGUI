@@ -3,6 +3,7 @@
 #include <Aero/Base/Assert.hpp>
 
 #include <cstdint>
+#include <cstdio>
 #include <utility>
 
 namespace Aero::Core {
@@ -41,7 +42,12 @@ EffectiveValueEngine::EffectiveValueEngine(
     : dispatcher_(&dispatcher),
       registry_(&registry),
       entries_(),
-      parents_() {}
+      parents_(),
+      inheritanceSubscriptions_(),
+      inheritanceChangedHandler_(
+          this,
+          &EffectiveValueEngine::
+              OnInheritancePropertyChanged) {}
 
 EffectiveValueEngine::~EffectiveValueEngine() noexcept {
     if (phaseHook_.IsValid() && dispatcher_ != nullptr &&
@@ -51,6 +57,25 @@ EffectiveValueEngine::~EffectiveValueEngine() noexcept {
 
     for (Entry& entry : entries_) {
         ReleaseExpression(entry.localExpression);
+    }
+    for (DependencyObject* object :
+         inheritanceSubscriptions_) {
+        if (object == nullptr) continue;
+        for (const DependencyProperty& property :
+             registry_->Properties()) {
+            const PropertyMetadata* metadata =
+                property.MetadataFor(
+                    object->RuntimeType());
+            if (metadata != nullptr &&
+                HasFlag(
+                    metadata->flags,
+                    PropertyMetadataFlags::Inherits)) {
+                static_cast<void>(
+                    object->RemoveValueChangedHandler(
+                        property.Handle(),
+                        inheritanceChangedHandler_));
+            }
+        }
     }
 }
 
@@ -123,9 +148,31 @@ Base::Result<std::uint32_t> EffectiveValueEngine::EnsureEntry(
     const DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr ||
         registered->MetadataFor(object.RuntimeType()) == nullptr) {
+        thread_local char message[384];
+        const TypeInfo* objectType =
+            registry_->Types().FindType(
+                object.RuntimeType());
+        const Base::StringView propertyName =
+            registered != nullptr
+            ? registered->Name()
+            : Base::StringView("<unknown>");
+        const Base::StringView typeName =
+            objectType != nullptr
+            ? objectType->Name()
+            : Base::StringView("<unknown>");
+        std::snprintf(
+            message,
+            sizeof(message),
+            "Dependency property '%.*s' does not apply to object type '%.*s'",
+            static_cast<int>(
+                propertyName.SizeBytes()),
+            propertyName.Data(),
+            static_cast<int>(
+                typeName.SizeBytes()),
+            typeName.Data());
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object");
+            message);
     }
 
     const std::uint32_t existing = FindEntryIndex(object, property);
@@ -195,6 +242,18 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     const std::uint32_t existing = FindParentIndex(child);
+    DependencyObject* previousParent =
+        existing != InvalidIndex
+        ? parents_[existing].parent
+        : nullptr;
+    if (parent != nullptr) {
+        Base::Result<void> subscribed =
+            EnsureInheritanceSubscription(child);
+        if (!subscribed) return subscribed.GetStatus();
+        subscribed =
+            EnsureInheritanceSubscription(*parent);
+        if (!subscribed) return subscribed.GetStatus();
+    }
     if (parent == nullptr) {
         if (existing != InvalidIndex) {
             RemoveParent(existing);
@@ -207,6 +266,26 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         if (!appended) {
             return appended.GetStatus();
         }
+    }
+
+    const auto participates =
+        [this](const DependencyObject& object) noexcept {
+            for (const ParentLink& link : parents_) {
+                if (link.child == &object ||
+                    link.parent == &object) {
+                    return true;
+                }
+            }
+            return false;
+        };
+    if (!participates(child)) {
+        RemoveInheritanceSubscription(child);
+    }
+    if (previousParent != nullptr &&
+        previousParent != parent &&
+        !participates(*previousParent)) {
+        RemoveInheritanceSubscription(
+            *previousParent);
     }
 
     for (std::uint32_t index = 0U; index < entries_.Size(); ++index) {
@@ -518,6 +597,150 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     return {};
 }
 
+Base::Result<void>
+EffectiveValueEngine::EnsureInheritanceSubscription(
+    DependencyObject& object) noexcept {
+    for (DependencyObject* subscribed :
+         inheritanceSubscriptions_) {
+        if (subscribed == &object) return {};
+    }
+    for (const DependencyProperty& property :
+         registry_->Properties()) {
+        const PropertyMetadata* metadata =
+            property.MetadataFor(object.RuntimeType());
+        if (metadata == nullptr ||
+            !HasFlag(
+                metadata->flags,
+                PropertyMetadataFlags::Inherits)) {
+            continue;
+        }
+        Base::Result<void> added =
+            object.TryAddValueChangedHandler(
+                property.Handle(),
+                inheritanceChangedHandler_);
+        if (!added) {
+            for (const DependencyProperty& rollback :
+                 registry_->Properties()) {
+                if (rollback.Handle() ==
+                    property.Handle()) {
+                    break;
+                }
+                const PropertyMetadata*
+                    rollbackMetadata =
+                        rollback.MetadataFor(
+                            object.RuntimeType());
+                if (rollbackMetadata != nullptr &&
+                    HasFlag(
+                        rollbackMetadata->flags,
+                        PropertyMetadataFlags::
+                            Inherits)) {
+                    static_cast<void>(
+                        object.RemoveValueChangedHandler(
+                            rollback.Handle(),
+                            inheritanceChangedHandler_));
+                }
+            }
+            return added.GetStatus();
+        }
+        Base::Result<std::uint32_t> entry =
+            EnsureEntry(object, property.Handle());
+        if (!entry) {
+            static_cast<void>(
+                object.RemoveValueChangedHandler(
+                    property.Handle(),
+                    inheritanceChangedHandler_));
+            return entry.GetStatus();
+        }
+        Base::Result<void> queued =
+            QueueEntry(entry.Value());
+        if (!queued) {
+            static_cast<void>(
+                object.RemoveValueChangedHandler(
+                    property.Handle(),
+                    inheritanceChangedHandler_));
+            return queued.GetStatus();
+        }
+    }
+    Base::Result<void> retained =
+        inheritanceSubscriptions_.TryPushBack(
+            &object);
+    if (!retained) {
+        for (const DependencyProperty& property :
+             registry_->Properties()) {
+            const PropertyMetadata* metadata =
+                property.MetadataFor(
+                    object.RuntimeType());
+            if (metadata != nullptr &&
+                HasFlag(
+                    metadata->flags,
+                    PropertyMetadataFlags::Inherits)) {
+                static_cast<void>(
+                    object.RemoveValueChangedHandler(
+                        property.Handle(),
+                        inheritanceChangedHandler_));
+            }
+        }
+        return retained.GetStatus();
+    }
+    return {};
+}
+
+void EffectiveValueEngine::RemoveInheritanceSubscription(
+    DependencyObject& object) noexcept {
+    for (std::uint32_t index = 0U;
+         index < inheritanceSubscriptions_.Size();
+         ++index) {
+        if (inheritanceSubscriptions_[index] !=
+            &object) {
+            continue;
+        }
+        for (const DependencyProperty& property :
+             registry_->Properties()) {
+            const PropertyMetadata* metadata =
+                property.MetadataFor(
+                    object.RuntimeType());
+            if (metadata != nullptr &&
+                HasFlag(
+                    metadata->flags,
+                    PropertyMetadataFlags::Inherits)) {
+                static_cast<void>(
+                    object.RemoveValueChangedHandler(
+                        property.Handle(),
+                        inheritanceChangedHandler_));
+            }
+        }
+        for (std::uint32_t next = index + 1U;
+             next < inheritanceSubscriptions_.Size();
+             ++next) {
+            inheritanceSubscriptions_[next - 1U] =
+                inheritanceSubscriptions_[next];
+        }
+        inheritanceSubscriptions_.PopBack();
+        return;
+    }
+}
+
+void EffectiveValueEngine::OnInheritancePropertyChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs&
+        args) noexcept {
+    const DependencyProperty* property =
+        registry_->Find(args.property);
+    const PropertyMetadata* metadata =
+        property != nullptr
+        ? property->MetadataFor(
+              object.RuntimeType())
+        : nullptr;
+    if (metadata == nullptr ||
+        !HasFlag(
+            metadata->flags,
+            PropertyMetadataFlags::Inherits)) {
+        return;
+    }
+    static_cast<void>(
+        QueueDescendants(object, args.property));
+}
+
 Base::Result<EffectiveValueEngine::Resolution>
 EffectiveValueEngine::Resolve(Entry& entry) noexcept {
     const DependencyProperty* property = registry_->Find(entry.property);
@@ -595,6 +818,11 @@ EffectiveValueEngine::Resolve(Entry& entry) noexcept {
 
     if (HasFlag(metadata->flags, PropertyMetadataFlags::Inherits)) {
         DependencyObject* parent = InheritanceParent(*entry.object);
+        while (parent != nullptr &&
+               property->MetadataFor(
+                   parent->RuntimeType()) == nullptr) {
+            parent = InheritanceParent(*parent);
+        }
         if (parent != nullptr) {
             Base::Result<PropertyValue> inherited =
                 parent->GetValue(entry.property);
@@ -739,6 +967,7 @@ Base::Result<void> EffectiveValueEngine::DetachObject(
             ++parent;
         }
     }
+    RemoveInheritanceSubscription(object);
     return {};
 }
 

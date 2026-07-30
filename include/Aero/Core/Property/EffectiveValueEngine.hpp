@@ -148,6 +148,9 @@ public:
         return entries_.Size();
     }
     std::uint32_t PendingPropertyCount() const noexcept;
+    bool IsFlushing() const noexcept {
+        return flushing_;
+    }
 
 private:
     struct ProviderSlot final {
@@ -191,6 +194,9 @@ private:
     DependencyPropertyRegistry* registry_ = nullptr;
     Base::Vector<Entry> entries_;
     Base::Vector<ParentLink> parents_;
+    Base::Vector<DependencyObject*> inheritanceSubscriptions_;
+    DependencyPropertyChangedEventHandler
+        inheritanceChangedHandler_;
     DispatcherFrameHookHandle phaseHook_;
     std::uint64_t nextQueueSequence_ = 1U;
     std::uint64_t nextRevision_ = 1U;
@@ -221,6 +227,14 @@ private:
     Base::Result<void> QueueDescendants(
         DependencyObject& parent,
         DependencyPropertyHandle property) noexcept;
+    Base::Result<void> EnsureInheritanceSubscription(
+        DependencyObject& object) noexcept;
+    void RemoveInheritanceSubscription(
+        DependencyObject& object) noexcept;
+    void OnInheritancePropertyChanged(
+        DependencyObject& object,
+        const DependencyPropertyChangedEventArgs&
+            args) noexcept;
     Base::Result<Resolution> Resolve(
         Entry& entry) noexcept;
     Base::Result<void> Apply(

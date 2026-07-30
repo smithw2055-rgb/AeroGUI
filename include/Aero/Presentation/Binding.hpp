@@ -23,6 +23,80 @@ enum class BindingMode : std::uint8_t {
     OneWayToSource
 };
 
+enum class BindingRelativeSource : std::uint8_t {
+    None = 0U,
+    Self,
+    TemplatedParent,
+    Ancestor
+};
+
+class AERO_API BindingSpec final
+    : public Base::Object {
+    AERO_DECLARE_TYPE(BindingSpec, Base::Object)
+public:
+    Core::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::StringView Path() const noexcept {
+        return path_.View();
+    }
+    Base::StringView ElementName() const noexcept {
+        return elementName_.View();
+    }
+    Base::StringView StringFormat() const noexcept {
+        return stringFormat_.View();
+    }
+    BindingRelativeSource RelativeSource() const noexcept {
+        return relativeSource_;
+    }
+    Base::StringView AncestorType() const noexcept {
+        return ancestorType_.View();
+    }
+    BindingMode Mode() const noexcept {
+        return mode_;
+    }
+    UpdateSourceTrigger UpdateTrigger() const noexcept {
+        return updateSourceTrigger_;
+    }
+    Base::Result<void> Configure(
+        Base::StringView path,
+        Base::StringView elementName,
+        BindingMode mode,
+        UpdateSourceTrigger updateSourceTrigger,
+        Base::StringView stringFormat = {},
+        BindingRelativeSource relativeSource =
+            BindingRelativeSource::None,
+        Base::StringView ancestorType = {}) noexcept {
+        Base::Result<void> assigned =
+            path_.TryAssign(path);
+        if (!assigned) return assigned.GetStatus();
+        assigned = elementName_.TryAssign(
+            elementName);
+        if (!assigned) return assigned.GetStatus();
+        assigned = stringFormat_.TryAssign(
+            stringFormat);
+        if (!assigned) return assigned.GetStatus();
+        assigned = ancestorType_.TryAssign(ancestorType);
+        if (!assigned) return assigned.GetStatus();
+        mode_ = mode;
+        relativeSource_ = relativeSource;
+        updateSourceTrigger_ =
+            updateSourceTrigger;
+        return {};
+    }
+
+private:
+    Base::String path_;
+    Base::String elementName_;
+    Base::String stringFormat_;
+    Base::String ancestorType_;
+    BindingMode mode_ = BindingMode::OneWay;
+    BindingRelativeSource relativeSource_ =
+        BindingRelativeSource::None;
+    UpdateSourceTrigger updateSourceTrigger_ =
+        UpdateSourceTrigger::PropertyChanged;
+};
+
 struct BindingHandle final {
     std::uint64_t value = 0U;
 
@@ -103,6 +177,10 @@ struct MetadataBindingDescriptor final {
     DependencyPropertyHandle targetProperty;
     DependencyPropertyHandle dataContextProperty;
     Base::StringView path;
+    Base::StringView stringFormat;
+    // WPF permits an ElementName/Source binding with no Path; in that form the
+    // source object itself is assigned to the target property.
+    bool bindsToSource = false;
     BindingMode mode = BindingMode::OneWay;
     UpdateSourceTrigger updateSourceTrigger =
         UpdateSourceTrigger::PropertyChanged;
@@ -138,6 +216,14 @@ public:
         const BindingDescriptor& descriptor) noexcept;
     Base::Result<BindingHandle> Attach(
         const MetadataBindingDescriptor& descriptor) noexcept;
+    // Deferred templates are cloned before their visual roots are mounted.
+    // Queueing preserves the declaration until the target acquires its
+    // Dispatcher; RuntimePresentationServices activates it while walking the
+    // newly mounted instance.
+    Base::Result<void> QueueDeferred(
+        const MetadataBindingDescriptor& descriptor) noexcept;
+    Base::Result<std::uint32_t> ActivateDeferred(
+        DependencyObject& target) noexcept;
     template<
         class TSourceOwner,
         class TValue,
@@ -202,6 +288,9 @@ public:
     bool IsInitialized() const noexcept {
         return hook_.IsValid();
     }
+    bool IsFlushing() const noexcept {
+        return flushing_;
+    }
     std::uint32_t BindingCount() const noexcept {
         return bindings_.Size();
     }
@@ -213,6 +302,7 @@ private:
     enum class BindingSourceKind : std::uint8_t {
         DependencyProperty = 0U,
         MetadataPath,
+        MetadataObject,
         DataContext
     };
 
@@ -225,6 +315,8 @@ private:
         Base::Object* metadataSource = nullptr;
         DependencyPropertyHandle dataContextProperty;
         Base::String path;
+        Base::String stringFormat;
+        bool bindsToSource = false;
         BindingPathPlan pathPlan;
         std::uint64_t notificationSubscription = 0U;
         PropertyValue lastSourceValue;
@@ -237,8 +329,32 @@ private:
         bool forceSourceUpdate = false;
     };
 
+    struct DeferredBindingRecord final {
+        MetadataRuntime* metadata = nullptr;
+        Base::Object* source = nullptr;
+        DependencyObject* target = nullptr;
+        DependencyPropertyHandle targetProperty;
+        DependencyPropertyHandle dataContextProperty;
+        Base::String path;
+        Base::String stringFormat;
+        bool bindsToSource = false;
+        BindingMode mode = BindingMode::OneWay;
+        UpdateSourceTrigger updateSourceTrigger =
+            UpdateSourceTrigger::PropertyChanged;
+        BindingConvertCallback convert = nullptr;
+        BindingConvertCallback convertBack = nullptr;
+        BindingValidateCallback validate = nullptr;
+        BindingValidateCallback validateBack = nullptr;
+        void* conversionContext = nullptr;
+        PropertyValue fallbackValue;
+        PropertyValue targetNullValue;
+        BindingDiagnosticCallback diagnostic = nullptr;
+        void* diagnosticContext = nullptr;
+    };
+
     Dispatcher* dispatcher_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
+    Base::Vector<DeferredBindingRecord> deferredBindings_;
     DispatcherFrameHookHandle hook_;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;

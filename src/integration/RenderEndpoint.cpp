@@ -1,4 +1,5 @@
 #include "RenderEndpointInternal.hpp"
+#include "presentation/BatchPlanner.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -66,6 +67,7 @@ struct RenderEndpoint::Impl final {
     const void* boundOwner = nullptr;
     Base::Vector<Presentation::RenderPlan> pending;
     RenderEndpointStatistics statistics;
+    RenderFrameStatistics lastFrameStatistics;
     Base::Status asynchronousFailure;
     std::mutex mutex;
     std::condition_variable wake;
@@ -74,9 +76,55 @@ struct RenderEndpoint::Impl final {
     bool workerRunning = false;
     bool workerStop = false;
     bool executing = false;
+    bool batchingEnabled = true;
 
     bool AcceptingFrames() const noexcept {
         return state == RenderEndpointState::Ready;
+    }
+
+    Base::Result<RenderFrameStatistics>
+    PlanFrameStatistics(
+        const Presentation::RenderPlan& plan) noexcept {
+        Presentation::Detail::BatchPlanner planner(
+            allocator);
+        Base::Result<Presentation::Detail::BatchPlan>
+            planned = planner.Build(
+                plan, batchingEnabled);
+        if (!planned) return planned.GetStatus();
+        const auto& source =
+            planned.Value().Statistics();
+        RenderFrameStatistics result;
+        result.sourceCommandCount =
+            source.sourceCommandCount;
+        result.drawPacketCount =
+            source.drawPacketCount;
+        result.batchCount =
+            source.batchCount;
+        result.mergedPacketCount =
+            source.mergedPacketCount;
+        result.barrierCount =
+            source.barrierCount;
+        result.batchingEnabled =
+            batchingEnabled;
+        return result;
+    }
+
+    void MergeBackendStatistics(
+        RenderFrameStatistics& result) const noexcept {
+        const RenderFrameStatistics backend =
+            driver != nullptr
+            ? driver->LastFrameStatistics()
+            : RenderFrameStatistics{};
+        result.drawCallCount =
+            backend.drawCallCount != 0U
+            ? backend.drawCallCount
+            : result.batchCount;
+        result.instanceCount =
+            backend.instanceCount != 0U
+            ? backend.instanceCount
+            : result.drawPacketCount;
+        result.stateBindingCount =
+            backend.stateBindingCount;
     }
 
     void WorkerMain() noexcept {
@@ -94,16 +142,28 @@ struct RenderEndpoint::Impl final {
                 statistics.pendingFrameCount = 0U;
             }
 
+            Base::Result<RenderFrameStatistics>
+                frameStatistics =
+                    PlanFrameStatistics(plan);
             Base::Result<void> submitted =
-                driver != nullptr
+                frameStatistics && driver != nullptr
                 ? driver->Submit(plan)
-                : Base::Result<void>(NotInitialized(
-                      "Render endpoint has no backend driver"));
+                : Base::Result<void>(
+                      frameStatistics
+                      ? NotInitialized(
+                            "Render endpoint has no backend driver")
+                      : frameStatistics.GetStatus());
+            if (submitted) {
+                MergeBackendStatistics(
+                    frameStatistics.Value());
+            }
 
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 executing = false;
                 if (submitted) {
+                    lastFrameStatistics =
+                        frameStatistics.Value();
                     ++statistics.completedFrameCount;
                     statistics.lastCompletedVersion =
                         plan.Version();
@@ -222,6 +282,14 @@ RenderEndpoint::Statistics() const noexcept {
     RenderEndpointStatistics result = impl_->statistics;
     result.pendingFrameCount = impl_->pending.Size();
     return result;
+}
+
+RenderFrameStatistics
+RenderEndpoint::LastFrameStatistics() const noexcept {
+    if (impl_ == nullptr) return {};
+    std::lock_guard<std::mutex> lock(
+        impl_->mutex);
+    return impl_->lastFrameStatistics;
 }
 
 Base::Result<void> RenderEndpoint::Resize(
@@ -352,6 +420,27 @@ Base::Result<void> RenderEndpoint::WaitIdle(
     return impl_->driver->WaitIdle(timeoutMilliseconds);
 }
 
+Base::Result<void>
+RenderEndpoint::SetBatchingEnabledForTesting(
+    bool enabled) noexcept {
+    if (impl_ == nullptr || impl_->driver == nullptr) {
+        return NotInitialized(
+            "Render endpoint is not initialized");
+    }
+    Base::Result<void> idle = WaitIdle();
+    if (!idle) return idle.GetStatus();
+    std::lock_guard<std::mutex> lock(
+        impl_->mutex);
+    if (!impl_->AcceptingFrames()) {
+        return InvalidState(
+            "Render endpoint cannot change batching in its current state");
+    }
+    impl_->batchingEnabled = enabled;
+    impl_->driver->SetBatchingEnabled(
+        enabled);
+    return {};
+}
+
 namespace Detail {
 
 Base::Result<Base::Ref<RenderEndpoint>>
@@ -457,14 +546,26 @@ Base::Result<void> RenderEndpointAccess::Submit(
                     : impl.asynchronousFailure;
             }
         }
+        Base::Result<RenderFrameStatistics>
+            frameStatistics =
+                impl.PlanFrameStatistics(plan);
+        if (!frameStatistics) {
+            return frameStatistics.GetStatus();
+        }
         Base::Result<void> submitted =
             impl.driver->Submit(plan);
+        if (submitted) {
+            impl.MergeBackendStatistics(
+                frameStatistics.Value());
+        }
         std::lock_guard<std::mutex> lock(impl.mutex);
         if (!submitted) {
             ++impl.statistics.failedFrameCount;
             impl.state = RenderEndpointState::Failed;
             return submitted.GetStatus();
         }
+        impl.lastFrameStatistics =
+            frameStatistics.Value();
         ++impl.statistics.acceptedFrameCount;
         ++impl.statistics.completedFrameCount;
         impl.statistics.lastAcceptedVersion = plan.Version();

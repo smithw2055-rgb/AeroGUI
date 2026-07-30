@@ -242,6 +242,46 @@ Base::Result<PresentationMountState> MountService::AttachPresentation(
         (void)tree_->DetachVisual(visualParent, child);
         return render.GetStatus();
     }
+    if (state.renderAttached && renderer_ != nullptr &&
+        child.AsFrameworkElement() != nullptr) {
+        auto attachDescendants =
+            [&](auto&& self,
+                FrameworkElement& parent) noexcept
+                -> Base::Result<void> {
+            for (FrameworkElement* descendant :
+                 parent.RenderChildren()) {
+                if (descendant == nullptr) continue;
+                Base::Result<void> attached =
+                    renderer_->Attach(
+                        parent, *descendant);
+                if (!attached) {
+                    return attached.GetStatus();
+                }
+                Base::Result<void> nested =
+                    self(self, *descendant);
+                if (!nested) return nested.GetStatus();
+            }
+            return {};
+        };
+        Base::Result<void> descendants =
+            attachDescendants(
+                attachDescendants,
+                *child.AsFrameworkElement());
+        if (!descendants) {
+            (void)DetachRender(
+                visualParent,
+                child,
+                state.renderAttached);
+            (void)DetachLayout(
+                visualParent,
+                child,
+                state.layoutAttached);
+            (void)tree_->DetachVisual(
+                visualParent, child);
+            state.visualAttached = false;
+            return descendants.GetStatus();
+        }
+    }
     return state;
 }
 

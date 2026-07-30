@@ -2,6 +2,9 @@
 
 #include "RenderingInternal.hpp"
 
+#include <cinttypes>
+#include <cstdio>
+
 namespace Aero::Presentation {
 
 VisualTreeMount::VisualTreeMount(
@@ -59,14 +62,51 @@ Base::Result<void> VisualTreeMount::Mount(
             ++attached;
             progressed = true;
         }
-        if (!progressed) {
-            (void)Unmount(edges);
-            return InvalidState(
-                "visual tree mount graph is disconnected from its root");
-        }
+        if (!progressed) break;
     }
 
     mounted_ = true;
+    return {};
+}
+
+Base::Result<void>
+VisualTreeMount::CompleteDeferredEdges(
+    Base::Span<VisualTreeMountEdge> edges) noexcept {
+    if (!mounted_) {
+        return InvalidState(
+            "visual tree deferred edges require a mounted root");
+    }
+    std::uint32_t attached = 0U;
+    for (const VisualTreeMountEdge& edge : edges) {
+        if (edge.state.logicalAttached) {
+            ++attached;
+        }
+    }
+    while (attached < edges.Size()) {
+        bool progressed = false;
+        for (VisualTreeMountEdge& edge : edges) {
+            if (edge.state.logicalAttached ||
+                (edge.child != nullptr &&
+                 edge.child->OwningTree() ==
+                     &mounts_.Tree()) ||
+                edge.parent == nullptr ||
+                edge.child == nullptr ||
+                edge.parent->OwningTree() !=
+                    &mounts_.Tree()) {
+                continue;
+            }
+            Base::Result<MountEdgeState> mounted =
+                mounts_.Attach(
+                    *edge.parent,
+                    *edge.child);
+            if (!mounted) return mounted.GetStatus();
+            edge.state =
+                std::move(mounted).Value();
+            ++attached;
+            progressed = true;
+        }
+        if (!progressed) break;
+    }
     return {};
 }
 

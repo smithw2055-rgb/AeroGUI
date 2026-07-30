@@ -58,7 +58,8 @@ private:
     enum class DirectiveKind : std::uint8_t {
         None = 0U,
         Name,
-        Key
+        Key,
+        Class
     };
 
     enum class MarkupValueKind : std::uint8_t {
@@ -82,6 +83,7 @@ private:
         Core::SourceSpan source;
         std::uint32_t valuesWritten = 0U;
         bool propertyElement = false;
+        bool deferredStaticResource = false;
     };
 
     struct CreatedObjectRecord final {
@@ -189,6 +191,7 @@ private:
     bool loading_ = false;
     bool ended_ = false;
     bool consumed_ = false;
+    bool hasDeferredStaticResources_ = false;
     const LoadContext* loadContext_ = nullptr;
 
     Base::Result<LoaderResult> CompleteLoad(

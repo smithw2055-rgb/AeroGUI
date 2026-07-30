@@ -453,7 +453,9 @@ private:
         ScopeFrame& operator=(const ScopeFrame&) = delete;
 
         std::uint32_t bindingStart = 0U;
+        std::uint32_t ignorableNamespaceStart = 0U;
         QualifiedName objectName;
+        bool ignored = false;
     };
 
     IXmlTokenizer* tokenizer_ = nullptr;
@@ -461,6 +463,7 @@ private:
     XmlToken xmlToken_;
     Base::Vector<Node> pending_;
     Base::Vector<NamespaceBinding> bindings_;
+    Base::Vector<Base::String> ignorableNamespaces_;
     Base::Vector<ScopeFrame> scopes_;
     std::uint32_t pendingIndex_ = 0U;
     bool ended_ = false;
@@ -492,6 +495,9 @@ private:
         Base::StringView uri,
         std::uint32_t bindingStart,
         Core::SourceSpan source) noexcept;
+    Base::Result<void> AddIgnorableNamespaces(
+        Base::StringView prefixes,
+        Core::SourceSpan source) noexcept;
     Base::Result<void> ResolveQualifiedName(
         Base::StringView qualifiedName,
         bool useDefaultNamespace,
@@ -506,7 +512,12 @@ private:
     bool IsNamespaceDeclaration(
         Base::StringView attributeName,
         Base::StringView& prefix) const noexcept;
+    bool IsIgnorableNamespace(
+        Base::StringView uri) const noexcept;
+    bool IsMarkupCompatibilityIgnorable(
+        const XmlAttribute& attribute) const noexcept;
     void PopBindings(std::uint32_t bindingStart) noexcept;
+    void PopIgnorableNamespaces(std::uint32_t start) noexcept;
 
     Base::Result<NodeKind> EmitPending(
         Node& node) noexcept;

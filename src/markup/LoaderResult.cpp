@@ -27,14 +27,32 @@ void VisualContentPlan::ReleaseContent() noexcept {
         VisualContentEdge& edge = contentEdges[index];
         bool firstForParent = true;
         for (std::uint32_t prior = 0U; prior < index; ++prior) {
-            if (contentEdges[prior].parentOwner.Get() == edge.parentOwner.Get()) {
+            if (contentEdges[prior].parentOwner.Get() ==
+                    edge.parentOwner.Get() &&
+                (!edge.property ||
+                 contentEdges[prior].member ==
+                     edge.member)) {
                 firstForParent = false;
                 break;
             }
         }
         if (firstForParent && edge.runtime != nullptr && edge.parentOwner) {
-            (void)edge.runtime->ClearContent(
-                *edge.parentOwner.Get(), edge.member);
+            if (edge.property) {
+                const Core::PropertyInfo* property =
+                    edge.runtime->Types().
+                        FindProperty(edge.member);
+                if (property != nullptr) {
+                    (void)edge.runtime->SetProperty(
+                        *edge.parentOwner.Get(),
+                        edge.member,
+                        Core::Value::NullObject(
+                            property->ValueType()));
+                }
+            } else {
+                (void)edge.runtime->ClearContent(
+                    *edge.parentOwner.Get(),
+                    edge.member);
+            }
         }
     }
 }

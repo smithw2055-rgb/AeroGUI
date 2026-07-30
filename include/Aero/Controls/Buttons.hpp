@@ -59,9 +59,11 @@ protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
         : ContentControl(runtimeType) {}
     ~ButtonBase() override = default;
+    Base::Result<void> OnApplyTemplate() noexcept override;
 
 private:
     friend class ControlInteractionManager;
+    ControlInteractionManager* interactionManager_ = nullptr;
     bool commandEnabled_ = true;
 };
 
@@ -70,6 +72,28 @@ class AERO_API Button final : public ButtonBase {
 public:
     Button() noexcept : ButtonBase(StaticTypeId()) {}
     ~Button() override = default;
+};
+
+// WPF-shaped hyperlink interaction surface. Inline flow integration is kept
+// separate from the click/navigation contract so Hyperlink can already be
+// used as a standalone content control and participate in routed Click events.
+class AERO_API Hyperlink final : public ButtonBase {
+    AERO_DECLARE_TYPE(Hyperlink, ButtonBase)
+public:
+    Hyperlink() noexcept : ButtonBase(StaticTypeId()) {}
+    ~Hyperlink() override = default;
+
+    Base::StringView NavigateUri() const noexcept;
+    TextDecorations GetTextDecorations() const noexcept;
+    Base::Result<void> SetNavigateUri(
+        Base::StringView value) noexcept;
+    Base::Result<void> SetTextDecorations(
+        TextDecorations value) noexcept;
+
+    inline static constexpr Members::Property<Base::String>
+        NavigateUriProperty{"NavigateUri"};
+    inline static constexpr Members::Property<TextDecorations>
+        TextDecorationsProperty{"TextDecorations"};
 };
 
 class AERO_API RepeatButton final : public ButtonBase {
@@ -178,6 +202,7 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
 
 private:
+    friend class ButtonBase;
     struct ButtonRecord final {
         VisualHandle handle;
         Base::Ref<ICommand> command;
@@ -224,7 +249,9 @@ private:
         ToggleButton& button,
         ButtonRecord& record) noexcept;
     void UncheckRadioPeers(RadioButton& button) noexcept;
-    void SyncVisualState(ButtonBase& button) noexcept;
+    Base::Result<void> SyncVisualState(
+        ButtonBase& button,
+        bool useTransitions = true) noexcept;
     void OnMouseDown(
         Base::Object* sender,
         const MouseButtonEventArgs& args) noexcept;

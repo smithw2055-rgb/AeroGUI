@@ -21,6 +21,12 @@ struct Thickness final {
     double right = 0.0;
     double bottom = 0.0;
 };
+struct CornerRadius final {
+    double topLeft = 0.0;
+    double topRight = 0.0;
+    double bottomRight = 0.0;
+    double bottomLeft = 0.0;
+};
 struct Color final {
     float red = 0.0F;
     float green = 0.0F;

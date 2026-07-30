@@ -19,6 +19,12 @@ public:
     virtual Base::Result<void> Restore() noexcept = 0;
     virtual Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds) noexcept = 0;
+    virtual RenderFrameStatistics
+        LastFrameStatistics() const noexcept {
+        return {};
+    }
+    virtual void SetBatchingEnabled(
+        bool) noexcept {}
     virtual void* QueryInternalService(
         std::uint64_t service) noexcept {
         (void)service;

@@ -2,6 +2,7 @@
 
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Presentation/Binding.hpp>
+#include <Aero/Presentation/Animation.hpp>
 #include <Aero/RuntimeEnvironment.hpp>
 
 #include "ViewRuntime.hpp"
@@ -40,6 +41,21 @@ public:
         View& view) noexcept {
         Presentation::ObjectTree* tree = Runtime(view).Tree();
         return tree != nullptr ? tree->Root() : nullptr;
+    }
+
+    static Presentation::AnimationManager* Animations(
+        View& view) noexcept {
+        return Runtime(view).Animations();
+    }
+
+    static Controls::VisualStateManager* VisualStates(
+        View& view) noexcept {
+        return Runtime(view).VisualStates();
+    }
+
+    static Controls::TemplateManager* Templates(
+        View& view) noexcept {
+        return Runtime(view).Templates();
     }
 
 private:

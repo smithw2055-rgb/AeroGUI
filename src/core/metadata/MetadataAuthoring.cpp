@@ -142,6 +142,21 @@ MetadataAuthoringSession::Override(
 }
 
 MetadataAuthoringSession&
+MetadataAuthoringSession::AddOwner(
+    DependencyPropertyHandle property,
+    TypeId ownerType,
+    PropertyMetadata metadata) noexcept {
+    if (Ok()) {
+        Record(context_->DependencyProperties().
+            TryAddOwner(
+                property,
+                ownerType,
+                metadata));
+    }
+    return *this;
+}
+
+MetadataAuthoringSession&
 MetadataAuthoringSession::RoutedEvent(
     RoutedEventHandle declaredHandle,
     Base::StringView name,
@@ -311,6 +326,37 @@ MetadataAuthoringSession::Content(
     if (Ok()) {
         Record(context_->Types().TrySetContentMember(
             type_, member));
+    }
+    return *this;
+}
+
+MetadataAuthoringSession&
+MetadataAuthoringSession::ContentAccessor(
+    MemberId member,
+    ContentKind kind,
+    ContentWriteCallback write,
+    ContentClearCallback clear,
+    ContentFlags contentFlags,
+    void* contentContext) noexcept {
+    if (!Ok()) return *this;
+    if (member == InvalidMemberId ||
+        write == nullptr ||
+        clear == nullptr) {
+        return Fail(Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Content accessor requires a member and matching callbacks"));
+    }
+    Record(context_->Types().TrySetContentMember(
+        type_, member));
+    if (Ok()) {
+        Record(context_->Types().TrySetContentAccessor({
+            type_,
+            member,
+            kind,
+            contentFlags,
+            write,
+            clear,
+            contentContext}));
     }
     return *this;
 }

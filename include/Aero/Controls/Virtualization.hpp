@@ -5,6 +5,24 @@
 
 namespace Aero::Controls {
 
+enum class ScrollUnit : std::uint8_t { Item = 0U, Pixel };
+enum class VirtualizationMode : std::uint8_t { Standard = 0U, Recycling };
+
+// WPF attached-property owner shared by all virtualizing panels. The current
+// panel implementation is pixel-based; exposing this owner preserves the
+// authored contract while item-unit realization is added.
+class AERO_API VirtualizingPanel : public Base::Object {
+    AERO_DECLARE_TYPE(VirtualizingPanel, Base::Object)
+public:
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    inline static constexpr Members::AttachedProperty<ScrollUnit>
+        ScrollUnitProperty{"ScrollUnit"};
+    inline static constexpr Members::AttachedProperty<VirtualizationMode>
+        VirtualizationModeProperty{"VirtualizationMode"};
+};
+
 class AERO_API VirtualizingStackPanel final
     : public Panel,
       public IScrollInfo {
@@ -131,3 +149,39 @@ private:
 };
 
 } // namespace Aero::Controls
+
+namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Controls::ScrollUnit> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("ScrollUnit");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "ScrollUnit";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+template<>
+struct MetaTypeTraits<Controls::VirtualizationMode> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("VirtualizationMode");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "VirtualizationMode";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Core

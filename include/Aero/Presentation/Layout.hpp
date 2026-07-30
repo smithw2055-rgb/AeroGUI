@@ -23,6 +23,13 @@ using namespace Aero::Core;
 
 enum class HorizontalAlignment : std::uint8_t { Stretch = 0U, Left, Center, Right };
 enum class VerticalAlignment : std::uint8_t { Stretch = 0U, Top, Center, Bottom };
+enum class Visibility : std::uint8_t { Visible = 0U, Hidden, Collapsed };
+enum class BlendMode : std::uint8_t {
+    Normal = 0U,
+    Multiply,
+    Screen,
+    Additive
+};
 
 } // namespace Aero::Presentation
 
@@ -57,6 +64,36 @@ struct MetaTypeTraits<Presentation::VerticalAlignment> {
 };
 
 template<>
+struct MetaTypeTraits<Presentation::Visibility> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("Visibility");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "Visibility";
+    }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Presentation::BlendMode> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("BlendMode");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "BlendMode";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+template<>
 struct MetaTypeTraits<Base::Thickness> {
     static constexpr TypeId Id() noexcept { return MakeTypeId("Thickness"); }
     static constexpr Base::StringView Namespace() noexcept {
@@ -64,6 +101,22 @@ struct MetaTypeTraits<Base::Thickness> {
     }
     static constexpr Base::StringView Name() noexcept { return "Thickness"; }
     static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Base::CornerRadius> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("CornerRadius");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "CornerRadius";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
 };
 
 } // namespace Aero::Core
@@ -98,6 +151,8 @@ AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 class LayoutManager;
 #endif
 class UIElement;
+class Transform;
+class Effect;
 
 class UIElementChildRange final {
 public:
@@ -311,43 +366,89 @@ public:
     bool IsMeasureValid() const noexcept { return measureValid_; }
     bool IsArrangeValid() const noexcept { return arrangeValid_; }
     bool ClipToBounds() const noexcept;
+    BlendMode GetBlendMode() const noexcept;
+    Base::Ref<Effect> GetEffect() const noexcept;
+    Base::Ref<Base::Object> OpacityMask() const noexcept {
+        return GetValueOr(
+            OpacityMaskProperty,
+            Base::Ref<Base::Object>{});
+    }
     bool IsHitTestVisible() const noexcept;
+    Visibility GetVisibility() const noexcept;
+    bool IsVisible() const noexcept {
+        return GetVisibility() == Visibility::Visible;
+    }
     bool IsEnabled() const noexcept;
+    bool AllowDrop() const noexcept;
     bool IsMouseOver() const noexcept;
     bool IsPressed() const noexcept;
     bool IsKeyboardFocused() const noexcept;
+    bool IsKeyboardFocusWithin() const noexcept;
+    bool Focusable() const noexcept;
     bool IsTabStop() const noexcept;
     std::uint32_t TabIndex() const noexcept;
     bool IsFocusScope() const noexcept;
+    Base::Ref<Transform> RenderTransform() const noexcept;
+    Point RenderTransformOrigin() const noexcept;
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
     inline static constexpr Members::Property<bool>
         ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr Members::Property<BlendMode>
+        BlendModeProperty{"BlendMode"};
+    inline static constexpr Members::Property<Base::Ref<Effect>>
+        EffectProperty{"Effect"};
+    inline static constexpr Members::Property<
+        Base::Ref<Base::Object>>
+        OpacityMaskProperty{"OpacityMask"};
     inline static constexpr Members::Property<bool>
         IsHitTestVisibleProperty{"IsHitTestVisible"};
+    inline static constexpr Members::Property<Visibility>
+        VisibilityProperty{"Visibility"};
     inline static constexpr Members::Property<bool>
         IsEnabledProperty{"IsEnabled"};
+    inline static constexpr Members::Property<bool>
+        AllowDropProperty{"AllowDrop"};
     inline static constexpr Members::ReadOnlyProperty<bool>
         IsMouseOverProperty{"IsMouseOver"};
     inline static constexpr Members::ReadOnlyProperty<bool>
         IsPressedProperty{"IsPressed"};
     inline static constexpr Members::ReadOnlyProperty<bool>
         IsKeyboardFocusedProperty{"IsKeyboardFocused"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
+    inline static constexpr Members::Property<bool>
+        FocusableProperty{"Focusable"};
     inline static constexpr Members::Property<bool>
         IsTabStopProperty{"IsTabStop"};
     inline static constexpr Members::Property<std::uint32_t>
         TabIndexProperty{"TabIndex"};
     inline static constexpr Members::Property<bool>
         IsFocusScopeProperty{"IsFocusScope"};
+    inline static constexpr Members::Property<double>
+        OpacityProperty{"Opacity"};
+    inline static constexpr Members::Property<Base::Ref<Transform>>
+        RenderTransformProperty{"RenderTransform"};
+    inline static constexpr Members::Property<Point>
+        RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
+    Base::Result<void> SetBlendMode(
+        BlendMode value) noexcept;
+    Base::Result<void> SetEffect(
+        Base::Ref<Effect> value) noexcept;
     Base::Result<void> SetHitTestVisible(bool value) noexcept;
+    Base::Result<void> SetVisibility(Visibility value) noexcept;
     Base::Result<void> SetEnabled(bool value) noexcept;
     Base::Result<void> SetTabStop(bool value) noexcept;
     Base::Result<void> SetTabIndex(std::uint32_t value) noexcept;
     Base::Result<void> SetFocusScope(bool value) noexcept;
+    Base::Result<void> SetRenderTransform(
+        Base::Ref<Transform> value) noexcept;
+    Base::Result<void> SetRenderTransformOrigin(
+        Point value) noexcept;
 
 protected:
     Base::Result<void> OnPropertyInvalidated(
@@ -386,6 +487,7 @@ private:
     Base::Vector<HandlerRecord> handlers_;
     std::uint64_t nextHandlerSequence_ = 1U;
     Size desiredSize_;
+    Size untransformedDesiredSize_;
     Size renderSize_;
     Size previousMeasureConstraint_;
     Rect layoutSlot_;
@@ -402,6 +504,7 @@ private:
     Base::Result<void> SetMouseOverState(bool value) noexcept;
     Base::Result<void> SetPressedState(bool value) noexcept;
     Base::Result<void> SetKeyboardFocusedState(bool value) noexcept;
+    Base::Result<void> SetKeyboardFocusWithinState(bool value) noexcept;
     void CleanupHandlers() noexcept;
 };
 
@@ -430,6 +533,9 @@ public:
     Base::Result<std::uint32_t> Flush() noexcept;
     LayoutDiagnostics Diagnostics() const noexcept;
     std::uint64_t PassVersion() const noexcept { return passVersion_; }
+    Base::Status LastFlushStatus() const noexcept {
+        return lastFlushStatus_;
+    }
 
 private:
     friend class UIElement;
@@ -442,6 +548,7 @@ private:
     std::uint64_t passVersion_ = 0U;
     std::uint32_t measuredCount_ = 0U;
     std::uint32_t arrangedCount_ = 0U;
+    Base::Status lastFlushStatus_;
     bool flushing_ = false;
 
     Base::Result<void> VerifyElement(const UIElement& element) const noexcept;

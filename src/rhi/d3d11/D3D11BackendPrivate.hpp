@@ -414,6 +414,10 @@ D3D11_BLEND ToD3DBlend(BlendFactor factor) noexcept {
         return D3D11_BLEND_DEST_ALPHA;
     case BlendFactor::OneMinusDestinationAlpha:
         return D3D11_BLEND_INV_DEST_ALPHA;
+    case BlendFactor::DestinationColor:
+        return D3D11_BLEND_DEST_COLOR;
+    case BlendFactor::OneMinusSourceColor:
+        return D3D11_BLEND_INV_SRC_COLOR;
     }
     return D3D11_BLEND_ZERO;
 }

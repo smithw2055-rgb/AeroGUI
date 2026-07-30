@@ -1,6 +1,7 @@
 #include "ResourceSupport.hpp"
 #include "SchemaInternal.hpp"
 
+#include <Aero/App/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -48,6 +49,24 @@ Base::Result<void> AddFrameworkResource(
     return element->Resources().TryAdd(key, value);
 }
 
+Base::Result<void> AddApplicationResource(
+    Base::Object& scopeOwner,
+    const ResourceKey& key,
+    const Core::Value& value,
+    void*) noexcept {
+    if (scopeOwner.RuntimeType() !=
+        App::Application::StaticTypeId()) {
+        return InvalidResource(
+            "XAML resource scope is not an Application");
+    }
+    Base::Ref<ResourceDictionary> resources =
+        static_cast<App::Application&>(scopeOwner).Resources();
+    return resources
+        ? resources->TryAdd(key, value)
+        : Base::Result<void>(InvalidResource(
+              "Application resource dictionary is unavailable"));
+}
+
 ResourceDictionary* ResolveDictionaryScope(
     Base::Object& scopeOwner,
     void*) noexcept {
@@ -68,6 +87,18 @@ ResourceDictionary* ResolveFrameworkScope(
     return element != nullptr
         ? &element->Resources()
         : nullptr;
+}
+
+ResourceDictionary* ResolveApplicationScope(
+    Base::Object& scopeOwner,
+    void*) noexcept {
+    if (scopeOwner.RuntimeType() !=
+        App::Application::StaticTypeId()) {
+        return nullptr;
+    }
+    Base::Ref<ResourceDictionary> resources =
+        static_cast<App::Application&>(scopeOwner).Resources();
+    return resources.Get();
 }
 
 } // namespace
@@ -132,6 +163,21 @@ Base::Result<void> ResourceExtension::Register(
         nullptr,
         &AddFrameworkResource,
         &ResolveFrameworkScope});
+    if (!status) {
+        schema_ = nullptr;
+        return status.GetStatus();
+    }
+    status = Detail::SchemaAccess::AddType(schema, {
+        App::Application::StaticTypeId(),
+        nullptr,
+        nullptr,
+        nullptr,
+        this,
+        false,
+        true,
+        nullptr,
+        &AddApplicationResource,
+        &ResolveApplicationScope});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();

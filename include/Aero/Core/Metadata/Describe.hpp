@@ -240,6 +240,10 @@ public:
         flags_ = flags_ | PropertyMetadataFlags::AffectsParentArrange;
         return *this;
     }
+    PropertyOptions& Structural() noexcept {
+        structural_ = true;
+        return *this;
+    }
     PropertyOptions& BindsTwoWayByDefault() noexcept {
         flags_ = flags_ |
             PropertyMetadataFlags::BindsTwoWayByDefault;
@@ -338,6 +342,9 @@ public:
     PropertyChangedCallback ChangeCallback() const noexcept {
         return changed_;
     }
+    bool IsStructural() const noexcept {
+        return structural_;
+    }
 
 private:
     TValue defaultValue_;
@@ -347,6 +354,7 @@ private:
     ValidateValueCallback validate_ = nullptr;
     CoerceValueCallback coerce_ = nullptr;
     PropertyChangedCallback changed_ = nullptr;
+    bool structural_ = false;
 };
 
 template<class T>
@@ -629,6 +637,44 @@ public:
         return *this;
     }
 
+    template<class TOwner, class TValue>
+    TypeDescription& AddOwner(
+        const DependencyPropertyRef<TOwner, TValue>& property,
+        const PropertyOptions<TValue>& options) noexcept {
+        if (!builder_.Ok()) return *this;
+        Base::Result<::Aero::Core::Value> encoded =
+            builder_.Encode(options.DefaultValue());
+        if (!encoded) {
+            builder_.Fail(encoded.GetStatus());
+            return *this;
+        }
+        PropertyMetadata metadata;
+        metadata.defaultValue = std::move(encoded).Value();
+        metadata.flags = options.Flags();
+        metadata.defaultUpdateSourceTrigger =
+            options.DefaultUpdateSourceTrigger();
+        metadata.validate = options.Validator();
+        metadata.coerce = options.Coercer();
+        metadata.changed = options.ChangeCallback();
+        builder_.AddOwner(
+            property.Handle(), TypeOf<T>(),
+            std::move(metadata));
+        return *this;
+    }
+
+    TypeDescription& ContentAccessor(
+        MemberId member,
+        ContentKind kind,
+        ContentWriteCallback write,
+        ContentClearCallback clear,
+        ContentFlags flags = ContentFlags::None,
+        void* callbackContext = nullptr) noexcept {
+        builder_.ContentAccessor(
+            member, kind, write, clear,
+            flags, callbackContext);
+        return *this;
+    }
+
     TypeDescription& ValueSemantics(
         const ValueTypeRegistration& registration) noexcept {
         builder_.ValueSemantics(registration);
@@ -645,6 +691,12 @@ public:
     TypeDescription& TextConverter() noexcept {
         builder_.TextConverter(
             &Detail::ConvertTypedText<T, Converter>);
+        return *this;
+    }
+
+    TypeDescription& TextConverter(
+        TextValueConverterCallback converter) noexcept {
+        builder_.TextConverter(converter);
         return *this;
     }
 
@@ -695,6 +747,19 @@ private:
         DependencyPropertyFlags propertyFlags,
         const PropertyOptions<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
+        if constexpr (
+            std::is_same_v<
+                TValue,
+                ::Aero::Core::Value>) {
+            propertyFlags =
+                propertyFlags |
+                DependencyPropertyFlags::AnyValue;
+        }
+        if (options.IsStructural()) {
+            propertyFlags =
+                propertyFlags |
+                DependencyPropertyFlags::Structural;
+        }
         Base::Result<::Aero::Core::Value> encoded =
             builder_.Encode(options.DefaultValue());
         if (!encoded) {

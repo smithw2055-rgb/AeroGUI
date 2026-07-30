@@ -54,6 +54,7 @@ void RuntimePresentationServices::Configure(
     Base::IAllocator& allocator,
     Core::MetadataDomain& metadata,
     Core::EffectiveValueEngine& values,
+    Presentation::BindingManager& bindings,
     Presentation::StyleManager& styles,
     Controls::TemplateManager& templates,
     Controls::VisualStateManager& visualStates,
@@ -61,6 +62,7 @@ void RuntimePresentationServices::Configure(
     allocator_ = &allocator;
     metadata_ = &metadata;
     values_ = &values;
+    bindings_ = &bindings;
     styles_ = &styles;
     templates_ = &templates;
     visualStates_ = &visualStates;
@@ -71,6 +73,7 @@ void RuntimePresentationServices::Reset() noexcept {
     allocator_ = nullptr;
     metadata_ = nullptr;
     values_ = nullptr;
+    bindings_ = nullptr;
     styles_ = nullptr;
     templates_ = nullptr;
     visualStates_ = nullptr;
@@ -80,6 +83,7 @@ void RuntimePresentationServices::Reset() noexcept {
 Base::Result<void> RuntimePresentationServices::Apply(
     Presentation::Visual& root) noexcept {
     if (!IsConfigured() || metadata_ == nullptr || values_ == nullptr ||
+        bindings_ == nullptr ||
         styles_ == nullptr || templates_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -93,6 +97,13 @@ Base::Result<void> RuntimePresentationServices::Apply(
         Presentation::Visual* node = stack.Back();
         stack.PopBack();
         if (node == nullptr) continue;
+
+        auto* dependencyObject =
+            static_cast<Core::DependencyObject*>(node);
+        Base::Result<std::uint32_t> activated =
+            bindings_->ActivateDeferred(
+                *dependencyObject);
+        if (!activated) return activated.GetStatus();
 
         Presentation::FrameworkElement* element =
             node->AsFrameworkElement();
@@ -126,6 +137,7 @@ Base::Result<void> RuntimePresentationServices::Apply(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
             auto& control = *static_cast<Controls::Control*>(node);
+            control.AttachTemplateManager(*templates_);
             Base::Result<const Controls::ControlTemplate*> resolved =
                 ResolvePresentationValue<Controls::ControlTemplate>(
                     control,
@@ -178,6 +190,9 @@ void RuntimePresentationServices::Detach(
     for (Presentation::Visual* node : reachable) {
         if (node == nullptr) continue;
         Presentation::FrameworkElement* element = node->AsFrameworkElement();
+        if (bindings_ != nullptr) {
+            (void)bindings_->DetachObject(*node);
+        }
         if (element != nullptr && styles_ != nullptr) {
             (void)styles_->DetachObject(*element);
         }

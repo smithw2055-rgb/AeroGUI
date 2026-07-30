@@ -74,6 +74,8 @@ struct NativeWindowHandle final {
 
 struct WindowDescriptor final {
     Base::StringView title = "AeroGUI";
+    // A zero width/height pair requests the platform's preferred initial
+    // size. Backends that have no native preference use a portable fallback.
     std::uint32_t width = 900U;
     std::uint32_t height = 640U;
     bool visible = true;

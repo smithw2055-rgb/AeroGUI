@@ -3,7 +3,10 @@
 // Dynamic-resource markup-extension implementation.
 #include "SchemaInternal.hpp"
 
+#include <Aero/Presentation/Style.hpp>
+
 #include <new>
+#include <utility>
 
 namespace Aero::Markup {
 using Presentation::ResourceChangeSubscription;
@@ -342,6 +345,49 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "DynamicResource requires a resource key");
+    }
+    // A Setter is an authored style record rather than a DependencyObject.
+    // Resolve its current resource value while the style dictionary is being
+    // built; the style finalizer subsequently converts that value for the
+    // target dependency property.
+    if (services.targetObject->RuntimeType() ==
+        Presentation::Setter::StaticTypeId()) {
+        // Template/style setters are authored before their eventual target
+        // exists. Resolve from the complete parse-time resource scope, not
+        // only the immediate fallback dictionary: a theme's brushes commonly
+        // live in an earlier merged sibling dictionary.
+        for (const ResourceDictionary* resources :
+             services.ambientResourceChain) {
+            if (resources == nullptr) continue;
+            Base::Result<Presentation::ResourceValue> resource =
+                resources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        if (services.fallbackResources != nullptr) {
+            Base::Result<Presentation::ResourceValue> resource =
+                services.fallbackResources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        // WPF does not fail dictionary construction for a DynamicResource
+        // whose key is currently absent. Preserve an unset object value until
+        // the eventual style-instance resource expression can evaluate it.
+        return ProvidedValue::FromValue(
+            Core::Value::NullObject(
+                Core::TypeOf<Base::Object>()));
     }
     Base::Result<Core::DependencyObject*> targetResult =
         Detail::SchemaAccess::ResolvePropertyTarget(

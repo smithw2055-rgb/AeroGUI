@@ -12,7 +12,56 @@
 
 namespace Aero::Presentation {
 
+enum class InputScope : std::uint8_t {
+    Default = 0U,
+    Url,
+    EmailSmtpAddress,
+    Digits,
+    Number,
+    Password,
+    TelephoneNumber
+};
+
 class Style;
+
+// Extension owner used by the Gallery theme. The value is retained on the
+// target element so render backends can consume it when PPAA support is active.
+class AERO_API Element final : public Base::Object {
+    AERO_DECLARE_TYPE(Element, Base::Object)
+public:
+    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    inline static constexpr Members::AttachedProperty<double>
+        PPAAOutProperty{"PPAAOut"};
+    // Gallery's local Element facade exposes the reference focus-engagement
+    // state as an attached property so templates can react without coupling
+    // to a concrete control type.
+    inline static constexpr Members::AttachedProperty<bool>
+        IsFocusEngagedProperty{"IsFocusEngaged"};
+};
+
+// Gallery's extension namespace exposes text-state attached properties. They
+// are owned independently of a particular editor so templates can observe
+// them through bindings and trigger conditions.
+class AERO_API TextProperties final : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        TextProperties, Base::Object, "urn:aero", "Text")
+public:
+    Core::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    inline static constexpr Members::AttachedProperty<std::uint32_t>
+        PasswordLengthProperty{"PasswordLength"};
+};
+
+class AERO_API FontFamily final : public Base::Object {
+    AERO_DECLARE_TYPE(FontFamily, Base::Object)
+public:
+    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Base::StringView Source() const noexcept { return source_.View(); }
+    Base::Result<void> SetSource(Base::StringView value) noexcept { return source_.TryAssign(value); }
+private:
+    Base::String source_;
+};
 
 using namespace Aero::Core;
 
@@ -28,6 +77,26 @@ using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 
 } // namespace Aero::Presentation
+
+namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Presentation::InputScope> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("InputScope");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "InputScope";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Core
 
 namespace Aero::Core {
 
@@ -218,10 +287,34 @@ public:
     bool HasHeight() const noexcept;
     double Width() const noexcept;
     double Height() const noexcept;
+    double ActualWidth() const noexcept {
+        return GetValueOr(
+            ActualWidthProperty, 0.0);
+    }
+    double ActualHeight() const noexcept {
+        return GetValueOr(
+            ActualHeightProperty, 0.0);
+    }
     Size MinSize() const noexcept;
     Size MaxSize() const noexcept;
     Thickness Margin() const noexcept;
+    Base::Ref<Transform> LayoutTransform() const noexcept;
+    Base::Transform2D LocalVisualTransform() const noexcept;
     Base::Result<Base::Ref<Base::Object>> GetDataContext() const noexcept;
+    Base::StringView FontFamily() const noexcept {
+        Base::StringView family = GetValueOr(
+            FontFamilyProperty, Base::StringView{});
+        const FrameworkElement* parent =
+            RenderParent();
+        while (family.Empty() &&
+               parent != nullptr) {
+            family = parent->GetValueOr(
+                FontFamilyProperty,
+                Base::StringView{});
+            parent = parent->RenderParent();
+        }
+        return family;
+    }
     ResourceDictionary& Resources() noexcept {
         return resources_;
     }
@@ -239,13 +332,38 @@ public:
     inline static constexpr Members::Property<
         Base::Ref<Base::Object>>
         DataContextProperty{"DataContext"};
+    // A common inherited owner lets Window, controls and text elements share
+    // the same WPF-style FontFamily value through the visual tree.
+    inline static constexpr Members::Property<Base::String>
+        FontFamilyProperty{"FontFamily"};
+    // Cursor names use the WPF built-in names (for example, "Hand"). The
+    // platform input bridge consumes this inherited value when choosing the
+    // native pointer cursor.
+    inline static constexpr Members::Property<Base::String>
+        CursorProperty{"Cursor"};
+    // When true, this element's Cursor takes precedence over the cursor
+    // chosen by the input hit target, matching FrameworkElement.ForceCursor.
+    inline static constexpr Members::Property<bool>
+        ForceCursorProperty{"ForceCursor"};
     inline static constexpr Members::Property<
         Base::Ref<Style>>
         StyleProperty{"Style"};
+    // WPF-compatible application payload. It deliberately has no layout or
+    // rendering effect and accepts the markup value without coercion.
+    inline static constexpr Members::Property<Core::Value>
+        TagProperty{"Tag"};
+    inline static constexpr Members::Property<Core::Value>
+        ToolTipProperty{"ToolTip"};
+    inline static constexpr Members::Property<InputScope>
+        InputScopeProperty{"InputScope"};
     inline static constexpr Members::Property<Length>
         WidthProperty{"Width"};
     inline static constexpr Members::Property<Length>
         HeightProperty{"Height"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ActualWidthProperty{"ActualWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double>
+        ActualHeightProperty{"ActualHeight"};
     inline static constexpr Members::Property<double>
         MinWidthProperty{"MinWidth"};
     inline static constexpr Members::Property<double>
@@ -264,6 +382,9 @@ public:
         VerticalAlignmentProperty{"VerticalAlignment"};
     inline static constexpr Members::Property<bool>
         UseLayoutRoundingProperty{"UseLayoutRounding"};
+    inline static constexpr Members::Property<
+        Base::Ref<Transform>>
+        LayoutTransformProperty{"LayoutTransform"};
 
     Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
@@ -276,6 +397,10 @@ public:
     Base::Result<void> SetMargin(Thickness value) noexcept;
     Base::Result<void> SetDataContext(
         Base::Ref<Base::Object> value) noexcept;
+    Base::Result<void> SetFontFamily(
+        Base::StringView value) noexcept {
+        return SetValue(FontFamilyProperty, value);
+    }
     Base::Result<void> ClearDataContext() noexcept;
     Base::Result<void> SetTemplatedParent(
         DependencyObject* value) noexcept {
@@ -288,6 +413,17 @@ public:
         HorizontalAlignment value) noexcept;
     Base::Result<void> SetVerticalAlignment(
         VerticalAlignment value) noexcept;
+    Base::Result<void> SetLayoutTransform(
+        Base::Ref<Transform> value) noexcept;
+    Base::Result<void> TryAddAuthoredTrigger(
+        Base::Ref<Base::Object> trigger) noexcept;
+    Base::Result<void> ClearAuthoredTriggers() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    AuthoredTriggers() const noexcept {
+        return {
+            authoredTriggers_.Data(),
+            authoredTriggers_.Size()};
+    }
 
     RenderNodeId NodeId() const noexcept { return nodeId_; }
     bool IsRenderValid() const noexcept { return renderValid_; }
@@ -318,6 +454,7 @@ private:
     bool buildingDisplayList_ = false;
     DependencyObject* templatedParent_ = nullptr;
     ResourceDictionary resources_;
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers_;
 };
 
 } // namespace Aero::Presentation

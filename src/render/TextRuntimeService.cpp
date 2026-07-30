@@ -11,6 +11,11 @@
 namespace Aero::Render::Detail {
 namespace {
 
+// Text often sits below a Viewbox or another render transform.  Keep the
+// layout in device-independent units, but rasterize glyph atlas entries at a
+// higher density so an enlarged run is still sampled from sufficient detail.
+constexpr float GlyphRasterScale = 4.0F;
+
 struct GlyphVertex final {
     float x = 0.0F;
     float y = 0.0F;
@@ -342,7 +347,11 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
         request.dpiScale <= 0.0 ||
         request.dpiScale >
             static_cast<double>(
-                std::numeric_limits<float>::max())) {
+                std::numeric_limits<float>::max()) ||
+        !std::isfinite(request.pixelSize) ||
+        request.pixelSize <= 0.0F ||
+        !std::isfinite(request.lineHeight) ||
+        request.lineHeight < 0.0F) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TextBlock layout request is invalid");
@@ -378,17 +387,22 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     }
 
     Text::TextLayoutRequest layoutRequest;
-    layoutRequest.face = impl_->config.face;
+    layoutRequest.face = request.face.handle.IsValid()
+        ? request.face
+        : impl_->config.face;
     layoutRequest.fallbackFaces =
         impl_->fallbackFaces.AsSpan();
     layoutRequest.text = request.text;
-    layoutRequest.pixelSize = impl_->config.pixelSize;
+    layoutRequest.pixelSize = request.pixelSize;
     layoutRequest.maxWidth =
         static_cast<float>(request.availableSize.width);
-    layoutRequest.lineHeight = impl_->config.lineHeight;
-    layoutRequest.wrapping = impl_->config.wrapping;
-    layoutRequest.trimming = impl_->config.trimming;
-    layoutRequest.alignment = impl_->config.alignment;
+    layoutRequest.lineHeight =
+        request.lineHeight > 0.0F
+        ? request.lineHeight
+        : impl_->config.lineHeight;
+    layoutRequest.wrapping = request.wrapping;
+    layoutRequest.trimming = request.trimming;
+    layoutRequest.alignment = request.alignment;
     Text::TextLayout layout(allocator_);
     Base::Result<void> laidOut =
         layout.ShapeAndMeasure(*fonts_, layoutRequest);
@@ -403,6 +417,12 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     Base::Vector<BatchBuild> batches(allocator_);
     const float dpiScale =
         static_cast<float>(request.dpiScale);
+    const float glyphRasterDpi = dpiScale * GlyphRasterScale;
+    if (!std::isfinite(glyphRasterDpi) || glyphRasterDpi <= 0.0F) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Text glyph raster scale exceeds supported precision");
+    }
     const Text::GlyphAtlasConfig atlasConfig =
         impl_->atlas.Config();
     const Rhi::FenceValue completedFence =
@@ -427,7 +447,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
             glyphRequest.face = run.face;
             glyphRequest.glyph = glyph.glyph;
             glyphRequest.pixelSize = run.pixelSize;
-            glyphRequest.dpiScale = dpiScale;
+            glyphRequest.dpiScale = glyphRasterDpi;
             Text::GlyphMetrics metrics;
             Base::Result<void> measured =
                 fonts_->GetGlyphMetrics(
@@ -461,7 +481,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
             }
             const std::uint32_t vertexBase =
                 batch.vertices.Size();
-            const float inverseDpi = 1.0F / dpiScale;
+            const float inverseDpi = 1.0F / glyphRasterDpi;
             const float left = glyph.x +
                 static_cast<float>(placement.bearingX) *
                     inverseDpi;

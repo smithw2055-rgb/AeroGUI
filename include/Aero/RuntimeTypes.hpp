@@ -35,8 +35,17 @@ struct ViewRenderDiagnostics final {
     std::uint64_t snapshotVersion = 0U;
     std::uint32_t nodeCount = 0U;
     std::uint32_t commandCount = 0U;
+    std::uint32_t glyphCommandCount = 0U;
     std::uint32_t dirtyCount = 0U;
     std::uint64_t snapshotHash = 0U;
+    std::uint32_t drawPacketCount = 0U;
+    std::uint32_t batchCount = 0U;
+    std::uint32_t drawCallCount = 0U;
+    std::uint32_t mergedPacketCount = 0U;
+    std::uint32_t barrierCount = 0U;
+    std::uint32_t instanceCount = 0U;
+    std::uint32_t stateBindingCount = 0U;
+    bool batchingEnabled = true;
 };
 
 struct ViewFrameResult final {

@@ -1,5 +1,7 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 
+#include <cstdio>
+
 #include "MetadataRuntimeData.hpp"
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
@@ -131,18 +133,30 @@ Base::Result<void> MetadataRuntime::WriteContent(
             Base::ErrorCode::Unsupported,
             "Metadata content member is not writable");
     }
-    if (!Types().IsAssignableFrom(
+    const PropertyInfo* property =
+        Types().FindProperty(member);
+    const bool attached =
+        property != nullptr &&
+        HasPropertyFlag(
+            property->Flags(),
+            PropertyFlags::Attached);
+    if (!attached &&
+        !Types().IsAssignableFrom(
             content->type, owner.RuntimeType())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata content owner type is incompatible");
     }
-    const PropertyInfo* property =
-        Types().FindProperty(member);
+    const bool acceptsAnyValue =
+        property != nullptr &&
+        HasPropertyFlag(
+            property->Flags(),
+            PropertyFlags::AnyValue);
     if (!value || property == nullptr ||
-        !Types().IsAssignableFrom(
-            property->ValueType(),
-            value->RuntimeType())) {
+        (!acceptsAnyValue &&
+         !Types().IsAssignableFrom(
+             property->ValueType(),
+             value->RuntimeType()))) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata content value type is incompatible");
@@ -161,7 +175,15 @@ Base::Result<void> MetadataRuntime::ClearContent(
             Base::ErrorCode::Unsupported,
             "Metadata content member cannot be cleared");
     }
-    if (!Types().IsAssignableFrom(
+    const PropertyInfo* property =
+        Types().FindProperty(member);
+    const bool attached =
+        property != nullptr &&
+        HasPropertyFlag(
+            property->Flags(),
+            PropertyFlags::Attached);
+    if (!attached &&
+        !Types().IsAssignableFrom(
             content->type, owner.RuntimeType())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -223,6 +245,14 @@ MetadataRuntime::CreateObject(TypeId type) const noexcept {
         HasTypeFlag(descriptor->Flags(), TypeFlags::Abstract) ||
         factory == nullptr ||
         factory->factory == nullptr) {
+        std::fprintf(
+            stderr,
+            "Metadata type '%.*s' is not constructible (kind=%u, abstract=%u, factory=%u)\n",
+            static_cast<int>(descriptor->Name().SizeBytes()),
+            descriptor->Name().Data(),
+            static_cast<unsigned>(descriptor->Kind()),
+            HasTypeFlag(descriptor->Flags(), TypeFlags::Abstract) ? 1U : 0U,
+            factory != nullptr && factory->factory != nullptr ? 1U : 0U);
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Metadata type has no constructible factory");
@@ -281,8 +311,7 @@ Base::Result<Value> MetadataRuntime::TryConvertText(
     }
     const Detail::TextConverterFacet* converter =
         domain_->RuntimeData().FindTextConverter(type);
-    if (!HasTypeFlag(descriptor->Flags(), TypeFlags::ValueType) ||
-        converter == nullptr ||
+    if (converter == nullptr ||
         converter->convert == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,

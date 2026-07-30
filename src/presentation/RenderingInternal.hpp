@@ -8,12 +8,34 @@ class RenderBackendAccess;
 
 namespace Aero::Presentation {
 
+enum class RenderEffectKind : std::uint8_t {
+    None = 0U,
+    Blur,
+    DropShadow
+};
+
+struct RenderEffectSnapshot final {
+    RenderEffectKind kind = RenderEffectKind::None;
+    double radius = 0.0;
+    double direction = 315.0;
+    double depth = 0.0;
+    double opacity = 1.0;
+    Color color{0.0F, 0.0F, 0.0F, 1.0F};
+};
+
 struct RenderNodeSnapshot final {
     RenderNodeId id = InvalidRenderNodeId;
     RenderNodeId parentId = InvalidRenderNodeId;
     Rect layoutSlot;
     Rect clip;
+    // LayoutClip is meaningful to rendering only when the element explicitly
+    // requests bounds clipping. Otherwise a RenderTransform (for example the
+    // scale installed by Viewbox) is allowed to paint outside its layout slot.
+    bool clipsToBounds = false;
     Size renderSize;
+    Transform2D renderTransform;
+    BlendMode blendMode = BlendMode::Normal;
+    RenderEffectSnapshot effect;
     std::uint32_t commandOffset = 0U;
     std::uint32_t commandCount = 0U;
     std::uint64_t elementRevision = 0U;
@@ -77,6 +99,7 @@ struct RenderDiagnostics final {
     std::uint64_t commitVersion = 0U;
     std::uint32_t nodeCount = 0U;
     std::uint32_t commandCount = 0U;
+    std::uint32_t glyphCommandCount = 0U;
     std::uint32_t dirtyCount = 0U;
     std::uint64_t planHash = 0U;
 };
@@ -101,6 +124,9 @@ public:
         FrameworkElement& child) noexcept;
     Base::Result<void> Invalidate(
         FrameworkElement& element) noexcept;
+    Base::Result<void> SetOverlays(
+        Base::Span<FrameworkElement* const> overlays,
+        Base::Span<const Point> origins) noexcept;
     Base::Result<std::uint32_t> Commit() noexcept;
 
     const RenderPlan& CurrentPlan() const noexcept {
@@ -116,6 +142,11 @@ private:
     IRenderBackend* backend_ = nullptr;
     FrameworkElement* root_ = nullptr;
     Base::Vector<Detail::VisualLease> dirty_;
+    struct OverlayRecord final {
+        FrameworkElement* element = nullptr;
+        Point origin;
+    };
+    Base::Vector<OverlayRecord> overlays_;
     RenderPlan currentPlan_;
     DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
@@ -132,7 +163,10 @@ private:
     Base::Result<void> BuildSubtree(
         FrameworkElement& element,
         RenderNodeId parentId,
-        RenderPlan& plan) noexcept;
+        RenderPlan& plan,
+        bool overlayRoot = false) noexcept;
+    bool IsOverlay(
+        const FrameworkElement& element) const noexcept;
     static void RenderCommitHook(void* context) noexcept;
 };
 

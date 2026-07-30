@@ -188,6 +188,10 @@ public:
         DependencyPropertyHandle property,
         TypeId ownerType,
         PropertyMetadata metadata) noexcept;
+    MetadataAuthoringSession& AddOwner(
+        DependencyPropertyHandle property,
+        TypeId ownerType,
+        PropertyMetadata metadata) noexcept;
     MetadataAuthoringSession& RoutedEvent(
         RoutedEventHandle declaredHandle,
         Base::StringView name,
@@ -218,6 +222,13 @@ public:
         std::uint64_t rawValue) noexcept;
     MetadataAuthoringSession& Content(
         MemberId member) noexcept;
+    MetadataAuthoringSession& ContentAccessor(
+        MemberId member,
+        ContentKind kind,
+        ContentWriteCallback write,
+        ContentClearCallback clear,
+        ContentFlags contentFlags,
+        void* contentContext) noexcept;
     MetadataAuthoringSession& ValueSemantics(
         const ValueTypeRegistration& registration) noexcept;
     MetadataAuthoringSession& TextConverter(

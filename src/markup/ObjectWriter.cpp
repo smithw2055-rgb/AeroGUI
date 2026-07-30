@@ -34,10 +34,50 @@ Base::Result<void> DeferredContentPlan::Stage(
             &parent,
             child,
             &runtime,
-            member});
+            member,
+            false});
     if (!retained) return retained.GetStatus();
     Base::Result<void> written =
         runtime.WriteContent(parent, member, child);
+    if (!written) {
+        edges_.PopBack();
+        return written.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> DeferredContentPlan::StageProperty(
+    Base::Object& owner,
+    Base::Object& parent,
+    const Base::Ref<Base::Object>& child,
+    Core::MetadataRuntime& runtime,
+    Core::MemberId member) noexcept {
+    if (!child ||
+        member == Core::InvalidMemberId) {
+        return InvalidContentState(
+            "Deferred XAML structural property edge is invalid");
+    }
+    const Core::PropertyInfo* property =
+        runtime.Types().FindProperty(member);
+    if (property == nullptr) {
+        return InvalidContent(
+            "Deferred XAML structural property was not found");
+    }
+    Base::Result<void> retained =
+        edges_.TryPushBack({
+            &owner,
+            &parent,
+            child,
+            &runtime,
+            member,
+            true});
+    if (!retained) return retained.GetStatus();
+    const Core::Value value =
+        Core::Value::FromObject(
+            property->ValueType(), child);
+    Base::Result<void> written =
+        runtime.SetProperty(
+            parent, member, value);
     if (!written) {
         edges_.PopBack();
         return written.GetStatus();
@@ -50,6 +90,62 @@ Base::Result<void> DeferredContentPlan::CopyForOwner(
     Base::Vector<DeferredContentEdge>& output) const noexcept {
     output.Clear();
     for (const DeferredContentEdge& edge : edges_) {
+        if (edge.owner != &owner) continue;
+        Base::Result<void> copied =
+            output.TryPushBack(edge);
+        if (!copied) {
+            output.Clear();
+            return copied.GetStatus();
+        }
+    }
+    return {};
+}
+
+Base::Result<void> DeferredContentPlan::StageBinding(
+    Base::Object& owner,
+    Base::Object* source,
+    Core::DependencyObject& target,
+    Presentation::BindingManager& manager,
+    Core::MetadataRuntime& metadata,
+    Core::DependencyPropertyHandle targetProperty,
+    Core::DependencyPropertyHandle dataContextProperty,
+    Base::StringView path,
+    Base::StringView stringFormat,
+    Presentation::BindingMode mode,
+    Core::UpdateSourceTrigger updateSourceTrigger,
+    bool bindsToSource) noexcept {
+    if (!targetProperty.IsValid() ||
+        (path.Empty() && !bindsToSource) ||
+        !metadata.IsReady()) {
+        return InvalidContentState(
+            "Deferred XAML Binding declaration is invalid");
+    }
+    DeferredBindingEdge edge;
+    edge.owner = &owner;
+    edge.source = source;
+    edge.target = &target;
+    edge.manager = &manager;
+    edge.metadata = &metadata;
+    edge.targetProperty = targetProperty;
+    edge.dataContextProperty = dataContextProperty;
+    edge.mode = mode;
+    edge.bindsToSource = bindsToSource;
+    edge.updateSourceTrigger = updateSourceTrigger;
+    Base::Result<void> assigned =
+        edge.path.TryAssign(path);
+    if (!assigned) return assigned.GetStatus();
+    assigned = edge.stringFormat.TryAssign(
+        stringFormat);
+    if (!assigned) return assigned.GetStatus();
+    return bindings_.TryPushBack(std::move(edge));
+}
+
+Base::Result<void>
+DeferredContentPlan::CopyBindingsForOwner(
+    const Base::Object& owner,
+    Base::Vector<DeferredBindingEdge>& output) const noexcept {
+    output.Clear();
+    for (const DeferredBindingEdge& edge : bindings_) {
         if (edge.owner != &owner) continue;
         Base::Result<void> copied =
             output.TryPushBack(edge);
@@ -75,14 +171,31 @@ void DeferredContentPlan::ReleaseOwner(
             firstForParent =
                 firstForParent &&
                 (edges_[earlier].owner != &owner ||
-                 edges_[earlier].parent != edge.parent);
+                 edges_[earlier].parent !=
+                     edge.parent ||
+                 (edge.property &&
+                  edges_[earlier].member !=
+                      edge.member));
         }
         if (firstForParent &&
             edge.parent != nullptr &&
             edge.runtime != nullptr) {
-            (void)edge.runtime->ClearContent(
-                *edge.parent,
-                edge.member);
+            if (edge.property) {
+                const Core::PropertyInfo* property =
+                    edge.runtime->Types().
+                        FindProperty(edge.member);
+                if (property != nullptr) {
+                    (void)edge.runtime->SetProperty(
+                        *edge.parent,
+                        edge.member,
+                        Core::Value::NullObject(
+                            property->ValueType()));
+                }
+            } else {
+                (void)edge.runtime->ClearContent(
+                    *edge.parent,
+                    edge.member);
+            }
         }
     }
 
@@ -98,12 +211,26 @@ void DeferredContentPlan::ReleaseOwner(
         ++output;
     }
     (void)edges_.TryResize(output);
+
+    output = 0U;
+    for (std::uint32_t index = 0U;
+         index < bindings_.Size();
+         ++index) {
+        DeferredBindingEdge& edge = bindings_[index];
+        if (edge.owner == &owner) continue;
+        if (output != index) {
+            bindings_[output] = std::move(edge);
+        }
+        ++output;
+    }
+    (void)bindings_.TryResize(output);
 }
 
 void DeferredContentPlan::ReleaseAll() noexcept {
-    while (!edges_.Empty()) {
-        Base::Object* owner =
-            edges_.Front().owner;
+    while (!edges_.Empty() || !bindings_.Empty()) {
+        Base::Object* owner = !edges_.Empty()
+            ? edges_.Front().owner
+            : bindings_.Front().owner;
         if (owner == nullptr) {
             edges_.Clear();
             return;
@@ -178,17 +305,56 @@ Base::Result<void> ObjectWriter::StageContent(
     }
     Base::Result<Core::ContentInfo> contentResult =
         runtime->GetContentInfo(services.targetMember);
-    if (!contentResult) {
+    const Core::PropertyInfo* property =
+        schema.Types().FindProperty(
+            services.targetMember);
+    const bool structuralProperty =
+        property != nullptr &&
+        (static_cast<std::uint32_t>(
+             property->Flags()) &
+         static_cast<std::uint32_t>(
+             Core::PropertyFlags::Structural)) !=
+            0U &&
+        runtime->CanWriteProperty(
+            services.targetMember);
+    if (!contentResult && !structuralProperty) {
         return InvalidContent(
             "XAML content target has no content metadata");
     }
-    const Core::ContentInfo& content = contentResult.Value();
-    if (!content.writable || !content.clearable ||
-        !content.IsVisual() ||
+    if (!structuralProperty) {
+        const Core::ContentInfo& content =
+            contentResult.Value();
+        if (!content.writable ||
+            !content.clearable ||
+            !content.IsVisual() ||
+            !schema.Types().IsDerivedFrom(
+                services.targetObjectType,
+                content.ownerType)) {
+            return InvalidContent(
+                "XAML content target has no visual content facet");
+        }
+    }
+
+    Base::Object* childObject = value.AsObject().Get();
+    Base::Result<Presentation::UIElement*> childResult =
+        ResolveUIElement(schema, *childObject, value.Type());
+    if (!childResult) return childResult.GetStatus();
+
+    // A deferred template owns a visual root without itself being a Visual.
+    // Commit that root through the template's content accessor; descendant
+    // visual edges are staged below once their actual visual parent exists.
+    if (services.deferredContentOwner == &object &&
         !schema.Types().IsDerivedFrom(
-            services.targetObjectType, content.ownerType)) {
-        return InvalidContent(
-            "XAML content target has no visual content facet");
+            services.targetObjectType,
+            Presentation::Visual::StaticTypeId())) {
+        if (structuralProperty) {
+            return InvalidContent(
+                "A non-visual template root cannot use a visual structural property");
+        }
+        return runtime->WriteContent(
+            object,
+            services.targetMember,
+            value.AsObject());
     }
 
     Base::Result<Presentation::UIElement*> parentResult =
@@ -196,22 +362,26 @@ Base::Result<void> ObjectWriter::StageContent(
             schema, object, services.targetObjectType);
     if (!parentResult) return parentResult.GetStatus();
 
-    Base::Object* childObject = value.AsObject().Get();
-    Base::Result<Presentation::UIElement*> childResult =
-        ResolveUIElement(schema, *childObject, value.Type());
-    if (!childResult) return childResult.GetStatus();
-
     if (services.deferredContentOwner != nullptr) {
         if (services.deferredContent == nullptr) {
             return InvalidContentState(
                 "Deferred XAML content plan is unavailable");
         }
-        return services.deferredContent->Stage(
-            *services.deferredContentOwner,
-            object,
-            value.AsObject(),
-            *runtime,
-            services.targetMember);
+        return structuralProperty
+            ? services.deferredContent->
+                  StageProperty(
+                      *services.
+                           deferredContentOwner,
+                      object,
+                      value.AsObject(),
+                      *runtime,
+                      services.targetMember)
+            : services.deferredContent->Stage(
+                  *services.deferredContentOwner,
+                  object,
+                  value.AsObject(),
+                  *runtime,
+                  services.targetMember);
     }
 
     Base::Result<void> reserved = plan->TryReserve(
@@ -240,7 +410,8 @@ Base::Result<void> ObjectWriter::StageContent(
     Base::Result<void> tracked =
         plan->contentEdges.TryPushBack({
             std::move(parentOwner), value.AsObject(),
-            runtime, services.targetMember});
+            runtime, services.targetMember,
+            structuralProperty});
     if (!tracked) return tracked.GetStatus();
 
     tracked = plan->mountEdges.TryPushBack({
@@ -250,8 +421,16 @@ Base::Result<void> ObjectWriter::StageContent(
         return tracked.GetStatus();
     }
 
-    Base::Result<void> written = runtime->WriteContent(
-        object, services.targetMember, value.AsObject());
+    Base::Result<void> written =
+        structuralProperty
+        ? runtime->SetProperty(
+              object,
+              services.targetMember,
+              value)
+        : runtime->WriteContent(
+              object,
+              services.targetMember,
+              value.AsObject());
     if (!written) {
         plan->mountEdges.PopBack();
         plan->contentEdges.PopBack();

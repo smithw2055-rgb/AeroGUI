@@ -22,6 +22,8 @@ struct TextOptions final {
     Base::StringView primaryFamily;
     Base::Span<const Base::StringView> fallbackFamilies;
     Base::StringView language;
+    // Relative FontFamily file values are resolved beneath this root.
+    Base::StringView fontSearchRoot;
     float defaultPixelSize = 16.0F;
 };
 
@@ -32,6 +34,7 @@ struct ViewHostOptions final {
     TextOptions text;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;
+    bool automaticAnimationClock = true;
 };
 
 class AERO_API ViewHost final {

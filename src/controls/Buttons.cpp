@@ -142,6 +142,27 @@ Base::Result<void> RadioButton::SetGroupName(
     return SetValue(GroupNameProperty, value);
 }
 
+Base::StringView Hyperlink::NavigateUri() const noexcept {
+    return GetValueOr(
+        NavigateUriProperty,
+        Base::StringView{});
+}
+
+TextDecorations Hyperlink::GetTextDecorations() const noexcept {
+    return GetValueOr(
+        TextDecorationsProperty, TextDecorations::Underline);
+}
+
+Base::Result<void> Hyperlink::SetNavigateUri(
+    Base::StringView value) noexcept {
+    return SetValue(NavigateUriProperty, value);
+}
+
+Base::Result<void> Hyperlink::SetTextDecorations(
+    TextDecorations value) noexcept {
+    return SetValue(TextDecorationsProperty, value);
+}
+
 ControlInteractionManager::ControlInteractionManager(
     ObjectTree& tree,
     RoutedEventManager& events,
@@ -190,6 +211,9 @@ ControlInteractionManager::~ControlInteractionManager() noexcept {
         const std::uint32_t index = buttons_.Size() - 1U;
         ButtonBase* button = ResolveButton(index);
         if (button != nullptr) {
+            if (button->interactionManager_ == this) {
+                button->interactionManager_ = nullptr;
+            }
             static_cast<void>(button->RemoveHandler(
                 UIElement::MouseDownEvent, mouseDownHandler_));
             static_cast<void>(button->RemoveHandler(
@@ -319,6 +343,11 @@ Base::Result<void> ControlInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to interaction services");
     }
+    if (button.interactionManager_ != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::AlreadyExists,
+            "Button is already attached to another interaction service");
+    }
     if (!button.IsLoaded() || button.OwningTree() != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -407,7 +436,16 @@ Base::Result<void> ControlInteractionManager::Attach(
             UncheckRadioPeers(radio);
         }
     }
-    SyncVisualState(button);
+    button.interactionManager_ = this;
+    result = SyncVisualState(button, false);
+    if (!result &&
+        result.GetStatus().code !=
+            Base::ErrorCode::InvalidState) {
+        const Base::Status status =
+            result.GetStatus();
+        static_cast<void>(Detach(button));
+        return status;
+    }
     return {};
 }
 
@@ -474,6 +512,9 @@ Base::Result<bool> ControlInteractionManager::Detach(
     if (states_ != nullptr) {
         static_cast<void>(states_->Clear(button));
     }
+    if (button.interactionManager_ == this) {
+        button.interactionManager_ = nullptr;
+    }
     RemoveAt(index);
     return true;
 }
@@ -509,7 +550,13 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
         Base::Result<bool> cleared = focus_->ClearFocus();
         if (!cleared) return cleared.GetStatus();
     }
-    SyncVisualState(button);
+    Base::Result<void> synchronized =
+        SyncVisualState(button);
+    if (!synchronized &&
+        synchronized.GetStatus().code !=
+            Base::ErrorCode::InvalidState) {
+        return synchronized.GetStatus();
+    }
     return {};
 }
 
@@ -624,7 +671,8 @@ void ControlInteractionManager::PublishToggleState(
     ButtonRecord& record) noexcept {
     const ToggleState state = button.GetToggleState();
     if (record.toggleState == state) {
-        SyncVisualState(button);
+        static_cast<void>(
+            SyncVisualState(button));
         return;
     }
     record.toggleState = state;
@@ -640,7 +688,8 @@ void ControlInteractionManager::PublishToggleState(
         button.RuntimeType() == RadioButton::StaticTypeId()) {
         UncheckRadioPeers(static_cast<RadioButton&>(button));
     }
-    SyncVisualState(button);
+    static_cast<void>(
+        SyncVisualState(button));
 }
 
 void ControlInteractionManager::UncheckRadioPeers(
@@ -666,20 +715,44 @@ void ControlInteractionManager::UncheckRadioPeers(
     }
 }
 
-void ControlInteractionManager::SyncVisualState(
-    ButtonBase& button) noexcept {
-    if (states_ == nullptr) return;
+Base::Result<void>
+ControlInteractionManager::SyncVisualState(
+    ButtonBase& button,
+    bool useTransitions) noexcept {
+    if (states_ == nullptr) return {};
+    const auto apply =
+        [this, &button, useTransitions](
+            Base::StringView group,
+            Base::StringView state) noexcept
+            -> Base::Result<void> {
+        Base::Result<bool> changed =
+            states_->GoToState(
+                button, group, state,
+                useTransitions);
+        if (!changed &&
+            changed.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+            return changed.GetStatus();
+        }
+        return {};
+    };
     Base::StringView common = "Normal";
     if (!button.IsEnabled()) common = "Disabled";
     else if (button.IsPressed()) common = "Pressed";
     else if (button.IsMouseOver()) common = "PointerOver";
-    static_cast<void>(states_->GoToState(
-        button, "CommonStates", common));
-    static_cast<void>(states_->GoToState(
-        button, "FocusStates",
+    Base::Result<void> synchronized =
+        apply("CommonStates", common);
+    if (!synchronized) {
+        return synchronized.GetStatus();
+    }
+    synchronized = apply(
+        "FocusStates",
         button.IsKeyboardFocused()
             ? Base::StringView("Focused")
-            : Base::StringView("Unfocused")));
+            : Base::StringView("Unfocused"));
+    if (!synchronized) {
+        return synchronized.GetStatus();
+    }
     const TypeId type = button.RuntimeType();
     if (type == ToggleButton::StaticTypeId() ||
         type == CheckBox::StaticTypeId() ||
@@ -691,9 +764,24 @@ void ControlInteractionManager::SyncVisualState(
         else if (state == ToggleState::Indeterminate) {
             name = "Indeterminate";
         }
-        static_cast<void>(states_->GoToState(
-            button, "CheckStates", name));
+        synchronized =
+            apply("CheckStates", name);
+        if (!synchronized) {
+            return synchronized.GetStatus();
+        }
     }
+    return {};
+}
+
+Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
+    Base::Result<void> applied =
+        ContentControl::OnApplyTemplate();
+    if (!applied) return applied.GetStatus();
+    if (interactionManager_ != nullptr) {
+        return interactionManager_->
+            SyncVisualState(*this, false);
+    }
+    return {};
 }
 
 void ControlInteractionManager::OnMouseDown(
@@ -716,7 +804,8 @@ void ControlInteractionManager::OnMouseDown(
     if (button.GetClickMode() == ClickMode::Press) {
         static_cast<void>(InvokeClick(button));
     }
-    SyncVisualState(button);
+    static_cast<void>(
+        SyncVisualState(button));
 }
 
 void ControlInteractionManager::OnMouseUp(
@@ -737,7 +826,8 @@ void ControlInteractionManager::OnMouseUp(
         button.IsEnabled() && button.IsMouseOver()) {
         static_cast<void>(InvokeClick(button));
     }
-    SyncVisualState(button);
+    static_cast<void>(
+        SyncVisualState(button));
 }
 
 void ControlInteractionManager::OnKeyDown(
@@ -758,7 +848,8 @@ void ControlInteractionManager::OnKeyDown(
         if (button.GetClickMode() == ClickMode::Press) {
             static_cast<void>(InvokeClick(button));
         }
-        SyncVisualState(button);
+        static_cast<void>(
+            SyncVisualState(button));
     }
     args.handled = true;
 }
@@ -781,7 +872,8 @@ void ControlInteractionManager::OnKeyUp(
         button.GetClickMode() == ClickMode::Release) {
         static_cast<void>(InvokeClick(button));
     }
-    SyncVisualState(button);
+    static_cast<void>(
+        SyncVisualState(button));
 }
 
 void ControlInteractionManager::OnFocusChanged(
@@ -797,7 +889,8 @@ void ControlInteractionManager::OnFocusChanged(
         buttons_[index].nextRepeat = 0U;
         static_cast<void>(button.SetPressedState(false));
     }
-    SyncVisualState(button);
+    static_cast<void>(
+        SyncVisualState(button));
 }
 
 void ControlInteractionManager::OnPropertyChanged(
@@ -810,7 +903,8 @@ void ControlInteractionManager::OnPropertyChanged(
         if (!SubscribeCommand(button, buttons_[index])) return;
         static_cast<void>(RefreshCanExecute(button));
     } else if (args.property == UIElement::IsEnabledProperty) {
-        SyncVisualState(button);
+        static_cast<void>(
+            SyncVisualState(button));
     } else {
         const TypeId type = button.RuntimeType();
         const bool isToggle =
@@ -862,7 +956,8 @@ void ControlInteractionManager::OnPointerStateChanged(
             static_cast<void>(InvokeClick(*button));
         }
         buttons_[index].wasMouseOver = mouseOver;
-        SyncVisualState(*button);
+        static_cast<void>(
+            SyncVisualState(*button));
         return;
     }
 }
@@ -883,7 +978,8 @@ void ControlInteractionManager::OnCaptureChanged(
         buttons_[index].pointerDown = false;
         buttons_[index].repeatElapsed = 0U;
         buttons_[index].nextRepeat = 0U;
-        SyncVisualState(*button);
+        static_cast<void>(
+            SyncVisualState(*button));
         return;
     }
 }

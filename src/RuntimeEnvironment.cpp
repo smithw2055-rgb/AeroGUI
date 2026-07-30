@@ -195,6 +195,27 @@ Base::Result<void> View::SetContent(
               std::move(document), availableSize);
 }
 
+Base::Result<void> View::MountContent(
+    Controls::ContentControl& host,
+    UiDocument&& document) noexcept {
+    return impl_ != nullptr
+        ? impl_->runtime.MountContent(host, std::move(document))
+        : Base::Result<void>(
+              Base::Status::Failure(
+                  Base::ErrorCode::NotInitialized,
+                  "View is not initialized"));
+}
+
+Base::Result<void> View::UnmountContent(
+    Controls::ContentControl& host) noexcept {
+    return impl_ != nullptr
+        ? impl_->runtime.UnmountContent(host)
+        : Base::Result<void>(
+              Base::Status::Failure(
+                  Base::ErrorCode::NotInitialized,
+                  "View is not initialized"));
+}
+
 Base::Result<void> View::LoadContent(
     Base::StringView uri,
     Presentation::Size availableSize,
@@ -228,6 +249,19 @@ Base::Result<void> View::LoadCompiledResources(
     RuntimeResourceLoadMode mode) noexcept {
     return impl_->runtime.LoadCompiledResources(
         layer, bytes, originUri, mode);
+}
+
+Base::Result<void> View::SetResourceDictionary(
+    RuntimeResourceLayer layer,
+    Presentation::ResourceDictionary& dictionary,
+    RuntimeResourceLoadMode mode) noexcept {
+    return impl_ != nullptr
+        ? impl_->runtime.SetResourceDictionary(
+              layer, dictionary, mode)
+        : Base::Result<void>(
+              Base::Status::Failure(
+                  Base::ErrorCode::NotInitialized,
+                  "View is not initialized"));
 }
 
 Base::Result<void> View::LoadBuiltInTheme(
@@ -269,6 +303,38 @@ View::DispatchText(
 Base::Result<std::uint32_t> View::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
     return impl_->runtime.AdvanceTime(elapsedMilliseconds);
+}
+
+Base::Result<std::uint32_t> View::AdvanceAnimationTime(
+    std::uint32_t elapsedMilliseconds) noexcept {
+    return impl_->runtime.AdvanceAnimationTime(
+        elapsedMilliseconds);
+}
+
+Base::Result<void>
+View::SetRenderBatchingEnabledForTesting(
+    bool enabled) noexcept {
+    return impl_ != nullptr
+        ? impl_->runtime.
+              SetRenderBatchingEnabledForTesting(
+                  enabled)
+        : Base::Result<void>(
+              Base::Status::Failure(
+                  Base::ErrorCode::NotInitialized,
+                  "View is not initialized"));
+}
+
+Base::Result<void> View::SetRenderEndpoint(
+    Base::Ref<Integration::RenderEndpoint> endpoint,
+    bool automaticAnimationClock) noexcept {
+    return impl_ != nullptr
+        ? impl_->runtime.SetRenderEndpoint(
+              std::move(endpoint),
+              automaticAnimationClock)
+        : Base::Result<void>(
+              Base::Status::Failure(
+                  Base::ErrorCode::NotInitialized,
+                  "View is not initialized"));
 }
 
 const Base::Ref<Base::Object>& View::Root() const noexcept {

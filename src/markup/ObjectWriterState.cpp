@@ -1,5 +1,8 @@
 #include "ObjectWriterState.hpp"
+
+#include "StaticResourceObject.hpp"
 #include <Aero/Markup/CompiledDocument.hpp>
+#include <Aero/Presentation/Brushes.hpp>
 
 #include <utility>
 
@@ -136,6 +139,7 @@ constexpr Base::StringView XmlNamespaceUri(
     "http://www.w3.org/XML/1998/namespace");
 constexpr Base::StringView DirectiveName("Name");
 constexpr Base::StringView DirectiveKey("Key");
+constexpr Base::StringView DirectiveClass("Class");
 constexpr Base::StringView DirectiveNull("Null");
 constexpr Base::StringView NullMarkup("x:Null");
 constexpr Base::StringView StaticResourceMarkup("StaticResource");
@@ -150,6 +154,19 @@ Base::Status SessionConsumedStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
         "XAML load session is single use");
+}
+
+Base::Result<Base::String> StaticResourceNotFoundMessage(
+    Base::StringView key) noexcept {
+    Base::String message;
+    Base::Result<void> appended = message.TryAssign(
+        "StaticResource key '");
+    if (appended) appended = message.TryAppend(key);
+    if (appended) appended = message.TryAppend(
+        "' is not available; forward references are not supported");
+    return appended
+        ? Base::Result<Base::String>(std::move(message))
+        : Base::Result<Base::String>(appended.GetStatus());
 }
 
 bool IsAsciiWhitespace(char value) noexcept {
@@ -263,6 +280,7 @@ Base::Result<LoaderResult> ObjectWriterState::CompleteLoad(
     result.resources = std::move(committedResources_);
     result.visualContent = std::move(resultVisualContent_);
     result.effects.Items() = std::move(extensionEffects_);
+    result.hasDeferredStaticResources = hasDeferredStaticResources_;
     if (loadContext_ != nullptr) {
         result.runtimeLifetime = loadContext_->effectLifetime;
     }
@@ -687,13 +705,24 @@ Base::Result<void> ObjectWriterState::EndObject(
                 node.Source());
         }
         if (frame.valuesWritten == 0U) {
-            return Failure(
-                Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    MessageMissingMemberValue.Data()),
-                XamlObjectWriterDiagnosticCodes::MissingMemberValue,
-                MessageMissingMemberValue,
-                node.Source());
+            const Core::TypeInfo* valueType =
+                schema_->Types().FindType(
+                    frame.member.valueType);
+            // WPF permits an empty property element for reference-valued
+            // properties. It means "leave the property's current/default
+            // value in place", which is required by empty
+            // Application.Resources declarations.
+            if (valueType == nullptr ||
+                valueType->Kind() !=
+                    Core::MetadataTypeKind::Object) {
+                return Failure(
+                    Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        MessageMissingMemberValue.Data()),
+                    XamlObjectWriterDiagnosticCodes::MissingMemberValue,
+                    MessageMissingMemberValue,
+                    node.Source());
+            }
         }
         const std::uint32_t bindingStart = frame.namespaceBindingStart;
         frames_.PopBack();
@@ -776,6 +805,12 @@ Base::Result<void> ObjectWriterState::StartMember(
             return StartDirective(
                 node,
                 DirectiveKind::Key,
+                objectFrame.objectIndex);
+        }
+        if (IsXamlDirective(node.Name(), DirectiveClass)) {
+            return StartDirective(
+                node,
+                DirectiveKind::Class,
                 objectFrame.objectIndex);
         }
         return Failure(
@@ -917,7 +952,7 @@ Base::Result<void> ObjectWriterState::EndMember(
             MessageInvalidWriterState,
             node.Source());
     }
-    if (frame.valuesWritten == 0U) {
+    if (frame.valuesWritten == 0U && !frame.deferredStaticResource) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
@@ -1034,10 +1069,19 @@ Base::Result<void> ObjectWriterState::WriteText(
         if (markup == MarkupValueKind::StaticResource) {
             Base::Result<Presentation::ResourceValue> resource = LookupResource(argument);
             if (!resource) {
+                if (loadContext_ != nullptr &&
+                    loadContext_->deferUnresolvedStaticResources) {
+                    frame.deferredStaticResource = true;
+                    hasDeferredStaticResources_ = true;
+                    return {};
+                }
+                Base::Result<Base::String> message =
+                    StaticResourceNotFoundMessage(argument);
+                if (!message) return message.GetStatus();
                 return Failure(
                     resource.GetStatus(),
                     XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
-                    MessageStaticResourceNotFound,
+                    message.Value().View(),
                     node.Source());
             }
             return WriteValueToMember(
@@ -1141,10 +1185,19 @@ Base::Result<void> ObjectWriterState::WriteText(
     if (markup == MarkupValueKind::StaticResource) {
         Base::Result<Presentation::ResourceValue> resource = LookupResource(argument);
         if (!resource) {
+            if (loadContext_ != nullptr &&
+                loadContext_->deferUnresolvedStaticResources) {
+                frame.deferredStaticResource = true;
+                hasDeferredStaticResources_ = true;
+                return {};
+            }
+            Base::Result<Base::String> message =
+                StaticResourceNotFoundMessage(argument);
+            if (!message) return message.GetStatus();
             return Failure(
                 resource.GetStatus(),
                 XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
-                MessageStaticResourceNotFound,
+                message.Value().View(),
                 node.Source());
         }
         return WriteValue(
@@ -1242,6 +1295,20 @@ Base::Result<void> ObjectWriterState::WriteDirectiveText(
         Base::Result<void> assignResult = object.key.TryAssign(node.Value());
         if (!assignResult) {
             return assignResult.GetStatus();
+        }
+    } else if (frame.directive == DirectiveKind::Class) {
+        // x:Class identifies the code-behind type. Aero loads the authored
+        // object graph through its module factories, so retaining the value
+        // would not affect runtime construction; accepting it keeps WPF XAML
+        // portable without inventing a second type-activation path.
+        if (node.Value().Empty()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    MessageInvalidDirective.Data()),
+                XamlObjectWriterDiagnosticCodes::InvalidDirective,
+                MessageInvalidDirective,
+                node.Source());
         }
     } else {
         return Failure(
@@ -1353,6 +1420,48 @@ Base::Result<void> ObjectWriterState::CompleteObject(
             XamlObjectWriterDiagnosticCodes::InvalidWriterState,
             MessageInvalidWriterState,
             node.Source());
+    }
+
+    if (record.type ==
+        Detail::StaticResourceObject::StaticTypeId()) {
+        const auto& extension =
+            static_cast<const Detail::StaticResourceObject&>(
+                *record.object);
+        if (extension.ResourceKey().Empty()) {
+            return Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "StaticResource ResourceKey is empty"),
+                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                MessageStaticResourceNotFound,
+                node.Source());
+        }
+        Base::Result<Presentation::ResourceValue> resource =
+            LookupResource(extension.ResourceKey());
+        if (!resource) {
+            if (loadContext_ != nullptr &&
+                loadContext_->deferUnresolvedStaticResources) {
+                frames_.PopBack();
+                PopNamespaceBindings(frame.namespaceBindingStart);
+                if (!frames_.Empty()) {
+                    frames_.Back().deferredStaticResource = true;
+                }
+                hasDeferredStaticResources_ = true;
+                return {};
+            }
+            Base::Result<Base::String> message =
+                StaticResourceNotFoundMessage(extension.ResourceKey());
+            if (!message) return message.GetStatus();
+            return Failure(
+                resource.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::StaticResourceNotFound,
+                message.Value().View(),
+                node.Source());
+        }
+        frames_.PopBack();
+        PopNamespaceBindings(frame.namespaceBindingStart);
+        return WriteValueToParent(
+            std::move(resource).Value(), node.Source());
     }
 
     if (!record.name.Empty() && !record.nameRegistered) {
@@ -1856,11 +1965,80 @@ Base::Result<void> ObjectWriterState::WriteValue(
         targetObjectIndex,
         member,
         source);
+    if (member.valueType ==
+            Presentation::Brush::StaticTypeId() &&
+        value.Type() ==
+            Core::TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color =
+            Core::ValueCodec<Base::Color>::Decode(
+                value);
+        if (!color) {
+            return Failure(
+                color.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::
+                    InvalidWriterState,
+                MessageInvalidWriterState,
+                source);
+        }
+        Base::Result<
+            Base::Ref<Presentation::Brush>>
+            brush =
+                Presentation::MakeSolidColorBrush(
+                    color.Value());
+        if (!brush) {
+            return Failure(
+                brush.GetStatus(),
+                XamlObjectWriterDiagnosticCodes::
+                    InvalidWriterState,
+                MessageInvalidWriterState,
+                source);
+        }
+        value = Core::Value::FromObject(
+            Presentation::Brush::StaticTypeId(),
+            Base::Ref<Base::Object>(
+                std::move(brush).Value()));
+    }
+    if (member.valueType == Core::TypeOf<Base::String>() &&
+        value.Type() == Presentation::FontFamily::StaticTypeId() &&
+        value.Kind() == Core::ValueKind::Object && value.AsObject()) {
+        const auto& family = static_cast<const Presentation::FontFamily&>(
+            *value.AsObject());
+        Base::Result<Core::Value> converted = Core::Value::TryFromString(
+            Core::TypeOf<Base::String>(), family.Source());
+        if (!converted) return Failure(converted.GetStatus(),
+            XamlObjectWriterDiagnosticCodes::InvalidWriterState,
+            MessageInvalidWriterState, source);
+        value = std::move(converted).Value();
+    }
     Base::Result<Core::ContentInfo> content =
         schema_->Runtime()->GetContentInfo(member.id);
-    const bool stagesVisualContent =
+    const bool hasVisualContent =
         content && content.Value().writable &&
         content.Value().IsVisual();
+    const Core::PropertyInfo* memberProperty =
+        schema_->Types().FindProperty(member.id);
+    const auto isUIElementValue =
+        [this](const Core::Value& candidate) noexcept {
+            return candidate.Kind() == Core::ValueKind::Object &&
+                !candidate.IsNullObject() &&
+                candidate.AsObject() &&
+                schema_->Types().IsDerivedFrom(
+                    candidate.AsObject()->RuntimeType(),
+                    Presentation::UIElement::StaticTypeId());
+        };
+    const bool hasVisualStructuralProperty =
+        memberProperty != nullptr &&
+        (static_cast<std::uint32_t>(
+             memberProperty->Flags()) &
+         static_cast<std::uint32_t>(
+             Core::PropertyFlags::Structural)) !=
+            0U &&
+        schema_->Runtime()->
+            CanWriteProperty(member.id);
+    const bool stagesVisualContent =
+        (hasVisualContent ||
+         hasVisualStructuralProperty) &&
+        isUIElementValue(value);
     Base::Result<void> setResult = stagesVisualContent
         ? ObjectWriter::StageContent(
               *schema_,
@@ -1872,6 +2050,23 @@ Base::Result<void> ObjectWriterState::WriteValue(
               created_[targetObjectIndex].type,
               member,
               value);
+    if (setResult &&
+        hasVisualContent &&
+        !stagesVisualContent &&
+        schema_->Runtime()->CanReadProperty(member.id)) {
+        Base::Result<Core::Value> materialized =
+            schema_->Runtime()->GetProperty(
+                *created_[targetObjectIndex].object,
+                member.id);
+        if (materialized &&
+            isUIElementValue(materialized.Value())) {
+            setResult = ObjectWriter::StageContent(
+                *schema_,
+                *created_[targetObjectIndex].object,
+                materialized.Value(),
+                services);
+        }
+    }
     if (!setResult) {
         Core::DiagnosticCode code =
             XamlObjectWriterDiagnosticCodes::InvalidValue;
@@ -2003,6 +2198,22 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
             dictionaryContent = content &&
                 (targetMember == Core::InvalidMemberId ||
                  targetMember == content.Value().id);
+        } else if (
+            parentObjectIndex < created_.Size() &&
+            targetMember != Core::InvalidMemberId &&
+            object.type !=
+                Presentation::ResourceDictionary::
+                    StaticTypeId() &&
+            schema_->CreatesResourceScope(
+                created_[parentObjectIndex].type)) {
+            const Core::PropertyInfo* property =
+                schema_->Types().FindProperty(
+                    targetMember);
+            dictionaryContent =
+                property != nullptr &&
+                property->ValueType() ==
+                    Presentation::ResourceDictionary::
+                        StaticTypeId();
         }
     }
 
@@ -2096,6 +2307,50 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
 
 Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
     Base::StringView key) const noexcept {
+    Base::Result<Presentation::ResourceKey> resourceKey =
+        Presentation::ResourceKey::FromString(key);
+    Base::StringView extensionName;
+    Base::StringView typeName;
+    if (ParseMarkupValue(key, extensionName, typeName) ==
+            MarkupValueKind::Extension &&
+        extensionName == Base::StringView("x:Type")) {
+        std::uint32_t colon = typeName.SizeBytes();
+        for (std::uint32_t index = 0U;
+             index < typeName.SizeBytes();
+             ++index) {
+            if (typeName[index] != ':') continue;
+            if (colon != typeName.SizeBytes()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "StaticResource x:Type key contains multiple namespace prefixes");
+            }
+            colon = index;
+        }
+        Base::StringView prefix;
+        Base::StringView localName = typeName;
+        if (colon != typeName.SizeBytes()) {
+            if (colon == 0U || colon + 1U >= typeName.SizeBytes()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "StaticResource x:Type key namespace prefix is malformed");
+            }
+            prefix = typeName.Substr(0U, colon);
+            localName = typeName.Substr(
+                colon + 1U,
+                typeName.SizeBytes() - colon - 1U);
+        }
+        Base::Result<Base::StringView> namespaceUri =
+            LookupNamespace(prefix);
+        if (!namespaceUri) return namespaceUri.GetStatus();
+        Base::Result<const Core::TypeInfo*> type =
+            schema_->ResolveType(
+                namespaceUri.Value(), localName);
+        if (!type) return type.GetStatus();
+        resourceKey = Presentation::ResourceKey::FromType(
+            type.Value()->Id());
+    }
+    if (!resourceKey) return resourceKey.GetStatus();
+
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
         if (frame.kind != FrameKind::Object ||
@@ -2107,7 +2362,7 @@ Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
             (resourceScopes_[frame.resourceScopeIndex].external != nullptr
                 ? resourceScopes_[frame.resourceScopeIndex].external
                 : &resourceScopes_[frame.resourceScopeIndex].resources)
-                ->Lookup(key);
+                ->Lookup(resourceKey.Value());
         if (value) {
             return value;
         }
@@ -2117,7 +2372,7 @@ Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
     }
     if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
         Base::Result<Presentation::ResourceValue> value =
-            loadContext_->resources->Lookup(key);
+            loadContext_->resources->Lookup(resourceKey.Value());
         if (value) {
             return value;
         }
@@ -2426,10 +2681,26 @@ ObjectWriterState::MarkupValueKind ObjectWriterState::ParseMarkupValue(
         return MarkupValueKind::Null;
     }
 
+    std::uint32_t nestedDepth = 0U;
+    char quote = '\0';
     for (char character : inner) {
-        if (character == '{' || character == '}') {
-            return MarkupValueKind::Invalid;
+        if (quote != '\0') {
+            if (character == quote) quote = '\0';
+            continue;
         }
+        if (character == '\'' || character == '"') {
+            quote = character;
+        } else if (character == '{') {
+            ++nestedDepth;
+        } else if (character == '}') {
+            if (nestedDepth == 0U) {
+                return MarkupValueKind::Invalid;
+            }
+            --nestedDepth;
+        }
+    }
+    if (nestedDepth != 0U || quote != '\0') {
+        return MarkupValueKind::Invalid;
     }
 
     std::uint32_t nameEnd = 0U;
@@ -2636,6 +2907,7 @@ void ObjectWriterState::ClearTransaction() noexcept {
     documentNameScopeIndex_ = InvalidIndex;
     documentResourceScopeIndex_ = InvalidIndex;
     ended_ = false;
+    hasDeferredStaticResources_ = false;
 }
 
 Base::Status ObjectWriterState::Failure(

@@ -11,6 +11,7 @@
 #else
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #endif
+#include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
 #include <utility>
@@ -33,6 +34,8 @@ struct StylePropertyTrigger final {
     DependencyPropertyHandle property;
     PropertyValue value;
     Base::Vector<StyleTriggerSetter> setters;
+    Base::Vector<Base::Ref<Base::Object>> enterActions;
+    Base::Vector<Base::Ref<Base::Object>> exitActions;
 };
 
 class AERO_API Setter final : public Base::Object {
@@ -116,21 +119,59 @@ private:
     PropertyValue authoredValue_;
 };
 
+class AERO_API TriggerBase : public Base::Object {
+    AERO_DECLARE_TYPE(TriggerBase, Base::Object)
+public:
+    TypeId RuntimeType() const noexcept override {
+        return runtimeType_;
+    }
+    Base::Result<void> TryAddEnterAction(
+        Base::Ref<Base::Object> action) noexcept;
+    Base::Result<void> TryAddExitAction(
+        Base::Ref<Base::Object> action) noexcept;
+    void ClearEnterActions() noexcept {
+        enterActions_.Clear();
+    }
+    void ClearExitActions() noexcept {
+        exitActions_.Clear();
+    }
+    Base::Span<const Base::Ref<Base::Object>>
+    EnterActions() const noexcept {
+        return {
+            enterActions_.Data(),
+            enterActions_.Size()};
+    }
+    Base::Span<const Base::Ref<Base::Object>>
+    ExitActions() const noexcept {
+        return {
+            exitActions_.Data(),
+            exitActions_.Size()};
+    }
+
+protected:
+    explicit TriggerBase(TypeId runtimeType) noexcept
+        : runtimeType_(runtimeType) {}
+    ~TriggerBase() override = default;
+
+private:
+    TypeId runtimeType_ = StaticTypeId();
+    Base::Vector<Base::Ref<Base::Object>>
+        enterActions_;
+    Base::Vector<Base::Ref<Base::Object>>
+        exitActions_;
+};
+
 class AERO_API PropertyTrigger final
-    : public Base::Object {
+    : public TriggerBase {
     AERO_DECLARE_TYPE_NAMED(
         PropertyTrigger,
-        Base::Object,
+        TriggerBase,
         "urn:aero",
         "Trigger")
 public:
     explicit PropertyTrigger(
         TypeId runtimeType = StaticTypeId()) noexcept
-        : runtimeType_(runtimeType) {}
-
-    TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
+        : TriggerBase(runtimeType) {}
     DependencyPropertyHandle Property() const noexcept {
         return property_;
     }
@@ -144,6 +185,11 @@ public:
     Base::Result<void> TryAddSetter(
         const Setter& setter) noexcept;
     Base::Result<void> SetPropertyName(
+        Base::StringView value) noexcept;
+    Base::StringView SourceName() const noexcept {
+        return sourceName_.View();
+    }
+    Base::Result<void> SetSourceName(
         Base::StringView value) noexcept;
     Base::Result<void> SetAuthoredValue(
         const PropertyValue& value) noexcept;
@@ -171,13 +217,178 @@ public:
     BuildPlan() const noexcept;
 
 private:
-    TypeId runtimeType_ = StaticTypeId();
     DependencyPropertyHandle property_;
     PropertyValue value_;
     Base::Vector<StyleTriggerSetter> setters_;
     Base::String propertyName_;
+    Base::String sourceName_;
     PropertyValue authoredValue_;
     Base::Vector<Base::Ref<Setter>> authoredSetters_;
+};
+
+class AERO_API DataTrigger final
+    : public TriggerBase {
+    AERO_DECLARE_TYPE(DataTrigger, TriggerBase)
+public:
+    DataTrigger() noexcept
+        : TriggerBase(StaticTypeId()) {
+        static_cast<void>(
+            comparison_.TryAssign("Equal"));
+    }
+    Base::Ref<BindingSpec> Binding() const noexcept {
+        return binding_;
+    }
+    Base::Result<void> SetBinding(
+        Base::Ref<BindingSpec> value) noexcept {
+        binding_ = std::move(value);
+        return {};
+    }
+    Base::StringView PropertyName() const noexcept {
+        return propertyName_.View();
+    }
+    Base::Result<void> SetPropertyName(
+        Base::StringView value) noexcept;
+    Base::StringView SourceName() const noexcept {
+        return sourceName_.View();
+    }
+    Base::Result<void> SetSourceName(
+        Base::StringView value) noexcept;
+    const PropertyValue& AuthoredValue() const noexcept {
+        return authoredValue_;
+    }
+    Base::Result<void> SetAuthoredValue(
+        const PropertyValue& value) noexcept {
+        if (value.IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "DataTrigger Value cannot be unset");
+        }
+        authoredValue_ = value;
+        return {};
+    }
+    Base::StringView Comparison() const noexcept { return comparison_.View(); }
+    Base::Result<void> SetComparison(Base::StringView value) noexcept {
+        return comparison_.TryAssign(value);
+    }
+    Base::Result<void> TryAddAuthoredSetter(
+        Base::Ref<Setter> setter) noexcept;
+    void ClearAuthoredSetters() noexcept {
+        authoredSetters_.Clear();
+    }
+    Base::Span<const Base::Ref<Setter>>
+    AuthoredSetters() const noexcept {
+        return {
+            authoredSetters_.Data(),
+            authoredSetters_.Size()};
+    }
+
+private:
+    Base::Ref<BindingSpec> binding_;
+    Base::String propertyName_;
+    Base::String sourceName_;
+    PropertyValue authoredValue_;
+    Base::String comparison_;
+    Base::Vector<Base::Ref<Setter>>
+        authoredSetters_;
+};
+
+class AERO_API Condition final : public Base::Object {
+    AERO_DECLARE_TYPE(Condition, Base::Object)
+public:
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::Ref<BindingSpec> Binding() const noexcept {
+        return binding_;
+    }
+    Base::Result<void> SetBinding(
+        Base::Ref<BindingSpec> value) noexcept {
+        binding_ = std::move(value);
+        return {};
+    }
+    Base::StringView PropertyName() const noexcept {
+        return propertyName_.View();
+    }
+    Base::Result<void> SetPropertyName(
+        Base::StringView value) noexcept;
+    Base::StringView SourceName() const noexcept {
+        return sourceName_.View();
+    }
+    Base::Result<void> SetSourceName(
+        Base::StringView value) noexcept;
+    const PropertyValue& AuthoredValue() const noexcept {
+        return authoredValue_;
+    }
+    Base::Result<void> SetAuthoredValue(
+        const PropertyValue& value) noexcept {
+        if (value.IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Condition Value cannot be unset");
+        }
+        authoredValue_ = value;
+        return {};
+    }
+
+private:
+    Base::Ref<BindingSpec> binding_;
+    Base::String propertyName_;
+    Base::String sourceName_;
+    PropertyValue authoredValue_;
+};
+
+class AERO_API MultiTrigger final : public TriggerBase {
+    AERO_DECLARE_TYPE(MultiTrigger, TriggerBase)
+public:
+    MultiTrigger() noexcept : TriggerBase(StaticTypeId()) {}
+    Base::Result<void> TryAddCondition(Base::Ref<Condition> condition) noexcept;
+    void ClearConditions() noexcept { conditions_.Clear(); }
+    Base::Span<const Base::Ref<Condition>> Conditions() const noexcept {
+        return {conditions_.Data(), conditions_.Size()};
+    }
+    Base::Result<void> TryAddAuthoredSetter(Base::Ref<Setter> setter) noexcept;
+    void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
+    Base::Span<const Base::Ref<Setter>> AuthoredSetters() const noexcept {
+        return {authoredSetters_.Data(), authoredSetters_.Size()};
+    }
+private:
+    Base::Vector<Base::Ref<Condition>> conditions_;
+    Base::Vector<Base::Ref<Setter>> authoredSetters_;
+};
+
+class AERO_API MultiDataTrigger final
+    : public TriggerBase {
+    AERO_DECLARE_TYPE(MultiDataTrigger, TriggerBase)
+public:
+    MultiDataTrigger() noexcept
+        : TriggerBase(StaticTypeId()) {}
+    Base::Result<void> TryAddCondition(
+        Base::Ref<Condition> condition) noexcept;
+    void ClearConditions() noexcept {
+        conditions_.Clear();
+    }
+    Base::Span<const Base::Ref<Condition>>
+    Conditions() const noexcept {
+        return {
+            conditions_.Data(),
+            conditions_.Size()};
+    }
+    Base::Result<void> TryAddAuthoredSetter(
+        Base::Ref<Setter> setter) noexcept;
+    void ClearAuthoredSetters() noexcept {
+        authoredSetters_.Clear();
+    }
+    Base::Span<const Base::Ref<Setter>>
+    AuthoredSetters() const noexcept {
+        return {
+            authoredSetters_.Data(),
+            authoredSetters_.Size()};
+    }
+
+private:
+    Base::Vector<Base::Ref<Condition>> conditions_;
+    Base::Vector<Base::Ref<Setter>>
+        authoredSetters_;
 };
 
 // Host-owned immutable style plan. Styles are authored through setters and
@@ -393,6 +604,11 @@ private:
 #if !defined(AERO_MODULE_SDK_AUTHORING_ONLY)
 class AERO_API StyleManager final {
 public:
+    using TriggerActionHandler = Base::Result<void>(*)(
+        DependencyObject& owner,
+        Base::Span<const Base::Ref<Base::Object>> actions,
+        void* context) noexcept;
+
     explicit StyleManager(
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties) noexcept
@@ -400,6 +616,7 @@ public:
           applications_(),
           propertyChangedHandler_(
               this, &StyleManager::OnPropertyChanged) {}
+    ~StyleManager() noexcept;
 
     Base::Result<void> Apply(
         DependencyObject& object,
@@ -413,6 +630,15 @@ public:
     const Style* AppliedStyle(
         const DependencyObject& object)
         const noexcept;
+    void SetTriggerActionHandler(
+        TriggerActionHandler handler,
+        void* context) noexcept {
+        triggerActionHandler_ = handler;
+        triggerActionContext_ = context;
+    }
+    const Base::Status& LastActionStatus() const noexcept {
+        return lastActionStatus_;
+    }
 
 private:
     EffectiveValueEngine* values_ = nullptr;
@@ -420,9 +646,17 @@ private:
     struct Application final {
         DependencyObject* object = nullptr;
         const Style* style = nullptr;
+        Base::Vector<std::uint8_t> triggerStates;
     };
     Base::Vector<Application> applications_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
+    Dispatcher* dispatcher_ = nullptr;
+    DispatcherFrameHookHandle triggerPhaseHook_;
+    Base::Vector<DependencyObject*>
+        pendingTriggerEvaluations_;
+    TriggerActionHandler triggerActionHandler_ = nullptr;
+    void* triggerActionContext_ = nullptr;
+    Base::Status lastActionStatus_;
 
     Base::Result<void> VerifyTarget(
         const DependencyObject& object,
@@ -441,6 +675,19 @@ private:
     Base::Result<void> EvaluateTriggers(
         DependencyObject& object,
         const Style& style) noexcept;
+    Base::Result<void> ExecuteTriggerActions(
+        DependencyObject& object,
+        Base::Span<const Base::Ref<Base::Object>>
+            actions) noexcept;
+    Base::Result<void> EnsureTriggerPhaseHook(
+        DependencyObject& object) noexcept;
+    Base::Result<void> QueueTriggerEvaluation(
+        DependencyObject& object) noexcept;
+    void RemovePendingTriggerEvaluation(
+        DependencyObject& object) noexcept;
+    Base::Result<std::uint32_t>
+        FlushPendingTriggerEvaluations() noexcept;
+    static void TriggerPhaseHook(void* context) noexcept;
     Base::Result<void> ClearTriggerSetters(
         DependencyObject& object,
         const Style& style) noexcept;

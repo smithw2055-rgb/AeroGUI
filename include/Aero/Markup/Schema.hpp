@@ -257,7 +257,7 @@ MarkupMetadataModuleName() noexcept {
 
 inline Base::Result<void> TryRegisterMarkupMetadata(
     Core::MetadataDomain& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 2U;
+    constexpr std::uint32_t SchemaVersion = 4U;
     const Base::StringView name =
         MarkupMetadataModuleName();
     return domain.TryRegisterModule({

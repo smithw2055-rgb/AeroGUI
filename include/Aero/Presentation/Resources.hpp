@@ -253,6 +253,25 @@ private:
     static void ReleaseImpl(Impl* impl) noexcept;
 };
 
+// WPF-compatible resource geometry. Path consumes this resource through the
+// normal resource conversion path; it keeps the original path-data text.
+class AERO_API Geometry final : public Base::Object {
+    AERO_DECLARE_TYPE(Geometry, Base::Object)
+public:
+    Geometry() noexcept = default;
+
+    Core::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::StringView Value() const noexcept { return value_.View(); }
+    Base::Result<void> SetValue(Base::StringView value) noexcept {
+        return value_.TryAssign(value);
+    }
+
+private:
+    Base::String value_;
+};
+
 struct ResourceEnvironment final {
     const ResourceDictionary* application = nullptr;
     const ResourceDictionary* theme = nullptr;

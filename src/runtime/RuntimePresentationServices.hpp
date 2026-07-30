@@ -5,6 +5,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Resources.hpp>
 
 namespace Aero::Controls {
@@ -28,6 +29,7 @@ public:
         Base::IAllocator& allocator,
         Core::MetadataDomain& metadata,
         Core::EffectiveValueEngine& values,
+        Presentation::BindingManager& bindings,
         Presentation::StyleManager& styles,
         Controls::TemplateManager& templates,
         Controls::VisualStateManager& visualStates,
@@ -48,6 +50,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Core::MetadataDomain* metadata_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
+    Presentation::BindingManager* bindings_ = nullptr;
     Presentation::StyleManager* styles_ = nullptr;
     Controls::TemplateManager* templates_ = nullptr;
     Controls::VisualStateManager* visualStates_ = nullptr;

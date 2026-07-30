@@ -56,6 +56,59 @@ bool HasEventFlag(
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
+constexpr Base::StringView WpfPresentationNamespace(
+    "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
+constexpr Base::StringView BehaviorsNamespace(
+    "http://schemas.microsoft.com/xaml/behaviors");
+constexpr Base::StringView SystemNamespacePrefix(
+    "clr-namespace:System");
+
+Base::StringView CanonicalXamlNamespace(
+    Base::StringView value) noexcept {
+    constexpr Base::StringView AeroExtensionsPrefix(
+        "clr-namespace:AeroGUIExtensions");
+    const bool aeroExtensions = value.SizeBytes() >=
+            AeroExtensionsPrefix.SizeBytes() &&
+        value.Substr(0U, AeroExtensionsPrefix.SizeBytes()) ==
+            AeroExtensionsPrefix;
+    return value == WpfPresentationNamespace ||
+            value == BehaviorsNamespace || aeroExtensions
+        ? Core::AeroNamespaceUri()
+        : value;
+}
+
+bool IsSystemNamespace(
+    Base::StringView value) noexcept {
+    return value.SizeBytes() >=
+            SystemNamespacePrefix.SizeBytes() &&
+        value.Substr(0U, SystemNamespacePrefix.SizeBytes()) ==
+            SystemNamespacePrefix;
+}
+
+Base::StringView CanonicalXamlTypeName(
+    Base::StringView value) noexcept {
+    return value == Base::StringView("HierarchicalDataTemplate")
+        ? Base::StringView("DataTemplate")
+        : value;
+}
+
+bool IsAeroExtensionsFacade(
+    Base::StringView xamlNamespace,
+    Base::StringView ownerName) noexcept {
+    constexpr Base::StringView Prefix(
+        "clr-namespace:AeroGUIExtensions");
+    const bool namespaceMatches =
+        xamlNamespace.SizeBytes() >=
+            Prefix.SizeBytes() &&
+        xamlNamespace.Substr(
+            0U, Prefix.SizeBytes()) == Prefix;
+    return namespaceMatches &&
+        (ownerName == Base::StringView("Text") ||
+         ownerName == Base::StringView("Path") ||
+          ownerName == Base::StringView("Brush") ||
+          ownerName == Base::StringView("Element"));
+}
+
 Base::Result<void> AppendU8(
     Base::Vector<std::uint8_t>& output,
     std::uint8_t value) noexcept {
@@ -891,7 +944,13 @@ Base::Result<SchemaTypeInfo> SchemaManifest::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
     if (!IsValid()) return ManifestNotReady();
-    const Impl::TypeRecord* type = impl_->FindType(xamlNamespace, localName);
+    const Impl::TypeRecord* type = impl_->FindType(
+        IsSystemNamespace(xamlNamespace) &&
+            (localName == Base::StringView("String") ||
+             localName == Base::StringView("Double"))
+            ? Core::AeroNamespaceUri()
+            : CanonicalXamlNamespace(xamlNamespace),
+        CanonicalXamlTypeName(localName));
     if (type == nullptr) return TypeNotFound();
     return SchemaTypeInfo{type->id, type->kind, type->flags};
 }
@@ -918,7 +977,8 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
 
     if (dot == localName.SizeBytes()) {
         if (!name.NamespaceUri().Empty() &&
-            name.NamespaceUri() != target->xamlNamespace.View()) {
+            CanonicalXamlNamespace(name.NamespaceUri()) !=
+                target->xamlNamespace.View()) {
             return MemberNotFound();
         }
         return impl_->ResolvePropertyOrEvent(
@@ -934,8 +994,55 @@ Base::Result<ResolvedMember> SchemaManifest::ResolveMember(
         dot + 1U, localName.SizeBytes() - dot - 1U);
     const Base::StringView ownerNamespace = name.NamespaceUri().Empty()
         ? target->xamlNamespace.View() : name.NamespaceUri();
-    const Impl::TypeRecord* owner = impl_->FindType(ownerNamespace, ownerName);
+    if (IsAeroExtensionsFacade(
+            ownerNamespace, ownerName)) {
+        // The reference Gallery uses the legacy Element.BlendingMode
+        // extension name. Element is also a real Aero extension owner
+        // (PPAAOut), so normalize this one compatibility alias before
+        // looking up the owner rather than letting that type shadow the
+        // inherited UIElement BlendMode property.
+        if (ownerName == Base::StringView("Element") &&
+            memberName == Base::StringView("BlendingMode")) {
+            return impl_->ResolvePropertyOrEvent(
+                targetType,
+                targetType,
+                Base::StringView("BlendMode"),
+                syntax,
+                false);
+        }
+        // The legacy AeroGUIExtensions facade predates real attached
+        // properties. Prefer a registered Aero owner (for example
+        // aero:Path.TrimEnd) and retain the facade only for extension-only
+        // members such as aero:Text.*.
+        const Impl::TypeRecord* aeroOwner = impl_->FindType(
+            Core::AeroNamespaceUri(),
+            CanonicalXamlTypeName(ownerName));
+        if (aeroOwner != nullptr) {
+            return impl_->ResolvePropertyOrEvent(
+                targetType, aeroOwner->id, memberName, syntax, true);
+        }
+        return impl_->ResolvePropertyOrEvent(
+            targetType,
+            targetType,
+            memberName,
+            syntax,
+            false);
+    }
+    const Impl::TypeRecord* owner = impl_->FindType(
+        CanonicalXamlNamespace(ownerNamespace),
+        CanonicalXamlTypeName(ownerName));
     if (owner == nullptr) return MemberNotFound();
+    // WPF exposes ContextMenu through FrameworkElement property-element
+    // syntax (for example Border.ContextMenu) while storage is supplied by
+    // the attached ContextMenuService property.
+    if (memberName == Base::StringView("ContextMenu")) {
+        const Impl::TypeRecord* service = impl_->FindType(
+            Core::AeroNamespaceUri(), "ContextMenuService");
+        if (service != nullptr) {
+            return impl_->ResolvePropertyOrEvent(
+                targetType, service->id, memberName, syntax, true);
+        }
+    }
     return impl_->ResolvePropertyOrEvent(
         targetType, owner->id, memberName, syntax, true);
 }

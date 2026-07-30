@@ -5,6 +5,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
 
+#include <cstdio>
 #include <cstdint>
 #include <limits>
 #include <utility>
@@ -93,6 +94,7 @@ DependencyPropertyRegistry::DependencyPropertyRegistry(
 
 Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
     TypeId valueType,
+    DependencyPropertyFlags propertyFlags,
     const PropertyMetadata& metadata) const noexcept {
     if (metadata.defaultValue.IsUnset()) {
         return Base::Status::Failure(
@@ -108,6 +110,7 @@ Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
     DependencyProperty temporary;
     temporary.typeRegistry_ = typeRegistry_;
     temporary.valueType_ = valueType;
+    temporary.flags_ = propertyFlags;
     return ValidateValue(temporary, metadata, metadata.defaultValue);
 }
 
@@ -121,6 +124,19 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
             "Dependency property value is unset or has no type");
     }
 
+    if (property.AcceptsAnyValue()) {
+        if (typeRegistry_->FindType(value.Type()) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Dependency property value references an unregistered type");
+        }
+        if (!metadata.validate.Empty() &&
+            !metadata.validate(value)) {
+            return ValidationFailedStatus();
+        }
+        return {};
+    }
+
     const TypeInfo* expected = typeRegistry_->FindType(property.ValueType());
     const TypeInfo* actual = typeRegistry_->FindType(value.Type());
     if (expected == nullptr || actual == nullptr) {
@@ -132,16 +148,40 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
     const bool expectedValueType = IsValueType(*expected);
     const bool objectValue = value.Kind() == PropertyValueKind::Object;
     if (expectedValueType == objectValue) {
+        thread_local char message[384]{};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "Dependency property '%.*s' expects %s type '%.*s' but received %s value '%.*s'",
+            static_cast<int>(property.Name().SizeBytes()),
+            property.Name().Data(),
+            expectedValueType ? "a value" : "an object",
+            static_cast<int>(expected->Name().SizeBytes()),
+            expected->Name().Data(),
+            objectValue ? "an object" : "a value",
+            static_cast<int>(actual->Name().SizeBytes()),
+            actual->Name().Data());
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Dependency property value kind does not match the registered type");
+            message);
     }
 
     if (value.Type() != property.ValueType() &&
         !typeRegistry_->IsDerivedFrom(value.Type(), property.ValueType())) {
+        thread_local char message[384]{};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "Dependency property '%.*s' expects type '%.*s' but received '%.*s'",
+            static_cast<int>(property.Name().SizeBytes()),
+            property.Name().Data(),
+            static_cast<int>(expected->Name().SizeBytes()),
+            expected->Name().Data(),
+            static_cast<int>(actual->Name().SizeBytes()),
+            actual->Name().Data());
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Dependency property value type is not assignable to the property type");
+            message);
     }
 
     if (expected->Kind() == MetadataTypeKind::Enum) {
@@ -207,6 +247,12 @@ PropertyFlags DependencyPropertyRegistry::ToTypeRegistryFlags(
     if (HasFlag(propertyFlags, DependencyPropertyFlags::ReadOnly)) {
         result = result | PropertyFlags::ReadOnly;
     }
+    if (HasFlag(propertyFlags, DependencyPropertyFlags::AnyValue)) {
+        result = result | PropertyFlags::AnyValue;
+    }
+    if (HasFlag(propertyFlags, DependencyPropertyFlags::Structural)) {
+        result = result | PropertyFlags::Structural;
+    }
     if (HasFlag(metadataFlags, PropertyMetadataFlags::Inherits)) {
         result = result | PropertyFlags::Inherits;
     }
@@ -245,6 +291,21 @@ DependencyPropertyRegistry::TryRegister(
     }
     if (typeRegistry_->FindType(registration.ownerType) == nullptr ||
         typeRegistry_->FindType(registration.valueType) == nullptr) {
+        std::fprintf(
+            stderr,
+            "Dependency property registration missing type name=%.*s owner=%llu value=%llu owner-found=%u value-found=%u\n",
+            static_cast<int>(registration.name.SizeBytes()),
+            registration.name.Data(),
+            static_cast<unsigned long long>(
+                registration.ownerType),
+            static_cast<unsigned long long>(
+                registration.valueType),
+            typeRegistry_->FindType(
+                registration.ownerType) != nullptr
+                ? 1U : 0U,
+            typeRegistry_->FindType(
+                registration.valueType) != nullptr
+                ? 1U : 0U);
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Dependency property owner or value type is not registered");
@@ -257,7 +318,9 @@ DependencyPropertyRegistry::TryRegister(
     }
 
     Base::Result<void> validation = ValidateMetadata(
-        registration.valueType, registration.metadata);
+        registration.valueType,
+        registration.flags,
+        registration.metadata);
     if (!validation) {
         return validation.GetStatus();
     }
@@ -398,7 +461,9 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     }
 
     Base::Result<void> validation = ValidateMetadata(
-        property.ValueType(), metadata);
+        property.ValueType(),
+        property.Flags(),
+        metadata);
     if (!validation) {
         return validation.GetStatus();
     }
@@ -496,7 +561,9 @@ Base::Result<void> DependencyPropertyRegistry::TryOverrideMetadata(
     }
 
     Base::Result<void> validation = ValidateMetadata(
-        property.ValueType(), metadata);
+        property.ValueType(),
+        property.Flags(),
+        metadata);
     if (!validation) {
         return validation.GetStatus();
     }
@@ -537,7 +604,9 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
                     "Dependency property metadata references an unknown type");
             }
             Base::Result<void> validation = ValidateMetadata(
-                property.ValueType(), entry.metadata);
+                property.ValueType(),
+                property.Flags(),
+                entry.metadata);
             if (!validation) {
                 return validation.GetStatus();
             }
@@ -793,7 +862,7 @@ Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
     key.property_ = propertyHandle;
     key.secret_ = property->readOnlySecret_;
     return ApplyChange(
-        propertyHandle, &key, ChangeKind::SetCurrent, &value);
+        propertyHandle, &key, ChangeKind::SetLocal, &value);
 }
 
 Base::Result<void> DependencyObject::ClearValue(

@@ -2,6 +2,8 @@
 
 #include <Aero/Presentation/Input.hpp>
 
+#include <cctype>
+
 namespace Aero::Presentation {
 
 Base::Result<void> ICommand::TryAddCanExecuteChanged(
@@ -60,6 +62,108 @@ bool RoutedCommand::MatchesInput(
     return false;
 }
 
+namespace {
+
+Base::StringView TrimAscii(Base::StringView value) noexcept {
+    std::uint32_t first = 0U;
+    std::uint32_t last = value.SizeBytes();
+    while (first < last && (value[first] == ' ' || value[first] == '\t' ||
+        value[first] == '\r' || value[first] == '\n')) ++first;
+    while (last > first && (value[last - 1U] == ' ' ||
+        value[last - 1U] == '\t' || value[last - 1U] == '\r' ||
+        value[last - 1U] == '\n')) --last;
+    return value.Substr(first, last - first);
+}
+
+Base::Result<std::uint32_t> ParseKeyName(
+    Base::StringView value) noexcept {
+    const Base::StringView trimmed = TrimAscii(value);
+    if (trimmed.SizeBytes() == 1U) {
+        const unsigned char character =
+            static_cast<unsigned char>(trimmed[0]);
+        if (std::isalnum(character)) {
+            return static_cast<std::uint32_t>(std::toupper(character));
+        }
+    }
+    if (trimmed == Base::StringView("Enter")) return KeyboardKeyEnter;
+    if (trimmed == Base::StringView("Escape")) return KeyboardKeyEscape;
+    if (trimmed == Base::StringView("Space")) return KeyboardKeySpace;
+    return Base::Status::Failure(Base::ErrorCode::Unsupported,
+        "KeyBinding Key is not supported");
+}
+
+Base::Result<std::uint32_t> ParseModifiersName(
+    Base::StringView value) noexcept {
+    const Base::StringView trimmed = TrimAscii(value);
+    if (trimmed.Empty() || trimmed == Base::StringView("None")) return 0U;
+    std::uint32_t modifiers = 0U;
+    std::uint32_t begin = 0U;
+    while (begin < trimmed.SizeBytes()) {
+        std::uint32_t end = begin;
+        while (end < trimmed.SizeBytes() && trimmed[end] != '+' &&
+               trimmed[end] != ',') ++end;
+        const Base::StringView item = TrimAscii(
+            trimmed.Substr(begin, end - begin));
+        if (item == Base::StringView("Ctrl") ||
+            item == Base::StringView("Control")) {
+            modifiers |= static_cast<std::uint32_t>(KeyboardModifiers::Control);
+        } else if (item == Base::StringView("Shift")) {
+            modifiers |= static_cast<std::uint32_t>(KeyboardModifiers::Shift);
+        } else if (item == Base::StringView("Alt")) {
+            modifiers |= static_cast<std::uint32_t>(KeyboardModifiers::Alt);
+        } else {
+            return Base::Status::Failure(Base::ErrorCode::Unsupported,
+                "KeyBinding modifier is not supported");
+        }
+        begin = end + 1U;
+    }
+    return modifiers;
+}
+
+} // namespace
+
+Base::Result<void> KeyBinding::SetCommandName(
+    Base::StringView value) noexcept {
+    command_.Reset();
+    return commandName_.TryAssign(TrimAscii(value));
+}
+
+Base::Result<void> KeyBinding::SetKeyName(
+    Base::StringView value) noexcept {
+    command_.Reset();
+    return keyName_.TryAssign(TrimAscii(value));
+}
+
+Base::Result<void> KeyBinding::SetModifiersName(
+    Base::StringView value) noexcept {
+    command_.Reset();
+    return modifiersName_.TryAssign(TrimAscii(value));
+}
+
+Base::Result<void> KeyBinding::Finalize() noexcept {
+    if (command_) return {};
+    if (commandName_.Empty() || keyName_.Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "KeyBinding requires Command and Key");
+    }
+    Base::Result<std::uint32_t> key = ParseKeyName(keyName_.View());
+    if (!key) return key.GetStatus();
+    Base::Result<std::uint32_t> modifiers = ParseModifiersName(
+        modifiersName_.View());
+    if (!modifiers) return modifiers.GetStatus();
+    Base::Result<Base::Ref<RoutedCommand>> command =
+        Base::MakeRef<RoutedCommand>(commandName_.View());
+    if (!command) return command.GetStatus();
+    Base::Result<Base::Ref<KeyGesture>> gesture =
+        Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
+    if (!gesture) return gesture.GetStatus();
+    Base::Result<void> added = command.Value()->TryAddInputGesture(
+        Base::Ref<InputGesture>(std::move(gesture).Value()));
+    if (!added) return added.GetStatus();
+    command_ = std::move(command).Value();
+    return {};
+}
+
 Base::Result<bool> RoutedCommand::CanExecute(
     CommandManager& manager,
     const Core::Value& parameter,
@@ -107,6 +211,21 @@ void CommandManager::PruneStaleBindings() noexcept {
         ++destination;
     }
     while (bindings_.Size() > destination) bindings_.PopBack();
+}
+
+void CommandManager::PruneStaleInputBindings() noexcept {
+    std::uint32_t destination = 0U;
+    for (std::uint32_t index = 0U;
+         index < inputBindings_.Size(); ++index) {
+        if (tree_->ResolveHandle(inputBindings_[index].owner) == nullptr) {
+            continue;
+        }
+        if (destination != index) {
+            inputBindings_[destination] = std::move(inputBindings_[index]);
+        }
+        ++destination;
+    }
+    while (inputBindings_.Size() > destination) inputBindings_.PopBack();
 }
 
 Base::Result<CommandBindingHandle> CommandManager::TryAddBinding(
@@ -157,6 +276,36 @@ Base::Result<bool> CommandManager::RemoveBinding(
         return true;
     }
     return false;
+}
+
+Base::Result<InputBindingHandle> CommandManager::TryAddInputBinding(
+    UIElement& owner,
+    Base::Ref<KeyBinding> binding) noexcept {
+    Base::Result<void> verified = VerifyTarget(owner);
+    if (!verified) return verified.GetStatus();
+    if (!binding) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "InputBinding cannot be null");
+    }
+    Base::Result<void> finalized = binding->Finalize();
+    if (!finalized) return finalized.GetStatus();
+    if (!binding->Command()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "InputBinding command was not created");
+    }
+    Base::Result<VisualHandle> ownerHandle = tree_->GetHandle(owner);
+    if (!ownerHandle) return ownerHandle.GetStatus();
+    if (nextInputBinding_ == 0U) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange,
+            "InputBinding handle space exhausted");
+    }
+    InputBindingRecord record;
+    record.handle.value = nextInputBinding_++;
+    record.owner = ownerHandle.Value();
+    record.binding = std::move(binding);
+    Base::Result<void> appended = inputBindings_.TryPushBack(std::move(record));
+    if (!appended) return appended.GetStatus();
+    return inputBindings_.Back().handle;
 }
 
 Base::Result<void> CommandManager::SnapshotRoute(
@@ -260,6 +409,24 @@ Base::Result<bool> CommandManager::ProcessInput(
     Base::Result<void> snapshot =
         SnapshotRoute(target, nullptr, route);
     if (!snapshot) return snapshot.GetStatus();
+
+    PruneStaleInputBindings();
+    Visual* current = &target;
+    while (current != nullptr) {
+        const VisualHandle owner = current->Handle();
+        for (const InputBindingRecord& record : inputBindings_) {
+            if (record.owner.index != owner.index ||
+                record.owner.generation != owner.generation ||
+                !record.binding || !record.binding->Command()) {
+                continue;
+            }
+            RoutedCommand& command = *record.binding->Command();
+            if (!command.MatchesInput(input)) continue;
+            return Execute(command, Core::Value::Unset(), target);
+        }
+        current = current->LogicalParent() != nullptr
+            ? current->LogicalParent() : current->VisualParent();
+    }
 
     for (const RouteBinding& item : route) {
         RoutedCommand* command = item.binding.Command();

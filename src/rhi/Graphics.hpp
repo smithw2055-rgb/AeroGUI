@@ -150,7 +150,9 @@ enum class BlendFactor : std::uint8_t {
     SourceAlpha,
     OneMinusSourceAlpha,
     DestinationAlpha,
-    OneMinusDestinationAlpha
+    OneMinusDestinationAlpha,
+    DestinationColor,
+    OneMinusSourceColor
 };
 
 enum class BlendOperation : std::uint8_t {

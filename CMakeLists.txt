@@ -46,6 +46,8 @@ option(AERO_WITH_HARFBUZZ
     "Build the built-in HarfBuzz text shaping adapter" ON)
 option(AERO_WITH_EXPAT
     "Build the recommended Expat XML tokenizer adapter" ON)
+option(AERO_WITH_MINIAUDIO
+    "Build the built-in miniAudio playback provider" ON)
 option(AERO_ENABLE_SOKOL_BACKEND
     "Compile a host-supplied sokol_gfx bridge into AeroRhi" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
@@ -124,6 +126,37 @@ target_compile_definitions(AeroBase
         $<$<NOT:$<BOOL:${AERO_ENABLE_RTTI}>>:AERO_RTTI_ENABLED=0>
     PRIVATE
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_BASE_EXPORTS>)
+
+if(AERO_WITH_MINIAUDIO AND NOT EXISTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio/miniaudio.h")
+    message(FATAL_ERROR
+        "AERO_WITH_MINIAUDIO requires the pinned "
+        "third_party/miniaudio/miniaudio.h provider")
+endif()
+
+add_library(AeroAudio ${AERO_LIBRARY_TYPE}
+    src/audio/Audio.cpp)
+add_library(Aero::Audio ALIAS AeroAudio)
+target_include_directories(AeroAudio
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio")
+target_link_libraries(AeroAudio PUBLIC Aero::Base)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(AeroAudio PRIVATE Threads::Threads ${CMAKE_DL_LIBS} m)
+endif()
+target_compile_definitions(AeroAudio PRIVATE
+    AERO_AUDIO_MINIAUDIO=$<BOOL:${AERO_WITH_MINIAUDIO}>)
+target_compile_features(AeroAudio PUBLIC cxx_std_17)
+set_target_properties(AeroAudio PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroAudio)
 
 add_library(AeroPlatform ${AERO_LIBRARY_TYPE}
     src/platform/Clipboard.cpp
@@ -374,9 +407,15 @@ set_target_properties(AeroCore PROPERTIES
 aero_apply_compiler_options(AeroCore)
 
 add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
+    src/presentation/Animation.cpp
+    src/presentation/AnimationXaml.cpp
+    src/presentation/BatchPlanner.cpp
     src/presentation/Binding.cpp
+    src/presentation/Brushes.cpp
     src/presentation/Commands.cpp
+    src/presentation/Effects.cpp
     src/presentation/Input.cpp
+    src/presentation/Images.cpp
     src/presentation/Layout.cpp
     src/presentation/Metadata.cpp
     src/presentation/MountService.cpp
@@ -384,6 +423,7 @@ add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
     src/presentation/QueuedRenderBackend.cpp
     src/presentation/Resources.cpp
     src/presentation/Rendering.cpp
+    src/presentation/Transforms.cpp
     src/presentation/VisualTreeMount.cpp
     src/presentation/Style.cpp)
 
@@ -406,14 +446,22 @@ set_target_properties(AeroPresentation PROPERTIES
 aero_apply_compiler_options(AeroPresentation)
 
 add_library(AeroControls ${AERO_LIBRARY_TYPE}
+    src/controls/Bars.cpp
     src/controls/Buttons.cpp
+    src/controls/ContentControls.cpp
     src/controls/Controls.cpp
+    src/controls/Images.cpp
     src/controls/Items.cpp
+    src/controls/ListView.cpp
+    src/controls/Menus.cpp
     src/controls/Metadata.cpp
+    src/controls/Path.cpp
     src/controls/Scroll.cpp
     src/controls/Selection.cpp
+    src/controls/Shapes.cpp
     src/controls/TextBox.cpp
     src/controls/Templates.cpp
+    src/controls/Trees.cpp
     src/controls/Virtualization.cpp
     src/controls/VisualStates.cpp)
 
@@ -430,7 +478,7 @@ target_link_libraries(AeroControls
         Aero::Platform
         Aero::Text)
 target_compile_definitions(
-    AeroControls PUBLIC AERO_CONTROLS_TEMPLATE_ABI=2)
+    AeroControls PUBLIC AERO_CONTROLS_TEMPLATE_ABI=10)
 target_compile_features(AeroControls PUBLIC cxx_std_17)
 set_target_properties(AeroControls PROPERTIES
     CXX_STANDARD 17
@@ -491,8 +539,10 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/DynamicResourceExtension.cpp
     src/markup/StyleSupport.cpp
     src/markup/TemplateSupport.cpp
+    src/markup/TemplateBindingExtension.cpp
     src/markup/TemplateCompiler.cpp
     src/markup/TypeExtension.cpp
+    src/markup/StaticExtension.cpp
     src/markup/Scopes.cpp
     src/markup/LoaderResult.cpp
     src/markup/ObjectWriterState.cpp
@@ -613,7 +663,9 @@ if(AERO_BUILD_TOOLS)
 
     add_executable(aero-xamlc tools/xamlc/main.cpp)
     add_executable(Aero::xamlc ALIAS aero-xamlc)
-    target_link_libraries(aero-xamlc PRIVATE AeroModuleCatalog)
+    target_link_libraries(aero-xamlc PRIVATE
+        AeroModuleCatalog
+        Aero::Audio)
     target_include_directories(aero-xamlc PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_compile_features(aero-xamlc PRIVATE cxx_std_17)
@@ -794,6 +846,7 @@ add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/RuntimeSafety.cpp
     src/UiDocument.cpp
     src/runtime/RuntimePresentationServices.cpp
+    src/runtime/ImageRuntime.cpp
     src/runtime/TextRuntime.cpp
     "${_aero_generated_theme_header}")
 add_library(Aero::Runtime ALIAS AeroRuntime)
@@ -804,6 +857,7 @@ target_include_directories(AeroRuntime
         $<INSTALL_INTERFACE:include>
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
         "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroRuntime
     PRIVATE
@@ -1322,6 +1376,32 @@ set_target_properties(AeroIntegration PROPERTIES
     EXPORT_NAME IntegrationDetailFacade)
 aero_apply_compiler_options(AeroIntegration)
 
+add_library(AeroApp ${AERO_LIBRARY_TYPE}
+    src/app/Application.cpp
+    src/app/ApplicationHost.cpp
+    src/app/Window.cpp)
+add_library(Aero::App ALIAS AeroApp)
+target_include_directories(AeroApp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroApp
+    PUBLIC
+        Aero::IntegrationSdk
+        Aero::Controls
+        Aero::Audio)
+target_compile_definitions(AeroApp PRIVATE
+    AERO_APP_HAS_D3D11=$<BOOL:${AERO_ENABLE_D3D11_BACKEND}>
+    "AERO_APP_HAS_OPENGL_WINDOW=$<OR:$<BOOL:${AERO_ENABLE_WGL_SURFACE}>,$<BOOL:${AERO_ENABLE_GLX_SURFACE}>>")
+target_compile_features(AeroApp PUBLIC cxx_std_17)
+set_target_properties(AeroApp PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+    POSITION_INDEPENDENT_CODE ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroApp)
+
 # Keep the public SDK dependency graph pointed in one direction. The runtime
 # owns no GPU backend, while ModuleSdk remains a header-only authoring facade.
 get_target_property(_aero_runtime_links AeroRuntime LINK_LIBRARIES)
@@ -1343,6 +1423,8 @@ unset(_aero_module_sdk_links)
 # Installable SDK and CMake package.
 set_target_properties(
     AeroBase PROPERTIES EXPORT_NAME Base)
+set_target_properties(
+    AeroAudio PROPERTIES EXPORT_NAME Audio)
 set_target_properties(
     AeroCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(
@@ -1380,6 +1462,8 @@ set_target_properties(
 set_target_properties(
     AeroRuntime PROPERTIES EXPORT_NAME Runtime)
 set_target_properties(
+    AeroApp PROPERTIES EXPORT_NAME App)
+set_target_properties(
     AeroModuleSdk PROPERTIES EXPORT_NAME ModuleSdk)
 set_target_properties(
     AeroIntegrationSdk PROPERTIES EXPORT_NAME IntegrationSdk)
@@ -1397,6 +1481,7 @@ set_target_properties(
 
 set(_aero_sdk_targets
     AeroBase
+    AeroAudio
     AeroCore
     AeroPlatform
     AeroText
@@ -1412,6 +1497,7 @@ set(_aero_sdk_targets
     AeroModuleCatalog
     AeroRuntime
     AeroIntegration
+    AeroApp
     AeroModuleSdk
     AeroIntegrationSdk
     AeroRhi
@@ -1503,4 +1589,8 @@ endif()
 
 if(AERO_BUILD_SAMPLES)
     add_subdirectory(samples/ControlGallery)
+    add_subdirectory(samples/HelloWorld)
+    add_subdirectory(samples/Localization)
+    add_subdirectory(samples/Menu3D)
+    add_subdirectory(samples/Scoreboard)
 endif()

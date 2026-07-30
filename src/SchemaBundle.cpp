@@ -54,14 +54,20 @@ struct SchemaBundle::Impl final {
     Core::MetadataRuntime* runtime = nullptr;
     Markup::Schema* schema = nullptr;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
+    Markup::BindingExtension* binding = nullptr;
     Markup::PresentationObjectModel* presentation = nullptr;
     Markup::ResourceExtension resourceExtension;
+    Markup::StaticExtension staticExtension;
+    Markup::TypeExtension typeExtension;
+    Markup::TemplateBindingExtension
+        templateBindingExtension;
     bool prepared = false;
     bool frozen = false;
     bool terminal = false;
 
     ~Impl() noexcept {
         Destroy(*allocator, Base::MemoryTag::Markup, presentation);
+        Destroy(*allocator, Base::MemoryTag::Markup, binding);
         Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
         Destroy(*allocator, Base::MemoryTag::Markup, schema);
         Destroy(*allocator, Base::MemoryTag::Markup, runtime);
@@ -157,6 +163,20 @@ Base::Result<void> SchemaBundle::Finalize(
     }
     impl_->dynamicResource = dynamicResource.Value();
 
+    Base::Result<Markup::BindingExtension*> binding =
+        Create<Markup::BindingExtension>(
+            *impl_->allocator,
+            Base::MemoryTag::Markup,
+            Markup::BindingExtensionOptions{
+                nullptr,
+                Presentation::FrameworkElement::
+                    DataContextProperty.Handle()});
+    if (!binding) {
+        impl_->terminal = true;
+        return binding.GetStatus();
+    }
+    impl_->binding = binding.Value();
+
     Base::Result<Markup::PresentationObjectModel*> presentation =
         Create<Markup::PresentationObjectModel>(
             *impl_->allocator,
@@ -180,6 +200,36 @@ Base::Result<void> SchemaBundle::Finalize(
             Core::MakeTypeId(
                 Base::StringView("urn:aero"),
                 Base::StringView("DynamicResource")));
+    }
+    if (status) {
+        status = impl_->binding->Register(
+            *impl_->schema,
+            Core::MakeTypeId(
+                Base::StringView("urn:aero"),
+                Base::StringView("Binding")));
+    }
+    if (status) {
+        status = impl_->staticExtension.Register(
+            *impl_->schema,
+            Core::MakeTypeId(
+                Markup::LanguageNamespaceUri(),
+                Base::StringView("Static")));
+    }
+    if (status) {
+        status = impl_->typeExtension.Register(
+            *impl_->schema,
+            Core::MakeTypeId(
+                Markup::LanguageNamespaceUri(),
+                Base::StringView("Type")));
+    }
+    if (status) {
+        status =
+            impl_->templateBindingExtension.Register(
+                *impl_->schema,
+                Core::MakeTypeId(
+                    Core::AeroNamespaceUri(),
+                    Base::StringView(
+                        "TemplateBinding")));
     }
     if (status) {
         status = impl_->presentation->Register(

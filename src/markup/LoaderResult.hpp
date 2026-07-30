@@ -29,6 +29,7 @@ struct VisualContentEdge final {
     Base::Ref<Base::Object> childOwner;
     Core::MetadataRuntime* runtime = nullptr;
     Core::MemberId member = Core::InvalidMemberId;
+    bool property = false;
 };
 
 // Markup-owned declaration result for visual content. The plan intentionally
@@ -189,6 +190,7 @@ struct LoaderResult final {
     Base::ResourceUri canonicalUri;
     Base::Vector<Base::ResourceUri> dependencies;
     Base::Ref<EffectLifetime> runtimeLifetime;
+    bool hasDeferredStaticResources = false;
 
     void Clear() noexcept {
         effects.Rollback();
@@ -200,6 +202,7 @@ struct LoaderResult final {
         canonicalUri = {};
         dependencies.Clear();
         runtimeLifetime.Reset();
+        hasDeferredStaticResources = false;
     }
 };
 

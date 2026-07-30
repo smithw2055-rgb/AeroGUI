@@ -3,6 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -209,7 +210,11 @@ struct NodeState final {
     Presentation::RenderNodeId id = Presentation::InvalidRenderNodeId;
     Presentation::Transform2D transform;
     ClipState clip;
+    bool clipsToBounds = false;
     std::uint32_t parentIndex = UINT32_MAX;
+    Presentation::RenderNodeId containingEffect =
+        Presentation::InvalidRenderNodeId;
+    std::uint32_t containingEffectCount = 0U;
 };
 
 template <typename Constants>
@@ -255,6 +260,12 @@ struct GlyphBinding final {
     IndexType indexType = IndexType::UInt16;
 };
 
+struct EffectSurface final {
+    ResourceHandle target;
+    std::uint32_t width = 0U;
+    std::uint32_t height = 0U;
+};
+
 } // namespace
 
 struct Renderer::Impl final {
@@ -269,18 +280,23 @@ struct Renderer::Impl final {
           nodePath(allocator),
           images(allocator),
           meshes(allocator),
-          glyphRuns(allocator) {}
+          glyphRuns(allocator),
+          effectSurfaces(allocator) {}
 
     RhiDevice* device = nullptr;
     ResourceHandle vertexBuffer;
     ResourceHandle uniformBuffer;
-    ResourceHandle pipeline;
+    std::array<ResourceHandle, 4U>
+        rectanglePipelines;
     ResourceHandle imageUniformBuffer;
-    ResourceHandle imagePipeline;
+    std::array<ResourceHandle, 4U>
+        imagePipelines;
     ResourceHandle meshUniformBuffer;
-    ResourceHandle meshPipeline;
+    std::array<ResourceHandle, 4U>
+        meshPipelines;
     ResourceHandle glyphUniformBuffer;
-    ResourceHandle glyphPipeline;
+    std::array<ResourceHandle, 4U>
+        glyphPipelines;
     Base::Vector<NodeState> nodes;
     Base::Vector<Presentation::Transform2D> transforms;
     Base::Vector<ClipState> clips;
@@ -289,7 +305,10 @@ struct Renderer::Impl final {
     Base::Vector<ImageBinding> images;
     Base::Vector<MeshBinding> meshes;
     Base::Vector<GlyphBinding> glyphRuns;
+    Base::Vector<EffectSurface> effectSurfaces;
+    ResourceHandle effectSampler;
     RendererStatistics lastStatistics;
+    bool batchingEnabled = true;
     bool initialized = false;
 };
 
@@ -331,6 +350,27 @@ Base::Result<void> Renderer::Initialize() noexcept {
         return vertex.GetStatus();
     }
     impl_->vertexBuffer = vertex.Value();
+
+    SamplerDescriptor effectSamplerDescriptor;
+    effectSamplerDescriptor.minFilter =
+        FilterMode::Linear;
+    effectSamplerDescriptor.magFilter =
+        FilterMode::Linear;
+    effectSamplerDescriptor.mipFilter =
+        FilterMode::Linear;
+    effectSamplerDescriptor.addressU =
+        AddressMode::ClampToEdge;
+    effectSamplerDescriptor.addressV =
+        AddressMode::ClampToEdge;
+    Base::Result<ResourceHandle> effectSampler =
+        device_->CreateSampler(
+            effectSamplerDescriptor);
+    if (!effectSampler) {
+        Shutdown();
+        return effectSampler.GetStatus();
+    }
+    impl_->effectSampler =
+        effectSampler.Value();
 
     BufferDescriptor uniformDescriptor;
     uniformDescriptor.sizeBytes = sizeof(ShaderRectConstants);
@@ -393,43 +433,23 @@ Base::Result<void> Renderer::Initialize() noexcept {
     pipelineDescriptor.blend.alpha.destination = BlendFactor::OneMinusSourceAlpha;
     pipelineDescriptor.colorFormat = shaders_.colorFormat;
     pipelineDescriptor.raster.scissorEnabled = true;
-    Base::Result<ResourceHandle> pipeline =
-        device_->CreatePipeline(pipelineDescriptor);
-    if (!pipeline) {
-        Shutdown();
-        return pipeline.GetStatus();
-    }
-    impl_->pipeline = pipeline.Value();
-
     PipelineDescriptor imagePipelineDescriptor = pipelineDescriptor;
     imagePipelineDescriptor.vertexShader = shaders_.imageVertex;
     imagePipelineDescriptor.fragmentShader = shaders_.imageFragment;
-    Base::Result<ResourceHandle> imagePipeline =
-        device_->CreatePipeline(imagePipelineDescriptor);
-    if (!imagePipeline) {
-        Shutdown();
-        return imagePipeline.GetStatus();
-    }
-    impl_->imagePipeline = imagePipeline.Value();
-
     PipelineDescriptor meshPipelineDescriptor = pipelineDescriptor;
     meshPipelineDescriptor.vertexShader = shaders_.meshVertex;
     meshPipelineDescriptor.fragmentShader = shaders_.meshFragment;
-    meshPipelineDescriptor.vertexLayout.buffers[0].stride = 24U;
-    meshPipelineDescriptor.vertexLayout.attributeCount = 2U;
+    meshPipelineDescriptor.vertexLayout.buffers[0].stride = 28U;
+    meshPipelineDescriptor.vertexLayout.attributeCount = 3U;
     meshPipelineDescriptor.vertexLayout.attributes[1].location = 1U;
     meshPipelineDescriptor.vertexLayout.attributes[1].bufferSlot = 0U;
     meshPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float4;
     meshPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
+    meshPipelineDescriptor.vertexLayout.attributes[2].location = 2U;
+    meshPipelineDescriptor.vertexLayout.attributes[2].bufferSlot = 0U;
+    meshPipelineDescriptor.vertexLayout.attributes[2].format = VertexFormat::Float;
+    meshPipelineDescriptor.vertexLayout.attributes[2].offset = 24U;
     meshPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
-    Base::Result<ResourceHandle> meshPipeline =
-        device_->CreatePipeline(meshPipelineDescriptor);
-    if (!meshPipeline) {
-        Shutdown();
-        return meshPipeline.GetStatus();
-    }
-    impl_->meshPipeline = meshPipeline.Value();
-
     PipelineDescriptor glyphPipelineDescriptor = pipelineDescriptor;
     glyphPipelineDescriptor.vertexShader = shaders_.glyphVertex;
     glyphPipelineDescriptor.fragmentShader = shaders_.glyphFragment;
@@ -440,13 +460,96 @@ Base::Result<void> Renderer::Initialize() noexcept {
     glyphPipelineDescriptor.vertexLayout.attributes[1].format = VertexFormat::Float2;
     glyphPipelineDescriptor.vertexLayout.attributes[1].offset = 8U;
     glyphPipelineDescriptor.topology = PrimitiveTopology::TriangleList;
-    Base::Result<ResourceHandle> glyphPipeline =
-        device_->CreatePipeline(glyphPipelineDescriptor);
-    if (!glyphPipeline) {
-        Shutdown();
-        return glyphPipeline.GetStatus();
+    auto configureBlend = [](
+        PipelineDescriptor& descriptor,
+        std::uint32_t mode) noexcept {
+        descriptor.blend.color.operation =
+            BlendOperation::Add;
+        descriptor.blend.alpha.operation =
+            BlendOperation::Add;
+        descriptor.blend.alpha.source =
+            BlendFactor::One;
+        descriptor.blend.alpha.destination =
+            BlendFactor::OneMinusSourceAlpha;
+        switch (mode) {
+        case 1U:
+            descriptor.blend.color.source =
+                BlendFactor::DestinationColor;
+            descriptor.blend.color.destination =
+                BlendFactor::Zero;
+            break;
+        case 2U:
+            descriptor.blend.color.source =
+                BlendFactor::One;
+            descriptor.blend.color.destination =
+                BlendFactor::OneMinusSourceColor;
+            break;
+        case 3U:
+            descriptor.blend.color.source =
+                BlendFactor::SourceAlpha;
+            descriptor.blend.color.destination =
+                BlendFactor::One;
+            break;
+        default:
+            descriptor.blend.color.source =
+                BlendFactor::SourceAlpha;
+            descriptor.blend.color.destination =
+                BlendFactor::OneMinusSourceAlpha;
+            break;
+        }
+    };
+    for (std::uint32_t mode = 0U;
+         mode < 4U; ++mode) {
+        configureBlend(pipelineDescriptor, mode);
+        configureBlend(
+            imagePipelineDescriptor, mode);
+        configureBlend(
+            meshPipelineDescriptor, mode);
+        configureBlend(
+            glyphPipelineDescriptor, mode);
+        Base::Result<ResourceHandle> rectangle =
+            device_->CreatePipeline(
+                pipelineDescriptor);
+        Base::Result<ResourceHandle> image =
+            rectangle
+            ? device_->CreatePipeline(
+                imagePipelineDescriptor)
+            : Base::Result<ResourceHandle>(
+                rectangle.GetStatus());
+        Base::Result<ResourceHandle> mesh =
+            image
+            ? device_->CreatePipeline(
+                meshPipelineDescriptor)
+            : Base::Result<ResourceHandle>(
+                image.GetStatus());
+        Base::Result<ResourceHandle> glyph =
+            mesh
+            ? device_->CreatePipeline(
+                glyphPipelineDescriptor)
+            : Base::Result<ResourceHandle>(
+                mesh.GetStatus());
+        if (!rectangle || !image ||
+            !mesh || !glyph) {
+            const Base::Status failure =
+                !rectangle
+                ? rectangle.GetStatus()
+                : !image
+                ? image.GetStatus()
+                : !mesh
+                ? mesh.GetStatus()
+                : glyph.GetStatus();
+            Shutdown();
+            return failure;
+        }
+        impl_->rectanglePipelines[mode] =
+            rectangle.Value();
+        impl_->imagePipelines[mode] =
+            image.Value();
+        impl_->meshPipelines[mode] =
+            mesh.Value();
+        impl_->glyphPipelines[mode] =
+            glyph.Value();
     }
-    impl_->glyphPipeline = glyphPipeline.Value();
     impl_->initialized = true;
     return {};
 }
@@ -459,30 +562,64 @@ void Renderer::Shutdown() noexcept {
         ? device_->LastSubmittedFence()
         : 0U;
     if (device_ != nullptr) {
-        if (impl_->glyphPipeline.IsValid()) {
-            static_cast<void>(device_->DestroyResource(impl_->glyphPipeline, retireFence));
+        for (const EffectSurface& surface :
+             impl_->effectSurfaces) {
+            if (surface.target.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        surface.target,
+                        retireFence));
+            }
+        }
+        if (impl_->effectSampler.IsValid()) {
+            static_cast<void>(
+                device_->DestroyResource(
+                    impl_->effectSampler,
+                    retireFence));
+        }
+        for (ResourceHandle pipeline :
+             impl_->glyphPipelines) {
+            if (pipeline.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        pipeline, retireFence));
+            }
         }
         if (impl_->glyphUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
                 impl_->glyphUniformBuffer, retireFence));
         }
-        if (impl_->meshPipeline.IsValid()) {
-            static_cast<void>(device_->DestroyResource(impl_->meshPipeline, retireFence));
+        for (ResourceHandle pipeline :
+             impl_->meshPipelines) {
+            if (pipeline.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        pipeline, retireFence));
+            }
         }
         if (impl_->meshUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
                 impl_->meshUniformBuffer, retireFence));
         }
-        if (impl_->imagePipeline.IsValid()) {
-            static_cast<void>(device_->DestroyResource(
-                impl_->imagePipeline, retireFence));
+        for (ResourceHandle pipeline :
+             impl_->imagePipelines) {
+            if (pipeline.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        pipeline, retireFence));
+            }
         }
         if (impl_->imageUniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(
                 impl_->imageUniformBuffer, retireFence));
         }
-        if (impl_->pipeline.IsValid()) {
-            static_cast<void>(device_->DestroyResource(impl_->pipeline, retireFence));
+        for (ResourceHandle pipeline :
+             impl_->rectanglePipelines) {
+            if (pipeline.IsValid()) {
+                static_cast<void>(
+                    device_->DestroyResource(
+                        pipeline, retireFence));
+            }
         }
         if (impl_->uniformBuffer.IsValid()) {
             static_cast<void>(device_->DestroyResource(impl_->uniformBuffer, retireFence));
@@ -641,6 +778,18 @@ Renderer::LastStatistics() const noexcept {
                             : RendererStatistics{};
 }
 
+void Renderer::SetBatchingEnabled(
+    bool enabled) noexcept {
+    if (impl_ != nullptr) {
+        impl_->batchingEnabled = enabled;
+    }
+}
+
+bool Renderer::IsBatchingEnabled() const noexcept {
+    return impl_ == nullptr ||
+        impl_->batchingEnabled;
+}
+
 Base::Result<CommandList> Renderer::Record(
     const Presentation::RenderPlan& plan,
     const RenderTarget& target) noexcept {
@@ -660,6 +809,67 @@ Base::Result<CommandList> Renderer::Record(
 
     const std::uint32_t width = target.width;
     const std::uint32_t height = target.height;
+    std::uint32_t effectCount = 0U;
+    for (const Presentation::RenderNodeSnapshot& node :
+         plan.Nodes()) {
+        if (node.effect.kind !=
+            Presentation::RenderEffectKind::None) {
+            ++effectCount;
+        }
+    }
+    for (std::uint32_t index = effectCount;
+         index < impl_->effectSurfaces.Size();
+         ++index) {
+        if (impl_->effectSurfaces[index].
+                target.IsValid()) {
+            static_cast<void>(
+                device_->DestroyResource(
+                    impl_->effectSurfaces[index].
+                        target,
+                    device_->LastSubmittedFence()));
+        }
+    }
+    Base::Result<void> resizedEffects =
+        impl_->effectSurfaces.TryResize(
+            effectCount);
+    if (!resizedEffects) {
+        return resizedEffects.GetStatus();
+    }
+    for (EffectSurface& surface :
+         impl_->effectSurfaces) {
+        if (surface.target.IsValid() &&
+            (surface.width != width ||
+             surface.height != height ||
+             !device_->IsAlive(
+                 surface.target))) {
+            static_cast<void>(
+                device_->DestroyResource(
+                    surface.target,
+                    device_->LastSubmittedFence()));
+            surface = {};
+        }
+        if (!surface.target.IsValid()) {
+            TextureResourceDescriptor descriptor;
+            descriptor.width = width;
+            descriptor.height = height;
+            descriptor.format =
+                shaders_.colorFormat;
+            descriptor.usage =
+                TextureUsageBit(
+                    TextureUsage::Sampled) |
+                TextureUsageBit(
+                    TextureUsage::RenderTarget);
+            Base::Result<ResourceHandle> created =
+                device_->CreateRenderTarget(
+                    descriptor);
+            if (!created) {
+                return created.GetStatus();
+            }
+            surface.target = created.Value();
+            surface.width = width;
+            surface.height = height;
+        }
+    }
 
     CommandEncoder encoder(allocator_);
     static constexpr float UnitQuad[] = {
@@ -680,12 +890,8 @@ Base::Result<CommandList> Renderer::Record(
     pass.colorAttachments[0].load = LoadOperation::Clear;
     pass.colorAttachments[0].store = StoreOperation::Store;
     pass.colorAttachments[0].clearColor = {0.0F, 0.0F, 0.0F, 0.0F};
-    encoded = encoder.BeginRenderPass(pass);
-    if (!encoded) {
-        return encoded.GetStatus();
-    }
     RendererStatistics submissionStatistics;
-    submissionStatistics.renderPassCount = 1U;
+    submissionStatistics.renderPassCount = 0U;
     enum class ActivePipeline : std::uint8_t {
         None = 0U,
         Rectangle,
@@ -694,11 +900,18 @@ Base::Result<CommandList> Renderer::Record(
         Glyph
     };
     ActivePipeline activePipeline = ActivePipeline::None;
-    auto bindRectanglePipeline = [&]() noexcept -> Base::Result<void> {
-        if (activePipeline == ActivePipeline::Rectangle) {
+    std::uint32_t activeBlendMode = UINT32_MAX;
+    auto bindRectanglePipeline = [&](
+        std::uint32_t blendMode) noexcept
+        -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Rectangle &&
+            activeBlendMode == blendMode) {
             return {};
         }
-        Base::Result<void> result = encoder.BindPipeline(impl_->pipeline);
+        Base::Result<void> result =
+            encoder.BindPipeline(
+                impl_->rectanglePipelines[
+                    blendMode]);
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
@@ -712,14 +925,20 @@ Base::Result<CommandList> Renderer::Record(
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             activePipeline = ActivePipeline::Rectangle;
+            activeBlendMode = blendMode;
         }
         return result;
     };
-    auto bindImagePipeline = [&]() noexcept -> Base::Result<void> {
-        if (activePipeline == ActivePipeline::Image) {
+    auto bindImagePipeline = [&](
+        std::uint32_t blendMode) noexcept
+        -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Image &&
+            activeBlendMode == blendMode) {
             return {};
         }
-        Base::Result<void> result = encoder.BindPipeline(impl_->imagePipeline);
+        Base::Result<void> result =
+            encoder.BindPipeline(
+                impl_->imagePipelines[blendMode]);
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindVertexBuffer(0U, impl_->vertexBuffer);
@@ -733,14 +952,20 @@ Base::Result<CommandList> Renderer::Record(
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             activePipeline = ActivePipeline::Image;
+            activeBlendMode = blendMode;
         }
         return result;
     };
-    auto bindMeshPipeline = [&]() noexcept -> Base::Result<void> {
-        if (activePipeline == ActivePipeline::Mesh) {
+    auto bindMeshPipeline = [&](
+        std::uint32_t blendMode) noexcept
+        -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Mesh &&
+            activeBlendMode == blendMode) {
             return {};
         }
-        Base::Result<void> result = encoder.BindPipeline(impl_->meshPipeline);
+        Base::Result<void> result =
+            encoder.BindPipeline(
+                impl_->meshPipelines[blendMode]);
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindUniformBuffer(
@@ -750,14 +975,20 @@ Base::Result<CommandList> Renderer::Record(
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             activePipeline = ActivePipeline::Mesh;
+            activeBlendMode = blendMode;
         }
         return result;
     };
-    auto bindGlyphPipeline = [&]() noexcept -> Base::Result<void> {
-        if (activePipeline == ActivePipeline::Glyph) {
+    auto bindGlyphPipeline = [&](
+        std::uint32_t blendMode) noexcept
+        -> Base::Result<void> {
+        if (activePipeline == ActivePipeline::Glyph &&
+            activeBlendMode == blendMode) {
             return {};
         }
-        Base::Result<void> result = encoder.BindPipeline(impl_->glyphPipeline);
+        Base::Result<void> result =
+            encoder.BindPipeline(
+                impl_->glyphPipelines[blendMode]);
         if (result) {
             ++submissionStatistics.pipelineBindingCount;
             result = encoder.BindUniformBuffer(
@@ -767,15 +998,37 @@ Base::Result<CommandList> Renderer::Record(
         if (result) {
             ++submissionStatistics.uniformBufferBindingCount;
             activePipeline = ActivePipeline::Glyph;
+            activeBlendMode = blendMode;
         }
         return result;
     };
 
-    impl_->nodes.Clear();
     const Presentation::Rect targetClip = {
         0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
     const Base::Span<const Presentation::RenderCommand> commands = plan.Commands();
+    auto recordNodes = [&](
+        Presentation::RenderNodeId effectRoot,
+        bool mainPass) noexcept
+        -> Base::Result<void> {
+    activePipeline = ActivePipeline::None;
+    activeBlendMode = UINT32_MAX;
+    impl_->nodes.Clear();
+    std::uint32_t effectOrdinal = 0U;
     for (const Presentation::RenderNodeSnapshot& node : plan.Nodes()) {
+        const std::uint32_t nodeEffectSurfaceIndex =
+            effectOrdinal;
+        if (node.effect.kind !=
+            Presentation::RenderEffectKind::None) {
+            ++effectOrdinal;
+        }
+        const std::uint32_t blendMode =
+            static_cast<std::uint32_t>(
+                node.blendMode);
+        if (blendMode >= 4U) {
+            encoded = InvalidArgument(
+                "Renderer contains an invalid blend mode");
+            break;
+        }
         bool duplicateId = false;
         for (const NodeState& existing :
             impl_->nodes) {
@@ -783,20 +1036,70 @@ Base::Result<CommandList> Renderer::Record(
                 duplicateId ||
                 existing.id == node.id;
         }
-        if (node.id == Presentation::InvalidRenderNodeId ||
-            duplicateId ||
-            !Presentation::IsValidLayoutRect(node.layoutSlot) ||
-            !Presentation::IsValidLayoutRect(node.clip) ||
-            !Presentation::IsValidLayoutSize(node.renderSize) ||
-            node.commandOffset > commands.Size() ||
-            node.commandCount > commands.Size() - node.commandOffset) {
-            encoded = InvalidArgument("Renderer contains an invalid node snapshot");
+        if (node.id == Presentation::InvalidRenderNodeId) {
+            encoded = InvalidArgument(
+                "Renderer node identity is invalid");
+            break;
+        }
+        if (duplicateId) {
+            encoded = InvalidArgument(
+                "Renderer node identity is duplicated");
+            break;
+        }
+        if (!Presentation::IsValidLayoutRect(
+                node.layoutSlot)) {
+            encoded = InvalidArgument(
+                "Renderer node layout slot is invalid");
+            break;
+        }
+        if (!Presentation::IsValidLayoutRect(node.clip)) {
+            encoded = InvalidArgument(
+                "Renderer node clip is invalid");
+            break;
+        }
+        if (!Presentation::IsValidLayoutSize(
+                node.renderSize)) {
+            encoded = InvalidArgument(
+                "Renderer node render size is invalid");
+            break;
+        }
+        if (!Base::IsFiniteTransform(node.renderTransform)) {
+            encoded = InvalidArgument(
+                "Renderer node transform is invalid");
+            break;
+        }
+        if (static_cast<std::uint8_t>(
+                node.effect.kind) >
+                static_cast<std::uint8_t>(
+                    Presentation::
+                        RenderEffectKind::DropShadow) ||
+            !std::isfinite(node.effect.radius) ||
+            node.effect.radius < 0.0 ||
+            !std::isfinite(node.effect.direction) ||
+            !std::isfinite(node.effect.depth) ||
+            node.effect.depth < 0.0 ||
+            !Presentation::IsValidOpacity(
+                node.effect.opacity) ||
+            !Presentation::IsFinite(
+                node.effect.color)) {
+            encoded = InvalidArgument(
+                "Renderer node effect is invalid");
+            break;
+        }
+        if (node.commandOffset > commands.Size() ||
+            node.commandCount >
+                commands.Size() - node.commandOffset) {
+            encoded = InvalidArgument(
+                "Renderer node command range is invalid");
             break;
         }
 
         Presentation::Transform2D parentTransform = IdentityTransform();
         Presentation::Rect parentClip = targetClip;
         std::uint32_t parentIndex = UINT32_MAX;
+        Presentation::RenderNodeId containingEffect =
+            Presentation::InvalidRenderNodeId;
+        std::uint32_t containingEffectCount = 0U;
         if (node.parentId != Presentation::InvalidRenderNodeId) {
             const NodeState* parent = nullptr;
             for (std::uint32_t index = impl_->nodes.Size(); index > 0U; --index) {
@@ -813,19 +1116,38 @@ Base::Result<CommandList> Renderer::Record(
             }
             parentTransform = parent->transform;
             parentClip = parent->clip.bounds;
+            containingEffect =
+                parent->containingEffect;
+            containingEffectCount =
+                parent->containingEffectCount;
+        }
+        if (node.effect.kind !=
+            Presentation::RenderEffectKind::None) {
+            containingEffect = node.id;
+            ++containingEffectCount;
         }
 
         const Presentation::Transform2D nodeTransform = Compose(
-            Translation(node.layoutSlot.x, node.layoutSlot.y), parentTransform);
-        const Presentation::Rect nodeBounds = TransformBounds(parentTransform, node.clip);
-        if (!Presentation::IsValidLayoutRect(nodeBounds)) {
-            encoded = InvalidArgument("Renderer node clip bounds are invalid");
-            break;
+            Compose(
+                node.renderTransform,
+                Translation(
+                    node.layoutSlot.x,
+                    node.layoutSlot.y)),
+            parentTransform);
+        ClipState nodeClip{node.clip, parentTransform, parentClip};
+        if (node.clipsToBounds) {
+            const Presentation::Rect nodeBounds =
+                TransformBounds(parentTransform, node.clip);
+            if (!Presentation::IsValidLayoutRect(nodeBounds)) {
+                encoded = InvalidArgument("Renderer node clip bounds are invalid");
+                break;
+            }
+            nodeClip.bounds = IntersectRect(parentClip, nodeBounds);
         }
-        ClipState nodeClip{node.clip, parentTransform,
-            IntersectRect(parentClip, nodeBounds)};
         Base::Result<void> appendedNode = impl_->nodes.TryPushBack(
-            {node.id, nodeTransform, nodeClip, parentIndex});
+            {node.id, nodeTransform, nodeClip, node.clipsToBounds,
+             parentIndex, containingEffect,
+             containingEffectCount});
         if (!appendedNode) {
             encoded = appendedNode;
             break;
@@ -835,6 +1157,15 @@ Base::Result<CommandList> Renderer::Record(
         impl_->clips.Clear();
         impl_->opacities.Clear();
         impl_->nodePath.Clear();
+        // Drawing code always has a current clip. Keep the render target as
+        // that root clip, then add only ancestors that explicitly opt into
+        // ClipToBounds.
+        Base::Result<void> rootClip = impl_->clips.TryPushBack(
+            {targetClip, IdentityTransform(), targetClip});
+        if (!rootClip) {
+            encoded = rootClip;
+            break;
+        }
         std::uint32_t nodePathIndex = impl_->nodes.Size() - 1U;
         while (true) {
             if (impl_->nodePath.Size() >= MaxShaderClips) {
@@ -858,8 +1189,12 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
         for (std::uint32_t index = impl_->nodePath.Size(); index > 0U; --index) {
-            Base::Result<void> pushed = impl_->clips.TryPushBack(
-                impl_->nodes[impl_->nodePath[index - 1U]].clip);
+            const NodeState& pathNode =
+                impl_->nodes[impl_->nodePath[index - 1U]];
+            if (!pathNode.clipsToBounds) {
+                continue;
+            }
+            Base::Result<void> pushed = impl_->clips.TryPushBack(pathNode.clip);
             if (!pushed) {
                 encoded = pushed;
                 break;
@@ -875,8 +1210,216 @@ Base::Result<CommandList> Renderer::Record(
         }
         const std::uint32_t baseClipCount = impl_->clips.Size();
 
+        bool isInRequestedSubtree =
+            effectRoot ==
+                Presentation::InvalidRenderNodeId;
+        for (std::uint32_t pathIndex = 0U;
+             pathIndex < impl_->nodePath.Size();
+             ++pathIndex) {
+            const Presentation::RenderNodeId pathId =
+                impl_->nodes[
+                    impl_->nodePath[
+                        pathIndex]].id;
+            if (pathId == effectRoot) {
+                isInRequestedSubtree = true;
+            }
+        }
+        const NodeState& currentNodeState =
+            impl_->nodes[
+                impl_->nodes.Size() - 1U];
+        if (containingEffectCount > 1U) {
+            encoded = Unsupported(
+                "Renderer does not support nested effects");
+            break;
+        }
+        bool shouldDraw =
+            mainPass
+            ? currentNodeState.containingEffect ==
+                Presentation::InvalidRenderNodeId
+            : isInRequestedSubtree;
+        if (mainPass &&
+            currentNodeState.containingEffect ==
+                node.id) {
+            if (nodeEffectSurfaceIndex >=
+                    impl_->effectSurfaces.Size() ||
+                !impl_->effectSurfaces[
+                    nodeEffectSurfaceIndex].
+                    target.IsValid()) {
+                encoded = InvalidState(
+                    "Renderer effect surface is unavailable");
+                break;
+            }
+            Presentation::Rect effectBounds =
+                TransformBounds(
+                    nodeTransform,
+                    {0.0, 0.0,
+                     node.renderSize.width,
+                     node.renderSize.height});
+            const double effectPadding =
+                std::fmin(
+                    node.effect.radius,
+                    50.0) +
+                (node.effect.kind ==
+                     Presentation::
+                         RenderEffectKind::DropShadow
+                 ? node.effect.depth
+                 : 0.0);
+            effectBounds.x -= effectPadding;
+            effectBounds.y -= effectPadding;
+            effectBounds.width +=
+                effectPadding * 2.0;
+            effectBounds.height +=
+                effectPadding * 2.0;
+            effectBounds = IntersectRect(
+                effectBounds, targetClip);
+            auto appendEffectSample = [&](
+                double offsetX,
+                double offsetY,
+                Base::Color tint) noexcept
+                -> Base::Result<void> {
+                ShaderImageConstants constants;
+                constants.transform0[0] = 1.0F;
+                constants.transform0[3] = 1.0F;
+                constants.transform1[2] =
+                    static_cast<float>(width);
+                constants.transform1[3] =
+                    static_cast<float>(height);
+                constants.clipCount = 1U;
+                constants.clipRect[0][2] =
+                    static_cast<float>(width);
+                constants.clipRect[0][3] =
+                    static_cast<float>(height);
+                constants.clipInverse[0][0] = 1.0F;
+                constants.clipInverse[0][3] = 1.0F;
+                constants.rects[0][0] =
+                    static_cast<float>(
+                        effectBounds.x +
+                        offsetX);
+                constants.rects[0][1] =
+                    static_cast<float>(
+                        effectBounds.y +
+                        offsetY);
+                constants.rects[0][2] =
+                    static_cast<float>(
+                        effectBounds.width);
+                constants.rects[0][3] =
+                    static_cast<float>(
+                        effectBounds.height);
+                constants.sourceUvs[0][0] =
+                    static_cast<float>(
+                        effectBounds.x /
+                        static_cast<double>(width));
+                constants.sourceUvs[0][1] =
+                    static_cast<float>(
+                        effectBounds.y /
+                        static_cast<double>(height));
+                constants.sourceUvs[0][2] =
+                    static_cast<float>(
+                        effectBounds.width /
+                        static_cast<double>(width));
+                constants.sourceUvs[0][3] =
+                    static_cast<float>(
+                        effectBounds.height /
+                        static_cast<double>(height));
+                constants.tints[0][0] = tint.red;
+                constants.tints[0][1] = tint.green;
+                constants.tints[0][2] = tint.blue;
+                constants.tints[0][3] = tint.alpha;
+                Base::Result<void> result =
+                    bindImagePipeline(0U);
+                if (result) {
+                    result =
+                        encoder.BindTextureSampler(
+                            0U,
+                            impl_->effectSurfaces[
+                                nodeEffectSurfaceIndex].
+                                target,
+                            impl_->effectSampler);
+                }
+                if (result) {
+                    ++submissionStatistics.
+                        textureSamplerBindingCount;
+                    result = AppendDraw(
+                        encoder,
+                        impl_->imageUniformBuffer,
+                        constants,
+                        targetClip,
+                        1U);
+                }
+                if (result) {
+                    ++submissionStatistics.drawCallCount;
+                    ++submissionStatistics.
+                        imageInstanceCount;
+                    ++submissionStatistics.
+                        uniformBufferUploadCount;
+                }
+                return result;
+            };
+            const double sampleRadius =
+                std::fmin(
+                    node.effect.radius,
+                    50.0) * 0.5;
+            if (node.effect.kind ==
+                Presentation::
+                    RenderEffectKind::DropShadow) {
+                constexpr double DegreesToRadians =
+                    0.017453292519943295769;
+                const double radians =
+                    node.effect.direction *
+                    DegreesToRadians;
+                const double shadowX =
+                    std::cos(radians) *
+                    node.effect.depth;
+                const double shadowY =
+                    -std::sin(radians) *
+                    node.effect.depth;
+                Base::Color shadowTint =
+                    node.effect.color;
+                shadowTint.alpha =
+                    static_cast<float>(
+                        node.effect.opacity / 9.0);
+                for (std::int32_t y = -1;
+                     y <= 1 && encoded; ++y) {
+                    for (std::int32_t x = -1;
+                         x <= 1 && encoded; ++x) {
+                        encoded = appendEffectSample(
+                            shadowX +
+                                sampleRadius * x,
+                            shadowY +
+                                sampleRadius * y,
+                            shadowTint);
+                    }
+                }
+                if (encoded) {
+                    encoded = appendEffectSample(
+                        0.0, 0.0,
+                        {1.0F, 1.0F, 1.0F,
+                         1.0F});
+                }
+            } else {
+                const Base::Color blurTint{
+                    1.0F, 1.0F, 1.0F,
+                    1.0F / 9.0F};
+                for (std::int32_t y = -1;
+                     y <= 1 && encoded; ++y) {
+                    for (std::int32_t x = -1;
+                         x <= 1 && encoded; ++x) {
+                        encoded = appendEffectSample(
+                            sampleRadius * x,
+                            sampleRadius * y,
+                            blurTint);
+                    }
+                }
+            }
+            if (!encoded) break;
+            shouldDraw = false;
+        }
+
         for (std::uint32_t commandIndex = 0U;
-             commandIndex < node.commandCount;
+             commandIndex <
+                 (shouldDraw
+                  ? node.commandCount
+                  : 0U);
              ++commandIndex) {
             const Presentation::RenderCommand& command =
                 commands[node.commandOffset + commandIndex];
@@ -937,7 +1480,9 @@ Base::Result<CommandList> Renderer::Record(
             case Presentation::RenderCommandKind::FillRect:
             case Presentation::RenderCommandKind::FillRoundedRect:
             case Presentation::RenderCommandKind::StrokeRect: {
-                encoded = bindRectanglePipeline();
+                encoded =
+                    bindRectanglePipeline(
+                        blendMode);
                 if (!encoded) {
                     break;
                 }
@@ -1078,7 +1623,10 @@ Base::Result<CommandList> Renderer::Record(
                     std::uint32_t instanceCount = 0U;
                     for (std::uint32_t batchIndex = commandIndex;
                          batchIndex < node.commandCount &&
-                             instanceCount < MaxRectangleBatchInstances;
+                             instanceCount <
+                                 (impl_->batchingEnabled
+                                  ? MaxRectangleBatchInstances
+                                  : 1U);
                          ++batchIndex) {
                         const Presentation::RenderCommand& candidate =
                             commands[node.commandOffset + batchIndex];
@@ -1266,7 +1814,10 @@ Base::Result<CommandList> Renderer::Record(
                 std::uint32_t instanceCount = 0U;
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
-                         instanceCount < MaxRectangleBatchInstances;
+                         instanceCount <
+                             (impl_->batchingEnabled
+                              ? MaxRectangleBatchInstances
+                              : 1U);
                      ++batchIndex) {
                     const Presentation::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
@@ -1328,7 +1879,9 @@ Base::Result<CommandList> Renderer::Record(
                 }
                 commandIndex += batchCommandCount - 1U;
                 if (instanceCount != 0U) {
-                    encoded = bindImagePipeline();
+                    encoded =
+                        bindImagePipeline(
+                            blendMode);
                     if (encoded) {
                         encoded = encoder.BindTextureSampler(
                             0U, imageBinding->texture, imageBinding->sampler);
@@ -1428,7 +1981,10 @@ Base::Result<CommandList> Renderer::Record(
                 std::uint32_t instanceCount = 0U;
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
-                         instanceCount < MaxRectangleBatchInstances;
+                         instanceCount <
+                             (impl_->batchingEnabled
+                              ? MaxRectangleBatchInstances
+                              : 1U);
                      ++batchIndex) {
                     const Presentation::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
@@ -1453,7 +2009,9 @@ Base::Result<CommandList> Renderer::Record(
                     break;
                 }
                 commandIndex += batchCommandCount - 1U;
-                encoded = bindMeshPipeline();
+                encoded =
+                    bindMeshPipeline(
+                        blendMode);
                 if (encoded) {
                     encoded = encoder.BindVertexBuffer(0U, meshBinding->vertexBuffer);
                 }
@@ -1575,7 +2133,10 @@ Base::Result<CommandList> Renderer::Record(
                 std::uint32_t instanceCount = 0U;
                 for (std::uint32_t batchIndex = commandIndex;
                      batchIndex < node.commandCount &&
-                         instanceCount < MaxRectangleBatchInstances;
+                         instanceCount <
+                             (impl_->batchingEnabled
+                              ? MaxRectangleBatchInstances
+                              : 1U);
                      ++batchIndex) {
                     const Presentation::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
@@ -1600,7 +2161,9 @@ Base::Result<CommandList> Renderer::Record(
                     break;
                 }
                 commandIndex += batchCommandCount - 1U;
-                encoded = bindGlyphPipeline();
+                encoded =
+                    bindGlyphPipeline(
+                        blendMode);
                 if (encoded) {
                     encoded = encoder.BindVertexBuffer(
                         0U, glyphBinding->vertexBuffer);
@@ -1649,7 +2212,42 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
     }
+    return encoded;
+    };
 
+    std::uint32_t surfaceIndex = 0U;
+    for (const Presentation::RenderNodeSnapshot& node :
+         plan.Nodes()) {
+        if (node.effect.kind ==
+            Presentation::RenderEffectKind::None) {
+            continue;
+        }
+        pass.colorAttachments[0].target =
+            impl_->effectSurfaces[
+                surfaceIndex].target;
+        encoded = encoder.BeginRenderPass(pass);
+        if (encoded) {
+            ++submissionStatistics.renderPassCount;
+            encoded = recordNodes(
+                node.id, false);
+        }
+        if (encoded) {
+            encoded = encoder.EndRenderPass();
+        }
+        if (!encoded) break;
+        ++surfaceIndex;
+    }
+    if (encoded) {
+        pass.colorAttachments[0].target =
+            target.color;
+        encoded = encoder.BeginRenderPass(pass);
+    }
+    if (encoded) {
+        ++submissionStatistics.renderPassCount;
+        encoded = recordNodes(
+            Presentation::InvalidRenderNodeId,
+            true);
+    }
     if (encoded) {
         encoded = encoder.EndRenderPass();
     }

@@ -65,6 +65,8 @@ constexpr GlEnum GlSourceAlpha = 0x0302U;
 constexpr GlEnum GlOneMinusSourceAlpha = 0x0303U;
 constexpr GlEnum GlDestinationAlpha = 0x0304U;
 constexpr GlEnum GlOneMinusDestinationAlpha = 0x0305U;
+constexpr GlEnum GlDestinationColor = 0x0306U;
+constexpr GlEnum GlOneMinusSourceColor = 0x0301U;
 constexpr GlEnum GlFuncAdd = 0x8006U;
 constexpr GlEnum GlFuncSubtract = 0x800AU;
 constexpr GlEnum GlFuncReverseSubtract = 0x800BU;
@@ -276,6 +278,10 @@ GlEnum BlendFactorValue(BlendFactor factor) noexcept {
         return GlDestinationAlpha;
     case BlendFactor::OneMinusDestinationAlpha:
         return GlOneMinusDestinationAlpha;
+    case BlendFactor::DestinationColor:
+        return GlDestinationColor;
+    case BlendFactor::OneMinusSourceColor:
+        return GlOneMinusSourceColor;
     }
     return GlOne;
 }

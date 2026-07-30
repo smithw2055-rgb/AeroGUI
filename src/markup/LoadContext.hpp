@@ -24,6 +24,7 @@ struct LoadContext final {
     Core::Dispatcher* dispatcher = nullptr;
     Core::DependencyPropertyRegistry* dependencyProperties = nullptr;
     std::uint32_t maxObjects = UINT32_MAX;
+    bool deferUnresolvedStaticResources = false;
     LoadFinalizeCallback finalize = nullptr;
     void* finalizeContext = nullptr;
 };

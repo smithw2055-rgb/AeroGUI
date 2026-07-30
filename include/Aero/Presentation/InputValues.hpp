@@ -46,6 +46,7 @@ struct KeyboardInput final {
 inline constexpr std::uint32_t KeyboardKeyTab = 9U;
 inline constexpr std::uint32_t KeyboardKeyBackspace = 8U;
 inline constexpr std::uint32_t KeyboardKeyEnter = 13U;
+inline constexpr std::uint32_t KeyboardKeyEscape = 27U;
 inline constexpr std::uint32_t KeyboardKeySpace = 32U;
 inline constexpr std::uint32_t KeyboardKeyHome = 0x24U;
 inline constexpr std::uint32_t KeyboardKeyEnd = 0x23U;

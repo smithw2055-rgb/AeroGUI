@@ -26,7 +26,8 @@ public:
     Base::Result<void> Initialize(
         Presentation::IRenderBackend& backend,
         const Integration::TextOptions& options) noexcept;
-    Base::Result<bool> SynchronizeBackend() noexcept;
+    Base::Result<bool> SynchronizeBackend(
+        bool force = false) noexcept;
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
     void Shutdown() noexcept;
 

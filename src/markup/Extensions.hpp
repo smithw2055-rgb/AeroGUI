@@ -249,4 +249,49 @@ private:
         void* context) noexcept;
 };
 
+// Records a WPF-style one-way property mapping while a ControlTemplate
+// prototype is authored. The prototype keeps no live expression; its immutable
+// runtime plan applies the mapping to every instantiated template tree.
+class AERO_API TemplateBindingExtension final {
+public:
+    TemplateBindingExtension() noexcept = default;
+
+    TemplateBindingExtension(
+        const TemplateBindingExtension&) = delete;
+    TemplateBindingExtension& operator=(
+        const TemplateBindingExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Core::TypeId markupExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionContext& services,
+        void* context) noexcept;
+};
+
+// Implements the WPF-compatible {x:Static Type.Member} form for registered
+// enum values. The returned Core::Value retains the enum's concrete metadata
+// type so AnyValue members (for example discrete object key frames) can defer
+// assignment until their target dependency property is known.
+class AERO_API StaticExtension final {
+public:
+    StaticExtension() noexcept = default;
+
+    StaticExtension(const StaticExtension&) = delete;
+    StaticExtension& operator=(const StaticExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Core::TypeId markupExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionContext& services,
+        void* context) noexcept;
+};
+
 } // namespace Aero::Markup

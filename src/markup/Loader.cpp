@@ -456,7 +456,8 @@ struct Loader::Impl::Operation final {
         Base::StringView text,
         const Base::ResourceUri& baseUri,
         const LoadOptions& options,
-        const Base::Ref<Base::Object>& existingRoot) noexcept;
+        const Base::Ref<Base::Object>& existingRoot,
+        bool deferUnresolvedStaticResources = false) noexcept;
     Base::Result<LoaderResult> LoadCompiled(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
@@ -814,7 +815,39 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
         source.Value().Text(),
         origin,
         options,
-        existingRoot);
+        existingRoot,
+        true);
+    if (loaded && loaded.Value().hasDeferredStaticResources) {
+        if (!loaded.Value().root ||
+            loaded.Value().root->RuntimeType() !=
+                ResourceDictionary::StaticTypeId()) {
+            loaded.Value().Clear();
+            loaded = Base::Result<LoaderResult>(Failure(
+                Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "StaticResource key is not available; forward references are not supported"),
+                LoaderDiagnosticCodes::ResourceDependencyFailed,
+                Base::StringView(
+                    "StaticResource key is not available; forward references are not supported")));
+        } else {
+            auto& discoveredResources =
+                static_cast<ResourceDictionary&>(
+                    *loaded.Value().root);
+            LoadContext replayContext = runtime;
+            replayContext.resources = &discoveredResources;
+            replayContext.deferUnresolvedStaticResources = false;
+            LoadOptions replayOptions = options;
+            Detail::LoadOptionsAccess::SetContext(
+                replayOptions, &replayContext);
+            Base::Result<LoaderResult> replayed = ParseCore(
+                source.Value().Text(),
+                origin,
+                replayOptions,
+                existingRoot);
+            loaded.Value().Clear();
+            loaded = std::move(replayed);
+        }
+    }
     if (loaded && runtime.documentCache != nullptr) {
         static_cast<void>(PopulateDocumentCache(
             source.Value(),
@@ -865,7 +898,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
     const LoadOptions& options,
-    const Base::Ref<Base::Object>& existingRoot) noexcept {
+    const Base::Ref<Base::Object>& existingRoot,
+    bool deferUnresolvedStaticResources) noexcept {
     const LoadContext& runtime =
         Detail::LoadOptionsAccess::Context(options);
     Base::Result<void> validOptions =
@@ -906,6 +940,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     context.effectLifetime = runtime.effectLifetime;
     context.effectCommitMode = runtime.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
+    context.deferUnresolvedStaticResources =
+        deferUnresolvedStaticResources;
     FinalizeContext finalize{
         this, &options, &baseUri, nullptr};
     context.finalize = &FinalizeLoad;
@@ -1115,8 +1151,30 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
                 "Recursive ResourceDictionary Source was detected"));
     }
 
+    // Merged dictionaries are evaluated in declaration order. Supply already
+    // discovered siblings as ambient resources while loading the next source,
+    // so WPF-style DynamicResource values in styles can resolve against an
+    // earlier palette or brush dictionary.
+    ResourceDictionary ambientResources;
+    Base::Result<void> ambientMerged =
+        ambientResources.TryAddMerged(dictionary);
+    for (PendingResourceMerge& discovered : pending) {
+        if (ambientMerged) {
+            ambientMerged = ambientResources.TryAddMerged(
+                discovered.source);
+        }
+    }
+    if (!ambientMerged) return ambientMerged.GetStatus();
+    const LoadContext& runtime =
+        Detail::LoadOptionsAccess::Context(options);
+    LoadContext resourceContext = runtime;
+    resourceContext.resources = &ambientResources;
+    resourceContext.fallbackResources = &ambientResources;
+    LoadOptions resourceOptions = options;
+    Detail::LoadOptionsAccess::SetContext(
+        resourceOptions, &resourceContext);
     Base::Result<LoaderResult> loaded =
-        LoadCore(source, options, {});
+        LoadCore(source, resourceOptions, {});
     if (!loaded) {
         return Failure(
             loaded.GetStatus(),

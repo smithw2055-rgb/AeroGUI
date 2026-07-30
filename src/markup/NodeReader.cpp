@@ -14,6 +14,8 @@ constexpr Base::StringView XmlNamespaceUri(
 constexpr Base::StringView XmlnsPrefix("xmlns");
 constexpr Base::StringView XmlnsNamespaceUri(
     "http://www.w3.org/2000/xmlns/");
+constexpr Base::StringView MarkupCompatibilityNamespaceUri(
+    "http://schemas.openxmlformats.org/markup-compatibility/2006");
 
 constexpr Base::StringView MessageUnboundPrefix(
     "XAML qualified name uses an unbound XML namespace prefix");
@@ -94,6 +96,7 @@ void NodeReader::Reset() noexcept {
     xmlToken_.Clear();
     pending_.Clear();
     bindings_.Clear();
+    ignorableNamespaces_.Clear();
     scopes_.Clear();
     pendingIndex_ = 0U;
     ended_ = false;
@@ -154,12 +157,9 @@ Base::Result<NodeKind> NodeReader::Read(Node& node) noexcept {
         return queueResult.GetStatus();
     }
     if (pending_.Empty()) {
-        failed_ = true;
-        return Failure(
-            Base::ErrorCode::InternalError,
-            NodeDiagnosticCodes::InvalidNodeStreamState,
-            MessageInvalidState,
-            xmlToken_.Source());
+        // Ignorable markup-compatibility nodes and their whitespace produce
+        // no XAML nodes. Continue until an observable node is available.
+        return Read(node);
     }
 
     return EmitPending(node);
@@ -168,6 +168,8 @@ Base::Result<NodeKind> NodeReader::Read(Node& node) noexcept {
 Base::Result<void> NodeReader::QueueStartElement(
     const XmlToken& token) noexcept {
     const std::uint32_t bindingStart = bindings_.Size();
+    const std::uint32_t ignorableNamespaceStart =
+        ignorableNamespaces_.Size();
 
     for (const XmlAttribute& attribute : token.Attributes()) {
         Base::StringView prefix;
@@ -200,8 +202,16 @@ Base::Result<void> NodeReader::QueueStartElement(
         }
     }
 
+    for (const XmlAttribute& attribute : token.Attributes()) {
+        if (!IsMarkupCompatibilityIgnorable(attribute)) continue;
+        Base::Result<void> ignored = AddIgnorableNamespaces(
+            attribute.Value(), attribute.Source());
+        if (!ignored) return ignored.GetStatus();
+    }
+
     ScopeFrame frame;
     frame.bindingStart = bindingStart;
+    frame.ignorableNamespaceStart = ignorableNamespaceStart;
     Base::Result<void> resolveObject = ResolveQualifiedName(
         token.Name(),
         true,
@@ -211,32 +221,53 @@ Base::Result<void> NodeReader::QueueStartElement(
         return resolveObject.GetStatus();
     }
 
-    Base::Result<void> startResult = QueueObjectNode(
-        NodeKind::StartObject,
-        frame.objectName,
-        token.Source());
-    if (!startResult) {
-        return startResult.GetStatus();
+    frame.ignored = IsIgnorableNamespace(
+        frame.objectName.NamespaceUri()) ||
+        (!scopes_.Empty() && scopes_.Back().ignored);
+
+    if (!frame.ignored) {
+        Base::Result<void> startResult = QueueObjectNode(
+            NodeKind::StartObject,
+            frame.objectName,
+            token.Source());
+        if (!startResult) {
+            return startResult.GetStatus();
+        }
     }
 
-    for (const XmlAttribute& attribute : token.Attributes()) {
-        Base::StringView prefix;
-        if (IsNamespaceDeclaration(attribute.Name(), prefix)) {
-            continue;
-        }
+    if (!frame.ignored) {
+        for (const XmlAttribute& attribute : token.Attributes()) {
+            Base::StringView prefix;
+            if (IsNamespaceDeclaration(attribute.Name(), prefix) ||
+                IsMarkupCompatibilityIgnorable(attribute)) {
+                continue;
+            }
 
-        Base::Result<void> memberResult = QueueMemberNodes(attribute);
-        if (!memberResult) {
-            return memberResult.GetStatus();
+            QualifiedName attributeName;
+            Base::Result<void> resolved = ResolveQualifiedName(
+                attribute.Name(), false, attribute.NameSource(), attributeName);
+            if (!resolved) return resolved.GetStatus();
+            if (IsIgnorableNamespace(attributeName.NamespaceUri())) {
+                continue;
+            }
+
+            Base::Result<void> memberResult = QueueMemberNodes(attribute);
+            if (!memberResult) {
+                return memberResult.GetStatus();
+            }
         }
     }
 
     if (token.IsEmptyElement()) {
-        Base::Result<void> endResult = QueueObjectNode(
-            NodeKind::EndObject,
-            frame.objectName,
-            token.Source());
+        Base::Result<void> endResult;
+        if (!frame.ignored) {
+            endResult = QueueObjectNode(
+                NodeKind::EndObject,
+                frame.objectName,
+                token.Source());
+        }
         PopBindings(bindingStart);
+        PopIgnorableNamespaces(ignorableNamespaceStart);
         return endResult;
     }
 
@@ -258,22 +289,29 @@ Base::Result<void> NodeReader::QueueEndElement(
     }
 
     ScopeFrame& frame = scopes_.Back();
-    Base::Result<void> endResult = QueueObjectNode(
-        NodeKind::EndObject,
-        frame.objectName,
-        token.Source());
+    Base::Result<void> endResult;
+    if (!frame.ignored) {
+        endResult = QueueObjectNode(
+            NodeKind::EndObject,
+            frame.objectName,
+            token.Source());
+    }
     if (!endResult) {
         return endResult.GetStatus();
     }
 
     const std::uint32_t bindingStart = frame.bindingStart;
+    const std::uint32_t ignorableNamespaceStart =
+        frame.ignorableNamespaceStart;
     scopes_.PopBack();
     PopBindings(bindingStart);
+    PopIgnorableNamespaces(ignorableNamespaceStart);
     return {};
 }
 
 Base::Result<void> NodeReader::QueueText(
     const XmlToken& token) noexcept {
+    if (!scopes_.Empty() && scopes_.Back().ignored) return {};
     Node node;
     node.kind_ = NodeKind::Value;
     node.source_ = token.Source();
@@ -425,6 +463,42 @@ Base::Result<void> NodeReader::AddNamespaceBinding(
     return bindings_.TryPushBack(std::move(binding));
 }
 
+Base::Result<void> NodeReader::AddIgnorableNamespaces(
+    Base::StringView prefixes,
+    Core::SourceSpan source) noexcept {
+    std::uint32_t begin = 0U;
+    while (begin < prefixes.SizeBytes()) {
+        while (begin < prefixes.SizeBytes() &&
+               (prefixes[begin] == ' ' || prefixes[begin] == '\t' ||
+                prefixes[begin] == '\r' || prefixes[begin] == '\n')) {
+            ++begin;
+        }
+        const std::uint32_t tokenBegin = begin;
+        while (begin < prefixes.SizeBytes() &&
+               prefixes[begin] != ' ' && prefixes[begin] != '\t' &&
+               prefixes[begin] != '\r' && prefixes[begin] != '\n') {
+            ++begin;
+        }
+        if (tokenBegin == begin) continue;
+        bool found = false;
+        const Base::StringView uri = LookupNamespace(
+            prefixes.Substr(tokenBegin, begin - tokenBegin), found);
+        if (!found || uri.Empty()) {
+            return Failure(
+                Base::ErrorCode::NotFound,
+                NodeDiagnosticCodes::UnboundNamespacePrefix,
+                MessageUnboundPrefix, source);
+        }
+        Base::String copied;
+        Base::Result<void> assigned = copied.TryAssign(uri);
+        if (!assigned) return assigned.GetStatus();
+        Base::Result<void> appended = ignorableNamespaces_.TryPushBack(
+            std::move(copied));
+        if (!appended) return appended.GetStatus();
+    }
+    return {};
+}
+
 Base::Result<void> NodeReader::ResolveQualifiedName(
     Base::StringView qualifiedName,
     bool useDefaultNamespace,
@@ -536,9 +610,34 @@ bool NodeReader::IsNamespaceDeclaration(
     return false;
 }
 
+bool NodeReader::IsIgnorableNamespace(
+    Base::StringView uri) const noexcept {
+    for (const Base::String& ignored : ignorableNamespaces_) {
+        if (ignored.View() == uri) return true;
+    }
+    return false;
+}
+
+bool NodeReader::IsMarkupCompatibilityIgnorable(
+    const XmlAttribute& attribute) const noexcept {
+    QualifiedName name;
+    Base::Result<void> resolved = const_cast<NodeReader*>(this)
+        ->ResolveQualifiedName(
+            attribute.Name(), false, attribute.NameSource(), name);
+    return resolved &&
+        name.NamespaceUri() == MarkupCompatibilityNamespaceUri &&
+        name.LocalName() == Base::StringView("Ignorable");
+}
+
 void NodeReader::PopBindings(std::uint32_t bindingStart) noexcept {
     while (bindings_.Size() > bindingStart) {
         bindings_.PopBack();
+    }
+}
+
+void NodeReader::PopIgnorableNamespaces(std::uint32_t start) noexcept {
+    while (ignorableNamespaces_.Size() > start) {
+        ignorableNamespaces_.PopBack();
     }
 }
 

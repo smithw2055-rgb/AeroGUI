@@ -84,6 +84,8 @@ public:
         const Presentation::RenderPlan& plan,
         const RenderTarget& target) noexcept;
     RendererStatistics LastStatistics() const noexcept;
+    void SetBatchingEnabled(bool enabled) noexcept;
+    bool IsBatchingEnabled() const noexcept;
 
 private:
     friend class D3D11RenderPlanBackend;

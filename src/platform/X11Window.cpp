@@ -440,7 +440,11 @@ Base::Result<void> X11Window::Create(
             Base::ErrorCode::AlreadyExists,
             "X11 window is already created");
     }
-    if (descriptor.width == 0U || descriptor.height == 0U ||
+    const bool platformDefaultSize =
+        descriptor.width == 0U &&
+        descriptor.height == 0U;
+    if ((descriptor.width == 0U) !=
+            (descriptor.height == 0U) ||
         descriptor.width > static_cast<std::uint32_t>(
             std::numeric_limits<int>::max()) ||
         descriptor.height > static_cast<std::uint32_t>(
@@ -449,6 +453,11 @@ Base::Result<void> X11Window::Create(
             Base::ErrorCode::InvalidArgument,
             "X11 window dimensions are invalid");
     }
+
+    const std::uint32_t width =
+        platformDefaultSize ? 900U : descriptor.width;
+    const std::uint32_t height =
+        platformDefaultSize ? 640U : descriptor.height;
 
     impl_->display = XOpenDisplay(nullptr);
     if (impl_->display == nullptr) {
@@ -463,8 +472,8 @@ Base::Result<void> X11Window::Create(
         RootWindow(impl_->display, impl_->screen),
         0,
         0,
-        descriptor.width,
-        descriptor.height,
+        width,
+        height,
         0U,
         BlackPixel(impl_->display, impl_->screen),
         BlackPixel(impl_->display, impl_->screen));
@@ -477,8 +486,8 @@ Base::Result<void> X11Window::Create(
     impl_->ownsWindow = true;
     Base::Result<void> configured = impl_->Configure(
         descriptor.title,
-        descriptor.width,
-        descriptor.height,
+        width,
+        height,
         descriptor.visible);
     if (!configured) {
         Close();

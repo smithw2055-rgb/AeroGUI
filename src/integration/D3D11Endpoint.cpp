@@ -254,6 +254,8 @@ public:
             Shutdown();
             return status.GetStatus();
         }
+        renderer_->SetBatchingEnabled(
+            batchingEnabled_);
         initialized_ = true;
         return {};
     }
@@ -328,12 +330,43 @@ public:
             timeoutMilliseconds);
     }
 
+    RenderFrameStatistics
+    LastFrameStatistics() const noexcept override {
+        RenderFrameStatistics result;
+        if (renderer_ == nullptr) return result;
+        const Render::RendererStatistics source =
+            renderer_->LastSubmitStatistics();
+        result.drawCallCount =
+            source.drawCallCount;
+        result.instanceCount =
+            source.rectangleInstanceCount +
+            source.imageInstanceCount +
+            source.meshInstanceCount +
+            source.glyphInstanceCount;
+        result.stateBindingCount =
+            source.pipelineBindingCount +
+            source.vertexBufferBindingCount +
+            source.indexBufferBindingCount +
+            source.uniformBufferBindingCount +
+            source.textureSamplerBindingCount;
+        return result;
+    }
+
+    void SetBatchingEnabled(
+        bool enabled) noexcept override {
+        batchingEnabled_ = enabled;
+        if (renderer_ != nullptr) {
+            renderer_->SetBatchingEnabled(
+                enabled);
+        }
+    }
+
     void* QueryInternalService(
         std::uint64_t service) noexcept override {
-        (void)service;
         return renderer_ != nullptr
             ? Render::Detail::RenderBackendAccess::
-                  TextServices(*renderer_)
+                  InternalService(
+                      *renderer_, service)
             : nullptr;
     }
 
@@ -420,6 +453,7 @@ private:
     bool initialized_ = false;
     bool surfaceLost_ = false;
     bool deviceLost_ = false;
+    bool batchingEnabled_ = true;
     Rhi::NativeSurfaceDescriptor descriptor_;
     Rhi::D3D11GraphicsBackend* graphics_ = nullptr;
     Rhi::RhiDevice* device_ = nullptr;

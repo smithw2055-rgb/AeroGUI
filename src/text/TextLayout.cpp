@@ -271,7 +271,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         ascent + (lineHeight - ascent - descent) * 0.5F;
     const bool constrained = std::isfinite(request.maxWidth);
     const bool wrap =
-        request.wrapping == TextWrapping::Wrap && constrained;
+        request.wrapping != TextWrapping::NoWrap && constrained;
 
     float lineY = 0.0F;
     float maximumWidth = 0.0F;

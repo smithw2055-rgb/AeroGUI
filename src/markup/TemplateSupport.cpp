@@ -131,21 +131,27 @@ struct XamlTemplateSchemaFacet::Impl final {
                       .TargetType()
                 : static_cast<DataTemplate&>(object)
                       .DataType();
-            const Core::TypeInfo* targetInfo =
-                self->runtime->Types().FindType(targetType);
-            if (targetInfo == nullptr ||
-                HasTypeFlag(
-                    targetInfo->Flags(),
-                    Core::TypeFlags::ValueType)) {
-                return InvalidTemplateXaml(
-                    "Template type constraint must identify an object type");
-            }
-            if (type == ControlTemplate::StaticTypeId() &&
-                !self->runtime->Types().IsDerivedFrom(
-                    targetType,
-                    Control::StaticTypeId())) {
-                return InvalidTemplateXaml(
-                    "ControlTemplate TargetType is not a Control");
+            // A keyed WPF ControlTemplate may deliberately omit TargetType.
+            // Its target is inferred from the Style/Setter that consumes it,
+            // so only validate an explicitly authored type here. The apply
+            // path still checks that the eventual target is a Control.
+            if (targetType != Core::InvalidTypeId) {
+                const Core::TypeInfo* targetInfo =
+                    self->runtime->Types().FindType(targetType);
+                if (targetInfo == nullptr ||
+                    HasTypeFlag(
+                        targetInfo->Flags(),
+                        Core::TypeFlags::ValueType)) {
+                    return InvalidTemplateXaml(
+                        "Template type constraint must identify an object type");
+                }
+                if (type == ControlTemplate::StaticTypeId() &&
+                    !self->runtime->Types().IsDerivedFrom(
+                        targetType,
+                        Control::StaticTypeId())) {
+                    return InvalidTemplateXaml(
+                        "ControlTemplate TargetType is not a Control");
+                }
             }
         }
         Base::Vector<DeferredContentEdge> edges(
@@ -153,6 +159,13 @@ struct XamlTemplateSchemaFacet::Impl final {
         Base::Result<void> copied =
             services.deferredContent->CopyForOwner(
                 object, edges);
+        if (!copied) return copied.GetStatus();
+        Base::Vector<DeferredBindingEdge> bindings(
+            self->allocator);
+        copied =
+            services.deferredContent->
+                CopyBindingsForOwner(
+                    object, bindings);
         if (!copied) return copied.GetStatus();
 
         if (services.baseUri != nullptr) {
@@ -206,13 +219,45 @@ struct XamlTemplateSchemaFacet::Impl final {
                 compiled =
                     Detail::CompileDeferredTemplateBlueprint(
                         *authored,
+                        object.RuntimeType() ==
+                                DataTemplate::StaticTypeId()
+                            ? &static_cast<DataTemplate&>(
+                                  object).AuthoredNames()
+                            : nullptr,
                         {
                             edges.Data(),
                             edges.Size()},
+                        {
+                            bindings.Data(),
+                            bindings.Size()},
                         *self->runtime,
                         *self->properties);
             if (!compiled) {
                 return compiled.GetStatus();
+            }
+            if (object.RuntimeType() ==
+                    DataTemplate::StaticTypeId()) {
+                auto& dataTemplate =
+                    static_cast<DataTemplate&>(object);
+                Base::Result<void> reserved =
+                    compiled.Value().
+                        dataTemplateTriggers.TryReserve(
+                            dataTemplate.
+                                AuthoredTriggers().Size());
+                if (!reserved) {
+                    return reserved.GetStatus();
+                }
+                for (const Base::Ref<
+                         Presentation::TriggerBase>& trigger :
+                     dataTemplate.AuthoredTriggers()) {
+                    Base::Result<void> retained =
+                        compiled.Value().
+                            dataTemplateTriggers.
+                                TryPushBack(trigger);
+                    if (!retained) {
+                        return retained.GetStatus();
+                    }
+                }
             }
             Base::Result<Base::Ref<CompiledTemplateProgramOwner>>
                 program =
@@ -257,8 +302,11 @@ struct XamlTemplateSchemaFacet::Impl final {
                 object);
             if (object.RuntimeType() ==
                     DataTemplate::StaticTypeId()) {
-                static_cast<DataTemplate&>(object)
-                    .ClearAuthoredVisualTree();
+                auto& dataTemplate =
+                    static_cast<DataTemplate&>(object);
+                dataTemplate.ClearAuthoredVisualTree();
+                dataTemplate.ClearAuthoredTriggers();
+                dataTemplate.ClearAuthoredNames();
             } else {
                 static_cast<ItemsPanelTemplate&>(object)
                     .ClearAuthoredVisualTree();
@@ -267,6 +315,17 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         auto& controlTemplate =
             static_cast<ControlTemplate&>(object);
+        if (controlTemplate.TargetType() ==
+            Core::InvalidTypeId) {
+            // WPF permits a keyed ControlTemplate to omit TargetType. The
+            // consuming Style supplies the concrete control at apply time;
+            // compile against the common Control contract so its authored
+            // bindings and triggers remain valid until then.
+            Base::Result<void> inferred =
+                controlTemplate.TrySetTargetType(
+                    Control::StaticTypeId());
+            if (!inferred) return inferred.GetStatus();
+        }
         Base::Result<Detail::CompiledTemplateDefinition>
             compiled =
                 Detail::CompileControlTemplateDefinition(
@@ -274,6 +333,9 @@ struct XamlTemplateSchemaFacet::Impl final {
                     {
                         edges.Data(),
                         edges.Size()},
+                    {
+                        bindings.Data(),
+                        bindings.Size()},
                     *self->runtime,
                     *self->properties);
         if (!compiled) {
@@ -301,6 +363,32 @@ struct XamlTemplateSchemaFacet::Impl final {
                 programContext,
                 std::move(programOwner));
         if (configured) {
+            for (const TemplateBindingPlan& binding :
+                 compiled.Value().
+                     contentSourceBindings) {
+                configured =
+                    controlTemplate.
+                        TryAddTemplateBinding(
+                            binding.targetName.View(),
+                            binding.sourceProperty,
+                            binding.targetProperty);
+                if (!configured) {
+                    break;
+                }
+            }
+        }
+        if (configured) {
+            for (TemplatePropertyTrigger& trigger :
+                 compiled.Value().propertyTriggers) {
+                configured =
+                    controlTemplate.TryAddPropertyTrigger(
+                        std::move(trigger));
+                if (!configured) {
+                    break;
+                }
+            }
+        }
+        if (configured) {
             for (VisualStateGroup& group :
                  compiled.Value().visualStateGroups) {
                 configured =
@@ -324,6 +412,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             object);
         controlTemplate.ClearAuthoredVisualTree();
         controlTemplate.ClearAuthoredVisualStateGroups();
+        controlTemplate.ClearAuthoredTriggers();
         controlTemplate.ClearAuthoredNames();
         return {};
     }
@@ -334,15 +423,21 @@ struct XamlTemplateSchemaFacet::Impl final {
         Base::Object& object,
         void* context) noexcept {
         if (context == nullptr ||
-            scopeOwner.RuntimeType() !=
-                ControlTemplate::StaticTypeId()) {
+            (scopeOwner.RuntimeType() !=
+                 ControlTemplate::StaticTypeId() &&
+             scopeOwner.RuntimeType() !=
+                 DataTemplate::StaticTypeId())) {
             return InvalidTemplateXaml(
-                "ControlTemplate name scope is invalid");
+                "Template name scope is invalid");
         }
-        return static_cast<ControlTemplate&>(
-            scopeOwner).RegisterAuthoredName(
-                name,
-                object);
+        return scopeOwner.RuntimeType() ==
+                ControlTemplate::StaticTypeId()
+            ? static_cast<ControlTemplate&>(
+                  scopeOwner).RegisterAuthoredName(
+                  name, object)
+            : static_cast<DataTemplate&>(
+                  scopeOwner).RegisterAuthoredName(
+                  name, object);
     }
 };
 
@@ -444,7 +539,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             impl_,
             true,
             true,
-            nullptr,
+            &Impl::RegisterTemplateName,
             nullptr,
             &ResolveTemplateResources,
             &Impl::EndTemplate,

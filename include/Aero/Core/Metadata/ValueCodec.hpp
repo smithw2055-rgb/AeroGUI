@@ -180,11 +180,6 @@ struct ValueCodec<Value, void> {
     }
     static Base::Result<Value> Encode(
         const Value& value) noexcept {
-        if (value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Any metadata value cannot be unset");
-        }
         return value;
     }
     template<class TRuntime>
@@ -195,11 +190,6 @@ struct ValueCodec<Value, void> {
     }
     static Base::Result<Value> Decode(
         const Value& value) noexcept {
-        if (value.IsUnset()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Any metadata value cannot be unset");
-        }
         return value;
     }
 };

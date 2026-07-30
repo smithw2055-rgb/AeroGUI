@@ -1,5 +1,10 @@
 #include <Aero/Presentation/Binding.hpp>
+#include <Aero/Presentation/Resources.hpp>
 
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <limits>
 #include <utility>
 
 namespace Aero::Presentation {
@@ -13,6 +18,365 @@ Base::Status InvalidState(const char* message) noexcept {
 
 Base::Status InvalidArgument(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
+}
+
+Base::Status BindingTypeMismatch(
+    const TypeRegistry& types,
+    Base::StringView path,
+    TypeId sourceType,
+    const DependencyObject& target,
+    const DependencyProperty* targetProperty) noexcept {
+    thread_local char message[512];
+    const TypeInfo* source =
+        types.FindType(sourceType);
+    const TypeInfo* targetType =
+        types.FindType(target.RuntimeType());
+    const TypeInfo* targetValue =
+        targetProperty != nullptr
+        ? types.FindType(
+              targetProperty->ValueType())
+        : nullptr;
+    const Base::StringView sourceName =
+        source != nullptr
+        ? source->Name()
+        : Base::StringView("<unknown>");
+    const Base::StringView targetName =
+        targetType != nullptr
+        ? targetType->Name()
+        : Base::StringView("<unknown>");
+    const Base::StringView propertyName =
+        targetProperty != nullptr
+        ? targetProperty->Name()
+        : Base::StringView("<unknown>");
+    const Base::StringView targetValueName =
+        targetValue != nullptr
+        ? targetValue->Name()
+        : Base::StringView("<unknown>");
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Binding path '%.*s' result '%.*s' does not match target '%.*s.%.*s' type '%.*s'",
+        static_cast<int>(path.SizeBytes()),
+        path.Data(),
+        static_cast<int>(
+            sourceName.SizeBytes()),
+        sourceName.Data(),
+        static_cast<int>(
+            targetName.SizeBytes()),
+        targetName.Data(),
+        static_cast<int>(
+            propertyName.SizeBytes()),
+        propertyName.Data(),
+        static_cast<int>(
+            targetValueName.SizeBytes()),
+        targetValueName.Data());
+    return InvalidArgument(message);
+}
+
+bool IsNumericType(TypeId type) noexcept {
+    return type == TypeOf<std::int8_t>() ||
+        type == TypeOf<std::int16_t>() ||
+        type == TypeOf<std::int32_t>() ||
+        type == TypeOf<std::int64_t>() ||
+        type == TypeOf<std::uint8_t>() ||
+        type == TypeOf<std::uint16_t>() ||
+        type == TypeOf<std::uint32_t>() ||
+        type == TypeOf<std::uint64_t>() ||
+        type == TypeOf<double>();
+}
+
+Base::Result<PropertyValue> ConvertNumericValue(
+    const PropertyValue& value,
+    TypeId targetType) noexcept {
+    long double number = 0.0L;
+    switch (value.Kind()) {
+    case ValueKind::SignedInteger:
+        number = static_cast<long double>(
+            value.AsSignedInteger());
+        break;
+    case ValueKind::UnsignedInteger:
+        number = static_cast<long double>(
+            value.AsUnsignedInteger());
+        break;
+    case ValueKind::Double:
+        if (!std::isfinite(value.AsDouble())) {
+            return InvalidArgument(
+                "Binding numeric value is not finite");
+        }
+        number = static_cast<long double>(
+            value.AsDouble());
+        break;
+    default:
+        return InvalidArgument(
+            "Binding numeric value has an invalid representation");
+    }
+
+    if (targetType == TypeOf<double>()) {
+        const double result =
+            static_cast<double>(number);
+        if (!std::isfinite(result)) {
+            return InvalidArgument(
+                "Binding numeric value exceeds the Double range");
+        }
+        return PropertyValue::FromDouble(
+            targetType, result);
+    }
+
+    const bool signedTarget =
+        targetType == TypeOf<std::int8_t>() ||
+        targetType == TypeOf<std::int16_t>() ||
+        targetType == TypeOf<std::int32_t>() ||
+        targetType == TypeOf<std::int64_t>();
+    if (signedTarget) {
+        long double minimum = static_cast<long double>(
+            std::numeric_limits<std::int64_t>::min());
+        long double maximum = static_cast<long double>(
+            std::numeric_limits<std::int64_t>::max());
+        if (targetType == TypeOf<std::int8_t>()) {
+            minimum = std::numeric_limits<std::int8_t>::min();
+            maximum = std::numeric_limits<std::int8_t>::max();
+        } else if (
+            targetType == TypeOf<std::int16_t>()) {
+            minimum = std::numeric_limits<std::int16_t>::min();
+            maximum = std::numeric_limits<std::int16_t>::max();
+        } else if (
+            targetType == TypeOf<std::int32_t>()) {
+            minimum = std::numeric_limits<std::int32_t>::min();
+            maximum = std::numeric_limits<std::int32_t>::max();
+        }
+        if (number < minimum || number > maximum) {
+            return InvalidArgument(
+                "Binding numeric value exceeds the signed target range");
+        }
+        return PropertyValue::FromSignedInteger(
+            targetType,
+            static_cast<std::int64_t>(number));
+    }
+
+    long double maximum = static_cast<long double>(
+        std::numeric_limits<std::uint64_t>::max());
+    if (targetType == TypeOf<std::uint8_t>()) {
+        maximum = std::numeric_limits<std::uint8_t>::max();
+    } else if (
+        targetType == TypeOf<std::uint16_t>()) {
+        maximum = std::numeric_limits<std::uint16_t>::max();
+    } else if (
+        targetType == TypeOf<std::uint32_t>()) {
+        maximum = std::numeric_limits<std::uint32_t>::max();
+    }
+    if (number < 0.0L || number > maximum) {
+        return InvalidArgument(
+            "Binding numeric value exceeds the unsigned target range");
+    }
+    return PropertyValue::FromUnsignedInteger(
+        targetType,
+        static_cast<std::uint64_t>(number));
+}
+
+bool HasDefaultTargetConversion(
+    TypeId sourceType,
+    TypeId targetType) noexcept {
+    return sourceType == TypeOf<Core::Value>() ||
+        (sourceType != targetType &&
+         IsNumericType(sourceType) &&
+         IsNumericType(targetType)) ||
+        (targetType == TypeOf<Base::String>() &&
+         sourceType != InvalidTypeId);
+}
+
+Base::Result<Base::String> FormatBindingString(
+    const PropertyValue& value,
+    Base::StringView format) noexcept {
+    Base::StringView activeFormat = format;
+    if (activeFormat.SizeBytes() >= 2U &&
+        activeFormat[0] == '{' &&
+        activeFormat[1] == '}') {
+        activeFormat = activeFormat.Substr(
+            2U, activeFormat.SizeBytes() - 2U);
+    }
+
+    char raw[128]{};
+    bool numeric = false;
+    double numericValue = 0.0;
+    switch (value.Kind()) {
+    case ValueKind::String: {
+        Base::String result;
+        Base::Result<void> assigned =
+            result.TryAssign(value.AsString());
+        return assigned
+            ? Base::Result<Base::String>(
+                  std::move(result))
+            : Base::Result<Base::String>(
+                  assigned.GetStatus());
+    }
+    case ValueKind::Boolean:
+        std::snprintf(
+            raw, sizeof(raw),
+            "%s",
+            value.AsBoolean() ? "True" : "False");
+        break;
+    case ValueKind::SignedInteger:
+        numeric = true;
+        numericValue = static_cast<double>(
+            value.AsSignedInteger());
+        std::snprintf(
+            raw, sizeof(raw),
+            "%lld",
+            static_cast<long long>(
+                value.AsSignedInteger()));
+        break;
+    case ValueKind::UnsignedInteger:
+        numeric = true;
+        numericValue = static_cast<double>(
+            value.AsUnsignedInteger());
+        std::snprintf(
+            raw, sizeof(raw),
+            "%llu",
+            static_cast<unsigned long long>(
+                value.AsUnsignedInteger()));
+        break;
+    case ValueKind::Double:
+        numeric = true;
+        numericValue = value.AsDouble();
+        std::snprintf(
+            raw, sizeof(raw),
+            "%.15g",
+            numericValue);
+        break;
+    case ValueKind::Object:
+        if (!value.IsNullObject() &&
+            value.AsObject() &&
+            value.AsObject()->RuntimeType() ==
+                Geometry::StaticTypeId()) {
+            Base::String result;
+            Base::Result<void> assigned =
+                result.TryAssign(
+                    static_cast<Geometry&>(
+                        *value.AsObject()).Value());
+            return assigned
+                ? Base::Result<Base::String>(
+                      std::move(result))
+                : Base::Result<Base::String>(
+                      assigned.GetStatus());
+        }
+        if (value.IsNullObject()) raw[0] = '\0';
+        else {
+            return InvalidArgument(
+                "Binding object has no default text conversion");
+        }
+        break;
+    default:
+        return InvalidArgument(
+            "Binding value has no default text conversion");
+    }
+
+    Base::StringView prefix;
+    Base::StringView suffix;
+    Base::StringView specifier;
+    for (std::uint32_t index = 0U;
+         index + 1U < activeFormat.SizeBytes();
+         ++index) {
+        if (activeFormat[index] != '{' ||
+            activeFormat[index + 1U] != '0') {
+            continue;
+        }
+        std::uint32_t close = index + 2U;
+        while (close < activeFormat.SizeBytes() &&
+               activeFormat[close] != '}') {
+            ++close;
+        }
+        if (close >= activeFormat.SizeBytes()) {
+            return InvalidArgument(
+                "Binding StringFormat placeholder is incomplete");
+        }
+        prefix = activeFormat.Substr(0U, index);
+        suffix = activeFormat.Substr(
+            close + 1U,
+            activeFormat.SizeBytes() - close - 1U);
+        if (index + 2U < close &&
+            activeFormat[index + 2U] == ':') {
+            specifier = activeFormat.Substr(
+                index + 3U,
+                close - index - 3U);
+        }
+        break;
+    }
+
+    char formatted[160]{};
+    const bool thousandsScale =
+        numeric &&
+        specifier == Base::StringView("#,.##");
+    if (thousandsScale) {
+        char decimal[96]{};
+        std::snprintf(
+            decimal,
+            sizeof(decimal),
+            "%.2f",
+            numericValue / 1000.0);
+        std::uint32_t decimalLength =
+            static_cast<std::uint32_t>(
+                std::strlen(decimal));
+        while (decimalLength > 0U &&
+               decimal[decimalLength - 1U] == '0') {
+            decimal[--decimalLength] = '\0';
+        }
+        if (decimalLength > 0U &&
+            decimal[decimalLength - 1U] == '.') {
+            decimal[--decimalLength] = '\0';
+        }
+        const char* digits = decimal;
+        bool negative = *digits == '-';
+        if (negative) ++digits;
+        const char* point = std::strchr(digits, '.');
+        const std::uint32_t integerLength =
+            static_cast<std::uint32_t>(
+                point != nullptr
+                ? point - digits
+                : std::strlen(digits));
+        std::uint32_t output = 0U;
+        if (negative) formatted[output++] = '-';
+        for (std::uint32_t index = 0U;
+             index < integerLength;
+             ++index) {
+            if (index != 0U &&
+                (integerLength - index) % 3U == 0U) {
+                formatted[output++] = ',';
+            }
+            formatted[output++] = digits[index];
+        }
+        if (point != nullptr) {
+            while (*point != '\0' &&
+                   output + 1U < sizeof(formatted)) {
+                formatted[output++] = *point++;
+            }
+        }
+        formatted[output] = '\0';
+    } else {
+        std::snprintf(
+            formatted,
+            sizeof(formatted),
+            "%s",
+            raw);
+    }
+
+    Base::String result;
+    Base::Result<void> appended =
+        result.TryAppend(prefix);
+    if (appended) {
+        appended = result.TryAppend(
+            Base::StringView(
+                formatted,
+                static_cast<std::uint32_t>(
+                    std::strlen(formatted))));
+    }
+    if (appended) {
+        appended = result.TryAppend(suffix);
+    }
+    return appended
+        ? Base::Result<Base::String>(
+              std::move(result))
+        : Base::Result<Base::String>(
+              appended.GetStatus());
 }
 
 } // namespace
@@ -53,6 +417,7 @@ void BindingManager::Shutdown() noexcept {
     while (!bindings_.Empty()) {
         RemoveAt(bindings_.Size() - 1U);
     }
+    deferredBindings_.Clear();
     flushing_ = false;
 }
 
@@ -126,7 +491,9 @@ Base::Result<BindingHandle> BindingManager::Attach(
     BindingRecord record;
     record.handle.value = nextHandle_++;
     record.sourceKind = descriptor.source != nullptr
-        ? BindingSourceKind::MetadataPath
+        ? (descriptor.bindsToSource
+            ? BindingSourceKind::MetadataObject
+            : BindingSourceKind::MetadataPath)
         : BindingSourceKind::DataContext;
     record.metadata = descriptor.metadata;
     record.metadataSource = descriptor.source;
@@ -147,7 +514,14 @@ Base::Result<BindingHandle> BindingManager::Attach(
     record.descriptor.diagnostic = descriptor.diagnostic;
     record.descriptor.diagnosticContext =
         descriptor.diagnosticContext;
+    record.bindsToSource = descriptor.bindsToSource;
     Base::Result<void> assigned = record.path.TryAssign(descriptor.path);
+    if (!assigned) {
+        --nextHandle_;
+        return assigned.GetStatus();
+    }
+    assigned = record.stringFormat.TryAssign(
+        descriptor.stringFormat);
     if (!assigned) {
         --nextHandle_;
         return assigned.GetStatus();
@@ -170,10 +544,17 @@ Base::Result<BindingHandle> BindingManager::Attach(
             (descriptor.convert == nullptr &&
             !record.metadata->Types().IsAssignableFrom(
                 targetProperty->ValueType(),
-                record.pathPlan.ResultType()))) {
+                record.pathPlan.ResultType()) &&
+            !HasDefaultTargetConversion(
+                record.pathPlan.ResultType(),
+                targetProperty->ValueType()))) {
             --nextHandle_;
-            return InvalidArgument(
-                "Binding path result type does not match the target property");
+            return BindingTypeMismatch(
+                record.metadata->Types(),
+                record.path.View(),
+                record.pathPlan.ResultType(),
+                *descriptor.target,
+                targetProperty);
         }
         if ((descriptor.mode == BindingMode::TwoWay ||
              descriptor.mode == BindingMode::OneWayToSource) &&
@@ -186,10 +567,36 @@ Base::Result<BindingHandle> BindingManager::Attach(
         if ((descriptor.mode == BindingMode::TwoWay ||
              descriptor.mode == BindingMode::OneWayToSource) &&
             targetProperty->ValueType() != record.pathPlan.ResultType() &&
-            descriptor.convertBack == nullptr) {
+            descriptor.convertBack == nullptr &&
+            !HasDefaultTargetConversion(
+                targetProperty->ValueType(),
+                record.pathPlan.ResultType())) {
             --nextHandle_;
             return InvalidArgument(
                 "Binding requires ConvertBack for different source and target types");
+        }
+    } else if (record.sourceKind == BindingSourceKind::MetadataObject) {
+        const DependencyProperty* targetProperty =
+            descriptor.target->PropertyRegistry().Find(
+                descriptor.targetProperty);
+        if (targetProperty == nullptr ||
+            !record.metadata->Types().IsAssignableFrom(
+                targetProperty->ValueType(),
+                record.metadataSource->RuntimeType())) {
+            --nextHandle_;
+            return BindingTypeMismatch(
+                record.metadata->Types(),
+                Base::StringView("."),
+                record.metadataSource->RuntimeType(),
+                *descriptor.target,
+                targetProperty);
+        }
+        if (descriptor.mode == BindingMode::TwoWay ||
+            descriptor.mode == BindingMode::OneWayToSource) {
+            --nextHandle_;
+            return Base::Status::Failure(
+                Base::ErrorCode::ReadOnly,
+                "Binding to a source object does not support writeback");
         }
     }
 
@@ -216,7 +623,7 @@ Base::Result<BindingHandle> BindingManager::Attach(
             RemoveAt(bindings_.Size() - 1U);
             return contextSubscription.GetStatus();
         }
-    } else {
+    } else if (stored.sourceKind == BindingSourceKind::MetadataPath) {
         Base::Result<void> sourceSubscription =
             SubscribeMetadataSource(stored);
         if (!sourceSubscription) {
@@ -225,6 +632,111 @@ Base::Result<BindingHandle> BindingManager::Attach(
         }
     }
     return stored.handle;
+}
+
+Base::Result<void> BindingManager::QueueDeferred(
+    const MetadataBindingDescriptor& descriptor) noexcept {
+    if (descriptor.metadata == nullptr ||
+        descriptor.target == nullptr ||
+        !descriptor.targetProperty.IsValid() ||
+        (descriptor.path.Empty() && !descriptor.bindsToSource)) {
+        return InvalidArgument(
+            "Deferred Binding descriptor is invalid");
+    }
+    if (descriptor.source == nullptr &&
+        !descriptor.dataContextProperty.IsValid()) {
+        return InvalidArgument(
+            "Deferred DataContext Binding requires a DataContext property");
+    }
+    DeferredBindingRecord record;
+    record.metadata = descriptor.metadata;
+    record.source = descriptor.source;
+    record.target = descriptor.target;
+    record.targetProperty = descriptor.targetProperty;
+    record.dataContextProperty =
+        descriptor.dataContextProperty;
+    record.mode = descriptor.mode;
+    record.updateSourceTrigger =
+        descriptor.updateSourceTrigger;
+    record.bindsToSource = descriptor.bindsToSource;
+    record.convert = descriptor.convert;
+    record.convertBack = descriptor.convertBack;
+    record.validate = descriptor.validate;
+    record.validateBack = descriptor.validateBack;
+    record.conversionContext =
+        descriptor.conversionContext;
+    record.fallbackValue = descriptor.fallbackValue;
+    record.targetNullValue =
+        descriptor.targetNullValue;
+    record.diagnostic = descriptor.diagnostic;
+    record.diagnosticContext =
+        descriptor.diagnosticContext;
+    Base::Result<void> assigned =
+        record.path.TryAssign(descriptor.path);
+    if (!assigned) return assigned.GetStatus();
+    assigned = record.stringFormat.TryAssign(
+        descriptor.stringFormat);
+    if (!assigned) return assigned.GetStatus();
+    return deferredBindings_.TryPushBack(
+        std::move(record));
+}
+
+Base::Result<std::uint32_t>
+BindingManager::ActivateDeferred(
+    DependencyObject& target) noexcept {
+    std::uint32_t activated = 0U;
+    for (std::uint32_t index = 0U;
+         index < deferredBindings_.Size();) {
+        DeferredBindingRecord& record =
+            deferredBindings_[index];
+        if (record.target != &target) {
+            ++index;
+            continue;
+        }
+        MetadataBindingDescriptor descriptor;
+        descriptor.metadata = record.metadata;
+        descriptor.source = record.source;
+        descriptor.target = record.target;
+        descriptor.targetProperty =
+            record.targetProperty;
+        descriptor.dataContextProperty =
+            record.dataContextProperty;
+        descriptor.path = record.path.View();
+        descriptor.stringFormat =
+            record.stringFormat.View();
+        descriptor.bindsToSource = record.bindsToSource;
+        descriptor.bindsToSource = record.bindsToSource;
+        descriptor.mode = record.mode;
+        descriptor.updateSourceTrigger =
+            record.updateSourceTrigger;
+        descriptor.convert = record.convert;
+        descriptor.convertBack = record.convertBack;
+        descriptor.validate = record.validate;
+        descriptor.validateBack =
+            record.validateBack;
+        descriptor.conversionContext =
+            record.conversionContext;
+        descriptor.fallbackValue =
+            record.fallbackValue;
+        descriptor.targetNullValue =
+            record.targetNullValue;
+        descriptor.diagnostic = record.diagnostic;
+        descriptor.diagnosticContext =
+            record.diagnosticContext;
+        Base::Result<BindingHandle> attached =
+            Attach(descriptor);
+        if (!attached) return attached.GetStatus();
+        for (std::uint32_t move = index + 1U;
+             move < deferredBindings_.Size();
+             ++move) {
+            deferredBindings_[move - 1U] =
+                std::move(deferredBindings_[move]);
+        }
+        (void)deferredBindings_.TryResize(
+            deferredBindings_.Size() - 1U);
+        ++activated;
+    }
+    return activated;
 }
 
 Base::Result<bool> BindingManager::Detach(BindingHandle handle) noexcept {
@@ -286,6 +798,25 @@ Base::Result<std::uint32_t> BindingManager::DetachObject(
             continue;
         }
         RemoveAt(index);
+        ++detached;
+    }
+    for (std::uint32_t index = 0U;
+         index < deferredBindings_.Size();) {
+        const DeferredBindingRecord& record =
+            deferredBindings_[index];
+        if (record.source != &object &&
+            record.target != &object) {
+            ++index;
+            continue;
+        }
+        for (std::uint32_t move = index + 1U;
+             move < deferredBindings_.Size();
+             ++move) {
+            deferredBindings_[move - 1U] =
+                std::move(deferredBindings_[move]);
+        }
+        (void)deferredBindings_.TryResize(
+            deferredBindings_.Size() - 1U);
         ++detached;
     }
     return detached;
@@ -374,7 +905,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetCurrentValue(
+                applied = record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
                 if (!applied) {
                     ReportDiagnostic(
@@ -405,7 +936,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetCurrentValue(
+                applied = record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
                 if (!applied) {
                     ReportDiagnostic(
@@ -460,7 +991,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
                     converted = record.descriptor.fallbackValue;
                     usedFallback = true;
                 }
-                applied = record.descriptor.target->SetCurrentValue(
+                applied = record.descriptor.target->SetValue(
                     record.descriptor.targetProperty, converted.Value());
                 if (!applied) {
                     ReportDiagnostic(
@@ -652,13 +1183,18 @@ Base::Result<void> BindingManager::VerifyDescriptor(
         return target.GetStatus();
     }
     if (source.Value().Type() != target.Value().Type() &&
-        descriptor.convert == nullptr) {
+        descriptor.convert == nullptr &&
+        !HasDefaultTargetConversion(
+            source.Value().Type(), target.Value().Type())) {
         return InvalidArgument("Binding source and target property types differ");
     }
     if ((descriptor.mode == BindingMode::TwoWay ||
          descriptor.mode == BindingMode::OneWayToSource) &&
         source.Value().Type() != target.Value().Type() &&
-        descriptor.convertBack == nullptr) {
+        descriptor.convertBack == nullptr &&
+        !HasDefaultTargetConversion(
+            target.Value().Type(),
+            source.Value().Type())) {
         return InvalidArgument(
             "Binding requires ConvertBack for different source and target types");
     }
@@ -681,7 +1217,8 @@ Base::Result<void> BindingManager::VerifyDescriptor(
         !descriptor.metadata->IsFrozen() ||
         descriptor.target == nullptr ||
         !descriptor.targetProperty.IsValid() ||
-        descriptor.path.Empty() ||
+        (descriptor.path.Empty() && !descriptor.bindsToSource) ||
+        (descriptor.bindsToSource && descriptor.source == nullptr) ||
         (descriptor.source == nullptr &&
          !descriptor.dataContextProperty.IsValid())) {
         return InvalidArgument("Metadata binding descriptor is incomplete");
@@ -723,6 +1260,12 @@ Base::Result<void> BindingManager::VerifyDescriptor(
 
 Base::Result<void> BindingManager::ResolveMetadataSource(
     BindingRecord& record) noexcept {
+    if (record.sourceKind == BindingSourceKind::MetadataObject) {
+        return record.metadataSource != nullptr
+            ? Base::Result<void>()
+            : Base::Result<void>(InvalidState(
+                "Binding source object is not resolved"));
+    }
     if (record.sourceKind == BindingSourceKind::MetadataPath) {
         return record.metadataSource != nullptr &&
             record.pathPlan.IsValid()
@@ -769,9 +1312,16 @@ Base::Result<void> BindingManager::ResolveMetadataSource(
         (record.descriptor.convert == nullptr &&
         !record.metadata->Types().IsAssignableFrom(
             targetProperty->ValueType(),
-            compiled.Value().ResultType()))) {
-        return InvalidArgument(
-            "Binding path result type does not match the target property");
+            compiled.Value().ResultType()) &&
+        !HasDefaultTargetConversion(
+            compiled.Value().ResultType(),
+            targetProperty->ValueType()))) {
+        return BindingTypeMismatch(
+            record.metadata->Types(),
+            record.path.View(),
+            compiled.Value().ResultType(),
+            *record.descriptor.target,
+            targetProperty);
     }
     if ((record.descriptor.mode == BindingMode::TwoWay ||
          record.descriptor.mode == BindingMode::OneWayToSource) &&
@@ -783,7 +1333,10 @@ Base::Result<void> BindingManager::ResolveMetadataSource(
     if ((record.descriptor.mode == BindingMode::TwoWay ||
          record.descriptor.mode == BindingMode::OneWayToSource) &&
         targetProperty->ValueType() != compiled.Value().ResultType() &&
-        record.descriptor.convertBack == nullptr) {
+        record.descriptor.convertBack == nullptr &&
+        !HasDefaultTargetConversion(
+            targetProperty->ValueType(),
+            compiled.Value().ResultType())) {
         return InvalidArgument(
             "Binding requires ConvertBack for different source and target types");
     }
@@ -808,6 +1361,12 @@ Base::Result<PropertyValue> BindingManager::ReadSource(
         return record.descriptor.source->GetValue(
             record.descriptor.sourceProperty);
     }
+    if (record.sourceKind == BindingSourceKind::MetadataObject) {
+        return PropertyValue::FromObject(
+            record.metadataSource->RuntimeType(),
+            Base::Ref<Base::Object>::FromBorrowed(
+                *record.metadataSource));
+    }
     Base::Result<void> resolved = ResolveMetadataSource(record);
     if (!resolved) return resolved.GetStatus();
     return record.pathPlan.Get(
@@ -821,6 +1380,11 @@ Base::Result<void> BindingManager::WriteSource(
         BindingSourceKind::DependencyProperty) {
         return record.descriptor.source->SetValue(
             record.descriptor.sourceProperty, value);
+    }
+    if (record.sourceKind == BindingSourceKind::MetadataObject) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            "Binding source object cannot be replaced through writeback");
     }
     Base::Result<void> resolved = ResolveMetadataSource(record);
     if (!resolved) return resolved;
@@ -853,6 +1417,44 @@ Base::Result<PropertyValue> BindingManager::ConvertForTarget(
                 record.descriptor.conversionContext);
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
+    } else if (HasDefaultTargetConversion(
+                   converted.Type(),
+                   targetProperty->ValueType())) {
+        Base::Result<PropertyValue> result =
+            IsNumericType(converted.Type()) &&
+                IsNumericType(
+                    targetProperty->ValueType())
+            ? ConvertNumericValue(
+                  converted,
+                  targetProperty->ValueType())
+            : [&]() noexcept
+                  -> Base::Result<PropertyValue> {
+                Base::Result<Base::String> text =
+                    FormatBindingString(
+                        converted,
+                        record.stringFormat.View());
+                if (!text) return text.GetStatus();
+                return PropertyValue::TryFromString(
+                    targetProperty->ValueType(),
+                    text.Value().View());
+            }();
+        if (!result) return result.GetStatus();
+        converted = std::move(result).Value();
+    }
+    if (converted.Kind() == ValueKind::Object &&
+        converted.Type() != targetProperty->ValueType()) {
+        if (converted.IsNullObject()) {
+            converted = PropertyValue::NullObject(
+                targetProperty->ValueType());
+        } else if (converted.AsObject().Get() != nullptr &&
+                   record.metadata->Types().IsAssignableFrom(
+                       targetProperty->ValueType(),
+                       converted.AsObject()->RuntimeType())) {
+            converted = PropertyValue::FromObject(
+                targetProperty->ValueType(),
+                Base::Ref<Base::Object>::FromBorrowed(
+                    *converted.AsObject()));
+        }
     }
     if (converted.Type() != targetProperty->ValueType()) {
         return InvalidArgument(
@@ -881,7 +1483,7 @@ Base::Result<PropertyValue> BindingManager::ConvertForSource(
         if (sourceProperty != nullptr) {
             sourceType = sourceProperty->ValueType();
         }
-    } else {
+    } else if (record.sourceKind == BindingSourceKind::MetadataPath) {
         Base::Result<void> resolved = ResolveMetadataSource(record);
         if (!resolved) return resolved.GetStatus();
         sourceType = record.pathPlan.ResultType();
@@ -898,6 +1500,25 @@ Base::Result<PropertyValue> BindingManager::ConvertForSource(
                 converted,
                 sourceType,
                 record.descriptor.conversionContext);
+        if (!result) return result.GetStatus();
+        converted = std::move(result).Value();
+    } else if (HasDefaultTargetConversion(
+                   converted.Type(), sourceType)) {
+        Base::Result<PropertyValue> result =
+            IsNumericType(converted.Type()) &&
+                IsNumericType(sourceType)
+            ? ConvertNumericValue(
+                  converted, sourceType)
+            : [&]() noexcept
+                  -> Base::Result<PropertyValue> {
+                Base::Result<Base::String> text =
+                    FormatBindingString(
+                        converted, {});
+                if (!text) return text.GetStatus();
+                return PropertyValue::TryFromString(
+                    sourceType,
+                    text.Value().View());
+            }();
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
     }

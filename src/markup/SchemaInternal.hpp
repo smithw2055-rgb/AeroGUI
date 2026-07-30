@@ -46,6 +46,13 @@ public:
         const Schema& schema) noexcept {
         return schema.Runtime();
     }
+
+    static Base::Result<const Core::TypeInfo*> ResolveType(
+        const Schema& schema,
+        Base::StringView xamlNamespace,
+        Base::StringView localName) noexcept {
+        return schema.ResolveType(xamlNamespace, localName);
+    }
 };
 
 } // namespace Detail

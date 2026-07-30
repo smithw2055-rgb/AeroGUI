@@ -5,10 +5,29 @@
 #include <Aero/Markup/Resources.hpp>
 #include <Aero/Markup/Schema.hpp>
 
+#include <cstdio>
 #include <utility>
 
 namespace Aero::Markup {
 namespace {
+
+Base::Status SchemaNodeFailure(
+    Base::Status status,
+    const Node& node) noexcept {
+    thread_local char message[512];
+    const Base::StringView localName = node.Name().LocalName();
+    const Core::SourcePosition position = node.Source().begin;
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Compiled XAML schema error at %u:%u for '%.*s': %s",
+        position.line,
+        position.column,
+        static_cast<int>(localName.SizeBytes()),
+        localName.Data(),
+        status.message != nullptr ? status.message : "operation failed");
+    return Base::Status::Failure(status.code, message);
+}
 
 Base::Result<SchemaTypeInfo> ResolveTypeInfo(
     const Schema& schema,
@@ -73,7 +92,9 @@ Base::Result<void> ValidateSchemaCore(
                     frames.Back().type,
                     node.Name(),
                     MemberSyntax::PropertyElement);
-                if (!member) return member.GetStatus();
+                if (!member) {
+                    return SchemaNodeFailure(member.GetStatus(), node);
+                }
                 Base::Result<void> appended = frames.TryPushBack({
                     FrameKind::PropertyElement,
                     Core::InvalidTypeId});
@@ -91,7 +112,9 @@ Base::Result<void> ValidateSchemaCore(
                 schema,
                 node.Name().NamespaceUri(),
                 node.Name().LocalName());
-            if (!type) return type.GetStatus();
+            if (!type) {
+                return SchemaNodeFailure(type.GetStatus(), node);
+            }
             if (!frames.Empty() &&
                 frames.Back().kind == FrameKind::Object) {
                 Base::Result<ResolvedMember> content =
@@ -155,13 +178,16 @@ Base::Result<void> ValidateSchemaCore(
                     frames.Back().type,
                     node.Name(),
                     MemberSyntax::Attribute);
-                if (!member) return member.GetStatus();
+                if (!member) {
+                    return SchemaNodeFailure(member.GetStatus(), node);
+                }
             } else if (
                 (frames.Back().kind == FrameKind::ValueObject &&
                  node.Name().LocalName() != Base::StringView("Key")) ||
                 (frames.Back().kind == FrameKind::Object &&
                  node.Name().LocalName() != Base::StringView("Name") &&
-                 node.Name().LocalName() != Base::StringView("Key"))) {
+                 node.Name().LocalName() != Base::StringView("Key") &&
+                 node.Name().LocalName() != Base::StringView("Class"))) {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
                     "Compiled XAML directive is not supported");

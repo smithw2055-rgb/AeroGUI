@@ -4,6 +4,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Text/TextLayout.hpp>
+#include <Aero/Text/TextTypes.hpp>
 
 namespace Aero::Controls::Detail {
 
@@ -11,6 +13,16 @@ struct TextLayoutRequest final {
     Base::StringView text;
     Presentation::Size availableSize;
     double dpiScale = 1.0;
+    float pixelSize = 16.0F;
+    float lineHeight = 0.0F;
+    Base::StringView fontFamily;
+    Text::FontFace face;
+    Text::TextWrapping wrapping =
+        Text::TextWrapping::NoWrap;
+    Text::TextTrimming trimming =
+        Text::TextTrimming::None;
+    Text::TextAlignment alignment =
+        Text::TextAlignment::Start;
 };
 
 struct TextLayoutResult final {

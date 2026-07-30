@@ -277,6 +277,8 @@ public:
             Shutdown();
             return status.GetStatus();
         }
+        renderer_->SetBatchingEnabled(
+            batchingEnabled_);
         return {};
     }
 
@@ -340,11 +342,43 @@ public:
                 timeoutMilliseconds) * UINT64_C(1000000));
     }
 
+    RenderFrameStatistics
+    LastFrameStatistics() const noexcept override {
+        RenderFrameStatistics result;
+        if (renderer_ == nullptr) return result;
+        const Render::RendererStatistics source =
+            renderer_->LastSubmitStatistics();
+        result.drawCallCount =
+            source.drawCallCount;
+        result.instanceCount =
+            source.rectangleInstanceCount +
+            source.imageInstanceCount +
+            source.meshInstanceCount +
+            source.glyphInstanceCount;
+        result.stateBindingCount =
+            source.pipelineBindingCount +
+            source.vertexBufferBindingCount +
+            source.indexBufferBindingCount +
+            source.uniformBufferBindingCount +
+            source.textureSamplerBindingCount;
+        return result;
+    }
+
+    void SetBatchingEnabled(
+        bool enabled) noexcept override {
+        batchingEnabled_ = enabled;
+        if (renderer_ != nullptr) {
+            renderer_->SetBatchingEnabled(
+                enabled);
+        }
+    }
+
     void* QueryInternalService(
-        std::uint64_t) noexcept override {
+        std::uint64_t service) noexcept override {
         return renderer_ != nullptr
             ? Render::Detail::RenderBackendAccess::
-                  TextServices(*renderer_)
+                  InternalService(
+                      *renderer_, service)
             : nullptr;
     }
 
@@ -550,6 +584,7 @@ private:
     OpenGL33EmbeddedEndpointOptions embeddedOptions_;
     bool embedded_ = false;
     bool lost_ = false;
+    bool batchingEnabled_ = true;
     std::uint64_t contextGeneration_ = 0U;
     Rhi::NativeSurfaceDescriptor descriptor_;
     OpenGL33EmbeddedSurface* embeddedSurface_ = nullptr;

@@ -34,6 +34,51 @@ Base::Status WindowFailure(
 
 #if defined(_WIN32)
 
+void EnablePerMonitorDpiAwareness() noexcept {
+    // Match the reference Win32 host: the client rectangle and D3D11 surface
+    // must use real monitor pixels, never the DPI-virtualized coordinates
+    // supplied to legacy processes.
+    using SetProcessDpiAwarenessContextFunction = BOOL (WINAPI*)(HANDLE);
+    using SetProcessDpiAwarenessFunction = HRESULT (WINAPI*)(int);
+    using SetProcessDpiAwareFunction = BOOL (WINAPI*)();
+
+    static const bool initialized = []() noexcept {
+        const HMODULE user32 = GetModuleHandleW(L"user32.dll");
+        const auto setContext = user32 != nullptr
+            ? reinterpret_cast<SetProcessDpiAwarenessContextFunction>(
+                  GetProcAddress(
+                      user32, "SetProcessDpiAwarenessContext"))
+            : nullptr;
+        // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 is intentionally kept
+        // as its documented value so this builds with older Windows SDKs.
+        if (setContext != nullptr &&
+            setContext(reinterpret_cast<HANDLE>(-4)) != FALSE) {
+            return true;
+        }
+
+        const HMODULE shcore = LoadLibraryW(L"Shcore.dll");
+        const auto setAwareness = shcore != nullptr
+            ? reinterpret_cast<SetProcessDpiAwarenessFunction>(
+                  GetProcAddress(shcore, "SetProcessDpiAwareness"))
+            : nullptr;
+        const bool perMonitor = setAwareness != nullptr &&
+            SUCCEEDED(setAwareness(2)); // PROCESS_PER_MONITOR_DPI_AWARE
+        if (shcore != nullptr) {
+            FreeLibrary(shcore);
+        }
+        if (perMonitor) {
+            return true;
+        }
+
+        const auto setAware = user32 != nullptr
+            ? reinterpret_cast<SetProcessDpiAwareFunction>(
+                  GetProcAddress(user32, "SetProcessDPIAware"))
+            : nullptr;
+        return setAware != nullptr && setAware() != FALSE;
+    }();
+    static_cast<void>(initialized);
+}
+
 const wchar_t* Win32WindowClassName() noexcept {
     return L"AeroGuiPlatformWindow";
 }
@@ -482,7 +527,11 @@ Base::Result<void> Win32Window::Create(
             Base::ErrorCode::AlreadyExists,
             "Win32 window is already created");
     }
-    if (descriptor.width == 0U || descriptor.height == 0U ||
+    const bool platformDefaultSize =
+        descriptor.width == 0U &&
+        descriptor.height == 0U;
+    if ((descriptor.width == 0U) !=
+            (descriptor.height == 0U) ||
         descriptor.width > static_cast<std::uint32_t>(
             std::numeric_limits<int>::max()) ||
         descriptor.height > static_cast<std::uint32_t>(
@@ -497,6 +546,7 @@ Base::Result<void> Win32Window::Create(
     impl_->height = descriptor.height;
     impl_->dpiScale = 1.0;
     impl_->pendingHighSurrogate = 0U;
+    EnablePerMonitorDpiAwareness();
     impl_->instance = GetModuleHandleW(nullptr);
     if (impl_->instance == nullptr) {
         return WindowFailure(
@@ -532,17 +582,23 @@ Base::Result<void> Win32Window::Create(
     if (!descriptor.resizable) {
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
-    RECT bounds{
-        0,
-        0,
-        static_cast<LONG>(descriptor.width),
-        static_cast<LONG>(descriptor.height)};
-    if (AdjustWindowRectEx(
-            &bounds, style, FALSE, 0U) == FALSE) {
-        impl_->instance = nullptr;
-        return WindowFailure(
-            Base::ErrorCode::InternalError,
-            "Win32 window bounds adjustment failed");
+    RECT bounds{};
+    int outerWidth = CW_USEDEFAULT;
+    int outerHeight = CW_USEDEFAULT;
+    if (!platformDefaultSize) {
+        bounds.right =
+            static_cast<LONG>(descriptor.width);
+        bounds.bottom =
+            static_cast<LONG>(descriptor.height);
+        if (AdjustWindowRectEx(
+                &bounds, style, FALSE, 0U) == FALSE) {
+            impl_->instance = nullptr;
+            return WindowFailure(
+                Base::ErrorCode::InternalError,
+                "Win32 window bounds adjustment failed");
+        }
+        outerWidth = bounds.right - bounds.left;
+        outerHeight = bounds.bottom - bounds.top;
     }
 
     impl_->window = CreateWindowExW(
@@ -552,8 +608,8 @@ Base::Result<void> Win32Window::Create(
         style,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        bounds.right - bounds.left,
-        bounds.bottom - bounds.top,
+        outerWidth,
+        outerHeight,
         nullptr,
         nullptr,
         impl_->instance,

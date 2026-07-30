@@ -734,9 +734,9 @@ Base::Result<void> RoutedEventManager::BuildRoute(
         Base::Result<void> appended =
             route.TryPushBack(std::move(lease).Value());
         if (!appended) return appended.GetStatus();
-        current = current->LogicalParent() != nullptr
-            ? current->LogicalParent()
-            : current->VisualParent();
+        current = current->VisualParent() != nullptr
+            ? current->VisualParent()
+            : current->LogicalParent();
     }
     if (strategy == RoutingStrategy::Tunnel) {
         for (std::uint32_t left = 0U, right = route.Size() - 1U;

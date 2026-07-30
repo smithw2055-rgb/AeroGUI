@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Color x:Key="Transparent" Value="#00000000"/>
   <Color x:Key="ControlBackground" Value="#FFF7F7F7"/>
+  <Color x:Key="ControlForeground" Value="#FF111111"/>
   <Color x:Key="ControlHoverBackground" Value="#FFE8F1FB"/>
   <Color x:Key="ControlPressedBackground" Value="#FFD4E7FA"/>
   <Color x:Key="DisabledBackground" Value="#FFE6E6E6"/>
@@ -10,4 +11,10 @@
   <Color x:Key="AccentBorder" Value="#FF0067C0"/>
   <Color x:Key="AccentFill" Value="#FF0067C0"/>
   <Color x:Key="IndeterminateFill" Value="#FF5A9BD5"/>
+  <Color x:Key="TextBoxBackground" Value="#FFEDEFF0"/>
+  <Color x:Key="TextBoxForeground" Value="#FF20282F"/>
+  <Color x:Key="TextBoxPlaceholder" Value="#FF7B8085"/>
+  <Color x:Key="TextBoxBorder" Value="#FF93979B"/>
+  <Color x:Key="TextBoxSelection" Value="#FF2EAEEB"/>
+  <Color x:Key="CheckBoxBackground" Value="#FFBBBEC1"/>
 </ResourceDictionary>

@@ -1,6 +1,8 @@
 #include <Aero/Presentation/Input.hpp>
 
 #include <Aero/Presentation/Commands.hpp>
+#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Presentation/Transforms.hpp>
 
 #include <cmath>
 
@@ -24,7 +26,70 @@ bool IsVisualDescendantOrSelf(
     return true;
 }
 
+bool ParentToLocal(
+    UIElement& element,
+    Point parentPosition,
+    Point& localPosition) noexcept {
+    const Rect slot = element.LayoutSlot();
+    Point translated{
+        parentPosition.x - slot.x,
+        parentPosition.y - slot.y};
+    FrameworkElement* framework =
+        element.AsFrameworkElement();
+    if (framework == nullptr) {
+        localPosition = translated;
+        return true;
+    }
+    Base::Transform2D inverse;
+    if (!TryInvertTransform(
+            framework->LocalVisualTransform(),
+            inverse)) {
+        return false;
+    }
+    localPosition =
+        TransformPoint(inverse, translated);
+    return IsFinite(localPosition);
+}
+
 } // namespace
+
+Base::Result<void> HitTestManager::SetOverlays(
+    Base::Span<UIElement* const> overlays,
+    Base::Span<const Point> origins) noexcept {
+    if (overlays.Size() != origins.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Input overlay elements and origins must have equal lengths");
+    }
+    Base::Vector<OverlayRecord> next;
+    Base::Result<void> reserved =
+        next.TryReserve(overlays.Size());
+    if (!reserved) return reserved.GetStatus();
+    for (std::uint32_t index = 0U;
+         index < overlays.Size();
+         ++index) {
+        UIElement* overlay = overlays[index];
+        if (overlay == nullptr) continue;
+        if (!IsFinite(origins[index])) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Input overlay origin must be finite");
+        }
+        bool duplicate = false;
+        for (const OverlayRecord& current : next) {
+            duplicate =
+                duplicate ||
+                current.element == overlay;
+        }
+        if (duplicate) continue;
+        Base::Result<void> appended =
+            next.TryPushBack(
+                {overlay, origins[index]});
+        if (!appended) return appended.GetStatus();
+    }
+    overlays_ = std::move(next);
+    return {};
+}
 
 Base::Result<HitTestResult> HitTestManager::HitTest(
     Visual& root, Point position) const noexcept {
@@ -37,7 +102,50 @@ Base::Result<HitTestResult> HitTestManager::HitTest(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test root is not a registered UIElement");
     }
-    return HitTestElement(*rootElement, position);
+    for (std::uint32_t index = overlays_.Size();
+         index > 0U;
+         --index) {
+        const OverlayRecord& record =
+            overlays_[index - 1U];
+        UIElement* overlay = record.element;
+        if (overlay == nullptr ||
+            !IsVisualDescendantOrSelf(root, *overlay) ||
+            !overlay->IsArrangeValid() ||
+            !overlay->IsVisible()) {
+            continue;
+        }
+        Point local{
+            position.x - record.origin.x,
+            position.y - record.origin.y};
+        FrameworkElement* overlayFramework =
+            overlay->AsFrameworkElement();
+        if (overlayFramework != nullptr) {
+            Base::Transform2D inverse;
+            if (!TryInvertTransform(
+                    overlayFramework->
+                        LocalVisualTransform(),
+                    inverse)) {
+                continue;
+            }
+            local = TransformPoint(
+                inverse,
+                local);
+        }
+        Base::Result<HitTestResult> hit =
+            HitTestElement(*overlay, local);
+        if (!hit) return hit.GetStatus();
+        if (hit.Value().HasTarget()) return hit;
+    }
+    Point rootLocal;
+    if (!ParentToLocal(
+            *rootElement,
+            position,
+            rootLocal)) {
+        return HitTestResult{};
+    }
+    return HitTestElement(
+        *rootElement,
+        rootLocal);
 }
 
 Base::Result<HitTestResult> HitTestManager::RootToLocal(
@@ -46,7 +154,8 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Pointer position must be finite");
     }
-    if (AsUIElement(root) == nullptr) {
+    UIElement* rootElement = AsUIElement(root);
+    if (rootElement == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Hit-test root is not a registered UIElement");
     }
@@ -56,7 +165,7 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
             "Pointer capture target must be an arranged UIElement");
     }
 
-    Point local = position;
+    Base::Vector<UIElement*> path;
     Visual* current = &target;
     while (current != &root) {
         UIElement* currentElement = AsUIElement(*current);
@@ -69,22 +178,61 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                 "Pointer capture target is not below the input root");
         }
-        const Rect slot = currentElement->LayoutSlot();
-        local.x -= slot.x;
-        local.y -= slot.y;
+        Base::Result<void> appended =
+            path.TryPushBack(currentElement);
+        if (!appended) {
+            return appended.GetStatus();
+        }
         current = parent;
+    }
+    Point local;
+    if (!ParentToLocal(
+            *rootElement,
+            position,
+            local)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Pointer input root contains a non-invertible transform");
+    }
+    for (std::uint32_t index = path.Size();
+         index > 0U;
+         --index) {
+        Point next;
+        if (!ParentToLocal(
+                *path[index - 1U],
+                local,
+                next)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Pointer capture route contains a non-invertible transform");
+        }
+        local = next;
     }
     return HitTestResult{targetElement, local};
 }
 
+bool HitTestManager::IsOverlay(
+    const UIElement& element) const noexcept {
+    for (const OverlayRecord& overlay :
+         overlays_) {
+        if (overlay.element == &element) {
+            return true;
+        }
+    }
+    return false;
+}
+
 Base::Result<HitTestResult> HitTestManager::HitTestElement(
     UIElement& element, Point position) const noexcept {
-    if (!element.IsArrangeValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Hit-test requires an arranged visual tree");
+    if (!element.IsVisible() ||
+        !element.IsHitTestVisible()) {
+        return HitTestResult{};
     }
-    if (!element.IsHitTestVisible() ||
-        !Contains(element.RenderSize(), position)) return HitTestResult{};
+    const bool contains =
+        Contains(element.RenderSize(), position);
+    if (!contains && element.ClipToBounds()) {
+        return HitTestResult{};
+    }
 
     const Base::Span<Visual* const> children = element.VisualChildren();
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
@@ -92,13 +240,28 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
         if (childNode == nullptr) continue;
         UIElement* child = AsUIElement(*childNode);
         if (child == nullptr) continue;
-        const Rect slot = child->LayoutSlot();
-        Base::Result<HitTestResult> nested = HitTestElement(*child,
-            {position.x - slot.x, position.y - slot.y});
+        if (IsOverlay(*child)) continue;
+        // Hidden/template branches may be present in the visual tree before
+        // they receive a layout slot. They are not hittable and must not
+        // poison hit testing for an otherwise arranged root.
+        if (!child->IsArrangeValid()) continue;
+        Point childPosition;
+        if (!ParentToLocal(
+                *child,
+                position,
+                childPosition)) {
+            continue;
+        }
+        Base::Result<HitTestResult> nested =
+            HitTestElement(
+                *child,
+                childPosition);
         if (!nested) return nested.GetStatus();
         if (nested.Value().HasTarget()) return nested;
     }
-    return HitTestResult{&element, position};
+    return contains
+        ? HitTestResult{&element, position}
+        : HitTestResult{};
 }
 
 PointerInputManager::PointerInputManager(HitTestManager& hitTests,
@@ -134,11 +297,23 @@ std::uint32_t PointerInputManager::FindState(
 bool PointerInputManager::HasHover(
     VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
     if (!target.IsValid()) return false;
+    ObjectTree* tree = root_ != nullptr
+        ? root_->OwningTree()
+        : nullptr;
+    Visual* targetVisual =
+        tree != nullptr
+        ? tree->ResolveHandle(target)
+        : nullptr;
+    if (targetVisual == nullptr) return false;
     for (std::uint32_t index = 0U; index < states_.Size(); ++index) {
         if (index == ignoredIndex) continue;
-        if (states_[index].hover.index == target.index &&
-            states_[index].hover.generation == target.generation) {
-            return true;
+        Visual* current =
+            tree->ResolveHandle(states_[index].hover);
+        while (current != nullptr) {
+            if (current == targetVisual) return true;
+            current = current->VisualParent() != nullptr
+                ? current->VisualParent()
+                : current->LogicalParent();
         }
     }
     return false;
@@ -178,39 +353,98 @@ Base::Result<void> PointerInputManager::UpdateHover(
         index = states_.Size() - 1U;
     }
     const VisualHandle previous = states_[index].hover;
-    if (previous.index == next.index &&
-        previous.generation == next.generation) return {};
-
-    UIElement* nextElement = nullptr;
-    if (next.IsValid() && !HasHover(next, index)) {
-        Visual* visual = tree->ResolveHandle(next);
-        nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
-        if (nextElement != nullptr) {
-            Base::Result<void> set = nextElement->SetMouseOverState(true);
-            if (!set) return set.GetStatus();
-            if (!stateChanged_.Empty()) {
-                stateChanged_.Invoke(*nextElement);
+    const bool sameTarget =
+        previous.index == next.index &&
+        previous.generation == next.generation;
+    if (sameTarget) {
+        Visual* current =
+            next.IsValid()
+            ? tree->ResolveHandle(next)
+            : nullptr;
+        bool stateIsCurrent = true;
+        while (current != nullptr) {
+            UIElement* element = current->AsUIElement();
+            if (element != nullptr &&
+                !element->IsMouseOver()) {
+                stateIsCurrent = false;
+                break;
             }
+            current = current->VisualParent() != nullptr
+                ? current->VisualParent()
+                : current->LogicalParent();
         }
+        if (stateIsCurrent) return {};
     }
-    if (previous.IsValid() && !HasHover(previous, index)) {
-        Visual* visual = tree->ResolveHandle(previous);
-        UIElement* previousElement =
-            visual != nullptr ? visual->AsUIElement() : nullptr;
-        if (previousElement != nullptr) {
-            Base::Result<void> cleared =
-                previousElement->SetMouseOverState(false);
-            if (!cleared) {
-                if (nextElement != nullptr) {
-                    static_cast<void>(
-                        nextElement->SetMouseOverState(false));
+
+    Visual* previousVisual =
+        previous.IsValid()
+        ? tree->ResolveHandle(previous)
+        : nullptr;
+    Visual* nextVisual =
+        next.IsValid()
+        ? tree->ResolveHandle(next)
+        : nullptr;
+    const auto isAncestorOrSelf = [](
+        Visual* ancestor,
+        Visual* descendant) noexcept {
+        Visual* current = descendant;
+        while (current != nullptr) {
+            if (current == ancestor) return true;
+            current = current->VisualParent() != nullptr
+                ? current->VisualParent()
+                : current->LogicalParent();
+        }
+        return false;
+    };
+
+    Visual* current = nextVisual;
+    while (current != nullptr) {
+        UIElement* element = current->AsUIElement();
+        if (element != nullptr &&
+            (!element->IsMouseOver() ||
+             sameTarget ||
+             !isAncestorOrSelf(current, previousVisual))) {
+            Base::Result<VisualHandle> handle =
+                tree->GetHandle(*current);
+            if (!handle) return handle.GetStatus();
+            if (!HasHover(handle.Value(), index) ||
+                !element->IsMouseOver()) {
+                Base::Result<void> set =
+                    element->SetMouseOverState(true);
+                if (!set) return set.GetStatus();
+                if (!stateChanged_.Empty()) {
+                    stateChanged_.Invoke(*element);
                 }
-                return cleared.GetStatus();
-            }
-            if (!stateChanged_.Empty()) {
-                stateChanged_.Invoke(*previousElement);
             }
         }
+        current = current->VisualParent() != nullptr
+            ? current->VisualParent()
+            : current->LogicalParent();
+    }
+
+    current = previousVisual;
+    while (current != nullptr) {
+        UIElement* element = current->AsUIElement();
+        if (element != nullptr &&
+            !sameTarget &&
+            !isAncestorOrSelf(current, nextVisual)) {
+            Base::Result<VisualHandle> handle =
+                tree->GetHandle(*current);
+            if (!handle) return handle.GetStatus();
+            if (!HasHover(handle.Value(), index)) {
+                Base::Result<void> cleared =
+                    element->SetMouseOverState(false);
+                if (!cleared) {
+                    return cleared.GetStatus();
+                }
+                if (!stateChanged_.Empty()) {
+                    stateChanged_.Invoke(*element);
+                }
+            }
+        }
+        current = current->VisualParent() != nullptr
+            ? current->VisualParent()
+            : current->LogicalParent();
     }
     states_[index].hover = next;
     return {};
@@ -536,9 +770,15 @@ Base::Result<void> FocusManager::CollectCandidates(
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
         if (element != nullptr && element->IsLoaded() &&
-            element->IsEnabled() && element->IsTabStop()) {
+            element->IsEnabled() &&
+            element->Focusable() &&
+            element->IsTabStop()) {
             Base::Result<void> appended = candidates.TryPushBack(
-                {element, element->TabIndex(), candidateOrder});
+                {element,
+                 element->GetValueOr(
+                     KeyboardNavigation::TabIndexProperty,
+                     element->TabIndex()),
+                 candidateOrder});
             if (!appended) return appended.GetStatus();
             std::uint32_t index = candidates.Size() - 1U;
             while (index > 0U) {
@@ -581,12 +821,31 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
     Base::Result<void> reserved = scopeFocus_.TryReserve(
         scopeFocus_.Size() + ancestorCount);
     if (!reserved) return reserved.GetStatus();
+    auto setFocusWithin = [](UIElement& element, bool value)
+        -> Base::Result<void> {
+        Visual* current = &element;
+        while (current != nullptr) {
+            if (UIElement* ancestor = current->AsUIElement()) {
+                Base::Result<void> updated =
+                    ancestor->SetKeyboardFocusWithinState(value);
+                if (!updated) return updated.GetStatus();
+            }
+            current = current->LogicalParent() != nullptr
+                ? current->LogicalParent() : current->VisualParent();
+        }
+        return {};
+    };
     UIElement* previous = FocusedNode();
     if (previous == node) return false;
     if (previous != nullptr) {
         Base::Result<void> state =
             previous->SetKeyboardFocusedState(false);
         if (!state) return state.GetStatus();
+        state = setFocusWithin(*previous, false);
+        if (!state) {
+            static_cast<void>(previous->SetKeyboardFocusedState(true));
+            return state.GetStatus();
+        }
         KeyboardFocusChangedEventArgs args;
         args.oldFocus = previous;
         args.newFocus = node;
@@ -595,6 +854,7 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
         if (!lost) {
             static_cast<void>(
                 previous->SetKeyboardFocusedState(true));
+            static_cast<void>(setFocusWithin(*previous, true));
             return lost.GetStatus();
         }
     }
@@ -603,6 +863,16 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
         if (previous != nullptr) {
             static_cast<void>(
                 previous->SetKeyboardFocusedState(true));
+            static_cast<void>(setFocusWithin(*previous, true));
+        }
+        return state.GetStatus();
+    }
+    state = setFocusWithin(*node, true);
+    if (!state) {
+        static_cast<void>(node->SetKeyboardFocusedState(false));
+        if (previous != nullptr) {
+            static_cast<void>(previous->SetKeyboardFocusedState(true));
+            static_cast<void>(setFocusWithin(*previous, true));
         }
         return state.GetStatus();
     }
@@ -613,9 +883,11 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
         *node, UIElement::GotKeyboardFocusEvent, &args);
     if (!gained) {
         static_cast<void>(node->SetKeyboardFocusedState(false));
+        static_cast<void>(setFocusWithin(*node, false));
         if (previous != nullptr) {
             static_cast<void>(
                 previous->SetKeyboardFocusedState(true));
+            static_cast<void>(setFocusWithin(*previous, true));
         }
         return gained.GetStatus();
     }
@@ -633,6 +905,25 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
     Base::Result<void> state =
         previous->SetKeyboardFocusedState(false);
     if (!state) return state.GetStatus();
+    auto setFocusWithin = [](UIElement& element, bool value)
+        -> Base::Result<void> {
+        Visual* current = &element;
+        while (current != nullptr) {
+            if (UIElement* ancestor = current->AsUIElement()) {
+                Base::Result<void> updated =
+                    ancestor->SetKeyboardFocusWithinState(value);
+                if (!updated) return updated.GetStatus();
+            }
+            current = current->LogicalParent() != nullptr
+                ? current->LogicalParent() : current->VisualParent();
+        }
+        return {};
+    };
+    state = setFocusWithin(*previous, false);
+    if (!state) {
+        static_cast<void>(previous->SetKeyboardFocusedState(true));
+        return state.GetStatus();
+    }
     KeyboardFocusChangedEventArgs args;
     args.oldFocus = previous;
     Base::Result<void> lost = events_->RaiseEvent(
@@ -640,6 +931,7 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
     if (!lost) {
         static_cast<void>(
             previous->SetKeyboardFocusedState(true));
+        static_cast<void>(setFocusWithin(*previous, true));
         return lost.GetStatus();
     }
     focused_ = {};

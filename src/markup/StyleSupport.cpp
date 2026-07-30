@@ -2,8 +2,13 @@
 
 #include <Aero/Base/String.hpp>
 #include "SchemaInternal.hpp"
+#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Menus.hpp>
+#include <Aero/Presentation/Layout.hpp>
+#include <Aero/Presentation/Brushes.hpp>
 #include <Aero/Presentation/Rendering.hpp>
 
+#include <cstdio>
 #include <new>
 #include <utility>
 
@@ -19,6 +24,73 @@ Base::Status InvalidStyleXaml(const char* message) noexcept {
 bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+Base::Status MissingStyleProperty(
+    const char* role,
+    Base::StringView property,
+    Core::TypeId targetType,
+    const Core::TypeRegistry& types) noexcept {
+    thread_local char message[384];
+    const Core::TypeInfo* target =
+        types.FindType(targetType);
+    const Base::StringView typeName =
+        target != nullptr
+        ? target->Name()
+        : Base::StringView("<unknown>");
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Style %s '%.*s' was not found on TargetType '%.*s'",
+        role,
+        static_cast<int>(property.SizeBytes()),
+        property.Data(),
+        static_cast<int>(typeName.SizeBytes()),
+        typeName.Data());
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        message);
+}
+
+const Core::DependencyProperty* ResolveStyleProperty(
+    const Core::DependencyPropertyRegistry& properties,
+    Core::TypeId targetType,
+    Base::StringView name) noexcept {
+    const Core::DependencyProperty* property =
+        properties.Find(targetType, name);
+    if (property != nullptr) return property;
+    if (name == Base::StringView("ContextMenu")) {
+        property = properties.Find(
+            Controls::ContextMenuService::
+                ContextMenuProperty.Handle());
+        if (property != nullptr) return property;
+    }
+    std::uint32_t separator = UINT32_MAX;
+    for (std::uint32_t index = 0U;
+         index < name.SizeBytes();
+         ++index) {
+        if (name[index] == '.') separator = index;
+    }
+    if (separator == UINT32_MAX ||
+        separator == 0U ||
+        separator + 1U >= name.SizeBytes()) {
+        return nullptr;
+    }
+    const Core::TypeInfo* owner =
+        properties.Types().FindType(
+            Core::AeroNamespaceUri(),
+            name.Substr(0U, separator));
+    const Base::StringView member = name.Substr(
+        separator + 1U,
+        name.SizeBytes() - separator - 1U);
+    if (owner != nullptr) {
+        property = properties.Find(owner->Id(), member);
+        if (property != nullptr) return property;
+    }
+    // WPF-compatible style markup may qualify a property with a base class
+    // while the concrete runtime registers the same inherited property on a
+    // derived control type.
+    return properties.Find(targetType, member);
 }
 
 Base::Result<Core::PropertyValue> ToPropertyValue(
@@ -185,8 +257,11 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
             Base::ErrorCode::InvalidState,
             "Style conversion requires an initialized extension");
     }
-    const Core::DependencyProperty* property = options_.properties->Find(
-        targetType, propertyName);
+    const Core::DependencyProperty* property =
+        ResolveStyleProperty(
+            *options_.properties,
+            targetType,
+            propertyName);
     if (property == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -201,16 +276,66 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
     }
+    if (property->ValueType() == Presentation::Length::StaticTypeId() &&
+        candidate->Type() == Core::TypeOf<double>()) {
+        Base::Result<double> numeric =
+            Core::ValueCodec<double>::Decode(*candidate);
+        if (!numeric) return numeric.GetStatus();
+        converted = Core::ValueCodec<Presentation::Length>::Encode(
+            Presentation::Length::Pixels(numeric.Value()));
+        if (!converted) return converted.GetStatus();
+        candidate = &converted.Value();
+    }
+    if (property->ValueType() ==
+            Presentation::Brush::StaticTypeId() &&
+        candidate->Type() ==
+            Core::TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color =
+            Core::ValueCodec<Base::Color>::Decode(
+                *candidate);
+        if (!color) return color.GetStatus();
+        Base::Result<
+            Base::Ref<Presentation::Brush>>
+            brush =
+                Presentation::MakeSolidColorBrush(
+                    color.Value());
+        if (!brush) return brush.GetStatus();
+        return Core::Value::FromObject(
+            Presentation::Brush::StaticTypeId(),
+            Base::Ref<Base::Object>(
+                std::move(brush).Value()));
+    }
+    if (property->ValueType() == Core::TypeOf<Base::Color>() &&
+        candidate->Kind() == Core::ValueKind::Object &&
+        options_.properties->Types().IsDerivedFrom(
+            candidate->Type(), Presentation::Brush::StaticTypeId())) {
+        Base::Result<Base::Ref<Presentation::Brush>> brush =
+            Core::ValueCodec<Base::Ref<Presentation::Brush>>::Decode(
+                *candidate);
+        if (!brush) return brush.GetStatus();
+        Presentation::Brush* source = brush.Value().Get();
+        if (source == nullptr || source->RuntimeType() !=
+                Presentation::SolidColorBrush::StaticTypeId()) {
+            return InvalidStyleXaml(
+                "Color-backed text property requires SolidColorBrush");
+        }
+        return Core::ValueCodec<Base::Color>::Encode(
+            static_cast<Presentation::SolidColorBrush*>(source)->GetColor());
+    }
     return ToPropertyValue(*candidate, property->ValueType());
 }
 
 Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
     Presentation::Style& style) noexcept {
-    if (schema_ == nullptr || options_.properties == nullptr ||
-        style.TargetType() == Core::InvalidTypeId) {
+    if (schema_ == nullptr || options_.properties == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Style TargetType must be assigned before initialization completes");
+    }
+    if (style.TargetType() == Core::InvalidTypeId) {
+        Base::Result<void> defaultTarget = style.TrySetTargetType(
+            Controls::Control::StaticTypeId());
+        if (!defaultTarget) return defaultTarget.GetStatus();
     }
     const Core::TypeId targetType = style.TargetType();
     const Core::TypeInfo* targetInfo =
@@ -231,12 +356,17 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 Base::ErrorCode::InvalidState,
                 "Style Setter requires Property and Value");
         }
-        const Core::DependencyProperty* property = options_.properties->Find(
-            targetType, setter->PropertyName());
+        const Core::DependencyProperty* property =
+            ResolveStyleProperty(
+                *options_.properties,
+                targetType,
+                setter->PropertyName());
         if (property == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Style Setter property was not found on TargetType");
+            return MissingStyleProperty(
+                "Setter property",
+                setter->PropertyName(),
+                targetType,
+                options_.properties->Types());
         }
         Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
             setter->AuthoredValue(),
@@ -260,12 +390,17 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 Base::ErrorCode::InvalidState,
                 "Style Trigger requires Property, Value, and Setters");
         }
-        const Core::DependencyProperty* condition = options_.properties->Find(
-            targetType, trigger->PropertyName());
+        const Core::DependencyProperty* condition =
+            ResolveStyleProperty(
+                *options_.properties,
+                targetType,
+                trigger->PropertyName());
         if (condition == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Style Trigger property was not found on TargetType");
+            return MissingStyleProperty(
+                "Trigger property",
+                trigger->PropertyName(),
+                targetType,
+                options_.properties->Types());
         }
         Base::Result<Core::PropertyValue> conditionValue = ConvertValueForProperty(
             trigger->AuthoredValue(),
@@ -275,6 +410,13 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         Presentation::StylePropertyTrigger plan;
         plan.property = condition->Handle();
         plan.value = conditionValue.Value();
+        Base::Result<void> actions =
+            plan.enterActions.TryAppend(
+                trigger->EnterActions());
+        if (!actions) return actions.GetStatus();
+        actions = plan.exitActions.TryAppend(
+            trigger->ExitActions());
+        if (!actions) return actions.GetStatus();
         for (const Base::Ref<Presentation::Setter>& setterEntry :
              trigger->AuthoredSetters()) {
             Presentation::Setter* setter =
@@ -285,12 +427,17 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     Base::ErrorCode::InvalidState,
                     "Style Trigger Setter requires Property and Value");
             }
-            const Core::DependencyProperty* property = options_.properties->Find(
-                targetType, setter->PropertyName());
+            const Core::DependencyProperty* property =
+                ResolveStyleProperty(
+                    *options_.properties,
+                    targetType,
+                    setter->PropertyName());
             if (property == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Style Trigger Setter property was not found on TargetType");
+                return MissingStyleProperty(
+                    "Trigger Setter property",
+                    setter->PropertyName(),
+                    targetType,
+                    options_.properties->Types());
             }
             Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
                 setter->AuthoredValue(),

@@ -668,7 +668,8 @@ Base::Result<void> CommandEncoder::BindTextureSampler(
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
     if (!inRenderPass_ || !texture.IsValid() || !sampler.IsValid() ||
-        texture.type != ResourceType::Texture ||
+        (texture.type != ResourceType::Texture &&
+         texture.type != ResourceType::RenderTarget) ||
         sampler.type != ResourceType::Sampler) {
         return InvalidState("Texture-sampler binding is invalid");
     }

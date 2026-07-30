@@ -46,7 +46,8 @@ struct TextLayoutSize final {
 
 enum class TextWrapping : std::uint8_t {
     NoWrap = 0U,
-    Wrap
+    Wrap,
+    WrapWithOverflow
 };
 
 enum class TextTrimming : std::uint8_t {
@@ -58,7 +59,8 @@ enum class TextTrimming : std::uint8_t {
 enum class TextAlignment : std::uint8_t {
     Start = 0U,
     Center,
-    End
+    End,
+    Justify
 };
 
 struct TextLayoutRequest final {

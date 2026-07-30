@@ -11,7 +11,9 @@
 
 #include <cstdio>
 #include <cmath>
+#include <cctype>
 #include <cstring>
+#include <filesystem>
 #include <new>
 #include <string>
 #include <utility>
@@ -51,15 +53,195 @@ Base::Result<void> Assign(
     return destination.TryAssign(source);
 }
 
+std::string NormalizedFontName(
+    const std::string& value) {
+    std::string normalized;
+    normalized.reserve(value.size());
+    for (const unsigned char character : value) {
+        if (std::isalnum(character) != 0) {
+            normalized.push_back(
+                static_cast<char>(
+                    std::tolower(character)));
+        }
+    }
+    return normalized;
+}
+
+bool IsSupportedFontFile(
+    const std::filesystem::path& path) {
+    std::string extension =
+        path.extension().string();
+    for (char& character : extension) {
+        character = static_cast<char>(
+            std::tolower(
+                static_cast<unsigned char>(
+                    character)));
+    }
+    return extension == ".ttf" ||
+        extension == ".ttc" ||
+        extension == ".otf";
+}
+
+Base::Result<bool> SelectPackFontPath(
+    Base::StringView family,
+    Base::StringView searchRoot,
+    Base::String& output) noexcept {
+    std::uint32_t hash = UINT32_MAX;
+    for (std::uint32_t index = 0U;
+         index < family.SizeBytes();
+         ++index) {
+        if (family[index] == '#') {
+            hash = index;
+            break;
+        }
+    }
+    if (hash == UINT32_MAX ||
+        hash + 1U >= family.SizeBytes()) {
+        return false;
+    }
+
+    std::string directoryText(
+        family.Data(), hash);
+    while (!directoryText.empty() &&
+        (directoryText.back() == '/' ||
+         directoryText.back() == '\\')) {
+        directoryText.pop_back();
+    }
+    const std::string requested(
+        family.Data() + hash + 1U,
+        family.SizeBytes() - hash - 1U);
+    const std::string normalizedRequest =
+        NormalizedFontName(requested);
+    if (directoryText.empty() ||
+        normalizedRequest.empty()) {
+        return false;
+    }
+
+    std::filesystem::path directory =
+        std::filesystem::u8path(directoryText);
+    if (directory.is_relative() &&
+        !searchRoot.Empty()) {
+        directory =
+            std::filesystem::u8path(std::string(
+                searchRoot.Data(),
+                searchRoot.SizeBytes())) /
+            directory;
+    }
+
+    std::error_code error;
+    if (!std::filesystem::is_directory(
+            directory, error) ||
+        error) {
+        return false;
+    }
+
+    std::filesystem::path best;
+    std::size_t bestPrefix = 0U;
+    std::size_t bestDistance = SIZE_MAX;
+    for (std::filesystem::directory_iterator iterator(
+             directory, error), end;
+         !error && iterator != end;
+         iterator.increment(error)) {
+        if (!iterator->is_regular_file(error) ||
+            error ||
+            !IsSupportedFontFile(
+                iterator->path())) {
+            continue;
+        }
+        const std::string candidate =
+            NormalizedFontName(
+                iterator->path().
+                    stem().string());
+        std::size_t prefix = 0U;
+        while (prefix < candidate.size() &&
+            prefix < normalizedRequest.size() &&
+            candidate[prefix] ==
+                normalizedRequest[prefix]) {
+            ++prefix;
+        }
+        const std::size_t distance =
+            candidate.size() >
+                    normalizedRequest.size()
+            ? candidate.size() -
+                normalizedRequest.size()
+            : normalizedRequest.size() -
+                candidate.size();
+        if (best.empty() ||
+            prefix > bestPrefix ||
+            (prefix == bestPrefix &&
+             distance < bestDistance)) {
+            best = iterator->path();
+            bestPrefix = prefix;
+            bestDistance = distance;
+        }
+    }
+    if (error || best.empty() ||
+        bestPrefix == 0U) {
+        return false;
+    }
+
+    const std::string selected =
+        best.string();
+    Base::Result<void> assigned =
+        output.TryAssign(Base::StringView(
+            selected.data(),
+            static_cast<std::uint32_t>(
+                selected.size())));
+    return assigned
+        ? Base::Result<bool>(true)
+        : Base::Result<bool>(
+              assigned.GetStatus());
+}
+
 Base::Result<void> SelectFontPath(
     Base::StringView family,
     bool fallback,
-    Base::String& output) noexcept {
+    Base::String& output,
+    Base::StringView searchRoot = {}) noexcept {
     if (!family.Empty() && LooksLikeFontPath(family)) {
+        Base::Result<bool> packed =
+            SelectPackFontPath(
+                family, searchRoot, output);
+        if (!packed) return packed.GetStatus();
+        if (packed.Value()) return {};
+
         std::string candidate(
             family.Data(), family.SizeBytes());
         if (FileExists(candidate.c_str())) {
             return Assign(output, family);
+        }
+        const bool absolute =
+            family[0] == '/' ||
+            family[0] == '\\' ||
+            (family.SizeBytes() >= 2U &&
+             family[1] == ':');
+        if (!absolute && !searchRoot.Empty()) {
+            Base::String combined(
+                &output.Allocator());
+            Base::Result<void> joined =
+                combined.TryAssign(searchRoot);
+            if (joined && !combined.Empty() &&
+                combined.View()[
+                    combined.SizeBytes() - 1U] != '/' &&
+                combined.View()[
+                    combined.SizeBytes() - 1U] != '\\') {
+                joined = combined.TryAppend(
+                    Base::StringView("/"));
+            }
+            if (joined) {
+                joined =
+                    combined.TryAppend(family);
+            }
+            if (!joined) {
+                return joined.GetStatus();
+            }
+            std::string rooted(
+                combined.CStr(),
+                combined.SizeBytes());
+            if (FileExists(rooted.c_str())) {
+                return output.TryAssign(
+                    combined.View());
+            }
         }
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -80,6 +262,16 @@ Base::Result<void> SelectFontPath(
     if (!family.Empty()) {
         if (family == Base::StringView("Segoe UI")) {
             configured = "C:\\Windows\\Fonts\\segoeui.ttf";
+        } else if (
+            family == Base::StringView("Segoe UI Bold")) {
+            configured = "C:\\Windows\\Fonts\\segoeuib.ttf";
+        } else if (
+            family == Base::StringView("Segoe UI Italic")) {
+            configured = "C:\\Windows\\Fonts\\segoeuii.ttf";
+        } else if (
+            family ==
+                Base::StringView("Segoe UI Bold Italic")) {
+            configured = "C:\\Windows\\Fonts\\segoeuiz.ttf";
         } else if (family == Base::StringView("Arial")) {
             configured = "C:\\Windows\\Fonts\\arial.ttf";
         } else if (
@@ -105,6 +297,19 @@ Base::Result<void> SelectFontPath(
         if (family == Base::StringView("DejaVu Sans")) {
             configured =
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+        } else if (
+            family == Base::StringView("Segoe UI Bold")) {
+            configured =
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+        } else if (
+            family == Base::StringView("Segoe UI Italic")) {
+            configured =
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf";
+        } else if (
+            family ==
+                Base::StringView("Segoe UI Bold Italic")) {
+            configured =
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf";
         } else if (
             family == Base::StringView("Liberation Sans")) {
             configured =
@@ -183,20 +388,52 @@ Base::Result<void> ConfigureTypeface(
 class TextLayoutServiceProxy final
     : public Controls::Detail::TextLayoutService {
 public:
+    using FaceResolver =
+        Base::Result<Text::FontFace> (*)(
+            void* context,
+            Base::StringView family) noexcept;
+
     void Set(
         Controls::Detail::TextLayoutService* service) noexcept {
         service_ = service;
     }
 
+    void SetFaceResolver(
+        void* context,
+        FaceResolver resolver) noexcept {
+        resolverContext_ = context;
+        resolver_ = resolver;
+    }
+
     Base::Result<void> ShapeAndPrepare(
         const Controls::Detail::TextLayoutRequest& request,
         Controls::Detail::TextLayoutResult& output) noexcept override {
-        return service_ != nullptr
-            ? service_->ShapeAndPrepare(request, output)
-            : Base::Result<void>(
-                  Base::Status::Failure(
-                      Base::ErrorCode::NotInitialized,
-                      "View text resources are unavailable"));
+        if (service_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "View text resources are unavailable");
+        }
+        if (request.fontFamily.Empty()) {
+            return service_->ShapeAndPrepare(
+                request, output);
+        }
+        if (resolver_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "View text font resolver is unavailable");
+        }
+        Base::Result<Text::FontFace> resolved =
+            resolver_(
+                resolverContext_,
+                request.fontFamily);
+        if (!resolved) {
+            return resolved.GetStatus();
+        }
+        Controls::Detail::TextLayoutRequest selected =
+            request;
+        selected.face = resolved.Value();
+        return service_->ShapeAndPrepare(
+            selected, output);
     }
 
     void ReleaseGlyphRun(
@@ -208,6 +445,8 @@ public:
 
 private:
     Controls::Detail::TextLayoutService* service_ = nullptr;
+    void* resolverContext_ = nullptr;
+    FaceResolver resolver_ = nullptr;
 };
 
 class HeadlessTextLayoutService final
@@ -241,24 +480,32 @@ public:
             !Presentation::IsValidLayoutSize(
                 request.availableSize) ||
             !std::isfinite(request.dpiScale) ||
-            request.dpiScale <= 0.0) {
+            request.dpiScale <= 0.0 ||
+            !std::isfinite(request.lineHeight) ||
+            request.lineHeight < 0.0F) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Headless text layout request is invalid");
         }
         Text::TextLayoutRequest layoutRequest;
-        layoutRequest.face = config_.face;
+        layoutRequest.face = request.face.handle.IsValid()
+            ? request.face
+            : config_.face;
         layoutRequest.fallbackFaces =
             config_.fallbackFaces;
         layoutRequest.text = request.text;
-        layoutRequest.pixelSize = config_.pixelSize;
+        layoutRequest.pixelSize =
+            request.pixelSize;
         layoutRequest.maxWidth =
             static_cast<float>(
                 request.availableSize.width);
-        layoutRequest.lineHeight = config_.lineHeight;
-        layoutRequest.wrapping = config_.wrapping;
-        layoutRequest.trimming = config_.trimming;
-        layoutRequest.alignment = config_.alignment;
+        layoutRequest.lineHeight =
+            request.lineHeight > 0.0F
+            ? request.lineHeight
+            : config_.lineHeight;
+        layoutRequest.wrapping = request.wrapping;
+        layoutRequest.trimming = request.trimming;
+        layoutRequest.alignment = request.alignment;
         Text::TextLayout layout(allocator_);
         Base::Result<void> shaped =
             layout.ShapeAndMeasure(
@@ -301,6 +548,17 @@ private:
 } // namespace
 
 struct TextRuntime::Impl final {
+    struct LoadedFont final {
+        explicit LoadedFont(
+            Base::IAllocator* allocator = nullptr) noexcept
+            : request(allocator),
+              path(allocator) {}
+
+        Base::String request;
+        Base::String path;
+        Text::FontFace face;
+    };
+
     Impl(
         Base::IAllocator& allocator,
         Presentation::IRenderBackend& selectedBackend) noexcept
@@ -308,9 +566,11 @@ struct TextRuntime::Impl final {
           shaper(fontProvider),
           fonts(&allocator),
           fallbackFaces(&allocator),
+          loadedFonts(&allocator),
           primaryPath(&allocator),
           primaryFamily(&allocator),
           language(&allocator),
+          fontSearchRoot(&allocator),
           backend(&selectedBackend),
           allocator(&allocator) {}
 
@@ -318,9 +578,11 @@ struct TextRuntime::Impl final {
     Text::HarfBuzzAdapter shaper;
     Text::FontManager fonts;
     Base::Vector<Text::FontFace> fallbackFaces;
+    Base::Vector<LoadedFont> loadedFonts;
     Base::String primaryPath;
     Base::String primaryFamily;
     Base::String language;
+    Base::String fontSearchRoot;
     Text::FontFace primaryFace;
     TextRuntimeConfig config;
     TextLayoutServiceProxy proxy;
@@ -370,6 +632,71 @@ Base::Result<void> TextRuntime::Initialize(
     impl_ = new (memory) Impl(*allocator_, backend);
     impl_->allocator = allocator_;
     impl_->backend = &backend;
+    impl_->proxy.SetFaceResolver(
+        impl_,
+        [](void* context,
+           Base::StringView family) noexcept
+            -> Base::Result<Text::FontFace> {
+            auto* state =
+                static_cast<Impl*>(context);
+            if (state == nullptr ||
+                family.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Requested font family is empty");
+            }
+            for (const Impl::LoadedFont& loaded :
+                 state->loadedFonts) {
+                if (loaded.request.View() == family) {
+                    return loaded.face;
+                }
+            }
+
+            Base::Result<Impl::LoadedFont*> added =
+                state->loadedFonts.TryEmplaceBack(
+                    state->allocator);
+            if (!added) {
+                return added.GetStatus();
+            }
+            Impl::LoadedFont& loaded =
+                *added.Value();
+            Base::Result<void> status =
+                loaded.request.TryAssign(family);
+            if (status) {
+                status = SelectFontPath(
+                    family, false, loaded.path,
+                    state->fontSearchRoot.View());
+            }
+            Text::Typeface typeface(
+                state->allocator);
+            if (status) {
+                status = ConfigureTypeface(
+                    typeface,
+                    family,
+                    state->language.View(),
+                    state->primaryFamily.View());
+            }
+            if (status) {
+                Text::FontSource source;
+                source.kind =
+                    Text::FontSourceKind::File;
+                source.identifier =
+                    loaded.path.View();
+                status = state->fonts.LoadFace(
+                    state->fontProvider.
+                        Identity().id,
+                    source,
+                    typeface,
+                    loaded.face);
+            }
+            if (!status) {
+                const Base::Status failure =
+                    status.GetStatus();
+                state->loadedFonts.PopBack();
+                return failure;
+            }
+            return loaded.face;
+        });
 
     Base::Result<void> status =
         impl_->primaryFamily.TryAssign(
@@ -381,6 +708,10 @@ Base::Result<void> TextRuntime::Initialize(
             options.language.Empty()
                 ? Base::StringView("en-US")
                 : options.language);
+    }
+    if (status) {
+        status = impl_->fontSearchRoot.TryAssign(
+            options.fontSearchRoot);
     }
     if (status) status = impl_->fontProvider.Initialize();
     if (status) status = impl_->fonts.Initialize();
@@ -470,8 +801,8 @@ Base::Result<void> TextRuntime::Initialize(
             impl_->fallbackFaces.AsSpan();
         impl_->config.pixelSize =
             options.defaultPixelSize;
-        impl_->config.atlas.pageWidth = 256U;
-        impl_->config.atlas.pageHeight = 256U;
+        impl_->config.atlas.pageWidth = 1024U;
+        impl_->config.atlas.pageHeight = 1024U;
         impl_->config.atlas.maxPages = 4U;
         impl_->backendServices =
             Render::Detail::RenderBackendAccess::
@@ -538,7 +869,8 @@ Base::Result<void> TextRuntime::Initialize(
 }
 
 Base::Result<bool>
-TextRuntime::SynchronizeBackend() noexcept {
+TextRuntime::SynchronizeBackend(
+    bool force) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -551,7 +883,8 @@ TextRuntime::SynchronizeBackend() noexcept {
         current != nullptr
         ? current->generation
         : 0U;
-    if (current == impl_->backendServices &&
+    if (!force &&
+        current == impl_->backendServices &&
         generation == impl_->backendGeneration) {
         return false;
     }
@@ -570,10 +903,10 @@ TextRuntime::SynchronizeBackend() noexcept {
     } else if (
         impl_->service != nullptr &&
         impl_->backendServices != nullptr &&
-        current == impl_->backendServices &&
-        current->destroyService != nullptr) {
-        current->destroyService(
-            current->context, impl_->service);
+        impl_->backendServices->destroyService != nullptr) {
+        impl_->backendServices->destroyService(
+            impl_->backendServices->context,
+            impl_->service);
         impl_->service = nullptr;
     }
     impl_->service = nullptr;
@@ -682,6 +1015,15 @@ void TextRuntime::Shutdown() noexcept {
         }
     }
     impl_->service = nullptr;
+    for (Impl::LoadedFont& loaded :
+         impl_->loadedFonts) {
+        if (loaded.face.handle.IsValid()) {
+            static_cast<void>(
+                impl_->fonts.ReleaseFace(
+                    loaded.face.handle));
+        }
+    }
+    impl_->loadedFonts.Clear();
     impl_->fonts.Shutdown();
     impl_->fontProvider.Shutdown();
     impl_->~Impl();

@@ -21,6 +21,12 @@ class CommandManager;
 class AERO_API HitTestManager final {
 public:
     HitTestManager() noexcept = default;
+    Base::Result<void> SetOverlays(
+        Base::Span<UIElement* const> overlays,
+        Base::Span<const Point> origins) noexcept;
+    void ClearOverlays() noexcept {
+        overlays_.Clear();
+    }
     Base::Result<HitTestResult> HitTest(
         Visual& root, Point position) const noexcept;
     // Converts a position expressed in root coordinates to target-local
@@ -30,11 +36,18 @@ public:
         Visual& root, Visual& target, Point position) const noexcept;
 
 private:
+    struct OverlayRecord final {
+        UIElement* element = nullptr;
+        Point origin;
+    };
+    Base::Vector<OverlayRecord> overlays_;
     static UIElement* AsUIElement(Visual& node) noexcept {
         return node.AsUIElement();
     }
     Base::Result<HitTestResult> HitTestElement(
         UIElement& element, Point position) const noexcept;
+    bool IsOverlay(
+        const UIElement& element) const noexcept;
 };
 #endif
 
@@ -112,6 +125,39 @@ private:
 enum class FocusNavigationDirection : std::uint8_t {
     Next,
     Previous,
+};
+
+enum class KeyboardNavigationMode : std::uint8_t {
+    Continue = 0U,
+    Once,
+    Cycle,
+    None,
+    Contained,
+    Local
+};
+
+class AERO_API KeyboardNavigation final
+    : public Base::Object {
+    AERO_DECLARE_TYPE(
+        KeyboardNavigation,
+        Base::Object)
+public:
+    Core::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+
+    inline static constexpr Members::AttachedProperty<
+        KeyboardNavigationMode>
+        DirectionalNavigationProperty{
+            "DirectionalNavigation"};
+
+    inline static constexpr Members::AttachedProperty<
+        KeyboardNavigationMode>
+        TabNavigationProperty{
+            "TabNavigation"};
+    inline static constexpr Members::AttachedProperty<
+        std::uint32_t>
+        TabIndexProperty{"TabIndex"};
 };
 
 #if !defined(AERO_SDK_SURFACE_ONLY)
@@ -192,3 +238,26 @@ private:
 #endif
 
 } // namespace Aero::Presentation
+
+namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<
+    Presentation::KeyboardNavigationMode> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId(
+            "KeyboardNavigationMode");
+    }
+    static constexpr Base::StringView
+    Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "KeyboardNavigationMode";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Core

@@ -50,6 +50,7 @@ public:
     Rhi::FenceValue LastSubmittedFence() const noexcept;
     OpenGL33RenderPlanSubmitStatistics
     LastSubmitStatistics() const noexcept;
+    void SetBatchingEnabled(bool enabled) noexcept;
 
 private:
     struct Impl;
@@ -73,6 +74,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
     std::uint64_t textGeneration_ = 0U;
+    bool batchingEnabled_ = true;
 };
 
 } // namespace Aero::Render

@@ -23,6 +23,7 @@ class MetadataRuntime;
 }
 
 namespace Aero::Controls {
+class ContentControl;
 class ControlInteractionManager;
 class TemplateManager;
 class TextBoxInteractionManager;
@@ -35,6 +36,7 @@ class ITextInputMethodHost;
 }
 
 namespace Aero::Presentation {
+class AnimationManager;
 class BindingManager;
 class CommandManager;
 class FocusManager;
@@ -116,6 +118,11 @@ public:
         const Base::ResourceUri& originUri,
         RuntimeResourceLoadMode mode =
             RuntimeResourceLoadMode::Replace) noexcept;
+    Base::Result<void> SetResourceDictionary(
+        RuntimeResourceLayer layer,
+        Presentation::ResourceDictionary& dictionary,
+        RuntimeResourceLoadMode mode =
+            RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> LoadBuiltInTheme(
         BuiltInTheme theme) noexcept;
     Base::Result<void> Mount(
@@ -129,6 +136,11 @@ public:
     Base::Result<void> ReplaceMountedDocument(
         UiDocument&& document,
         Presentation::Size availableSize) noexcept;
+    Base::Result<void> MountContent(
+        Controls::ContentControl& host,
+        UiDocument&& document) noexcept;
+    Base::Result<void> UnmountContent(
+        Controls::ContentControl& host) noexcept;
     Base::Result<void> Resize(
         Presentation::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
@@ -142,6 +154,14 @@ public:
         const Presentation::TextInput& input) noexcept;
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
+    Base::Result<std::uint32_t> AdvanceAnimationTime(
+        std::uint32_t elapsedMilliseconds) noexcept;
+    Base::Result<void>
+        SetRenderBatchingEnabledForTesting(
+            bool enabled) noexcept;
+    Base::Result<void> SetRenderEndpoint(
+        Base::Ref<Integration::RenderEndpoint> endpoint,
+        bool automaticAnimationClock) noexcept;
 
     const Base::Ref<Base::Object>& Root() const noexcept;
     Base::Object* FindNamedObject(
@@ -158,6 +178,7 @@ public:
     Core::MetadataDomain* Metadata() noexcept;
     Core::MetadataRuntime* MetadataRuntime() noexcept;
     Core::EffectiveValueEngine* EffectiveValues() noexcept;
+    Presentation::AnimationManager* Animations() noexcept;
     Presentation::ObjectTree* Tree() noexcept;
     Presentation::LayoutManager* Layout() noexcept;
     Presentation::RenderManager* Renderer() noexcept;

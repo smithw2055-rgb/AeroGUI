@@ -63,23 +63,28 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
     if (!result) return result.GetStatus();
 
     for (const TypeInfo& type : types.Types()) {
-        if (!IsValueType(type)) continue;
-
-        const Base::Ref<ValueTypeSemantics>* semantics =
-            source.FindValueSemantics(type.Id());
-        if (semantics != nullptr && semantics->Get() != nullptr) {
-            ValueSemanticsFacet facet;
-            facet.type = type.Id();
-            facet.semantics = *semantics;
-            const std::uint32_t index = valueSemantics_.Size();
-            result = valueSemantics_.TryPushBack(std::move(facet));
-            if (!result) return result.GetStatus();
-            result = InsertValueFacetIndex(
-                valueSemanticsIndex_, type.Id(), index,
-                "Value semantics facet collision");
-            if (!result) return result.GetStatus();
-            result = AddTypeMask(type.Id(), MetadataFacetKind::ValueSemantics);
-            if (!result) return result.GetStatus();
+        if (IsValueType(type)) {
+            const Base::Ref<ValueTypeSemantics>* semantics =
+                source.FindValueSemantics(type.Id());
+            if (semantics != nullptr &&
+                semantics->Get() != nullptr) {
+                ValueSemanticsFacet facet;
+                facet.type = type.Id();
+                facet.semantics = *semantics;
+                const std::uint32_t index =
+                    valueSemantics_.Size();
+                result = valueSemantics_.TryPushBack(
+                    std::move(facet));
+                if (!result) return result.GetStatus();
+                result = InsertValueFacetIndex(
+                    valueSemanticsIndex_, type.Id(), index,
+                    "Value semantics facet collision");
+                if (!result) return result.GetStatus();
+                result = AddTypeMask(
+                    type.Id(),
+                    MetadataFacetKind::ValueSemantics);
+                if (!result) return result.GetStatus();
+            }
         }
 
         const TextValueConverterRegistration* converter =

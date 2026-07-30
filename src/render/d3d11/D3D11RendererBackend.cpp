@@ -11,6 +11,8 @@
 #include <new>
 
 #include "../TextBackendAccess.hpp"
+#include "../MeshRuntimeBackend.hpp"
+#include "../ImageRuntimeBackend.hpp"
 #include "../TextRuntimeBackend.hpp"
 
 #include "AeroD3D11RenderPlanPixelShader.hpp"
@@ -114,10 +116,16 @@ struct D3D11RenderPlanBackend::Impl final {
               MakeD3D11RendererShaderSet(),
               allocator),
           textRuntime(
+              device, renderer, generation, *allocator),
+          meshRuntime(
+              device, renderer, generation, *allocator),
+          imageRuntime(
               device, renderer, generation, *allocator) {}
 
     Renderer renderer;
     Detail::TextRuntimeBackend textRuntime;
+    Detail::MeshRuntimeBackend meshRuntime;
+    Detail::ImageRuntimeBackend imageRuntime;
     Rhi::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -162,6 +170,8 @@ Base::Result<void> D3D11RenderPlanBackend::Initialize() noexcept {
         Shutdown();
         return initialized;
     }
+    impl_->renderer.SetBatchingEnabled(
+        batchingEnabled_);
     impl_->initialized = true;
     return {};
 }
@@ -171,6 +181,7 @@ void D3D11RenderPlanBackend::Shutdown() noexcept {
         return;
     }
     impl_->textRuntime.Shutdown();
+    impl_->meshRuntime.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -248,11 +259,17 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
 
 void* D3D11RenderPlanBackend::QueryInternalService(
     std::uint64_t service) noexcept {
-    if (!IsInitialized() ||
-        service != Detail::TextBackendServiceId) {
-        return nullptr;
+    if (!IsInitialized()) return nullptr;
+    if (service == Detail::TextBackendServiceId) {
+        return &impl_->textRuntime.Services();
     }
-    return &impl_->textRuntime.Services();
+    if (service == Detail::MeshBackendServiceId) {
+        return &impl_->meshRuntime.Services();
+    }
+    if (service == Detail::ImageBackendServiceId) {
+        return &impl_->imageRuntime.Services();
+    }
+    return nullptr;
 }
 
 Base::Result<void> D3D11RenderPlanBackend::Submit(
@@ -305,6 +322,15 @@ D3D11RenderPlanBackend::LastSubmitStatistics() const noexcept {
     return impl_ != nullptr
         ? impl_->renderer.LastStatistics()
         : D3D11RenderPlanSubmitStatistics{};
+}
+
+void D3D11RenderPlanBackend::SetBatchingEnabled(
+    bool enabled) noexcept {
+    batchingEnabled_ = enabled;
+    if (impl_ != nullptr) {
+        impl_->renderer.SetBatchingEnabled(
+            enabled);
+    }
 }
 
 } // namespace Aero::Render

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
+#include <Aero/Core/Collections/ItemsSource.hpp>
 #include <Aero/Presentation/MountService.hpp>
 #include <Aero/Presentation/Style.hpp>
 
@@ -12,36 +13,21 @@ class RenderManager;
 
 namespace Aero::Controls {
 
-enum class ItemsChangeAction : std::uint8_t {
-    Add = 0U,
-    Remove,
-    Replace,
-    Move,
-    Reset,
+using ItemsChangeAction = Core::ItemsChangeAction;
+using ItemsChangedEvent = Core::ItemsChangedEvent;
+using ItemsChangedHandler = Core::ItemsChangedHandler;
+
+enum class ItemSubtreeChange : std::uint8_t {
+    Mounted = 0U,
+    Unmounting,
 };
 
-struct ItemsChangedEvent final {
-    ItemsChangeAction action = ItemsChangeAction::Reset;
-    std::uint32_t oldIndex = UINT32_MAX;
-    std::uint32_t newIndex = UINT32_MAX;
-    std::uint32_t oldCount = 0U;
-    std::uint32_t newCount = 0U;
-};
+using ItemSubtreeCallback = Base::Result<void> (*)(
+    Presentation::Visual& root,
+    ItemSubtreeChange change,
+    void* context) noexcept;
 
-using ItemsChangedHandler =
-    Base::Delegate<void(const ItemsChangedEvent&)>;
-
-class AERO_API IItemsSource {
-public:
-    virtual ~IItemsSource() = default;
-    virtual std::uint32_t Count() const noexcept = 0;
-    virtual Base::Ref<Base::Object> ItemAt(
-        std::uint32_t index) const noexcept = 0;
-    virtual Base::Result<void> TryAddItemsChanged(
-        const ItemsChangedHandler& handler) noexcept = 0;
-    virtual bool RemoveItemsChanged(
-        const ItemsChangedHandler& handler) noexcept = 0;
-};
+using IItemsSource = Core::IItemsSource;
 
 class AERO_API ItemsCollection final : public IItemsSource {
 public:
@@ -75,12 +61,129 @@ public:
         const ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
-
 private:
     Base::Vector<Base::Ref<Base::Object>> items_;
     ItemsChangedHandler changed_;
     void Notify(const ItemsChangedEvent& event) noexcept;
 };
+
+// Reference-counted collection source for view-model properties. ItemsControl
+// keeps its lightweight embedded ItemsCollection for authored child content;
+// bindings use this object form so the source can travel through metadata and
+// dependency-property values without losing IItemsSource semantics.
+class AERO_API ObjectItemsSource final :
+    public Base::Object,
+    public IItemsSource {
+    AERO_DECLARE_TYPE(ObjectItemsSource, Base::Object)
+public:
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    std::uint32_t Count() const noexcept override {
+        return items_.Count();
+    }
+    Base::Ref<Base::Object> ItemAt(
+        std::uint32_t index) const noexcept override {
+        return items_.ItemAt(index);
+    }
+    Base::Result<void> Add(
+        Base::Ref<Base::Object> item) noexcept {
+        return items_.Add(std::move(item));
+    }
+    Base::Result<void> Insert(
+        std::uint32_t index,
+        Base::Ref<Base::Object> item) noexcept {
+        return items_.Insert(index, std::move(item));
+    }
+    Base::Result<Base::Ref<Base::Object>> RemoveAt(
+        std::uint32_t index) noexcept {
+        return items_.RemoveAt(index);
+    }
+    void Reset() noexcept {
+        items_.Reset();
+    }
+    Base::Result<void> TryAddItemsChanged(
+        const ItemsChangedHandler& handler) noexcept override {
+        return items_.TryAddItemsChanged(handler);
+    }
+    bool RemoveItemsChanged(
+        const ItemsChangedHandler& handler) noexcept override {
+        return items_.RemoveItemsChanged(handler);
+    }
+
+private:
+    ItemsCollection items_;
+};
+
+// WPF AlternationConverter selects an authored value by alternation index.
+// Keeping object values intact lets a binding later return brushes, strings,
+// and other resources without lossy text conversion.
+class AERO_API AlternationConverter final : public Base::Object {
+    AERO_DECLARE_TYPE(AlternationConverter, Base::Object)
+public:
+    AlternationConverter() noexcept
+        : values_(&Base::GetDefaultAllocator()) {}
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::Span<const Base::Ref<Base::Object>> Values() const noexcept {
+        return values_.AsSpan();
+    }
+    Base::Result<void> AddValue(
+        Base::Ref<Base::Object> value) noexcept {
+        if (!value) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "AlternationConverter values cannot be null");
+        }
+        return values_.TryPushBack(std::move(value));
+    }
+    void ClearValues() noexcept { values_.Clear(); }
+private:
+    Base::Vector<Base::Ref<Base::Object>> values_;
+};
+
+// Object wrapper for primitive values used by ItemsSource. This is the
+// collection equivalent of WPF boxing: business collections can contain
+// strings and other scalar values without manufacturing UIElement objects.
+class AERO_API BoxedItemValue final : public Base::Object {
+    AERO_DECLARE_TYPE(BoxedItemValue, Base::Object)
+public:
+    explicit BoxedItemValue(Core::Value value) noexcept
+        : value_(std::move(value)) {}
+
+    TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    const Core::Value& Value() const noexcept {
+        return value_;
+    }
+
+private:
+    Core::Value value_;
+};
+
+inline Base::Result<void> AddBoxedItem(
+    ObjectItemsSource& source,
+    Core::Value value) noexcept {
+    Base::Result<Base::Ref<BoxedItemValue>> boxed =
+        Base::MakeRef<BoxedItemValue>(std::move(value));
+    if (!boxed) return boxed.GetStatus();
+    return source.Add(
+        Base::Ref<Base::Object>(
+            std::move(boxed).Value()));
+}
+
+inline Base::Result<void> AddBoxedStringItem(
+    ObjectItemsSource& source,
+    Base::StringView value) noexcept {
+    Base::Result<Core::Value> boxed =
+        Core::Value::TryFromString(
+            Core::TypeOf<Base::String>(), value);
+    if (!boxed) return boxed.GetStatus();
+    return AddBoxedItem(
+        source, std::move(boxed).Value());
+}
 
 using DeferredObjectFactory = Base::Result<
     Base::Ref<Base::Object>> (*)(
@@ -153,8 +256,57 @@ public:
         Base::Ref<Base::Object> factoryOwner = {}) noexcept;
     Base::Result<void> SetDataType(
         TypeId value) noexcept;
-    Base::Result<void> SetAuthoredVisualTree(
-        const Base::Ref<Base::Object>& value) noexcept;
+    Base::Ref<Base::Object> HierarchicalItemsSource() const noexcept {
+        return hierarchicalItemsSource_;
+    }
+    Base::Result<void> SetHierarchicalItemsSource(
+        Base::Ref<Base::Object> value) noexcept {
+        hierarchicalItemsSource_ = std::move(value);
+        return {};
+    }
+    Base::Ref<Base::Object> HierarchicalItemTemplate() const noexcept {
+        return hierarchicalItemTemplate_;
+    }
+    Base::Result<void> SetHierarchicalItemTemplate(
+        Base::Ref<Base::Object> value) noexcept {
+        hierarchicalItemTemplate_ = std::move(value);
+        return {};
+    }
+      Base::Result<void> SetAuthoredVisualTree(
+          const Base::Ref<Base::Object>& value) noexcept;
+      Base::Result<void> TryAddAuthoredTrigger(
+          Base::Ref<Presentation::TriggerBase> trigger) noexcept {
+          if (!trigger || program_.IsValid()) {
+              return Base::Status::Failure(
+                  Base::ErrorCode::InvalidState,
+                  "DataTemplate Trigger cannot be added after sealing");
+          }
+          return authoredTriggers_.TryPushBack(
+              std::move(trigger));
+      }
+      void ClearAuthoredTriggers() noexcept {
+          authoredTriggers_.Clear();
+      }
+      Base::Span<const Base::Ref<
+          Presentation::TriggerBase>>
+      AuthoredTriggers() const noexcept {
+          return {
+              authoredTriggers_.Data(),
+              authoredTriggers_.Size()};
+      }
+    Base::Result<void> RegisterAuthoredName(
+        Base::StringView name,
+        Base::Object& object) noexcept {
+        return authoredNames_.TryRegister(
+            name, object);
+    }
+    const Presentation::NameScope&
+    AuthoredNames() const noexcept {
+        return authoredNames_;
+    }
+    void ClearAuthoredNames() noexcept {
+        authoredNames_.Clear();
+    }
     const Base::Ref<Base::Object>&
     AuthoredVisualTree() const noexcept {
         return authoredVisualTree_;
@@ -200,9 +352,15 @@ public:
 private:
     DeferredObjectProgram program_;
     TypeId dataType_ = InvalidTypeId;
-    ResourceDictionary resources_;
-    Base::Ref<Base::Object> authoredVisualTree_;
-};
+      Base::Ref<Base::Object> hierarchicalItemsSource_;
+      Base::Ref<Base::Object> hierarchicalItemTemplate_;
+      ResourceDictionary resources_;
+      Base::Ref<Base::Object> authoredVisualTree_;
+      Base::Vector<Base::Ref<
+          Presentation::TriggerBase>>
+          authoredTriggers_;
+      Presentation::NameScope authoredNames_;
+  };
 
 class AERO_API ItemsPanelTemplate final
     : public Base::Object {
@@ -315,27 +473,82 @@ public:
     IItemsSource* ItemsSource() const noexcept {
         return source_;
     }
+    Base::Ref<Base::Object>
+    BoundItemsSource() const noexcept {
+        return GetValueOr(
+            ItemsSourceProperty,
+            Base::Ref<Base::Object>{});
+    }
     std::uint32_t ItemCount() const noexcept;
     Base::Ref<Base::Object> ItemAt(
         std::uint32_t index) const noexcept;
     Base::Result<void> SetItemsSource(
         IItemsSource* source) noexcept;
+    Base::Result<void> SetBoundItemsSource(
+        Base::Ref<Base::Object> source) noexcept {
+        return SetValue(
+            ItemsSourceProperty,
+            std::move(source));
+    }
+    std::uint32_t AlternationCount() const noexcept {
+        return GetValueOr(AlternationCountProperty, 0U);
+    }
+    Base::Result<void> SetAlternationCount(
+        std::uint32_t value) noexcept {
+        return SetValue(AlternationCountProperty, value);
+    }
 
     const DataTemplate* ItemTemplate() const noexcept {
         return itemTemplate_;
     }
+    Base::Ref<DataTemplate>
+    ItemTemplateValue() const noexcept {
+        return GetValueOr(
+            ItemTemplateProperty,
+            Base::Ref<DataTemplate>{});
+    }
     void SetItemTemplate(
         const DataTemplate* value) noexcept;
+    Base::Result<void> SetItemTemplateValue(
+        Base::Ref<DataTemplate> value) noexcept {
+        return SetValue(
+            ItemTemplateProperty,
+            std::move(value));
+    }
     const ItemsPanelTemplate* ItemsPanel() const noexcept {
         return itemsPanel_;
     }
+    Base::Ref<ItemsPanelTemplate>
+    ItemsPanelValue() const noexcept {
+        return GetValueOr(
+            ItemsPanelProperty,
+            Base::Ref<ItemsPanelTemplate>{});
+    }
     void SetItemsPanel(
         const ItemsPanelTemplate* value) noexcept;
+    Base::Result<void> SetItemsPanelValue(
+        Base::Ref<ItemsPanelTemplate> value) noexcept {
+        return SetValue(
+            ItemsPanelProperty,
+            std::move(value));
+    }
     const Style* ItemContainerStyle() const noexcept {
         return itemContainerStyle_;
     }
+    Base::Ref<Style>
+    ItemContainerStyleValue() const noexcept {
+        return GetValueOr(
+            ItemContainerStyleProperty,
+            Base::Ref<Style>{});
+    }
     void SetItemContainerStyle(
         const Style* value) noexcept;
+    Base::Result<void> SetItemContainerStyleValue(
+        Base::Ref<Style> value) noexcept {
+        return SetValue(
+            ItemContainerStyleProperty,
+            std::move(value));
+    }
 
     Base::Result<void> TryAddItemsChanged(
         const ItemsChangedHandler& handler) noexcept {
@@ -345,9 +558,31 @@ public:
         const ItemsChangedHandler& handler) noexcept {
         return changed_.Remove(handler);
     }
+    Panel* ItemsHost() const noexcept {
+        return itemsHost_;
+    }
+    std::uint32_t RealizedItemCount() const noexcept;
+    std::uint32_t CreatedContainerCount() const noexcept;
+    std::uint32_t RecycledContainerUseCount() const noexcept;
 
     inline static constexpr Members::ReadOnlyProperty<
         std::uint32_t> ItemCountProperty{"ItemCount"};
+    inline static constexpr Members::ReadOnlyProperty<bool>
+        HasItemsProperty{"HasItems"};
+    inline static constexpr Members::Property<
+        Base::Ref<Base::Object>>
+        ItemsSourceProperty{"ItemsSource"};
+    inline static constexpr Members::Property<std::uint32_t>
+        AlternationCountProperty{"AlternationCount"};
+    inline static constexpr Members::Property<
+        Base::Ref<DataTemplate>>
+        ItemTemplateProperty{"ItemTemplate"};
+    inline static constexpr Members::Property<
+        Base::Ref<ItemsPanelTemplate>>
+        ItemsPanelProperty{"ItemsPanel"};
+    inline static constexpr Members::Property<
+        Base::Ref<Style>>
+        ItemContainerStyleProperty{"ItemContainerStyle"};
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
@@ -365,6 +600,8 @@ protected:
     virtual void ClearContainer(
         ItemContainer& container) noexcept;
     virtual void OnContainersChanged() noexcept {}
+    Base::Result<void> OnApplyTemplate() noexcept override;
+    void OnTemplateDetached() noexcept override;
 
 private:
     friend class ItemContainerGenerator;
@@ -374,6 +611,7 @@ private:
     const ItemsPanelTemplate* itemsPanel_ = nullptr;
     const Style* itemContainerStyle_ = nullptr;
     ItemContainerGenerator* generator_ = nullptr;
+    Panel* itemsHost_ = nullptr;
     ItemsChangedHandler changed_;
     ItemsChangedHandler localHandler_;
     ItemsChangedHandler sourceHandler_;
@@ -386,6 +624,36 @@ private:
     void PublishItemCount() noexcept;
 };
 
+// WPF's header-bearing items base. It retains ItemsControl's generation and
+// layout behavior while exposing the header metadata consumed by theme styles.
+class AERO_API HeaderedItemsControl : public ItemsControl {
+    AERO_DECLARE_TYPE(HeaderedItemsControl, ItemsControl)
+public:
+    HeaderedItemsControl() noexcept
+        : ItemsControl(StaticTypeId()) {}
+    ~HeaderedItemsControl() override = default;
+
+    Base::StringView Header() const noexcept {
+        return GetValueOr(HeaderProperty, Base::StringView{});
+    }
+    Base::Result<void> SetHeader(Base::StringView value) noexcept {
+        return SetValue(HeaderProperty, value);
+    }
+    Base::Ref<DataTemplate> HeaderTemplate() const noexcept {
+        return GetValueOr(
+            HeaderTemplateProperty, Base::Ref<DataTemplate>{});
+    }
+    Base::Result<void> SetHeaderTemplate(
+        Base::Ref<DataTemplate> value) noexcept {
+        return SetValue(HeaderTemplateProperty, std::move(value));
+    }
+
+    inline static constexpr Members::Property<Base::String>
+        HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>>
+        HeaderTemplateProperty{"HeaderTemplate"};
+};
+
 class AERO_API ItemContainerGenerator final {
 public:
     ItemContainerGenerator(
@@ -393,7 +661,10 @@ public:
         LayoutManager& layout,
         EffectiveValueEngine& values,
         StyleManager* styles = nullptr,
-        RenderManager* renderer = nullptr) noexcept;
+        RenderManager* renderer = nullptr,
+        TemplateManager* templates = nullptr,
+        ItemSubtreeCallback subtreeCallback = nullptr,
+        void* subtreeContext = nullptr) noexcept;
     ~ItemContainerGenerator() noexcept;
 
     Base::Result<void> Attach(
@@ -436,7 +707,11 @@ private:
         Base::Ref<Base::Object> content;
         MountEdgeState containerMount;
         MountEdgeState contentMount;
+        Base::Vector<MountEdgeState> subtreeMounts;
         const Style* appliedStyle = nullptr;
+        bool itemIsOwnContainer = false;
+        bool generatedTextContent = false;
+        bool subtreeMounted = false;
     };
 
     ObjectTree* tree_ = nullptr;
@@ -444,6 +719,9 @@ private:
     EffectiveValueEngine* values_ = nullptr;
     StyleManager* styles_ = nullptr;
     RenderManager* renderer_ = nullptr;
+    TemplateManager* templates_ = nullptr;
+    ItemSubtreeCallback subtreeCallback_ = nullptr;
+    void* subtreeContext_ = nullptr;
     MountService mounts_;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
@@ -463,6 +741,11 @@ private:
     Base::Result<void> AttachRecord(
         Record& record,
         std::uint32_t index) noexcept;
+    Base::Result<void> AttachOwnedSubtree(
+        Record& record,
+        Presentation::Visual& root) noexcept;
+    Base::Result<void> DetachOwnedSubtree(
+        Record& record) noexcept;
     Base::Result<void> DetachRecord(
         Record& record,
         bool recycleContainer = false) noexcept;

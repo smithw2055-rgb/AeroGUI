@@ -32,6 +32,8 @@ public:
         FrameworkElement* rootRender,
         Base::Span<VisualTreeMountEdge> edges,
         Size availableSize) noexcept;
+    Base::Result<void> CompleteDeferredEdges(
+        Base::Span<VisualTreeMountEdge> edges) noexcept;
     Base::Result<void> Resize(Size availableSize) noexcept;
     Base::Result<void> Unmount(
         Base::Span<VisualTreeMountEdge> edges) noexcept;

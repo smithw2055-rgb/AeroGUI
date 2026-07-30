@@ -3,6 +3,8 @@
 #include <new>
 
 #include "../TextBackendAccess.hpp"
+#include "../MeshRuntimeBackend.hpp"
+#include "../ImageRuntimeBackend.hpp"
 #include "../TextRuntimeBackend.hpp"
 
 namespace Aero::Render {
@@ -237,6 +239,7 @@ static const std::uint8_t MeshVertex[] = R"GLSL(
 #version 330 core
 layout(location = 0) in vec2 inputPosition;
 layout(location = 1) in vec4 inputColor;
+layout(location = 2) in float inputCoverage;
 layout(std140) uniform AeroUniform0 {
     vec4 tints[64];
     vec4 transform0;
@@ -248,6 +251,7 @@ layout(std140) uniform AeroUniform0 {
     vec3 clipPadding;
 };
 out vec4 vertexColor;
+out float vertexCoverage;
 void main() {
     vec2 transformed = vec2(
         inputPosition.x * transform0.x +
@@ -260,6 +264,7 @@ void main() {
         0.0,
         1.0);
     vertexColor = inputColor * tints[uint(gl_InstanceID)];
+    vertexCoverage = inputCoverage;
 }
 )GLSL";
 
@@ -276,6 +281,7 @@ layout(std140) uniform AeroUniform0 {
     vec3 clipPadding;
 };
 in vec4 vertexColor;
+in float vertexCoverage;
 out vec4 outputColor;
 void main() {
     vec2 fragmentPosition = vec2(
@@ -295,6 +301,7 @@ void main() {
         }
     }
     outputColor = vertexColor;
+    outputColor.a *= clamp(vertexCoverage, 0.0, 1.0);
 }
 )GLSL";
 
@@ -432,10 +439,16 @@ struct OpenGL33RenderPlanBackend::Impl final {
               MakeOpenGL33RendererShaderSet(),
               allocator),
           textRuntime(
+              device, renderer, generation, *allocator),
+          meshRuntime(
+              device, renderer, generation, *allocator),
+          imageRuntime(
               device, renderer, generation, *allocator) {}
 
     Renderer renderer;
     Detail::TextRuntimeBackend textRuntime;
+    Detail::MeshRuntimeBackend meshRuntime;
+    Detail::ImageRuntimeBackend imageRuntime;
     Rhi::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -489,6 +502,8 @@ OpenGL33RenderPlanBackend::Initialize() noexcept {
         Shutdown();
         return initialized;
     }
+    impl_->renderer.SetBatchingEnabled(
+        batchingEnabled_);
     impl_->initialized = true;
     return {};
 }
@@ -498,6 +513,7 @@ void OpenGL33RenderPlanBackend::Shutdown() noexcept {
         return;
     }
     impl_->textRuntime.Shutdown();
+    impl_->meshRuntime.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -593,11 +609,17 @@ OpenGL33RenderPlanBackend::UnregisterGlyphRun(
 
 void* OpenGL33RenderPlanBackend::QueryInternalService(
     std::uint64_t service) noexcept {
-    if (!IsInitialized() ||
-        service != Detail::TextBackendServiceId) {
-        return nullptr;
+    if (!IsInitialized()) return nullptr;
+    if (service == Detail::TextBackendServiceId) {
+        return &impl_->textRuntime.Services();
     }
-    return &impl_->textRuntime.Services();
+    if (service == Detail::MeshBackendServiceId) {
+        return &impl_->meshRuntime.Services();
+    }
+    if (service == Detail::ImageBackendServiceId) {
+        return &impl_->imageRuntime.Services();
+    }
+    return nullptr;
 }
 
 Base::Result<void> OpenGL33RenderPlanBackend::Submit(
@@ -700,6 +722,15 @@ OpenGL33RenderPlanBackend::LastSubmitStatistics() const noexcept {
     return impl_ != nullptr
         ? impl_->renderer.LastStatistics()
         : OpenGL33RenderPlanSubmitStatistics{};
+}
+
+void OpenGL33RenderPlanBackend::SetBatchingEnabled(
+    bool enabled) noexcept {
+    batchingEnabled_ = enabled;
+    if (impl_ != nullptr) {
+        impl_->renderer.SetBatchingEnabled(
+            enabled);
+    }
 }
 
 } // namespace Aero::Render

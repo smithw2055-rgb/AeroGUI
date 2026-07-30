@@ -111,6 +111,32 @@ private:
     Base::Vector<Base::Ref<InputGesture>> gestures_;
 };
 
+// XAML-authored keyboard binding. The WPF command spelling (for example
+// ApplicationCommands.New) is retained while runtime input uses a concrete
+// RoutedCommand and KeyGesture.
+class AERO_API KeyBinding final : public Base::Object {
+    AERO_DECLARE_TYPE(KeyBinding, Base::Object)
+public:
+    KeyBinding() noexcept = default;
+    Core::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+    Base::StringView CommandName() const noexcept { return commandName_.View(); }
+    Base::StringView KeyName() const noexcept { return keyName_.View(); }
+    Base::StringView ModifiersName() const noexcept { return modifiersName_.View(); }
+    Base::Ref<RoutedCommand> Command() const noexcept { return command_; }
+    Base::Result<void> SetCommandName(Base::StringView value) noexcept;
+    Base::Result<void> SetKeyName(Base::StringView value) noexcept;
+    Base::Result<void> SetModifiersName(Base::StringView value) noexcept;
+    Base::Result<void> Finalize() noexcept;
+
+private:
+    Base::String commandName_;
+    Base::String keyName_;
+    Base::String modifiersName_;
+    Base::Ref<RoutedCommand> command_;
+};
+
 struct CanExecuteRoutedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(CanExecuteRoutedEventArgs, RoutedEventArgs)
     CanExecuteRoutedEventArgs() noexcept
@@ -175,6 +201,11 @@ struct CommandBindingHandle final {
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
+struct InputBindingHandle final {
+    std::uint64_t value = 0U;
+    constexpr bool IsValid() const noexcept { return value != 0U; }
+};
+
 using RequerySuggestedHandler = Base::Delegate<void()>;
 
 class AERO_API CommandManager final {
@@ -186,6 +217,9 @@ public:
         const CommandBinding& binding) noexcept;
     Base::Result<bool> RemoveBinding(
         CommandBindingHandle handle) noexcept;
+    Base::Result<InputBindingHandle> TryAddInputBinding(
+        UIElement& owner,
+        Base::Ref<KeyBinding> binding) noexcept;
 
     Base::Result<bool> CanExecute(
         RoutedCommand& command,
@@ -215,10 +249,17 @@ private:
         VisualHandle owner;
         CommandBinding binding;
     };
+    struct InputBindingRecord final {
+        InputBindingHandle handle;
+        VisualHandle owner;
+        Base::Ref<KeyBinding> binding;
+    };
 
     ObjectTree* tree_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
+    Base::Vector<InputBindingRecord> inputBindings_;
     std::uint64_t nextBinding_ = 1U;
+    std::uint64_t nextInputBinding_ = 1U;
     RequerySuggestedHandler requerySuggested_;
 
     Base::Result<void> VerifyTarget(UIElement& target) const noexcept;
@@ -227,6 +268,7 @@ private:
         RoutedCommand* command,
         Base::Vector<RouteBinding>& route) noexcept;
     void PruneStaleBindings() noexcept;
+    void PruneStaleInputBindings() noexcept;
 };
 
 } // namespace Aero::Presentation
