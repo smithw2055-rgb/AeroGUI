@@ -12,34 +12,7 @@
 
 namespace Aero::Core {
 
-using PropertyExpressionEvaluateCallback = Base::Result<PropertyValue> (*)(
-    void* context,
-    DependencyObject& object,
-    DependencyPropertyHandle property) noexcept;
-using PropertyExpressionCleanupCallback = void (*)(void* context) noexcept;
-
-struct PropertyExpression final {
-    void* context = nullptr;
-    PropertyExpressionEvaluateCallback evaluate = nullptr;
-    PropertyExpressionCleanupCallback cleanup = nullptr;
-    PropertyExpressionKind kind = PropertyExpressionKind::Custom;
-
-    bool IsValid() const noexcept {
-        return evaluate != nullptr;
-    }
-};
-
-struct EffectiveValueDiagnostics final {
-    EffectiveValueProvider provider = EffectiveValueProvider::Default;
-    PropertyProviderToken token;
-    PropertyExpressionKind expressionKind = PropertyExpressionKind::Custom;
-    bool hasExpression = false;
-    bool isInherited = false;
-    bool isAnimated = false;
-    bool isCoerced = false;
-    bool isCurrentValue = false;
-    std::uint64_t revision = 0U;
-};
+using EffectiveValueDiagnostics = PropertyValueSourceInfo;
 
 class AERO_API EffectiveValueEngine final {
 public:
@@ -167,23 +140,9 @@ public:
     }
 
 private:
-    struct ProviderSlot final {
-        PropertyValue value;
-        bool hasValue = false;
-    };
-
-    struct ExpressionSlot final {
-        PropertyExpression expression;
-        bool hasExpression = false;
-    };
-
     struct Entry final {
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
-        PropertyProviderSet baseProviders;
-        ProviderSlot animation;
-        ExpressionSlot localExpression;
-        EffectiveValueDiagnostics diagnostics;
         std::uint64_t queueSequence = 0U;
         bool queued = false;
     };
@@ -191,15 +150,6 @@ private:
     struct ParentLink final {
         DependencyObject* child = nullptr;
         DependencyObject* parent = nullptr;
-    };
-
-    struct Resolution final {
-        PropertyValue value;
-        EffectiveValueProvider provider = EffectiveValueProvider::Default;
-        PropertyProviderToken token;
-        PropertyExpressionKind expressionKind =
-            PropertyExpressionKind::Custom;
-        bool hasExpression = false;
     };
 
     Dispatcher* dispatcher_ = nullptr;
@@ -238,13 +188,9 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs&
             args) noexcept;
-    Base::Result<Resolution> Resolve(
-        Entry& entry) noexcept;
     Base::Result<void> Apply(
-        Entry& entry,
-        const Resolution& resolution) noexcept;
+        Entry& entry) noexcept;
 
-    void ReleaseExpression(ExpressionSlot& slot) noexcept;
     void RemoveEntry(std::uint32_t index) noexcept;
     void RemoveParent(std::uint32_t index) noexcept;
 

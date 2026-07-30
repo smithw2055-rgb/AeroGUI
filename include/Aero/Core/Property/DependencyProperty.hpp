@@ -14,6 +14,7 @@
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Core/Property/PropertyValueSource.hpp>
 
 #include <cstdint>
 
@@ -21,6 +22,7 @@ namespace Aero::Core {
 
 class DependencyObject;
 class DependencyProperty;
+class EffectiveValueEngine;
 #if !defined(AERO_SDK_SURFACE_ONLY)
 class MetadataBehaviorRegistrationStore;
 class DependencyPropertyRegistry;
@@ -518,6 +520,8 @@ public:
         DependencyPropertyHandle property) const noexcept;
     Base::Result<EffectiveValueSource> GetValueSource(
         DependencyPropertyHandle property) const noexcept;
+    Base::Result<PropertyValueSourceInfo> GetValueSourceInfo(
+        DependencyPropertyHandle property) const noexcept;
 
     Base::Result<void> SetValue(
         DependencyPropertyHandle property,
@@ -592,7 +596,7 @@ public:
 
 protected:
     explicit DependencyObject(TypeId runtimeType) noexcept;
-    ~DependencyObject() override = default;
+    ~DependencyObject() override;
     // Framework-owned state properties use this path so public SetValue calls
     // remain read-only while derived runtime types can publish state changes.
     Base::Result<void> SetReadOnlyCurrentValue(
@@ -606,6 +610,8 @@ protected:
         PropertyInvalidationFlags flags) noexcept;
 
 private:
+    friend class EffectiveValueEngine;
+
     enum class ChangeKind : std::uint8_t {
         SetLocal,
         SetCurrent,
@@ -615,12 +621,20 @@ private:
 
     struct EffectiveValueEntry final {
         DependencyPropertyHandle property;
+        PropertyProviderSet baseProviders;
+        PropertyExpression localExpression;
         PropertyValue localValue;
         PropertyValue currentValue;
+        PropertyValue inheritedValue;
+        PropertyValue animationValue;
+        PropertyValue baseValue;
         PropertyValue effectiveValue;
-        EffectiveValueSource source = EffectiveValueSource::Default;
+        PropertyValueSourceInfo sourceInfo;
         bool hasLocal = false;
         bool hasCurrent = false;
+        bool hasExpression = false;
+        bool hasInherited = false;
+        bool hasAnimation = false;
     };
 
     struct ChangeHandlerRecord final {
@@ -664,6 +678,7 @@ private:
     Base::Vector<ChangeHandlerRecord> changeHandlers_;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     std::uint32_t changeHandlerNotificationDepth_ = 0U;
+    std::uint64_t nextValueRevision_ = 1U;
 
     Base::Result<void> VerifyReady() const noexcept;
     std::uint32_t FindEntryIndex(
@@ -671,6 +686,47 @@ private:
     Base::Result<MutationScope> BeginMutation(
         DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
+
+    Base::Result<std::uint32_t> EnsureEffectiveEntry(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetProviderContributionInternal(
+        DependencyPropertyHandle property,
+        PropertyProviderToken token,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearProviderContributionInternal(
+        DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Base::Result<bool> ClearProviderOriginInternal(
+        DependencyPropertyHandle property,
+        std::uint32_t origin) noexcept;
+    Base::Result<void> SetLocalExpressionInternal(
+        DependencyPropertyHandle property,
+        const PropertyExpression& expression) noexcept;
+    Base::Result<bool> ClearLocalExpressionInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<bool> InvalidateBaseValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetAnimationValueInternal(
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearAnimationValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> SetInheritedValueInternal(
+        DependencyPropertyHandle property,
+        const PropertyValue* value) noexcept;
+    Base::Result<void> RecomputeEffectiveValueInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> ClearEngineValueStateInternal(
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> RecomputeEffectiveValueCore(
+        DependencyPropertyHandle property,
+        const DependencyProperty& registered,
+        const PropertyMetadata& metadata,
+        const PropertyValue& oldEffective,
+        EffectiveValueSource oldSource) noexcept;
+    void ReleaseExpression(EffectiveValueEntry& entry) noexcept;
+    static EffectiveValueSource ToLegacySource(
+        const PropertyValueSourceInfo& source) noexcept;
 
     Base::Result<void> ApplyChange(
         DependencyPropertyHandle property,

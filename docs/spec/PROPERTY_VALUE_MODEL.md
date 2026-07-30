@@ -130,23 +130,15 @@ templated-parent triggers.
 removed after repository-wide search confirms that no direct historical caller
 remains.
 
-## Effective entry
+## Unified effective entry
 
-Conceptually every object/property pair owns one entry:
+Phase 4 makes `DependencyObject::EffectiveValueEntry` authoritative for provider
+contributions, local values and expressions, inherited and animated values, the
+unanimated base value, the coerced effective value and `PropertyValueSourceInfo`.
 
-```text
-base provider contributions
-local expression state
-animation state
-coercion state
-base value
-current/effective value
-winning source diagnostics
-```
-
-`EffectiveValueEngine` currently owns the provider-side entry while
-`DependencyObject` owns the applied value entry. The next major stage merges
-those records so `GetValue()` and source diagnostics always read the same state.
+`EffectiveValueEngine` now retains only scheduling records and the semantic
+inheritance-parent graph. It no longer owns value state or lands values through
+`SetCurrentValue()`.
 
 ## Migration progress
 
@@ -156,11 +148,11 @@ those records so `GetValue()` and source diagnostics always read the same state.
 4. Simultaneous legacy Style trigger contributions. **Done.**
 5. Engine-wide canonical origin allocation. **Done.**
 6. Style, ThemeStyle and Template manager-owned sessions. **Done.**
-7. Move source diagnostics into the `DependencyObject` effective entry.
-8. Move provider storage into that entry and delete the parallel engine table.
-9. Preserve the unanimated/uncoerced base value inside the unified entry.
-10. Route Binding and DynamicResource invalidation exclusively through the
-    unified entry.
+7. Move source diagnostics into the `DependencyObject` effective entry. **Done.**
+8. Move provider, expression and animation storage into that entry. **Done.**
+9. Preserve the unanimated base value and coerced effective value. **Done.**
+10. Route Binding and DynamicResource through the shared expression state. **Done.**
+11. Remove the remaining legacy trigger bridge after the final caller audit.
 
 ## Invariants
 
