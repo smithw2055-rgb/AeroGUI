@@ -9,6 +9,7 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Metadata.hpp>
 #include <Aero/Module.hpp>
+#include <Aero/RoutedEvent.hpp>
 #include <Aero/UIElement.hpp>
 #include <Aero/Drawing.hpp>
 #include <Aero/Controls/Primitives.hpp>
