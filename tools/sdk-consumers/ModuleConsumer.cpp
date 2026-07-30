@@ -1,6 +1,7 @@
 #include <Aero/ModuleSdk.hpp>
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Data.hpp>
+#include <Aero/Input.hpp>
 #include <Aero/Media.hpp>
 
 #include <type_traits>
@@ -61,6 +62,12 @@ static_assert(
         Aero::Data::Binding,
         Aero::Presentation::BindingSpec>::value,
     "Data binding projection must preserve runtime type identity");
+
+static_assert(
+    std::is_same<
+        Aero::Input::ICommand,
+        Aero::Presentation::ICommand>::value,
+    "Input projection must preserve command runtime type identity");
 
 static_assert(
     std::is_same<
