@@ -1,8 +1,9 @@
 #pragma once
 
-#define AERO_SDK_SURFACE_ONLY 1
+// Integration is a stable include aggregation only. Public type definitions
+// must not depend on whether this umbrella header was included first.
 #include <Aero/Integration/ReloadCoordinator.hpp>
 #include <Aero/Integration/RenderEndpoint.hpp>
 #include <Aero/Integration/SourceProvider.hpp>
 #include <Aero/Integration/ViewHost.hpp>
-#undef AERO_SDK_SURFACE_ONLY
+#include <Aero/Integration/WindowInterop.hpp>
