@@ -32,7 +32,7 @@ namespace Aero {
 // startup policy; Aero::App::Launcher supplies the default native event/render
 // lifetime. Optional platform services are owned by Aero::App::Services rather
 // than Application, preserving headless and embedded use.
-class AERO_API Application final : public Base::Object {
+class AERO_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
     Application() noexcept = default;
