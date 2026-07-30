@@ -11,11 +11,9 @@
 
 #include <cstdint>
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 namespace Aero::Controls {
 class ControlInteractionManager;
 }
-#endif
 
 namespace Aero::Presentation {
 
@@ -147,9 +145,7 @@ AERO_API Size Inflate(Size value, Thickness padding) noexcept;
 AERO_API Rect Intersect(Rect left, Rect right) noexcept;
 AERO_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class LayoutManager;
-#endif
 class UIElement;
 class Transform;
 class Effect;
@@ -464,13 +460,11 @@ protected:
     }
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class LayoutManager;
     friend class RoutedEventManager;
     friend class PointerInputManager;
     friend class FocusManager;
     friend class Aero::Controls::ControlInteractionManager;
-#endif
 
     struct HandlerRecord final {
         RoutedEventHandle event;
@@ -479,11 +473,7 @@ private:
         bool handledEventsToo = false;
     };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
     LayoutManager* manager_ = nullptr;
-#else
-    void* layoutState_ = nullptr;
-#endif
     Base::Vector<HandlerRecord> handlers_;
     std::uint64_t nextHandlerSequence_ = 1U;
     Size desiredSize_;
@@ -516,7 +506,6 @@ struct LayoutDiagnostics final {
     std::uint32_t pendingArrangeCount = 0U;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class AERO_API LayoutManager final {
 public:
     explicit LayoutManager(Dispatcher& dispatcher) noexcept;
@@ -559,6 +548,5 @@ private:
     Base::Result<void> ArrangeElement(UIElement& element, Rect slot) noexcept;
     static void LayoutHook(void* context) noexcept;
 };
-#endif
 
 } // namespace Aero::Presentation

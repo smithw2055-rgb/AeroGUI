@@ -163,9 +163,7 @@ public:
 
 private:
     friend class DisplayListBuilder;
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class RenderManager;
-#endif
     Base::Vector<RenderCommand> commands_;
 };
 
@@ -208,9 +206,7 @@ private:
         const RenderCommand& command) noexcept;
 };
 
-#if !defined(AERO_SDK_SURFACE_ONLY)
 class RenderManager;
-#endif
 class FrameworkElement;
 
 class FrameworkElementChildRange final {
@@ -439,12 +435,8 @@ protected:
         DisplayListBuilder& builder) noexcept;
 
 private:
-#if !defined(AERO_SDK_SURFACE_ONLY)
     friend class RenderManager;
     RenderManager* renderManager_ = nullptr;
-#else
-    void* renderOwner_ = nullptr;
-#endif
     double dpiScale_ = 1.0;
     RenderNodeId nodeId_ = InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
