@@ -13,10 +13,6 @@ namespace Aero {
 class Window;
 }
 
-namespace Aero::Audio {
-class Engine;
-}
-
 namespace Aero::App {
 class ApplicationHost;
 namespace Detail {
@@ -34,8 +30,8 @@ namespace Aero {
 
 // Process-level WPF/XAML application object. It owns application resources and
 // startup policy; Aero::App::Launcher supplies the default native event/render
-// lifetime. The implementation intentionally remains independent of a specific
-// desktop backend so Application can also participate in embedded runtimes.
+// lifetime. Optional platform services are owned by Aero::App::Services rather
+// than Application, preserving headless and embedded use.
 class AERO_API Application final : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
@@ -69,9 +65,6 @@ public:
         return mainWindow_;
     }
 
-    // The service and its playback device are both lazy, so a headless
-    // application does not acquire audio resources until it requests them.
-    Base::Result<Audio::Engine*> GetAudioEngine() noexcept;
     void Shutdown(int exitCode = 0) noexcept;
 
 private:
@@ -84,7 +77,6 @@ private:
 
     Base::String startupUri_;
     Base::Ref<Presentation::ResourceDictionary> resources_;
-    Audio::Engine* audio_ = nullptr;
     App::Detail::IApplicationPeer* peer_ = nullptr;
     Window* mainWindow_ = nullptr;
 };
