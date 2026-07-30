@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
@@ -62,7 +64,6 @@ private:
     Base::String mask_;
 };
 
-class TextBoxInteractionManager;
 class PasswordBox;
 
 class AERO_API TextBoxBase : public Control {
@@ -260,7 +261,7 @@ protected:
         DisplayListBuilder& builder) noexcept override;
 
 private:
-    friend class TextBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     friend class PasswordBox;
     friend class Detail::TextServicesAccess;
 
@@ -421,7 +422,7 @@ protected:
 
 private:
     friend class TextBox;
-    friend class TextBoxInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     friend class Detail::TextServicesAccess;
     Base::String password_;
     Text::EditableTextModel validation_;

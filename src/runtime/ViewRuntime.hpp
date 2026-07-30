@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
@@ -24,9 +26,6 @@ class MetadataRuntime;
 
 namespace Aero::Controls {
 class ContentControl;
-class ControlInteractionManager;
-class TemplateManager;
-class TextBoxInteractionManager;
 class VisualStateManager;
 }
 
@@ -36,19 +35,9 @@ class ITextInputMethodHost;
 }
 
 namespace Aero::Presentation {
-class AnimationManager;
-class BindingManager;
-class CommandManager;
-class FocusManager;
-class KeyboardInputManager;
-class LayoutManager;
 class ObjectTree;
-class PointerInputManager;
 class RenderManager;
 class ResourceDictionary;
-class RoutedEventManager;
-class StyleManager;
-class TextInputManager;
 }
 
 namespace Aero::Markup {

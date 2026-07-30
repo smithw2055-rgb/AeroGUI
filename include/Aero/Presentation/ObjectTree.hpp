@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
@@ -24,7 +26,6 @@ namespace Aero::Presentation {
 using namespace Aero::Core;
 
 class ObjectTree;
-class RoutedEventManager;
 class Visual;
 class UIElement;
 class FrameworkElement;
@@ -251,7 +252,7 @@ public:
 
 private:
     friend class ObjectTree;
-    friend class RoutedEventManager;
+    friend class Aero::Detail::PresentationRuntimeAccess;
     friend struct Detail::VisualLease;
 
     Base::Result<Base::Ref<Detail::VisualLifetime>>

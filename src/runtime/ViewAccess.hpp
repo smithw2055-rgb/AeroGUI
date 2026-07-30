@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Presentation/Binding.hpp>
 #include <Aero/Presentation/Animation.hpp>
@@ -10,11 +12,9 @@
 #include <memory>
 
 namespace Aero::Controls {
-class TemplateManager;
 }
 
 namespace Aero::Presentation {
-class AnimationManager;
 }
 
 namespace Aero::Detail {

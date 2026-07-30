@@ -348,6 +348,13 @@ ContextMenuService::SetContextMenu(
         std::move(value));
 }
 
+} // namespace Aero::Controls
+
+namespace Aero::Detail {
+
+using namespace Aero::Core;
+using namespace Aero::Controls;
+
 MenuInteractionManager::
 MenuInteractionManager(
     ObjectTree& tree,
@@ -620,4 +627,4 @@ void MenuInteractionManager::OnKeyDown(
     args.handled = true;
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Detail

@@ -1,11 +1,12 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Presentation/Input.hpp>
 
 namespace Aero::Presentation {
-class RoutedEventManager;
 }
 
 namespace Aero::Controls {
@@ -92,7 +93,6 @@ public:
         double direction) noexcept = 0;
 };
 
-class ScrollInteractionManager;
 
 struct ScrollChangedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
@@ -323,7 +323,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    friend class ScrollInteractionManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
     RoutedEventManager* events_ = nullptr;
     ScrollInteractionManager* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;

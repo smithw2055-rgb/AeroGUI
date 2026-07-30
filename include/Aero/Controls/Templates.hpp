@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Detail/RuntimeManagersFwd.hpp>
+
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
@@ -16,8 +18,6 @@
 #include <type_traits>
 
 namespace Aero::Presentation {
-class AnimationManager;
-class LayoutManager;
 class RenderManager;
 }
 
@@ -33,7 +33,6 @@ using namespace Aero::Presentation;
 class ContentPresenter;
 class ItemsPanelTemplate;
 class ItemsPresenter;
-class TemplateManager;
 
 struct TemplateHandle final {
     std::uint64_t value = 0U;
@@ -99,7 +98,7 @@ public:
     }
 
 private:
-    friend class TemplateManager;
+    friend class Aero::Detail::ControlRuntimeAccess;
 
     TemplateBuildContext(
         ObjectTree& tree,
