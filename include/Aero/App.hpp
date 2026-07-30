@@ -1,5 +1,5 @@
 #pragma once
 
-#include <Aero/App/Application.hpp>
-#include <Aero/App/ApplicationHost.hpp>
-#include <Aero/App/Window.hpp>
+#include <Aero/Application.hpp>
+#include <Aero/App/Launcher.hpp>
+#include <Aero/Window.hpp>
