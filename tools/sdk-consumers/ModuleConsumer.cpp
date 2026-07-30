@@ -1,4 +1,5 @@
 #include <Aero/ModuleSdk.hpp>
+#include <Aero/Controls/Primitives.hpp>
 
 #include <type_traits>
 
@@ -46,5 +47,11 @@ static_assert(
         decltype(ConsumerModule.registerModule),
         Aero::ModuleRegisterCallback>::value,
     "Module SDK must expose the typed registration callback");
+
+static_assert(
+    std::is_same<
+        Aero::Controls::Primitives::ButtonBase,
+        Aero::Controls::ButtonBase>::value,
+    "Controls.Primitives projection must preserve runtime type identity");
 
 } // namespace
