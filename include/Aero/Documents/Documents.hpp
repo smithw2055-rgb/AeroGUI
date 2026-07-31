@@ -69,6 +69,8 @@ public:
     Base::Result<TextPointer> GetPositionAtOffset(
         std::int32_t delta,
         LogicalDirection direction = LogicalDirection::Forward) const noexcept;
+    Base::Result<TextPointer> GetNextInsertionPosition(
+        LogicalDirection direction) const noexcept;
 
     friend bool operator==(const TextPointer& left,
                            const TextPointer& right) noexcept {
@@ -120,6 +122,41 @@ private:
     TextPointer end_;
 };
 
+class AERO_API TextSelection final {
+public:
+    TextSelection() noexcept = default;
+    static Base::Result<TextSelection> TryCreate(
+        TextPointer anchor, TextPointer caret) noexcept;
+
+    bool IsValid() const noexcept {
+        return anchor_.IsValid() && caret_.IsValid();
+    }
+    bool IsEmpty() const noexcept {
+        return IsValid() && anchor_.Offset() == caret_.Offset();
+    }
+    const TextPointer& AnchorPosition() const noexcept {
+        return anchor_;
+    }
+    const TextPointer& CaretPosition() const noexcept {
+        return caret_;
+    }
+    TextPointer Start() const noexcept {
+        return anchor_.Offset() <= caret_.Offset() ? anchor_ : caret_;
+    }
+    TextPointer End() const noexcept {
+        return anchor_.Offset() <= caret_.Offset() ? caret_ : anchor_;
+    }
+    Base::Result<TextRange> Range() const noexcept;
+    Base::Result<void> CopyText(Base::String& output) const noexcept;
+
+private:
+    friend class Aero::Controls::TextBlock;
+    TextSelection(TextPointer anchor, TextPointer caret) noexcept
+        : anchor_(anchor), caret_(caret) {}
+    TextPointer anchor_;
+    TextPointer caret_;
+};
+
 Base::Result<void> CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept;
@@ -129,6 +166,11 @@ Base::Result<TextPointer> GetPositionFromPoint(
     bool snapToText = true) noexcept;
 Base::Result<Presentation::Rect> GetCharacterRect(
     const TextPointer& position) noexcept;
+Base::Result<Presentation::Rect> GetCaretRect(
+    const TextPointer& position) noexcept;
+Base::Result<void> GetTextRangeRectangles(
+    const TextRange& range,
+    Base::Vector<Presentation::Rect>& output) noexcept;
 
 // WPF-shaped document content surface. The implementation deliberately reuses
 // TextBlock as the retained visual/text-layout carrier; public document semantics
