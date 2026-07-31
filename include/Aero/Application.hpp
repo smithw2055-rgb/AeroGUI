@@ -16,14 +16,8 @@ class Window;
 namespace Aero::App {
 class ApplicationHost;
 namespace Detail {
-
-class IApplicationPeer {
-public:
-    virtual ~IApplicationPeer() = default;
-    virtual void RequestExit(int exitCode) noexcept = 0;
-};
-
-} // namespace Detail
+class IApplicationPeer;
+}
 } // namespace Aero::App
 
 namespace Aero {
