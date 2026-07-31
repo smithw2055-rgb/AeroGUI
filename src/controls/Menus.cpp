@@ -247,7 +247,8 @@ Base::Result<void> MenuItem::SetRoleState(
 Menu::~Menu() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            interactions_->Detach(*this));
+            static_cast<MenuInteractionManager*>(
+                interactions_)->Detach(*this));
     }
 }
 
@@ -532,31 +533,10 @@ MenuInteractionManager::Invoke(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(),
             std::move(parameter));
-        if (command->RuntimeType() ==
-            RoutedCommand::StaticTypeId()) {
-            Base::Result<bool> executed =
-                commands_->Execute(
-                    static_cast<RoutedCommand&>(
-                        *command),
-                    value, item);
-            if (!executed) {
-                return executed.GetStatus();
-            }
-        } else {
-            Base::Result<bool> allowed =
-                command->CanExecute(
-                    *commands_, value, item);
-            if (!allowed) {
-                return allowed.GetStatus();
-            }
-            if (allowed.Value()) {
-                Base::Result<void> executed =
-                    command->Execute(
-                        *commands_, value, item);
-                if (!executed) {
-                    return executed.GetStatus();
-                }
-            }
+        Base::Result<bool> executed =
+            commands_->Execute(*command, value, item);
+        if (!executed) {
+            return executed.GetStatus();
         }
     }
     if (menu.PropertyRegistry().Types().

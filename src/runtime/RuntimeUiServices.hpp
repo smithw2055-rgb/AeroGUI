@@ -28,6 +28,7 @@ public:
         Core::MetadataDomain& metadata,
         Core::EffectiveValueEngine& values,
         Aero::Detail::BindingManager& bindings,
+        Aero::Detail::CommandManager& commands,
         Aero::Detail::StyleManager& styles,
         Controls::TemplateManager& templates,
         Controls::VisualStateManager& visualStates,
@@ -49,6 +50,7 @@ private:
     Core::MetadataDomain* metadata_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;
     Aero::Detail::BindingManager* bindings_ = nullptr;
+    Aero::Detail::CommandManager* commands_ = nullptr;
     Aero::Detail::StyleManager* styles_ = nullptr;
     Controls::TemplateManager* templates_ = nullptr;
     Controls::VisualStateManager* visualStates_ = nullptr;

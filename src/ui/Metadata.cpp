@@ -1,4 +1,5 @@
-#include <Aero/Detail/UiMetadata.hpp>
+#include "UiMetadata.hpp"
+#include "ThemeCompatibilityTypes.hpp"
 
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Metadata/Describe.hpp>

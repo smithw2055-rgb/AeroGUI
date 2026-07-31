@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../DisplayList.hpp"
+
 #include "../Renderer.hpp"
 
 #include "rhi/D3D11Backend.hpp"

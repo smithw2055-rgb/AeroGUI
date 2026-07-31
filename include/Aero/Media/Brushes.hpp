@@ -14,9 +14,7 @@ class ImageBrushAccess;
 namespace Aero::Media {
 
 using namespace Aero::Core;
-using Color = Render::Color;
-using Render::DisplayListBuilder;
-using Render::RenderImageId;
+using Color = Base::Color;
 class GradientBrush;
 
 enum class TileMode : std::uint8_t {
@@ -341,8 +339,7 @@ public:
 
 private:
     friend class Aero::Detail::ImageBrushAccess;
-    Render::RenderImageId renderImage_ =
-        Render::InvalidRenderImageId;
+    std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;
 };
@@ -405,12 +402,6 @@ AERO_API Color SampleBrush(
 
 AERO_API Base::Result<Base::Ref<Brush>>
 MakeSolidColorBrush(Color color) noexcept;
-
-AERO_API Base::Result<void> PaintBrushRect(
-    Render::DisplayListBuilder& builder,
-    const Base::Ref<Brush>& brush,
-    Rect bounds,
-    double cornerRadius = 0.0) noexcept;
 
 } // namespace Aero::Media
 

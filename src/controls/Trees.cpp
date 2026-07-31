@@ -256,7 +256,8 @@ void TreeViewItem::OnSelectedChanged(
 TreeView::~TreeView() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            interactions_->Detach(*this));
+            static_cast<TreeViewInteractionManager*>(
+                interactions_)->Detach(*this));
     }
 }
 

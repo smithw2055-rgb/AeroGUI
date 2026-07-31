@@ -3,33 +3,33 @@
 ## Metadata ownership
 
 Built-in metadata is registered in dependency order: Core UI semantics,
-App, Controls and Markup. Each product owns its own runtime types.
-`Application` is registered only by the `Aero.App` metadata module; Window
-remains in Controls because it is a WPF ContentControl.
+Controls, App and Markup. Each product owns its own runtime types.
+`Application` and `Window` metadata are registered by the App module; Controls
+does not duplicate those XAML identities.
 
-UI runtime and Controls retain one translation unit each so their private
-conversion and collection helpers are not duplicated. Their registration
-bodies are split into named semantic units, called in a fixed order by the
-module population function. Reordering units is a schema change.
+UI and Controls retain one metadata translation unit each so conversion and
+collection helpers are not duplicated. Registration bodies may be split into
+private semantic units, but their order is part of the schema contract.
 
 ## Product targets
 
-The installed public targets are:
+The supported installed targets are:
 
-- `Aero::Gui`: retained WPF/XAML UI, controls, and markup.
+- `Aero::Gui`: retained WPF/XAML UI, controls and markup.
 - `Aero::App`: default Application/Window lifetime above Gui and Integration.
-- `Aero::Integration`: runtime and native/backend integration facade.
-- `Aero::ModuleSdk`: Gui plus typed metadata/module authoring.
+- `Aero::Integration`: View, endpoint and native/backend integration.
+- `Aero::Meta`: Gui plus typed metadata/module authoring.
 
-Lower-level targets remain available for specialized embedders, but public
-umbrella headers map directly to these product targets.
+There is no second public runtime framework. Internal composition targets may
+be exported only as transitive implementation dependencies for static linking.
+They are not documented or consumed directly by application code.
 
 ## Invariants
 
-- One TypeId is registered by exactly one built-in metadata module.
-- Application metadata does not reside in UI runtime or Controls.
-- Runtime can consume App metadata through the internal AppModel target
-  without linking the native App host back into Runtime.
-- Build-tree and installed-package consumers see the same target names.
-- Product target dependencies point from App/Integration/ModuleSdk toward
-  Gui and lower layers, never from Gui toward application lifetime.
+- One XAML type identity is registered by exactly one built-in metadata module.
+- Application and Window metadata do not reside in Controls.
+- Integration may consume App metadata through the private AppModel target
+  without linking the native App lifetime back into Gui.
+- Build-tree and installed-package consumers see the same product target names.
+- Dependencies point from App/Integration/Meta toward Gui and lower layers,
+  never from Gui toward application lifetime or native backends.

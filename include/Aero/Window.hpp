@@ -1,38 +1,14 @@
 #pragma once
 
 #include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Platform/Window.hpp>
 
 namespace Aero {
-class View;
-}
+namespace App { class Launcher; }
+namespace Integration { class WindowInterop; }
 
-namespace Aero::App {
-class ApplicationHost;
-namespace Detail {
-
-class IWindowPeer {
-public:
-    virtual ~IWindowPeer() = default;
-    virtual Base::Result<void> Show() noexcept = 0;
-    virtual void Close() noexcept = 0;
-    virtual bool IsOpen() const noexcept = 0;
-    virtual Platform::IWindow* NativeWindow() noexcept = 0;
-    virtual View* HostedView() noexcept = 0;
-};
-
-} // namespace Detail
-} // namespace Aero::App
-
-namespace Aero::Integration {
-class WindowInterop;
-}
-
-namespace Aero {
-
-// WPF-aligned XAML content root for a native top-level window. Window keeps the
-// ContentControl authoring model while delegating native lifetime and rendering
-// integration to an internal App peer.
+// WPF-aligned XAML content root for a native top-level window. Native lifetime
+// and rendering are supplied by an App or Integration host and are not part of
+// the Window public object model.
 class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
@@ -48,8 +24,7 @@ public:
         return SetValue(TitleProperty, value);
     }
     Base::StringView FontFamily() const noexcept {
-        return Aero::FrameworkElement::
-            FontFamily();
+        return Aero::FrameworkElement::FontFamily();
     }
     Base::Result<void> SetFontFamily(
         Base::StringView value) noexcept {
@@ -63,26 +38,22 @@ public:
     inline static constexpr Members::Property<Base::String>
         TitleProperty{"Title"};
     inline static constexpr auto FontFamilyProperty =
-        Aero::FrameworkElement::
-            FontFamilyProperty;
+        Aero::FrameworkElement::FontFamilyProperty;
 
 protected:
     explicit Window(Core::TypeId runtimeType) noexcept
         : ContentControl(runtimeType) {}
 
 private:
-    friend class App::ApplicationHost;
+    friend class App::Launcher;
     friend class Integration::WindowInterop;
 
-    Platform::IWindow* NativeWindow() noexcept;
-    View* HostedView() noexcept;
-
-    void Attach(App::Detail::IWindowPeer* peer) noexcept {
-        peer_ = peer;
+    void Attach(void* runtimeState) noexcept {
+        runtimeState_ = runtimeState;
     }
-    void Detach() noexcept { peer_ = nullptr; }
+    void Detach() noexcept { runtimeState_ = nullptr; }
 
-    App::Detail::IWindowPeer* peer_ = nullptr;
+    void* runtimeState_ = nullptr;
 };
 
 } // namespace Aero

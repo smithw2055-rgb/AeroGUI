@@ -1,4 +1,7 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/Controls.hpp>
+#include "../media/BrushRendering.hpp"
+#include "../render/DrawingContextAccess.hpp"
 #include <Aero/Documents/Documents.hpp>
 
 #include "TextLayoutService.hpp"
@@ -41,8 +44,9 @@ EffectiveGridSpan CoerceGridSpan(
 
 } // namespace
 
-Base::Result<void> Panel::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Panel::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     return PaintBrushRect(
         builder,
         BackgroundBrush(),
@@ -52,8 +56,9 @@ Base::Result<void> Panel::BuildDisplayList(
             RenderSize().height});
 }
 
-Base::Result<void> Control::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Control::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     return PaintBrushRect(
         builder,
         BackgroundBrush(),
@@ -1439,8 +1444,9 @@ Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-Base::Result<void> Border::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Border::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Rect bounds{0.0, 0.0, RenderSize().width, RenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
@@ -2171,8 +2177,9 @@ Base::Result<Size> TextBlock::ArrangeOverride(
     return finalSize;
 }
 
-Base::Result<void> TextBlock::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> TextBlock::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Color background = Background();
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =

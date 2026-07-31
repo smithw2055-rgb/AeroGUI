@@ -1,7 +1,7 @@
 #include "ResourceSupport.hpp"
 #include "SchemaInternal.hpp"
 
-#include <Aero/App/Application.hpp>
+#include <Aero/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Rendering.hpp>
@@ -54,13 +54,10 @@ Base::Result<void> AddApplicationResource(
     const ResourceKey& key,
     const Core::Value& value,
     void*) noexcept {
-    if (scopeOwner.RuntimeType() !=
-        App::Application::StaticTypeId()) {
-        return InvalidResource(
-            "XAML resource scope is not an Application");
-    }
+    // This callback is selected through the inherited Application XAML facet,
+    // so derived application types are valid scope owners.
     Base::Ref<ResourceDictionary> resources =
-        static_cast<App::Application&>(scopeOwner).Resources();
+        static_cast<Aero::Application&>(scopeOwner).Resources();
     return resources
         ? resources->TryAdd(key, value)
         : Base::Result<void>(InvalidResource(
@@ -92,12 +89,8 @@ ResourceDictionary* ResolveFrameworkScope(
 ResourceDictionary* ResolveApplicationScope(
     Base::Object& scopeOwner,
     void*) noexcept {
-    if (scopeOwner.RuntimeType() !=
-        App::Application::StaticTypeId()) {
-        return nullptr;
-    }
     Base::Ref<ResourceDictionary> resources =
-        static_cast<App::Application&>(scopeOwner).Resources();
+        static_cast<Aero::Application&>(scopeOwner).Resources();
     return resources.Get();
 }
 
@@ -158,7 +151,7 @@ Base::Result<void> ResourceExtension::Register(
         return status.GetStatus();
     }
     status = Detail::SchemaAccess::AddResourceScope(schema, {
-        App::Application::StaticTypeId(),
+        Aero::Application::StaticTypeId(),
         true,
         &AddApplicationResource,
         &ResolveApplicationScope,

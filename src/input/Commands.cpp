@@ -166,18 +166,30 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 }
 
 Base::Result<bool> RoutedCommand::CanExecute(
-    Aero::Detail::CommandManager& manager,
     const Core::Value& parameter,
-    UIElement& target) noexcept {
-    return manager.CanExecute(*this, parameter, target);
+    UIElement* target) noexcept {
+    if (target == nullptr || target->commandRouter_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "RoutedCommand requires a loaded command target");
+    }
+    auto* manager = static_cast<Aero::Detail::CommandManager*>(
+        target->commandRouter_);
+    return manager->CanExecute(*this, parameter, *target);
 }
 
 Base::Result<void> RoutedCommand::Execute(
-    Aero::Detail::CommandManager& manager,
     const Core::Value& parameter,
-    UIElement& target) noexcept {
+    UIElement* target) noexcept {
+    if (target == nullptr || target->commandRouter_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "RoutedCommand requires a loaded command target");
+    }
+    auto* manager = static_cast<Aero::Detail::CommandManager*>(
+        target->commandRouter_);
     Base::Result<bool> executed =
-        manager.Execute(*this, parameter, target);
+        manager->Execute(*this, parameter, *target);
     if (!executed) return executed.GetStatus();
     return {};
 }
@@ -343,6 +355,36 @@ Base::Result<void> CommandManager::SnapshotRoute(
             : current->VisualParent();
     }
     return {};
+}
+
+Base::Result<bool> CommandManager::CanExecute(
+    ICommand& command,
+    const Core::Value& parameter,
+    UIElement& target) noexcept {
+    if (command.RuntimeType() == RoutedCommand::StaticTypeId()) {
+        return CanExecute(
+            static_cast<RoutedCommand&>(command), parameter, target);
+    }
+    return command.CanExecute(parameter, &target);
+}
+
+Base::Result<bool> CommandManager::Execute(
+    ICommand& command,
+    const Core::Value& parameter,
+    UIElement& target) noexcept {
+    if (command.RuntimeType() == RoutedCommand::StaticTypeId()) {
+        return Execute(
+            static_cast<RoutedCommand&>(command), parameter, target);
+    }
+    Base::Result<bool> allowed = command.CanExecute(parameter, &target);
+    if (!allowed || !allowed.Value()) {
+        return allowed ? Base::Result<bool>(false)
+                       : Base::Result<bool>(allowed.GetStatus());
+    }
+    Base::Result<void> executed = command.Execute(parameter, &target);
+    return executed
+        ? Base::Result<bool>(true)
+        : Base::Result<bool>(executed.GetStatus());
 }
 
 Base::Result<bool> CommandManager::CanExecute(

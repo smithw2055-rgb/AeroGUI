@@ -8,7 +8,8 @@ public type system and do not alter WPF/XAML type identity.
 
 ## Canonical storage
 
-The runtime stores one narrow collection per capability:
+The runtime stores one compact record for each metadata `TypeId`. A record has
+optional, narrowly typed slots for:
 
 - lifecycle;
 - name scope;
@@ -18,20 +19,25 @@ The runtime stores one narrow collection per capability:
 - dependency-property target resolution;
 - markup-extension value provider.
 
-`XamlTypeFacet` is only a compatibility registration DTO. Registration projects
-it atomically into the applicable narrow records. The aggregate DTO is never
-retained, indexed, queried, or frozen as runtime state.
+A type without a capability leaves that slot empty. The store therefore has one
+vector and, after freeze, one `TypeId -> index` table rather than a separate
+container and index for every capability.
+
+`XamlTypeFacet` is only a compatibility registration DTO. Registration copies
+its populated capabilities into the corresponding slots of the per-type
+record. The aggregate DTO is never retained, queried, or frozen as a second
+runtime representation.
 
 ## Atomic registration
 
-Projecting a compatibility DTO is a transaction. Each narrow collection is
-checkpointed before registration. If any capability is invalid, duplicated, or
-cannot be allocated, every record added by that projection is rolled back.
+Aggregate registration validates the complete request before it changes the
+store. Invalid capabilities and overlaps with existing slots fail without
+modifying an existing record. Allocation of a new per-type record happens once;
+only after that allocation succeeds are its validated slots populated.
 
-Single-capability registration should use the narrow `SchemaAccess` operation.
-Multi-capability registration may continue using the compatibility DTO until a
-typed registration-session DSL replaces it; this does not recreate aggregate
-runtime storage.
+Single-capability registration uses the same per-type record and rejects an
+already populated slot. There is no aggregate/narrow duplication and no
+multi-container rollback protocol.
 
 ## Inheritance policies
 
@@ -43,8 +49,8 @@ Each facet declares one lookup policy:
   to the concrete type.
 
 Markup-extension providers are `ExactOnly`. Name, resource, deferred-content,
-implicit-key, and property-target facets currently use `NearestBase`.
-Lifecycle facets use `ComposeBaseToDerived`.
+implicit-key, and property-target facets use `NearestBase`. Lifecycle facets use
+`ComposeBaseToDerived`.
 
 ## Lifecycle order
 
@@ -56,23 +62,24 @@ For a concrete type with lifecycle facets on multiple semantic base types:
 
 The reverse close/abort order preserves nested initialization ownership. A
 callback failure stops the current phase and is returned to ObjectWriter, whose
-existing transaction cleanup invokes abort processing.
+transaction cleanup invokes abort processing.
 
 ## Freeze and lookup
 
-Schema freeze builds a `TypeId -> index` table for every narrow collection.
-Before freeze, exact lookup is linear so registration remains simple. After
-freeze, exact lookup uses the index; inherited lookup walks the semantic Meta
-base chain and performs indexed exact lookup at each step.
+Before freeze, exact lookup is linear so registration remains simple. Schema
+freeze builds one index for all per-type records. Exact lookup then uses that
+index; inherited lookup walks the semantic Meta base chain and inspects the
+requested optional slot at each type.
 
 ## Invariants
 
-- A capability has one canonical runtime record.
+- A metadata type has one canonical Facet record.
+- A capability has at most one slot on that record.
 - Aggregate and narrow copies of the same capability never coexist.
-- C++ inheritance does not control facet lookup; the Meta semantic base graph
+- C++ inheritance does not control Facet lookup; the Meta semantic base graph
   does.
-- Registration failure leaves the store unchanged.
+- Registration failure leaves existing records unchanged.
 - Markup extensions never inherit a provider accidentally.
 - Lifecycle composition order is deterministic.
-- Facet stores are private runtime implementation and are not exposed through
+- Facet storage is private runtime implementation and is not exposed through
   the normal control-authoring SDK.

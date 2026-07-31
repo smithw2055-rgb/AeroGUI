@@ -215,7 +215,7 @@ Base::Result<void> HyperlinkInteractionManager::RefreshCanExecute(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
-            command->CanExecute(*commands_, value, *target);
+            commands_->CanExecute(*command, value, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
@@ -246,20 +246,9 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
         Base::Ref<Base::Object> parameter = link.CommandParameter();
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
-        if (command->RuntimeType() == RoutedCommand::StaticTypeId()) {
-            Base::Result<bool> executed = commands_->Execute(
-                static_cast<RoutedCommand&>(*command), value, *target);
-            if (!executed) return executed.GetStatus();
-        } else {
-            Base::Result<bool> allowed =
-                command->CanExecute(*commands_, value, *target);
-            if (!allowed) return allowed.GetStatus();
-            if (allowed.Value()) {
-                Base::Result<void> executed =
-                    command->Execute(*commands_, value, *target);
-                if (!executed) return executed.GetStatus();
-            }
-        }
+        Base::Result<bool> executed =
+            commands_->Execute(*command, value, *target);
+        if (!executed) return executed.GetStatus();
     }
 
     const Base::StringView uri = link.NavigateUri();

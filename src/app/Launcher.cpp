@@ -1,13 +1,16 @@
-#include <Aero/App/ApplicationHost.hpp>
+#include <Aero/App/Launcher.hpp>
 
-#include <Aero/App/Application.hpp>
-#include <Aero/App/Window.hpp>
+#include <Aero/Application.hpp>
+#include <Aero/Window.hpp>
+#include "ApplicationRuntime.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Integration/OpenGL33.hpp>
 #include <Aero/Integration/ViewHost.hpp>
 #include <Aero/RuntimeEnvironment.hpp>
+#include "../ui/RuntimeManagers.hpp"
+#include "../runtime/ViewAccess.hpp"
 
 #if defined(_WIN32)
 #include <Aero/Integration/D3D11.hpp>
@@ -65,13 +68,15 @@ std::uint32_t WindowExtent(
 
 } // namespace
 
-struct ApplicationHost::Impl final
-    : Detail::IApplicationPeer,
-      Detail::IWindowPeer {
+struct Launcher::Impl final {
     Impl(
-        const ApplicationHostOptions& source,
+        const LaunchOptions& source,
         Base::IAllocator* selectedAllocator) noexcept
-        : allocator(selectedAllocator != nullptr
+        : applicationRuntime{this, &Impl::RequestExitThunk},
+          windowRuntime{this, &Impl::ShowThunk, &Impl::CloseThunk,
+              &Impl::IsOpenThunk, &Impl::NativeHandleThunk,
+              &Impl::HostedViewThunk},
+          allocator(selectedAllocator != nullptr
               ? selectedAllocator
               : &Base::GetDefaultAllocator()),
           environment(allocator),
@@ -165,8 +170,9 @@ struct ApplicationHost::Impl final
         const Base::Ref<Base::Object>& root =
             loaded.Value().Root();
         if (!root ||
-            root->RuntimeType() !=
-                Application::StaticTypeId()) {
+            !Aero::Detail::ViewAccess::IsInstanceOf(
+                *view, *root,
+                Application::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");
@@ -210,8 +216,9 @@ struct ApplicationHost::Impl final
         const Base::Ref<Base::Object>& root =
             loaded.Value().Root();
         if (!root ||
-            root->RuntimeType() !=
-                Window::StaticTypeId()) {
+            !Aero::Detail::ViewAccess::IsInstanceOf(
+                *view, *root,
+                Window::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "StartupUri XAML root must be Window");
@@ -247,8 +254,9 @@ struct ApplicationHost::Impl final
                  static_cast<double>(height)});
         if (!mounted) return mounted.GetStatus();
 
-        window->Attach(this);
-        application->Attach(this, window);
+        Launcher::AttachRuntime(
+            *application, *window,
+            &applicationRuntime, &windowRuntime);
         if (startup != nullptr) {
             Base::Result<void> initialized =
                 startup(
@@ -360,7 +368,7 @@ struct ApplicationHost::Impl final
         switch (event.type) {
         case Platform::WindowEventType::CloseRequested:
         case Platform::WindowEventType::Closed:
-            RequestExit(0);
+            Close();
             return {};
         case Platform::WindowEventType::Resized:
         case Platform::WindowEventType::ScaleChanged:
@@ -492,28 +500,36 @@ struct ApplicationHost::Impl final
             if (!status) return status.GetStatus();
         }
 
-        while (!exitRequested &&
-               nativeWindow->IsOpen()) {
-            for (;;) {
-                Platform::WindowEvent event;
-                Base::Result<bool> received =
-                    nativeWindow->PollEvent(event);
-                if (!received) {
-                    return received.GetStatus();
+        while (!exitRequested) {
+            const bool windowOpen =
+                nativeWindow != nullptr && nativeWindow->IsOpen();
+            if (windowOpen) {
+                for (;;) {
+                    Platform::WindowEvent event;
+                    Base::Result<bool> received =
+                        nativeWindow->PollEvent(event);
+                    if (!received) {
+                        return received.GetStatus();
+                    }
+                    if (!received.Value()) break;
+                    status = HandleEvent(event);
+                    if (!status) return status.GetStatus();
+                    if (exitRequested) break;
                 }
-                if (!received.Value()) break;
-                status = HandleEvent(event);
-                if (!status) return status.GetStatus();
                 if (exitRequested) break;
+                status = ApplyPendingResize();
+                if (!status) return status.GetStatus();
+                Base::Result<ViewFrameResult> renderedFrame =
+                    view->RunFrame();
+                if (!renderedFrame) {
+                    return renderedFrame.GetStatus();
+                }
+            } else if (application->GetShutdownMode() !=
+                       ShutdownMode::OnExplicitShutdown) {
+                RequestExit(0);
+                break;
             }
-            if (exitRequested) break;
-            status = ApplyPendingResize();
-            if (!status) return status.GetStatus();
-            Base::Result<ViewFrameResult> renderedFrame =
-                view->RunFrame();
-            if (!renderedFrame) {
-                return renderedFrame.GetStatus();
-            }
+
             ++frameIndex;
             if (this->frame != nullptr) {
                 status = this->frame(
@@ -542,23 +558,18 @@ struct ApplicationHost::Impl final
     }
 
     void DetachObjects() noexcept {
-        if (application != nullptr) {
-            application->Detach();
-        }
-        if (window != nullptr) {
-            window->Detach();
-        }
+        Launcher::DetachRuntime(application, window);
         application = nullptr;
         window = nullptr;
     }
 
-    void RequestExit(int requestedExitCode) noexcept override {
+    void RequestExit(int requestedExitCode) noexcept {
         exitCode = requestedExitCode;
         exitRequested = true;
         if (nativeWindow) nativeWindow->Close();
     }
 
-    Base::Result<void> Show() noexcept override {
+    Base::Result<void> Show() noexcept {
         return nativeWindow
             ? nativeWindow->Show()
             : Base::Result<void>(
@@ -567,24 +578,56 @@ struct ApplicationHost::Impl final
                       "Application native window is unavailable"));
     }
 
-    void Close() noexcept override {
-        RequestExit(0);
+    void Close() noexcept {
+        if (nativeWindow != nullptr && nativeWindow->IsOpen()) {
+            nativeWindow->Close();
+        }
+        if (application == nullptr ||
+            application->GetShutdownMode() !=
+                ShutdownMode::OnExplicitShutdown) {
+            RequestExit(0);
+        }
     }
 
-    bool IsOpen() const noexcept override {
+    bool IsOpen() const noexcept {
         return nativeWindow &&
             nativeWindow->IsOpen() &&
             !exitRequested;
     }
 
-    Platform::IWindow* NativeWindow() noexcept override {
-        return nativeWindow.get();
+    Platform::NativeWindowHandle NativeHandle() const noexcept {
+        return nativeWindow
+            ? nativeWindow->NativeHandle()
+            : Platform::NativeWindowHandle{};
     }
 
-    View* HostedView() noexcept override {
+    View* HostedView() noexcept {
         return view.Get();
     }
 
+    static void RequestExitThunk(
+        void* context, int exitCode) noexcept {
+        static_cast<Impl*>(context)->RequestExit(exitCode);
+    }
+    static Base::Result<void> ShowThunk(void* context) noexcept {
+        return static_cast<Impl*>(context)->Show();
+    }
+    static void CloseThunk(void* context) noexcept {
+        static_cast<Impl*>(context)->Close();
+    }
+    static bool IsOpenThunk(const void* context) noexcept {
+        return static_cast<const Impl*>(context)->IsOpen();
+    }
+    static Platform::NativeWindowHandle NativeHandleThunk(
+        const void* context) noexcept {
+        return static_cast<const Impl*>(context)->NativeHandle();
+    }
+    static View* HostedViewThunk(void* context) noexcept {
+        return static_cast<Impl*>(context)->HostedView();
+    }
+
+    Detail::ApplicationRuntimeState applicationRuntime;
+    Detail::WindowRuntimeState windowRuntime;
     Base::IAllocator* allocator = nullptr;
     RuntimeEnvironment environment;
     Base::String applicationFile;
@@ -602,9 +645,9 @@ struct ApplicationHost::Impl final
     BuiltInTheme builtInTheme =
         BuiltInTheme::Light;
     Core::IDiagnosticSink* diagnostics = nullptr;
-    ApplicationStartupCallback startup = nullptr;
+    StartupCallback startup = nullptr;
     void* startupContext = nullptr;
-    ApplicationFrameCallback frame = nullptr;
+    FrameCallback frame = nullptr;
     void* frameContext = nullptr;
     bool exitRequested = false;
     bool hasPendingResize = false;
@@ -621,18 +664,18 @@ struct ApplicationHost::Impl final
     Base::Ref<Integration::RenderEndpoint> endpoint;
 };
 
-ApplicationHost::ApplicationHost(
-    const ApplicationHostOptions& options,
+Launcher::Launcher(
+    const LaunchOptions& options,
     Base::IAllocator* allocator) noexcept
     : impl_(new (std::nothrow) Impl(
           options, allocator)) {}
 
-ApplicationHost::~ApplicationHost() noexcept {
+Launcher::~Launcher() noexcept {
     delete impl_;
     impl_ = nullptr;
 }
 
-Base::Result<int> ApplicationHost::Run() noexcept {
+Base::Result<int> Launcher::Run() noexcept {
     if (impl_ == nullptr) {
         return HostFailure(
             Base::ErrorCode::OutOfMemory,
@@ -641,7 +684,7 @@ Base::Result<int> ApplicationHost::Run() noexcept {
     return impl_->Run();
 }
 
-Base::Result<void> ApplicationHost::AddModule(
+Base::Result<void> Launcher::AddModule(
     const ModuleRegistration& registration) noexcept {
     if (impl_ == nullptr) {
         return HostFailure(
@@ -651,23 +694,39 @@ Base::Result<void> ApplicationHost::AddModule(
     return impl_->environment.AddModule(registration);
 }
 
-void ApplicationHost::RequestExit(int exitCode) noexcept {
+void Launcher::RequestExit(int exitCode) noexcept {
     if (impl_ != nullptr) {
         impl_->RequestExit(exitCode);
     }
 }
 
 Application*
-ApplicationHost::CurrentApplication() const noexcept {
+Launcher::CurrentApplication() const noexcept {
     return impl_ != nullptr
         ? impl_->application
         : nullptr;
 }
 
-Window* ApplicationHost::MainWindow() const noexcept {
+Window* Launcher::MainWindow() const noexcept {
     return impl_ != nullptr
         ? impl_->window
         : nullptr;
+}
+
+void Launcher::AttachRuntime(
+    Application& application,
+    Window& window,
+    void* applicationRuntime,
+    void* windowRuntime) noexcept {
+    window.Attach(windowRuntime);
+    application.Attach(applicationRuntime, &window);
+}
+
+void Launcher::DetachRuntime(
+    Application* application,
+    Window* window) noexcept {
+    if (application != nullptr) application->Detach();
+    if (window != nullptr) window->Detach();
 }
 
 } // namespace Aero::App

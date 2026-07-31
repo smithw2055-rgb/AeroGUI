@@ -29,17 +29,16 @@ extension:
 - `<Aero/Gui.hpp>` is the retained-mode WPF/XAML class library. It contains the
   dependency-object spine, routed events, layout values, styles, resources,
   controls, data binding, input, media and shapes.
-- `<Aero/App.hpp>` adds `Application`, `Window`, `App::Launcher` and optional App
-  services for a default desktop application lifetime.
+- `<Aero/App.hpp>` adds `Application`, `Window` and the opaque
+  `App::Launcher` default desktop lifetime.
 - `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
   for engines and existing application frameworks.
-- `<Aero/ModuleSdk.hpp>` layers `Meta` authoring and module registration over the
-  normal GUI class library for custom-control authors.
+- `<Aero/Meta.hpp>` and `<Aero/Module.hpp>` layer typed metadata and module
+  authoring over the normal GUI class library for custom-control authors.
 
-The current CMake targets still use the transitional Runtime, ModuleSdk and
-IntegrationSdk names. Renaming and packaging them as Gui, App and Integration
-must happen atomically with the install/export configuration so a public header
-never promises a link target that does not provide its implementation.
+The matching CMake targets are `Aero::Gui`, `Aero::App`, `Aero::Integration`
+and `Aero::Meta`. Compatibility product targets do not form a second supported
+SDK.
 
 ## Public namespaces
 
@@ -58,7 +57,7 @@ never promises a link target that does not provide its implementation.
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Aero metadata authoring | `Aero::Meta` | `Context`, `Describe`, `TypeId` |
 | Host and renderer integration | `Aero::Integration` | `RenderEndpoint`, `ViewHost`, native integration APIs |
-| Default application framework | `Aero::App` | `Launcher`, `LaunchOptions`, `Services` |
+| Default application framework | `Aero::App` | `Launcher`, `LaunchOptions` |
 | Private implementation | `Aero::Detail` or domain `Detail` | property, style, template, XAML and render runtimes |
 
 ## Root namespace rule
@@ -127,34 +126,28 @@ window creation, event pumping, endpoint selection and View orchestration.
 Embedded engines may consume the GUI and Integration surfaces without using
 Launcher.
 
-Optional platform services belong to `Aero::App::Services`, which is owned by
-Launcher. `Aero::Application` does not own audio, graphics, native-window or
-other platform device services. Constructing an Application must therefore
-remain valid in headless and embedded runtimes.
+`Aero::Application` owns application resources and startup/shutdown policy only.
+It does not own audio, graphics, native-window or other platform device
+services. Constructing an Application therefore remains valid in headless and
+embedded runtimes.
 
-During the first migration phase:
+`Aero::App::Launcher` is the only public default-host type. Its native window,
+event loop, View and endpoint composition are opaque implementation details.
+There are no `Aero::App::Application` / `Window` aliases, public
+low-level host facade, or App service locator. Optional subsystems such as audio are
+linked and created explicitly.
 
-- `Aero::Application` and `Aero::Window` are the real type definitions.
-- `Aero::App::Application` and `Aero::App::Window` are compatibility aliases.
-- `Aero::App::Launcher` is the canonical application entry point and composes
-  the existing low-level `ApplicationHost` implementation.
-- Launcher owns `Aero::App::Services`; audio is created lazily through that
-  service boundary rather than through Application.
-- Application and Window metadata are owned by the App module. Controls does not
-  include or register App types, so the dependency direction remains
-  `Core/UI -> Controls -> App` without duplicate schema registration.
-- New code and documentation use the canonical names.
-
-The compatibility names may be removed before the first stable ABI release.
+Application and Window metadata are owned by the App module. Controls does not
+include or register App types, preserving the dependency direction
+`Core/UI -> Controls -> App` without duplicate schema registration.
 
 ## Migration order
 
 1. Application and Window namespace boundary.
-2. Launcher composition and App services.
-3. Establish the Gui, App, Integration and Module authoring product headers.
-4. Split metadata bootstrap and move Application metadata ownership to App.
+2. Opaque Launcher composition without public host peers or service locators.
+3. Gui, App, Integration and Meta product targets.
+4. App-owned Application/Window metadata.
 5. Controls primitives and WPF-aligned public control domains.
 6. Data, Media, Animation, Input, Documents and Shapes.
 7. Meta authoring API and private Facet projection.
-8. Align CMake install/export targets with the public product headers.
-9. Remove compatibility aliases before stable SDK release.
+8. Install/export verification against the product headers.

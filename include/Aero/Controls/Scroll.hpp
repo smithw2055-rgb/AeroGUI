@@ -322,8 +322,8 @@ protected:
 private:
     friend class ScrollContentPresenter;
     friend class Aero::Detail::ControlRuntimeAccess;
-    RoutedEventManager* events_ = nullptr;
-    ScrollInteractionManager* interactions_ = nullptr;
+    void* events_ = nullptr;
+    void* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;
     void AdoptPresenterData(
         ScrollContentPresenter& presenter,
@@ -656,8 +656,8 @@ public:
 protected:
     Base::Result<Size> ArrangeOverride(
         Size finalSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 
 private:
     double NormalizedValueForLayout() const noexcept;
@@ -684,8 +684,8 @@ public:
         PlacementProperty{"Placement"};
 
 protected:
-    Base::Result<void> BuildDisplayList(
-        Aero::Render::DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        Aero::DrawingContext& context) noexcept override;
 };
 
 class AERO_API ProgressBar final : public RangeBase {

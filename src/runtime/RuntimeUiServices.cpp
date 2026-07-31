@@ -6,6 +6,7 @@
 #include <Aero/Style.hpp>
 #include "../ui/RuntimeManagers.hpp"
 #include "../controls/RuntimeManagers.hpp"
+#include "UiRuntimeAccess.hpp"
 
 namespace Aero::Detail {
 namespace {
@@ -57,6 +58,7 @@ void RuntimeUiServices::Configure(
     Core::MetadataDomain& metadata,
     Core::EffectiveValueEngine& values,
     Aero::Detail::BindingManager& bindings,
+    Aero::Detail::CommandManager& commands,
     Aero::Detail::StyleManager& styles,
     Controls::TemplateManager& templates,
     Controls::VisualStateManager& visualStates,
@@ -65,6 +67,7 @@ void RuntimeUiServices::Configure(
     metadata_ = &metadata;
     values_ = &values;
     bindings_ = &bindings;
+    commands_ = &commands;
     styles_ = &styles;
     templates_ = &templates;
     visualStates_ = &visualStates;
@@ -76,6 +79,7 @@ void RuntimeUiServices::Reset() noexcept {
     metadata_ = nullptr;
     values_ = nullptr;
     bindings_ = nullptr;
+    commands_ = nullptr;
     styles_ = nullptr;
     templates_ = nullptr;
     visualStates_ = nullptr;
@@ -85,7 +89,7 @@ void RuntimeUiServices::Reset() noexcept {
 Base::Result<void> RuntimeUiServices::Apply(
     Aero::Visual& root) noexcept {
     if (!IsConfigured() || metadata_ == nullptr || values_ == nullptr ||
-        bindings_ == nullptr ||
+        bindings_ == nullptr || commands_ == nullptr ||
         styles_ == nullptr || templates_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -99,6 +103,10 @@ Base::Result<void> RuntimeUiServices::Apply(
         Aero::Visual* node = stack.Back();
         stack.PopBack();
         if (node == nullptr) continue;
+
+        if (Aero::UIElement* element = node->AsUIElement()) {
+            UiRuntimeAccess::SetCommandRouter(*element, commands_);
+        }
 
         auto* dependencyObject =
             static_cast<Core::DependencyObject*>(node);
@@ -139,7 +147,7 @@ Base::Result<void> RuntimeUiServices::Apply(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
             auto& control = *static_cast<Controls::Control*>(node);
-            control.AttachTemplateManager(*templates_);
+            control.AttachTemplateManager(templates_);
             Base::Result<const Controls::ControlTemplate*> resolved =
                 ResolveUiValue<Controls::ControlTemplate>(
                     control,
@@ -191,6 +199,9 @@ void RuntimeUiServices::Detach(
 
     for (Aero::Visual* node : reachable) {
         if (node == nullptr) continue;
+        if (Aero::UIElement* ui = node->AsUIElement()) {
+            UiRuntimeAccess::SetCommandRouter(*ui, nullptr);
+        }
         Aero::FrameworkElement* element = node->AsFrameworkElement();
         if (bindings_ != nullptr) {
             (void)bindings_->DetachObject(*node);

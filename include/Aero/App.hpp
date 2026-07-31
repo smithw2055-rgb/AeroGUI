@@ -1,7 +1,7 @@
 #pragma once
 
-// Default application framework layered over the normal WPF/XAML GUI class
-// library. Embedded engines may include Aero/Gui.hpp without taking App.
+// Optional default desktop application framework. The retained WPF/XAML class
+// library is available independently through <Aero/Gui.hpp>.
 #include <Aero/Gui.hpp>
 #include <Aero/Application.hpp>
 #include <Aero/App/Launcher.hpp>

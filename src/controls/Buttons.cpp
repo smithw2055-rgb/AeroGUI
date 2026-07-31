@@ -149,8 +149,8 @@ Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
         ContentControl::OnApplyTemplate();
     if (!applied) return applied.GetStatus();
     if (interactionManager_ != nullptr) {
-        return interactionManager_->
-            SyncVisualState(*this, false);
+        return static_cast<ControlInteractionManager*>(
+            interactionManager_)->SyncVisualState(*this, false);
     }
     return {};
 }
@@ -536,7 +536,7 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
-            command->CanExecute(*commands_, value, *target);
+            commands_->CanExecute(*command, value, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
@@ -633,17 +633,11 @@ Base::Result<void> ControlInteractionManager::InvokeClick(
         button.CommandParameter();
     const Value value = Value::FromObject(
         TypeOf<Base::Object>(), std::move(parameter));
-    if (command->RuntimeType() == RoutedCommand::StaticTypeId()) {
-        Base::Result<bool> executed = commands_->Execute(
-            static_cast<RoutedCommand&>(*command), value, *target);
-        if (!executed) return executed.GetStatus();
-        return {};
-    }
-    Base::Result<bool> allowed =
-        command->CanExecute(*commands_, value, *target);
-    if (!allowed) return allowed.GetStatus();
-    if (!allowed.Value()) return {};
-    return command->Execute(*commands_, value, *target);
+    Base::Result<bool> executed =
+        commands_->Execute(*command, value, *target);
+    return executed
+        ? Base::Result<void>()
+        : Base::Result<void>(executed.GetStatus());
 }
 
 Base::Result<void> ControlInteractionManager::ApplyToggleState(

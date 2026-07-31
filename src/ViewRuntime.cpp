@@ -1518,6 +1518,7 @@ struct ViewRuntime::Impl final {
             *metadata,
             *values,
             *bindings,
+            *commands,
             *styles,
             *templates,
             *visualStates,

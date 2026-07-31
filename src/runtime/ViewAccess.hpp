@@ -1,8 +1,10 @@
 #pragma once
 
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../data/BindingRuntime.hpp"
 
 #include <Aero/Controls/Selection.hpp>
+#include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Detail/AnimationRuntime.hpp>
 #include <Aero/RuntimeEnvironment.hpp>
@@ -62,6 +64,16 @@ public:
     static Controls::TemplateManager* Templates(
         View& view) noexcept {
         return Runtime(view).Templates();
+    }
+
+    static bool IsInstanceOf(
+        View& view,
+        const Base::Object& object,
+        Core::TypeId baseType) noexcept {
+        Core::MetadataDomain* metadata = Runtime(view).Metadata();
+        return metadata != nullptr &&
+            metadata->Types().IsDerivedFrom(
+                object.RuntimeType(), baseType);
     }
 
 private:

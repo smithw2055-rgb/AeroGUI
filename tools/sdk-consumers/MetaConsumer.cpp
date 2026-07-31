@@ -1,4 +1,6 @@
-#include <Aero/ModuleSdk.hpp>
+#include <Aero/Gui.hpp>
+#include <Aero/Meta.hpp>
+#include <Aero/Module.hpp>
 
 #include <type_traits>
 
@@ -20,6 +22,14 @@ public:
     inline static constexpr Members::RoutedEvent<
         Aero::RoutedEventArgs>
         ActivatedEvent{"Activated"};
+
+protected:
+    Aero::Base::Result<void> OnRender(
+        Aero::DrawingContext& context) noexcept override {
+        return context.DrawRectangle(
+            {0.0, 0.0, RenderSize().width, RenderSize().height},
+            {0.0F, 0.0F, 0.0F, 0.0F});
+    }
 };
 
 class ConsumerButton final : public Aero::Controls::Button {
@@ -112,7 +122,7 @@ static_assert(
 static_assert(
     std::is_same<
         Aero::Meta::Context,
-        Aero::MetadataContext>::value,
+        Aero::Meta::Context>::value,
     "Meta context must preserve the compatibility authoring identity");
 
 static_assert(

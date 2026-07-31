@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../core/property/PropertyProviderSession.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part

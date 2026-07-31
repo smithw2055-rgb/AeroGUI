@@ -3,6 +3,9 @@
 // Internal runtime type ownership. Installed headers use these aliases only to
 // preserve source spelling for opaque pointers and runtime-only signatures.
 // Complete manager definitions remain under src/ and are not SDK authoring API.
+namespace Aero {
+class UIElement;
+}
 namespace Aero::Controls {
 class Control;
 }
@@ -23,6 +26,10 @@ public:
     class AnimationManager;
     class StyleManager;
     class ThemeStyleManager;
+
+    static void SetCommandRouter(
+        Aero::UIElement& element,
+        CommandManager* manager) noexcept;
 };
 
 } // namespace Aero::Detail

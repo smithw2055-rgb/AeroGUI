@@ -187,7 +187,7 @@ protected:
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    ListBoxInteractionManager* interactions_ = nullptr;
+    void* interactions_ = nullptr;
 };
 
 class AERO_API ComboBoxItem final
@@ -297,7 +297,7 @@ protected:
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    ComboBoxInteractionManager* interactions_ = nullptr;
+    void* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
         nullptr;

@@ -1,4 +1,5 @@
 #include <Aero/Data/Binding.hpp>
+#include "BindingRuntime.hpp"
 #include <Aero/Resources.hpp>
 
 #include <cmath>

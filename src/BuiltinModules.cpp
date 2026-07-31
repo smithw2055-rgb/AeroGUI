@@ -1,10 +1,10 @@
 #include "BuiltinModules.hpp"
 
-#include <Aero/App/Metadata.hpp>
+#include "app/Metadata.hpp"
 #include <Aero/Controls/Metadata.hpp>
 #include <Aero/Core/Metadata/CoreMetadata.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Detail/UiMetadata.hpp>
+#include "ui/UiMetadata.hpp"
 
 namespace Aero {
 

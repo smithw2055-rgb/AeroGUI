@@ -11,7 +11,6 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Data/Binding.hpp>
-#include <Aero/Core/Property/PropertyProviderSession.hpp>
 #include <Aero/Detail/MountService.hpp>
 #include <Aero/ObjectTree.hpp>
 

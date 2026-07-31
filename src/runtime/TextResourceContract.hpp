@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../render/DisplayList.hpp"
+
 #include "../controls/TextLayoutService.hpp"
 
 #include <Aero/Base/Allocator.hpp>

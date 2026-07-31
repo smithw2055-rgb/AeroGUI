@@ -37,8 +37,8 @@ using XamlAddResourceCallback = Base::Result<void> (*)(
     void* context) noexcept;
 using XamlResolveResourceScopeCallback =
     Aero::ResourceDictionary* (*)(
-    Base::Object& scopeOwner,
-    void* context) noexcept;
+        Base::Object& scopeOwner,
+        void* context) noexcept;
 using XamlResolveImplicitResourceKeyCallback =
     Base::Result<Aero::ResourceKey> (*)(
         const Base::Object& object,
@@ -60,7 +60,7 @@ enum class XamlFacetInheritancePolicy : std::uint8_t {
 };
 
 // Compatibility registration DTO. TryAdd() atomically projects this record to
-// the narrow facets below and retains no aggregate runtime record.
+// the narrow capability slots retained by XamlFacetStore.
 struct XamlTypeFacet final {
     Core::TypeId type = Core::InvalidTypeId;
     XamlInitializationCallback beginInit = nullptr;
@@ -216,24 +216,33 @@ public:
         Core::TypeId type) const noexcept;
 
 private:
+    struct TypeFacets final {
+        Core::TypeId type = Core::InvalidTypeId;
+        XamlLifecycleFacet lifecycle;
+        XamlNameScopeFacet nameScope;
+        XamlResourceScopeFacet resourceScope;
+        XamlDeferredContentFacet deferredContent;
+        XamlImplicitResourceKeyFacet implicitResourceKey;
+        XamlPropertyTargetFacet propertyTarget;
+        XamlMarkupExtensionFacet markupExtension;
+        bool hasLifecycle = false;
+        bool hasNameScope = false;
+        bool hasResourceScope = false;
+        bool hasDeferredContent = false;
+        bool hasImplicitResourceKey = false;
+        bool hasPropertyTarget = false;
+        bool hasMarkupExtension = false;
+    };
+
     using FacetIndex = Base::HashMap<Core::TypeId, std::uint32_t>;
 
-    Base::Vector<XamlLifecycleFacet> lifecycles_;
-    Base::Vector<XamlNameScopeFacet> nameScopes_;
-    Base::Vector<XamlResourceScopeFacet> resourceScopes_;
-    Base::Vector<XamlDeferredContentFacet> deferredContents_;
-    Base::Vector<XamlImplicitResourceKeyFacet> implicitResourceKeys_;
-    Base::Vector<XamlPropertyTargetFacet> propertyTargets_;
-    Base::Vector<XamlMarkupExtensionFacet> markupExtensions_;
-
-    FacetIndex lifecycleIndex_;
-    FacetIndex nameScopeIndex_;
-    FacetIndex resourceScopeIndex_;
-    FacetIndex deferredContentIndex_;
-    FacetIndex implicitResourceKeyIndex_;
-    FacetIndex propertyTargetIndex_;
-    FacetIndex markupExtensionIndex_;
+    Base::Vector<TypeFacets> types_;
+    FacetIndex index_;
     bool frozen_ = false;
+
+    Base::Result<TypeFacets*> EnsureType(Core::TypeId type) noexcept;
+    TypeFacets* FindTypeMutable(Core::TypeId type) noexcept;
+    const TypeFacets* FindType(Core::TypeId type) const noexcept;
 
     const XamlLifecycleFacet* FindLifecycleExact(
         Core::TypeId type) const noexcept;
@@ -243,8 +252,7 @@ private:
         Core::TypeId type) const noexcept;
     const XamlDeferredContentFacet* FindDeferredContentExact(
         Core::TypeId type) const noexcept;
-    const XamlImplicitResourceKeyFacet*
-    FindImplicitResourceKeyExact(
+    const XamlImplicitResourceKeyFacet* FindImplicitResourceKeyExact(
         Core::TypeId type) const noexcept;
     const XamlPropertyTargetFacet* FindPropertyTargetExact(
         Core::TypeId type) const noexcept;

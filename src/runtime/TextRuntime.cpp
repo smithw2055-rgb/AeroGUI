@@ -1,3 +1,4 @@
+#include "../render/DisplayList.hpp"
 #include "TextRuntime.hpp"
 #include "TextResourceContract.hpp"
 

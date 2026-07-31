@@ -1,4 +1,6 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/Shapes.hpp>
+#include "../render/DrawingContextAccess.hpp"
 
 #include "media/ImageBrushAccess.hpp"
 
@@ -84,9 +86,10 @@ ImageBrushGeometry FitImageBrush(
 }
 
 Base::Result<void> PaintImageBrush(
-    DisplayListBuilder& builder,
+    DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const RenderImageId image =
         Aero::Detail::ImageBrushAccess::
             RuntimeImage(brush);
@@ -298,8 +301,9 @@ Base::Result<Size> Rectangle::MeasureOverride(
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
-Base::Result<void> Rectangle::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Rectangle::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Size renderSize = RenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -406,7 +410,7 @@ Base::Result<void> Rectangle::BuildDisplayList(
             ImageBrush::StaticTypeId()) {
         Base::Result<void> painted =
             PaintImageBrush(
-                builder,
+                context,
                 *static_cast<ImageBrush*>(
                     fillBrush.Get()),
                 bounds);
@@ -438,8 +442,9 @@ Base::Result<Size> Ellipse::MeasureOverride(
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
-Base::Result<void> Ellipse::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Ellipse::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Size renderSize = RenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {

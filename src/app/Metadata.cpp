@@ -1,4 +1,4 @@
-#include <Aero/App/Metadata.hpp>
+#include "Metadata.hpp"
 
 #include <Aero/Application.hpp>
 #include <Aero/Core/Metadata/Describe.hpp>
@@ -9,6 +9,20 @@ namespace Aero::App {
 
 Base::Result<void> Detail::PopulateAppMetadata(
     Core::MetadataContext& context) noexcept {
+    auto shutdownMode = Core::Describe<Aero::ShutdownMode>(context);
+    shutdownMode
+        .Value(
+            "OnLastWindowClose",
+            Aero::ShutdownMode::OnLastWindowClose)
+        .Value(
+            "OnMainWindowClose",
+            Aero::ShutdownMode::OnMainWindowClose)
+        .Value(
+            "OnExplicitShutdown",
+            Aero::ShutdownMode::OnExplicitShutdown);
+    Base::Result<void> status = shutdownMode.Result();
+    if (!status) return status.GetStatus();
+
     auto application = Core::Describe<Aero::Application>(context);
     application
         .Property(
@@ -20,8 +34,12 @@ Base::Result<void> Detail::PopulateAppMetadata(
             &Aero::Application::SetResources>(
                 "Resources",
                 Core::PropertyFlags::Structural)
+        .Property(
+            "ShutdownMode",
+            &Aero::Application::GetShutdownMode,
+            &Aero::Application::SetShutdownMode)
         .Factory();
-    Base::Result<void> status = application.Result();
+    status = application.Result();
     if (!status) return status.GetStatus();
 
     auto window = Core::Describe<Aero::Window>(context);

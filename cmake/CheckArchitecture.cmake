@@ -94,6 +94,15 @@ foreach(removed_path IN ITEMS
 endforeach()
 
 foreach(removed_sdk_path IN ITEMS
+    "include/Aero/App/ApplicationHost.hpp"
+    "include/Aero/App/Services.hpp"
+    "include/Aero/App/Fwd.hpp"
+    "include/Aero/App/Application.hpp"
+    "include/Aero/App/Window.hpp"
+    "include/Aero/ModuleSdk.hpp"
+    "include/Aero/Metadata.hpp"
+    "include/Aero/Core/Property/PropertyProviderSession.hpp"
+    "include/Aero/Detail/UiMetadata.hpp"
     "include/Aero/RuntimeHost.hpp"
     "include/Aero/XamlReloadCoordinator.hpp"
     "include/Aero/BuiltinModules.hpp"
@@ -216,9 +225,10 @@ if(removed_runtime_includes)
 endif()
 
 set(sdk_entry_headers
-    "${AERO_SOURCE_DIR}/include/Aero/Runtime.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/RuntimeEnvironment.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/ModuleSdk.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Gui.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/App.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Module.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/ViewHost.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
@@ -231,6 +241,21 @@ if(sdk_entry_leaks)
         "Default SDK headers expose runtime implementation types: ${sdk_entry_leaks}")
 endif()
 
+set(wpf_authoring_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Application.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Window.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Data/Binding.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Input/Commands.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/DrawingContext.hpp")
+aero_collect_matches(wpf_authoring_leaks
+    "(ApplicationHost|IApplicationPeer|IWindowPeer|CommandManager|BindingDescriptor|MetadataBindingDescriptor|PropertyProviderSession|BuildDisplayList)"
+    ${wpf_authoring_headers})
+if(wpf_authoring_leaks)
+    message(FATAL_ERROR
+        "WPF authoring headers expose runtime implementation types: "
+        "${wpf_authoring_leaks}")
+endif()
+
 file(GLOB_RECURSE default_sdk_headers
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
@@ -238,12 +263,28 @@ file(GLOB_RECURSE default_sdk_headers
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/*.hpp")
 aero_collect_matches(removed_public_services
-    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry)"
+    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty)"
     ${default_sdk_headers})
 if(removed_public_services)
     message(FATAL_ERROR
         "Removed manager, metadata detail, or text service leaks through public headers: "
         "${removed_public_services}")
+endif()
+
+set(control_runtime_attachment_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Buttons.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/ControlPrimitives.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Menus.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Scroll.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Selection.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Trees.hpp")
+aero_collect_matches(typed_control_runtime_attachments
+    "(ControlInteractionManager|MenuInteractionManager|ScrollInteractionManager|ListBoxInteractionManager|ComboBoxInteractionManager|TreeViewInteractionManager)[ \t]*[*]"
+    ${control_runtime_attachment_headers})
+if(typed_control_runtime_attachments)
+    message(FATAL_ERROR
+        "Public controls expose typed runtime-manager attachments: "
+        "${typed_control_runtime_attachments}")
 endif()
 
 file(GLOB_RECURSE sdk_naming_files
@@ -266,7 +307,7 @@ list(APPEND sdk_naming_files
     "${AERO_SOURCE_DIR}/CMakeLists.txt"
     "${AERO_SOURCE_DIR}/README.md")
 aero_collect_matches(removed_sdk_names
-    "(Aero::EngineHost|AeroEngineHost|RuntimeHost|RuntimeView|Advanced Host SDK)"
+    "(Aero::EngineHost|AeroEngineHost|RuntimeHost|RuntimeView|Advanced Host SDK|Aero::ModuleSdk([^A-Za-z0-9_]|$)|Aero::IntegrationSdk([^A-Za-z0-9_]|$)|AeroModuleSdk|AeroIntegrationSdk|App::Services([^A-Za-z0-9_]|$)|ApplicationHost([^A-Za-z0-9_]|$))"
     ${sdk_naming_files})
 if(removed_sdk_names)
     message(FATAL_ERROR

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DisplayList.hpp"
+
 #include "render/RenderingInternal.hpp"
 
 #include <Aero/Base/Allocator.hpp>

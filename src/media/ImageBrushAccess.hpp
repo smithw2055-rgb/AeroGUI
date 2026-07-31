@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../render/DisplayList.hpp"
+
 #include <Aero/Media/Brushes.hpp>
 
 namespace Aero::Detail {

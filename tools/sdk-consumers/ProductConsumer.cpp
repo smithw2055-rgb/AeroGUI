@@ -34,8 +34,11 @@ public:
     Aero::Window& window) noexcept {
     static_cast<void>(launcher.CurrentApplication());
     static_cast<void>(launcher.MainWindow());
-    static_cast<void>(launcher.GetServices());
+    application.SetMainWindow(&window);
+    application.SetShutdownMode(
+        Aero::ShutdownMode::OnExplicitShutdown);
     static_cast<void>(application.MainWindow());
+    static_cast<void>(application.GetShutdownMode());
     static_cast<void>(window.IsOpen());
 }
 
@@ -45,18 +48,6 @@ public:
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
 }
-
-static_assert(
-    std::is_same<
-        Aero::App::Application,
-        Aero::Application>::value,
-    "App compatibility name must preserve Application identity");
-
-static_assert(
-    std::is_same<
-        Aero::App::Window,
-        Aero::Window>::value,
-    "App compatibility name must preserve Window identity");
 
 static_assert(
     std::is_base_of<

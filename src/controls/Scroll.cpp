@@ -1,4 +1,6 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/Scroll.hpp>
+#include "../render/DrawingContextAccess.hpp"
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
 #include <algorithm>
@@ -581,7 +583,8 @@ ScrollViewer::ScrollViewer() noexcept
 ScrollViewer::~ScrollViewer() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            interactions_->Detach(*this));
+            static_cast<ScrollInteractionManager*>(
+                interactions_)->Detach(*this));
     }
 }
 
@@ -913,7 +916,8 @@ void ScrollViewer::OnScrollDataChanged(
         args.oldData = oldData;
         args.newData = newData;
         args.inputKind = kind;
-        static_cast<void>(events_->RaiseEvent(
+        static_cast<void>(
+            static_cast<RoutedEventManager*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }
@@ -1853,8 +1857,9 @@ Base::Result<Size> Slider::ArrangeOverride(
     return Control::ArrangeOverride(finalSize);
 }
 
-Base::Result<void> Slider::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Slider::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = RenderSize();
@@ -2065,8 +2070,9 @@ Base::Result<void> TickBar::SetPlacement(
     return SetValue(PlacementProperty, value);
 }
 
-Base::Result<void> TickBar::BuildDisplayList(
-    Render::DisplayListBuilder& builder) noexcept {
+Base::Result<void> TickBar::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     DependencyObject* parent = TemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(

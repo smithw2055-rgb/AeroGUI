@@ -1,4 +1,5 @@
 #include <Aero/Controls/Templates.hpp>
+#include "../data/BindingRuntime.hpp"
 
 #include "render/RenderingInternal.hpp"
 
@@ -25,7 +26,8 @@ Base::Result<void> Control::RaiseRoutedEvent(
             Base::ErrorCode::NotInitialized,
             "Control is not attached to routed-event services");
     }
-    return routedEvents_->RaiseEvent(
+    return static_cast<Aero::Detail::RoutedEventManager*>(
+        routedEvents_)->RaiseEvent(
         *this, event, args);
 }
 
@@ -944,7 +946,8 @@ Base::Result<bool> Control::ApplyTemplate() noexcept {
     if (!value) return value.GetStatus();
     if (!value.Value()) return false;
     Base::Result<TemplateHandle> applied =
-        templateManager_->Apply(*this, *value.Value());
+        static_cast<TemplateManager*>(templateManager_)->
+            Apply(*this, *value.Value());
     if (!applied) return applied.GetStatus();
     return true;
 }
@@ -956,7 +959,7 @@ DependencyObject* Control::GetTemplateChild(
         name.Empty()) {
         return nullptr;
     }
-    return templateManager_->FindName(
+    return static_cast<TemplateManager*>(templateManager_)->FindName(
         TemplateHandle{templateHandleValue_}, name);
 }
 
@@ -967,7 +970,7 @@ DependencyObject* Control::GetTemplateChild(
         type == InvalidTypeId) {
         return nullptr;
     }
-    return templateManager_->FindPart(
+    return static_cast<TemplateManager*>(templateManager_)->FindPart(
         TemplateHandle{templateHandleValue_}, type);
 }
 
@@ -1019,7 +1022,7 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
             Base::ErrorCode::InvalidArgument,
             "ControlTemplate cannot be applied to this control");
     }
-    control.AttachTemplateManager(*this);
+    control.AttachTemplateManager(this);
     const std::uint32_t existing = FindInstance(control);
     if (existing != UINT32_MAX) {
         if (instances_[existing].plan == &plan) {

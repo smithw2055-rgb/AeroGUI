@@ -2,22 +2,20 @@
 
 ## Supported SDK boundary
 
-AeroGUI-R exposes three supported SDK layers:
+AeroGUI exposes a small product surface organized by WPF semantics:
 
-- Product SDK: `Aero/Runtime.hpp` and `Aero::Runtime`, with the sole runtime
-  path `RuntimeEnvironment -> View` and the sole public frame entry
-  `View::RunFrame()`.
-- Module SDK: `Aero/ModuleSdk.hpp` and `Aero::ModuleSdk`, for typed
-  metadata/property/event, control, Style/Template and safe Drawing authoring.
-- Integration SDK: `Aero/Integration.hpp` and `Aero::IntegrationSdk`, with an
-  opaque reference-counted `RenderEndpoint`.
+- `Aero/Gui.hpp` + `Aero::Gui` provide the retained WPF/XAML class library.
+- `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime through
+  `Aero::App::Launcher`.
+- `Aero/Integration.hpp` + `Aero::Integration` provide explicit embedding,
+  renderer-endpoint and native-host integration.
+- `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
+  and module authoring.
 
-D3D11 and OpenGL factories are opt-in headers under `Aero/Integration`.
-Third-party graphics backends use the versioned C-compatible
-`Aero/Integration/HostedGraphics.hpp` contract. The default SDK headers do not
-expose the internal render snapshot, renderer, RHI device, surface session,
-presenter, resource registry or GPU handles. Embedded endpoints never Present;
-Window endpoints own their surface and Present. See
+Legacy host facades, service locators, render/RHI targets and runtime manager
+classes are implementation details. D3D11 and OpenGL factories remain opt-in
+headers under `Aero/Integration`; third-party graphics backends use the
+versioned C-compatible `Aero/Integration/HostedGraphics.hpp` contract. See
 [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md) and
 [`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md).
 
@@ -37,7 +35,7 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 ## 项目状态
 
 - 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
-- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、module SDK、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 已提供 `Aero::IntegrationSdk` / `Aero::ModuleSdk` 分层入口、安装后消费门禁和标准 ControlGallery dogfood 流程。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、typed metadata/module authoring、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 以 `Aero::Gui`、`Aero::App`、`Aero::Integration`、`Aero::Meta` 四个清晰入口组织公共产品面。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v7；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed RHI 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。

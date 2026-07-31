@@ -109,7 +109,7 @@ protected:
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    MenuInteractionManager* interactions_ =
+    void* interactions_ =
         nullptr;
 };
 

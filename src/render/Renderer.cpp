@@ -1,3 +1,4 @@
+#include "DisplayList.hpp"
 #include "Renderer.hpp"
 
 #include <Aero/Base/Allocator.hpp>

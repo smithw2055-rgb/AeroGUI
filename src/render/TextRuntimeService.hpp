@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DisplayList.hpp"
+
 #include "../controls/TextLayoutService.hpp"
 #include "../runtime/TextResourceContract.hpp"
 

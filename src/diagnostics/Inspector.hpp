@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../data/BindingRuntime.hpp"
 
 #include "render/RenderingInternal.hpp"
 

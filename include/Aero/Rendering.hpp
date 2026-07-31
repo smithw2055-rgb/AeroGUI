@@ -5,6 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Dispatcher.hpp>
+#include <Aero/DrawingContext.hpp>
 #include <Aero/Input/Values.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -17,35 +18,6 @@ namespace Aero {
 using namespace Aero::Core;
 
 class Style;
-
-// Extension owner used by the Gallery theme. The value is retained on the
-// target element so render backends can consume it when PPAA support is active.
-class AERO_API Element final : public Base::Object {
-    AERO_DECLARE_TYPE(Element, Base::Object)
-public:
-    Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    inline static constexpr Members::AttachedProperty<double>
-        PPAAOutProperty{"PPAAOut"};
-    // Gallery's local Element facade exposes the reference focus-engagement
-    // state as an attached property so templates can react without coupling
-    // to a concrete control type.
-    inline static constexpr Members::AttachedProperty<bool>
-        IsFocusEngagedProperty{"IsFocusEngaged"};
-};
-
-// Gallery's extension namespace exposes text-state attached properties. They
-// are owned independently of a particular editor so templates can observe
-// them through bindings and trigger conditions.
-class AERO_API TextProperties final : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        TextProperties, Base::Object, "urn:aero", "Text")
-public:
-    Core::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    inline static constexpr Members::AttachedProperty<std::uint32_t>
-        PasswordLengthProperty{"PasswordLength"};
-};
 
 } // namespace Aero
 
@@ -63,23 +35,6 @@ private:
 
 } // namespace Aero::Media
 
-namespace Aero::Render {
-
-using namespace Aero::Core;
-
-using RenderNodeId = Base::RenderNodeId;
-constexpr RenderNodeId InvalidRenderNodeId = Base::InvalidRenderNodeId;
-using RenderImageId = std::uint64_t;
-constexpr RenderImageId InvalidRenderImageId = 0U;
-using RenderMeshId = std::uint64_t;
-constexpr RenderMeshId InvalidRenderMeshId = 0U;
-using RenderGlyphRunId = std::uint64_t;
-constexpr RenderGlyphRunId InvalidRenderGlyphRunId = 0U;
-using Color = Base::Color;
-using Transform2D = Base::Transform2D;
-
-} // namespace Aero::Render
-
 namespace Aero::Core {
 
 template<>
@@ -94,111 +49,12 @@ struct MetaTypeTraits<Base::Color> {
 
 } // namespace Aero::Core
 
-namespace Aero::Render {
-
-using namespace Aero::Core;
-
-class RenderManager;
-
-AERO_API bool IsFinite(Color value) noexcept;
-AERO_API bool IsFinite(Transform2D value) noexcept;
-AERO_API bool IsValidOpacity(double value) noexcept;
-
-// Commands contain only immutable value data. Backends must never retain pointers
-// to active UI objects while consuming an immutable frame snapshot.
-enum class RenderCommandKind : std::uint8_t {
-    PushClip = 0U,
-    PopClip,
-    PushOpacity,
-    PopOpacity,
-    PushTransform,
-    PopTransform,
-    FillRect,
-    FillRoundedRect,
-    StrokeRect,
-    DrawImage,
-    DrawMesh,
-    DrawGlyphRun
-};
-
-struct RenderCommand final {
-    RenderCommandKind kind = RenderCommandKind::FillRect;
-    Rect rect;
-    Transform2D transform;
-    Color color;
-    Rect sourceUv;
-    RenderImageId image = InvalidRenderImageId;
-    RenderMeshId mesh = InvalidRenderMeshId;
-    RenderGlyphRunId glyphRun = InvalidRenderGlyphRunId;
-    double scalar = 0.0;
-};
-
-class AERO_API DisplayList final {
-public:
-    DisplayList() noexcept : commands_() {}
-
-    Base::Span<const RenderCommand> Commands() const noexcept {
-        return {commands_.Data(), commands_.Size()};
-    }
-    std::uint32_t CommandCount() const noexcept {
-        return commands_.Size();
-    }
-    std::uint64_t StableHash() const noexcept;
-
-private:
-    friend class DisplayListBuilder;
-    friend class RenderManager;
-    Base::Vector<RenderCommand> commands_;
-};
-
-class AERO_API DisplayListBuilder final {
-public:
-    DisplayListBuilder() noexcept : list_() {}
-
-    Base::Result<void> PushClip(Rect clip) noexcept;
-    Base::Result<void> PopClip() noexcept;
-    Base::Result<void> PushOpacity(double opacity) noexcept;
-    Base::Result<void> PopOpacity() noexcept;
-    Base::Result<void> PushTransform(Transform2D value) noexcept;
-    Base::Result<void> PopTransform() noexcept;
-    Base::Result<void> FillRect(Rect rect, Color color) noexcept;
-    Base::Result<void> FillRoundedRect(
-        Rect rect, Color color, double cornerRadius) noexcept;
-    Base::Result<void> StrokeRect(
-        Rect rect, Color color, double thickness) noexcept;
-    Base::Result<void> DrawImage(
-        RenderImageId image,
-        Rect destination,
-        Rect sourceUv,
-        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    Base::Result<void> DrawMesh(
-        RenderMeshId mesh,
-        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    Base::Result<void> DrawGlyphRun(
-        RenderGlyphRunId glyphRun,
-        Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    Base::Result<DisplayList> Finish() noexcept;
-
-private:
-    DisplayList list_;
-    std::uint32_t clipDepth_ = 0U;
-    std::uint32_t opacityDepth_ = 0U;
-    std::uint32_t transformDepth_ = 0U;
-    bool finished_ = false;
-
-    Base::Result<void> Append(
-        const RenderCommand& command) noexcept;
-};
-
-} // namespace Aero::Render
-
 namespace Aero {
 
 using namespace Aero::Core;
 
 namespace Render {
 class RenderManager;
-class DisplayListBuilder;
 }
 
 class FrameworkElement;
@@ -415,7 +271,7 @@ public:
             authoredTriggers_.Size()};
     }
 
-    Render::RenderNodeId NodeId() const noexcept { return nodeId_; }
+    Base::RenderNodeId NodeId() const noexcept { return nodeId_; }
     bool IsRenderValid() const noexcept { return renderValid_; }
     std::uint64_t RenderRevision() const noexcept {
         return renderRevision_;
@@ -425,14 +281,14 @@ public:
 protected:
     Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
-    virtual Base::Result<void> BuildDisplayList(
-        Render::DisplayListBuilder& builder) noexcept;
+    virtual Base::Result<void> OnRender(
+        DrawingContext& context) noexcept;
 
 private:
     friend class Render::RenderManager;
     Render::RenderManager* renderManager_ = nullptr;
     double dpiScale_ = 1.0;
-    Render::RenderNodeId nodeId_ = Render::InvalidRenderNodeId;
+    Base::RenderNodeId nodeId_ = Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
     bool renderAttached_ = false;
     bool renderValid_ = false;

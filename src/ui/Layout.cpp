@@ -180,7 +180,7 @@ Base::Result<void> UIElement::InvalidateMeasure() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return manager_->InvalidateMeasure(*this);
+    return static_cast<Aero::Detail::LayoutManager*>(manager_)->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
@@ -188,7 +188,7 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return manager_->InvalidateArrange(*this);
+    return static_cast<Aero::Detail::LayoutManager*>(manager_)->InvalidateArrange(*this);
 }
 
 Base::Result<void> FrameworkElement::SetLayoutRounding(
@@ -513,7 +513,7 @@ Base::Result<void> UIElement::MeasureChild(
                 child.VisualParent()));
         return InvalidState(message);
     }
-    return manager_->MeasureElement(child, availableSize);
+    return static_cast<Aero::Detail::LayoutManager*>(manager_)->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
@@ -568,7 +568,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.VisualParent()));
         return InvalidState(message);
     }
-    return manager_->ArrangeElement(child, finalRect);
+    return static_cast<Aero::Detail::LayoutManager*>(manager_)->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero

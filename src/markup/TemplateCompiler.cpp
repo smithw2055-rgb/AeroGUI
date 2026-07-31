@@ -1,4 +1,6 @@
+#include "../ui/ThemeCompatibilityTypes.hpp"
 #include "TemplateCompiler.hpp"
+#include "../data/BindingRuntime.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
 
 #include <Aero/Controls/ControlPrimitives.hpp>

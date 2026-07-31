@@ -472,7 +472,7 @@ Animation value 作为 Dependency Property effective value overlay。composition
 至少定义：
 
 ```text
-IApplicationHost
+IAppLifetimeHost
 IWindowHost / IWebCanvasHost
 IEventSource
 ICursorService

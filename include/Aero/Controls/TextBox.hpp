@@ -257,8 +257,8 @@ protected:
         Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(
         Size finalSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
@@ -279,7 +279,7 @@ private:
     PlainTextDisplayPolicy plainPolicy_;
     Base::String displayText_;
     Base::String compositionText_;
-    Base::Vector<RenderGlyphRunId> glyphRuns_;
+    Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<CaretStop> caretStops_;
     Size textSize_;
     std::uint32_t wrapColumns_ = UINT32_MAX;
@@ -335,7 +335,7 @@ private:
     Base::Result<void>
     CancelCompositionForFocusLoss() noexcept;
     Base::Result<void> BuildEditorDisplayList(
-        DisplayListBuilder& builder,
+        DrawingContext& context,
         Size viewport,
         bool drawCaret) noexcept;
     void OnTextPropertyChanged(
@@ -417,8 +417,8 @@ protected:
         Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(
         Size finalSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 
 private:
     friend class TextBox;

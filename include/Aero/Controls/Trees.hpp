@@ -156,7 +156,7 @@ protected:
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    TreeViewInteractionManager* interactions_ =
+    void* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;
 };

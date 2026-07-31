@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../render/DisplayList.hpp"
+
 #include <Aero/Controls/Images.hpp>
 
 namespace Aero::Detail {

@@ -7,31 +7,22 @@
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
 #include <Aero/Resources.hpp>
 
+#include <cstdint>
 #include <utility>
 
 namespace Aero {
 class Window;
-}
+namespace App { class Launcher; }
 
-namespace Aero::App {
-class ApplicationHost;
-namespace Detail {
-
-class IApplicationPeer {
-public:
-    virtual ~IApplicationPeer() = default;
-    virtual void RequestExit(int exitCode) noexcept = 0;
+enum class ShutdownMode : std::uint8_t {
+    OnLastWindowClose = 0U,
+    OnMainWindowClose,
+    OnExplicitShutdown
 };
 
-} // namespace Detail
-} // namespace Aero::App
-
-namespace Aero {
-
 // Process-level WPF/XAML application object. It owns application resources and
-// startup policy; Aero::App::Launcher supplies the default native event/render
-// lifetime. Optional platform services are owned by Aero::App::Services rather
-// than Application, preserving headless and embedded use.
+// startup policy, but not native windows, graphics devices, audio or the event
+// loop. Aero::App::Launcher is an optional default host.
 class AERO_API Application : public Base::Object {
     AERO_DECLARE_TYPE(Application, Base::Object)
 public:
@@ -64,6 +55,16 @@ public:
     Window* MainWindow() const noexcept {
         return mainWindow_;
     }
+    void SetMainWindow(Window* value) noexcept {
+        mainWindow_ = value;
+    }
+
+    ShutdownMode GetShutdownMode() const noexcept {
+        return shutdownMode_;
+    }
+    void SetShutdownMode(ShutdownMode value) noexcept {
+        shutdownMode_ = value;
+    }
 
     void Shutdown(int exitCode = 0) noexcept;
 
@@ -72,18 +73,37 @@ protected:
         : runtimeType_(runtimeType) {}
 
 private:
-    friend class App::ApplicationHost;
+    friend class App::Launcher;
 
-    void Attach(
-        App::Detail::IApplicationPeer* peer,
-        Window* mainWindow) noexcept;
+    void Attach(void* runtimeState, Window* mainWindow) noexcept;
     void Detach() noexcept;
 
     Core::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
     Base::Ref<ResourceDictionary> resources_;
-    App::Detail::IApplicationPeer* peer_ = nullptr;
+    void* runtimeState_ = nullptr;
     Window* mainWindow_ = nullptr;
+    ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;
 };
 
 } // namespace Aero
+
+namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Aero::ShutdownMode> {
+    static constexpr TypeId Id() noexcept {
+        return MakeTypeId("ShutdownMode");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "ShutdownMode";
+    }
+    static constexpr TypeId BaseType() noexcept {
+        return InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Core

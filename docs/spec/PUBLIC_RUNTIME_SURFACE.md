@@ -3,27 +3,33 @@
 ## Product rule
 
 Public Aero headers describe WPF/XAML authoring semantics. Runtime composition
-services that coordinate queues, input, binding, styles, templates, or control
-interaction are implementation details. They live under `src/` and are consumed
-by Runtime, Markup, and Controls internally.
+services that coordinate queues, input, binding, styles, templates, control
+interaction, display lists, or GPU resources are implementation details. They
+live under `src/` and are consumed by Runtime, Markup, Controls, and Integration
+internally.
 
-## Private manager groups
+## Private runtime groups
 
-UI runtime managers include routed-event dispatch, commands, hit
-testing and input routing, layout, binding, animation, style, and theme-style
-coordination. Controls runtime managers include template application and concrete
-interaction services for buttons, scrolling, selection, menus, trees, and text
-editing.
+UI runtime services include routed-event dispatch, commands, hit testing and
+input routing, layout, binding, animation, style, and theme-style coordination.
+Controls runtime services include template application and concrete interaction
+state for buttons, scrolling, selection, menus, trees, and text editing.
 
-The complete declarations are grouped in private source headers:
+The complete manager declarations remain in private source headers:
 
 - `src/ui/RuntimeManagers.hpp`
 - `src/controls/RuntimeManagers.hpp`
 
-Public classes retain only forward declarations where private friendship or an
-opaque pointer is required. Moving a manager declaration must not change a
-control TypeId, dependency property, routed event, metadata identity, or object
-layout.
+Public classes retain only opaque attachment state where the current object
+layout requires a runtime connection. Public `ICommand`, Binding, and custom
+drawing APIs do not accept manager, scheduler, provider-session, display-list,
+or render-resource implementation types. Type-keyed theme-style lookup and the
+Gallery compatibility metadata types are also private implementation details.
+
+Custom controls render through `FrameworkElement::OnRender(DrawingContext&)`.
+`DrawingContext` is the authoring abstraction; immutable display-list commands,
+resource identifiers, batching, and backend submission remain below the public
+SDK boundary.
 
 ## Deliberate exceptions
 
@@ -31,13 +37,19 @@ layout.
 semantics. `FontManager` remains public until the text-provider SDK boundary is
 reviewed.
 
-The existing text-inline classes and the button-derived `Hyperlink` are unchanged
-in this stage. The WPF `Documents` model is intentionally deferred.
+The text editor still exposes its current platform-neutral composition seam.
+Moving the remaining text-provider policy types behind the Integration boundary
+is follow-on work and is not required to preserve the Stage C ABI cleanup.
 
 ## Invariants
 
 - `<Aero/Gui.hpp>` does not expose constructible runtime coordination services.
-- Runtime implementation files include private manager headers explicitly.
+- Custom controls render through `FrameworkElement::OnRender(DrawingContext&)`.
+- Public commands and bindings contain authoring semantics, not runtime managers
+  or scheduler descriptors.
+- Public headers do not expose display-list commands or render resource IDs.
+- Runtime implementation files include private manager and render headers
+  explicitly.
 - Installed headers and build-tree headers expose the same authoring surface.
 - Product targets, metadata ownership, TypeIds, and observable behavior remain
-  unchanged.
+  unchanged by private storage consolidation.

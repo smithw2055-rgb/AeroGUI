@@ -1,98 +1,96 @@
 # AeroGUI SDK packaging and boundary
 
-The installed package has three supported entry points:
+The installed package has four explicit product targets:
 
 ```cmake
 find_package(Aero 0.3 CONFIG REQUIRED)
 
-target_link_libraries(ProductApp PRIVATE Aero::Runtime)
-target_link_libraries(CustomControls PRIVATE Aero::ModuleSdk)
-target_link_libraries(NativeHost PRIVATE Aero::IntegrationSdk)
+target_link_libraries(MyControls PRIVATE Aero::Gui Aero::Meta)
+target_link_libraries(DesktopApp PRIVATE Aero::App)
+target_link_libraries(EngineHost PRIVATE Aero::Integration)
 ```
 
-- Product SDK: `Aero/Runtime.hpp` and `Aero::Runtime`.
-- Module SDK: `Aero/ModuleSdk.hpp` and `Aero::ModuleSdk`.
-- Integration SDK: `Aero/Integration.hpp` and
-  `Aero::IntegrationSdk`.
+- `Aero::Gui` — retained WPF/XAML objects, controls, markup and drawing.
+- `Aero::App` — optional default native desktop lifetime.
+- `Aero::Integration` — View, RenderEndpoint and host/provider integration.
+- `Aero::Meta` — typed metadata and module authoring layered over Gui.
 
-Render, RHI, platform surface implementations and module-catalog
-implementations are package-private dependencies. They may be emitted in the
-CMake export so static libraries can resolve their implementation graph, but
-their imported names use `Aero::IntegrationDetail*` or
-`Aero::RuntimeDetail*`; they are not supported SDK components.
+Legacy runtime/module/integration aliases and the low-level host facade are
+retired. Runtime composition, module catalogs,
+renderer/RHI implementations and third-party provider adapters may still be
+exported under `IntegrationDetail*` or `RuntimeDetail*` names when static
+linking requires them, but those names are package implementation details and
+are not supported application APIs.
 
-There are no `Aero::Rhi*`, `Aero::Render*`, `Aero::ModuleCatalog` or legacy
-host aggregation targets.
+## GUI and custom controls
 
-## Product runtime
-
-`RuntimeEnvironment` owns immutable application composition. After module
-registration and `Initialize()`, the product path is:
+Normal WPF-style code includes `Aero/Gui.hpp`. Custom controls add the typed
+metadata entry points explicitly:
 
 ```cpp
-Aero::RuntimeEnvironment environment;
-environment.AddModule(MyModule());
-environment.Initialize();
+#include <Aero/Gui.hpp>
+#include <Aero/Meta.hpp>
+#include <Aero/Module.hpp>
 
-auto view = environment.CreateView(); // built-in headless endpoint
-view.Value()->LoadContent("app:///Main.xaml", {1280.0, 720.0});
-view.Value()->RunFrame();
-```
-
-Product headers expose `RuntimeEnvironment`, `View`, `UiDocument`, input values
-and safe frame diagnostics. They do not expose schema managers, document
-caches, RenderPlan, RHI devices or backend resource handles.
-
-## Module authoring
-
-`ModuleSdk.hpp` aggregates typed metadata/property/event authoring,
-Style/Template authoring, control base classes and narrow drawing commands.
-`ModuleRegistration` is the only module descriptor:
-
-```cpp
 Aero::Base::Result<void> RegisterMyModule(
-    Aero::MetadataContext& context) noexcept;
+    Aero::Meta::Context& context) noexcept;
 
 constexpr Aero::ModuleRegistration MyModule =
     Aero::DefineModule("My.Module", &RegisterMyModule);
 ```
 
-`MetadataContext` is callback-scoped and opaque. Registry, catalog, registration
-store and frozen execution data remain implementation details. Schema tools use
-the private catalog implementation while consuming the same
-`ModuleRegistration` values as Runtime.
+`Meta::Context` is callback-scoped. Catalogs, registration stores, frozen
+execution data, XAML facets and dependency-property provider state remain
+implementation details.
 
-Application schema generation names a function that returns a module
-registration:
+## Default application framework
 
-```cmake
-aero_add_schema_manifest(MyAppSchema
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/MyApp.aeroschema"
-    MODULE_HEADER "MyApp/Modules.hpp"
-    MODULE_FUNCTION "MyApp::MakeModule"
-    LIBRARIES MyAppModules)
-```
+A standalone desktop application links `Aero::App` and uses one simple entry
+point:
 
 ```cpp
-Aero::ModuleRegistration MakeModule() noexcept;
+#include <Aero/App.hpp>
+
+int main() {
+    Aero::App::Launcher app;
+    auto result = app.Run();
+    return result ? result.Value() : 1;
+}
 ```
+
+`Aero::Application` and `Aero::Window` are ordinary WPF-facing XAML objects.
+`Launcher` privately owns native windows, event pumping, View composition and
+endpoint selection. Audio and other optional subsystems are separate modules;
+constructing an Application never creates platform devices.
 
 ## Integration and backend opt-in
 
-Normal native hosts link `Aero::IntegrationSdk`, create a backend endpoint from
-an opt-in header, and pass it to `Integration::ViewHost::CreateView()`.
-`Integration.hpp` never aggregates a concrete backend.
+Engine/editor/native hosts link `Aero::Integration`, create or receive an
+endpoint and create a View through `Integration::ViewHost`:
 
-The first-party factory headers are:
+```cpp
+#include <Aero/Integration.hpp>
+#include <Aero/Integration/D3D11.hpp>
+
+Aero::RuntimeEnvironment environment;
+environment.AddModule(MyModule);
+environment.Initialize();
+
+auto endpoint =
+    Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
+Aero::Integration::ViewHostOptions options;
+options.renderEndpoint = std::move(endpoint).Value();
+auto view = Aero::Integration::ViewHost::CreateView(environment, options);
+```
+
+Concrete backend factories remain opt-in:
 
 - `Aero/Integration/D3D11.hpp`;
-- `Aero/Integration/OpenGL33.hpp`.
+- `Aero/Integration/OpenGL33.hpp`;
+- `Aero/Integration/HostedGraphics.hpp` for versioned third-party callbacks.
 
-Third-party backend authors explicitly include
-`Aero/Integration/HostedGraphics.hpp`. Its versioned C-compatible callback
-table is the only third-party graphics authoring boundary. It does not expose
-the UI tree, internal render snapshot, renderer managers, caches or RHI
-classes.
+The default integration headers do not expose the internal render snapshot,
+render managers, RHI devices, caches or backend resource handles.
 
 ## XAML tools
 
@@ -108,9 +106,6 @@ Cross-compiling builds set `AERO_HOST_XAMLC_EXECUTABLE` to a host-native
 `aero-xamlc`. Target-platform executables are never run by the build. Generated
 AXIR paths preserve source-relative directories so equal basenames do not
 collide.
-
-The SDK installs public headers, built-in themes, package configuration and
-enabled host tools. Internal source headers are never installed.
 
 ## Version domains
 

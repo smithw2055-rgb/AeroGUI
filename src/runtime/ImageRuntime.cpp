@@ -1,3 +1,4 @@
+#include "../render/DisplayList.hpp"
 #include "ImageRuntime.hpp"
 
 #include "ImageControlAccess.hpp"

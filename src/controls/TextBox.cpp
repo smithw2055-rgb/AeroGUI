@@ -1,4 +1,6 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/TextBox.hpp>
+#include "../render/DrawingContextAccess.hpp"
 
 #include "TextLayoutService.hpp"
 
@@ -436,10 +438,10 @@ Base::Result<Size> PasswordBox::ArrangeOverride(
     return finalSize;
 }
 
-Base::Result<void> PasswordBox::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> PasswordBox::OnRender(
+    DrawingContext& context) noexcept {
     return editor_.BuildEditorDisplayList(
-        builder,
+        context,
         RenderSize(),
         IsKeyboardFocused());
 }
@@ -1958,8 +1960,9 @@ Base::Result<Size> TextBox::ArrangeOverride(
     return finalSize;
 }
 
-Base::Result<void> TextBox::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> TextBox::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Rect bounds{
         0.0, 0.0,
         RenderSize().width,
@@ -2005,16 +2008,17 @@ Base::Result<void> TextBox::BuildDisplayList(
         }
     }
     return BuildEditorDisplayList(
-        builder,
+        context,
         RenderSize(),
         IsKeyboardFocused());
 }
 
 Base::Result<void>
 TextBox::BuildEditorDisplayList(
-    DisplayListBuilder& builder,
+    DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Thickness padding = Padding();
     const Rect contentBounds{
         padding.left,

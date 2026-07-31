@@ -44,13 +44,12 @@ public:
 protected:
     Base::Result<Size> MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 
 private:
     friend class Aero::Detail::ImageControlAccess;
-    RenderImageId renderImage_ =
-        InvalidRenderImageId;
+    std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;
 };

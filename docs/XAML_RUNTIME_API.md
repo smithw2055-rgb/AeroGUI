@@ -1,114 +1,107 @@
 # XAML Runtime API
 
-当前 SDK 分为 Product、Module、Integration 三层。产品运行时只有
-`RuntimeEnvironment -> View` 一条路径，不提供独立 Host、公开 manager 或
-Update/Render 双阶段入口。
+The public SDK is organized as Gui, App, Integration and Meta. WPF-facing
+application and control code does not construct runtime managers or renderer
+objects.
 
-## Product SDK
+## GUI and Meta authoring
 
-入口为 `Aero/Runtime.hpp`：
-
-```cpp
-Aero::RuntimeEnvironment environment;
-environment.AddModule(myModule);
-environment.Initialize();
-
-auto created = environment.CreateView();
-if (!created) return created.GetStatus();
-auto view = std::move(created).Value();
-
-auto document = view->Load("Views/Main.xaml", diagnostics);
-if (!document) return document.GetStatus();
-view->SetContent(std::move(document).Value(), availableSize);
-view->RunFrame();
-```
-
-`RuntimeEnvironment` 冻结模块并共享不可变 schema/document cache。
-`View` 独占资源、交互、布局、文本和渲染状态，并公开：
-
-- `Load`、`Parse`、`LoadCompiled`;
-- `SetContent`、`LoadContent`、`Unmount`;
-- application/theme/system 资源和内置主题；
-- `Resize`、`RunFrame`、输入分发、`AdvanceTime`;
-- `Root`、`FindNamed`、`NamedObjectCount`.
-
-`UiDocument` 是 move-only 事务结果。加载成功只产生待挂载文档；
-`SetContent` 成功后才提交 Binding、DynamicResource 等副作用。失败不会留下
-部分文档。
-
-Product 头不公开 schema/document manager、render snapshot、renderer、RHI、
-surface 或 GPU handle。`ViewFrameResult` 只返回安全 POD 诊断。
-
-## Module SDK
-
-入口为 `Aero/ModuleSdk.hpp`：
+Normal control code includes `Aero/Gui.hpp`; custom types additionally include
+`Aero/Meta.hpp` and `Aero/Module.hpp`:
 
 ```cpp
 Aero::Base::Result<void> RegisterModule(
-    Aero::MetadataContext& context) noexcept {
-    return Aero::Describe<MyControl>(context)
-        .Property(MyControl::EnabledProperty,
-                  Aero::PropertyOptions(true))
-        .Factory()
-        .Result();
+    Aero::Meta::Context& context) noexcept {
+    auto type = Aero::Meta::Describe<MyControl>(context);
+    type.Property(
+            MyControl::EnabledProperty,
+            Aero::Meta::PropertyOptions(true))
+        .Factory();
+    return type.Result();
 }
 
 constexpr auto module =
     Aero::DefineModule("Aero.MyModule", &RegisterModule);
 ```
 
-Module SDK 聚合 typed metadata/property/event、控件基类、Style/Template
-authoring 与窄 Drawing authoring。`MetadataContext` 是 callback-scoped opaque
-状态；模块不能访问 catalog、registration store、DP/event registry、执行计划、
-runtime manager 或 GPU resource registry。
+Metadata contexts are callback-scoped. Catalogs, stores, dependency-property
+provider sessions, XAML facets and runtime managers are private implementation.
 
-自定义控件可通过 `FrameworkElement::BuildDisplayList()` 和
-`DisplayListBuilder` 生成安全绘制指令。image/mesh/glyph ID 是 View 资源系统
-管理的不透明 token，模块不能上传或注册 GPU 资源。
+## Default App lifetime
 
-## Integration SDK
+A standalone desktop program links `Aero::App`:
 
-默认入口为 `Aero/Integration.hpp`：
+```cpp
+#include <Aero/App.hpp>
+
+Aero::App::Launcher launcher;
+launcher.AddModule(module);
+auto result = launcher.Run();
+```
+
+`Application` and `Window` retain WPF/XAML semantics. Launcher owns native
+window creation, endpoint choice and event pumping behind a PImpl; no public
+low-level host facade or service locator is required.
+
+
+## WPF-facing application and control semantics
+
+`Application` and `Window` remain derivable XAML types. The default launcher
+accepts registered subclasses by semantic metadata inheritance rather than by
+exact runtime type. `Application::MainWindow` and `ShutdownMode` describe
+application lifetime; the first desktop host is single-window, so
+`OnLastWindowClose` and `OnMainWindowClose` currently converge on the same
+default-host behavior while `OnExplicitShutdown` keeps the application loop
+alive until `Shutdown()` is called.
+
+Custom rendering follows the WPF-shaped protected hook:
+
+```cpp
+class Meter final : public Aero::FrameworkElement {
+protected:
+    Aero::Base::Result<void> OnRender(
+        Aero::DrawingContext& context) noexcept override {
+        return context.DrawRectangle(
+            {0.0, 0.0, RenderSize().width, RenderSize().height},
+            {0.2F, 0.6F, 0.9F, 1.0F});
+    }
+};
+```
+
+The public `DrawingContext` records semantic drawing operations. Display-list
+builders, render resource identifiers and GPU command streams remain runtime
+implementation. `ICommand` is likewise manager-free, and public Binding types
+contain authoring state rather than scheduler descriptors.
+
+## Integration
+
+Embedded hosts link `Aero::Integration` and explicitly compose a View:
 
 ```cpp
 #include <Aero/Integration.hpp>
 #include <Aero/Integration/D3D11.hpp>
 
+Aero::RuntimeEnvironment environment;
+environment.AddModule(module);
+environment.Initialize();
+
 auto endpoint =
     Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
-if (!endpoint) return endpoint.GetStatus();
-
 Aero::Integration::ViewHostOptions options;
 options.renderEndpoint = std::move(endpoint).Value();
-options.clipboard = &clipboard;
-options.textInputMethodHost = &ime;
-options.text.primaryFamily = "Segoe UI";
-
-auto created = Aero::Integration::ViewHost::CreateView(
-    environment, options);
+auto created = Aero::Integration::ViewHost::CreateView(environment, options);
 ```
 
-`RenderEndpoint` 是引用计数的 opaque PImpl。View 在创建任何 XAML 控件前验证
-并绑定 endpoint，并持有强引用。一个 endpoint 只能绑定一个 View。
+`RuntimeEnvironment` freezes module/schema composition. Each View owns resource,
+interaction, layout, text and frame state. `RenderEndpoint` remains opaque.
+Concrete backends are opt-in and never leak renderer/RHI objects into Gui.
 
-- Headless：无 GPU device，仅 CPU 诊断和文本资源 sink。
-- Embedded：宿主拥有 device/target/Present，AeroGUI 不 Present。
-- Window：endpoint 拥有 surface/swapchain/context 和 Present。
+## XAML load transaction
 
-`Integration.hpp` 不聚合具体 backend。第一方工厂需显式包含
-`Integration/D3D11.hpp` 或 `Integration/OpenGL33.hpp`。第三方 backend 需显式
-包含 `Integration/HostedGraphics.hpp`，只接触版本化 C-compatible graphics
-command ABI，不接触 UI tree、内部 render snapshot 或 RHI class。
+`UiDocument` is a move-only load result. Loading creates an unmounted object
+graph; `View::SetContent` commits binding, dynamic-resource and mount side
+effects. Failure leaves no partially mounted document.
 
-source provider 位于 `Aero::Integration`；provider registry、file/embedded
-provider、cache 与依赖图都是 View 私有实现。热重载通过
-`Integration::ReloadCoordinator` 和 `ViewHost` 工作。
-
-## Public Schema
-
-`Aero/Markup/Schema.hpp` 的公共面仅用于类型、成员和 content-member 查询。
-对象创建、成员写入、初始化、NameScope/resource scope、deferred content 和
-markup-extension invocation 由 `src/markup` 的私有 access 完成。
-
-公共 `LoadOptions` 只包含 base URI、安全策略和资源限制。manager、templated
-parent、effect lifetime 与 commit 状态属于私有 `LoadContext`。
+The public schema surface resolves types and members. Object construction,
+member writes, initialization, NameScope/resource scopes, deferred content and
+Facet lookup remain private to the loader and ObjectWriter.

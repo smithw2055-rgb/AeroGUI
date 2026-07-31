@@ -1,4 +1,6 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/Controls.hpp>
+#include "../render/DrawingContextAccess.hpp"
 #include <Aero/Controls/Images.hpp>
 
 #include <algorithm>
@@ -106,8 +108,9 @@ Base::Result<Size> Image::MeasureOverride(
         natural.height * scale};
 }
 
-Base::Result<void> Image::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Image::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     if (renderImage_ ==
             InvalidRenderImageId ||
         pixelWidth_ == 0U ||

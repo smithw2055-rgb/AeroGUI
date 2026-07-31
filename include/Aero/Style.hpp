@@ -7,7 +7,6 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Core/Property/PropertyProviderSession.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Resources.hpp>
 
@@ -593,31 +592,8 @@ private:
     bool sealed_ = false;
 };
 
-// Applies sealed style setters through EffectiveValueEngine, thereby retaining
-// the existing precedence contract: local values and local expressions remain
-// above Style values, and template/animation layers remain independent.
-
-// Type-keyed default styles are resolved through the registered base-type
-// chain and occupy the ThemeStyle provider below explicit Style values.
-class AERO_API ThemeStyleRegistry final {
-public:
-    explicit ThemeStyleRegistry(
-        const DependencyPropertyRegistry& properties) noexcept
-        : properties_(&properties) {}
-
-    Base::Result<void> TryRegister(
-        TypeId controlType,
-        const Style& style) noexcept;
-    const Style* Find(TypeId controlType) const noexcept;
-
-private:
-    struct Entry final {
-        TypeId controlType = InvalidTypeId;
-        const Style* style = nullptr;
-    };
-    const DependencyPropertyRegistry* properties_ = nullptr;
-    Base::Vector<Entry> entries_;
-};
+// Styles are applied by the private view runtime. Provider precedence and
+// type-keyed theme-style lookup are not part of the public authoring surface.
 
 
 } // namespace Aero

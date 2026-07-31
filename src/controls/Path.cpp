@@ -1,4 +1,6 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Controls/Controls.hpp>
+#include "../render/DrawingContextAccess.hpp"
 
 #include "runtime/MeshResourceContract.hpp"
 
@@ -1044,8 +1046,9 @@ Base::Result<Size> Path::MeasureOverride(
         natural.height * scale};
 }
 
-Base::Result<void> Path::BuildDisplayList(
-    DisplayListBuilder& builder) noexcept {
+Base::Result<void> Path::OnRender(
+    DrawingContext& context) noexcept {
+    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return mesh.GetStatus();

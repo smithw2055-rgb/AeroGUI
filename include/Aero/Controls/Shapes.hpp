@@ -60,8 +60,8 @@ public:
 protected:
     Base::Result<Size> MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 };
 
 class AERO_API Ellipse final : public Shape {
@@ -73,8 +73,8 @@ public:
 protected:
     Base::Result<Size> MeasureOverride(
         Size availableSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 };
 
 } // namespace Aero::Controls

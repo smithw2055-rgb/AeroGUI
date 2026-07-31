@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../render/DisplayList.hpp"
+
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>

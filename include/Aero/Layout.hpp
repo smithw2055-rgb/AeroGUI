@@ -15,6 +15,8 @@
 
 namespace Aero {
 
+namespace Input { class RoutedCommand; }
+
 using namespace Aero::Core;
 using Point = Base::Point;
 using Size = Base::Size;
@@ -463,6 +465,7 @@ protected:
 private:
     friend class Aero::Detail::UiRuntimeAccess;
     friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Input::RoutedCommand;
 
     struct HandlerRecord final {
         RoutedEventHandle event;
@@ -471,7 +474,8 @@ private:
         bool handledEventsToo = false;
     };
 
-    Aero::Detail::LayoutManager* manager_ = nullptr;
+    void* manager_ = nullptr;
+    void* commandRouter_ = nullptr;
     Base::Vector<HandlerRecord> handlers_;
     std::uint64_t nextHandlerSequence_ = 1U;
     Size desiredSize_;

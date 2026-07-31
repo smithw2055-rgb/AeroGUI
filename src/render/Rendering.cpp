@@ -1,3 +1,4 @@
+#include "DisplayList.hpp"
 #include "RenderingInternal.hpp"
 
 #include "../ui/ResourceAssignment.hpp"
@@ -449,8 +450,8 @@ Base::Result<void> FrameworkElement::InvalidateRender() noexcept {
     return renderManager_->Invalidate(*this);
 }
 
-Base::Result<void> FrameworkElement::BuildDisplayList(
-    DisplayListBuilder&) noexcept {
+Base::Result<void> FrameworkElement::OnRender(
+    DrawingContext&) noexcept {
     return {};
 }
 
@@ -1049,8 +1050,9 @@ Base::Result<void> RenderManager::BuildSubtree(
     }
     element.buildingDisplayList_ = true;
     DisplayListBuilder builder;
+    DrawingContext context(&builder);
     Base::Result<void> built = visible
-        ? element.BuildDisplayList(builder)
+        ? element.OnRender(context)
         : Base::Result<void>();
     if (!built) {
         element.buildingDisplayList_ = false;

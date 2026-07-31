@@ -459,7 +459,7 @@ protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
-    Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(DrawingContext& context) noexcept override;
 };
 
 class AERO_API TextBlock : public FrameworkElement {
@@ -480,15 +480,6 @@ public:
     Text::TextWrapping TextWrapping() const noexcept;
     Text::TextTrimming TextTrimming() const noexcept;
     Text::TextAlignment TextAlignment() const noexcept;
-    RenderGlyphRunId GlyphRun() const noexcept {
-        return glyphRuns_.Empty()
-            ? InvalidRenderGlyphRunId
-            : glyphRuns_[0];
-    }
-    Base::Span<const RenderGlyphRunId> GlyphRuns() const noexcept {
-        return glyphRuns_.AsSpan();
-    }
-    Size GlyphRunSize() const noexcept { return glyphRunSize_; }
     std::uint32_t InlineCount() const noexcept {
         return ownedInlines_.Size();
     }
@@ -559,12 +550,11 @@ public:
         TextAlignmentProperty{"TextAlignment"};
     inline static constexpr Members::Property<Thickness>
         PaddingProperty{"Padding"};
-    Base::Result<void> SetGlyphRun(RenderGlyphRunId glyphRun, Size size) noexcept;
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
-    Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(DrawingContext& context) noexcept override;
 private:
     friend class Detail::TextServicesAccess;
     friend class Aero::Detail::DocumentTextAccess;
@@ -573,9 +563,11 @@ private:
     bool IsLineBreak(const UIElement& child) const noexcept;
     Base::StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
+    Base::Result<void> SetGlyphRun(
+        std::uint64_t glyphRun, Size size) noexcept;
 
     Detail::TextLayoutService* layoutService_ = nullptr;
-    Base::Vector<RenderGlyphRunId> glyphRuns_;
+    Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<Text::TextHitRegion> textHitRegions_;
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;
     Base::Ref<Base::Object> pendingInline_;
@@ -652,8 +644,8 @@ public:
 
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 
 private:
     friend class Detail::PathServicesAccess;
@@ -677,8 +669,8 @@ private:
     Rect geometryBounds_;
     void* meshServices_ = nullptr;
     std::uint64_t meshServiceGeneration_ = 0U;
-    RenderMeshId mesh_ = InvalidRenderMeshId;
-    RenderMeshId strokeMesh_ = InvalidRenderMeshId;
+    std::uint64_t mesh_ = 0U;
+    std::uint64_t strokeMesh_ = 0U;
     bool geometryDirty_ = true;
 };
 

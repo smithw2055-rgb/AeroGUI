@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../DisplayList.hpp"
+
 #include "../Renderer.hpp"
 
 #include "rhi/OpenGL33Backend.hpp"

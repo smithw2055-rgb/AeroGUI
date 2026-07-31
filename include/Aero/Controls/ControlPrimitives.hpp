@@ -157,8 +157,8 @@ protected:
     explicit Panel(TypeId runtimeType) noexcept
         : FrameworkElement(runtimeType), ownedChildren_() {}
     ~Panel() override = default;
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 private:
     Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
 };
@@ -501,14 +501,14 @@ protected:
         if (!arranged) return arranged.GetStatus();
         return finalSize;
     }
-    Base::Result<void> BuildDisplayList(
-        DisplayListBuilder& builder) noexcept override;
+    Base::Result<void> OnRender(
+        DrawingContext& context) noexcept override;
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimeUiServices;
     void AttachTemplateManager(
-        TemplateManager& manager) noexcept {
-        templateManager_ = &manager;
+        void* manager) noexcept {
+        templateManager_ = manager;
     }
     Base::Result<void> NotifyTemplateApplied(
         std::uint64_t handleValue) noexcept {
@@ -523,8 +523,8 @@ private:
             ++templateGeneration_;
         }
     }
-    TemplateManager* templateManager_ = nullptr;
-    RoutedEventManager* routedEvents_ = nullptr;
+    void* templateManager_ = nullptr;
+    void* routedEvents_ = nullptr;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;

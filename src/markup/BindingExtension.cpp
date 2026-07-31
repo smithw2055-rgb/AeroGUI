@@ -1,4 +1,5 @@
 #include "Extensions.hpp"
+#include "../data/BindingRuntime.hpp"
 #include "../ui/RuntimeManagers.hpp"
 
 // Binding markup-extension implementation.

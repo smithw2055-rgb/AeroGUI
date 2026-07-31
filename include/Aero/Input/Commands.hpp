@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
-
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -25,13 +23,11 @@ public:
     ~ICommand() override = default;
 
     virtual Base::Result<bool> CanExecute(
-        Aero::Detail::CommandManager& manager,
         const Core::Value& parameter,
-        UIElement& target) noexcept = 0;
+        UIElement* target = nullptr) noexcept = 0;
     virtual Base::Result<void> Execute(
-        Aero::Detail::CommandManager& manager,
         const Core::Value& parameter,
-        UIElement& target) noexcept = 0;
+        UIElement* target = nullptr) noexcept = 0;
 
     Base::Result<void> TryAddCanExecuteChanged(
         const CanExecuteChangedHandler& handler) noexcept;
@@ -95,13 +91,11 @@ public:
     bool MatchesInput(const KeyboardInput& input) const noexcept;
 
     Base::Result<bool> CanExecute(
-        Aero::Detail::CommandManager& manager,
         const Core::Value& parameter,
-        UIElement& target) noexcept override;
+        UIElement* target = nullptr) noexcept override;
     Base::Result<void> Execute(
-        Aero::Detail::CommandManager& manager,
         const Core::Value& parameter,
-        UIElement& target) noexcept override;
+        UIElement* target = nullptr) noexcept override;
 
     void InvalidateCanExecute() const noexcept {
         RaiseCanExecuteChanged();

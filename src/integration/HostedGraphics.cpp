@@ -1,3 +1,4 @@
+#include "../render/DisplayList.hpp"
 #include <Aero/Integration/HostedGraphics.hpp>
 
 #include "RenderEndpointInternal.hpp"

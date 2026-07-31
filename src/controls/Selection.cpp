@@ -740,7 +740,8 @@ void Selector::OnContainersChanged() noexcept {
 ListBox::~ListBox() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            interactions_->Detach(*this));
+            static_cast<ListBoxInteractionManager*>(
+                interactions_)->Detach(*this));
     }
 }
 
@@ -884,7 +885,8 @@ ComboBox::ComboBox() noexcept
 ComboBox::~ComboBox() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            interactions_->Detach(*this));
+            static_cast<ComboBoxInteractionManager*>(
+                interactions_)->Detach(*this));
     }
     static_cast<void>(RemoveSelectionChanged(
         selectionChangedHandler_));

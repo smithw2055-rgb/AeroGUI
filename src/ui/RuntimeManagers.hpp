@@ -1,6 +1,10 @@
 #pragma once
 
+#include "ThemeStyleRegistry.hpp"
+
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../core/property/PropertyProviderSession.hpp"
+#include "../data/BindingRuntime.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
@@ -75,6 +79,14 @@ public:
         UIElement& owner,
         Base::Ref<KeyBinding> binding) noexcept;
 
+    Base::Result<bool> CanExecute(
+        ICommand& command,
+        const Core::Value& parameter,
+        UIElement& target) noexcept;
+    Base::Result<bool> Execute(
+        ICommand& command,
+        const Core::Value& parameter,
+        UIElement& target) noexcept;
     Base::Result<bool> CanExecute(
         RoutedCommand& command,
         const Core::Value& parameter,
@@ -741,7 +753,7 @@ class AERO_API UiRuntimeAccess::ThemeStyleManager final {
 public:
     ThemeStyleManager(
         EffectiveValueEngine& values,
-        const ThemeStyleRegistry& registry) noexcept
+        const Aero::Detail::ThemeStyleRegistry& registry) noexcept
         : providerSession_(values),
           values_(&providerSession_),
           registry_(&registry) {}
@@ -758,7 +770,7 @@ private:
     };
     Core::Detail::ThemeStyleProviderSession providerSession_;
     Core::Detail::ThemeStyleProviderSession* values_ = nullptr;
-    const ThemeStyleRegistry* registry_ = nullptr;
+    const Aero::Detail::ThemeStyleRegistry* registry_ = nullptr;
     Base::Vector<Application> applications_;
 
     std::uint32_t FindApplication(

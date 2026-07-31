@@ -1,3 +1,4 @@
+#include "ThemeStyleRegistry.hpp"
 #include <Aero/Style.hpp>
 #include <Aero/Rendering.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
@@ -605,7 +606,7 @@ Base::Result<void> Style::Seal(
     return {};
 }
 
-Base::Result<void> ThemeStyleRegistry::TryRegister(
+Base::Result<void> Aero::Detail::ThemeStyleRegistry::TryRegister(
     TypeId controlType,
     const Style& style) noexcept {
     if (properties_ == nullptr || !properties_->IsFrozen() ||
@@ -627,7 +628,7 @@ Base::Result<void> ThemeStyleRegistry::TryRegister(
     return entries_.TryPushBack({controlType, &style});
 }
 
-const Style* ThemeStyleRegistry::Find(
+const Aero::Style* Aero::Detail::ThemeStyleRegistry::Find(
     TypeId controlType) const noexcept {
     if (properties_ == nullptr) return nullptr;
     TypeId current = controlType;

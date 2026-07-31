@@ -1,4 +1,5 @@
 #include <Aero/Media/Brushes.hpp>
+#include "BrushRendering.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -315,7 +316,7 @@ MakeSolidColorBrush(Color color) noexcept {
 }
 
 Base::Result<void> PaintBrushRect(
-    DisplayListBuilder& builder,
+    Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
     double cornerRadius) noexcept {

@@ -64,7 +64,7 @@ protected:
 
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    ControlInteractionManager* interactionManager_ = nullptr;
+    void* interactionManager_ = nullptr;
     bool commandEnabled_ = true;
 };
 
