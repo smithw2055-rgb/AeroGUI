@@ -1545,6 +1545,7 @@ TextBlock::TextBlock() noexcept
 TextBlock::TextBlock(TypeId runtimeType) noexcept
     : FrameworkElement(runtimeType),
       layoutService_(nullptr),
+      textHitRegions_(),
       ownedInlines_(),
       pendingInline_() {}
 
@@ -1640,7 +1641,9 @@ Text::TextAlignment TextBlock::TextAlignment() const noexcept {
 }
 
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
-    return SetValue(TextProperty, value);
+    Base::Result<void> changed = SetValue(TextProperty, value);
+    if (changed) textHitRegions_.Clear();
+    return changed;
 }
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
@@ -1971,6 +1974,7 @@ Base::Result<void> TextBlock::SetGlyphRun(
         !serviceOwnsGlyphRun_) return {};
     ReleaseServiceGlyphRun();
     glyphRuns_.Clear();
+    textHitRegions_.Clear();
     if (glyphRun != InvalidRenderGlyphRunId) {
         Base::Result<void> appended =
             glyphRuns_.TryPushBack(glyphRun);
@@ -1993,6 +1997,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             ReleaseServiceGlyphRun();
             glyphRuns_.Clear();
             glyphRunSize_ = {};
+            textHitRegions_.Clear();
             if (changed) {
                 Base::Result<void> invalidated = InvalidateRender();
                 if (!invalidated) return invalidated.GetStatus();
@@ -2047,6 +2052,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
         }
         ReleaseServiceGlyphRun();
         glyphRuns_ = std::move(output.glyphRuns);
+        textHitRegions_ = std::move(output.hitRegions);
         glyphRunSize_ = output.desiredSize;
         serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
         if (changed) {

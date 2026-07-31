@@ -165,9 +165,14 @@ Base::Result<void> PopulateControlsTextMedia(
     status = lineBreak.Result();
     if (!status) return status.GetStatus();
 
+    status = Describe<Documents::RequestNavigateEventArgs>(context)
+        .Result();
+    if (!status) return status.GetStatus();
+
     auto hyperlink = Describe<Documents::Hyperlink>(context);
     hyperlink
         .Event(Documents::Hyperlink::ClickEvent)
+        .Event(Documents::Hyperlink::RequestNavigateEvent)
         .Property(
             Documents::Hyperlink::NavigateUriProperty,
             PropertyOptions(Base::String{}))

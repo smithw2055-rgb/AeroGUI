@@ -28,9 +28,10 @@ struct TextLayoutRequest final {
 struct TextLayoutResult final {
     explicit TextLayoutResult(
         Base::IAllocator* allocator = nullptr) noexcept
-        : glyphRuns(allocator) {}
+        : glyphRuns(allocator), hitRegions(allocator) {}
 
     Base::Vector<Presentation::RenderGlyphRunId> glyphRuns;
+    Base::Vector<Text::TextHitRegion> hitRegions;
     Presentation::Size desiredSize;
 };
 
