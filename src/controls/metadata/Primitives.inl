@@ -145,16 +145,6 @@ Base::Result<void> PopulateControlsPrimitives(
     status = contentControl.Result();
     if (!status) return status.GetStatus();
 
-    auto window = Describe<App::Window>(context);
-    window
-        .Property(
-            App::Window::TitleProperty,
-            PropertyOptions(Base::String{})
-                .AffectsMeasure())
-        .Factory();
-    status = window.Result();
-    if (!status) return status.GetStatus();
-
     auto buttonBase = Describe<ButtonBase>(
         context, TypeFlags::Abstract);
     buttonBase
