@@ -21,7 +21,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/refactor-patch/part-* | base64 --decode | gzip --decompress > remove-presentation-layer.patch
+          cat \
+            .github/refactor-patch/part-00 \
+            .github/refactor-patch/part-01 \
+            .github/refactor-patch/part-02 \
+            .github/refactor-patch/part-03 \
+            | tr -d '\r\n\t ' \
+            | base64 --decode \
+            | gzip --decompress \
+            > remove-presentation-layer.patch
           git apply --stat remove-presentation-layer.patch
           sha256sum remove-presentation-layer.patch > remove-presentation-layer.patch.sha256
       - name: Upload patch
