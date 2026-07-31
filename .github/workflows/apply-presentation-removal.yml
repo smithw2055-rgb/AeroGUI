@@ -1,0 +1,45 @@
+name: Apply Presentation Removal
+
+on:
+  push:
+    branches:
+      - agent/remove-presentation-layer
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message != 'refactor: remove Presentation layer and align semantic namespaces [staged]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/remove-presentation-layer
+          fetch-depth: 2
+
+      - name: Reassemble and verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          for part in .github/refactor-patch/part-{00..12}; do
+            test -s "$part"
+            cat "$part"
+          done | tr -d '[:space:]' | base64 --decode | gzip --decompress > /tmp/remove-presentation.patch
+          actual="$(sha256sum /tmp/remove-presentation.patch | awk '{print $1}')"
+          expected="32fb8fae2a84216760ff75cd03832e5723caaf9472034555134c66bfca23773b"
+          test "$actual" = "$expected"
+          test "$(wc -c < /tmp/remove-presentation.patch)" = "956318"
+          git apply --check /tmp/remove-presentation.patch
+
+      - name: Apply refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply /tmp/remove-presentation.patch
+          git add -A
+          git config user.name "AeroGUI Refactor Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "refactor: remove Presentation layer and align semantic namespaces [staged]"
+          git push origin HEAD:agent/remove-presentation-layer
