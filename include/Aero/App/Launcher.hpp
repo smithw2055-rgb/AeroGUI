@@ -17,29 +17,11 @@ namespace Core { class IDiagnosticSink; }
 
 namespace Aero::App {
 
-using StartupCallback =
-    Base::Result<void> (*)(
-        Application& application,
-        Window& mainWindow,
-        void* context) noexcept;
-using FrameCallback =
-    Base::Result<void> (*)(
-        Application& application,
-        Window& mainWindow,
-        std::uint64_t frameIndex,
-        void* context) noexcept;
-
-enum class GraphicsBackend : std::uint8_t {
-    Automatic = 0U,
-    D3D11,
-    OpenGL33
-};
+enum class GraphicsBackend : std::uint8_t { Automatic = 0U, D3D11, OpenGL33 };
 
 struct LaunchOptions final {
     Base::StringView applicationFile = "App.xaml";
     GraphicsBackend graphicsBackend = GraphicsBackend::Automatic;
-    // Zero asks the platform for its preferred initial size when XAML does not
-    // declare Width/Height.
     std::uint32_t defaultWidth = 0U;
     std::uint32_t defaultHeight = 0U;
     bool visible = true;
@@ -48,46 +30,29 @@ struct LaunchOptions final {
     bool loadBuiltInTheme = true;
     BuiltInTheme builtInTheme = BuiltInTheme::Light;
     Core::IDiagnosticSink* diagnostics = nullptr;
-    StartupCallback startup = nullptr;
-    void* startupContext = nullptr;
-    FrameCallback frame = nullptr;
-    void* frameContext = nullptr;
 };
 
-// Optional default desktop lifetime. Application and Window remain ordinary
-// WPF-facing objects; Launcher owns native windows, event pumping and endpoint
-// selection behind an opaque implementation.
 class AERO_API Launcher final {
 public:
-    explicit Launcher(
-        const LaunchOptions& options = {},
-        Base::IAllocator* allocator = nullptr) noexcept;
+    explicit Launcher(const LaunchOptions& options = {}, Base::IAllocator* allocator = nullptr) noexcept;
     ~Launcher() noexcept;
 
     Launcher(const Launcher&) = delete;
     Launcher& operator=(const Launcher&) = delete;
 
     Base::Result<int> Run() noexcept;
-    Base::Result<void> AddModule(
-        const ModuleRegistration& registration) noexcept;
+    Base::Result<void> AddModule(const ModuleRegistration& registration) noexcept;
     void RequestExit(int exitCode = 0) noexcept;
-
-    Application* CurrentApplication() const noexcept;
-    Window* MainWindow() const noexcept;
+    Application* GetApplication() const noexcept;
+    Window* GetMainWindow() const noexcept;
 
 private:
     struct Impl;
-
-    static void AttachRuntime(
-        Application& application,
-        Window& window,
-        void* applicationRuntime,
-        void* windowRuntime) noexcept;
-    static void DetachRuntime(
-        Application* application,
-        Window* window) noexcept;
-
+    static void AttachRuntime(Application& application, Window& window, void* applicationRuntime, void* windowRuntime) noexcept;
+    static void DetachRuntime(Application* application, Window* window) noexcept;
     Impl* impl_ = nullptr;
 };
+
+AERO_API int Run(const LaunchOptions& options = {}, Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::App

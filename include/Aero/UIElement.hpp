@@ -5,12 +5,85 @@
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
+
+#include <new>
+#include <type_traits>
 
 namespace Aero::Detail {
 class UiRuntimeAccess;
 class ControlRuntimeAccess;
 }
+
+namespace Aero::Detail {
+
+class RoutedHandlerStorage final {
+public:
+    RoutedHandlerStorage() noexcept = default;
+
+    template<class TArgs>
+    explicit RoutedHandlerStorage(const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
+        static_assert(std::is_base_of<Aero::RoutedEventArgs, TArgs>::value,
+            "Routed event arguments must derive from RoutedEventArgs");
+        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
+        static_assert(sizeof(Handler) <= sizeof(storage_), "Routed handler storage is too small");
+        new (storage_) Handler(handler);
+        operations_ = &OperationsFor<TArgs>();
+        argsType_ = TArgs::StaticTypeId();
+    }
+
+    RoutedHandlerStorage(const RoutedHandlerStorage& other) noexcept;
+    RoutedHandlerStorage(RoutedHandlerStorage&& other) noexcept;
+    RoutedHandlerStorage& operator=(const RoutedHandlerStorage& other) noexcept;
+    RoutedHandlerStorage& operator=(RoutedHandlerStorage&& other) noexcept;
+    ~RoutedHandlerStorage() noexcept;
+
+    bool Empty() const noexcept { return operations_ == nullptr; }
+    Core::TypeId ArgsType() const noexcept { return argsType_; }
+    bool Equals(const RoutedHandlerStorage& other) const noexcept;
+    void Invoke(Base::Object* sender, const RoutedEventArgs& args) const noexcept;
+
+private:
+    struct Operations final {
+        void (*copy)(void*, const void*) noexcept;
+        void (*destroy)(void*) noexcept;
+        bool (*equals)(const void*, const void*) noexcept;
+        void (*invoke)(const void*, Base::Object*, const RoutedEventArgs&) noexcept;
+    };
+
+    template<class TArgs>
+    static const Operations& OperationsFor() noexcept {
+        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
+        static const Operations operations{
+            [](void* destination, const void* source) noexcept {
+                new (destination) Handler(*static_cast<const Handler*>(source));
+            },
+            [](void* value) noexcept { static_cast<Handler*>(value)->~Handler(); },
+            [](const void* left, const void* right) noexcept {
+                return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
+            },
+            [](const void* value, Base::Object* sender, const RoutedEventArgs& args) noexcept {
+                static_cast<const Handler*>(value)->Invoke(sender, static_cast<const TArgs&>(args));
+            }};
+        return operations;
+    }
+
+    void Reset() noexcept;
+
+    alignas(void*) unsigned char storage_[4U * sizeof(void*)]{};
+    const Operations* operations_ = nullptr;
+    Core::TypeId argsType_ = Core::InvalidTypeId;
+};
+
+template<class T>
+struct RoutedHandlerTraits;
+
+template<class TArgs>
+struct RoutedHandlerTraits<Base::Delegate<void(Base::Object*, const TArgs&)>> final {
+    using Args = TArgs;
+};
+
+} // namespace Aero::Detail
 namespace Aero::Input { class RoutedCommand; }
 
 namespace Aero {
@@ -23,66 +96,36 @@ class UIElementChildRange final {
 public:
     class Iterator final {
     public:
-        Iterator(Base::Span<Visual* const> children,
-            std::uint32_t index) noexcept
-            : children_(children), index_(index) { Advance(); }
-        UIElement* operator*() const noexcept {
-            return index_ < children_.Size()
-                ? children_[index_]->AsUIElement() : nullptr;
-        }
-        Iterator& operator++() noexcept {
-            if (index_ < children_.Size()) ++index_;
-            Advance();
-            return *this;
-        }
-        bool operator!=(const Iterator& other) const noexcept {
-            return index_ != other.index_ ||
-                children_.Data() != other.children_.Data();
-        }
+        Iterator(const Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
+        UIElement* operator*() const noexcept;
+        Iterator& operator++() noexcept { ++index_; Advance(); return *this; }
+        bool operator!=(const Iterator& other) const noexcept { return owner_ != other.owner_ || index_ != other.index_; }
+        bool operator==(const Iterator& other) const noexcept { return !(*this != other); }
+
     private:
-        Base::Span<Visual* const> children_;
+        const Visual* owner_ = nullptr;
         std::uint32_t index_ = 0U;
-        void Advance() noexcept {
-            while (index_ < children_.Size() &&
-                children_[index_]->AsUIElement() == nullptr) {
-                ++index_;
-            }
-        }
+        void Advance() noexcept;
     };
 
-    explicit UIElementChildRange(Base::Span<Visual* const> children) noexcept
-        : children_(children) {}
-    Iterator begin() const noexcept { return Iterator(children_, 0U); }
-    Iterator end() const noexcept {
-        return Iterator(children_, children_.Size());
-    }
-    bool Empty() const noexcept { return !(begin() != end()); }
-    std::uint32_t Size() const noexcept {
-        std::uint32_t count = 0U;
-        for (UIElement* child : *this) {
-            (void)child;
-            ++count;
-        }
-        return count;
-    }
-    UIElement* operator[](std::uint32_t index) const noexcept {
-        std::uint32_t current = 0U;
-        for (UIElement* child : *this) {
-            if (current++ == index) return child;
-        }
-        return nullptr;
-    }
+    explicit UIElementChildRange(const Visual& owner) noexcept : owner_(&owner) {}
+    Iterator begin() const noexcept { return Iterator(owner_, 0U); }
+    Iterator end() const noexcept { return Iterator(owner_, VisualTreeHelper::GetChildrenCount(*owner_)); }
+    bool Empty() const noexcept { return begin() == end(); }
+    std::uint32_t Size() const noexcept;
+    UIElement* operator[](std::uint32_t index) const noexcept;
+
 private:
-    Base::Span<Visual* const> children_;
+    const Visual* owner_ = nullptr;
 };
 
 class AERO_API UIElement : public Visual {
     AERO_DECLARE_TYPE(UIElement, Visual)
 public:
     template<class THandler>
-    class RoutedEvent_ final {
+    class Event final {
     public:
-        RoutedEvent_(UIElement& element, RoutedEventHandle event) noexcept
+        Event(UIElement& element, RoutedEventHandle event) noexcept
             : element_(&element), event_(event) {}
 
         Base::Result<void> TryAdd(
@@ -127,67 +170,77 @@ public:
     };
 
     template<class TOwner, class TArgs>
-    auto Event(
+    auto GetEvent(
         const Core::RoutedEventRef<TOwner, TArgs>& event) noexcept {
         using Handler =
             Base::Delegate<void(Base::Object*, const TArgs&)>;
-        return RoutedEvent_<Handler>(*this, event.Handle());
+        return Event<Handler>(*this, event.Handle());
     }
 
-    inline static constexpr Members::RoutedEvent<
-        MouseEventArgs> MouseMoveEvent{"MouseMove"};
-    RoutedEvent_<MouseEventHandler> MouseMove() noexcept {
-        return Event(MouseMoveEvent);
+    inline static constexpr Members::RoutedEvent<MouseEventArgs> PreviewMouseMoveEvent{"PreviewMouseMove"};
+    Event<MouseEventHandler> PreviewMouseMove() noexcept { return GetEvent(PreviewMouseMoveEvent); }
+
+    inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseMoveEvent{"MouseMove"};
+    Event<MouseEventHandler> MouseMove() noexcept {
+        return GetEvent(MouseMoveEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
-    RoutedEvent_<MouseButtonEventHandler> MouseDown() noexcept {
-        return Event(MouseDownEvent);
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseDownEvent{"PreviewMouseDown"};
+    Event<MouseButtonEventHandler> PreviewMouseDown() noexcept { return GetEvent(PreviewMouseDownEvent); }
+
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
+    Event<MouseButtonEventHandler> MouseDown() noexcept {
+        return GetEvent(MouseDownEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
-    RoutedEvent_<MouseButtonEventHandler> MouseUp() noexcept {
-        return Event(MouseUpEvent);
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
+    Event<MouseButtonEventHandler> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }
+
+    inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
+    Event<MouseButtonEventHandler> MouseUp() noexcept {
+        return GetEvent(MouseUpEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
-    RoutedEvent_<MouseWheelEventHandler> MouseWheel() noexcept {
-        return Event(MouseWheelEvent);
+    inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> PreviewMouseWheelEvent{"PreviewMouseWheel"};
+    Event<MouseWheelEventHandler> PreviewMouseWheel() noexcept { return GetEvent(PreviewMouseWheelEvent); }
+
+    inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
+    Event<MouseWheelEventHandler> MouseWheel() noexcept {
+        return GetEvent(MouseWheelEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        KeyboardFocusChangedEventArgs>
-        GotKeyboardFocusEvent{"GotKeyboardFocus"};
-    RoutedEvent_<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
-        return Event(GotKeyboardFocusEvent);
+    inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent{"GotKeyboardFocus"};
+    Event<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
+        return GetEvent(GotKeyboardFocusEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        KeyboardFocusChangedEventArgs>
-        LostKeyboardFocusEvent{"LostKeyboardFocus"};
-    RoutedEvent_<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
-        return Event(LostKeyboardFocusEvent);
+    inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> LostKeyboardFocusEvent{"LostKeyboardFocus"};
+    Event<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
+        return GetEvent(LostKeyboardFocusEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        KeyEventArgs> KeyDownEvent{"KeyDown"};
-    RoutedEvent_<KeyEventHandler> KeyDown() noexcept {
-        return Event(KeyDownEvent);
+    inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyDownEvent{"PreviewKeyDown"};
+    Event<KeyEventHandler> PreviewKeyDown() noexcept { return GetEvent(PreviewKeyDownEvent); }
+
+    inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyDownEvent{"KeyDown"};
+    Event<KeyEventHandler> KeyDown() noexcept {
+        return GetEvent(KeyDownEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        KeyEventArgs> KeyUpEvent{"KeyUp"};
-    RoutedEvent_<KeyEventHandler> KeyUp() noexcept {
-        return Event(KeyUpEvent);
+    inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyUpEvent{"PreviewKeyUp"};
+    Event<KeyEventHandler> PreviewKeyUp() noexcept { return GetEvent(PreviewKeyUpEvent); }
+
+    inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyUpEvent{"KeyUp"};
+    Event<KeyEventHandler> KeyUp() noexcept {
+        return GetEvent(KeyUpEvent);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        TextCompositionEventArgs> TextInputEvent{"TextInput"};
-    RoutedEvent_<TextCompositionEventHandler> TextInput() noexcept {
-        return Event(TextInputEvent);
+    inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> PreviewTextInputEvent{"PreviewTextInput"};
+    Event<TextCompositionEventHandler> PreviewTextInput() noexcept { return GetEvent(PreviewTextInputEvent); }
+
+    inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> TextInputEvent{"TextInput"};
+    Event<TextCompositionEventHandler> TextInput() noexcept {
+        return GetEvent(TextInputEvent);
     }
 
     explicit UIElement(TypeId runtimeType) noexcept;
@@ -196,7 +249,7 @@ public:
     UIElement* AsUIElement() noexcept override { return this; }
     const UIElement* AsUIElement() const noexcept override { return this; }
     UIElement* LayoutParent() const noexcept {
-        Visual* parent = VisualParent();
+        Visual* parent = GetVisualParent();
         return parent != nullptr ? parent->AsUIElement() : nullptr;
     }
 
@@ -211,6 +264,17 @@ public:
         bool handledEventsToo = false) noexcept {
         return TryAddHandler(
             event, Aero::Detail::RoutedHandlerStorage(handler), handledEventsToo);
+    }
+    template<class TArgs>
+    void AddHandler(
+        RoutedEventHandle event,
+        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        bool handledEventsToo = false) noexcept {
+        Base::Result<void> added = TryAddHandler(event, handler, handledEventsToo);
+        if (!added) {
+            Base::ReportOutOfMemory(sizeof(Aero::Detail::RoutedHandlerStorage),
+                alignof(Aero::Detail::RoutedHandlerStorage), Base::MemoryTag::General);
+        }
     }
     bool RemoveHandler(
         RoutedEventHandle event,
@@ -257,46 +321,45 @@ public:
     Point RenderTransformOrigin() const noexcept;
     std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
 
+    Size GetDesiredSize() const noexcept { return DesiredSize(); }
+    Size GetRenderSize() const noexcept { return RenderSize(); }
+    bool GetClipToBounds() const noexcept { return ClipToBounds(); }
+    Base::Ref<Base::Object> GetOpacityMask() const noexcept { return OpacityMask(); }
+    bool GetIsHitTestVisible() const noexcept { return IsHitTestVisible(); }
+    bool GetIsVisible() const noexcept { return IsVisible(); }
+    bool GetIsEnabled() const noexcept { return IsEnabled(); }
+    bool GetAllowDrop() const noexcept { return AllowDrop(); }
+    bool GetIsMouseOver() const noexcept { return IsMouseOver(); }
+    bool GetIsPressed() const noexcept { return IsPressed(); }
+    bool GetIsKeyboardFocused() const noexcept { return IsKeyboardFocused(); }
+    bool GetIsKeyboardFocusWithin() const noexcept { return IsKeyboardFocusWithin(); }
+    bool GetFocusable() const noexcept { return Focusable(); }
+    bool GetIsTabStop() const noexcept { return IsTabStop(); }
+    std::uint32_t GetTabIndex() const noexcept { return TabIndex(); }
+    bool GetIsFocusScope() const noexcept { return IsFocusScope(); }
+    Base::Ref<Media::Transform> GetRenderTransform() const noexcept;
+    Point GetRenderTransformOrigin() const noexcept { return RenderTransformOrigin(); }
+
     // Dependency properties
-    inline static constexpr Members::Property<bool>
-        ClipToBoundsProperty{"ClipToBounds"};
-    inline static constexpr Members::Property<BlendMode>
-        BlendModeProperty{"BlendMode"};
-    inline static constexpr Members::Property<Base::Ref<Media::Effect>>
-        EffectProperty{"Effect"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        OpacityMaskProperty{"OpacityMask"};
-    inline static constexpr Members::Property<bool>
-        IsHitTestVisibleProperty{"IsHitTestVisible"};
-    inline static constexpr Members::Property<Visibility>
-        VisibilityProperty{"Visibility"};
-    inline static constexpr Members::Property<bool>
-        IsEnabledProperty{"IsEnabled"};
-    inline static constexpr Members::Property<bool>
-        AllowDropProperty{"AllowDrop"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsMouseOverProperty{"IsMouseOver"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsPressedProperty{"IsPressed"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsKeyboardFocusedProperty{"IsKeyboardFocused"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
-    inline static constexpr Members::Property<bool>
-        FocusableProperty{"Focusable"};
-    inline static constexpr Members::Property<bool>
-        IsTabStopProperty{"IsTabStop"};
-    inline static constexpr Members::Property<std::uint32_t>
-        TabIndexProperty{"TabIndex"};
-    inline static constexpr Members::Property<bool>
-        IsFocusScopeProperty{"IsFocusScope"};
-    inline static constexpr Members::Property<double>
-        OpacityProperty{"Opacity"};
-    inline static constexpr Members::Property<Base::Ref<Media::Transform>>
-        RenderTransformProperty{"RenderTransform"};
-    inline static constexpr Members::Property<Point>
-        RenderTransformOriginProperty{"RenderTransformOrigin"};
+    inline static constexpr Members::Property<bool> ClipToBoundsProperty{"ClipToBounds"};
+    inline static constexpr Members::Property<BlendMode> BlendModeProperty{"BlendMode"};
+    inline static constexpr Members::Property<Base::Ref<Media::Effect>> EffectProperty{"Effect"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> OpacityMaskProperty{"OpacityMask"};
+    inline static constexpr Members::Property<bool> IsHitTestVisibleProperty{"IsHitTestVisible"};
+    inline static constexpr Members::Property<Visibility> VisibilityProperty{"Visibility"};
+    inline static constexpr Members::Property<bool> IsEnabledProperty{"IsEnabled"};
+    inline static constexpr Members::Property<bool> AllowDropProperty{"AllowDrop"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsMouseOverProperty{"IsMouseOver"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsPressedProperty{"IsPressed"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsKeyboardFocusedProperty{"IsKeyboardFocused"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsKeyboardFocusWithinProperty{"IsKeyboardFocusWithin"};
+    inline static constexpr Members::Property<bool> FocusableProperty{"Focusable"};
+    inline static constexpr Members::Property<bool> IsTabStopProperty{"IsTabStop"};
+    inline static constexpr Members::Property<std::uint32_t> TabIndexProperty{"TabIndex"};
+    inline static constexpr Members::Property<bool> IsFocusScopeProperty{"IsFocusScope"};
+    inline static constexpr Members::Property<double> OpacityProperty{"Opacity"};
+    inline static constexpr Members::Property<Base::Ref<Media::Transform>> RenderTransformProperty{"RenderTransform"};
+    inline static constexpr Members::Property<Point> RenderTransformOriginProperty{"RenderTransformOrigin"};
 
     // Property operations
     Base::Result<void> SetClipToBounds(bool value) noexcept;
@@ -316,6 +379,7 @@ public:
         Point value) noexcept;
 
 protected:
+    Base::Result<void> RaiseEvent(RoutedEventHandle event, RoutedEventArgs* args = nullptr) noexcept;
     Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual Base::Result<Size> MeasureOverride(Size availableSize) noexcept;
@@ -325,7 +389,7 @@ protected:
     Base::Result<void> ArrangeChild(
         UIElement& child, Rect finalRect) noexcept;
     UIElementChildRange LayoutChildren() const noexcept {
-        return UIElementChildRange(VisualChildren());
+        return UIElementChildRange(*this);
     }
 
 private:
@@ -341,6 +405,7 @@ private:
     };
 
     void* manager_ = nullptr;
+    void* eventRouter_ = nullptr;
     void* commandRouter_ = nullptr;
     Base::Vector<HandlerRecord> handlers_;
     std::uint64_t nextHandlerSequence_ = 1U;

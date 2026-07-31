@@ -5,6 +5,10 @@
 
 namespace Aero::Detail {
 
+inline void UiRuntimeAccess::SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept {
+    element.eventRouter_ = router;
+}
+
 inline void UiRuntimeAccess::SetCommandRouter(
     Aero::UIElement& element,
     CommandManager* manager) noexcept {

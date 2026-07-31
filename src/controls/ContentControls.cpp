@@ -1,8 +1,11 @@
 #include <Aero/Controls/Items.hpp>
+#include "ContentControlAccess.hpp"
 
 #include <algorithm>
 
 namespace Aero::Controls {
+
+using namespace Primitives;
 
 using namespace Aero::Core;
 
@@ -142,7 +145,7 @@ void Popup::OnOpenPropertyChanged(
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             args.newValue.AsBoolean()
                 ? OpenedEvent
                 : ClosedEvent,
@@ -160,7 +163,7 @@ Base::Result<Size> Popup::MeasureOverride(
     UIElement* popupChild =
         TemplateChild() != nullptr
             ? TemplateChild()
-            : Content();
+            : ContentElement();
     if (!IsOpen() || popupChild == nullptr) {
         return Size{};
     }
@@ -179,7 +182,7 @@ Base::Result<Size> Popup::ArrangeOverride(
     UIElement* popupChild =
         TemplateChild() != nullptr
             ? TemplateChild()
-            : Content();
+            : ContentElement();
     if (popupChild == nullptr) return finalSize;
     if (!IsOpen()) {
         Base::Result<void> hidden =
@@ -205,9 +208,9 @@ Base::Result<Size> Popup::ArrangeOverride(
             placementTarget =
                 static_cast<UIElement*>(
                     templatedParent);
-        } else if (VisualParent() != nullptr) {
+        } else if (GetVisualParent() != nullptr) {
             placementTarget =
-                VisualParent()->AsUIElement();
+                GetVisualParent()->AsUIElement();
         }
     }
     Size targetSize = finalSize;
@@ -227,7 +230,7 @@ Base::Result<Size> Popup::ArrangeOverride(
                     result.x += slot.x;
                     result.y += slot.y;
                 }
-                current = current->VisualParent();
+                current = current->GetVisualParent();
             }
             return result;
         };
@@ -348,7 +351,7 @@ void Expander::OnExpandedPropertyChanged(
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             change.newValue.AsBoolean()
                 ? ExpandedEvent
                 : CollapsedEvent,
@@ -379,7 +382,7 @@ Base::Result<Size> Expander::MeasureOverride(
             availableSize);
     }
     constexpr double HeaderExtent = 24.0;
-    if (!IsExpanded() || Content() == nullptr) {
+    if (!IsExpanded() || ContentElement() == nullptr) {
         return Direction() == ExpandDirection::Left ||
                 Direction() == ExpandDirection::Right
             ? Size{HeaderExtent, 0.0}
@@ -395,9 +398,9 @@ Base::Result<Size> Expander::MeasureOverride(
             std::max(0.0, childAvailable.height - HeaderExtent);
     }
     Base::Result<void> measured =
-        MeasureChild(*Content(), childAvailable);
+        MeasureChild(*ContentElement(), childAvailable);
     if (!measured) return measured.GetStatus();
-    const Size desired = Content()->DesiredSize();
+    const Size desired = ContentElement()->DesiredSize();
     return Direction() == ExpandDirection::Left ||
             Direction() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
@@ -410,7 +413,7 @@ Base::Result<Size> Expander::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    if (!IsExpanded() || Content() == nullptr) {
+    if (!IsExpanded() || ContentElement() == nullptr) {
         return finalSize;
     }
     constexpr double HeaderExtent = 24.0;
@@ -436,7 +439,7 @@ Base::Result<Size> Expander::ArrangeOverride(
         break;
     }
     Base::Result<void> arranged =
-        ArrangeChild(*Content(), slot);
+        ArrangeChild(*ContentElement(), slot);
     if (!arranged) return arranged.GetStatus();
     return finalSize;
 }
@@ -567,7 +570,7 @@ TabControl::SynchronizeSelection() noexcept {
     }
     const Core::Value selectedContent =
         value < tabs_.Size()
-        ? tabs_[value]->MetadataContent()
+        ? tabs_[value]->GetContent()
         : Core::Value::NullObject(
               Core::TypeOf<Base::Object>());
     Base::Result<void> content = SetReadOnlyCurrentValue(
@@ -588,7 +591,7 @@ void TabControl::OnSelectionPropertyChanged(
     if (!synchronized) return;
     RoutedEventArgs args;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             SelectionChangedEvent, &args);
     if (!raised &&
         raised.GetStatus().code !=

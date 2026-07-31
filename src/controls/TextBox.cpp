@@ -14,6 +14,8 @@
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
+
+using namespace Primitives;
 namespace {
 
 constexpr double DefaultAdvance = 8.0;
@@ -228,7 +230,7 @@ Base::Result<void> PasswordBox::SetPassword(
     if (!render) return render.GetStatus();
     RoutedEventArgs args;
     Base::Result<void> raised =
-        RaiseRoutedEvent(PasswordChangedEvent, &args);
+        RaiseEvent(PasswordChangedEvent, &args);
     return !raised &&
         raised.GetStatus().code !=
             Base::ErrorCode::NotInitialized
@@ -493,7 +495,7 @@ PasswordBox::SynchronizePasswordFromEditor()
     if (!render) return render.GetStatus();
     RoutedEventArgs args;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             PasswordChangedEvent, &args);
     return !raised &&
         raised.GetStatus().code !=
@@ -552,7 +554,7 @@ void TextBox::OnTextPropertyChanged(
     }
     RoutedEventArgs changed;
     const Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             TextChangedEvent, &changed);
     if (!raised &&
         raised.GetStatus().code !=
@@ -2323,7 +2325,7 @@ using namespace Aero::Controls;
 TextBoxInteractionManager::
 TextBoxInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     PointerInputManager& pointer,
     FocusManager& focus,
     Platform::IClipboard& clipboard) noexcept
@@ -2448,8 +2450,8 @@ TextBoxInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "TextBox is already attached");
     }
-    if (!textBox.IsLoaded() ||
-        textBox.OwningTree() != tree_) {
+    if (!textBox.GetIsLoaded() ||
+        Aero::Detail::VisualAccess::Tree(textBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "TextBox must be loaded in the interaction tree");
@@ -2460,7 +2462,7 @@ TextBoxInteractionManager::Attach(
         return synced;
     }
     Record record;
-    record.handle = textBox.Handle();
+    record.handle = Aero::Detail::VisualAccess::Handle(textBox);
     Base::Result<void> appended =
         records_.TryPushBack(record);
     if (!appended) {
@@ -2546,8 +2548,8 @@ TextBoxInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "PasswordBox is already attached");
     }
-    if (!passwordBox.IsLoaded() ||
-        passwordBox.OwningTree() != tree_) {
+    if (!passwordBox.GetIsLoaded() ||
+        Aero::Detail::VisualAccess::Tree(passwordBox) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "PasswordBox must be loaded in the interaction tree");
@@ -2583,7 +2585,7 @@ TextBoxInteractionManager::Attach(
     if (!synced) return synced.GetStatus();
 
     Record record;
-    record.handle = passwordBox.Handle();
+    record.handle = Aero::Detail::VisualAccess::Handle(passwordBox);
     record.password = true;
     Base::Result<void> appended =
         records_.TryPushBack(record);

@@ -445,7 +445,7 @@ public:
         : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;
     Panel* ItemsHost() const noexcept {
-        UIElement* child = Child();
+        UIElement* child = GetChild();
         return child != nullptr &&
             PropertyRegistry().Types().IsDerivedFrom(
                 child->RuntimeType(), Panel::StaticTypeId())
@@ -454,9 +454,7 @@ public:
     }
     Base::Result<void> SetItemsHost(
         const Base::Ref<Base::Object>& owner,
-        Panel& panel) noexcept {
-        return SetOwnedChild(owner, panel);
-    }
+        Panel& panel) noexcept;
 };
 
 class ItemContainerGenerator;
@@ -468,13 +466,13 @@ public:
     ItemsControl() noexcept;
     ~ItemsControl() override;
 
-    ItemsCollection& Items() noexcept {
+    ItemsCollection& GetItems() noexcept {
         return items_;
     }
-    const ItemsCollection& Items() const noexcept {
+    const ItemsCollection& GetItems() const noexcept {
         return items_;
     }
-    IItemsSource* ItemsSource() const noexcept {
+    IItemsSource* GetItemsSource() const noexcept {
         return source_;
     }
     Base::Ref<Base::Object>
@@ -502,7 +500,7 @@ public:
         return SetValue(AlternationCountProperty, value);
     }
 
-    const DataTemplate* ItemTemplate() const noexcept {
+    const DataTemplate* GetItemTemplate() const noexcept {
         return itemTemplate_;
     }
     Base::Ref<DataTemplate>
@@ -519,7 +517,7 @@ public:
             ItemTemplateProperty,
             std::move(value));
     }
-    const ItemsPanelTemplate* ItemsPanel() const noexcept {
+    const ItemsPanelTemplate* GetItemsPanel() const noexcept {
         return itemsPanel_;
     }
     Base::Ref<ItemsPanelTemplate>
@@ -536,7 +534,7 @@ public:
             ItemsPanelProperty,
             std::move(value));
     }
-    const Style* ItemContainerStyle() const noexcept {
+    const Style* GetItemContainerStyle() const noexcept {
         return itemContainerStyle_;
     }
     Base::Ref<Style>
@@ -569,24 +567,13 @@ public:
     std::uint32_t CreatedContainerCount() const noexcept;
     std::uint32_t RecycledContainerUseCount() const noexcept;
 
-    inline static constexpr Members::ReadOnlyProperty<
-        std::uint32_t> ItemCountProperty{"ItemCount"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        HasItemsProperty{"HasItems"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ItemsSourceProperty{"ItemsSource"};
-    inline static constexpr Members::Property<std::uint32_t>
-        AlternationCountProperty{"AlternationCount"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        ItemTemplateProperty{"ItemTemplate"};
-    inline static constexpr Members::Property<
-        Base::Ref<ItemsPanelTemplate>>
-        ItemsPanelProperty{"ItemsPanel"};
-    inline static constexpr Members::Property<
-        Base::Ref<Style>>
-        ItemContainerStyleProperty{"ItemContainerStyle"};
+    inline static constexpr Members::ReadOnlyProperty<std::uint32_t> ItemCountProperty{"ItemCount"};
+    inline static constexpr Members::ReadOnlyProperty<bool> HasItemsProperty{"HasItems"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
+    inline static constexpr Members::Property<std::uint32_t> AlternationCountProperty{"AlternationCount"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
+    inline static constexpr Members::Property<Base::Ref<ItemsPanelTemplate>> ItemsPanelProperty{"ItemsPanel"};
+    inline static constexpr Members::Property<Base::Ref<Style>> ItemContainerStyleProperty{"ItemContainerStyle"};
 
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
@@ -653,10 +640,8 @@ public:
         return SetValue(HeaderTemplateProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<Base::String>
-        HeaderProperty{"Header"};
-    inline static constexpr Members::Property<Base::Ref<DataTemplate>>
-        HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
 };
 
 class AERO_API ItemContainerGenerator final {
@@ -708,6 +693,8 @@ enum class ExpandDirection : std::uint8_t {
     Right,
 };
 
+namespace Primitives {
+
 enum class PlacementMode : std::uint8_t {
     Bottom = 0U,
     Top,
@@ -758,45 +745,26 @@ public:
     Base::Result<void> SetAllowsTransparency(
         bool value) noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        OpenedEvent{"Opened"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        ClosedEvent{"Closed"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
+    UIElement::Event<RoutedEventHandler>
         Opened() noexcept {
-        return Event(OpenedEvent);
+        return GetEvent(OpenedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    UIElement::Event<RoutedEventHandler>
         Closed() noexcept {
-        return Event(ClosedEvent);
+        return GetEvent(ClosedEvent);
     }
 
-    inline static constexpr Members::Property<bool>
-        IsOpenProperty{"IsOpen"};
-    inline static constexpr Members::Property<
-        PlacementMode>
-        PlacementProperty{"Placement"};
-    inline static constexpr Members::Property<double>
-        HorizontalOffsetProperty{"HorizontalOffset"};
-    inline static constexpr Members::Property<double>
-        VerticalOffsetProperty{"VerticalOffset"};
-    inline static constexpr Members::Property<bool>
-        StaysOpenProperty{"StaysOpen"};
-    inline static constexpr Members::Property<bool>
-        MatchPlacementTargetWidthProperty{
-            "MatchPlacementTargetWidth"};
-    inline static constexpr Members::Property<
-        Base::Ref<UIElement>>
-        PlacementTargetProperty{
-            "PlacementTarget"};
-    inline static constexpr Members::Property<
-        PopupAnimation>
-        PopupAnimationProperty{"PopupAnimation"};
-    inline static constexpr Members::Property<bool>
-        AllowsTransparencyProperty{
-            "AllowsTransparency"};
+    inline static constexpr Members::Property<bool> IsOpenProperty{"IsOpen"};
+    inline static constexpr Members::Property<PlacementMode> PlacementProperty{"Placement"};
+    inline static constexpr Members::Property<double> HorizontalOffsetProperty{"HorizontalOffset"};
+    inline static constexpr Members::Property<double> VerticalOffsetProperty{"VerticalOffset"};
+    inline static constexpr Members::Property<bool> StaysOpenProperty{"StaysOpen"};
+    inline static constexpr Members::Property<bool> MatchPlacementTargetWidthProperty{"MatchPlacementTargetWidth"};
+    inline static constexpr Members::Property<Base::Ref<UIElement>> PlacementTargetProperty{"PlacementTarget"};
+    inline static constexpr Members::Property<PopupAnimation> PopupAnimationProperty{"PopupAnimation"};
+    inline static constexpr Members::Property<bool> AllowsTransparencyProperty{"AllowsTransparency"};
 
 protected:
     explicit Popup(TypeId runtimeType) noexcept;
@@ -815,6 +783,8 @@ private:
             args) noexcept;
 };
 
+} // namespace Primitives
+
 class AERO_API HeaderedContentControl
     : public ContentControl {
     AERO_DECLARE_TYPE(
@@ -831,11 +801,8 @@ public:
     // WPF headers are content, not just text. They can hold an element, a
     // resource object, a scalar, or x:Null and are consumed by a
     // ContentPresenter through ContentSource="Header".
-    inline static constexpr Members::Property<Core::Value>
-        HeaderProperty{"Header"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr Members::Property<Core::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
 
 protected:
     explicit HeaderedContentControl(
@@ -877,25 +844,18 @@ public:
     Base::Result<void> SetDirection(
         ExpandDirection value) noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        ExpandedEvent{"Expanded"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        CollapsedEvent{"Collapsed"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> CollapsedEvent{"Collapsed"};
+    UIElement::Event<RoutedEventHandler>
         Expanded() noexcept {
-        return Event(ExpandedEvent);
+        return GetEvent(ExpandedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    UIElement::Event<RoutedEventHandler>
         Collapsed() noexcept {
-        return Event(CollapsedEvent);
+        return GetEvent(CollapsedEvent);
     }
-    inline static constexpr Members::Property<bool>
-        IsExpandedProperty{"IsExpanded"};
-    inline static constexpr Members::Property<
-        ExpandDirection>
-        ExpandDirectionProperty{"ExpandDirection"};
+    inline static constexpr Members::Property<bool> IsExpandedProperty{"IsExpanded"};
+    inline static constexpr Members::Property<ExpandDirection> ExpandDirectionProperty{"ExpandDirection"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -925,8 +885,7 @@ public:
     bool IsSelected() const noexcept;
     Base::Result<void> SetIsSelected(
         bool value) noexcept;
-    inline static constexpr Members::Property<bool>
-        IsSelectedProperty{"IsSelected"};
+    inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 };
 
 class AERO_API TabControl final : public Control {
@@ -955,7 +914,7 @@ public:
     // being upgraded to the full selector pipeline. This preserves authored
     // ItemsControl binding/template declarations instead of reducing them to
     // loader-only markup.
-    Base::Ref<Base::Object> ItemsSource() const noexcept {
+    Base::Ref<Base::Object> GetItemsSource() const noexcept {
         return GetValueOr(
             ItemsSourceProperty,
             Base::Ref<Base::Object>{});
@@ -964,7 +923,7 @@ public:
         Base::Ref<Base::Object> value) noexcept {
         return SetValue(ItemsSourceProperty, std::move(value));
     }
-    Base::Ref<DataTemplate> ItemTemplate() const noexcept {
+    Base::Ref<DataTemplate> GetItemTemplate() const noexcept {
         return GetValueOr(
             ItemTemplateProperty,
             Base::Ref<DataTemplate>{});
@@ -973,7 +932,7 @@ public:
         Base::Ref<DataTemplate> value) noexcept {
         return SetValue(ItemTemplateProperty, std::move(value));
     }
-    Base::Ref<DataTemplate> ContentTemplate() const noexcept {
+    Base::Ref<DataTemplate> GetContentTemplate() const noexcept {
         return GetValueOr(
             ContentTemplateProperty,
             Base::Ref<DataTemplate>{});
@@ -989,30 +948,17 @@ public:
         return SetValue(TabStripPlacementProperty, value);
     }
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        SelectionChangedEvent{"SelectionChanged"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectionChangedEvent{"SelectionChanged"};
+    UIElement::Event<RoutedEventHandler>
         SelectionChanged() noexcept {
-        return Event(SelectionChangedEvent);
+        return GetEvent(SelectionChangedEvent);
     }
-    inline static constexpr Members::Property<
-        std::uint32_t>
-        SelectedIndexProperty{"SelectedIndex"};
-    inline static constexpr Members::ReadOnlyProperty<
-        Core::Value>
-        SelectedContentProperty{"SelectedContent"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ItemsSourceProperty{"ItemsSource"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        ItemTemplateProperty{"ItemTemplate"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        ContentTemplateProperty{"ContentTemplate"};
-    inline static constexpr Members::Property<Dock>
-        TabStripPlacementProperty{"TabStripPlacement"};
+    inline static constexpr Members::Property<std::uint32_t> SelectedIndexProperty{"SelectedIndex"};
+    inline static constexpr Members::ReadOnlyProperty<Core::Value> SelectedContentProperty{"SelectedContent"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ItemsSourceProperty{"ItemsSource"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> ItemTemplateProperty{"ItemTemplate"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> ContentTemplateProperty{"ContentTemplate"};
+    inline static constexpr Members::Property<Dock> TabStripPlacementProperty{"TabStripPlacement"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -1070,7 +1016,7 @@ struct MetaTypeTraits<Controls::ExpandDirection> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::PlacementMode> {
+struct MetaTypeTraits<Controls::Primitives::PlacementMode> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("PlacementMode");
     }
@@ -1086,7 +1032,7 @@ struct MetaTypeTraits<Controls::PlacementMode> {
 };
 
 template<>
-struct MetaTypeTraits<Controls::PopupAnimation> {
+struct MetaTypeTraits<Controls::Primitives::PopupAnimation> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("PopupAnimation");
     }
@@ -1106,7 +1052,7 @@ struct MetaTypeTraits<Controls::PopupAnimation> {
 namespace Aero::Controls {
 
 class VisualStateManager;
-class Popup;
+namespace Primitives { class Popup; }
 class TextBox;
 
 enum class SelectionMode : std::uint8_t {
@@ -1124,11 +1070,11 @@ struct SelectionChangedEvent final {
     Base::Ref<Base::Object> newPrimaryItem;
 };
 
-class Selector;
+namespace Primitives { class Selector; }
 
 using SelectionChangedHandler =
     Base::Delegate<void(
-        Selector&, const SelectionChangedEvent&)>;
+        Primitives::Selector&, const SelectionChangedEvent&)>;
 
 class AERO_API ListBoxItem : public ItemContainer {
     AERO_DECLARE_TYPE(ListBoxItem, ItemContainer)
@@ -1139,12 +1085,13 @@ public:
     bool IsSelected() const noexcept;
     Base::Result<void> SetIsSelected(bool value) noexcept;
 
-    inline static constexpr Members::Property<bool>
-        IsSelectedProperty{"IsSelected"};
+    inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 protected:
     explicit ListBoxItem(TypeId runtimeType) noexcept
         : ItemContainer(runtimeType) {}
 };
+
+namespace Primitives {
 
 class AERO_API Selector : public ItemsControl {
     AERO_DECLARE_TYPE(Selector, ItemsControl)
@@ -1203,30 +1150,19 @@ public:
         return lastSelectionError_;
     }
 
-    inline static constexpr Members::Property<SelectionMode>
-        SelectionModeProperty{"SelectionMode"};
-    inline static constexpr Members::Property<std::uint32_t>
-        SelectedIndexProperty{"SelectedIndex"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        SelectedItemProperty{"SelectedItem"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        SelectedValueProperty{"SelectedValue"};
-    inline static constexpr Members::Property<Base::String>
-        SelectedValuePathProperty{"SelectedValuePath"};
-    inline static constexpr Members::AttachedProperty<bool>
-        IsSelectedProperty{"IsSelected"};
+    inline static constexpr Members::Property<SelectionMode> SelectionModeProperty{"SelectionMode"};
+    inline static constexpr Members::Property<std::uint32_t> SelectedIndexProperty{"SelectedIndex"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> SelectedItemProperty{"SelectedItem"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> SelectedValueProperty{"SelectedValue"};
+    inline static constexpr Members::Property<Base::String> SelectedValuePathProperty{"SelectedValuePath"};
+    inline static constexpr Members::AttachedProperty<bool> IsSelectedProperty{"IsSelected"};
     // WPF Selector.SelectionChanged is a bubbling routed event. Keep the
     // strongly typed selection notification above for model-facing code while
     // also publishing the routed surface used by EventTrigger.
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        SelectionChangedRoutedEvent{
-            "SelectionChanged"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
+    UIElement::Event<RoutedEventHandler>
         SelectionChanged() noexcept {
-        return Event(
+        return GetEvent(
             SelectionChangedRoutedEvent);
     }
 
@@ -1265,11 +1201,12 @@ private:
     void SyncContainers() noexcept;
 };
 
+} // namespace Primitives
 
-class AERO_API ListBox : public Selector {
-    AERO_DECLARE_TYPE(ListBox, Selector)
+class AERO_API ListBox : public Primitives::Selector {
+    AERO_DECLARE_TYPE(ListBox, Primitives::Selector)
 public:
-    ListBox() noexcept : Selector(StaticTypeId()) {}
+    ListBox() noexcept : Primitives::Selector(StaticTypeId()) {}
     ~ListBox() override;
 
     Base::Result<bool> BringIntoView(
@@ -1277,7 +1214,7 @@ public:
 
 protected:
     explicit ListBox(TypeId runtimeType) noexcept
-        : Selector(runtimeType) {}
+        : Primitives::Selector(runtimeType) {}
     Base::Result<Base::Ref<ItemContainer>>
         CreateContainer(
             const Base::Ref<Base::Object>& item) noexcept override;
@@ -1299,13 +1236,12 @@ public:
     Base::Result<void> SetIsSelected(
         bool value) noexcept;
 
-    inline static constexpr Members::Property<bool>
-        IsSelectedProperty{"IsSelected"};
+    inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
 };
 
 
-class AERO_API ComboBox final : public Selector {
-    AERO_DECLARE_TYPE(ComboBox, Selector)
+class AERO_API ComboBox final : public Primitives::Selector {
+    AERO_DECLARE_TYPE(ComboBox, Primitives::Selector)
 public:
     ComboBox() noexcept;
     ~ComboBox() override;
@@ -1341,41 +1277,25 @@ public:
                 Core::TypeOf<Base::Object>()));
     }
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        DropDownOpenedEvent{"DropDownOpened"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        DropDownClosedEvent{"DropDownClosed"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> DropDownClosedEvent{"DropDownClosed"};
+    UIElement::Event<RoutedEventHandler>
         DropDownOpened() noexcept {
-        return Event(DropDownOpenedEvent);
+        return GetEvent(DropDownOpenedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    UIElement::Event<RoutedEventHandler>
         DropDownClosed() noexcept {
-        return Event(DropDownClosedEvent);
+        return GetEvent(DropDownClosedEvent);
     }
 
-    inline static constexpr Members::Property<bool>
-        IsDropDownOpenProperty{"IsDropDownOpen"};
-    inline static constexpr Members::Property<double>
-        MaxDropDownHeightProperty{"MaxDropDownHeight"};
-    inline static constexpr Members::Property<bool>
-        IsEditableProperty{"IsEditable"};
-    inline static constexpr Members::Property<bool>
-        IsReadOnlyProperty{"IsReadOnly"};
-    inline static constexpr Members::Property<Base::String>
-        TextProperty{"Text"};
-    inline static constexpr Members::Property<Base::String>
-        PlaceholderProperty{"Placeholder"};
-    inline static constexpr Members::ReadOnlyProperty<
-        Base::String>
-        SelectionBoxTextProperty{
-            "SelectionBoxText"};
-    inline static constexpr Members::ReadOnlyProperty<
-        Core::Value>
-        SelectionBoxItemProperty{
-            "SelectionBoxItem"};
+    inline static constexpr Members::Property<bool> IsDropDownOpenProperty{"IsDropDownOpen"};
+    inline static constexpr Members::Property<double> MaxDropDownHeightProperty{"MaxDropDownHeight"};
+    inline static constexpr Members::Property<bool> IsEditableProperty{"IsEditable"};
+    inline static constexpr Members::Property<bool> IsReadOnlyProperty{"IsReadOnly"};
+    inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
+    inline static constexpr Members::Property<Base::String> PlaceholderProperty{"Placeholder"};
+    inline static constexpr Members::ReadOnlyProperty<Base::String> SelectionBoxTextProperty{"SelectionBoxText"};
+    inline static constexpr Members::ReadOnlyProperty<Core::Value> SelectionBoxItemProperty{"SelectionBoxItem"};
 
 protected:
     Base::Result<Base::Ref<ItemContainer>>
@@ -1399,7 +1319,7 @@ private:
     ContentPresenter* selectionPresenter_ =
         nullptr;
     TextBox* editableTextBox_ = nullptr;
-    Popup* popup_ = nullptr;
+    Primitives::Popup* popup_ = nullptr;
     FrameworkElement* dropDownBorder_ = nullptr;
     SelectionChangedHandler selectionChangedHandler_;
     DependencyPropertyChangedEventHandler
@@ -1502,9 +1422,7 @@ public:
         return SetValue(RoleProperty, value);
     }
 
-    inline static constexpr Members::Property<
-        GridViewColumnHeaderRole>
-        RoleProperty{"Role"};
+    inline static constexpr Members::Property<GridViewColumnHeaderRole> RoleProperty{"Role"};
 };
 
 class AERO_API GridViewColumn final
@@ -1546,26 +1464,13 @@ public:
             HeaderContainerStyleProperty, std::move(value));
     }
 
-    inline static constexpr Members::Property<
-        Base::String> HeaderProperty{"Header"};
-    inline static constexpr Members::Property<double>
-        WidthProperty{"Width"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        CellTemplateProperty{"CellTemplate"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        HeaderTemplateProperty{"HeaderTemplate"};
-    inline static constexpr Members::Property<
-        Base::String>
-        DisplayMemberPathProperty{
-            "DisplayMemberPath"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Data::Binding>>
-        DisplayMemberBindingProperty{
-            "DisplayMemberBinding"};
-    inline static constexpr Members::Property<Base::Ref<Style>>
-        HeaderContainerStyleProperty{"HeaderContainerStyle"};
+    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<double> WidthProperty{"Width"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> CellTemplateProperty{"CellTemplate"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr Members::Property<Base::String> DisplayMemberPathProperty{"DisplayMemberPath"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Data::Binding>> DisplayMemberBindingProperty{"DisplayMemberBinding"};
+    inline static constexpr Members::Property<Base::Ref<Style>> HeaderContainerStyleProperty{"HeaderContainerStyle"};
 };
 
 class AERO_API GridView final
@@ -1622,30 +1527,13 @@ public:
         return SetValue(AllowsColumnReorderProperty, value);
     }
 
-    inline static constexpr Members::Property<bool>
-        AllowsColumnReorderProperty{"AllowsColumnReorder"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnHeaderContainerStyleProperty{
-            "ColumnHeaderContainerStyle"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnHeaderContextMenuProperty{
-            "ColumnHeaderContextMenu"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnHeaderTemplateProperty{
-            "ColumnHeaderTemplate"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnHeaderTemplateSelectorProperty{
-            "ColumnHeaderTemplateSelector"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnHeaderToolTipProperty{"ColumnHeaderToolTip"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnsProperty{"Columns"};
+    inline static constexpr Members::Property<bool> AllowsColumnReorderProperty{"AllowsColumnReorder"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnHeaderContainerStyleProperty{"ColumnHeaderContainerStyle"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnHeaderContextMenuProperty{"ColumnHeaderContextMenu"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnHeaderTemplateProperty{"ColumnHeaderTemplate"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnHeaderTemplateSelectorProperty{"ColumnHeaderTemplateSelector"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnHeaderToolTipProperty{"ColumnHeaderToolTip"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnsProperty{"Columns"};
 };
 
 // The row counterpart to GridViewHeaderRowPresenter. It is instantiated by
@@ -1660,12 +1548,8 @@ public:
     GridViewRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}
 
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ColumnsProperty{"Columns"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ContentProperty{"Content"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ColumnsProperty{"Columns"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentProperty{"Content"};
 };
 
 class AERO_API ListViewItem final
@@ -1689,9 +1573,7 @@ public:
     Base::Result<void> SetView(
         Base::Ref<GridView> value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::Ref<GridView>>
-        ViewProperty{"View"};
+    inline static constexpr Members::Property<Base::Ref<GridView>> ViewProperty{"View"};
 
 protected:
     Base::Result<void>
@@ -1762,10 +1644,10 @@ public:
         return GetValueOr(HasItemsProperty, false);
     }
 
-    ItemsCollection& Items() noexcept {
+    ItemsCollection& GetItems() noexcept {
         return items_;
     }
-    const ItemsCollection& Items() const noexcept {
+    const ItemsCollection& GetItems() const noexcept {
         return items_;
     }
     std::uint32_t Count() const noexcept override {
@@ -1786,32 +1668,19 @@ public:
         return items_.RemoveItemsChanged(handler);
     }
 
-    inline static constexpr Members::Property<
-        Base::String> HeaderProperty{"Header"};
-    inline static constexpr Members::Property<
-        Base::String> IconProperty{"Icon"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        HeaderTemplateProperty{"HeaderTemplate"};
-    inline static constexpr Members::Property<bool>
-        IsExpandedProperty{"IsExpanded"};
-    inline static constexpr Members::Property<bool>
-        IsSelectedProperty{"IsSelected"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        HasItemsProperty{"HasItems"};
+    inline static constexpr Members::Property<Base::String> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Base::String> IconProperty{"Icon"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr Members::Property<bool> IsExpandedProperty{"IsExpanded"};
+    inline static constexpr Members::Property<bool> IsSelectedProperty{"IsSelected"};
+    inline static constexpr Members::ReadOnlyProperty<bool> HasItemsProperty{"HasItems"};
     // WPF item hosts accept an ItemsPanelTemplate from a style. The current
     // tree realization retains the value while it supplies its own host.
-    inline static constexpr Members::Property<
-        Base::Ref<ItemsPanelTemplate>>
-        ItemsPanelProperty{"ItemsPanel"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> ExpandedEvent{"Expanded"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> CollapsedEvent{"Collapsed"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> SelectedEvent{"Selected"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> UnselectedEvent{"Unselected"};
+    inline static constexpr Members::Property<Base::Ref<ItemsPanelTemplate>> ItemsPanelProperty{"ItemsPanel"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> CollapsedEvent{"Collapsed"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectedEvent{"Selected"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> UnselectedEvent{"Unselected"};
 
 protected:
     explicit TreeViewItem(TypeId runtimeType) noexcept;
@@ -1865,13 +1734,8 @@ public:
         SelectedItem() const noexcept;
     Base::Result<bool> SelectItem(
         TreeViewItem* item) noexcept;
-    inline static constexpr Members::ReadOnlyProperty<
-        Base::Ref<Base::Object>>
-        SelectedItemProperty{"SelectedItem"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        SelectedItemChangedEvent{
-            "SelectedItemChanged"};
+    inline static constexpr Members::ReadOnlyProperty<Base::Ref<Base::Object>> SelectedItemProperty{"SelectedItem"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectedItemChangedEvent{"SelectedItemChanged"};
 
 protected:
     Base::Result<Base::Ref<ItemContainer>>
@@ -1903,10 +1767,8 @@ public:
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    inline static constexpr Members::AttachedProperty<ScrollUnit>
-        ScrollUnitProperty{"ScrollUnit"};
-    inline static constexpr Members::AttachedProperty<VirtualizationMode>
-        VirtualizationModeProperty{"VirtualizationMode"};
+    inline static constexpr Members::AttachedProperty<ScrollUnit> ScrollUnitProperty{"ScrollUnit"};
+    inline static constexpr Members::AttachedProperty<VirtualizationMode> VirtualizationModeProperty{"VirtualizationMode"};
 };
 
 class AERO_API VirtualizingStackPanel final
@@ -1962,12 +1824,9 @@ public:
     Base::Result<bool> PageVertical(
         double direction) noexcept override;
 
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
-    inline static constexpr Members::Property<std::uint32_t>
-        OverscanCountProperty{"OverscanCount"};
-    inline static constexpr Members::Property<double>
-        EstimatedItemExtentProperty{"EstimatedItemExtent"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<std::uint32_t> OverscanCountProperty{"OverscanCount"};
+    inline static constexpr Members::Property<double> EstimatedItemExtentProperty{"EstimatedItemExtent"};
 
 protected:
     Base::Result<void> OnPropertyInvalidated(

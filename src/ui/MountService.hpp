@@ -1,5 +1,7 @@
 #pragma once
 
+#include "VisualAccess.hpp"
+
 #include "../runtime/RuntimeFwd.hpp"
 
 #include <Aero/Base/Config.hpp>

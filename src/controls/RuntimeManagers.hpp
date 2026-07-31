@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../runtime/RuntimeFwd.hpp"
+#include "../input/RuntimeTypes.hpp"
 #include "../core/property/PropertyProviderSession.hpp"
 #include "TemplateRuntime.hpp"
+#include "TemplateTypes.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
@@ -20,12 +22,14 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 
 using namespace Aero::Controls;
+using namespace Aero::Controls::Primitives;
+using Aero::Controls::Detail::TemplateHandle;
 
 class AERO_API ControlRuntimeAccess::ControlInteractionManager final {
 public:
     ControlInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         PointerInputManager& pointer,
         FocusManager& focus,
         CommandManager& commands,
@@ -43,7 +47,7 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
 
 private:
-    friend class Aero::Controls::ButtonBase;
+    friend class Aero::Controls::Primitives::ButtonBase;
     struct ButtonRecord final {
         VisualHandle handle;
         Base::Ref<ICommand> command;
@@ -58,7 +62,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     PointerInputManager* pointer_ = nullptr;
     FocusManager* focus_ = nullptr;
     CommandManager* commands_ = nullptr;
@@ -122,7 +126,7 @@ class AERO_API ControlRuntimeAccess::HyperlinkInteractionManager final {
 public:
     HyperlinkInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         PointerInputManager& pointer,
         FocusManager& focus,
         CommandManager& commands) noexcept;
@@ -145,7 +149,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     PointerInputManager* pointer_ = nullptr;
     FocusManager* focus_ = nullptr;
     CommandManager* commands_ = nullptr;
@@ -189,7 +193,7 @@ class AERO_API ControlRuntimeAccess::TextBoxInteractionManager final {
 public:
     TextBoxInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         PointerInputManager& pointer,
         FocusManager& focus,
         Platform::IClipboard& clipboard) noexcept;
@@ -214,7 +218,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    [[maybe_unused]] RoutedEventManager* events_ = nullptr;
+    [[maybe_unused]] EventRouter* events_ = nullptr;
     PointerInputManager* pointer_ = nullptr;
     FocusManager* focus_ = nullptr;
     Platform::IClipboard* clipboard_ = nullptr;
@@ -267,7 +271,7 @@ class AERO_API ControlRuntimeAccess::ScrollInteractionManager final {
 public:
     ScrollInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events) noexcept;
+        EventRouter& events) noexcept;
     ~ScrollInteractionManager() noexcept;
 
     Base::Result<void> Attach(
@@ -282,7 +286,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     Base::Vector<ViewerRecord> viewers_;
     MouseWheelEventHandler wheelHandler_;
 
@@ -296,7 +300,7 @@ class AERO_API ControlRuntimeAccess::SliderInteractionManager final {
 public:
     SliderInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         PointerInputManager& pointer,
         FocusManager& focus) noexcept;
     ~SliderInteractionManager() noexcept;
@@ -314,7 +318,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     PointerInputManager* pointer_ = nullptr;
     FocusManager* focus_ = nullptr;
     Base::Vector<SliderRecord> sliders_;
@@ -354,7 +358,7 @@ class AERO_API ControlRuntimeAccess::TreeViewInteractionManager final {
 public:
     TreeViewInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         FocusManager& focus,
         VisualStateManager* states = nullptr)
         noexcept;
@@ -368,7 +372,7 @@ public:
 private:
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]]
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     FocusManager* focus_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<VisualHandle> records_;
@@ -398,7 +402,7 @@ class AERO_API ControlRuntimeAccess::ComboBoxInteractionManager final {
 public:
     ComboBoxInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         FocusManager& focus) noexcept;
     ~ComboBoxInteractionManager() noexcept;
 
@@ -410,7 +414,7 @@ public:
 private:
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]]
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     FocusManager* focus_ = nullptr;
     Base::Vector<VisualHandle> records_;
     MouseButtonEventHandler mouseDownHandler_;
@@ -431,7 +435,7 @@ class AERO_API ControlRuntimeAccess::ListBoxInteractionManager final {
 public:
     ListBoxInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         FocusManager& focus,
         VisualStateManager* states = nullptr) noexcept;
     ~ListBoxInteractionManager() noexcept;
@@ -446,7 +450,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    [[maybe_unused]] RoutedEventManager* events_ = nullptr;
+    [[maybe_unused]] EventRouter* events_ = nullptr;
     FocusManager* focus_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<Record> records_;
@@ -572,7 +576,7 @@ class AERO_API ControlRuntimeAccess::MenuInteractionManager final {
 public:
     MenuInteractionManager(
         ObjectTree& tree,
-        RoutedEventManager& events,
+        EventRouter& events,
         FocusManager& focus,
         CommandManager& commands) noexcept;
     ~MenuInteractionManager() noexcept;
@@ -584,7 +588,7 @@ public:
 
 private:
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     FocusManager* focus_ = nullptr;
     CommandManager* commands_ = nullptr;
     Base::Vector<VisualHandle> records_;

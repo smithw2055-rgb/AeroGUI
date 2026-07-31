@@ -6,6 +6,10 @@
 
 namespace Aero::Data {
 
+using Core::MetadataRuntime;
+using Core::PropertyValue;
+using Core::TypeId;
+
 struct BindingHandle final {
     std::uint64_t value = 0U;
 

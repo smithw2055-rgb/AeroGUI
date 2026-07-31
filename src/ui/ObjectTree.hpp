@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Visual.hpp>
+#include "VisualAccess.hpp"
 #include <Aero/Core/Dispatcher.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 
@@ -9,8 +9,8 @@ namespace Aero {
 class AERO_API ObjectTree final {
 public:
     ObjectTree(
-        Dispatcher& dispatcher,
-        EffectiveValueEngine& values) noexcept;
+        Core::Dispatcher& dispatcher,
+        Core::EffectiveValueEngine& values) noexcept;
     ~ObjectTree() noexcept;
 
     ObjectTree(const ObjectTree&) = delete;
@@ -58,12 +58,12 @@ private:
         std::uint32_t generation = 1U;
     };
 
-    Dispatcher* dispatcher_ = nullptr;
-    EffectiveValueEngine* values_ = nullptr;
+    Core::Dispatcher* dispatcher_ = nullptr;
+    Core::EffectiveValueEngine* values_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<LifecycleRecord> lifecycleQueue_;
     Base::Vector<HandleEntry> handles_;
-    DispatcherFrameHookHandle lifecycleHook_;
+    Core::DispatcherFrameHookHandle lifecycleHook_;
     ObjectTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
     DependencyPropertyChangedEventHandler dataContextChangedHandler_;

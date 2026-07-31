@@ -374,6 +374,26 @@ file(GLOB_RECURSE default_sdk_headers
     "${AERO_SOURCE_DIR}/include/Aero/Core/Metadata/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/*.hpp")
+
+set(multiline_static_members)
+foreach(path IN LISTS default_sdk_headers)
+    file(STRINGS "${path}" public_header_lines)
+    set(public_header_line_number 0)
+    foreach(line IN LISTS public_header_lines)
+        math(EXPR public_header_line_number "${public_header_line_number} + 1")
+        if(line MATCHES "inline[ \t]+static[ \t]+constexpr.*(Property|Event)" AND
+           NOT line MATCHES ";[ \t]*$")
+            file(RELATIVE_PATH relative "${AERO_SOURCE_DIR}" "${path}")
+            list(APPEND multiline_static_members
+                "${relative}:${public_header_line_number}")
+        endif()
+    endforeach()
+endforeach()
+if(multiline_static_members)
+    message(FATAL_ERROR
+        "DependencyProperty and routed-event static definitions must stay on one line: "
+        "${multiline_static_members}")
+endif()
 aero_collect_matches(removed_public_services
     "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
     ${default_sdk_headers})

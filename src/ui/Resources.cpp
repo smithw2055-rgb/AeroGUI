@@ -1047,7 +1047,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
             Base::ErrorCode::NotFound) {
             return local.GetStatus();
         }
-        const Visual* logical = current->LogicalParent();
+        const Visual* logical = current->GetLogicalParent();
         current = logical != nullptr
             ? logical->AsFrameworkElement()
             : nullptr;

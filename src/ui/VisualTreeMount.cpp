@@ -50,7 +50,7 @@ Base::Result<void> VisualTreeMount::Mount(
         for (VisualTreeMountEdge& edge : edges) {
             if (edge.state.logicalAttached || edge.parent == nullptr ||
                 edge.child == nullptr ||
-                edge.parent->OwningTree() != &mounts_.Tree()) {
+                Aero::Detail::VisualAccess::Tree(*edge.parent) != &mounts_.Tree()) {
                 continue;
             }
             Base::Result<MountEdgeState> mounted =
@@ -88,11 +88,11 @@ VisualTreeMount::CompleteDeferredEdges(
         for (VisualTreeMountEdge& edge : edges) {
             if (edge.state.logicalAttached ||
                 (edge.child != nullptr &&
-                 edge.child->OwningTree() ==
+                 Aero::Detail::VisualAccess::Tree(*edge.child) ==
                      &mounts_.Tree()) ||
                 edge.parent == nullptr ||
                 edge.child == nullptr ||
-                edge.parent->OwningTree() !=
+                Aero::Detail::VisualAccess::Tree(*edge.parent) !=
                     &mounts_.Tree()) {
                 continue;
             }

@@ -33,7 +33,7 @@ Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = node.Handle();
+    record.handle = Aero::Detail::VisualAccess::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -45,8 +45,8 @@ Result<void> AppendTree(
     }
     const Base::Span<Visual* const> children =
         kind == TreeKind::Logical
-        ? node.LogicalChildren()
-        : node.VisualChildren();
+        ? Aero::Detail::VisualAccess::LogicalChildren(node)
+        : Aero::Detail::VisualAccess::VisualChildren(node);
     for (Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -87,7 +87,7 @@ InspectorEndpoint::Capture(
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        target.OwningTree() != tree_) {
+        Aero::Detail::VisualAccess::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
             "Inspector endpoint target "
@@ -188,7 +188,7 @@ InspectorEndpoint::Capture(
         target.AsFrameworkElement();
     if (element != nullptr) {
         Result<Ref<Object>> context =
-            element->GetDataContext();
+            element->GetDataContextResult();
         if (!context) {
             return context.GetStatus();
         }

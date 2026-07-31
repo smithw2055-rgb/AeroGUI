@@ -1,6 +1,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
+#include "ContentControlAccess.hpp"
 
 #include "../core/metadata/BuiltinTypeIds.hpp"
 
@@ -10,6 +11,8 @@
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
+
+using namespace Primitives;
 namespace {
 
 bool ContainsIndex(
@@ -430,7 +433,7 @@ Base::Result<bool> Selector::ApplySelection(
     }
     RoutedEventArgs routedArgs;
     Base::Result<void> routed =
-        RaiseRoutedEvent(
+        RaiseEvent(
             SelectionChangedRoutedEvent,
             &routedArgs);
     if (!routed &&
@@ -773,7 +776,7 @@ Base::Result<bool> ListBox::BringIntoView(
         const Rect slot = node->LayoutSlot();
         x += slot.x;
         y += slot.y;
-        Visual* parent = node->VisualParent();
+        Visual* parent = node->GetVisualParent();
         if (parent == nullptr) break;
         UIElement* parentElement =
             parent->AsUIElement();
@@ -1259,7 +1262,7 @@ void ComboBox::OnDropDownPropertyChanged(
     }
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             args.newValue.AsBoolean()
                 ? DropDownOpenedEvent
                 : DropDownClosedEvent,
@@ -1313,8 +1316,8 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            static_cast<ContentControl*>(
-                selected.Get())->Content();
+            Detail::ContentControlAccess::ContentElement(*static_cast<ContentControl*>(
+                selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
                 IsDerivedFrom(
@@ -1421,7 +1424,7 @@ std::uint32_t ComboBox::FindContainerIndex(
                         *element))
                 : UINT32_MAX;
         }
-        visual = visual->VisualParent();
+        visual = visual->GetVisualParent();
     }
     return UINT32_MAX;
 }
@@ -1436,7 +1439,7 @@ using namespace Aero::Controls;
 ComboBoxInteractionManager::
 ComboBoxInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     FocusManager& focus) noexcept
     : tree_(&tree),
       events_(&events),
@@ -1494,7 +1497,7 @@ Base::Result<void>
 ComboBoxInteractionManager::Attach(
     ComboBox& comboBox) noexcept {
     if (comboBox.interactions_ != nullptr ||
-        comboBox.OwningTree() != tree_ ||
+        Aero::Detail::VisualAccess::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1643,7 +1646,7 @@ void ComboBoxInteractionManager::OnKeyDown(
 
 ListBoxInteractionManager::ListBoxInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     FocusManager& focus,
     VisualStateManager* states) noexcept
     : tree_(&tree),
@@ -1695,7 +1698,7 @@ ListBox* ListBoxInteractionManager::ResolveListBox(
 Base::Result<void> ListBoxInteractionManager::Attach(
     ListBox& listBox) noexcept {
     if (listBox.interactions_ != nullptr ||
-        listBox.OwningTree() != tree_ ||
+        Aero::Detail::VisualAccess::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1791,7 +1794,7 @@ ListBoxInteractionManager::FindContainerIndex(
                         *element))
                 : UINT32_MAX;
         }
-        visual = visual->VisualParent();
+        visual = visual->GetVisualParent();
     }
     return UINT32_MAX;
 }

@@ -782,10 +782,8 @@ class AERO_API Storyboard final : public Timeline {
 public:
     Storyboard() noexcept : Timeline(StaticTypeId()) {}
 
-    inline static constexpr Members::AttachedProperty<Base::String>
-        TargetNameProperty{"TargetName"};
-    inline static constexpr Members::AttachedProperty<Base::String>
-        TargetPropertyProperty{"TargetProperty"};
+    inline static constexpr Members::AttachedProperty<Base::String> TargetNameProperty{"TargetName"};
+    inline static constexpr Members::AttachedProperty<Base::String> TargetPropertyProperty{"TargetProperty"};
 
     Base::Result<void> TryAddTimeline(
         Base::Ref<Timeline> value) noexcept;

@@ -121,7 +121,7 @@ Base::Result<void> PopulateControlsPrimitives(
                 .AffectsMeasure()
                 .Structural()
                 .Changed(
-                    &ContentControl::
+                    &Detail::ContentControlAccess::
                         OnContentPropertyChanged))
         .Property(
             ContentControl::ContentTemplateProperty,

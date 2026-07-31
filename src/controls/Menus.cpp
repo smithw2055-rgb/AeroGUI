@@ -5,6 +5,8 @@
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
+
+using namespace Primitives;
 using namespace Core;
 
 MenuItem::MenuItem() noexcept
@@ -94,7 +96,7 @@ MenuItemRole MenuItem::Role() const noexcept {
     return GetValueOr(RoleProperty, MenuItemRole::TopLevelItem);
 }
 
-ICommand* MenuItem::Command() const noexcept {
+ICommand* MenuItem::GetCommand() const noexcept {
     return GetValueOr(
         CommandProperty,
         Base::Ref<ICommand>{}).Get();
@@ -326,7 +328,7 @@ void ContextMenu::OnOpenChanged(
         ? Visibility::Visible
         : Visibility::Collapsed));
     RoutedEventArgs event;
-    static_cast<void>(RaiseRoutedEvent(
+    static_cast<void>(RaiseEvent(
         opened ? OpenedEvent : ClosedEvent,
         &event));
 }
@@ -358,7 +360,7 @@ using namespace Aero::Controls;
 MenuInteractionManager::
 MenuInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     FocusManager& focus,
     CommandManager& commands) noexcept
     : tree_(&tree),
@@ -416,7 +418,7 @@ Base::Result<void>
 MenuInteractionManager::Attach(
     Menu& menu) noexcept {
     if (menu.interactions_ != nullptr ||
-        menu.OwningTree() != tree_ ||
+        Aero::Detail::VisualAccess::Tree(menu) != tree_ ||
         FindMenu(menu) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -502,7 +504,7 @@ MenuItem* MenuInteractionManager::FindItem(
             return static_cast<MenuItem*>(
                 element);
         }
-        visual = visual->VisualParent();
+        visual = visual->GetVisualParent();
     }
     return nullptr;
 }
@@ -526,7 +528,7 @@ MenuInteractionManager::Invoke(
         events_->RaiseEvent(
             item, MenuItem::ClickEvent, &event);
     if (!raised) return raised.GetStatus();
-    ICommand* command = item.Command();
+    ICommand* command = item.GetCommand();
     if (command != nullptr) {
         Base::Ref<Base::Object> parameter =
             item.CommandParameter();

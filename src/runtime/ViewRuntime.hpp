@@ -176,7 +176,7 @@ public:
     Render::RenderManager* Renderer() noexcept;
     Aero::Detail::BindingManager* Bindings() noexcept;
     Aero::Detail::CommandManager* Commands() noexcept;
-    Aero::Detail::RoutedEventManager* RoutedEvents() noexcept;
+    Aero::Detail::EventRouter* RoutedEvents() noexcept;
     Aero::Detail::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;

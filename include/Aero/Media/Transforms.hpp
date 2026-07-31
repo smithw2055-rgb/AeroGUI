@@ -63,10 +63,8 @@ public:
     Base::Result<void> SetX(double value) noexcept;
     Base::Result<void> SetY(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        XProperty{"X"};
-    inline static constexpr Members::Property<double>
-        YProperty{"Y"};
+    inline static constexpr Members::Property<double> XProperty{"X"};
+    inline static constexpr Members::Property<double> YProperty{"Y"};
 
     Base::Transform2D Matrix() const noexcept override;
 };
@@ -84,14 +82,10 @@ public:
     Base::Result<void> SetCenterX(double value) noexcept;
     Base::Result<void> SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        ScaleXProperty{"ScaleX"};
-    inline static constexpr Members::Property<double>
-        ScaleYProperty{"ScaleY"};
-    inline static constexpr Members::Property<double>
-        CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double>
-        CenterYProperty{"CenterY"};
+    inline static constexpr Members::Property<double> ScaleXProperty{"ScaleX"};
+    inline static constexpr Members::Property<double> ScaleYProperty{"ScaleY"};
+    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
+    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D Matrix() const noexcept override;
 };
@@ -107,12 +101,9 @@ public:
     Base::Result<void> SetCenterX(double value) noexcept;
     Base::Result<void> SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        AngleProperty{"Angle"};
-    inline static constexpr Members::Property<double>
-        CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double>
-        CenterYProperty{"CenterY"};
+    inline static constexpr Members::Property<double> AngleProperty{"Angle"};
+    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
+    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D Matrix() const noexcept override;
 };
@@ -130,14 +121,10 @@ public:
     Base::Result<void> SetCenterX(double value) noexcept;
     Base::Result<void> SetCenterY(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        AngleXProperty{"AngleX"};
-    inline static constexpr Members::Property<double>
-        AngleYProperty{"AngleY"};
-    inline static constexpr Members::Property<double>
-        CenterXProperty{"CenterX"};
-    inline static constexpr Members::Property<double>
-        CenterYProperty{"CenterY"};
+    inline static constexpr Members::Property<double> AngleXProperty{"AngleX"};
+    inline static constexpr Members::Property<double> AngleYProperty{"AngleY"};
+    inline static constexpr Members::Property<double> CenterXProperty{"CenterX"};
+    inline static constexpr Members::Property<double> CenterYProperty{"CenterY"};
 
     Base::Transform2D Matrix() const noexcept override;
 };
@@ -148,8 +135,7 @@ public:
     MatrixTransform() noexcept : Transform(StaticTypeId()) {}
     Base::Transform2D Value() const noexcept;
     Base::Result<void> SetValue(Base::Transform2D value) noexcept;
-    inline static constexpr Members::Property<Base::Transform2D>
-        MatrixProperty{"Matrix"};
+    inline static constexpr Members::Property<Base::Transform2D> MatrixProperty{"Matrix"};
     Base::Transform2D Matrix() const noexcept override {
         return Value();
     }

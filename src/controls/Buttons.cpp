@@ -6,11 +6,13 @@
 
 namespace Aero::Controls {
 
+using namespace Primitives;
+
 ClickMode ButtonBase::GetClickMode() const noexcept {
     return GetValueOr(ClickModeProperty, ClickMode::Release);
 }
 
-ICommand* ButtonBase::Command() const noexcept {
+ICommand* ButtonBase::GetCommand() const noexcept {
     return GetValueOr(
         CommandProperty, Base::Ref<ICommand>{}).Get();
 }
@@ -164,7 +166,7 @@ using namespace Aero::Controls;
 
 ControlInteractionManager::ControlInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     PointerInputManager& pointer,
     FocusManager& focus,
     CommandManager& commands,
@@ -320,7 +322,7 @@ Base::Result<void> ControlInteractionManager::SubscribeCommand(
     ButtonBase& button,
     ButtonRecord& record) noexcept {
     UnsubscribeCommand(record);
-    ICommand* command = button.Command();
+    ICommand* command = button.GetCommand();
     if (command == nullptr) return {};
     record.command =
         Base::Ref<ICommand>::FromBorrowed(*command);
@@ -347,7 +349,7 @@ Base::Result<void> ControlInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to another interaction service");
     }
-    if (!button.IsLoaded() || button.OwningTree() != tree_) {
+    if (!button.GetIsLoaded() || Aero::Detail::VisualAccess::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");
@@ -526,7 +528,7 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
             Base::ErrorCode::NotFound,
             "Button is not attached to interaction services");
     }
-    ICommand* command = button.Command();
+    ICommand* command = button.GetCommand();
     bool enabled = true;
     if (command != nullptr) {
         UIElement* target = button.CommandTarget();
@@ -625,7 +627,7 @@ Base::Result<void> ControlInteractionManager::InvokeClick(
     Base::Result<void> raised = events_->RaiseEvent(
         button, ButtonBase::ClickEvent, &args);
     if (!raised) return raised.GetStatus();
-    ICommand* command = button.Command();
+    ICommand* command = button.GetCommand();
     if (command == nullptr) return {};
     UIElement* target = button.CommandTarget();
     if (target == nullptr) target = &button;
@@ -687,7 +689,7 @@ void ControlInteractionManager::PublishToggleState(
 
 void ControlInteractionManager::UncheckRadioPeers(
     RadioButton& button) noexcept {
-    Visual* parent = button.LogicalParent();
+    Visual* parent = button.GetLogicalParent();
     const Base::StringView group = button.GroupName();
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -698,7 +700,7 @@ void ControlInteractionManager::UncheckRadioPeers(
             continue;
         }
         auto& radio = static_cast<RadioButton&>(*candidate);
-        if (radio.LogicalParent() != parent ||
+        if (radio.GetLogicalParent() != parent ||
             radio.GroupName() != group ||
             radio.GetToggleState() != ToggleState::Checked) {
             continue;

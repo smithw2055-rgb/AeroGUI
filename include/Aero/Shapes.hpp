@@ -28,12 +28,9 @@ public:
         Base::Ref<Brush> value) noexcept;
     Base::Result<void> SetStrokeThickness(double value) noexcept;
 
-    inline static constexpr Members::Property<Base::Ref<Brush>>
-        FillProperty{"Fill"};
-    inline static constexpr Members::Property<Base::Ref<Brush>>
-        StrokeProperty{"Stroke"};
-    inline static constexpr Members::Property<double>
-        StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
 
 protected:
     explicit Shape(TypeId runtimeType) noexcept
@@ -52,10 +49,8 @@ public:
     Base::Result<void> SetRadiusX(double value) noexcept;
     Base::Result<void> SetRadiusY(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        RadiusXProperty{"RadiusX"};
-    inline static constexpr Members::Property<double>
-        RadiusYProperty{"RadiusY"};
+    inline static constexpr Members::Property<double> RadiusXProperty{"RadiusX"};
+    inline static constexpr Members::Property<double> RadiusYProperty{"RadiusY"};
 
 protected:
     Base::Result<Size> MeasureOverride(

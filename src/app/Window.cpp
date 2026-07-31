@@ -1,57 +1,91 @@
 #include <Aero/Window.hpp>
+#include <Aero/Application.hpp>
 
 #include <Aero/Integration/WindowInterop.hpp>
 #include "ApplicationRuntime.hpp"
 
 namespace Aero {
 
+
 Base::Result<void> Window::Show() noexcept {
-    auto* state = static_cast<App::Detail::WindowRuntimeState*>(
-        runtimeState_);
+    auto* state = static_cast<App::Detail::WindowRuntimeState*>(runtimeState_);
     if (state == nullptr || state->show == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Window is not attached to an application host");
+        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Window is not attached to an application host");
     }
-    return state->show(state->context);
+    Base::Result<void> shown = state->show(state->context);
+    if (shown) {
+        NotifySourceInitialized();
+        NotifyActivated();
+    }
+    return shown;
+}
+
+Base::Result<void> Window::SetWindowState(WindowState value) noexcept {
+    const WindowState previous = GetWindowState();
+    Base::Result<void> changed = SetValue(WindowStateProperty, value);
+    if (changed && previous != value) {
+        RoutedEventArgs args;
+        OnStateChanged(args);
+    }
+    return changed;
 }
 
 void Window::Close() noexcept {
-    auto* state = static_cast<App::Detail::WindowRuntimeState*>(
-        runtimeState_);
-    if (state != nullptr && state->close != nullptr) {
-        state->close(state->context);
-    }
+    if (closed_) return;
+    CancelEventArgs closing;
+    OnClosing(closing);
+    if (closing.cancel) return;
+    auto* state = static_cast<App::Detail::WindowRuntimeState*>(runtimeState_);
+    if (state != nullptr && state->close != nullptr) state->close(state->context);
+    NotifyClosed();
 }
 
-bool Window::IsOpen() const noexcept {
-    const auto* state = static_cast<const App::Detail::WindowRuntimeState*>(
-        runtimeState_);
-    return state != nullptr && state->isOpen != nullptr &&
-        state->isOpen(state->context);
+void Window::NotifySourceInitialized() noexcept {
+    if (sourceInitialized_) return;
+    sourceInitialized_ = true;
+    RoutedEventArgs args;
+    OnSourceInitialized(args);
+}
+
+void Window::NotifyActivated() noexcept {
+    RoutedEventArgs args;
+    OnActivated(args);
+    if (Application::Current() != nullptr) Application::Current()->RaiseActivated();
+}
+
+void Window::NotifyDeactivated() noexcept {
+    RoutedEventArgs args;
+    OnDeactivated(args);
+    if (Application::Current() != nullptr) Application::Current()->RaiseDeactivated();
+}
+
+void Window::NotifyContentRendered() noexcept {
+    if (contentRendered_) return;
+    contentRendered_ = true;
+    RoutedEventArgs args;
+    OnContentRendered(args);
+}
+
+void Window::NotifyClosed() noexcept {
+    if (closed_) return;
+    closed_ = true;
+    NotifyDeactivated();
+    RoutedEventArgs args;
+    OnClosed(args);
 }
 
 } // namespace Aero
 
 namespace Aero::Integration {
 
-Platform::NativeWindowHandle WindowInterop::NativeHandle(
-    const ::Aero::Window& window) noexcept {
-    const auto* state =
-        static_cast<const App::Detail::WindowRuntimeState*>(
-            window.runtimeState_);
-    return state != nullptr && state->nativeHandle != nullptr
-        ? state->nativeHandle(state->context)
-        : Platform::NativeWindowHandle{};
+Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
+    const auto* state = static_cast<const App::Detail::WindowRuntimeState*>(window.runtimeState_);
+    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
 }
 
-::Aero::View* WindowInterop::HostedView(
-    ::Aero::Window& window) noexcept {
-    auto* state = static_cast<App::Detail::WindowRuntimeState*>(
-        window.runtimeState_);
-    return state != nullptr && state->hostedView != nullptr
-        ? state->hostedView(state->context)
-        : nullptr;
+::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
+    auto* state = static_cast<App::Detail::WindowRuntimeState*>(window.runtimeState_);
+    return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
 }
 
 } // namespace Aero::Integration

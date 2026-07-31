@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../runtime/RuntimeFwd.hpp"
+#include "../controls/TemplateTypes.hpp"
 #include "../data/BindingRuntime.hpp"
 
 #include "render/RenderingInternal.hpp"
@@ -62,7 +63,7 @@ struct InspectorSnapshot final {
     Base::Ref<Base::Object> dataContext;
     const Aero::Style*
         appliedStyle = nullptr;
-    Controls::TemplateHandle
+    Controls::Detail::TemplateHandle
         appliedTemplate;
     Base::Rect layoutRect;
     Base::Rect layoutClip;

@@ -401,6 +401,7 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/render/BatchPlanner.cpp
     src/render/DrawingContext.cpp
     src/data/Binding.cpp
+    src/data/BindingObjects.cpp
     src/media/Brushes.cpp
     src/input/Commands.cpp
     src/media/Effects.cpp

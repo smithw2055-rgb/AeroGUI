@@ -62,6 +62,62 @@ Size NaturalConstraintForTransform(
 
 } // namespace
 
+UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
+    Visual* child = owner_ != nullptr ? VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    return child != nullptr ? child->AsUIElement() : nullptr;
+}
+
+void UIElementChildRange::Iterator::Advance() noexcept {
+    if (owner_ == nullptr) return;
+    const std::uint32_t count = VisualTreeHelper::GetChildrenCount(*owner_);
+    while (index_ < count) {
+        Visual* child = VisualTreeHelper::GetChild(*owner_, index_);
+        if (child != nullptr && child->AsUIElement() != nullptr) return;
+        ++index_;
+    }
+}
+
+std::uint32_t UIElementChildRange::Size() const noexcept {
+    std::uint32_t count = 0U;
+    for (UIElement* child : *this) {
+        (void)child;
+        ++count;
+    }
+    return count;
+}
+
+UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
+    std::uint32_t current = 0U;
+    for (UIElement* child : *this) {
+        if (current++ == index) return child;
+    }
+    return nullptr;
+}
+
+FrameworkElement* FrameworkElementChildRange::Iterator::operator*() const noexcept {
+    Visual* child = owner_ != nullptr ? VisualTreeHelper::GetChild(*owner_, index_) : nullptr;
+    return child != nullptr ? child->AsFrameworkElement() : nullptr;
+}
+
+void FrameworkElementChildRange::Iterator::Advance() noexcept {
+    if (owner_ == nullptr) return;
+    const std::uint32_t count = VisualTreeHelper::GetChildrenCount(*owner_);
+    while (index_ < count) {
+        Visual* child = VisualTreeHelper::GetChild(*owner_, index_);
+        if (child != nullptr && child->AsFrameworkElement() != nullptr) return;
+        ++index_;
+    }
+}
+
+std::uint32_t FrameworkElementChildRange::Size() const noexcept {
+    std::uint32_t count = 0U;
+    for (FrameworkElement* child : *this) {
+        (void)child;
+        ++count;
+    }
+    return count;
+}
+
 bool IsFinite(Point value) noexcept {
     return std::isfinite(value.x) && std::isfinite(value.y);
 }
@@ -174,6 +230,17 @@ void UIElement::CleanupHandlers() noexcept {
     handlers_.Clear();
 }
 
+Base::Result<void> UIElement::RaiseEvent(
+    RoutedEventHandle event,
+    RoutedEventArgs* args) noexcept {
+    if (eventRouter_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "UIElement is not attached to an event router");
+    }
+    return static_cast<Aero::Detail::EventRouter*>(eventRouter_)->RaiseEvent(*this, event, args);
+}
+
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
     if (manager_ == nullptr) {
         measureValid_ = false;
@@ -231,8 +298,8 @@ Visibility UIElement::GetVisibility() const noexcept {
 }
 bool UIElement::IsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
-    Visual* parent = LogicalParent() != nullptr
-        ? LogicalParent() : VisualParent();
+    Visual* parent = GetLogicalParent() != nullptr
+        ? GetLogicalParent() : GetVisualParent();
     const UIElement* parentElement =
         parent != nullptr ? parent->AsUIElement() : nullptr;
     return parentElement == nullptr || parentElement->IsEnabled();
@@ -369,6 +436,9 @@ Base::Ref<Transform> UIElement::RenderTransform() const noexcept {
     Base::Result<Base::Ref<Transform>> value =
         GetValue(RenderTransformProperty);
     return value ? std::move(value).Value() : Base::Ref<Transform>{};
+}
+Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
+    return RenderTransform();
 }
 Point UIElement::RenderTransformOrigin() const noexcept {
     return GetValueOr(RenderTransformOriginProperty, Point{});
@@ -510,7 +580,7 @@ Base::Result<void> UIElement::MeasureChild(
             static_cast<void*>(
                 child.LayoutParent()),
             static_cast<void*>(
-                child.VisualParent()));
+                child.GetVisualParent()));
         return InvalidState(message);
     }
     return static_cast<Aero::Detail::LayoutManager*>(manager_)->MeasureElement(child, availableSize);
@@ -565,7 +635,7 @@ Base::Result<void> UIElement::ArrangeChild(
             static_cast<void*>(
                 child.LayoutParent()),
             static_cast<void*>(
-                child.VisualParent()));
+                child.GetVisualParent()));
         return InvalidState(message);
     }
     return static_cast<Aero::Detail::LayoutManager*>(manager_)->ArrangeElement(child, finalRect);
@@ -695,7 +765,7 @@ Base::Result<void> LayoutManager::SetRoot(
     if (root != nullptr) {
         Base::Result<void> verified = VerifyElement(*root);
         if (!verified) return verified.GetStatus();
-        if (root->layoutAttached_ || root->VisualParent() != nullptr) {
+        if (root->layoutAttached_ || root->GetVisualParent() != nullptr) {
             return InvalidState(
                 "Layout root cannot have a visual or layout parent");
         }

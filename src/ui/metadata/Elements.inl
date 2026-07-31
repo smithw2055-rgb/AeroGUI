@@ -10,14 +10,21 @@ Base::Result<void> PopulateUiElements(
     auto uiElement = Describe<UIElement>(
         context, TypeFlags::Abstract);
     uiElement
+        .Event(UIElement::PreviewMouseMoveEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseMoveEvent)
+        .Event(UIElement::PreviewMouseDownEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseDownEvent)
+        .Event(UIElement::PreviewMouseUpEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseUpEvent)
+        .Event(UIElement::PreviewMouseWheelEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::MouseWheelEvent)
         .Event(UIElement::GotKeyboardFocusEvent)
         .Event(UIElement::LostKeyboardFocusEvent)
+        .Event(UIElement::PreviewKeyDownEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::KeyDownEvent)
+        .Event(UIElement::PreviewKeyUpEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::KeyUpEvent)
+        .Event(UIElement::PreviewTextInputEvent, RoutingStrategy::Tunnel)
         .Event(UIElement::TextInputEvent)
         .Property(
             UIElement::ClipToBoundsProperty,

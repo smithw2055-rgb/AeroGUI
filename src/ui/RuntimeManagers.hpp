@@ -3,6 +3,7 @@
 #include "ThemeStyleRegistry.hpp"
 
 #include "../runtime/RuntimeFwd.hpp"
+#include "../input/RuntimeTypes.hpp"
 #include "../core/property/PropertyProviderSession.hpp"
 #include "../data/BindingRuntime.hpp"
 
@@ -23,10 +24,10 @@ using namespace Aero::Input;
 using namespace Aero::Data;
 using namespace Aero::Detail::Animation;
 
-class AERO_API UiRuntimeAccess::RoutedEventManager final {
+class AERO_API UiRuntimeAccess::EventRouter final {
 public:
-    explicit RoutedEventManager(void* eventState) noexcept;
-    ~RoutedEventManager() noexcept;
+    explicit EventRouter(void* eventState) noexcept;
+    ~EventRouter() noexcept;
 
     template<class TArgs>
     Base::Result<void> RegisterClassHandler(
@@ -54,10 +55,6 @@ private:
     std::uint64_t nextClassSequence_ = 1U;
     std::uint32_t raiseDepth_ = 0U;
 
-    Base::Result<void> BuildRoute(
-        Visual& source,
-        RoutingStrategy strategy,
-        Base::Vector<Aero::Detail::VisualLease>& route) noexcept;
     void InvokeNode(Visual& node, RoutedEventArgs& args) noexcept;
     void CleanupClassHandlers() noexcept;
     Base::Result<void> ValidateClassHandler(
@@ -168,7 +165,7 @@ private:
 };
 class AERO_API UiRuntimeAccess::PointerInputManager final {
 public:
-    PointerInputManager(HitTestManager& hitTests, RoutedEventManager& events,
+    PointerInputManager(HitTestManager& hitTests, EventRouter& events,
         Visual& root) noexcept;
 
     Base::Result<PointerDispatchResult> Dispatch(
@@ -208,7 +205,7 @@ private:
     };
 
     HitTestManager* hitTests_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     Visual* root_ = nullptr;
     Base::Vector<PointerCapture> captures_;
     Base::Vector<PointerState> states_;
@@ -230,7 +227,7 @@ private:
 };
 class AERO_API UiRuntimeAccess::FocusManager final {
 public:
-    FocusManager(ObjectTree& tree, RoutedEventManager& events) noexcept;
+    FocusManager(ObjectTree& tree, EventRouter& events) noexcept;
 
     UIElement* FocusedNode() noexcept;
     UIElement* FocusedElement(UIElement& scope) noexcept;
@@ -252,7 +249,7 @@ private:
     };
 
     ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     VisualHandle focused_;
     Base::Vector<ScopeFocus> scopeFocus_;
 
@@ -265,9 +262,9 @@ private:
 };
 class AERO_API UiRuntimeAccess::KeyboardInputManager final {
 public:
-    KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
+    KeyboardInputManager(FocusManager& focus, EventRouter& events,
         ObjectTree& tree) noexcept;
-    KeyboardInputManager(FocusManager& focus, RoutedEventManager& events,
+    KeyboardInputManager(FocusManager& focus, EventRouter& events,
         ObjectTree& tree, CommandManager* commands) noexcept;
 
     void SetCommandManager(CommandManager* commands) noexcept {
@@ -279,13 +276,13 @@ public:
 
 private:
     FocusManager* focus_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
     CommandManager* commands_ = nullptr;
 };
 class AERO_API UiRuntimeAccess::TextInputManager final {
 public:
-    TextInputManager(FocusManager& focus, RoutedEventManager& events,
+    TextInputManager(FocusManager& focus, EventRouter& events,
         ObjectTree& tree) noexcept;
 
     Base::Result<TextInputDispatchResult> Dispatch(
@@ -293,7 +290,7 @@ public:
 
 private:
     FocusManager* focus_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
+    EventRouter* events_ = nullptr;
     ObjectTree* tree_ = nullptr;
 };
 class AERO_API UiRuntimeAccess::LayoutManager final {
@@ -780,7 +777,7 @@ private:
 };
 
 template<class TArgs>
-Base::Result<void> RoutedEventManager::RegisterClassHandler(
+Base::Result<void> EventRouter::RegisterClassHandler(
     RoutedEventHandle event,
     TypeId classType,
     const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,

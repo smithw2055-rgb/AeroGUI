@@ -6,54 +6,105 @@ namespace Aero {
 namespace App { class Launcher; }
 namespace Integration { class WindowInterop; }
 
-// WPF-aligned XAML content root for a native top-level window. Native lifetime
-// and rendering are supplied by an App or Integration host and are not part of
-// the Window public object model.
+enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
+enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
+enum class ResizeMode : std::uint8_t { NoResize = 0U, CanMinimize, CanResize, CanResizeWithGrip };
+enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHeight };
+
+struct CancelEventArgs final : RoutedEventArgs {
+    AERO_DECLARE_TYPE(CancelEventArgs, RoutedEventArgs)
+    CancelEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
+    mutable bool cancel = false;
+};
+
+using CancelEventHandler = Base::Delegate<void(Base::Object*, const CancelEventArgs&)>;
+
 class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
 public:
-    Window() noexcept
-        : Window(StaticTypeId()) {}
+    Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override = default;
 
-    Base::StringView Title() const noexcept {
-        return GetValueOr(TitleProperty, Base::StringView{});
-    }
-    Base::Result<void> SetTitle(
-        Base::StringView value) noexcept {
-        return SetValue(TitleProperty, value);
-    }
-    Base::StringView FontFamily() const noexcept {
-        return Aero::FrameworkElement::FontFamily();
-    }
-    Base::Result<void> SetFontFamily(
-        Base::StringView value) noexcept {
-        return SetValue(FontFamilyProperty, value);
-    }
+    Base::StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, Base::StringView{}); }
+    Base::Result<void> SetTitle(Base::StringView value) noexcept { return SetValue(TitleProperty, value); }
+    Base::StringView GetFontFamily() const noexcept { return Aero::FrameworkElement::FontFamily(); }
+    Base::Result<void> SetFontFamily(Base::StringView value) noexcept { return SetValue(FontFamilyProperty, value); }
+    WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
+    Base::Result<void> SetWindowState(WindowState value) noexcept;
+    WindowStyle GetWindowStyle() const noexcept { return GetValueOr(WindowStyleProperty, WindowStyle::SingleBorderWindow); }
+    Base::Result<void> SetWindowStyle(WindowStyle value) noexcept { return SetValue(WindowStyleProperty, value); }
+    ResizeMode GetResizeMode() const noexcept { return GetValueOr(ResizeModeProperty, ResizeMode::CanResize); }
+    Base::Result<void> SetResizeMode(ResizeMode value) noexcept { return SetValue(ResizeModeProperty, value); }
+    SizeToContent GetSizeToContent() const noexcept { return GetValueOr(SizeToContentProperty, SizeToContent::Manual); }
+    Base::Result<void> SetSizeToContent(SizeToContent value) noexcept { return SetValue(SizeToContentProperty, value); }
+    bool GetShowInTaskbar() const noexcept { return GetValueOr(ShowInTaskbarProperty, true); }
+    Base::Result<void> SetShowInTaskbar(bool value) noexcept { return SetValue(ShowInTaskbarProperty, value); }
+    bool GetTopmost() const noexcept { return GetValueOr(TopmostProperty, false); }
+    Base::Result<void> SetTopmost(bool value) noexcept { return SetValue(TopmostProperty, value); }
 
     Base::Result<void> Show() noexcept;
     void Close() noexcept;
     bool IsOpen() const noexcept;
 
-    inline static constexpr Members::Property<Base::String>
-        TitleProperty{"Title"};
-    inline static constexpr auto FontFamilyProperty =
-        Aero::FrameworkElement::FontFamilyProperty;
+    inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};
+    inline static constexpr auto FontFamilyProperty = Aero::FrameworkElement::FontFamilyProperty;
+    inline static constexpr Members::Property<WindowState> WindowStateProperty{"WindowState"};
+    inline static constexpr Members::Property<WindowStyle> WindowStyleProperty{"WindowStyle"};
+    inline static constexpr Members::Property<ResizeMode> ResizeModeProperty{"ResizeMode"};
+    inline static constexpr Members::Property<SizeToContent> SizeToContentProperty{"SizeToContent"};
+    inline static constexpr Members::Property<bool> ShowInTaskbarProperty{"ShowInTaskbar"};
+    inline static constexpr Members::Property<bool> TopmostProperty{"Topmost"};
+    inline static constexpr Members::RoutedEvent<CancelEventArgs> ClosingEvent{"Closing"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ActivatedEvent{"Activated"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> DeactivatedEvent{"Deactivated"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ContentRenderedEvent{"ContentRendered"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
+
+    UIElement::Event<CancelEventHandler> Closing() noexcept { return GetEvent(ClosingEvent); }
+    UIElement::Event<RoutedEventHandler> Closed() noexcept { return GetEvent(ClosedEvent); }
+    UIElement::Event<RoutedEventHandler> Activated() noexcept { return GetEvent(ActivatedEvent); }
+    UIElement::Event<RoutedEventHandler> Deactivated() noexcept { return GetEvent(DeactivatedEvent); }
+    UIElement::Event<RoutedEventHandler> ContentRendered() noexcept { return GetEvent(ContentRenderedEvent); }
+    UIElement::Event<RoutedEventHandler> SourceInitialized() noexcept { return GetEvent(SourceInitializedEvent); }
+    UIElement::Event<RoutedEventHandler> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
 protected:
-    explicit Window(Core::TypeId runtimeType) noexcept
-        : ContentControl(runtimeType) {}
+    explicit Window(Core::TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
+    virtual void OnClosing(CancelEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosingEvent, &args)); }
+    virtual void OnClosed(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ClosedEvent, &args)); }
+    virtual void OnActivated(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ActivatedEvent, &args)); }
+    virtual void OnDeactivated(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(DeactivatedEvent, &args)); }
+    virtual void OnContentRendered(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(ContentRenderedEvent, &args)); }
+    virtual void OnSourceInitialized(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(SourceInitializedEvent, &args)); }
+    virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
     friend class App::Launcher;
     friend class Integration::WindowInterop;
 
-    void Attach(void* runtimeState) noexcept {
-        runtimeState_ = runtimeState;
-    }
+    void Attach(void* runtimeState) noexcept { runtimeState_ = runtimeState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
     void Detach() noexcept { runtimeState_ = nullptr; }
+    void NotifySourceInitialized() noexcept;
+    void NotifyActivated() noexcept;
+    void NotifyDeactivated() noexcept;
+    void NotifyContentRendered() noexcept;
+    void NotifyClosed() noexcept;
 
     void* runtimeState_ = nullptr;
+    bool sourceInitialized_ = false;
+    bool contentRendered_ = false;
+    bool closed_ = false;
 };
 
 } // namespace Aero
+
+namespace Aero::Core {
+#define AERO_WINDOW_ENUM_TRAITS(TypeName) template<> struct MetaTypeTraits<Aero::TypeName> { static constexpr TypeId Id() noexcept { return MakeTypeId(#TypeName); } static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); } static constexpr Base::StringView Name() noexcept { return #TypeName; } static constexpr TypeId BaseType() noexcept { return InvalidTypeId; } };
+AERO_WINDOW_ENUM_TRAITS(WindowState)
+AERO_WINDOW_ENUM_TRAITS(WindowStyle)
+AERO_WINDOW_ENUM_TRAITS(ResizeMode)
+AERO_WINDOW_ENUM_TRAITS(SizeToContent)
+#undef AERO_WINDOW_ENUM_TRAITS
+} // namespace Aero::Core

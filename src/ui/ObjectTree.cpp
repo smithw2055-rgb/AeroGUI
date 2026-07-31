@@ -1,4 +1,5 @@
 #include "ObjectTree.hpp"
+#include "EventRoute.hpp"
 #include "core/metadata/MetadataBehaviorRegistrationStore.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -92,16 +93,40 @@ Visual::Visual(TypeId runtimeType) noexcept
       logicalChildren_(),
       visualChildren_() {}
 
+Visual* VisualTreeHelper::GetParent(const Visual& visual) noexcept {
+    return visual.visualParent_;
+}
+
+std::uint32_t VisualTreeHelper::GetChildrenCount(const Visual& visual) noexcept {
+    return visual.visualChildren_.Size();
+}
+
+Visual* VisualTreeHelper::GetChild(const Visual& visual, std::uint32_t index) noexcept {
+    return index < visual.visualChildren_.Size() ? visual.visualChildren_[index] : nullptr;
+}
+
+Visual* LogicalTreeHelper::GetParent(const Visual& visual) noexcept {
+    return visual.logicalParent_;
+}
+
+std::uint32_t LogicalTreeHelper::GetChildrenCount(const Visual& visual) noexcept {
+    return visual.logicalChildren_.Size();
+}
+
+Visual* LogicalTreeHelper::GetChild(const Visual& visual, std::uint32_t index) noexcept {
+    return index < visual.logicalChildren_.Size() ? visual.logicalChildren_[index] : nullptr;
+}
+
 Visual::~Visual() {
     AERO_ASSERT(tree_ == nullptr);
     AERO_ASSERT(logicalParent_ == nullptr);
     AERO_ASSERT(visualParent_ == nullptr);
     AERO_ASSERT(logicalChildren_.Empty());
     AERO_ASSERT(visualChildren_.Empty());
-    if (lifetime_) lifetime_->Invalidate();
+    if (lifetime_) static_cast<Aero::Detail::VisualLifetime*>(lifetime_.Get())->Invalidate();
 }
 
-Base::Result<Base::Ref<Aero::Detail::VisualLifetime>>
+Base::Result<Base::Ref<Base::Object>>
 Visual::AcquireLifetime() noexcept {
     if (!lifetime_) {
         Base::Result<Base::Ref<Aero::Detail::VisualLifetime>> created =
@@ -118,10 +143,11 @@ Base::Result<Aero::Detail::VisualLease> Aero::Detail::VisualLease::Acquire(
     lease.strong = Base::Ref<Visual>::TryFromBorrowed(node);
     if (lease.strong) return lease;
 
-    Base::Result<Base::Ref<VisualLifetime>> lifetime =
-        node.AcquireLifetime();
+    Base::Result<Base::Ref<Base::Object>> lifetime =
+        VisualAccess::AcquireLifetime(node);
     if (!lifetime) return lifetime.GetStatus();
-    lease.lifetime = std::move(lifetime).Value();
+    lease.lifetime = Base::Ref<VisualLifetime>::FromBorrowed(
+        *static_cast<VisualLifetime*>(lifetime.Value().Get()));
     return lease;
 }
 
@@ -167,15 +193,16 @@ Base::Result<VisualHandle> ObjectTree::GetHandle(
     const Visual& node) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (node.tree_ != this || !node.handle_.IsValid() ||
-        node.handle_.index >= handles_.Size()) {
+    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
+    if (node.tree_ != this || !handle.IsValid() ||
+        handle.index >= handles_.Size()) {
         return NotFound("Tree node does not have an active ObjectTree handle");
     }
-    const HandleEntry& entry = handles_[node.handle_.index];
-    if (entry.node != &node || entry.generation != node.handle_.generation) {
+    const HandleEntry& entry = handles_[handle.index];
+    if (entry.node != &node || entry.generation != handle.generation) {
         return NotFound("Tree node handle is stale");
     }
-    return node.handle_;
+    return handle;
 }
 
 Visual* ObjectTree::ResolveHandle(VisualHandle handle) const noexcept {
@@ -205,13 +232,14 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
 
     std::uint32_t required = 0U;
     for (Visual* current : nodes) {
-        if (current->handle_.IsValid()) {
-            if (current->handle_.index >= handles_.Size()) {
+        const VisualHandle currentHandle{current->handleIndex_, current->handleGeneration_};
+        if (currentHandle.IsValid()) {
+            if (currentHandle.index >= handles_.Size()) {
                 return InvalidState("ObjectTree node has an invalid pre-existing handle");
             }
-            const HandleEntry& entry = handles_[current->handle_.index];
+            const HandleEntry& entry = handles_[currentHandle.index];
             if (entry.node != current ||
-                entry.generation != current->handle_.generation) {
+                entry.generation != currentHandle.generation) {
                 return InvalidState("ObjectTree node has a stale pre-existing handle");
             }
         } else {
@@ -228,23 +256,26 @@ Base::Result<void> ObjectTree::RegisterHandleSubtree(Visual& node) noexcept {
     if (!reserved) return reserved.GetStatus();
 
     for (Visual* current : nodes) {
-        if (current->handle_.IsValid()) continue;
+        if (VisualHandle{current->handleIndex_, current->handleGeneration_}.IsValid()) continue;
 
         HandleEntry entry;
         entry.node = current;
         Base::Result<void> appended = handles_.TryPushBack(entry);
         AERO_ASSERT(appended);
         (void)appended;
-        current->handle_ = {handles_.Size() - 1U, entry.generation};
+        current->handleIndex_ = handles_.Size() - 1U;
+        current->handleGeneration_ = entry.generation;
 
         Base::Result<void> tracked = TrackInheritedValues(*current);
         if (!tracked) {
-            current->handle_ = {};
+            current->handleIndex_ = UINT32_MAX;
+            current->handleGeneration_ = 0U;
             handles_.PopBack();
             while (!added.Empty()) {
                 Visual* rollback = added.Back();
                 UntrackInheritedValues(*rollback);
-                rollback->handle_ = {};
+                rollback->handleIndex_ = UINT32_MAX;
+                rollback->handleGeneration_ = 0U;
                 handles_.PopBack();
                 added.PopBack();
             }
@@ -261,16 +292,18 @@ void ObjectTree::InvalidateHandleSubtree(Visual& node) noexcept {
     for (Visual* child : node.logicalChildren_) {
         if (child != nullptr) InvalidateHandleSubtree(*child);
     }
-    if (node.handle_.IsValid() && node.handle_.index < handles_.Size()) {
+    const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
+    if (handle.IsValid() && handle.index < handles_.Size()) {
         UntrackInheritedValues(node);
-        HandleEntry& entry = handles_[node.handle_.index];
+        HandleEntry& entry = handles_[handle.index];
         if (entry.node == &node) {
             entry.node = nullptr;
             ++entry.generation;
             if (entry.generation == 0U) ++entry.generation;
         }
     }
-    node.handle_ = {};
+    node.handleIndex_ = UINT32_MAX;
+    node.handleGeneration_ = 0U;
 }
 
 Base::Result<void> ObjectTree::TrackInheritedValues(
@@ -693,16 +726,16 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero;
 
-RoutedEventManager::RoutedEventManager(
+EventRouter::EventRouter(
     void* eventState) noexcept
     : eventState_(eventState),
       classHandlers_() {}
 
-RoutedEventManager::~RoutedEventManager() noexcept {
+EventRouter::~EventRouter() noexcept {
     CleanupClassHandlers();
 }
 
-Base::Result<void> RoutedEventManager::ValidateClassHandler(
+Base::Result<void> EventRouter::ValidateClassHandler(
     RoutedEventHandle event,
     TypeId classType,
     TypeId eventArgsType) const noexcept {
@@ -723,41 +756,7 @@ Base::Result<void> RoutedEventManager::ValidateClassHandler(
     return {};
 }
 
-Base::Result<void> RoutedEventManager::BuildRoute(
-    Visual& source,
-    RoutingStrategy strategy,
-    Base::Vector<Aero::Detail::VisualLease>& route) noexcept {
-    if (strategy == RoutingStrategy::Direct) {
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(source);
-        if (!lease) return lease.GetStatus();
-        return route.TryPushBack(std::move(lease).Value());
-    }
-
-    Visual* current = &source;
-    while (current != nullptr) {
-        Base::Result<Aero::Detail::VisualLease> lease =
-            Aero::Detail::VisualLease::Acquire(*current);
-        if (!lease) return lease.GetStatus();
-        Base::Result<void> appended =
-            route.TryPushBack(std::move(lease).Value());
-        if (!appended) return appended.GetStatus();
-        current = current->VisualParent() != nullptr
-            ? current->VisualParent()
-            : current->LogicalParent();
-    }
-    if (strategy == RoutingStrategy::Tunnel) {
-        for (std::uint32_t left = 0U, right = route.Size() - 1U;
-             left < right; ++left, --right) {
-            Aero::Detail::VisualLease temporary = std::move(route[left]);
-            route[left] = std::move(route[right]);
-            route[right] = std::move(temporary);
-        }
-    }
-    return {};
-}
-
-void RoutedEventManager::InvokeNode(
+void EventRouter::InvokeNode(
     Visual& node,
     RoutedEventArgs& args) noexcept {
     UIElement* element = node.AsUIElement();
@@ -781,7 +780,7 @@ void RoutedEventManager::InvokeNode(
     }
 }
 
-Base::Result<void> RoutedEventManager::RaiseEvent(
+Base::Result<void> EventRouter::RaiseEvent(
     UIElement& source,
     RoutedEventHandle event,
     RoutedEventArgs* suppliedArgs) noexcept {
@@ -807,7 +806,7 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
 
     Base::Vector<Aero::Detail::VisualLease> route;
     Base::Result<void> built =
-        BuildRoute(source, definition->strategy, route);
+        BuildEventRoute(source, definition->strategy, route);
     if (!built) {
         return built;
     }
@@ -832,7 +831,7 @@ Base::Result<void> RoutedEventManager::RaiseEvent(
     return {};
 }
 
-void RoutedEventManager::CleanupClassHandlers() noexcept {
+void EventRouter::CleanupClassHandlers() noexcept {
     classHandlers_.Clear();
 }
 

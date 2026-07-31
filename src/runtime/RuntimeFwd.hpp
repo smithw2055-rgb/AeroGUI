@@ -8,13 +8,14 @@ class UIElement;
 }
 namespace Aero::Controls {
 class Control;
+class VisualStateManager;
 }
 
 namespace Aero::Detail {
 
 class UiRuntimeAccess final {
 public:
-    class RoutedEventManager;
+    class EventRouter;
     class CommandManager;
     class HitTestManager;
     class PointerInputManager;
@@ -27,15 +28,14 @@ public:
     class StyleManager;
     class ThemeStyleManager;
 
-    static void SetCommandRouter(
-        Aero::UIElement& element,
-        CommandManager* manager) noexcept;
+    static void SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept;
+    static void SetCommandRouter(Aero::UIElement& element, CommandManager* manager) noexcept;
 };
 
 } // namespace Aero::Detail
 
 namespace Aero::Detail {
-using RoutedEventManager = UiRuntimeAccess::RoutedEventManager;
+using EventRouter = UiRuntimeAccess::EventRouter;
 using CommandManager = UiRuntimeAccess::CommandManager;
 using HitTestManager = UiRuntimeAccess::HitTestManager;
 using PointerInputManager = UiRuntimeAccess::PointerInputManager;
@@ -64,9 +64,7 @@ public:
     class TemplateManager;
     class MenuInteractionManager;
 
-    static void Attach(
-        Controls::Control& control,
-        Aero::Detail::RoutedEventManager* events) noexcept;
+    static void SetVisualStateManager(Controls::Control& control, Controls::VisualStateManager* visualStates) noexcept;
 };
 
 } // namespace Aero::Detail

@@ -39,9 +39,7 @@ public:
     Base::Result<void> SetUriSource(
         const Base::ResourceUri& value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::ResourceUri>
-        UriSourceProperty{"UriSource"};
+    inline static constexpr Members::Property<Base::ResourceUri> UriSourceProperty{"UriSource"};
 };
 
 } // namespace Aero::Media

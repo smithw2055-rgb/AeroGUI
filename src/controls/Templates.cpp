@@ -1,7 +1,9 @@
 #include <Aero/Styling.hpp>
 #include "TemplateRuntime.hpp"
+#include "TemplateTypes.hpp"
 #include "FrameworkTemplateAccess.hpp"
 #include "../data/BindingRuntime.hpp"
+#include "ContentControlAccess.hpp"
 
 #include "render/RenderingInternal.hpp"
 
@@ -19,19 +21,7 @@
 #include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Controls {
-
-Base::Result<void> Control::RaiseRoutedEvent(
-    RoutedEventHandle event,
-    RoutedEventArgs* args) noexcept {
-    if (eventRuntime_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Control is not attached to routed-event services");
-    }
-    return static_cast<Aero::Detail::RoutedEventManager*>(
-        eventRuntime_)->RaiseEvent(
-        *this, event, args);
-}
+using Aero::Controls::Detail::TemplateHandle;
 
 namespace {
 
@@ -227,7 +217,7 @@ TemplateBuildContext::ProjectContentCore(
             Base::ErrorCode::InvalidArgument,
             "Template content projection owner is invalid");
     }
-    UIElement* content = owner.Content();
+    UIElement* content = Detail::ContentControlAccess::ContentElement(owner);
     if (content == nullptr) return false;
 
     bool presenterIsPart = false;
@@ -237,10 +227,10 @@ TemplateBuildContext::ProjectContentCore(
             part.visual == &presenterVisual;
     }
     if (!presenterIsPart ||
-        (content->LogicalParent() != nullptr &&
-         content->LogicalParent() != &owner) ||
-        (content->VisualParent() != nullptr &&
-         content->VisualParent() != &owner)) {
+        (content->GetLogicalParent() != nullptr &&
+         content->GetLogicalParent() != &owner) ||
+        (content->GetVisualParent() != nullptr &&
+         content->GetVisualParent() != &owner)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Template content cannot be projected");
@@ -251,7 +241,7 @@ TemplateBuildContext::ProjectContentCore(
     projection.presenter = presenter;
     projection.contentHost = contentHost;
     projection.content = content;
-    projection.originalVisualParent = content->VisualParent();
+    projection.originalVisualParent = content->GetVisualParent();
 
     auto restore = [&]() noexcept {
         (void)state.mounts.DetachVisual(
@@ -271,7 +261,7 @@ TemplateBuildContext::ProjectContentCore(
         }
     };
 
-    if (content->LogicalParent() == nullptr) {
+    if (content->GetLogicalParent() == nullptr) {
         Base::Result<void> logical = state.tree->AttachLogical(owner, *content);
         if (!logical) return logical.GetStatus();
         projection.attachedLogical = true;
@@ -1043,7 +1033,7 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     const ControlTemplate& plan) noexcept {
     if (tree_ == nullptr || values_ == nullptr ||
         properties_ == nullptr || !plan.IsSealed() ||
-        control.OwningTree() != tree_ ||
+        Aero::Detail::VisualAccess::Tree(control) != tree_ ||
         !IsTargetCompatible(
             properties_->Types(),
             control.RuntimeType(),
@@ -1126,7 +1116,7 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
                 context.PopulateItemsPresenter(
                     *static_cast<ItemsPresenter*>(
                         part.object),
-                    itemsControl.ItemsPanel());
+                    itemsControl.GetItemsPanel());
             if (!populated) {
                 context.Rollback();
                 return populated.GetStatus();

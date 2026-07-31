@@ -57,7 +57,7 @@ Base::Result<void> AddApplicationResource(
     // This callback is selected through the inherited Application XAML facet,
     // so derived application types are valid scope owners.
     Base::Ref<ResourceDictionary> resources =
-        static_cast<Aero::Application&>(scopeOwner).Resources();
+        static_cast<Aero::Application&>(scopeOwner).GetResources();
     return resources
         ? resources->TryAdd(key, value)
         : Base::Result<void>(InvalidResource(
@@ -90,7 +90,7 @@ ResourceDictionary* ResolveApplicationScope(
     Base::Object& scopeOwner,
     void*) noexcept {
     Base::Ref<ResourceDictionary> resources =
-        static_cast<Aero::Application&>(scopeOwner).Resources();
+        static_cast<Aero::Application&>(scopeOwner).GetResources();
     return resources.Get();
 }
 

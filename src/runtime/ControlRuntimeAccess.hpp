@@ -5,10 +5,8 @@
 
 namespace Aero::Detail {
 
-inline void ControlRuntimeAccess::Attach(
-    Controls::Control& control,
-    Aero::Detail::RoutedEventManager* events) noexcept {
-    control.eventRuntime_ = events;
+inline void ControlRuntimeAccess::SetVisualStateManager(Controls::Control& control, Controls::VisualStateManager* visualStates) noexcept {
+    control.visualStateRuntime_ = visualStates;
 }
 
 } // namespace Aero::Detail

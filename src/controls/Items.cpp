@@ -1,4 +1,5 @@
 #include <Aero/Controls/Items.hpp>
+#include "ContentControlAccess.hpp"
 
 #include "ItemContainerGeneratorAccess.hpp"
 #include "render/RenderingInternal.hpp"
@@ -13,8 +14,16 @@
 #include <utility>
 #include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
+#include "ControlCollections.hpp"
 
 namespace Aero::Controls {
+
+Base::Result<void> ItemsPresenter::SetItemsHost(
+    const Base::Ref<Base::Object>& owner,
+    Panel& panel) noexcept {
+    return Detail::DecoratorAccess::SetOwnedChild(*this, owner, panel);
+}
+
 
 using namespace Aero::Detail;
 
@@ -409,7 +418,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        control.SetContentValue(change.newValue));
+        Detail::ContentControlAccess::SetContentValue(control, change.newValue));
     control.synchronizingContentProperty_ = false;
 }
 
@@ -494,7 +503,7 @@ ContentControl::TryCreateTemplatedContent() const noexcept {
         return Base::Ref<Base::Object>{};
     }
     Base::Ref<Base::Object> contentTemplate =
-        ContentTemplate();
+        GetContentTemplate();
     if (!contentTemplate) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -844,8 +853,8 @@ Base::Result<void> Detail::ItemContainerGeneratorImpl::Attach(
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        owner.OwningTree() != tree_ ||
-        itemsHost.OwningTree() != tree_) {
+        Aero::Detail::VisualAccess::Tree(owner) != tree_ ||
+        Aero::Detail::VisualAccess::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
@@ -883,8 +892,8 @@ Detail::ItemContainerGeneratorImpl::AttachVirtualized(
     VirtualizingStackPanel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         owner.generator_ != nullptr ||
-        owner.OwningTree() != tree_ ||
-        itemsHost.OwningTree() != tree_) {
+        Aero::Detail::VisualAccess::Tree(owner) != tree_ ||
+        Aero::Detail::VisualAccess::Tree(itemsHost) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
@@ -987,7 +996,7 @@ Detail::ItemContainerGeneratorImpl::CreateRecord(
         return record;
     }
     const DataTemplate* itemTemplate =
-        owner_->ItemTemplate();
+        owner_->GetItemTemplate();
     if (itemTemplate != nullptr) {
         Base::Result<Base::Ref<Base::Object>>
             content =
@@ -1081,13 +1090,13 @@ Detail::ItemContainerGeneratorImpl::AttachOwnedSubtree(
         auto& child =
             *static_cast<Aero::Visual*>(
                 owned.Get());
-        if (child.VisualParent() == &parent &&
-            child.OwningTree() == tree_) {
+        if (child.GetVisualParent() == &parent &&
+            Aero::Detail::VisualAccess::Tree(child) == tree_) {
             return pending.TryPushBack(&child);
         }
-        if (child.VisualParent() != nullptr ||
-            child.LogicalParent() != nullptr ||
-            child.OwningTree() != nullptr) {
+        if (child.GetVisualParent() != nullptr ||
+            child.GetLogicalParent() != nullptr ||
+            Aero::Detail::VisualAccess::Tree(child) != nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
@@ -1129,12 +1138,12 @@ Detail::ItemContainerGeneratorImpl::AttachOwnedSubtree(
             auto& panel =
                 *static_cast<Panel*>(current);
             for (std::uint32_t index = 0U;
-                 index < panel.OwnedChildCount();
+                 index < Detail::PanelAccess::Count(panel);
                  ++index) {
                 Base::Result<void> attached =
                     attachChild(
                         panel,
-                        panel.OwnedChildAt(index));
+                        Detail::PanelAccess::At(panel, index));
                 if (!attached) {
                     (void)DetachOwnedSubtree(record);
                     return attached.GetStatus();
@@ -1149,7 +1158,7 @@ Detail::ItemContainerGeneratorImpl::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     decorator,
-                    decorator.OwnedChild());
+                    Detail::DecoratorAccess::OwnedChild(decorator));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1163,7 +1172,7 @@ Detail::ItemContainerGeneratorImpl::AttachOwnedSubtree(
             Base::Result<void> attached =
                 attachChild(
                     content,
-                    content.OwnedContent());
+                    Detail::ContentControlAccess::OwnedContent(content));
             if (!attached) {
                 (void)DetachOwnedSubtree(record);
                 return attached.GetStatus();
@@ -1236,7 +1245,7 @@ Detail::ItemContainerGeneratorImpl::AttachRecord(
             ? Detail::ItemContainerGeneratorAccess::
                   SetGeneratedTextContent(
                       container, record.content, content)
-            : container.SetOwnedContent(
+            : Detail::ContentControlAccess::SetOwnedContent(container,
                   record.content, content);
         if (!selected) {
             (void)mounts_.Detach(
@@ -1258,7 +1267,7 @@ Detail::ItemContainerGeneratorImpl::AttachRecord(
         (void)DetachRecord(record);
         return subtreeAttached.GetStatus();
     }
-    const Style* style = owner_->ItemContainerStyle();
+    const Style* style = owner_->GetItemContainerStyle();
     if (style != nullptr && styles_ != nullptr) {
         Base::Result<void> styled = styles_->Apply(container, *style);
         if (!styled) { (void)DetachRecord(record); return styled.GetStatus(); }
@@ -1320,7 +1329,7 @@ Detail::ItemContainerGeneratorImpl::DetachRecord(
     }
     UIElement* content = record.itemIsOwnContainer
         ? nullptr
-        : container.Content();
+        : Detail::ContentControlAccess::ContentElement(container);
     if (content != nullptr) {
         capture(mounts_.Detach(record.contentMount));
         capture(container.SetContent(nullptr));

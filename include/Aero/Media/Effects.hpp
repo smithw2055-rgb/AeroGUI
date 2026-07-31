@@ -32,8 +32,7 @@ public:
     double Radius() const noexcept;
     Base::Result<void> SetRadius(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        RadiusProperty{"Radius"};
+    inline static constexpr Members::Property<double> RadiusProperty{"Radius"};
 };
 
 class AERO_API DropShadowEffect final : public Effect {
@@ -53,16 +52,11 @@ public:
     Base::Result<void> SetOpacity(double value) noexcept;
     Base::Result<void> SetColor(Base::Color value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        BlurRadiusProperty{"BlurRadius"};
-    inline static constexpr Members::Property<double>
-        DirectionProperty{"Direction"};
-    inline static constexpr Members::Property<double>
-        ShadowDepthProperty{"ShadowDepth"};
-    inline static constexpr Members::Property<double>
-        OpacityProperty{"Opacity"};
-    inline static constexpr Members::Property<Base::Color>
-        ColorProperty{"Color"};
+    inline static constexpr Members::Property<double> BlurRadiusProperty{"BlurRadius"};
+    inline static constexpr Members::Property<double> DirectionProperty{"Direction"};
+    inline static constexpr Members::Property<double> ShadowDepthProperty{"ShadowDepth"};
+    inline static constexpr Members::Property<double> OpacityProperty{"Opacity"};
+    inline static constexpr Members::Property<Base::Color> ColorProperty{"Color"};
 };
 
 // Gallery's custom ShaderEffect contract. Rendering backends receive the
@@ -76,8 +70,7 @@ public:
     double Size() const noexcept;
     Base::Result<void> SetSize(double value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        SizeProperty{"Size"};
+    inline static constexpr Members::Property<double> SizeProperty{"Size"};
 };
 
 } // namespace Aero::Media

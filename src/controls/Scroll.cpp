@@ -10,6 +10,8 @@
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
+
+using namespace Primitives;
 namespace {
 
 constexpr double LayoutInfinity = 1.0e12;
@@ -475,7 +477,7 @@ ScrollContentPresenter::MeasureOverride(
         return ContentControl::MeasureOverride(
             availableSize);
     }
-    UIElement* child = Content();
+    UIElement* child = ContentElement();
     if (child == nullptr) {
         ScrollData empty = data_;
         empty.extentWidth = 0.0;
@@ -533,7 +535,7 @@ ScrollContentPresenter::ArrangeOverride(
         return ContentControl::ArrangeOverride(
             finalSize);
     }
-    UIElement* child = Content();
+    UIElement* child = ContentElement();
     if (child == nullptr) {
         Base::Result<bool> viewport =
             SetViewport(finalSize);
@@ -917,7 +919,7 @@ void ScrollViewer::OnScrollDataChanged(
         args.newData = newData;
         args.inputKind = kind;
         static_cast<void>(
-            static_cast<Aero::Detail::RoutedEventManager*>(events_)->RaiseEvent(
+            static_cast<Aero::Detail::EventRouter*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }
@@ -1501,7 +1503,7 @@ void RangeBase::OnValueChanged(
     args.oldValue = oldValue;
     args.newValue = newValue;
     const Base::Result<void> raised =
-        RaiseRoutedEvent(ValueChangedEvent, &args);
+        RaiseEvent(ValueChangedEvent, &args);
     if (!raised &&
         raised.GetStatus().code !=
             Base::ErrorCode::NotInitialized) {
@@ -2209,7 +2211,7 @@ using namespace Aero::Controls;
 
 ScrollInteractionManager::ScrollInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events) noexcept
+    EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       wheelHandler_(
@@ -2230,7 +2232,7 @@ ScrollInteractionManager::~ScrollInteractionManager() noexcept {
 
 std::uint32_t ScrollInteractionManager::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = viewer.Handle();
+    const VisualHandle handle = Aero::Detail::VisualAccess::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2256,8 +2258,8 @@ Base::Result<void> ScrollInteractionManager::Attach(
             Base::ErrorCode::InvalidState,
             "ScrollViewer belongs to another interaction manager");
     }
-    if (viewer.OwningTree() != tree_ ||
-        !viewer.Handle().IsValid()) {
+    if (Aero::Detail::VisualAccess::Tree(viewer) != tree_ ||
+        !Aero::Detail::VisualAccess::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2269,7 +2271,7 @@ Base::Result<void> ScrollInteractionManager::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.TryPushBack(
-            {&viewer, viewer.Handle()});
+            {&viewer, Aero::Detail::VisualAccess::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2321,7 +2323,7 @@ void ScrollInteractionManager::OnMouseWheel(
 
 SliderInteractionManager::SliderInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     PointerInputManager& pointer,
     FocusManager& focus) noexcept
     : tree_(&tree),
@@ -2365,7 +2367,7 @@ std::uint32_t SliderInteractionManager::Find(
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            slider.Handle();
+            Aero::Detail::VisualAccess::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2409,8 +2411,8 @@ Base::Result<void> SliderInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (slider.OwningTree() != tree_ ||
-        !slider.Handle().IsValid()) {
+    if (Aero::Detail::VisualAccess::Tree(slider) != tree_ ||
+        !Aero::Detail::VisualAccess::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2462,7 +2464,7 @@ Base::Result<void> SliderInteractionManager::Attach(
     }
     Base::Result<void> appended =
         sliders_.TryPushBack(
-            {slider.Handle(), 0U, false});
+            {Aero::Detail::VisualAccess::Handle(slider), 0U, false});
     if (!appended) {
         static_cast<void>(slider.RemoveHandler(
             UIElement::MouseDownEvent,

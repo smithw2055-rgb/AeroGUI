@@ -12,7 +12,12 @@ namespace Aero::Detail {
 class ControlRuntimeAccess;
 class RuntimeUiServices;
 }
-namespace Aero::Controls::Detail { class ItemContainerGeneratorAccess; }
+namespace Aero::Controls::Detail {
+class ItemContainerGeneratorAccess;
+class PanelAccess;
+class DecoratorAccess;
+class ContentControlAccess;
+}
 
 
 namespace Aero::Controls {
@@ -23,12 +28,6 @@ using namespace Aero::Data;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Render;
-
-enum class FontWeight : std::uint8_t {
-    Normal = 0U,
-    SemiBold,
-    Bold
-};
 
 // Inline formatting value shared by retained text controls and the
 // Aero::Documents inline hierarchy.
@@ -42,7 +41,7 @@ enum class TextDecorations : std::uint8_t {
 namespace Aero::Core {
 
 template<>
-struct MetaTypeTraits<Controls::FontWeight> {
+struct MetaTypeTraits<Aero::FontWeight> {
     static constexpr TypeId Id() noexcept {
         return MakeTypeId("FontWeight");
     }
@@ -80,6 +79,22 @@ namespace Aero::Controls {
 class ControlTemplate;
 class ItemContainerGenerator;
 class DataTemplate;
+class Panel;
+
+class AERO_API UIElementCollection final {
+public:
+    std::uint32_t Count() const noexcept;
+    bool Empty() const noexcept { return Count() == 0U; }
+    UIElement* At(std::uint32_t index) const noexcept;
+    Base::Result<void> Add(Base::Ref<UIElement> child) noexcept;
+    Base::Result<void> Remove(UIElement& child) noexcept;
+    Base::Result<void> Clear() noexcept;
+
+private:
+    friend class Panel;
+    explicit UIElementCollection(Panel& owner) noexcept : owner_(&owner) {}
+    Panel* owner_ = nullptr;
+};
 
 class AERO_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
@@ -108,55 +123,28 @@ public:
         return SetValue(
             BackgroundProperty, std::move(value));
     }
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BackgroundProperty{"Background"};
-    inline static constexpr Members::Property<bool>
-        IsItemsHostProperty{"IsItemsHost"};
-    inline static constexpr Members::AttachedProperty<std::int32_t>
-        ZIndexProperty{"ZIndex"};
-    std::uint32_t OwnedChildCount() const noexcept { return ownedChildren_.Size(); }
-    Base::Ref<Base::Object> OwnedChildAt(
-        std::uint32_t index) const noexcept {
-        return index < ownedChildren_.Size()
-            ? ownedChildren_[index]
-            : Base::Ref<Base::Object>{};
-    }
-    Base::Result<void> AddOwnedChild(
-        const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
-        if (!childObject || childObject.Get() != &child) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-                "Panel owned child does not match its UIElement");
-        }
-        Base::Result<void> access = VerifyAccess();
-        if (!access) return access.GetStatus();
-        for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
-            if (owned.Get() == &child) {
-                return Base::Status::Failure(Base::ErrorCode::AlreadyExists,
-                    "Panel already owns the child");
-            }
-        }
-        Base::Result<void> appended = ownedChildren_.TryPushBack(childObject);
-        if (!appended) return appended.GetStatus();
-        return InvalidateMeasure();
-    }
-    Base::Result<void> ClearOwnedChildren() noexcept {
-        Base::Result<void> access = VerifyAccess();
-        if (!access) return access.GetStatus();
-        if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "Panel children must be detached before releasing ownership");
-        }
-        ownedChildren_.Clear();
-        return InvalidateMeasure();
-    }
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
+    inline static constexpr Members::Property<bool> IsItemsHostProperty{"IsItemsHost"};
+    inline static constexpr Members::AttachedProperty<std::int32_t> ZIndexProperty{"ZIndex"};
+    UIElementCollection& GetChildren() noexcept { return children_; }
+    const UIElementCollection& GetChildren() const noexcept { return children_; }
 protected:
     explicit Panel(TypeId runtimeType) noexcept
-        : FrameworkElement(runtimeType), ownedChildren_() {}
+        : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
     ~Panel() override = default;
     Base::Result<void> OnRender(
         DrawingContext& context) noexcept override;
 private:
+    friend class UIElementCollection;
+    friend class Detail::PanelAccess;
+    std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
+    Base::Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
+        return index < ownedChildren_.Size() ? ownedChildren_[index] : Base::Ref<Base::Object>{};
+    }
+    Base::Result<void> AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept;
+    Base::Result<bool> RemoveChildCore(UIElement& child) noexcept;
+    Base::Result<void> ClearChildrenCore() noexcept;
+    UIElementCollection children_;
     Base::Vector<Base::Ref<Base::Object>> ownedChildren_;
 };
 
@@ -167,12 +155,11 @@ public:
     // a lightweight single-child layout node in control templates.
     Decorator() noexcept : Decorator(StaticTypeId()) {}
     ~Decorator() override = default;
-    UIElement* Child() const noexcept {
+    UIElement* GetChild() const noexcept {
         if (child_ != nullptr) return child_;
         const UIElementChildRange children = LayoutChildren();
         return children.Size() == 1U ? children[0] : nullptr;
     }
-    const Base::Ref<Base::Object>& OwnedChild() const noexcept { return ownedChild_; }
     Base::Result<void> SetChild(UIElement* child) noexcept {
         Base::Result<void> access = VerifyAccess();
         if (!access) return access.GetStatus();
@@ -183,6 +170,31 @@ public:
         if (child == nullptr) ownedChild_.Reset();
         return InvalidateMeasure();
     }
+protected:
+    explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
+    Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
+        UIElement* child = GetChild();
+        if (child == nullptr) {
+            if (!LayoutChildren().Empty()) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidState,
+                    "Decorator has multiple attached children");
+            }
+            return Size{};
+        }
+        Base::Result<void> measured = MeasureChild(*child, availableSize);
+        if (!measured) return measured.GetStatus();
+        return child->DesiredSize();
+    }
+    Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
+        UIElement* child = GetChild();
+        if (child == nullptr) return finalSize;
+        Base::Result<void> arranged = ArrangeChild(
+            *child, {0.0, 0.0, finalSize.width, finalSize.height});
+        if (!arranged) return arranged.GetStatus();
+        return finalSize;
+    }
+private:
+    friend class Detail::DecoratorAccess;
     Base::Result<void> SetOwnedChild(
         const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {
@@ -197,30 +209,6 @@ public:
         ownedChild_ = childObject;
         return InvalidateMeasure();
     }
-protected:
-    explicit Decorator(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
-    Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
-        UIElement* child = Child();
-        if (child == nullptr) {
-            if (!LayoutChildren().Empty()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                    "Decorator has multiple attached children");
-            }
-            return Size{};
-        }
-        Base::Result<void> measured = MeasureChild(*child, availableSize);
-        if (!measured) return measured.GetStatus();
-        return child->DesiredSize();
-    }
-    Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
-        UIElement* child = Child();
-        if (child == nullptr) return finalSize;
-        Base::Result<void> arranged = ArrangeChild(
-            *child, {0.0, 0.0, finalSize.width, finalSize.height});
-        if (!arranged) return arranged.GetStatus();
-        return finalSize;
-    }
-private:
     UIElement* child_ = nullptr;
     Base::Ref<Base::Object> ownedChild_;
     bool IsOnlyAttachedChild(const UIElement& child) const noexcept {
@@ -397,40 +385,18 @@ public:
         bool value) noexcept {
         return SetValue(OverridesDefaultStyleProperty, value);
     }
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BackgroundProperty{"Background"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BorderBrushProperty{"BorderBrush"};
-    inline static constexpr Members::Property<
-        Aero::Base::Thickness>
-        BorderThicknessProperty{"BorderThickness"};
-    inline static constexpr Members::Property<
-        Aero::Base::Thickness>
-        PaddingProperty{"Padding"};
-    inline static constexpr Members::Property<
-        Aero::HorizontalAlignment>
-        HorizontalContentAlignmentProperty{
-            "HorizontalContentAlignment"};
-    inline static constexpr Members::Property<
-        Aero::VerticalAlignment>
-        VerticalContentAlignmentProperty{
-            "VerticalContentAlignment"};
-    inline static constexpr auto ForegroundProperty =
-        Aero::Media::FrameworkElementForegroundProperty;
-    inline static constexpr Members::Property<double>
-        FontSizeProperty{"FontSize"};
-    inline static constexpr Members::Property<FontWeight>
-        FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Style>>
-        FocusVisualStyleProperty{"FocusVisualStyle"};
-    inline static constexpr Members::Property<bool>
-        OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
-    inline static constexpr Members::Property<
-        Base::Ref<ControlTemplate>>
-        TemplateProperty{"Template"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BorderBrushProperty{"BorderBrush"};
+    inline static constexpr Members::Property<Aero::Base::Thickness> BorderThicknessProperty{"BorderThickness"};
+    inline static constexpr Members::Property<Aero::Base::Thickness> PaddingProperty{"Padding"};
+    inline static constexpr Members::Property<Aero::HorizontalAlignment> HorizontalContentAlignmentProperty{"HorizontalContentAlignment"};
+    inline static constexpr Members::Property<Aero::VerticalAlignment> VerticalContentAlignmentProperty{"VerticalContentAlignment"};
+    inline static constexpr auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
+    inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
+    inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Style>> FocusVisualStyleProperty{"FocusVisualStyle"};
+    inline static constexpr Members::Property<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
+    inline static constexpr Members::Property<Base::Ref<ControlTemplate>> TemplateProperty{"Template"};
 
     // Aero resolves implicit styles by the runtime type, which is the
     // equivalent of WPF's default style key for built-in controls.
@@ -478,9 +444,6 @@ protected:
         return {};
     }
     virtual void OnTemplateDetached() noexcept {}
-    Base::Result<void> RaiseRoutedEvent(
-        RoutedEventHandle event,
-        RoutedEventArgs* args = nullptr) noexcept;
     Base::Result<Size> MeasureOverride(
         Size availableSize) noexcept override {
         if (templateChild_ == nullptr) return Size{};
@@ -503,6 +466,7 @@ protected:
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimeUiServices;
+    friend class VisualStateManager;
     void AttachTemplateRuntime(
         void* manager) noexcept {
         templateRuntime_ = manager;
@@ -521,7 +485,7 @@ private:
         }
     }
     void* templateRuntime_ = nullptr;
-    void* eventRuntime_ = nullptr;
+    void* visualStateRuntime_ = nullptr;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;
@@ -530,28 +494,14 @@ private:
 class AERO_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 public:
-    inline static constexpr Members::Property<Core::Value>
-        ContentProperty{"Content"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ContentTemplateProperty{"ContentTemplate"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ContentTemplateSelectorProperty{
-            "ContentTemplateSelector"};
+    inline static constexpr Members::Property<Core::Value> ContentProperty{"Content"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateSelectorProperty{"ContentTemplateSelector"};
 
-    UIElement* Content() const noexcept { return content_; }
-    const Base::Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
-    const Base::Ref<Base::Object>& ContentValue() const noexcept {
-        return contentValue_;
+    Core::Value GetContent() const noexcept {
+        return GetValueOr(ContentProperty, Core::Value::NullObject(Core::TypeOf<Base::Object>()));
     }
-    Core::Value MetadataContent() const noexcept {
-        return GetValueOr(
-            ContentProperty,
-            Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()));
-    }
-    Base::Ref<Base::Object> ContentTemplate() const noexcept {
+    Base::Ref<Base::Object> GetContentTemplate() const noexcept {
         return GetValueOr(
             ContentTemplateProperty,
             Base::Ref<Base::Object>{});
@@ -563,7 +513,7 @@ public:
             std::move(value));
     }
     Base::Ref<Base::Object>
-    ContentTemplateSelector() const noexcept {
+    GetContentTemplateSelector() const noexcept {
         return GetValueOr(
             ContentTemplateSelectorProperty,
             Base::Ref<Base::Object>{});
@@ -574,6 +524,8 @@ public:
             ContentTemplateSelectorProperty,
             std::move(value));
     }
+    Base::Result<void> SetContent(Base::Ref<Base::Object> content) noexcept { return SetContentValue(std::move(content)); }
+    Base::Result<void> SetContent(Core::Value content) noexcept { return SetContentValue(std::move(content)); }
     Base::Result<void> SetContent(UIElement* content) noexcept {
         Base::Result<void> access = VerifyAccess();
         if (!access) return access.GetStatus();
@@ -600,43 +552,8 @@ public:
         }
         return InvalidateMeasure();
     }
-    Base::Result<void> SetOwnedContent(
-        const Base::Ref<Base::Object>& contentObject, UIElement& content) noexcept {
-        if (!contentObject || contentObject.Get() != &content) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-                "ContentControl owned content does not match its UIElement");
-        }
-        Base::Result<void> access = VerifyAccess();
-        if (!access) return access.GetStatus();
-        Base::Result<void> valid = ValidateContent(&content);
-        if (!valid) return valid.GetStatus();
-        Base::Result<void> stored =
-            StoreContentProperty(
-                Core::Value::FromObject(
-                    contentObject->RuntimeType(),
-                    contentObject));
-        if (!stored) return stored.GetStatus();
-        content_ = &content;
-        ownedContent_ = contentObject;
-        contentValue_ = contentObject;
-        literalTextContent_ = false;
-        return InvalidateMeasure();
-    }
-    // Stores arbitrary business content without exposing it as a visual.
-    // A matching ContentTemplate can materialize it through
-    // TryCreateTemplatedContent(); the UIElement overloads remain the
-    // source-compatible direct-content path.
-    Base::Result<void> SetContentValue(
-        Base::Ref<Base::Object> value) noexcept;
-    Base::Result<void> SetContentValue(
-        Core::Value value) noexcept;
-    static void OnContentPropertyChanged(
-        Core::DependencyObject& object,
-        const Core::DependencyPropertyChangedEventArgs&
-            change) noexcept;
-    Base::Result<Base::Ref<Base::Object>>
-        TryCreateTemplatedContent() const noexcept;
 protected:
+    UIElement* ContentElement() const noexcept { return content_; }
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
@@ -674,6 +591,43 @@ protected:
     }
 private:
     friend class Detail::ItemContainerGeneratorAccess;
+    friend class Detail::ContentControlAccess;
+    Base::Result<void> SetOwnedContent(
+        const Base::Ref<Base::Object>& contentObject, UIElement& content) noexcept {
+        if (!contentObject || contentObject.Get() != &content) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+                "ContentControl owned content does not match its UIElement");
+        }
+        Base::Result<void> access = VerifyAccess();
+        if (!access) return access.GetStatus();
+        Base::Result<void> valid = ValidateContent(&content);
+        if (!valid) return valid.GetStatus();
+        Base::Result<void> stored =
+            StoreContentProperty(
+                Core::Value::FromObject(
+                    contentObject->RuntimeType(),
+                    contentObject));
+        if (!stored) return stored.GetStatus();
+        content_ = &content;
+        ownedContent_ = contentObject;
+        contentValue_ = contentObject;
+        literalTextContent_ = false;
+        return InvalidateMeasure();
+    }
+    // Stores arbitrary business content without exposing it as a visual.
+    // A matching ContentTemplate can materialize it through
+    // TryCreateTemplatedContent(); the UIElement overloads remain the
+    // source-compatible direct-content path.
+    Base::Result<void> SetContentValue(
+        Base::Ref<Base::Object> value) noexcept;
+    Base::Result<void> SetContentValue(
+        Core::Value value) noexcept;
+    static void OnContentPropertyChanged(
+        Core::DependencyObject& object,
+        const Core::DependencyPropertyChangedEventArgs&
+            change) noexcept;
+    Base::Result<Base::Ref<Base::Object>>
+        TryCreateTemplatedContent() const noexcept;
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
     Base::Ref<Base::Object> contentValue_;

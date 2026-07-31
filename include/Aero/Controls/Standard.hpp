@@ -42,7 +42,7 @@ public:
     Base::Result<void> SetIsSubmenuOpen(
         bool value) noexcept;
     MenuItemRole Role() const noexcept;
-    ICommand* Command() const noexcept;
+    ICommand* GetCommand() const noexcept;
     Base::Result<void> SetCommand(
         Base::Ref<ICommand> command) noexcept;
     Base::Ref<Base::Object>
@@ -50,29 +50,15 @@ public:
     Base::Result<void> SetCommandParameter(
         Base::Ref<Base::Object> value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::String>
-        InputGestureTextProperty{
-            "InputGestureText"};
-    inline static constexpr Members::Property<bool>
-        IsCheckableProperty{"IsCheckable"};
-    inline static constexpr Members::Property<bool>
-        IsCheckedProperty{"IsChecked"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsHighlightedProperty{"IsHighlighted"};
-    inline static constexpr Members::Property<bool>
-        IsSubmenuOpenProperty{"IsSubmenuOpen"};
-    inline static constexpr Members::ReadOnlyProperty<MenuItemRole>
-        RoleProperty{"Role"};
-    inline static constexpr Members::Property<
-        Base::Ref<ICommand>>
-        CommandProperty{"Command"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        CommandParameterProperty{
-            "CommandParameter"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> ClickEvent{"Click"};
+    inline static constexpr Members::Property<Base::String> InputGestureTextProperty{"InputGestureText"};
+    inline static constexpr Members::Property<bool> IsCheckableProperty{"IsCheckable"};
+    inline static constexpr Members::Property<bool> IsCheckedProperty{"IsChecked"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsHighlightedProperty{"IsHighlighted"};
+    inline static constexpr Members::Property<bool> IsSubmenuOpenProperty{"IsSubmenuOpen"};
+    inline static constexpr Members::ReadOnlyProperty<MenuItemRole> RoleProperty{"Role"};
+    inline static constexpr Members::Property<Base::Ref<ICommand>> CommandProperty{"Command"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
 
 protected:
     Base::Result<void>
@@ -83,7 +69,7 @@ private:
     friend class Aero::Detail::ControlRuntimeAccess;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
-    Popup* submenuPopup_ = nullptr;
+    Primitives::Popup* submenuPopup_ = nullptr;
     DependencyPropertyChangedEventHandler
         menuPropertyChangedHandler_;
     void OnMenuPropertyChanged(
@@ -132,16 +118,10 @@ public:
     Base::Result<void> SetPlacementTarget(
         Base::Ref<UIElement> value) noexcept;
 
-    inline static constexpr Members::Property<bool>
-        IsOpenProperty{"IsOpen"};
-    inline static constexpr Members::Property<
-        Base::Ref<UIElement>>
-        PlacementTargetProperty{
-            "PlacementTarget"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> OpenedEvent{"Opened"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> ClosedEvent{"Closed"};
+    inline static constexpr Members::Property<bool> IsOpenProperty{"IsOpen"};
+    inline static constexpr Members::Property<Base::Ref<UIElement>> PlacementTargetProperty{"PlacementTarget"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
 
 protected:
     Base::Result<void>
@@ -170,9 +150,7 @@ public:
         DependencyObject& target,
         Base::Ref<ContextMenu> value) noexcept;
 
-    inline static constexpr Members::AttachedProperty<
-        Base::Ref<ContextMenu>>
-        ContextMenuProperty{"ContextMenu"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<ContextMenu>> ContextMenuProperty{"ContextMenu"};
 };
 
 
@@ -233,29 +211,13 @@ public:
     std::uint32_t OverflowItemCount()
         const noexcept;
 
-    inline static constexpr Members::Property<Core::Value>
-        HeaderProperty{"Header"};
-    inline static constexpr Members::Property<
-        Base::Ref<DataTemplate>>
-        HeaderTemplateProperty{"HeaderTemplate"};
-    inline static constexpr Members::Property<
-        Orientation>
-        OrientationProperty{"Orientation"};
-    inline static constexpr Members::Property<
-        std::uint32_t>
-        OverflowCapacityProperty{
-            "OverflowCapacity"};
-    inline static constexpr Members::Property<bool>
-        IsOverflowOpenProperty{
-            "IsOverflowOpen"};
-    inline static constexpr Members::Property<
-        bool>
-        HasOverflowItemsProperty{
-            "HasOverflowItems"};
-    inline static constexpr Members::Property<
-        std::uint32_t>
-        OverflowItemCountProperty{
-            "OverflowItemCount"};
+    inline static constexpr Members::Property<Core::Value> HeaderProperty{"Header"};
+    inline static constexpr Members::Property<Base::Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<std::uint32_t> OverflowCapacityProperty{"OverflowCapacity"};
+    inline static constexpr Members::Property<bool> IsOverflowOpenProperty{"IsOverflowOpen"};
+    inline static constexpr Members::Property<bool> HasOverflowItemsProperty{"HasOverflowItems"};
+    inline static constexpr Members::Property<std::uint32_t> OverflowItemCountProperty{"OverflowItemCount"};
 
 protected:
     Base::Result<void>
@@ -298,8 +260,7 @@ class AERO_API ToolBarTray final : public Base::Object {
     AERO_DECLARE_TYPE(ToolBarTray, Base::Object)
 public:
     Core::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    inline static constexpr Members::AttachedProperty<bool>
-        IsLockedProperty{"IsLocked"};
+    inline static constexpr Members::AttachedProperty<bool> IsLockedProperty{"IsLocked"};
 };
 
 class AERO_API StatusBarItem final
@@ -327,9 +288,7 @@ public:
         return SetValue(
             IsSizingGripVisibleProperty, value);
     }
-    inline static constexpr Members::Property<bool>
-        IsSizingGripVisibleProperty{
-            "IsSizingGripVisible"};
+    inline static constexpr Members::Property<bool> IsSizingGripVisibleProperty{"IsSizingGripVisible"};
 
 protected:
     Base::Result<Base::Ref<ItemContainer>>
@@ -339,11 +298,11 @@ protected:
 };
 
 class AERO_API ToolTip final
-    : public Popup {
-    AERO_DECLARE_TYPE(ToolTip, Popup)
+    : public Primitives::Popup {
+    AERO_DECLARE_TYPE(ToolTip, Primitives::Popup)
 public:
     ToolTip() noexcept
-        : Popup(StaticTypeId()) {}
+        : Primitives::Popup(StaticTypeId()) {}
     ~ToolTip() override = default;
 
     std::uint32_t InitialShowDelay()
@@ -355,13 +314,8 @@ public:
     Base::Result<void> SetShowDuration(
         std::uint32_t value) noexcept;
 
-    inline static constexpr Members::Property<
-        std::uint32_t>
-        InitialShowDelayProperty{
-            "InitialShowDelay"};
-    inline static constexpr Members::Property<
-        std::uint32_t>
-        ShowDurationProperty{"ShowDuration"};
+    inline static constexpr Members::Property<std::uint32_t> InitialShowDelayProperty{"InitialShowDelay"};
+    inline static constexpr Members::Property<std::uint32_t> ShowDurationProperty{"ShowDuration"};
 };
 
 class AERO_API ToolTipService final
@@ -388,16 +342,9 @@ public:
         DependencyObject& target,
         std::uint32_t value) noexcept;
 
-    inline static constexpr Members::AttachedProperty<
-        Base::Ref<ToolTip>>
-        ToolTipProperty{"ToolTip"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t>
-        InitialShowDelayProperty{
-            "InitialShowDelay"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t>
-        ShowDurationProperty{"ShowDuration"};
+    inline static constexpr Members::AttachedProperty<Base::Ref<ToolTip>> ToolTipProperty{"ToolTip"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> InitialShowDelayProperty{"InitialShowDelay"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> ShowDurationProperty{"ShowDuration"};
 };
 
 } // namespace Aero::Controls
@@ -430,14 +377,9 @@ public:
     Base::Result<void> SetStretchDirection(
         StretchDirection value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::Ref<ImageSource>>
-        SourceProperty{"Source"};
-    inline static constexpr Members::Property<Stretch>
-        StretchProperty{"Stretch"};
-    inline static constexpr Members::Property<
-        StretchDirection>
-        StretchDirectionProperty{"StretchDirection"};
+    inline static constexpr Members::Property<Base::Ref<ImageSource>> SourceProperty{"Source"};
+    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr Members::Property<StretchDirection> StretchDirectionProperty{"StretchDirection"};
 
 protected:
     Base::Result<Size> MeasureOverride(

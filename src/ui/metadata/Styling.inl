@@ -21,6 +21,9 @@ Base::Result<void> PopulateUiStyling(
     status = text.Result();
     if (!status) return status.GetStatus();
 
+    status = Describe<SetterBase>(context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
     auto setter = Describe<Setter>(context);
     setter
         .Property(
@@ -41,11 +44,16 @@ Base::Result<void> PopulateUiStyling(
     status = setter.Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<Data::Binding>(
-        context,
-        TypeFlags::MarkupExtension | TypeFlags::Sealed)
-        .Factory()
-        .Result();
+    status = Describe<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    status = Describe<Data::BindingBase>(context, TypeFlags::Abstract).Result();
+    if (!status) return status.GetStatus();
+
+    status = Describe<Data::RelativeSource>(context).Factory().Result();
+    if (!status) return status.GetStatus();
+
+    status = Describe<Data::Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto triggerBase = Describe<TriggerBase>(

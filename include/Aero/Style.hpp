@@ -37,22 +37,32 @@ struct StylePropertyTrigger final {
     Base::Vector<Base::Ref<Base::Object>> exitActions;
 };
 
-class AERO_API Setter final : public Base::Object {
-    AERO_DECLARE_TYPE(Setter, Base::Object)
+class AERO_API SetterBase : public Base::Object {
+    AERO_DECLARE_TYPE(SetterBase, Base::Object)
+public:
+    Core::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+
+protected:
+    explicit SetterBase(Core::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    ~SetterBase() override = default;
+
+private:
+    Core::TypeId runtimeType_ = StaticTypeId();
+};
+
+class AERO_API Setter final : public SetterBase {
+    AERO_DECLARE_TYPE(Setter, SetterBase)
 public:
     explicit Setter(
         TypeId runtimeType = StaticTypeId()) noexcept
-        : runtimeType_(runtimeType) {}
+        : SetterBase(runtimeType) {}
 
-    TypeId RuntimeType() const noexcept override {
-        return runtimeType_;
-    }
+    DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     DependencyPropertyHandle Property() const noexcept {
         return property_;
     }
-    const PropertyValue& Value() const noexcept {
-        return value_;
-    }
+    const PropertyValue& GetValue() const noexcept { return value_; }
+    const PropertyValue& Value() const noexcept { return value_; }
     Base::Result<void> SetProperty(
         DependencyPropertyHandle value) noexcept {
         if (!value.IsValid()) {
@@ -92,12 +102,10 @@ public:
         Base::StringView value) noexcept;
     Base::Result<void> SetAuthoredValue(
         const PropertyValue& value) noexcept;
-    Base::StringView PropertyName() const noexcept {
-        return propertyName_.View();
-    }
-    Base::StringView TargetName() const noexcept {
-        return targetName_.View();
-    }
+    Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    Base::StringView PropertyName() const noexcept { return propertyName_.View(); }
+    Base::StringView GetTargetName() const noexcept { return targetName_.View(); }
+    Base::StringView TargetName() const noexcept { return targetName_.View(); }
     const PropertyValue& AuthoredValue() const noexcept {
         return authoredValue_;
     }
@@ -110,7 +118,6 @@ public:
         const PropertyValue& value) noexcept;
 
 private:
-    TypeId runtimeType_ = StaticTypeId();
     DependencyPropertyHandle property_;
     PropertyValue value_;
     Base::String propertyName_;
@@ -390,10 +397,36 @@ private:
         authoredSetters_;
 };
 
-// Host-owned immutable style plan. Styles are authored through setters and
-// sealed only after DependencyProperty metadata is frozen. BasedOn setters are
-// flattened deterministically; a derived style replaces a base setter for the
-// same property.
+class Style;
+
+class AERO_API SetterBaseCollection final {
+public:
+    std::uint32_t Count() const noexcept;
+    SetterBase* At(std::uint32_t index) const noexcept;
+    void Add(Base::Ref<Setter> setter) noexcept;
+    void Clear() noexcept;
+
+private:
+    friend class Style;
+    explicit SetterBaseCollection(Style& owner) noexcept : owner_(&owner) {}
+    Style* owner_ = nullptr;
+};
+
+class AERO_API TriggerCollection final {
+public:
+    std::uint32_t Count() const noexcept;
+    TriggerBase* At(std::uint32_t index) const noexcept;
+    void Add(Base::Ref<PropertyTrigger> trigger) noexcept;
+    void Clear() noexcept;
+
+private:
+    friend class Style;
+    explicit TriggerCollection(Style& owner) noexcept : owner_(&owner) {}
+    Style* owner_ = nullptr;
+};
+
+// WPF-shaped Style authoring surface. Runtime plans and provider precedence are
+// compiled privately when the style is sealed.
 class AERO_API Style final : public Base::Object {
     AERO_DECLARE_TYPE(Style, Base::Object)
 public:
@@ -529,10 +562,12 @@ public:
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
-    TypeId TargetType() const noexcept {
-        return sealed_ ? program_.TargetType() : targetType_;
-    }
-    const Style* BasedOn() const noexcept { return basedOn_; }
+    TypeId GetTargetType() const noexcept { return sealed_ ? program_.TargetType() : targetType_; }
+    TypeId TargetType() const noexcept { return GetTargetType(); }
+    const Style* GetBasedOn() const noexcept { return basedOn_; }
+    const Style* BasedOn() const noexcept { return GetBasedOn(); }
+    SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
+    TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
     bool IsSealed() const noexcept { return sealed_; }
     Base::Span<const StyleSetter> Setters() const noexcept {
         return program_.Setters();
@@ -540,9 +575,9 @@ public:
     Base::Span<const StylePropertyTrigger> Triggers() const noexcept {
         return program_.Triggers();
     }
-    ResourceDictionary& Resources() noexcept {
-        return resources_;
-    }
+    ResourceDictionary& GetResources() noexcept { return resources_; }
+    const ResourceDictionary& GetResources() const noexcept { return resources_; }
+    ResourceDictionary& Resources() noexcept { return resources_; }
     const ResourceDictionary& Resources() const noexcept {
         return resources_;
     }

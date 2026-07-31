@@ -7,6 +7,8 @@
 
 namespace Aero::Controls {
 
+using namespace Primitives;
+
 TreeViewItem::TreeViewItem() noexcept
     : TreeViewItem(StaticTypeId()) {}
 
@@ -234,7 +236,7 @@ void TreeViewItem::OnExpandedChanged(
         args) noexcept {
     static_cast<void>(SynchronizeTemplate());
     RoutedEventArgs event;
-    static_cast<void>(RaiseRoutedEvent(
+    static_cast<void>(RaiseEvent(
         args.newValue.AsBoolean()
             ? ExpandedEvent
             : CollapsedEvent,
@@ -246,7 +248,7 @@ void TreeViewItem::OnSelectedChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
     RoutedEventArgs event;
-    static_cast<void>(RaiseRoutedEvent(
+    static_cast<void>(RaiseEvent(
         args.newValue.AsBoolean()
             ? SelectedEvent
             : UnselectedEvent,
@@ -334,7 +336,7 @@ Base::Result<bool> TreeView::SelectItem(
     if (!published) return published.GetStatus();
     RoutedEventArgs event;
     Base::Result<void> raised =
-        RaiseRoutedEvent(
+        RaiseEvent(
             SelectedItemChangedEvent, &event);
     if (!raised) return raised.GetStatus();
     return true;
@@ -350,7 +352,7 @@ using namespace Aero::Controls;
 TreeViewInteractionManager::
 TreeViewInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     FocusManager& focus,
     VisualStateManager* states) noexcept
     : tree_(&tree),
@@ -412,7 +414,7 @@ Base::Result<void>
 TreeViewInteractionManager::Attach(
     TreeView& treeView) noexcept {
     if (treeView.interactions_ != nullptr ||
-        treeView.OwningTree() != tree_ ||
+        Aero::Detail::VisualAccess::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -504,7 +506,7 @@ TreeViewInteractionManager::FindItem(
             return static_cast<TreeViewItem*>(
                 element);
         }
-        visual = visual->VisualParent();
+        visual = visual->GetVisualParent();
     }
     return nullptr;
 }
@@ -515,7 +517,7 @@ TreeViewInteractionManager::CollectVisibleItems(
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (Visual* child :
-        parent.VisualChildren()) {
+        Aero::Detail::VisualAccess::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();

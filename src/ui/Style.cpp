@@ -9,6 +9,45 @@
 
 namespace Aero {
 
+std::uint32_t SetterBaseCollection::Count() const noexcept {
+    return owner_ != nullptr ? owner_->AuthoredSetters().Size() : 0U;
+}
+
+SetterBase* SetterBaseCollection::At(std::uint32_t index) const noexcept {
+    if (owner_ == nullptr || index >= owner_->AuthoredSetters().Size()) return nullptr;
+    return owner_->AuthoredSetters()[index].Get();
+}
+
+void SetterBaseCollection::Add(Base::Ref<Setter> setter) noexcept {
+    if (owner_ == nullptr) return;
+    Base::Result<void> added = owner_->TryAddAuthoredSetter(std::move(setter));
+    if (!added) Base::ReportOutOfMemory(sizeof(Setter), alignof(Setter), Base::MemoryTag::Ui);
+}
+
+void SetterBaseCollection::Clear() noexcept {
+    if (owner_ != nullptr) static_cast<void>(owner_->ClearAuthoredSetters());
+}
+
+std::uint32_t TriggerCollection::Count() const noexcept {
+    return owner_ != nullptr ? owner_->AuthoredTriggers().Size() : 0U;
+}
+
+TriggerBase* TriggerCollection::At(std::uint32_t index) const noexcept {
+    if (owner_ == nullptr || index >= owner_->AuthoredTriggers().Size()) return nullptr;
+    return owner_->AuthoredTriggers()[index].Get();
+}
+
+void TriggerCollection::Add(Base::Ref<PropertyTrigger> trigger) noexcept {
+    if (owner_ == nullptr) return;
+    Base::Result<void> added = owner_->TryAddAuthoredTrigger(std::move(trigger));
+    if (!added) Base::ReportOutOfMemory(sizeof(PropertyTrigger), alignof(PropertyTrigger), Base::MemoryTag::Ui);
+}
+
+void TriggerCollection::Clear() noexcept {
+    if (owner_ != nullptr) static_cast<void>(owner_->ClearAuthoredTriggers());
+}
+
+
 using namespace Aero::Core;
 namespace {
 

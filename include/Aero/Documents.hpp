@@ -53,15 +53,15 @@ enum class LogicalDirection : std::uint8_t {
     Forward,
 };
 
-// Borrowed text position bound to a root TextBlock. Offsets are UTF-8 byte
-// offsets in the flattened inline document and match shaping cluster offsets.
+// Borrowed text position in a formatted text container. Storage offsets are
+// private so the public contract remains independent of UTF encoding.
 class AERO_API TextPointer final {
 public:
     TextPointer() noexcept = default;
     bool IsValid() const noexcept { return container_ != nullptr; }
-    Controls::TextBlock* Container() const noexcept { return container_; }
-    std::uint32_t Offset() const noexcept { return offset_; }
-    LogicalDirection Direction() const noexcept { return direction_; }
+    Controls::TextBlock* GetTextContainer() const noexcept { return container_; }
+    LogicalDirection GetLogicalDirection() const noexcept { return direction_; }
+    bool IsAtInsertionPosition() const noexcept { return IsValid(); }
 
     Base::Result<std::int32_t> CompareTo(
         const TextPointer& other) const noexcept;
@@ -83,6 +83,7 @@ public:
 private:
     friend class Aero::Detail::DocumentTextAccess;
     friend class Aero::Controls::TextBlock;
+    friend class TextRange;
     TextPointer(Controls::TextBlock& container,
                 std::uint32_t offset,
                 LogicalDirection direction) noexcept
@@ -103,13 +104,14 @@ public:
         return start_.IsValid() && end_.IsValid();
     }
     bool IsEmpty() const noexcept {
-        return IsValid() && start_.Offset() == end_.Offset();
+        return IsValid() && start_.offset_ == end_.offset_;
     }
     std::uint32_t Length() const noexcept {
-        return IsValid() ? end_.Offset() - start_.Offset() : 0U;
+        return IsValid() ? end_.offset_ - start_.offset_ : 0U;
     }
-    const TextPointer& Start() const noexcept { return start_; }
-    const TextPointer& End() const noexcept { return end_; }
+    const TextPointer& GetStart() const noexcept { return start_; }
+    const TextPointer& GetEnd() const noexcept { return end_; }
+    Base::Result<Base::String> GetText() const noexcept;
     Base::Result<void> CopyText(Base::String& output) const noexcept;
 
 private:
@@ -137,12 +139,9 @@ class AERO_API TextElement : public Controls::TextBlock {
 public:
     ~TextElement() override = default;
 
-    inline static constexpr auto FontWeightProperty =
-        Controls::TextBlock::FontWeightProperty;
-    inline static constexpr auto ForegroundProperty =
-        Controls::TextBlock::ForegroundProperty;
-    inline static constexpr auto FontSizeProperty =
-        Controls::TextBlock::FontSizeProperty;
+    inline static constexpr auto FontWeightProperty = Controls::TextBlock::FontWeightProperty;
+    inline static constexpr auto ForegroundProperty = Controls::TextBlock::ForegroundProperty;
+    inline static constexpr auto FontSizeProperty = Controls::TextBlock::FontSizeProperty;
 
 protected:
     explicit TextElement(Core::TypeId runtimeType) noexcept
@@ -165,10 +164,9 @@ public:
     Run() noexcept : Inline(StaticTypeId()) {}
     ~Run() override = default;
 
-    Base::StringView Content() const noexcept { return Text(); }
-    Base::Result<void> SetContent(Base::StringView value) noexcept {
-        return SetText(value);
-    }
+    Base::StringView GetText() const noexcept { return Text(); }
+    Base::StringView Content() const noexcept { return GetText(); }
+    Base::Result<void> SetContent(Base::StringView value) noexcept { return SetText(value); }
 };
 
 class AERO_API Span : public Inline {
@@ -177,9 +175,9 @@ public:
     Span() noexcept : Span(StaticTypeId()) {}
     ~Span() override = default;
 
-    Base::Result<void> TryAddInline(Base::Ref<Inline> value) noexcept {
-        return Inlines().Add(std::move(value));
-    }
+    InlineCollection GetInlines() noexcept { return Inlines(); }
+    InlineCollectionView GetInlines() const noexcept { return Inlines(); }
+    Base::Result<void> TryAddInline(Base::Ref<Inline> value) noexcept { return Inlines().Add(std::move(value)); }
     Base::Result<void> ClearInlines() noexcept {
         return Inlines().Clear();
     }
@@ -244,21 +242,19 @@ public:
     Hyperlink() noexcept : Span(StaticTypeId()) {}
     ~Hyperlink() override = default;
 
-    inline static constexpr Members::RoutedEvent<
-        Aero::RoutedEventArgs> ClickEvent{"Click"};
-    Aero::UIElement::RoutedEvent_<
+    inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
+    Aero::UIElement::Event<
         Aero::RoutedEventHandler> Click() noexcept {
-        return Event(ClickEvent);
+        return GetEvent(ClickEvent);
     }
-    inline static constexpr Members::RoutedEvent<
-        RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
-    Aero::UIElement::RoutedEvent_<
+    inline static constexpr Members::RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
+    Aero::UIElement::Event<
         RequestNavigateEventHandler> RequestNavigate() noexcept {
-        return Event(RequestNavigateEvent);
+        return GetEvent(RequestNavigateEvent);
     }
 
     Base::StringView NavigateUri() const noexcept;
-    Aero::Input::ICommand* Command() const noexcept;
+    Aero::Input::ICommand* GetCommand() const noexcept;
     Base::Ref<Base::Object> CommandParameter() const noexcept;
     Aero::UIElement* CommandTarget() const noexcept;
 
@@ -270,14 +266,10 @@ public:
     Base::Result<void> SetCommandTarget(
         Base::Ref<Aero::UIElement> target) noexcept;
 
-    inline static constexpr Members::Property<Base::String>
-        NavigateUriProperty{"NavigateUri"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
+    inline static constexpr Members::Property<Base::String> NavigateUriProperty{"NavigateUri"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
 };
 
 using NavigationHandler = Base::Delegate<bool(

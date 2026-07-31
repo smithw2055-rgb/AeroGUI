@@ -13,7 +13,7 @@ using namespace Aero::Core;
 
 HyperlinkInteractionManager::HyperlinkInteractionManager(
     ObjectTree& tree,
-    RoutedEventManager& events,
+    EventRouter& events,
     PointerInputManager& pointer,
     FocusManager& focus,
     CommandManager& commands) noexcept
@@ -106,7 +106,7 @@ Base::Result<void> HyperlinkInteractionManager::SubscribeCommand(
     Documents::Hyperlink& link,
     Record& record) noexcept {
     UnsubscribeCommand(record);
-    ICommand* command = link.Command();
+    ICommand* command = link.GetCommand();
     if (command == nullptr) return {};
     record.command = Base::Ref<ICommand>::FromBorrowed(*command);
     Base::Result<void> result =
@@ -124,7 +124,7 @@ Base::Result<void> HyperlinkInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Hyperlink is already attached to interaction services");
     }
-    if (!link.IsLoaded() || link.OwningTree() != tree_) {
+    if (!link.GetIsLoaded() || Aero::Detail::VisualAccess::Tree(link) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Hyperlink must be loaded in the interaction tree");
@@ -207,7 +207,7 @@ Base::Result<void> HyperlinkInteractionManager::RefreshCanExecute(
             "Hyperlink is not attached to interaction services");
     }
     bool enabled = true;
-    ICommand* command = link.Command();
+    ICommand* command = link.GetCommand();
     if (command != nullptr) {
         UIElement* target = link.CommandTarget();
         if (target == nullptr) target = &link;
@@ -239,7 +239,7 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
         link, Documents::Hyperlink::ClickEvent, &args);
     if (!raised) return raised.GetStatus();
 
-    ICommand* command = link.Command();
+    ICommand* command = link.GetCommand();
     if (command != nullptr) {
         UIElement* target = link.CommandTarget();
         if (target == nullptr) target = &link;

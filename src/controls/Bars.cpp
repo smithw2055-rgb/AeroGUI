@@ -1,4 +1,5 @@
 #include <Aero/Controls/Standard.hpp>
+#include "../ui/VisualAccess.hpp"
 
 #include <utility>
 
@@ -205,7 +206,7 @@ ToolBar::SynchronizeToolBar() noexcept {
     if (!stored) return stored.GetStatus();
     if (host != nullptr) {
         const Base::Span<Visual* const> children =
-            host->VisualChildren();
+            Aero::Detail::VisualAccess::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {

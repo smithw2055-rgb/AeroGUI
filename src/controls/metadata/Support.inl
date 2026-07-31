@@ -558,14 +558,14 @@ Base::Result<void> SetPanelContent(
             Base::ErrorCode::InvalidArgument,
             "Panel content child is null");
     }
-    return static_cast<Panel&>(owner).AddOwnedChild(
-        child, *static_cast<Aero::UIElement*>(child.Get()));
+    return Detail::PanelAccess::Add(
+        static_cast<Panel&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 Base::Result<void> ClearPanelContent(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<Panel&>(owner).ClearOwnedChildren();
+    return Detail::PanelAccess::Clear(static_cast<Panel&>(owner));
 }
 
 Base::Result<void> SetDecoratorContent(
@@ -577,8 +577,8 @@ Base::Result<void> SetDecoratorContent(
             Base::ErrorCode::InvalidArgument,
             "Decorator content child is null");
     }
-    return static_cast<Decorator&>(owner).SetOwnedChild(
-        child, *static_cast<Aero::UIElement*>(child.Get()));
+    return Detail::DecoratorAccess::SetOwnedChild(
+        static_cast<Decorator&>(owner), child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 Base::Result<void> ClearDecoratorContent(
@@ -596,17 +596,15 @@ Base::Result<void> SetContentControlContent(
             Base::ErrorCode::InvalidArgument,
             "ContentControl content child is null");
     }
-    return static_cast<ContentControl&>(owner)
-        .SetContentValue(child);
+    return Detail::ContentControlAccess::SetContentValue(
+        static_cast<ContentControl&>(owner), child);
 }
 
 Base::Result<void> ClearContentControlContent(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<ContentControl&>(owner)
-        .SetContentValue(
-            Core::Value::NullObject(
-                Core::TypeOf<Base::Object>()));
+    return Detail::ContentControlAccess::SetContentValue(
+        static_cast<ContentControl&>(owner), Core::Value::NullObject(Core::TypeOf<Base::Object>()));
 }
 
 Base::Result<void> SetContentPresenterContent(
@@ -667,13 +665,13 @@ Base::Result<void> AddItemsControlItem(
             Base::ErrorCode::InvalidArgument,
             "ItemsControl content item is null");
     }
-    return static_cast<ItemsControl&>(owner).Items().Add(item);
+    return static_cast<ItemsControl&>(owner).GetItems().Add(item);
 }
 
 Base::Result<void> ClearItemsControlItems(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<ItemsControl&>(owner).Items().Reset();
+    static_cast<ItemsControl&>(owner).GetItems().Reset();
     return {};
 }
 
@@ -731,14 +729,14 @@ Base::Result<void> AddTreeViewItem(
             "TreeViewItem content item is null");
     }
     return static_cast<TreeViewItem&>(
-        owner).Items().Add(item);
+        owner).GetItems().Add(item);
 }
 
 Base::Result<void> ClearTreeViewItems(
     Base::Object& owner,
     void*) noexcept {
     static_cast<TreeViewItem&>(
-        owner).Items().Reset();
+        owner).GetItems().Reset();
     return {};
 }
 

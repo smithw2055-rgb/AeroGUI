@@ -66,7 +66,7 @@ Base::Result<Value> ConvertTemplateTextValue(
     Base::StringView text) noexcept {
     // WPF uses -1 for no selection. Internally selection keeps UINT32_MAX;
     // translate only the standard selection properties at the XAML boundary.
-    if ((property.Handle() == Selector::SelectedIndexProperty.Handle() ||
+    if ((property.Handle() == Controls::Primitives::Selector::SelectedIndexProperty.Handle() ||
          property.Handle() == TabControl::SelectedIndexProperty.Handle()) &&
         text == Base::StringView("-1")) {
         return ValueCodec<std::uint32_t>::Encode(UINT32_MAX);
@@ -555,7 +555,7 @@ CompilePropertyTriggers(
         if (authoredValue.IsNullObject() &&
             propertyName == Base::StringView("IsChecked") &&
             runtime.Types().IsDerivedFrom(
-                targetType, ToggleButton::StaticTypeId())) {
+                targetType, Controls::Primitives::ToggleButton::StaticTypeId())) {
             const DependencyProperty* indeterminate = properties.Find(
                 targetType, "IsIndeterminate");
             if (indeterminate == nullptr) {
@@ -1143,11 +1143,11 @@ Base::Result<Value> ReadDeferredTriggerBinding(
     const Data::Binding& binding,
     const Base::Ref<Base::Object>& payload,
     MetadataRuntime& runtime) noexcept {
-    if (!payload || binding.Path().Empty()) {
+    if (!payload || binding.GetPath().GetPath().Empty()) {
         return InvalidTemplateCompiler(
             "DataTemplate trigger Binding requires a data item and Path");
     }
-    if (!binding.ElementName().Empty()) {
+    if (!binding.GetElementName().Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DataTemplate trigger ElementName source is outside the item scope");
@@ -1156,7 +1156,7 @@ Base::Result<Value> ReadDeferredTriggerBinding(
         BindingPathPlan::Compile(
             runtime,
             payload->RuntimeType(),
-            binding.Path());
+            binding.GetPath().GetPath());
     if (!compiled) return compiled.GetStatus();
     return compiled.Value().Get(
         runtime, *payload);
@@ -1559,8 +1559,8 @@ Base::Result<void> BuildCompiledTemplate(
         };
         auto sourceFor = [&](const Data::Binding& binding) noexcept
             -> Base::Object* {
-            if (!binding.ElementName().Empty()) {
-                return triggerContext->FindName(binding.ElementName());
+            if (!binding.GetElementName().Empty()) {
+                return triggerContext->FindName(binding.GetElementName());
             }
             // A control-template binding's Self, TemplatedParent, and
             // ancestor-at-the-template-boundary all resolve to the templated

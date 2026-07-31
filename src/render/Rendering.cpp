@@ -416,7 +416,7 @@ FrameworkElement::LocalVisualTransform() const noexcept {
 }
 
 Base::Result<Base::Ref<Base::Object>>
-FrameworkElement::GetDataContext() const noexcept {
+FrameworkElement::GetDataContextResult() const noexcept {
     return GetValue(DataContextProperty);
 }
 
@@ -739,7 +739,7 @@ Base::Result<void> RenderManager::SetRoot(
     if (!verified) return verified.GetStatus();
     if (root_ == root) return {};
     if (root_ != nullptr || root->renderRuntime_ != nullptr ||
-        root->renderAttached_ || root->VisualParent() != nullptr) {
+        root->renderAttached_ || root->GetVisualParent() != nullptr) {
         return InvalidState("Render root must be detached and unique");
     }
     if (nextNodeId_ == InvalidRenderNodeId) {

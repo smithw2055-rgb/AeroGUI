@@ -37,7 +37,7 @@ static_assert(std::is_default_constructible<
     "Gui target must expose InlineCollectionView");
 static_assert(
     !std::is_base_of<
-        Aero::Controls::ButtonBase,
+        Aero::Controls::Primitives::ButtonBase,
         Aero::Documents::Hyperlink>::value,
     "Documents Hyperlink must not use the temporary Button hierarchy");
 

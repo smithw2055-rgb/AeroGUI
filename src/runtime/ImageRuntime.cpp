@@ -103,7 +103,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
         pending.PopBack();
         if (visual == nullptr) continue;
         for (Aero::Visual* child :
-             visual->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*visual)) {
             Base::Result<void> queued =
                 pending.TryPushBack(child);
             if (!queued) return queued.GetStatus();

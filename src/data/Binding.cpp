@@ -928,6 +928,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
                 ++updated;
             }
             break;
+        case BindingMode::Default:
         case BindingMode::OneWay:
             if (sourceChanged) {
                 Base::Result<PropertyValue> converted = usedFallback

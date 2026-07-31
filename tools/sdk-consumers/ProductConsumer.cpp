@@ -14,6 +14,15 @@ class ConsumerApplication final : public Aero::Application {
 public:
     ConsumerApplication() noexcept
         : Application(StaticTypeId()) {}
+
+protected:
+    void OnStartup(Aero::StartupEventArgs& args) noexcept override {
+        static_cast<void>(args.startupUri);
+    }
+
+    void OnExit(Aero::ExitEventArgs& args) noexcept override {
+        static_cast<void>(args.applicationExitCode);
+    }
 };
 
 class ConsumerWindow final : public Aero::Window {
@@ -26,19 +35,29 @@ class ConsumerWindow final : public Aero::Window {
 public:
     ConsumerWindow() noexcept
         : Window(StaticTypeId()) {}
+
+protected:
+    void OnClosing(Aero::CancelEventArgs& args) noexcept override {
+        Aero::Window::OnClosing(args);
+    }
 };
 
 [[maybe_unused]] void ConsumeApplicationSdk(
     Aero::App::Launcher& launcher,
     Aero::Application& application,
     Aero::Window& window) noexcept {
-    static_cast<void>(launcher.CurrentApplication());
-    static_cast<void>(launcher.MainWindow());
+    static_cast<void>(launcher.GetApplication());
+    static_cast<void>(launcher.GetMainWindow());
     application.SetMainWindow(&window);
     application.SetShutdownMode(
         Aero::ShutdownMode::OnExplicitShutdown);
-    static_cast<void>(application.MainWindow());
+    static_cast<void>(application.GetMainWindow());
+    static_cast<void>(application.GetWindows().Count());
     static_cast<void>(application.GetShutdownMode());
+    static_cast<void>(window.GetWindowState());
+    static_cast<void>(window.GetResizeMode());
+    static_cast<void>(window.SourceInitialized());
+    static_cast<void>(window.StateChanged());
     static_cast<void>(window.IsOpen());
 }
 
@@ -47,6 +66,7 @@ public:
     ConsumerWindow window;
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
+    static_cast<void>(&Aero::App::Run);
 }
 
 static_assert(

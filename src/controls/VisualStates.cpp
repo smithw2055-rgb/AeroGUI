@@ -1,5 +1,6 @@
 #include <Aero/Styling.hpp>
 #include "VisualStateManagerAccess.hpp"
+#include "TemplateTypes.hpp"
 
 #include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -12,6 +13,7 @@
 #include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Controls {
+using Aero::Controls::Detail::TemplateHandle;
 using namespace Aero::Detail::Animation;
 namespace {
 
@@ -1026,10 +1028,8 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
     Base::StringView groupName,
     Base::StringView stateName,
     bool useTransitions) noexcept {
-    if (groupName.Empty() || stateName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Visual state group and state names are required");
+    if (stateName.Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Visual state name is required");
     }
     PruneStale();
     const TemplateHandle handle =
@@ -1041,10 +1041,13 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
             Base::ErrorCode::InvalidState,
             "Control does not have an applied template");
     }
-    const VisualStateGroup* group =
-        FindGroup(*plan, groupName);
-    const VisualState* next =
-        group != nullptr ? FindState(*group, stateName) : nullptr;
+    const VisualStateGroup* group = groupName.Empty() ? nullptr : FindGroup(*plan, groupName);
+    if (group == nullptr && groupName.Empty()) {
+        for (const VisualStateGroup& candidate : plan->VisualStateGroups()) {
+            if (FindState(candidate, stateName) != nullptr) { group = &candidate; groupName = candidate.name.View(); break; }
+        }
+    }
+    const VisualState* next = group != nullptr ? FindState(*group, stateName) : nullptr;
     if (next == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -1240,6 +1243,13 @@ Base::StringView Detail::VisualStateManagerImpl::CurrentState(
     return index != UINT32_MAX
         ? active_[index].stateName.View()
         : Base::StringView{};
+}
+
+bool VisualStateManager::GoToState(Control& control, Base::StringView stateName, bool useTransitions) noexcept {
+    auto* manager = static_cast<VisualStateManager*>(control.visualStateRuntime_);
+    if (manager == nullptr) return false;
+    Base::Result<bool> changed = manager->GoToState(control, {}, stateName, useTransitions);
+    return changed && changed.Value();
 }
 
 VisualStateManager::~VisualStateManager() noexcept {

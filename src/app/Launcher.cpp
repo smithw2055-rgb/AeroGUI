@@ -89,11 +89,7 @@ struct Launcher::Impl final {
               source.automaticAnimationClock),
           loadBuiltInTheme(source.loadBuiltInTheme),
           builtInTheme(source.builtInTheme),
-          diagnostics(source.diagnostics),
-          startup(source.startup),
-          startupContext(source.startupContext),
-          frame(source.frame),
-          frameContext(source.frameContext) {
+          diagnostics(source.diagnostics) {
         optionsStatus =
             applicationFile.TryAssign(
                 source.applicationFile);
@@ -180,7 +176,7 @@ struct Launcher::Impl final {
         applicationOwner = root;
         application = static_cast<Application*>(
             applicationOwner.Get());
-        if (application->StartupUri().Empty()) {
+        if (application->GetStartupUri().Empty()) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application StartupUri is empty");
@@ -188,7 +184,7 @@ struct Launcher::Impl final {
         Base::Result<Base::ResourceUri> resolvedStartupUri =
             Base::ResourceUri::Resolve(
                 loaded.Value().CanonicalUri(),
-                application->StartupUri());
+                application->GetStartupUri());
         if (!resolvedStartupUri) {
             return resolvedStartupUri.GetStatus();
         }
@@ -196,7 +192,7 @@ struct Launcher::Impl final {
             std::move(resolvedStartupUri).Value();
 
         Base::Ref<Aero::ResourceDictionary>
-            resources = application->Resources();
+            resources = application->GetResources();
         if (resources) {
             Base::Result<void> installed =
                 view->SetResourceDictionary(
@@ -257,16 +253,8 @@ struct Launcher::Impl final {
         Launcher::AttachRuntime(
             *application, *window,
             &applicationRuntime, &windowRuntime);
-        if (startup != nullptr) {
-            Base::Result<void> initialized =
-                startup(
-                    *application,
-                    *window,
-                    startupContext);
-            if (!initialized) {
-                return initialized.GetStatus();
-            }
-        }
+        window->NotifySourceInitialized();
+        application->RaiseStartup();
         return {};
     }
 
@@ -288,9 +276,9 @@ struct Launcher::Impl final {
                 "Application native window allocation failed");
         }
         Platform::WindowDescriptor descriptor;
-        descriptor.title = window->Title().Empty()
+        descriptor.title = window->GetTitle().Empty()
             ? Base::StringView("AeroGUI")
-            : window->Title();
+            : window->GetTitle();
         descriptor.width = width;
         descriptor.height = height;
         descriptor.visible = false;
@@ -367,7 +355,14 @@ struct Launcher::Impl final {
         const Platform::WindowEvent& event) noexcept {
         switch (event.type) {
         case Platform::WindowEventType::CloseRequested:
+            if (window != nullptr) {
+                window->Close();
+            } else {
+                Close();
+            }
+            return {};
         case Platform::WindowEventType::Closed:
+            if (window != nullptr) window->NotifyClosed();
             Close();
             return {};
         case Platform::WindowEventType::Resized:
@@ -488,17 +483,11 @@ struct Launcher::Impl final {
         Base::Result<ViewFrameResult> firstFrame =
             view->RunFrame();
         if (!firstFrame) return firstFrame.GetStatus();
-        std::uint64_t frameIndex = 0U;
-        if (frame != nullptr) {
-            status = frame(
-                *application, *window,
-                frameIndex, frameContext);
-            if (!status) return status.GetStatus();
-        }
         if (visible) {
             status = Show();
             if (!status) return status.GetStatus();
         }
+        window->NotifyContentRendered();
 
         while (!exitRequested) {
             const bool windowOpen =
@@ -530,13 +519,6 @@ struct Launcher::Impl final {
                 break;
             }
 
-            ++frameIndex;
-            if (this->frame != nullptr) {
-                status = this->frame(
-                    *application, *window,
-                    frameIndex, frameContext);
-                if (!status) return status.GetStatus();
-            }
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(1));
         }
@@ -545,6 +527,8 @@ struct Launcher::Impl final {
             if (!status) return status.GetStatus();
         }
         const int result = exitCode;
+        if (window != nullptr) window->NotifyClosed();
+        if (application != nullptr) application->RaiseExit(result);
         if (view) {
             status = view->Unmount();
             if (!status) return status.GetStatus();
@@ -645,10 +629,6 @@ struct Launcher::Impl final {
     BuiltInTheme builtInTheme =
         BuiltInTheme::Light;
     Core::IDiagnosticSink* diagnostics = nullptr;
-    StartupCallback startup = nullptr;
-    void* startupContext = nullptr;
-    FrameCallback frame = nullptr;
-    void* frameContext = nullptr;
     bool exitRequested = false;
     bool hasPendingResize = false;
     int exitCode = 0;
@@ -701,13 +681,13 @@ void Launcher::RequestExit(int exitCode) noexcept {
 }
 
 Application*
-Launcher::CurrentApplication() const noexcept {
+Launcher::GetApplication() const noexcept {
     return impl_ != nullptr
         ? impl_->application
         : nullptr;
 }
 
-Window* Launcher::MainWindow() const noexcept {
+Window* Launcher::GetMainWindow() const noexcept {
     return impl_ != nullptr
         ? impl_->window
         : nullptr;
@@ -727,6 +707,12 @@ void Launcher::DetachRuntime(
     Window* window) noexcept {
     if (application != nullptr) application->Detach();
     if (window != nullptr) window->Detach();
+}
+
+int Run(const LaunchOptions& options, Base::IAllocator* allocator) noexcept {
+    Launcher launcher(options, allocator);
+    Base::Result<int> result = launcher.Run();
+    return result ? result.Value() : -1;
 }
 
 } // namespace Aero::App

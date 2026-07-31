@@ -17,6 +17,8 @@ namespace Aero {
 
 using namespace Aero::Core;
 
+enum class FontWeight : std::uint8_t { Normal = 0U, SemiBold, Bold };
+
 class Style;
 
 } // namespace Aero
@@ -63,50 +65,26 @@ class FrameworkElementChildRange final {
 public:
     class Iterator final {
     public:
-        Iterator(Base::Span<Visual* const> children,
-            std::uint32_t index) noexcept
-            : children_(children), index_(index) { Advance(); }
-        FrameworkElement* operator*() const noexcept {
-            return index_ < children_.Size()
-                ? children_[index_]->AsFrameworkElement() : nullptr;
-        }
-        Iterator& operator++() noexcept {
-            if (index_ < children_.Size()) ++index_;
-            Advance();
-            return *this;
-        }
-        bool operator!=(const Iterator& other) const noexcept {
-            return index_ != other.index_ ||
-                children_.Data() != other.children_.Data();
-        }
+        Iterator(const Visual* owner, std::uint32_t index) noexcept : owner_(owner), index_(index) { Advance(); }
+        FrameworkElement* operator*() const noexcept;
+        Iterator& operator++() noexcept { ++index_; Advance(); return *this; }
+        bool operator!=(const Iterator& other) const noexcept { return owner_ != other.owner_ || index_ != other.index_; }
+        bool operator==(const Iterator& other) const noexcept { return !(*this != other); }
+
     private:
-        Base::Span<Visual* const> children_;
+        const Visual* owner_ = nullptr;
         std::uint32_t index_ = 0U;
-        void Advance() noexcept {
-            while (index_ < children_.Size() &&
-                children_[index_]->AsFrameworkElement() == nullptr) {
-                ++index_;
-            }
-        }
+        void Advance() noexcept;
     };
 
-    explicit FrameworkElementChildRange(
-        Base::Span<Visual* const> children) noexcept : children_(children) {}
-    Iterator begin() const noexcept { return Iterator(children_, 0U); }
-    Iterator end() const noexcept {
-        return Iterator(children_, children_.Size());
-    }
-    bool Empty() const noexcept { return !(begin() != end()); }
-    std::uint32_t Size() const noexcept {
-        std::uint32_t count = 0U;
-        for (FrameworkElement* child : *this) {
-            (void)child;
-            ++count;
-        }
-        return count;
-    }
+    explicit FrameworkElementChildRange(const Visual& owner) noexcept : owner_(&owner) {}
+    Iterator begin() const noexcept { return Iterator(owner_, 0U); }
+    Iterator end() const noexcept { return Iterator(owner_, VisualTreeHelper::GetChildrenCount(*owner_)); }
+    bool Empty() const noexcept { return begin() == end(); }
+    std::uint32_t Size() const noexcept;
+
 private:
-    Base::Span<Visual* const> children_;
+    const Visual* owner_ = nullptr;
 };
 
 class AERO_API FrameworkElement : public UIElement {
@@ -120,11 +98,11 @@ public:
         return this;
     }
     FrameworkElement* RenderParent() const noexcept {
-        Visual* parent = VisualParent();
+        Visual* parent = GetVisualParent();
         return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
     }
     FrameworkElementChildRange RenderChildren() const noexcept {
-        return FrameworkElementChildRange(VisualChildren());
+        return FrameworkElementChildRange(*this);
     }
 
     bool UseLayoutRounding() const noexcept;
@@ -146,7 +124,7 @@ public:
     Thickness Margin() const noexcept;
     Base::Ref<Media::Transform> LayoutTransform() const noexcept;
     Base::Transform2D LocalVisualTransform() const noexcept;
-    Base::Result<Base::Ref<Base::Object>> GetDataContext() const noexcept;
+    Base::Result<Base::Ref<Base::Object>> GetDataContextResult() const noexcept;
     Base::StringView FontFamily() const noexcept {
         Base::StringView family = GetValueOr(
             FontFamilyProperty, Base::StringView{});
@@ -174,63 +152,53 @@ public:
     }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
+    double GetWidth() const noexcept { return Width(); }
+    double GetHeight() const noexcept { return Height(); }
+    double GetActualWidth() const noexcept { return ActualWidth(); }
+    double GetActualHeight() const noexcept { return ActualHeight(); }
+    Size GetMinSize() const noexcept { return MinSize(); }
+    Size GetMaxSize() const noexcept { return MaxSize(); }
+    Thickness GetMargin() const noexcept { return Margin(); }
+    Base::Ref<Media::Transform> GetLayoutTransform() const noexcept { return LayoutTransform(); }
+    Base::Ref<Base::Object> GetDataContext() const noexcept {
+        Base::Result<Base::Ref<Base::Object>> value = GetDataContextResult();
+        return value ? value.Value() : Base::Ref<Base::Object>{};
+    }
+    Base::StringView GetFontFamily() const noexcept { return FontFamily(); }
+    ResourceDictionary& GetResources() noexcept { return Resources(); }
+    const ResourceDictionary& GetResources() const noexcept { return Resources(); }
+    DependencyObject* GetTemplatedParent() const noexcept { return TemplatedParent(); }
 
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        DataContextProperty{"DataContext"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> DataContextProperty{"DataContext"};
     // A common inherited owner lets Window, controls and text elements share
     // the same WPF-style FontFamily value through the visual tree.
-    inline static constexpr Members::Property<Base::String>
-        FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
     // Cursor names use the WPF built-in names (for example, "Hand"). The
     // platform input bridge consumes this inherited value when choosing the
     // native pointer cursor.
-    inline static constexpr Members::Property<Base::String>
-        CursorProperty{"Cursor"};
+    inline static constexpr Members::Property<Base::String> CursorProperty{"Cursor"};
     // When true, this element's Cursor takes precedence over the cursor
     // chosen by the input hit target, matching FrameworkElement.ForceCursor.
-    inline static constexpr Members::Property<bool>
-        ForceCursorProperty{"ForceCursor"};
-    inline static constexpr Members::Property<
-        Base::Ref<Style>>
-        StyleProperty{"Style"};
+    inline static constexpr Members::Property<bool> ForceCursorProperty{"ForceCursor"};
+    inline static constexpr Members::Property<Base::Ref<Style>> StyleProperty{"Style"};
     // WPF-compatible application payload. It deliberately has no layout or
     // rendering effect and accepts the markup value without coercion.
-    inline static constexpr Members::Property<Core::Value>
-        TagProperty{"Tag"};
-    inline static constexpr Members::Property<Core::Value>
-        ToolTipProperty{"ToolTip"};
-    inline static constexpr Members::Property<Input::InputScope>
-        InputScopeProperty{"InputScope"};
-    inline static constexpr Members::Property<Length>
-        WidthProperty{"Width"};
-    inline static constexpr Members::Property<Length>
-        HeightProperty{"Height"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ActualWidthProperty{"ActualWidth"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ActualHeightProperty{"ActualHeight"};
-    inline static constexpr Members::Property<double>
-        MinWidthProperty{"MinWidth"};
-    inline static constexpr Members::Property<double>
-        MaxWidthProperty{"MaxWidth"};
-    inline static constexpr Members::Property<double>
-        MinHeightProperty{"MinHeight"};
-    inline static constexpr Members::Property<double>
-        MaxHeightProperty{"MaxHeight"};
-    inline static constexpr Members::Property<Thickness>
-        MarginProperty{"Margin"};
-    inline static constexpr Members::Property<
-        HorizontalAlignment>
-        HorizontalAlignmentProperty{"HorizontalAlignment"};
-    inline static constexpr Members::Property<
-        VerticalAlignment>
-        VerticalAlignmentProperty{"VerticalAlignment"};
-    inline static constexpr Members::Property<bool>
-        UseLayoutRoundingProperty{"UseLayoutRounding"};
-    inline static constexpr Members::Property<
-        Base::Ref<Media::Transform>>
-        LayoutTransformProperty{"LayoutTransform"};
+    inline static constexpr Members::Property<Core::Value> TagProperty{"Tag"};
+    inline static constexpr Members::Property<Core::Value> ToolTipProperty{"ToolTip"};
+    inline static constexpr Members::Property<Input::InputScope> InputScopeProperty{"InputScope"};
+    inline static constexpr Members::Property<Length> WidthProperty{"Width"};
+    inline static constexpr Members::Property<Length> HeightProperty{"Height"};
+    inline static constexpr Members::ReadOnlyProperty<double> ActualWidthProperty{"ActualWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double> ActualHeightProperty{"ActualHeight"};
+    inline static constexpr Members::Property<double> MinWidthProperty{"MinWidth"};
+    inline static constexpr Members::Property<double> MaxWidthProperty{"MaxWidth"};
+    inline static constexpr Members::Property<double> MinHeightProperty{"MinHeight"};
+    inline static constexpr Members::Property<double> MaxHeightProperty{"MaxHeight"};
+    inline static constexpr Members::Property<Thickness> MarginProperty{"Margin"};
+    inline static constexpr Members::Property<HorizontalAlignment> HorizontalAlignmentProperty{"HorizontalAlignment"};
+    inline static constexpr Members::Property<VerticalAlignment> VerticalAlignmentProperty{"VerticalAlignment"};
+    inline static constexpr Members::Property<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
+    inline static constexpr Members::Property<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
 
     Base::Result<void> SetLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;

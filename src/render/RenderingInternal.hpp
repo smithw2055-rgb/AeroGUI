@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ui/VisualAccess.hpp"
+
 #include "DisplayList.hpp"
 
 #include <Aero/FrameworkElement.hpp>

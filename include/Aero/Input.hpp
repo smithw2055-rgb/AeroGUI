@@ -66,8 +66,8 @@ public:
     Core::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    std::uint32_t Key() const noexcept { return key_; }
-    std::uint32_t Modifiers() const noexcept { return modifiers_; }
+    std::uint32_t GetKey() const noexcept { return key_; }
+    std::uint32_t GetModifiers() const noexcept { return modifiers_; }
     bool IsValid() const noexcept { return key_ != 0U; }
     bool Matches(const KeyboardInput& input) const noexcept override;
 
@@ -85,11 +85,11 @@ public:
     Core::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::StringView Name() const noexcept { return name_.View(); }
+    Base::StringView GetName() const noexcept { return name_.View(); }
     Base::Result<void> TrySetName(Base::StringView name) noexcept;
     Base::Result<void> TryAddInputGesture(
         Base::Ref<InputGesture> gesture) noexcept;
-    Base::Span<const Base::Ref<InputGesture>> InputGestures() const noexcept {
+    Base::Span<const Base::Ref<InputGesture>> GetInputGestures() const noexcept {
         return {gestures_.Data(), gestures_.Size()};
     }
     bool MatchesInput(const KeyboardInput& input) const noexcept;
@@ -123,7 +123,7 @@ public:
     Base::StringView CommandName() const noexcept { return commandName_.View(); }
     Base::StringView KeyName() const noexcept { return keyName_.View(); }
     Base::StringView ModifiersName() const noexcept { return modifiersName_.View(); }
-    Base::Ref<RoutedCommand> Command() const noexcept { return command_; }
+    Base::Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
     Base::Result<void> SetCommandName(Base::StringView value) noexcept;
     Base::Result<void> SetKeyName(Base::StringView value) noexcept;
     Base::Result<void> SetModifiersName(Base::StringView value) noexcept;
@@ -175,14 +175,11 @@ public:
           canExecute_(canExecute),
           executed_(executed) {}
 
-    RoutedCommand* Command() const noexcept { return command_.Get(); }
-    const Base::Ref<RoutedCommand>& OwnedCommand() const noexcept {
-        return command_;
-    }
-    const CanExecuteRoutedEventHandler& CanExecuteHandler() const noexcept {
+    RoutedCommand* GetCommand() const noexcept { return command_.Get(); }
+    const CanExecuteRoutedEventHandler& GetCanExecute() const noexcept {
         return canExecute_;
     }
-    const ExecutedRoutedEventHandler& ExecutedHandler() const noexcept {
+    const ExecutedRoutedEventHandler& GetExecuted() const noexcept {
         return executed_;
     }
     bool IsValid() const noexcept {
@@ -195,19 +192,6 @@ private:
     ExecutedRoutedEventHandler executed_;
 };
 
-struct CommandBindingHandle final {
-    std::uint64_t value = 0U;
-    constexpr bool IsValid() const noexcept { return value != 0U; }
-};
-
-struct InputBindingHandle final {
-    std::uint64_t value = 0U;
-    constexpr bool IsValid() const noexcept { return value != 0U; }
-};
-
-using RequerySuggestedHandler = Base::Delegate<void()>;
-
-
 } // namespace Aero::Input
 
 namespace Aero::Input {
@@ -218,13 +202,6 @@ using namespace Aero::Core;
 // UI-thread visual-tree hit testing. The last visual child is frontmost.
 // Callers register the C++ cast for each concrete layout type; this avoids
 // RTTI and keeps the Core runtime usable with /GR- builds.
-
-using PointerStateChangedHandler =
-    Base::Delegate<void(UIElement&)>;
-using PointerCaptureChangedHandler =
-    Base::Delegate<void(
-        std::uint32_t, UIElement*, bool)>;
-
 
 enum class FocusNavigationDirection : std::uint8_t {
     Next,
@@ -250,18 +227,10 @@ public:
         return StaticTypeId();
     }
 
-    inline static constexpr Members::AttachedProperty<
-        KeyboardNavigationMode>
-        DirectionalNavigationProperty{
-            "DirectionalNavigation"};
+    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> DirectionalNavigationProperty{"DirectionalNavigation"};
 
-    inline static constexpr Members::AttachedProperty<
-        KeyboardNavigationMode>
-        TabNavigationProperty{
-            "TabNavigation"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t>
-        TabIndexProperty{"TabIndex"};
+    inline static constexpr Members::AttachedProperty<KeyboardNavigationMode> TabNavigationProperty{"TabNavigation"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> TabIndexProperty{"TabIndex"};
 };
 
 

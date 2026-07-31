@@ -56,7 +56,7 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "InlineCollection value cannot be null");
         }
-        if (!owner.LayoutChildren().Empty() || owner.IsLoaded()) {
+        if (!owner.LayoutChildren().Empty() || owner.GetIsLoaded()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Mounted inline collections require a MountService transaction");
@@ -75,7 +75,7 @@ public:
         Documents::Inline& value) noexcept {
         Base::Result<void> access = owner.VerifyAccess();
         if (!access) return access.GetStatus();
-        if (!owner.LayoutChildren().Empty() || owner.IsLoaded()) {
+        if (!owner.LayoutChildren().Empty() || owner.GetIsLoaded()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Mounted inline collections require a MountService transaction");
@@ -101,7 +101,7 @@ public:
 
     static Base::Result<void> Clear(
         Controls::TextBlock& owner) noexcept {
-        if (owner.IsLoaded()) {
+        if (owner.GetIsLoaded()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Mounted inline collections require a MountService transaction");
@@ -393,6 +393,14 @@ Documents::InlineCollectionView TextBlock::Inlines() const noexcept {
     return Documents::InlineCollectionView(*this);
 }
 
+Documents::InlineCollection TextBlock::GetInlines() noexcept {
+    return Inlines();
+}
+
+Documents::InlineCollectionView TextBlock::GetInlines() const noexcept {
+    return Inlines();
+}
+
 Documents::TextPointer TextBlock::ContentStart() noexcept {
     return Documents::TextPointer(
         *this, 0U, Documents::LogicalDirection::Forward);
@@ -536,25 +544,31 @@ Base::Result<TextRange> TextRange::TryCreate(
     return TextRange(start, end);
 }
 
+Base::Result<Base::String> TextRange::GetText() const noexcept {
+    Base::String text;
+    Base::Result<void> copied = CopyText(text);
+    return copied ? Base::Result<Base::String>(std::move(text)) : Base::Result<Base::String>(copied.GetStatus());
+}
+
 Base::Result<void> TextRange::CopyText(
     Base::String& output) const noexcept {
-    if (!IsValid() || start_.Container() != end_.Container()) {
+    if (!IsValid() || start_.container_ != end_.container_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TextRange is not valid");
     }
     Base::String flattened;
     Base::Result<void> copied = Documents::CopyText(
-        *start_.Container(), flattened);
+        *start_.container_, flattened);
     if (!copied) return copied.GetStatus();
-    if (end_.Offset() > flattened.SizeBytes()) {
+    if (end_.offset_ > flattened.SizeBytes()) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "TextRange exceeds the document text");
     }
     output.Clear();
     return output.TryAssign(flattened.View().Substr(
-        start_.Offset(), Length()));
+        start_.offset_, Length()));
 }
 
 Base::Result<TextPointer> GetPositionFromPoint(
@@ -574,7 +588,7 @@ Base::StringView Hyperlink::NavigateUri() const noexcept {
     return GetValueOr(NavigateUriProperty, Base::StringView{});
 }
 
-Input::ICommand* Hyperlink::Command() const noexcept {
+Input::ICommand* Hyperlink::GetCommand() const noexcept {
     return GetValueOr(
         CommandProperty,
         Base::Ref<Input::ICommand>{}).Get();

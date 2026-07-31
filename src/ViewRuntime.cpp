@@ -2,6 +2,7 @@
 #include "runtime/ImageRuntime.hpp"
 #include "runtime/TextRuntime.hpp"
 #include "SchemaBundle.hpp"
+#include "controls/ContentControlAccess.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>
@@ -204,7 +205,7 @@ struct ViewRuntime::Impl final {
     Aero::Detail::ImageRuntime* imageRuntime = nullptr;
     Aero::Detail::TextRuntime* textRuntime = nullptr;
     Aero::Detail::BindingManager* bindings = nullptr;
-    Aero::Detail::RoutedEventManager* events = nullptr;
+    Aero::Detail::EventRouter* events = nullptr;
     Aero::Detail::CommandManager* commands = nullptr;
     Controls::TemplateManager* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
@@ -329,15 +330,15 @@ struct ViewRuntime::Impl final {
                     Base::ErrorCode::InvalidState,
                     "ConditionBehavior requires a bound left operand");
             }
-            if (binding->ElementName().Empty()) {
+            if (binding->GetElementName().Empty()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
                     "ConditionBehavior currently requires Binding ElementName");
             }
             Base::Object* source = names != nullptr
-                ? names->Find(binding->ElementName())
+                ? names->Find(binding->GetElementName())
                 : runtime->loadedDocument.names.Find(
-                      binding->ElementName());
+                      binding->GetElementName());
             if (source == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
@@ -346,7 +347,7 @@ struct ViewRuntime::Impl final {
             Base::Result<Core::BindingPathPlan> plan =
                 Core::BindingPathPlan::Compile(
                     *runtime->metadataRuntime,
-                    source->RuntimeType(), binding->Path());
+                    source->RuntimeType(), binding->GetPath().GetPath());
             if (!plan) return plan.GetStatus();
             Base::Result<Core::PropertyValue> current =
                 plan.Value().Get(*runtime->metadataRuntime, *source);
@@ -737,7 +738,7 @@ struct ViewRuntime::Impl final {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Visual* child :
-             rootVisual->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*rootVisual)) {
             VisitTextServices(
                 child,
                 service,
@@ -766,7 +767,7 @@ struct ViewRuntime::Impl final {
             service,
             invalidate && effectivelyVisible);
         for (Aero::Visual* child :
-             rootVisual->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*rootVisual)) {
             VisitPathServices(
                 child,
                 service,
@@ -885,10 +886,10 @@ struct ViewRuntime::Impl final {
             bool open = false;
             if (metadata->Types().IsDerivedFrom(
                     type,
-                    Controls::Popup::
+                    Controls::Primitives::Popup::
                         StaticTypeId())) {
                 open =
-                    static_cast<Controls::Popup*>(
+                    static_cast<Controls::Primitives::Popup*>(
                         node)->IsOpen();
             } else if (
                 metadata->Types().IsDerivedFrom(
@@ -913,7 +914,7 @@ struct ViewRuntime::Impl final {
                         break;
                     }
                     ancestor =
-                        ancestor->VisualParent();
+                        ancestor->GetVisualParent();
                 }
             }
             if (open) {
@@ -958,7 +959,7 @@ struct ViewRuntime::Impl final {
                             }
                             current =
                                 current->
-                                    VisualParent();
+                                    GetVisualParent();
                         }
                         return result;
                     };
@@ -1012,7 +1013,7 @@ struct ViewRuntime::Impl final {
             const Base::Span<
                 Aero::Visual* const>
                 children =
-                    node->VisualChildren();
+                    Aero::Detail::VisualAccess::VisualChildren(*node);
             for (std::uint32_t index =
                      children.Size();
                  index > 0U;
@@ -1055,10 +1056,10 @@ struct ViewRuntime::Impl final {
                 overlay->RuntimeType();
             if (metadata->Types().IsDerivedFrom(
                     type,
-                    Controls::Popup::
+                    Controls::Primitives::Popup::
                         StaticTypeId())) {
                 auto* popup =
-                    static_cast<Controls::Popup*>(
+                    static_cast<Controls::Primitives::Popup*>(
                         overlay);
                 static_cast<void>(
                     popup->SetIsOpen(false));
@@ -1088,7 +1089,7 @@ struct ViewRuntime::Impl final {
         const Aero::Visual* current =
             &target;
         while (current != &root) {
-            current = current->VisualParent();
+            current = current->GetVisualParent();
             if (current == nullptr) return false;
         }
         return true;
@@ -1142,10 +1143,10 @@ struct ViewRuntime::Impl final {
                 overlay->RuntimeType();
             if (metadata->Types().IsDerivedFrom(
                     type,
-                    Controls::Popup::
+                    Controls::Primitives::Popup::
                         StaticTypeId())) {
                 auto* popup =
-                    static_cast<Controls::Popup*>(
+                    static_cast<Controls::Primitives::Popup*>(
                         overlay);
                 if (!popup->StaysOpen()) {
                     Base::Result<void> closed =
@@ -1195,16 +1196,16 @@ struct ViewRuntime::Impl final {
                 overlay->RuntimeType();
             if (metadata->Types().IsDerivedFrom(
                     type,
-                    Controls::Popup::
+                    Controls::Primitives::Popup::
                         StaticTypeId())) {
                 Base::Result<void> closed =
-                    static_cast<Controls::Popup*>(
+                    static_cast<Controls::Primitives::Popup*>(
                         overlay)->SetIsOpen(false);
                 if (!closed) {
                     return closed.GetStatus();
                 }
                 static_cast<void>(
-                    static_cast<Controls::Popup*>(
+                    static_cast<Controls::Primitives::Popup*>(
                         overlay)->
                         SetPlacementTarget({}));
                 Base::Result<void> restored =
@@ -1316,7 +1317,7 @@ struct ViewRuntime::Impl final {
                     return {};
                 }
             }
-            current = current->VisualParent();
+            current = current->GetVisualParent();
         }
         return {};
     }
@@ -1367,7 +1368,7 @@ struct ViewRuntime::Impl final {
                     break;
                 }
             }
-            current = current->VisualParent();
+            current = current->GetVisualParent();
         }
         if (next.Get() == pendingToolTip.Get() &&
             nextTarget.Get() == toolTipTarget.Get()) {
@@ -1517,6 +1518,7 @@ struct ViewRuntime::Impl final {
             *metadata,
             *values,
             *bindings,
+            *events,
             *commands,
             *styles,
             *templates,
@@ -1670,9 +1672,7 @@ struct ViewRuntime::Impl final {
             if (metadata->Types().IsDerivedFrom(
                     type,
                     Controls::Control::StaticTypeId())) {
-                Aero::Detail::ControlRuntimeAccess::Attach(
-                    *static_cast<Controls::Control*>(node),
-                    events);
+                Aero::Detail::ControlRuntimeAccess::SetVisualStateManager(*static_cast<Controls::Control*>(node), visualStates);
             }
             AttachTextService(
                 *node,
@@ -1683,10 +1683,10 @@ struct ViewRuntime::Impl final {
                 *node, MeshServices());
             if (controlInteractions != nullptr &&
                 metadata->Types().IsDerivedFrom(
-                    type, Controls::ButtonBase::StaticTypeId())) {
+                    type, Controls::Primitives::ButtonBase::StaticTypeId())) {
                 Base::Result<void> attached =
                     controlInteractions->Attach(
-                        *static_cast<Controls::ButtonBase*>(node));
+                        *static_cast<Controls::Primitives::ButtonBase*>(node));
                 if (!attached) return attached.GetStatus();
             }
             if (hyperlinkInteractions != nullptr &&
@@ -1876,7 +1876,7 @@ struct ViewRuntime::Impl final {
                 }
             }
             const Base::Span<Aero::Visual* const>
-                children = node->VisualChildren();
+                children = Aero::Detail::VisualAccess::VisualChildren(*node);
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
                 pushed = stack.TryPushBack(children[index]);
@@ -1906,7 +1906,7 @@ struct ViewRuntime::Impl final {
                     SetInputMethodHost(nullptr));
         }
         for (Aero::Visual* child :
-             node->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*node)) {
             ClearTextInputHosts(child);
         }
     }
@@ -3016,14 +3016,14 @@ struct ViewRuntime::Impl final {
                     "DataTemplate DataTrigger Binding is unavailable");
             }
             Base::Object* source =
-                condition.binding->ElementName().Empty()
+                condition.binding->GetElementName().Empty()
                 ? condition.source.Get()
                 : context.FindName(
-                      condition.binding->ElementName());
+                      condition.binding->GetElementName());
             if (source == nullptr &&
-                !condition.binding->ElementName().Empty()) {
+                !condition.binding->GetElementName().Empty()) {
                 source = loadedDocument.names.Find(
-                    condition.binding->ElementName());
+                    condition.binding->GetElementName());
             }
             if (source == nullptr) {
                 return false;
@@ -3032,7 +3032,7 @@ struct ViewRuntime::Impl final {
                 Core::BindingPathPlan::Compile(
                     *metadataRuntime,
                     source->RuntimeType(),
-                    condition.binding->Path());
+                    condition.binding->GetPath().GetPath());
             if (!plan) return plan.GetStatus();
             Base::Result<Core::PropertyValue> value =
                 plan.Value().Get(*metadataRuntime, *source);
@@ -3193,16 +3193,14 @@ struct ViewRuntime::Impl final {
                      !condition.property.IsValid()) &&
                     condition.binding) {
                     Base::Object* source =
-                        condition.binding->
-                                ElementName().Empty()
+                        condition.binding->GetElementName().Empty()
                         ? condition.source.Get()
                         : context.FindName(
-                              condition.binding->
-                                  ElementName());
+                              condition.binding->GetElementName());
                     if (source == nullptr &&
-                        !condition.binding->ElementName().Empty()) {
+                        !condition.binding->GetElementName().Empty()) {
                         source = loadedDocument.names.Find(
-                            condition.binding->ElementName());
+                            condition.binding->GetElementName());
                     }
                     if (source != nullptr &&
                         metadata->Types().IsDerivedFrom(
@@ -3218,8 +3216,7 @@ struct ViewRuntime::Impl final {
                                         .Find(
                                             source->
                                                 RuntimeType(),
-                                            condition.binding->
-                                                Path());
+                                            condition.binding->GetPath().GetPath());
                         if (property != nullptr) {
                             condition.dependencySource =
                                 Base::Ref<
@@ -3523,7 +3520,7 @@ struct ViewRuntime::Impl final {
             }
         }
         for (Aero::Visual* child :
-             visual->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*visual)) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
             if (!started) return started.GetStatus();
@@ -3542,9 +3539,9 @@ struct ViewRuntime::Impl final {
         const Aero::Visual& fragmentRoot) const noexcept {
         while (node != nullptr) {
             if (node == &fragmentRoot) return true;
-            node = node->LogicalParent() != nullptr
-                ? node->LogicalParent()
-                : node->VisualParent();
+            node = node->GetLogicalParent() != nullptr
+                ? node->GetLogicalParent()
+                : node->GetVisualParent();
         }
         return false;
     }
@@ -3585,7 +3582,7 @@ struct ViewRuntime::Impl final {
                 }
             }
         }
-        for (Aero::Visual* child : visual.VisualChildren()) {
+        for (Aero::Visual* child : Aero::Detail::VisualAccess::VisualChildren(visual)) {
             if (child != nullptr) {
                 ClearDataTemplateTriggerProvidersInSubtree(*child);
             }
@@ -3738,12 +3735,10 @@ struct ViewRuntime::Impl final {
         if (metadata->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
-            Aero::Detail::ControlRuntimeAccess::Attach(
-                *static_cast<Controls::Control*>(node),
-                nullptr);
+            Aero::Detail::ControlRuntimeAccess::SetVisualStateManager(*static_cast<Controls::Control*>(node), nullptr);
         }
         for (Aero::Visual* child :
-             node->VisualChildren()) {
+             Aero::Detail::VisualAccess::VisualChildren(*node)) {
             ClearRuntimeEvents(child);
         }
     }
@@ -4692,12 +4687,10 @@ ViewRuntime::Impl::ExecuteAnimationAction(
         Base::Ref<Data::Binding> targetBinding =
             remove.TargetObject();
         if (targetBinding) {
-            if (targetBinding->RelativeSource() !=
-                    Data::RelativeSourceMode::Ancestor ||
-                targetBinding->AncestorType() !=
-                    Base::StringView("ContextMenu") ||
-                targetBinding->Path() !=
-                    Base::StringView("PlacementTarget")) {
+            const Base::Ref<Data::RelativeSource> relative = targetBinding->GetRelativeSource();
+            if (!relative || relative->GetMode() != Data::RelativeSourceMode::FindAncestor ||
+                relative->GetAncestorType() != Base::StringView("ContextMenu") ||
+                targetBinding->GetPath().GetPath() != Base::StringView("PlacementTarget")) {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
                     "RemoveElementAction TargetObject binding is not supported");
@@ -4712,9 +4705,9 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                         current);
                     break;
                 }
-                current = current->LogicalParent() != nullptr
-                    ? current->LogicalParent()
-                    : current->VisualParent();
+                current = current->GetLogicalParent() != nullptr
+                    ? current->GetLogicalParent()
+                    : current->GetVisualParent();
             }
             if (contextMenu == nullptr ||
                 !contextMenu->PlacementTarget()) {
@@ -4733,8 +4726,8 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                 "RemoveElementAction target is not a UIElement");
         }
         auto& target = static_cast<Aero::UIElement&>(*targetObject);
-        Aero::Visual* current = target.LogicalParent() != nullptr
-            ? target.LogicalParent() : target.VisualParent();
+        Aero::Visual* current = target.GetLogicalParent() != nullptr
+            ? target.GetLogicalParent() : target.GetVisualParent();
         while (current != nullptr) {
             if (metadata->Types().IsDerivedFrom(
                     current->RuntimeType(),
@@ -4751,14 +4744,14 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                 }
                 if (index != UINT32_MAX) {
                     Base::Result<Base::Ref<Base::Object>> removed =
-                        items.Items().RemoveAt(index);
+                        items.GetItems().RemoveAt(index);
                     return removed
                         ? Base::Result<void>()
                         : Base::Result<void>(removed.GetStatus());
                 }
             }
-            current = current->LogicalParent() != nullptr
-                ? current->LogicalParent() : current->VisualParent();
+            current = current->GetLogicalParent() != nullptr
+                ? current->GetLogicalParent() : current->GetVisualParent();
         }
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -5499,7 +5492,7 @@ Base::Result<void> ViewRuntime::MountContent(
             Base::ErrorCode::InvalidArgument,
             "content fragment document belongs to another View");
     }
-    if (host.OwningTree() != impl_->tree) {
+    if (Aero::Detail::VisualAccess::Tree(host) != impl_->tree) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -5516,7 +5509,7 @@ Base::Result<void> ViewRuntime::MountContent(
     if (existing != UINT32_MAX) {
         Base::Result<void> unmounted = impl_->UnmountFragmentAt(existing);
         if (!unmounted) return unmounted.GetStatus();
-    } else if (host.Content() != nullptr) {
+    } else if (Controls::Detail::ContentControlAccess::ContentElement(host) != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
@@ -5548,7 +5541,7 @@ Base::Result<void> ViewRuntime::MountContent(
         fragment.document.Clear();
         return tracked.GetStatus();
     }
-    Base::Result<void> assigned = host.SetOwnedContent(
+    Base::Result<void> assigned = Controls::Detail::ContentControlAccess::SetOwnedContent(host,
         fragment.document.root, *rootElement.Value());
     if (!assigned) {
         fragment.document.Clear();
@@ -5582,8 +5575,8 @@ Base::Result<void> ViewRuntime::MountContent(
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
-                    edge.parent->OwningTree() != impl_->tree ||
-                    (deferred && edge.child->OwningTree() == impl_->tree)) {
+                    Aero::Detail::VisualAccess::Tree(*edge.parent) != impl_->tree ||
+                    (deferred && Aero::Detail::VisualAccess::Tree(*edge.child) == impl_->tree)) {
                     continue;
                 }
                 Base::Result<Aero::Detail::MountEdgeState> mounted =
@@ -5651,7 +5644,7 @@ Base::Result<void> ViewRuntime::UnmountContent(
             return impl_->UnmountFragmentAt(index);
         }
     }
-    return host.Content() == nullptr
+    return Controls::Detail::ContentControlAccess::ContentElement(host) == nullptr
         ? Base::Result<void>()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::InvalidState,
@@ -6289,7 +6282,7 @@ Aero::Detail::CommandManager* ViewRuntime::Commands() noexcept {
     return impl_ != nullptr ? impl_->commands : nullptr;
 }
 
-Aero::Detail::RoutedEventManager*
+Aero::Detail::EventRouter*
 ViewRuntime::RoutedEvents() noexcept {
     return impl_ != nullptr ? impl_->events : nullptr;
 }

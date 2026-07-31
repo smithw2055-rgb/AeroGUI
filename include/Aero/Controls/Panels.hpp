@@ -149,8 +149,7 @@ public:
     explicit StackPanel(Orientation orientation) noexcept;
     Orientation GetOrientation() const noexcept;
     Base::Result<void> SetOrientation(Orientation value) noexcept;
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -165,10 +164,8 @@ public:
     Base::Result<void> SetChildDock(
         UIElement& child, Dock value) noexcept;
     Dock ChildDock(const UIElement& child) const noexcept;
-    inline static constexpr Members::Property<bool>
-        LastChildFillProperty{"LastChildFill"};
-    inline static constexpr Members::AttachedProperty<Dock>
-        DockProperty{"Dock"};
+    inline static constexpr Members::Property<bool> LastChildFillProperty{"LastChildFill"};
+    inline static constexpr Members::AttachedProperty<Dock> DockProperty{"Dock"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -184,13 +181,10 @@ public:
     double ItemHeight() const noexcept;
     Base::Result<void> SetItemWidth(double value) noexcept;
     Base::Result<void> SetItemHeight(double value) noexcept;
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
     // Zero selects the child's desired dimension.
-    inline static constexpr Members::Property<double>
-        ItemWidthProperty{"ItemWidth"};
-    inline static constexpr Members::Property<double>
-        ItemHeightProperty{"ItemHeight"};
+    inline static constexpr Members::Property<double> ItemWidthProperty{"ItemWidth"};
+    inline static constexpr Members::Property<double> ItemHeightProperty{"ItemHeight"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -207,12 +201,9 @@ public:
     Base::Result<void> SetColumns(std::uint32_t value) noexcept;
     Base::Result<void> SetFirstColumn(
         std::uint32_t value) noexcept;
-    inline static constexpr Members::Property<std::uint32_t>
-        RowsProperty{"Rows"};
-    inline static constexpr Members::Property<std::uint32_t>
-        ColumnsProperty{"Columns"};
-    inline static constexpr Members::Property<std::uint32_t>
-        FirstColumnProperty{"FirstColumn"};
+    inline static constexpr Members::Property<std::uint32_t> RowsProperty{"Rows"};
+    inline static constexpr Members::Property<std::uint32_t> ColumnsProperty{"Columns"};
+    inline static constexpr Members::Property<std::uint32_t> FirstColumnProperty{"FirstColumn"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -229,14 +220,10 @@ public:
     Canvas() noexcept;
     Base::Result<void> SetChildPosition(UIElement& child, Point position) noexcept;
     Point ChildPosition(const UIElement& child) const noexcept;
-    inline static constexpr Members::AttachedProperty<double>
-        LeftProperty{"Left"};
-    inline static constexpr Members::AttachedProperty<double>
-        TopProperty{"Top"};
-    inline static constexpr Members::AttachedProperty<double>
-        RightProperty{"Right"};
-    inline static constexpr Members::AttachedProperty<double>
-        BottomProperty{"Bottom"};
+    inline static constexpr Members::AttachedProperty<double> LeftProperty{"Left"};
+    inline static constexpr Members::AttachedProperty<double> TopProperty{"Top"};
+    inline static constexpr Members::AttachedProperty<double> RightProperty{"Right"};
+    inline static constexpr Members::AttachedProperty<double> BottomProperty{"Bottom"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -330,22 +317,15 @@ public:
         Base::StringView value) noexcept;
     Base::Span<const GridLength> ColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
     Base::Span<const GridLength> RowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t> RowProperty{"Row"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t> ColumnProperty{"Column"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t> RowSpanProperty{"RowSpan"};
-    inline static constexpr Members::AttachedProperty<
-        std::uint32_t> ColumnSpanProperty{"ColumnSpan"};
-    inline static constexpr Members::AttachedProperty<bool>
-        IsSharedSizeScopeProperty{"IsSharedSizeScope"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> RowProperty{"Row"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> ColumnProperty{"Column"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> RowSpanProperty{"RowSpan"};
+    inline static constexpr Members::AttachedProperty<std::uint32_t> ColumnSpanProperty{"ColumnSpan"};
+    inline static constexpr Members::AttachedProperty<bool> IsSharedSizeScopeProperty{"IsSharedSizeScope"};
     // Programmatic compact form; WPF XAML uses the structural
     // ColumnDefinitions and RowDefinitions collections.
-    inline static constexpr Members::Property<Base::String>
-        ColumnDefinitionsTextProperty{"ColumnDefinitionsText"};
-    inline static constexpr Members::Property<Base::String>
-        RowDefinitionsTextProperty{"RowDefinitionsText"};
+    inline static constexpr Members::Property<Base::String> ColumnDefinitionsTextProperty{"ColumnDefinitionsText"};
+    inline static constexpr Members::Property<Base::String> RowDefinitionsTextProperty{"RowDefinitionsText"};
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
@@ -387,10 +367,8 @@ public:
     Base::Result<void> SetStretchDirection(
         StretchDirection value) noexcept;
 
-    inline static constexpr Members::Property<Stretch>
-        StretchProperty{"Stretch"};
-    inline static constexpr Members::Property<StretchDirection>
-        StretchDirectionProperty{"StretchDirection"};
+    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
+    inline static constexpr Members::Property<StretchDirection> StretchDirectionProperty{"StretchDirection"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -434,21 +412,11 @@ public:
     Thickness BorderThickness() const noexcept;
     CornerRadius GetCornerRadius() const noexcept;
     Thickness Padding() const noexcept;
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BackgroundProperty{"Background"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BorderBrushProperty{"BorderBrush"};
-    inline static constexpr Members::Property<
-        Aero::Base::Thickness>
-        BorderThicknessProperty{"BorderThickness"};
-    inline static constexpr Members::Property<
-        Aero::Base::CornerRadius>
-        CornerRadiusProperty{"CornerRadius"};
-    inline static constexpr Members::Property<
-        Aero::Base::Thickness>
-        PaddingProperty{"Padding"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BorderBrushProperty{"BorderBrush"};
+    inline static constexpr Members::Property<Aero::Base::Thickness> BorderThicknessProperty{"BorderThickness"};
+    inline static constexpr Members::Property<Aero::Base::CornerRadius> CornerRadiusProperty{"CornerRadius"};
+    inline static constexpr Members::Property<Aero::Base::Thickness> PaddingProperty{"Padding"};
 protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -479,6 +447,8 @@ public:
     }
     Documents::InlineCollection Inlines() noexcept;
     Documents::InlineCollectionView Inlines() const noexcept;
+    Documents::InlineCollection GetInlines() noexcept;
+    Documents::InlineCollectionView GetInlines() const noexcept;
     Documents::TextPointer ContentStart() noexcept;
     Documents::TextPointer ContentEnd() noexcept;
     Core::Value MetadataInlines() const noexcept;
@@ -510,40 +480,24 @@ public:
         const Base::Ref<Base::Object>& inlineObject,
         UIElement& inlineElement) noexcept;
     Base::Result<void> ClearOwnedInlines() noexcept;
-    inline static constexpr Members::Property<Base::String>
-        TextProperty{"Text"};
-    inline static constexpr auto ForegroundProperty =
-        FrameworkElementForegroundProperty;
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        BackgroundProperty{"Background"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        StrokeProperty{"Stroke"};
+    inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
+    inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> BackgroundProperty{"Background"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> StrokeProperty{"Stroke"};
     // WPF exposes the same inheritable text formatting property through
     // Control and TextBlock owners. Sharing the handle here gives generated
     // text content the ComboBoxItem/Control FontSize instead of falling back
     // to an unrelated TextBlock default.
-    inline static constexpr auto FontSizeProperty =
-        Control::FontSizeProperty;
-    inline static constexpr auto FontFamilyProperty =
-        FrameworkElement::FontFamilyProperty;
-    inline static constexpr Members::Property<FontWeight>
-        FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::Property<Text::FontStyle>
-        FontStyleProperty{"FontStyle"};
-    inline static constexpr Members::Property<TextDecorations>
-        TextDecorationsProperty{"TextDecorations"};
-    inline static constexpr Members::Property<double>
-        StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr Members::Property<Text::TextWrapping>
-        TextWrappingProperty{"TextWrapping"};
-    inline static constexpr Members::Property<Text::TextTrimming>
-        TextTrimmingProperty{"TextTrimming"};
-    inline static constexpr Members::Property<Text::TextAlignment>
-        TextAlignmentProperty{"TextAlignment"};
-    inline static constexpr Members::Property<Thickness>
-        PaddingProperty{"Padding"};
+    inline static constexpr auto FontSizeProperty = Control::FontSizeProperty;
+    inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
+    inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::Property<Text::FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::Property<TextDecorations> TextDecorationsProperty{"TextDecorations"};
+    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr Members::Property<Text::TextWrapping> TextWrappingProperty{"TextWrapping"};
+    inline static constexpr Members::Property<Text::TextTrimming> TextTrimmingProperty{"TextTrimming"};
+    inline static constexpr Members::Property<Text::TextAlignment> TextAlignmentProperty{"TextAlignment"};
+    inline static constexpr Members::Property<Thickness> PaddingProperty{"Padding"};
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -614,27 +568,16 @@ public:
     Base::Result<void> SetTrimEnd(double value) noexcept;
     Base::Result<void> SetStretch(Stretch value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::Ref<Geometry>>
-        DataProperty{"Data"};
-    inline static constexpr Members::Property<Base::Ref<Brush>>
-        FillProperty{"Fill"};
-    inline static constexpr Members::Property<Base::Ref<Brush>>
-        StrokeProperty{"Stroke"};
-    inline static constexpr Members::Property<double>
-        StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr Members::Property<PenLineJoin>
-        StrokeLineJoinProperty{"StrokeLineJoin"};
-    inline static constexpr Members::Property<PenLineCap>
-        StrokeStartLineCapProperty{"StrokeStartLineCap"};
-    inline static constexpr Members::Property<PenLineCap>
-        StrokeEndLineCapProperty{"StrokeEndLineCap"};
-    inline static constexpr Members::AttachedProperty<double>
-        TrimStartProperty{"TrimStart"};
-    inline static constexpr Members::AttachedProperty<double>
-        TrimEndProperty{"TrimEnd"};
-    inline static constexpr Members::Property<Stretch>
-        StretchProperty{"Stretch"};
+    inline static constexpr Members::Property<Base::Ref<Geometry>> DataProperty{"Data"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> FillProperty{"Fill"};
+    inline static constexpr Members::Property<Base::Ref<Brush>> StrokeProperty{"Stroke"};
+    inline static constexpr Members::Property<double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static constexpr Members::Property<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
+    inline static constexpr Members::Property<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
+    inline static constexpr Members::Property<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
+    inline static constexpr Members::AttachedProperty<double> TrimStartProperty{"TrimStart"};
+    inline static constexpr Members::AttachedProperty<double> TrimEndProperty{"TrimEnd"};
+    inline static constexpr Members::Property<Stretch> StretchProperty{"Stretch"};
 
 protected:
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override;
@@ -712,13 +655,9 @@ public:
     Base::Result<void> SetOwnedContent(const Base::Ref<Base::Object>& contentObject,
         UIElement& content) noexcept;
 
-    inline static constexpr Members::Property<Base::String>
-        ContentSourceProperty{"ContentSource"};
-    inline static constexpr Members::Property<Core::Value>
-        ContentProperty{"Content"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        ContentTemplateProperty{"ContentTemplate"};
+    inline static constexpr Members::Property<Base::String> ContentSourceProperty{"ContentSource"};
+    inline static constexpr Members::Property<Core::Value> ContentProperty{"Content"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
     static void OnContentPropertyChanged(
         Core::DependencyObject& object,
         const Core::DependencyPropertyChangedEventArgs&

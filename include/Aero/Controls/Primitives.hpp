@@ -22,17 +22,18 @@ enum class ToggleState : std::uint8_t {
 };
 
 
+namespace Primitives {
+
 class AERO_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> ClickEvent{"Click"};
-    UIElement::RoutedEvent_<RoutedEventHandler> Click() noexcept {
-        return Event(ClickEvent);
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
+    UIElement::Event<RoutedEventHandler> Click() noexcept {
+        return GetEvent(ClickEvent);
     }
 
     ClickMode GetClickMode() const noexcept;
-    ICommand* Command() const noexcept;
+    ICommand* GetCommand() const noexcept;
     Base::Ref<Base::Object> CommandParameter() const noexcept;
     UIElement* CommandTarget() const noexcept;
     bool IsCommandEnabled() const noexcept {
@@ -47,15 +48,10 @@ public:
     Base::Result<void> SetCommandTarget(
         Base::Ref<UIElement> target) noexcept;
 
-    inline static constexpr Members::Property<ClickMode>
-        ClickModeProperty{"ClickMode"};
-    inline static constexpr Members::Property<Base::Ref<ICommand>>
-        CommandProperty{"Command"};
-    inline static constexpr Members::Property<
-        Base::Ref<Base::Object>>
-        CommandParameterProperty{"CommandParameter"};
-    inline static constexpr Members::Property<Base::Ref<UIElement>>
-        CommandTargetProperty{"CommandTarget"};
+    inline static constexpr Members::Property<ClickMode> ClickModeProperty{"ClickMode"};
+    inline static constexpr Members::Property<Base::Ref<ICommand>> CommandProperty{"Command"};
+    inline static constexpr Members::Property<Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
+    inline static constexpr Members::Property<Base::Ref<UIElement>> CommandTargetProperty{"CommandTarget"};
 
 protected:
     explicit ButtonBase(TypeId runtimeType) noexcept
@@ -69,16 +65,20 @@ private:
     bool commandEnabled_ = true;
 };
 
-class AERO_API Button : public ButtonBase {
-    AERO_DECLARE_TYPE(Button, ButtonBase)
+} // namespace Primitives
+
+class AERO_API Button : public Primitives::ButtonBase {
+    AERO_DECLARE_TYPE(Button, Primitives::ButtonBase)
 public:
     Button() noexcept : Button(StaticTypeId()) {}
     ~Button() override = default;
 
 protected:
     explicit Button(TypeId runtimeType) noexcept
-        : ButtonBase(runtimeType) {}
+        : Primitives::ButtonBase(runtimeType) {}
 };
+
+namespace Primitives {
 
 class AERO_API RepeatButton : public ButtonBase {
     AERO_DECLARE_TYPE(RepeatButton, ButtonBase)
@@ -91,10 +91,8 @@ public:
     Base::Result<void> SetDelay(std::uint32_t value) noexcept;
     Base::Result<void> SetInterval(std::uint32_t value) noexcept;
 
-    inline static constexpr Members::Property<std::uint32_t>
-        DelayProperty{"Delay"};
-    inline static constexpr Members::Property<std::uint32_t>
-        IntervalProperty{"Interval"};
+    inline static constexpr Members::Property<std::uint32_t> DelayProperty{"Delay"};
+    inline static constexpr Members::Property<std::uint32_t> IntervalProperty{"Interval"};
 
 protected:
     explicit RepeatButton(TypeId runtimeType) noexcept
@@ -114,28 +112,22 @@ public:
     Base::Result<void> SetIsChecked(bool value) noexcept;
     Base::Result<void> SetIsThreeState(bool value) noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> CheckedEvent{"Checked"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> UncheckedEvent{"Unchecked"};
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs> IndeterminateEvent{"Indeterminate"};
-    UIElement::RoutedEvent_<RoutedEventHandler> Checked() noexcept {
-        return Event(CheckedEvent);
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> CheckedEvent{"Checked"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> UncheckedEvent{"Unchecked"};
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> IndeterminateEvent{"Indeterminate"};
+    UIElement::Event<RoutedEventHandler> Checked() noexcept {
+        return GetEvent(CheckedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler> Unchecked() noexcept {
-        return Event(UncheckedEvent);
+    UIElement::Event<RoutedEventHandler> Unchecked() noexcept {
+        return GetEvent(UncheckedEvent);
     }
-    UIElement::RoutedEvent_<RoutedEventHandler> Indeterminate() noexcept {
-        return Event(IndeterminateEvent);
+    UIElement::Event<RoutedEventHandler> Indeterminate() noexcept {
+        return GetEvent(IndeterminateEvent);
     }
 
-    inline static constexpr Members::Property<bool>
-        IsCheckedProperty{"IsChecked"};
-    inline static constexpr Members::Property<bool>
-        IsThreeStateProperty{"IsThreeState"};
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsIndeterminateProperty{"IsIndeterminate"};
+    inline static constexpr Members::Property<bool> IsCheckedProperty{"IsChecked"};
+    inline static constexpr Members::Property<bool> IsThreeStateProperty{"IsThreeState"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsIndeterminateProperty{"IsIndeterminate"};
 
 protected:
     explicit ToggleButton(TypeId runtimeType) noexcept
@@ -147,19 +139,21 @@ private:
         ToggleState value) noexcept;
 };
 
-class AERO_API CheckBox : public ToggleButton {
-    AERO_DECLARE_TYPE(CheckBox, ToggleButton)
+} // namespace Primitives
+
+class AERO_API CheckBox : public Primitives::ToggleButton {
+    AERO_DECLARE_TYPE(CheckBox, Primitives::ToggleButton)
 public:
     CheckBox() noexcept : CheckBox(StaticTypeId()) {}
     ~CheckBox() override = default;
 
 protected:
     explicit CheckBox(TypeId runtimeType) noexcept
-        : ToggleButton(runtimeType) {}
+        : Primitives::ToggleButton(runtimeType) {}
 };
 
-class AERO_API RadioButton : public ToggleButton {
-    AERO_DECLARE_TYPE(RadioButton, ToggleButton)
+class AERO_API RadioButton : public Primitives::ToggleButton {
+    AERO_DECLARE_TYPE(RadioButton, Primitives::ToggleButton)
 public:
     RadioButton() noexcept : RadioButton(StaticTypeId()) {}
     ~RadioButton() override = default;
@@ -168,12 +162,11 @@ public:
     Base::Result<void> SetGroupName(
         Base::StringView value) noexcept;
 
-    inline static constexpr Members::Property<Base::String>
-        GroupNameProperty{"GroupName"};
+    inline static constexpr Members::Property<Base::String> GroupNameProperty{"GroupName"};
 
 protected:
     explicit RadioButton(TypeId runtimeType) noexcept
-        : ToggleButton(runtimeType) {}
+        : Primitives::ToggleButton(runtimeType) {}
 };
 
 
@@ -321,9 +314,7 @@ public:
         bool value) noexcept;
     Base::Result<void> SetCanContentScroll(
         bool value) noexcept;
-    inline static constexpr Members::Property<bool>
-        CanContentScrollProperty{
-            "CanContentScroll"};
+    inline static constexpr Members::Property<bool> CanContentScrollProperty{"CanContentScroll"};
 
     Base::Result<bool> SetViewport(
         Size viewport) noexcept override;
@@ -389,12 +380,10 @@ public:
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
-    inline static constexpr Members::RoutedEvent<
-        ScrollChangedEventArgs>
-        ScrollChangedEvent{"ScrollChanged"};
-    UIElement::RoutedEvent_<ScrollChangedEventHandler>
+    inline static constexpr Members::RoutedEvent<ScrollChangedEventArgs> ScrollChangedEvent{"ScrollChanged"};
+    UIElement::Event<ScrollChangedEventHandler>
         ScrollChanged() noexcept {
-        return Event(ScrollChangedEvent);
+        return GetEvent(ScrollChangedEvent);
     }
 
     double HorizontalOffset() const noexcept;
@@ -457,46 +446,22 @@ public:
         DependencyObject& element,
         ScrollBarVisibility value) noexcept;
 
-    inline static constexpr Members::ReadOnlyProperty<double>
-        HorizontalOffsetProperty{"HorizontalOffset"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        VerticalOffsetProperty{"VerticalOffset"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ExtentWidthProperty{"ExtentWidth"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ExtentHeightProperty{"ExtentHeight"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ViewportWidthProperty{"ViewportWidth"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ViewportHeightProperty{"ViewportHeight"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ScrollableWidthProperty{"ScrollableWidth"};
-    inline static constexpr Members::ReadOnlyProperty<double>
-        ScrollableHeightProperty{"ScrollableHeight"};
-    inline static constexpr Members::ReadOnlyProperty<
-        Visibility>
-        ComputedHorizontalScrollBarVisibilityProperty{
-            "ComputedHorizontalScrollBarVisibility"};
-    inline static constexpr Members::ReadOnlyProperty<
-        Visibility>
-        ComputedVerticalScrollBarVisibilityProperty{
-            "ComputedVerticalScrollBarVisibility"};
-    inline static constexpr Members::AttachedProperty<
-        ScrollBarVisibility>
-        HorizontalScrollBarVisibilityProperty{
-            "HorizontalScrollBarVisibility"};
-    inline static constexpr Members::AttachedProperty<
-        ScrollBarVisibility>
-        VerticalScrollBarVisibilityProperty{
-            "VerticalScrollBarVisibility"};
-    inline static constexpr Members::Property<bool>
-        CanHorizontallyScrollProperty{"CanHorizontallyScroll"};
-    inline static constexpr Members::Property<bool>
-        CanVerticallyScrollProperty{"CanVerticallyScroll"};
-    inline static constexpr Members::AttachedProperty<bool>
-        CanContentScrollProperty{"CanContentScroll"};
-    inline static constexpr Members::AttachedProperty<PanningMode>
-        PanningModeProperty{"PanningMode"};
+    inline static constexpr Members::ReadOnlyProperty<double> HorizontalOffsetProperty{"HorizontalOffset"};
+    inline static constexpr Members::ReadOnlyProperty<double> VerticalOffsetProperty{"VerticalOffset"};
+    inline static constexpr Members::ReadOnlyProperty<double> ExtentWidthProperty{"ExtentWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double> ExtentHeightProperty{"ExtentHeight"};
+    inline static constexpr Members::ReadOnlyProperty<double> ViewportWidthProperty{"ViewportWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double> ViewportHeightProperty{"ViewportHeight"};
+    inline static constexpr Members::ReadOnlyProperty<double> ScrollableWidthProperty{"ScrollableWidth"};
+    inline static constexpr Members::ReadOnlyProperty<double> ScrollableHeightProperty{"ScrollableHeight"};
+    inline static constexpr Members::ReadOnlyProperty<Visibility> ComputedHorizontalScrollBarVisibilityProperty{"ComputedHorizontalScrollBarVisibility"};
+    inline static constexpr Members::ReadOnlyProperty<Visibility> ComputedVerticalScrollBarVisibilityProperty{"ComputedVerticalScrollBarVisibility"};
+    inline static constexpr Members::AttachedProperty<ScrollBarVisibility> HorizontalScrollBarVisibilityProperty{"HorizontalScrollBarVisibility"};
+    inline static constexpr Members::AttachedProperty<ScrollBarVisibility> VerticalScrollBarVisibilityProperty{"VerticalScrollBarVisibility"};
+    inline static constexpr Members::Property<bool> CanHorizontallyScrollProperty{"CanHorizontallyScroll"};
+    inline static constexpr Members::Property<bool> CanVerticallyScrollProperty{"CanVerticallyScroll"};
+    inline static constexpr Members::AttachedProperty<bool> CanContentScrollProperty{"CanContentScroll"};
+    inline static constexpr Members::AttachedProperty<PanningMode> PanningModeProperty{"PanningMode"};
 
 protected:
     Base::Result<void> OnApplyTemplate() noexcept override;
@@ -530,6 +495,8 @@ struct ThumbDragDelta final {
     double verticalChange = 0.0;
 };
 
+namespace Primitives {
+
 class AERO_API Thumb final : public Control {
     AERO_DECLARE_TYPE(Thumb, Control)
 public:
@@ -549,8 +516,7 @@ public:
     Base::Result<bool> EndDrag(
         std::uint32_t pointerId) noexcept;
 
-    inline static constexpr Members::ReadOnlyProperty<bool>
-        IsDraggingProperty{"IsDragging"};
+    inline static constexpr Members::ReadOnlyProperty<bool> IsDraggingProperty{"IsDragging"};
 
 private:
     std::uint32_t pointerId_ = 0U;
@@ -609,19 +575,12 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
 
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
-    inline static constexpr Members::Property<double>
-        MinimumProperty{"Minimum"};
-    inline static constexpr Members::Property<double>
-        MaximumProperty{"Maximum"};
-    inline static constexpr Members::Property<double>
-        ValueProperty{"Value"};
-    inline static constexpr Members::Property<double>
-        ViewportSizeProperty{"ViewportSize"};
-    inline static constexpr Members::Property<bool>
-        IsDirectionReversedProperty{
-            "IsDirectionReversed"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<double> MinimumProperty{"Minimum"};
+    inline static constexpr Members::Property<double> MaximumProperty{"Maximum"};
+    inline static constexpr Members::Property<double> ValueProperty{"Value"};
+    inline static constexpr Members::Property<double> ViewportSizeProperty{"ViewportSize"};
+    inline static constexpr Members::Property<bool> IsDirectionReversedProperty{"IsDirectionReversed"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -634,6 +593,8 @@ private:
     Base::Ref<Thumb> thumb_;
     Base::Ref<RepeatButton> increaseRepeatButton_;
 };
+
+} // namespace Primitives
 
 // WPF-compatible GridSplitter surface. The splitter carries the full
 // resize-policy state even when the hosting grid chooses to apply the delta
@@ -660,19 +621,12 @@ public:
     Base::Result<void> SetPreviewStyle(
         Base::Ref<Aero::Style> value) noexcept;
 
-    inline static constexpr Members::Property<double>
-        DragIncrementProperty{"DragIncrement"};
-    inline static constexpr Members::Property<double>
-        KeyboardIncrementProperty{"KeyboardIncrement"};
-    inline static constexpr Members::Property<GridResizeDirection>
-        ResizeDirectionProperty{"ResizeDirection"};
-    inline static constexpr Members::Property<GridResizeBehavior>
-        ResizeBehaviorProperty{"ResizeBehavior"};
-    inline static constexpr Members::Property<bool>
-        ShowsPreviewProperty{"ShowsPreview"};
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Style>>
-        PreviewStyleProperty{"PreviewStyle"};
+    inline static constexpr Members::Property<double> DragIncrementProperty{"DragIncrement"};
+    inline static constexpr Members::Property<double> KeyboardIncrementProperty{"KeyboardIncrement"};
+    inline static constexpr Members::Property<GridResizeDirection> ResizeDirectionProperty{"ResizeDirection"};
+    inline static constexpr Members::Property<GridResizeBehavior> ResizeBehaviorProperty{"ResizeBehavior"};
+    inline static constexpr Members::Property<bool> ShowsPreviewProperty{"ShowsPreview"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Style>> PreviewStyleProperty{"PreviewStyle"};
 };
 
 struct RangeValueChangedEventArgs final : RoutedEventArgs {
@@ -690,6 +644,8 @@ using RangeValueChangedEventHandler =
         Base::Object*,
         const RangeValueChangedEventArgs&)>;
 
+namespace Primitives {
+
 class AERO_API RangeBase : public Control {
     AERO_DECLARE_TYPE(RangeBase, Control)
 public:
@@ -703,20 +659,15 @@ public:
         double maximum) noexcept;
     Base::Result<bool> SetValue(double value) noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RangeValueChangedEventArgs>
-        ValueChangedEvent{"ValueChanged"};
-    UIElement::RoutedEvent_<
+    inline static constexpr Members::RoutedEvent<RangeValueChangedEventArgs> ValueChangedEvent{"ValueChanged"};
+    UIElement::Event<
         RangeValueChangedEventHandler>
         ValueChanged() noexcept {
-        return Event(ValueChangedEvent);
+        return GetEvent(ValueChangedEvent);
     }
-    inline static constexpr Members::Property<double>
-        MinimumProperty{"Minimum"};
-    inline static constexpr Members::Property<double>
-        MaximumProperty{"Maximum"};
-    inline static constexpr Members::Property<double>
-        ValueProperty{"Value"};
+    inline static constexpr Members::Property<double> MinimumProperty{"Minimum"};
+    inline static constexpr Members::Property<double> MaximumProperty{"Maximum"};
+    inline static constexpr Members::Property<double> ValueProperty{"Value"};
 
 protected:
     explicit RangeBase(TypeId runtimeType) noexcept;
@@ -761,14 +712,10 @@ public:
         double trackLength,
         double minimumThumbLength = 8.0) noexcept;
 
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
-    inline static constexpr Members::Property<double>
-        ViewportSizeProperty{"ViewportSize"};
-    inline static constexpr Members::Property<double>
-        SmallChangeProperty{"SmallChange"};
-    inline static constexpr Members::Property<double>
-        LargeChangeProperty{"LargeChange"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<double> ViewportSizeProperty{"ViewportSize"};
+    inline static constexpr Members::Property<double> SmallChangeProperty{"SmallChange"};
+    inline static constexpr Members::Property<double> LargeChangeProperty{"LargeChange"};
 
 protected:
     Base::Result<void> OnApplyTemplate() noexcept override;
@@ -785,10 +732,12 @@ private:
     void SynchronizeTrack() noexcept;
 };
 
-class AERO_API Slider final : public RangeBase {
-    AERO_DECLARE_TYPE(Slider, RangeBase)
+} // namespace Primitives
+
+class AERO_API Slider final : public Primitives::RangeBase {
+    AERO_DECLARE_TYPE(Slider, Primitives::RangeBase)
 public:
-    Slider() noexcept : RangeBase(StaticTypeId()) {}
+    Slider() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~Slider() override = default;
 
     Orientation GetOrientation() const noexcept;
@@ -826,24 +775,15 @@ public:
         double position,
         double trackLength) noexcept;
 
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
-    inline static constexpr Members::Property<double>
-        SmallChangeProperty{"SmallChange"};
-    inline static constexpr Members::Property<double>
-        LargeChangeProperty{"LargeChange"};
-    inline static constexpr Members::Property<TickPlacement>
-        TickPlacementProperty{"TickPlacement"};
-    inline static constexpr Members::Property<double>
-        TickFrequencyProperty{"TickFrequency"};
-    inline static constexpr Members::Property<Base::String>
-        TicksProperty{"Ticks"};
-    inline static constexpr Members::Property<bool>
-        IsSnapToTickEnabledProperty{"IsSnapToTickEnabled"};
-    inline static constexpr Members::Property<bool>
-        IsDirectionReversedProperty{"IsDirectionReversed"};
-    inline static constexpr Members::Property<bool>
-        IsMoveToPointEnabledProperty{"IsMoveToPointEnabled"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<double> SmallChangeProperty{"SmallChange"};
+    inline static constexpr Members::Property<double> LargeChangeProperty{"LargeChange"};
+    inline static constexpr Members::Property<TickPlacement> TickPlacementProperty{"TickPlacement"};
+    inline static constexpr Members::Property<double> TickFrequencyProperty{"TickFrequency"};
+    inline static constexpr Members::Property<Base::String> TicksProperty{"Ticks"};
+    inline static constexpr Members::Property<bool> IsSnapToTickEnabledProperty{"IsSnapToTickEnabled"};
+    inline static constexpr Members::Property<bool> IsDirectionReversedProperty{"IsDirectionReversed"};
+    inline static constexpr Members::Property<bool> IsMoveToPointEnabledProperty{"IsMoveToPointEnabled"};
 
 protected:
     Base::Result<Size> ArrangeOverride(
@@ -869,21 +809,18 @@ public:
     Base::Result<void> SetPlacement(
         TickBarPlacement value) noexcept;
 
-    inline static constexpr Members::Property<
-        Base::Ref<Aero::Media::Brush>>
-        FillProperty{"Fill"};
-    inline static constexpr Members::Property<TickBarPlacement>
-        PlacementProperty{"Placement"};
+    inline static constexpr Members::Property<Base::Ref<Aero::Media::Brush>> FillProperty{"Fill"};
+    inline static constexpr Members::Property<TickBarPlacement> PlacementProperty{"Placement"};
 
 protected:
     Base::Result<void> OnRender(
         Aero::DrawingContext& context) noexcept override;
 };
 
-class AERO_API ProgressBar final : public RangeBase {
-    AERO_DECLARE_TYPE(ProgressBar, RangeBase)
+class AERO_API ProgressBar final : public Primitives::RangeBase {
+    AERO_DECLARE_TYPE(ProgressBar, Primitives::RangeBase)
 public:
-    ProgressBar() noexcept : RangeBase(StaticTypeId()) {}
+    ProgressBar() noexcept : Primitives::RangeBase(StaticTypeId()) {}
     ~ProgressBar() override = default;
 
     bool IsIndeterminate() const noexcept;
@@ -894,10 +831,8 @@ public:
         Orientation value) noexcept;
     double NormalizedValue() const noexcept;
 
-    inline static constexpr Members::Property<bool>
-        IsIndeterminateProperty{"IsIndeterminate"};
-    inline static constexpr Members::Property<Orientation>
-        OrientationProperty{"Orientation"};
+    inline static constexpr Members::Property<bool> IsIndeterminateProperty{"IsIndeterminate"};
+    inline static constexpr Members::Property<Orientation> OrientationProperty{"Orientation"};
 };
 
 

@@ -487,23 +487,27 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         if (!binding) {
             return binding.GetStatus();
         }
-        Base::Result<void> configured =
-            binding.Value()->Configure(
-                path,
-                elementName,
-                mode,
-                updateSourceTrigger,
-                stringFormat,
+        Base::Result<void> configured = binding.Value()->SetPath(path);
+        if (configured) configured = binding.Value()->SetElementName(elementName);
+        if (configured) configured = binding.Value()->SetStringFormat(stringFormat);
+        if (!configured) return configured.GetStatus();
+        binding.Value()->SetMode(mode);
+        binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
+        if (relativeSource != RelativeSourceKind::None) {
+            const Data::RelativeSourceMode sourceMode =
                 relativeSource == RelativeSourceKind::Self
                     ? Data::RelativeSourceMode::Self
                     : relativeSource == RelativeSourceKind::TemplatedParent
                         ? Data::RelativeSourceMode::TemplatedParent
-                        : relativeSource == RelativeSourceKind::Ancestor
-                            ? Data::RelativeSourceMode::Ancestor
-                            : Data::RelativeSourceMode::None,
-                ancestorType);
-        if (!configured) {
-            return configured.GetStatus();
+                        : Data::RelativeSourceMode::FindAncestor;
+            Base::Result<Base::Ref<Data::RelativeSource>> source =
+                Base::MakeRef<Data::RelativeSource>(sourceMode);
+            if (!source) return source.GetStatus();
+            if (sourceMode == Data::RelativeSourceMode::FindAncestor) {
+                configured = source.Value()->SetAncestorType(ancestorType);
+                if (!configured) return configured.GetStatus();
+            }
+            binding.Value()->SetRelativeSource(std::move(source).Value());
         }
         if (authoredLaunchPath) {
             Base::Result<void> assigned =

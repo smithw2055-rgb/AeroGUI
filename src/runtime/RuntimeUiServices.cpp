@@ -1,4 +1,5 @@
 #include "RuntimeUiServices.hpp"
+#include "../controls/TemplateTypes.hpp"
 
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Styling.hpp>
@@ -57,6 +58,7 @@ void RuntimeUiServices::Configure(
     Core::MetadataDomain& metadata,
     Core::EffectiveValueEngine& values,
     Aero::Detail::BindingManager& bindings,
+    Aero::Detail::EventRouter& events,
     Aero::Detail::CommandManager& commands,
     Aero::Detail::StyleManager& styles,
     Controls::TemplateManager& templates,
@@ -66,6 +68,7 @@ void RuntimeUiServices::Configure(
     metadata_ = &metadata;
     values_ = &values;
     bindings_ = &bindings;
+    events_ = &events;
     commands_ = &commands;
     styles_ = &styles;
     templates_ = &templates;
@@ -78,6 +81,7 @@ void RuntimeUiServices::Reset() noexcept {
     metadata_ = nullptr;
     values_ = nullptr;
     bindings_ = nullptr;
+    events_ = nullptr;
     commands_ = nullptr;
     styles_ = nullptr;
     templates_ = nullptr;
@@ -88,7 +92,7 @@ void RuntimeUiServices::Reset() noexcept {
 Base::Result<void> RuntimeUiServices::Apply(
     Aero::Visual& root) noexcept {
     if (!IsConfigured() || metadata_ == nullptr || values_ == nullptr ||
-        bindings_ == nullptr || commands_ == nullptr ||
+        bindings_ == nullptr || events_ == nullptr || commands_ == nullptr ||
         styles_ == nullptr || templates_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -104,6 +108,7 @@ Base::Result<void> RuntimeUiServices::Apply(
         if (node == nullptr) continue;
 
         if (Aero::UIElement* element = node->AsUIElement()) {
+            UiRuntimeAccess::SetEventRouter(*element, events_);
             UiRuntimeAccess::SetCommandRouter(*element, commands_);
         }
 
@@ -157,18 +162,18 @@ Base::Result<void> RuntimeUiServices::Apply(
             const Controls::ControlTemplate* controlTemplate =
                 resolved.Value();
             if (controlTemplate != nullptr) {
-                const Controls::TemplateHandle existing =
+                const Controls::Detail::TemplateHandle existing =
                     templates_->AppliedHandle(control);
                 if (!existing.IsValid() ||
                     templates_->AppliedTemplate(existing) != controlTemplate) {
-                    Base::Result<Controls::TemplateHandle> applied =
+                    Base::Result<Controls::Detail::TemplateHandle> applied =
                         templates_->Apply(control, *controlTemplate);
                     if (!applied) return applied.GetStatus();
                 }
             }
         }
 
-        for (Aero::Visual* child : node->VisualChildren()) {
+        for (Aero::Visual* child : Aero::Detail::VisualAccess::VisualChildren(*node)) {
             pushed = stack.TryPushBack(child);
             if (!pushed) return pushed.GetStatus();
         }
@@ -190,7 +195,7 @@ void RuntimeUiServices::Detach(
         for (std::uint32_t index = 0U; index < reachable.Size(); ++index) {
             Aero::Visual* node = reachable[index];
             if (node == nullptr) continue;
-            for (Aero::Visual* child : node->VisualChildren()) {
+            for (Aero::Visual* child : Aero::Detail::VisualAccess::VisualChildren(*node)) {
                 if (child != nullptr) (void)reachable.TryPushBack(child);
             }
         }
@@ -199,6 +204,7 @@ void RuntimeUiServices::Detach(
     for (Aero::Visual* node : reachable) {
         if (node == nullptr) continue;
         if (Aero::UIElement* ui = node->AsUIElement()) {
+            UiRuntimeAccess::SetEventRouter(*ui, nullptr);
             UiRuntimeAccess::SetCommandRouter(*ui, nullptr);
         }
         Aero::FrameworkElement* element = node->AsFrameworkElement();

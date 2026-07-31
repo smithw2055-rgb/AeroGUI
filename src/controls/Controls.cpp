@@ -1138,7 +1138,7 @@ Base::Result<void> Viewbox::SetStretchDirection(
 
 Base::Result<Size> Viewbox::MeasureOverride(
     Size availableSize) noexcept {
-    UIElement* child = Child();
+    UIElement* child = GetChild();
     if (child == nullptr) {
         if (!LayoutChildren().Empty()) {
             return Base::Status::Failure(
@@ -1204,7 +1204,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
     double scaleY,
     double offsetX,
     double offsetY) noexcept {
-    UIElement* child = Child();
+    UIElement* child = GetChild();
     if (child == nullptr) {
         viewTransform_.Reset();
         return {};
@@ -1241,7 +1241,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
 
 Base::Result<Size> Viewbox::ArrangeOverride(
     Size finalSize) noexcept {
-    UIElement* child = Child();
+    UIElement* child = GetChild();
     if (child == nullptr) {
         Base::Result<void> reset =
             ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
@@ -1418,7 +1418,7 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
         border.top + padding.top,
         border.right + padding.right,
         border.bottom + padding.bottom};
-    UIElement* child = Child();
+    UIElement* child = GetChild();
     if (child == nullptr) return Inflate({}, chrome);
     Base::Result<void> measured = MeasureChild(
         *child, Deflate(availableSize, chrome));
@@ -1427,7 +1427,7 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
 }
 
 Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
-    UIElement* child = Child();
+    UIElement* child = GetChild();
     if (child == nullptr) return finalSize;
     const Thickness border = BorderThickness();
     const Thickness padding = Padding();
@@ -2396,6 +2396,86 @@ Base::Result<Size> ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
         {0.0, 0.0, finalSize.width, finalSize.height});
     if (!arranged) return arranged.GetStatus();
     return finalSize;
+}
+
+} // namespace Aero::Controls
+
+namespace Aero::Controls {
+
+std::uint32_t UIElementCollection::Count() const noexcept {
+    return owner_ != nullptr ? owner_->ChildCountCore() : 0U;
+}
+
+UIElement* UIElementCollection::At(std::uint32_t index) const noexcept {
+    if (owner_ == nullptr) return nullptr;
+    Base::Ref<Base::Object> child = owner_->ChildAtCore(index);
+    return child ? static_cast<UIElement*>(child.Get()) : nullptr;
+}
+
+Base::Result<void> UIElementCollection::Add(Base::Ref<UIElement> child) noexcept {
+    if (owner_ == nullptr || !child) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "UIElementCollection requires an owner and child");
+    }
+    Base::Ref<Base::Object> object(child);
+    return owner_->AddChildCore(object, *child);
+}
+
+Base::Result<void> UIElementCollection::Remove(UIElement& child) noexcept {
+    if (owner_ == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner");
+    }
+    Base::Result<bool> removed = owner_->RemoveChildCore(child);
+    return removed ? Base::Result<void>() : Base::Result<void>(removed.GetStatus());
+}
+
+Base::Result<void> UIElementCollection::Clear() noexcept {
+    return owner_ != nullptr
+        ? owner_->ClearChildrenCore()
+        : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::InvalidState, "UIElementCollection has no owner"));
+}
+
+Base::Result<void> Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
+    if (!childObject || childObject.Get() != &child) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Panel child ownership does not match its UIElement");
+    }
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
+        if (owned.Get() == &child) {
+            return Base::Status::Failure(Base::ErrorCode::AlreadyExists, "Panel already contains the child");
+        }
+    }
+    Base::Result<void> appended = ownedChildren_.TryPushBack(childObject);
+    if (!appended) return appended.GetStatus();
+    return InvalidateMeasure();
+}
+
+Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!LayoutChildren().Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Mounted Panel children must be removed by the presentation runtime");
+    }
+    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
+        if (ownedChildren_[index].Get() != &child) continue;
+        for (std::uint32_t next = index + 1U; next < ownedChildren_.Size(); ++next) {
+            ownedChildren_[next - 1U] = std::move(ownedChildren_[next]);
+        }
+        ownedChildren_.PopBack();
+        Base::Result<void> invalidated = InvalidateMeasure();
+        return invalidated ? Base::Result<bool>(true) : Base::Result<bool>(invalidated.GetStatus());
+    }
+    return false;
+}
+
+Base::Result<void> Panel::ClearChildrenCore() noexcept {
+    Base::Result<void> access = VerifyAccess();
+    if (!access) return access.GetStatus();
+    if (!LayoutChildren().Empty()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Panel children must be detached before clearing the collection");
+    }
+    ownedChildren_.Clear();
+    return InvalidateMeasure();
 }
 
 } // namespace Aero::Controls

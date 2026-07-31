@@ -1,5 +1,6 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
+#include "ContentControlAccess.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>
@@ -13,6 +14,7 @@
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
 #include "PathServicesAccess.hpp"
+#include "ControlCollections.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,6 +22,7 @@
 
 namespace Aero::Controls {
     using namespace Aero::Core;
+    using namespace Aero::Controls::Primitives;
     using Aero::Shapes::Shape;
     using Aero::Shapes::Rectangle;
     using Aero::Shapes::Ellipse;

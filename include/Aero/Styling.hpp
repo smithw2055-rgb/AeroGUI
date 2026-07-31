@@ -35,13 +35,6 @@ class ContentPresenter;
 class ItemsPanelTemplate;
 class ItemsPresenter;
 
-struct TemplateHandle final {
-    std::uint64_t value = 0U;
-    constexpr bool IsValid() const noexcept {
-        return value != 0U;
-    }
-};
-
 class AERO_API TemplateBuildContext final {
 public:
     Base::Result<void> SetRoot(
@@ -440,6 +433,8 @@ private:
 // animation bookkeeping are private to the Controls implementation.
 class AERO_API VisualStateManager final {
 public:
+    static bool GoToState(Control& control, Base::StringView stateName, bool useTransitions = true) noexcept;
+
     ~VisualStateManager() noexcept;
 
     VisualStateManager(const VisualStateManager&) = delete;

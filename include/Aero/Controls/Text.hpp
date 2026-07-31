@@ -66,6 +66,8 @@ private:
 
 class PasswordBox;
 
+namespace Primitives {
+
 class AERO_API TextBoxBase : public Control {
     AERO_DECLARE_TYPE(TextBoxBase, Control)
 protected:
@@ -74,11 +76,13 @@ protected:
     ~TextBoxBase() override = default;
 };
 
+} // namespace Primitives
+
 class AERO_API TextBox final
-    : public TextBoxBase,
+    : public Primitives::TextBoxBase,
       public IScrollInfo,
       public Platform::ITextCompositionClient {
-    AERO_DECLARE_TYPE(TextBox, TextBoxBase)
+    AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
     TextBox() noexcept;
     ~TextBox() override;
@@ -138,12 +142,10 @@ public:
     Base::Result<void> SetCaretBrush(
         Color value) noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        TextChangedEvent{"TextChanged"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> TextChangedEvent{"TextChanged"};
+    UIElement::Event<RoutedEventHandler>
         TextChanged() noexcept {
-        return Event(TextChangedEvent);
+        return GetEvent(TextChangedEvent);
     }
 
     Text::TextSelection Selection() const noexcept;
@@ -206,51 +208,25 @@ public:
     Base::Result<bool> PageVertical(
         double direction) noexcept override;
 
-    inline static constexpr Members::Property<Base::String>
-        TextProperty{"Text"};
-    inline static constexpr Members::Property<bool>
-        IsReadOnlyProperty{"IsReadOnly"};
-    inline static constexpr Members::Property<std::uint32_t>
-        MaxLengthProperty{"MaxLength"};
-    inline static constexpr Members::Property<Base::String>
-        PlaceholderProperty{"Placeholder"};
-    inline static constexpr auto MaximumLengthProperty =
-        MaxLengthProperty;
-    inline static constexpr Members::Property<bool>
-        AcceptsReturnProperty{"AcceptsReturn"};
-    inline static constexpr Members::Property<
-        Text::TextWrapping>
-        TextWrappingProperty{"TextWrapping"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        PlaceholderForegroundProperty{
-            "PlaceholderForeground"};
-    inline static constexpr Members::Property<double>
-        FontSizeProperty{"FontSize"};
-    inline static constexpr auto FontFamilyProperty =
-        FrameworkElement::FontFamilyProperty;
-    inline static constexpr Members::Property<FontWeight>
-        FontWeightProperty{"FontWeight"};
-    inline static constexpr Members::Property<Text::FontStyle>
-        FontStyleProperty{"FontStyle"};
-    inline static constexpr Members::Property<
-        Text::TextAlignment>
-        TextAlignmentProperty{"TextAlignment"};
-    inline static constexpr Members::Property<std::uint32_t>
-        MaxLinesProperty{"MaxLines"};
-    inline static constexpr Members::Property<std::uint32_t>
-        MinLinesProperty{"MinLines"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        ForegroundProperty{"Foreground"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        SelectionBrushProperty{"SelectionBrush"};
-    inline static constexpr Members::Property<double>
-        SelectionOpacityProperty{"SelectionOpacity"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        CaretBrushProperty{"CaretBrush"};
+    inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
+    inline static constexpr Members::Property<bool> IsReadOnlyProperty{"IsReadOnly"};
+    inline static constexpr Members::Property<std::uint32_t> MaxLengthProperty{"MaxLength"};
+    inline static constexpr Members::Property<Base::String> PlaceholderProperty{"Placeholder"};
+    inline static constexpr auto MaximumLengthProperty = MaxLengthProperty;
+    inline static constexpr Members::Property<bool> AcceptsReturnProperty{"AcceptsReturn"};
+    inline static constexpr Members::Property<Text::TextWrapping> TextWrappingProperty{"TextWrapping"};
+    inline static constexpr Members::Property<Aero::Media::Color> PlaceholderForegroundProperty{"PlaceholderForeground"};
+    inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
+    inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
+    inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::Property<Text::FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::Property<Text::TextAlignment> TextAlignmentProperty{"TextAlignment"};
+    inline static constexpr Members::Property<std::uint32_t> MaxLinesProperty{"MaxLines"};
+    inline static constexpr Members::Property<std::uint32_t> MinLinesProperty{"MinLines"};
+    inline static constexpr Members::Property<Aero::Media::Color> ForegroundProperty{"Foreground"};
+    inline static constexpr Members::Property<Aero::Media::Color> SelectionBrushProperty{"SelectionBrush"};
+    inline static constexpr Members::Property<double> SelectionOpacityProperty{"SelectionOpacity"};
+    inline static constexpr Members::Property<Aero::Media::Color> CaretBrushProperty{"CaretBrush"};
 
 protected:
     Base::Result<Size> MeasureOverride(
@@ -344,8 +320,8 @@ private:
             args) noexcept;
 };
 
-class AERO_API PasswordBox final : public TextBoxBase {
-    AERO_DECLARE_TYPE(PasswordBox, TextBoxBase)
+class AERO_API PasswordBox final : public Primitives::TextBoxBase {
+    AERO_DECLARE_TYPE(PasswordBox, Primitives::TextBoxBase)
 public:
     PasswordBox() noexcept;
     ~PasswordBox() override = default;
@@ -385,32 +361,19 @@ public:
     InputMethodHost() const noexcept;
     bool IsComposing() const noexcept;
 
-    inline static constexpr Members::RoutedEvent<
-        RoutedEventArgs>
-        PasswordChangedEvent{"PasswordChanged"};
-    UIElement::RoutedEvent_<RoutedEventHandler>
+    inline static constexpr Members::RoutedEvent<RoutedEventArgs> PasswordChangedEvent{"PasswordChanged"};
+    UIElement::Event<RoutedEventHandler>
         PasswordChanged() noexcept {
-        return Event(PasswordChangedEvent);
+        return GetEvent(PasswordChangedEvent);
     }
-    inline static constexpr Members::Property<Base::String>
-        PasswordCharProperty{"PasswordChar"};
-    inline static constexpr Members::Property<std::uint32_t>
-        MaxLengthProperty{"MaxLength"};
-    inline static constexpr auto MaximumLengthProperty =
-        MaxLengthProperty;
-    inline static constexpr Members::Property<Base::String>
-        PlaceholderProperty{"Placeholder"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        ForegroundProperty{"Foreground"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        SelectionBrushProperty{"SelectionBrush"};
-    inline static constexpr Members::Property<double>
-        SelectionOpacityProperty{"SelectionOpacity"};
-    inline static constexpr Members::Property<
-        Aero::Media::Color>
-        CaretBrushProperty{"CaretBrush"};
+    inline static constexpr Members::Property<Base::String> PasswordCharProperty{"PasswordChar"};
+    inline static constexpr Members::Property<std::uint32_t> MaxLengthProperty{"MaxLength"};
+    inline static constexpr auto MaximumLengthProperty = MaxLengthProperty;
+    inline static constexpr Members::Property<Base::String> PlaceholderProperty{"Placeholder"};
+    inline static constexpr Members::Property<Aero::Media::Color> ForegroundProperty{"Foreground"};
+    inline static constexpr Members::Property<Aero::Media::Color> SelectionBrushProperty{"SelectionBrush"};
+    inline static constexpr Members::Property<double> SelectionOpacityProperty{"SelectionOpacity"};
+    inline static constexpr Members::Property<Aero::Media::Color> CaretBrushProperty{"CaretBrush"};
 
 protected:
     Base::Result<Size> MeasureOverride(

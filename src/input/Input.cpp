@@ -20,7 +20,7 @@ bool IsVisualDescendantOrSelf(
     const Visual& root, const Visual& target) noexcept {
     const Visual* current = &target;
     while (current != &root) {
-        current = current->VisualParent();
+        current = current->GetVisualParent();
         if (current == nullptr) return false;
     }
     return true;
@@ -180,7 +180,7 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "Pointer capture route contains an unarranged element");
         }
-        Visual* parent = current->VisualParent();
+        Visual* parent = current->GetVisualParent();
         if (parent == nullptr) {
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
                 "Pointer capture target is not below the input root");
@@ -241,7 +241,7 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
         return HitTestResult{};
     }
 
-    const Base::Span<Visual* const> children = element.VisualChildren();
+    const Base::Span<Visual* const> children = Aero::Detail::VisualAccess::VisualChildren(element);
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
@@ -272,7 +272,7 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
 }
 
 PointerInputManager::PointerInputManager(HitTestManager& hitTests,
-    RoutedEventManager& events, Visual& root) noexcept
+    EventRouter& events, Visual& root) noexcept
     : hitTests_(&hitTests), events_(&events), root_(&root),
       captures_(&Base::GetDefaultAllocator()),
       states_(&Base::GetDefaultAllocator()) {}
@@ -305,7 +305,7 @@ bool PointerInputManager::HasHover(
     VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
     if (!target.IsValid()) return false;
     ObjectTree* tree = root_ != nullptr
-        ? root_->OwningTree()
+        ? Aero::Detail::VisualAccess::Tree(*root_)
         : nullptr;
     Visual* targetVisual =
         tree != nullptr
@@ -318,9 +318,9 @@ bool PointerInputManager::HasHover(
             tree->ResolveHandle(states_[index].hover);
         while (current != nullptr) {
             if (current == targetVisual) return true;
-            current = current->VisualParent() != nullptr
-                ? current->VisualParent()
-                : current->LogicalParent();
+            current = current->GetVisualParent() != nullptr
+                ? current->GetVisualParent()
+                : current->GetLogicalParent();
         }
     }
     return false;
@@ -341,7 +341,7 @@ bool PointerInputManager::HasPressed(
 
 Base::Result<void> PointerInputManager::UpdateHover(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ObjectTree* tree = root_->OwningTree();
+    ObjectTree* tree = Aero::Detail::VisualAccess::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ObjectTree");
@@ -376,9 +376,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
                 stateIsCurrent = false;
                 break;
             }
-            current = current->VisualParent() != nullptr
-                ? current->VisualParent()
-                : current->LogicalParent();
+            current = current->GetVisualParent() != nullptr
+                ? current->GetVisualParent()
+                : current->GetLogicalParent();
         }
         if (stateIsCurrent) return {};
     }
@@ -397,9 +397,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
         Visual* current = descendant;
         while (current != nullptr) {
             if (current == ancestor) return true;
-            current = current->VisualParent() != nullptr
-                ? current->VisualParent()
-                : current->LogicalParent();
+            current = current->GetVisualParent() != nullptr
+                ? current->GetVisualParent()
+                : current->GetLogicalParent();
         }
         return false;
     };
@@ -424,9 +424,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
                 }
             }
         }
-        current = current->VisualParent() != nullptr
-            ? current->VisualParent()
-            : current->LogicalParent();
+        current = current->GetVisualParent() != nullptr
+            ? current->GetVisualParent()
+            : current->GetLogicalParent();
     }
 
     current = previousVisual;
@@ -449,9 +449,9 @@ Base::Result<void> PointerInputManager::UpdateHover(
                 }
             }
         }
-        current = current->VisualParent() != nullptr
-            ? current->VisualParent()
-            : current->LogicalParent();
+        current = current->GetVisualParent() != nullptr
+            ? current->GetVisualParent()
+            : current->GetLogicalParent();
     }
     states_[index].hover = next;
     return {};
@@ -459,7 +459,7 @@ Base::Result<void> PointerInputManager::UpdateHover(
 
 Base::Result<void> PointerInputManager::UpdatePressed(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    ObjectTree* tree = root_->OwningTree();
+    ObjectTree* tree = Aero::Detail::VisualAccess::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer state requires an ObjectTree");
@@ -519,11 +519,11 @@ Base::Result<void> PointerInputManager::UpdatePressed(
 UIElement* PointerInputManager::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
-    ObjectTree* tree = root_->OwningTree();
+    ObjectTree* tree = Aero::Detail::VisualAccess::Tree(*root_);
     Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
     UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
-    if (element == nullptr || !element->IsLoaded() ||
+    if (element == nullptr || !element->GetIsLoaded() ||
         !IsVisualDescendantOrSelf(*root_, *element)) {
         UIElement* lost = element;
         RemoveCaptureAt(index);
@@ -540,8 +540,8 @@ Base::Result<void> PointerInputManager::CapturePointer(
     std::uint32_t pointerId, UIElement& target) noexcept {
     Base::Result<void> access = root_->VerifyAccess();
     if (!access) return access.GetStatus();
-    ObjectTree* tree = root_->OwningTree();
-    if (tree == nullptr || target.OwningTree() != tree || !target.IsLoaded()) {
+    ObjectTree* tree = Aero::Detail::VisualAccess::Tree(*root_);
+    if (tree == nullptr || Aero::Detail::VisualAccess::Tree(target) != tree || !target.GetIsLoaded()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be loaded in the input tree");
     }
@@ -580,7 +580,7 @@ Base::Result<bool> PointerInputManager::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
-    Visual* visual = root_->OwningTree()->ResolveHandle(
+    Visual* visual = Aero::Detail::VisualAccess::Tree(*root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
         visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -606,12 +606,25 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
             Base::ErrorCode::InvalidArgument,
             "Pointer wheel delta must be finite");
     }
+    RoutedEventHandle previewEvent;
     RoutedEventHandle event;
     switch (input.action) {
-    case PointerAction::Move: event = UIElement::MouseMoveEvent; break;
-    case PointerAction::Down: event = UIElement::MouseDownEvent; break;
-    case PointerAction::Up: event = UIElement::MouseUpEvent; break;
-    case PointerAction::Wheel: event = UIElement::MouseWheelEvent; break;
+    case PointerAction::Move:
+        previewEvent = UIElement::PreviewMouseMoveEvent;
+        event = UIElement::MouseMoveEvent;
+        break;
+    case PointerAction::Down:
+        previewEvent = UIElement::PreviewMouseDownEvent;
+        event = UIElement::MouseDownEvent;
+        break;
+    case PointerAction::Up:
+        previewEvent = UIElement::PreviewMouseUpEvent;
+        event = UIElement::MouseUpEvent;
+        break;
+    case PointerAction::Wheel:
+        previewEvent = UIElement::PreviewMouseWheelEvent;
+        event = UIElement::MouseWheelEvent;
+        break;
     }
     UIElement* captured = CapturedNode(input.pointerId);
     Base::Result<HitTestResult> hit = captured != nullptr
@@ -644,15 +657,16 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
         MouseEventArgs args;
         args.pointerId = input.pointerId;
         args.position = result.hit.position;
-        raised = events_->RaiseEvent(*result.hit.target, event, &args);
+        raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
+        if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     } else if (input.action == PointerAction::Wheel) {
         MouseWheelEventArgs args;
         args.pointerId = input.pointerId;
         args.position = result.hit.position;
         args.deltaX = input.wheelDeltaX;
         args.deltaY = input.wheelDeltaY;
-        raised = events_->RaiseEvent(
-            *result.hit.target, event, &args);
+        raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
+        if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     } else {
         MouseButtonEventArgs args;
         args.pointerId = input.pointerId;
@@ -660,14 +674,15 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
         args.changedButton = input.changedButton;
         args.buttonState = input.action == PointerAction::Down
             ? MouseButtonState::Pressed : MouseButtonState::Released;
-        raised = events_->RaiseEvent(*result.hit.target, event, &args);
+        raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
+        if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     }
     if (!raised) return raised.GetStatus();
     result.routed = true;
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {
-            Visual* visual = root_->OwningTree()->ResolveHandle(
+            Visual* visual = Aero::Detail::VisualAccess::Tree(*root_)->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
                 visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -682,7 +697,7 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
 }
 
 FocusManager::FocusManager(
-    ObjectTree& tree, RoutedEventManager& events) noexcept
+    ObjectTree& tree, EventRouter& events) noexcept
     : tree_(&tree), events_(&events),
       scopeFocus_(&Base::GetDefaultAllocator()) {}
 
@@ -695,14 +710,14 @@ UIElement* FocusManager::FocusedNode() noexcept {
 
 UIElement* FocusManager::FindNavigationScope(UIElement* node) noexcept {
     Visual* current = node != nullptr
-        ? (node->LogicalParent() != nullptr
-            ? node->LogicalParent() : node->VisualParent())
+        ? (node->GetLogicalParent() != nullptr
+            ? node->GetLogicalParent() : node->GetVisualParent())
         : nullptr;
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         if (element != nullptr && element->IsFocusScope()) return element;
-        current = current->LogicalParent() != nullptr
-            ? current->LogicalParent() : current->VisualParent();
+        current = current->GetLogicalParent() != nullptr
+            ? current->GetLogicalParent() : current->GetVisualParent();
     }
     Visual* root = tree_->Root();
     return root != nullptr ? root->AsUIElement() : nullptr;
@@ -733,15 +748,15 @@ Base::Result<void> FocusManager::RememberFocus(
             }
             if (recordIndex == UINT32_MAX) {
                 Base::Result<void> appended = scopeFocus_.TryPushBack(
-                    {scope.Value(), node.Handle()});
+                    {scope.Value(), Aero::Detail::VisualAccess::Handle(node)});
                 if (!appended) return appended.GetStatus();
             } else {
-                scopeFocus_[recordIndex].focused = node.Handle();
+                scopeFocus_[recordIndex].focused = Aero::Detail::VisualAccess::Handle(node);
             }
         }
         if (current == root) break;
-        current = current->LogicalParent() != nullptr
-            ? current->LogicalParent() : current->VisualParent();
+        current = current->GetLogicalParent() != nullptr
+            ? current->GetLogicalParent() : current->GetVisualParent();
     }
     return {};
 }
@@ -759,7 +774,7 @@ UIElement* FocusManager::FocusedElement(UIElement& scope) noexcept {
         Visual* visual = tree_->ResolveHandle(record.focused);
         UIElement* element =
             visual != nullptr ? visual->AsUIElement() : nullptr;
-        if (element == nullptr || !element->IsLoaded()) {
+        if (element == nullptr || !element->GetIsLoaded()) {
             record.focused = {};
             return nullptr;
         }
@@ -772,11 +787,11 @@ Base::Result<void> FocusManager::CollectCandidates(
     Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (Visual* child : parent.VisualChildren()) {
+    for (Visual* child : Aero::Detail::VisualAccess::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
-        if (element != nullptr && element->IsLoaded() &&
+        if (element != nullptr && element->GetIsLoaded() &&
             element->IsEnabled() &&
             element->Focusable() &&
             element->IsTabStop()) {
@@ -813,15 +828,15 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
     if (node == nullptr) return ClearFocus();
     Base::Result<VisualHandle> next = tree_->GetHandle(*node);
     if (!next) return next.GetStatus();
-    if (!node->IsLoaded() || !node->IsEnabled()) {
+    if (!node->GetIsLoaded() || !node->IsEnabled()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target must be loaded and enabled");
     }
     std::uint32_t ancestorCount = 1U;
     Visual* ancestor = node;
     while (ancestor != tree_->Root()) {
-        ancestor = ancestor->LogicalParent() != nullptr
-            ? ancestor->LogicalParent() : ancestor->VisualParent();
+        ancestor = ancestor->GetLogicalParent() != nullptr
+            ? ancestor->GetLogicalParent() : ancestor->GetVisualParent();
         if (ancestor == nullptr) break;
         ++ancestorCount;
     }
@@ -837,8 +852,8 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
                     ancestor->SetKeyboardFocusWithinState(value);
                 if (!updated) return updated.GetStatus();
             }
-            current = current->LogicalParent() != nullptr
-                ? current->LogicalParent() : current->VisualParent();
+            current = current->GetLogicalParent() != nullptr
+                ? current->GetLogicalParent() : current->GetVisualParent();
         }
         return {};
     };
@@ -921,8 +936,8 @@ Base::Result<bool> FocusManager::ClearFocus() noexcept {
                     ancestor->SetKeyboardFocusWithinState(value);
                 if (!updated) return updated.GetStatus();
             }
-            current = current->LogicalParent() != nullptr
-                ? current->LogicalParent() : current->VisualParent();
+            current = current->GetLogicalParent() != nullptr
+                ? current->GetLogicalParent() : current->GetVisualParent();
         }
         return {};
     };
@@ -950,7 +965,7 @@ Base::Result<bool> FocusManager::MoveFocus(
     bool wrap) noexcept {
     UIElement* current = FocusedNode();
     UIElement* scope = FindNavigationScope(current);
-    if (scope == nullptr || !scope->IsLoaded()) {
+    if (scope == nullptr || !scope->GetIsLoaded()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Focus navigation requires a loaded UIElement root");
     }
@@ -997,11 +1012,11 @@ Base::Result<bool> FocusManager::MoveFocus(
 }
 
 KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
-    RoutedEventManager& events, ObjectTree& tree) noexcept
+    EventRouter& events, ObjectTree& tree) noexcept
     : KeyboardInputManager(focus, events, tree, nullptr) {}
 
 KeyboardInputManager::KeyboardInputManager(FocusManager& focus,
-    RoutedEventManager& events, ObjectTree& tree,
+    EventRouter& events, ObjectTree& tree,
     CommandManager* commands) noexcept
     : focus_(&focus), events_(&events), tree_(&tree),
       commands_(commands) {}
@@ -1019,10 +1034,17 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Keyboard key identifier must be non-zero");
     }
+    RoutedEventHandle previewEvent;
     RoutedEventHandle event;
     switch (input.action) {
-    case KeyboardAction::Down: event = UIElement::KeyDownEvent; break;
-    case KeyboardAction::Up: event = UIElement::KeyUpEvent; break;
+    case KeyboardAction::Down:
+        previewEvent = UIElement::PreviewKeyDownEvent;
+        event = UIElement::KeyDownEvent;
+        break;
+    case KeyboardAction::Up:
+        previewEvent = UIElement::PreviewKeyUpEvent;
+        event = UIElement::KeyUpEvent;
+        break;
     }
     KeyboardDispatchResult result;
     result.target = focus_->FocusedNode();
@@ -1046,7 +1068,7 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
         result.target = nullptr;
         return result;
     }
-    if (!result.target->IsLoaded() || result.target->OwningTree() != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::Detail::VisualAccess::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");
     }
@@ -1055,7 +1077,8 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
     args.key = input.key;
     args.modifiers = input.modifiers;
     args.isRepeat = input.isRepeat;
-    Base::Result<void> raised = events_->RaiseEvent(*result.target, event, &args);
+    Base::Result<void> raised = events_->RaiseEvent(*result.target, previewEvent, &args);
+    if (raised) raised = events_->RaiseEvent(*result.target, event, &args);
     if (!raised) return raised.GetStatus();
     result.routed = true;
     if (commands_ != nullptr &&
@@ -1081,7 +1104,7 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
 }
 
 TextInputManager::TextInputManager(FocusManager& focus,
-    RoutedEventManager& events, ObjectTree& tree) noexcept
+    EventRouter& events, ObjectTree& tree) noexcept
     : focus_(&focus), events_(&events), tree_(&tree) {}
 
 Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
@@ -1100,14 +1123,17 @@ Base::Result<TextInputDispatchResult> TextInputManager::Dispatch(
     TextInputDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
-    if (!result.target->IsLoaded() || result.target->OwningTree() != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::Detail::VisualAccess::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input focus target is not loaded in the input tree");
     }
     TextCompositionEventArgs args;
     args.text = input.text;
     Base::Result<void> raised = events_->RaiseEvent(
-        *result.target, UIElement::TextInputEvent, &args);
+        *result.target, UIElement::PreviewTextInputEvent, &args);
+    if (raised) {
+        raised = events_->RaiseEvent(*result.target, UIElement::TextInputEvent, &args);
+    }
     if (!raised) return raised.GetStatus();
     result.routed = true;
     return result;
