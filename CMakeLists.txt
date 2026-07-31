@@ -135,7 +135,8 @@ if(AERO_WITH_MINIAUDIO AND NOT EXISTS
 endif()
 
 add_library(AeroAudio ${AERO_LIBRARY_TYPE}
-    src/audio/Audio.cpp)
+    src/audio/Audio.cpp
+    src/audio/MiniaudioImplementation.cpp)
 add_library(Aero::Audio ALIAS AeroAudio)
 target_include_directories(AeroAudio
     PUBLIC
@@ -871,6 +872,7 @@ add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/UiDocument.cpp
     src/runtime/RuntimePresentationServices.cpp
     src/runtime/ImageRuntime.cpp
+    src/runtime/StbImageImplementation.cpp
     src/runtime/TextRuntime.cpp
     "${_aero_generated_theme_header}")
 add_library(Aero::Runtime ALIAS AeroRuntime)
