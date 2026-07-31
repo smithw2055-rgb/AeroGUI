@@ -10,12 +10,8 @@ class Window;
 
 namespace Aero::App {
 
-// Transitional source-compatibility names. The canonical WPF-facing types are
-// Aero::Application and Aero::Window; the App namespace owns launcher and
-// default application-framework services.
-using Application = ::Aero::Application;
-using Window = ::Aero::Window;
-
+// App owns launcher and default application-framework services. The canonical
+// WPF-facing object types remain Aero::Application and Aero::Window.
 class ApplicationHost;
 class Launcher;
 
