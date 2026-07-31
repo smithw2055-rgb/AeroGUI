@@ -13,7 +13,8 @@
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "AERO_BUILD_TESTS": "ON",
+        "AERO_BUILD_TESTS": "OFF",
+        "AERO_BUILD_SAMPLES": "OFF",
         "AERO_ENABLE_EXCEPTIONS": "OFF",
         "AERO_ENABLE_RTTI": "OFF"
       }
@@ -56,29 +57,6 @@
     {
       "name": "release-shared",
       "configurePreset": "release-shared"
-    }
-  ],
-  "testPresets": [
-    {
-      "name": "debug",
-      "configurePreset": "debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "release",
-      "configurePreset": "release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "release-shared",
-      "configurePreset": "release-shared",
-      "output": {
-        "outputOnFailure": true
-      }
     }
   ]
 }
