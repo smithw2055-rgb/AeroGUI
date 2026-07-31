@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/App/Fwd.hpp>
+#include <Aero/App/Peers.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
