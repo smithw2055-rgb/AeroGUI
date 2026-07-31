@@ -322,9 +322,12 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
     std::uint32_t removed = 0U;
     for (std::uint32_t index = 0U; index < entries_.Size(); ++index) {
         Entry& entry = entries_[index]; if (entry.object != &object) continue;
-        Base::Result<bool> cleared = object.ClearProviderOriginInternal(entry.property, origin);
-        if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) continue;
-        ++removed; Base::Result<void> queued = QueueEntry(index);
+        Base::Result<bool> cleared =
+            object.ClearProviderOriginInternal(entry.property, origin);
+        if (!cleared) return cleared.GetStatus();
+        if (!cleared.Value()) continue;
+        ++removed;
+        Base::Result<void> queued = QueueEntry(index);
         if (!queued) return queued.GetStatus();
     }
     return removed;
@@ -345,8 +348,10 @@ Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     const std::uint32_t index = FindEntryIndex(object, property);
     if (index == InvalidIndex) return {};
-    Base::Result<bool> cleared = object.ClearLocalExpressionInternal(property);
-    if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) return {};
+    Base::Result<bool> cleared =
+        object.ClearLocalExpressionInternal(property);
+    if (!cleared) return cleared.GetStatus();
+    if (!cleared.Value()) return {};
     return QueueEntry(index);
 }
 
@@ -365,8 +370,10 @@ Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     const std::uint32_t index = FindEntryIndex(object, property);
     if (index == InvalidIndex) return {};
-    Base::Result<bool> cleared = object.ClearAnimationValueInternal(property);
-    if (!cleared) return cleared.GetStatus(); if (!cleared.Value()) return {};
+    Base::Result<bool> cleared =
+        object.ClearAnimationValueInternal(property);
+    if (!cleared) return cleared.GetStatus();
+    if (!cleared.Value()) return {};
     return QueueEntry(index);
 }
 

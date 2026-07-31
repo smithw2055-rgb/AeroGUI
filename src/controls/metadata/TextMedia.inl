@@ -196,8 +196,6 @@ Base::Result<void> PopulateControlsTextMedia(
     status = hyperlink.Result();
     if (!status) return status.GetStatus();
 
-    const Presentation::Color transparent{
-        0.0F, 0.0F, 0.0F, 0.0F};
     auto image = Describe<Image>(context);
     image
         .Property(
