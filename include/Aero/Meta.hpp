@@ -7,6 +7,8 @@
 #include <Aero/Core/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
+#include <utility>
+
 namespace Aero::Meta {
 
 using Context = Core::MetadataContext;
@@ -15,6 +17,7 @@ using MemberId = Core::MemberId;
 using Routing = Core::RoutingStrategy;
 using TypeFlags = Core::TypeFlags;
 using PropertyFlags = Core::PropertyFlags;
+using FrameworkPropertyMetadataOptions = Core::FrameworkPropertyMetadataOptions;
 
 
 template<class TOwner, class TValue>
@@ -41,6 +44,26 @@ public:
 
 template<class TValue>
 PropertyOptions(TValue) -> PropertyOptions<TValue>;
+
+template<class TValue>
+class FrameworkPropertyMetadata final
+    : public Core::PropertyOptions<TValue> {
+public:
+    explicit FrameworkPropertyMetadata(
+        TValue defaultValue,
+        Core::FrameworkPropertyMetadataOptions options =
+            Core::FrameworkPropertyMetadataOptions::None) noexcept
+        : Core::PropertyOptions<TValue>(std::move(defaultValue)) {
+        this->Apply(options);
+    }
+};
+
+template<class TValue>
+FrameworkPropertyMetadata(TValue) -> FrameworkPropertyMetadata<TValue>;
+
+template<class TValue>
+FrameworkPropertyMetadata(TValue, Core::FrameworkPropertyMetadataOptions)
+    -> FrameworkPropertyMetadata<TValue>;
 
 template<class T>
 using ValueCodec = Core::ValueCodec<T>;

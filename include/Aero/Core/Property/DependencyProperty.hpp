@@ -17,6 +17,7 @@
 #include <Aero/Core/Property/PropertyValueSource.hpp>
 
 #include <cstdint>
+#include <utility>
 
 namespace Aero::Core {
 
@@ -160,6 +161,17 @@ enum class PropertyMetadataFlags : std::uint32_t {
     AffectsParentArrange = 1U << 6U
 };
 
+enum class FrameworkPropertyMetadataOptions : std::uint32_t {
+    None = 0U,
+    Inherits = 1U << 0U,
+    AffectsMeasure = 1U << 1U,
+    AffectsArrange = 1U << 2U,
+    AffectsRender = 1U << 3U,
+    BindsTwoWayByDefault = 1U << 4U,
+    AffectsParentMeasure = 1U << 5U,
+    AffectsParentArrange = 1U << 6U
+};
+
 enum class UpdateSourceTrigger : std::uint8_t {
     Default = 0U,
     PropertyChanged,
@@ -181,6 +193,35 @@ constexpr PropertyMetadataFlags operator|(
     return static_cast<PropertyMetadataFlags>(
         static_cast<std::uint32_t>(left) |
         static_cast<std::uint32_t>(right));
+}
+
+constexpr FrameworkPropertyMetadataOptions operator|(
+    FrameworkPropertyMetadataOptions left,
+    FrameworkPropertyMetadataOptions right) noexcept {
+    return static_cast<FrameworkPropertyMetadataOptions>(
+        static_cast<std::uint32_t>(left) |
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr FrameworkPropertyMetadataOptions operator&(
+    FrameworkPropertyMetadataOptions left,
+    FrameworkPropertyMetadataOptions right) noexcept {
+    return static_cast<FrameworkPropertyMetadataOptions>(
+        static_cast<std::uint32_t>(left) &
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr bool HasFlag(
+    FrameworkPropertyMetadataOptions value,
+    FrameworkPropertyMetadataOptions flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+constexpr PropertyMetadataFlags ToPropertyMetadataFlags(
+    FrameworkPropertyMetadataOptions options) noexcept {
+    return static_cast<PropertyMetadataFlags>(
+        static_cast<std::uint32_t>(options));
 }
 
 constexpr bool HasFlag(
@@ -258,7 +299,7 @@ using DependencyPropertyChangedEventHandler = Base::Delegate<void(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args)>;
 
-struct PropertyMetadata final {
+struct PropertyMetadata {
     PropertyValue defaultValue;
     PropertyMetadataFlags flags = PropertyMetadataFlags::None;
     UpdateSourceTrigger defaultUpdateSourceTrigger =
@@ -266,6 +307,17 @@ struct PropertyMetadata final {
     ValidateValueCallback validate = nullptr;
     CoerceValueCallback coerce = nullptr;
     PropertyChangedCallback changed = nullptr;
+};
+
+struct FrameworkPropertyMetadata final : PropertyMetadata {
+    FrameworkPropertyMetadata() noexcept = default;
+    explicit FrameworkPropertyMetadata(
+        PropertyValue value,
+        FrameworkPropertyMetadataOptions options =
+            FrameworkPropertyMetadataOptions::None) noexcept {
+        defaultValue = std::move(value);
+        flags = ToPropertyMetadataFlags(options);
+    }
 };
 
 class AERO_API DependencyPropertyKey final {

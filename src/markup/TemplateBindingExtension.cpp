@@ -2,6 +2,8 @@
 
 #include "SchemaInternal.hpp"
 
+#include "../controls/FrameworkTemplateAccess.hpp"
+
 #include <Aero/Styling.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 #include "../ui/RuntimeManagers.hpp"
@@ -114,7 +116,7 @@ TemplateBindingExtension::ProvideValue(
 
     const Core::DependencyProperty* source =
         target.Value()->PropertyRegistry().Find(
-            controlTemplate.TargetType(),
+            controlTemplate.GetTargetType(),
             propertyName);
     const Core::DependencyProperty* destination =
         target.Value()->PropertyRegistry().Find(
@@ -138,7 +140,7 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            controlTemplate.EnsureAuthoredName(
+            Controls::Detail::FrameworkTemplateAccess::EnsureAuthoredName(controlTemplate,
                 *services.targetObject);
         if (!generated) {
             return generated.GetStatus();
@@ -148,7 +150,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        controlTemplate.TryAddTemplateBinding(
+        Controls::Detail::FrameworkTemplateAccess::TryAddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());

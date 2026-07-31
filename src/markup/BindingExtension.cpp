@@ -8,6 +8,8 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
+#include "../controls/FrameworkTemplateAccess.hpp"
+
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Animation.hpp>
@@ -565,7 +567,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.targetObject);
         if (authoredName.Empty()) {
             Base::Result<Base::String> generated =
-                controlTemplate.EnsureAuthoredName(
+                Controls::Detail::FrameworkTemplateAccess::EnsureAuthoredName(controlTemplate,
                     *services.targetObject);
             if (!generated) {
                 return generated.GetStatus();
@@ -575,7 +577,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            controlTemplate.TryAddTemplatedParentBinding(
+            Controls::Detail::FrameworkTemplateAccess::TryAddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,

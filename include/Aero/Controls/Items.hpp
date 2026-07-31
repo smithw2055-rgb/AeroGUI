@@ -189,242 +189,51 @@ inline Base::Result<void> AddBoxedStringItem(
         source, std::move(boxed).Value());
 }
 
-using DeferredObjectFactory = Base::Result<
-    Base::Ref<Base::Object>> (*)(
-        const Base::Ref<Base::Object>& item,
-        void* context) noexcept;
+namespace Detail { class DeferredTemplateAccess; }
 
-// Shared immutable deferred factory used by data and items-panel templates.
-// The payload is the data item for DataTemplate and an empty reference for
-// ItemsPanelTemplate. XAML compilers may retain node IR behind context.
-class AERO_API DeferredObjectProgram final {
-public:
-    Base::Result<void> Configure(
-        DeferredObjectFactory factory,
-        void* context = nullptr) noexcept;
-    Base::Result<void> Configure(
-        DeferredObjectFactory factory,
-        void* context,
-        Base::Ref<Base::Object> factoryOwner) noexcept;
-    Base::Result<void> SetBaseUri(
-        const Base::ResourceUri& value) noexcept;
-    Base::Result<void> Seal() noexcept;
-    Base::Result<Base::Ref<Base::Object>> Instantiate(
-        const Base::Ref<Base::Object>& payload = {}) const noexcept;
-
-    DeferredObjectFactory Factory() const noexcept {
-        return factory_;
-    }
-    void* FactoryContext() const noexcept {
-        return context_;
-    }
-    const Base::Ref<Base::Object>& FactoryOwner() const noexcept {
-        return factoryOwner_;
-    }
-    const Base::ResourceUri& BaseUri() const noexcept {
-        return baseUri_;
-    }
-    bool IsValid() const noexcept {
-        return factory_ != nullptr;
-    }
-    bool IsSealed() const noexcept {
-        return sealed_;
-    }
-
-private:
-    DeferredObjectFactory factory_ = nullptr;
-    void* context_ = nullptr;
-    Base::Ref<Base::Object> factoryOwner_;
-    Base::ResourceUri baseUri_;
-    bool sealed_ = false;
-};
-
-using DataTemplateFactory = DeferredObjectFactory;
-
-class AERO_API DataTemplate final : public Base::Object {
+class AERO_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
 public:
-    DataTemplate() noexcept = default;
-    DataTemplate(
-        DataTemplateFactory factory,
-        void* context = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept
-        { (void)program_.Configure(
-            factory, context, std::move(factoryOwner)); }
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Base::Result<void> Configure(
-        DataTemplateFactory factory,
-        void* context = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
-    Base::Result<void> SetDataType(
-        TypeId value) noexcept;
-    Base::Ref<Base::Object> HierarchicalItemsSource() const noexcept {
-        return hierarchicalItemsSource_;
-    }
-    Base::Result<void> SetHierarchicalItemsSource(
-        Base::Ref<Base::Object> value) noexcept {
-        hierarchicalItemsSource_ = std::move(value);
-        return {};
-    }
-    Base::Ref<Base::Object> HierarchicalItemTemplate() const noexcept {
-        return hierarchicalItemTemplate_;
-    }
-    Base::Result<void> SetHierarchicalItemTemplate(
-        Base::Ref<Base::Object> value) noexcept {
-        hierarchicalItemTemplate_ = std::move(value);
-        return {};
-    }
-      Base::Result<void> SetAuthoredVisualTree(
-          const Base::Ref<Base::Object>& value) noexcept;
-      Base::Result<void> TryAddAuthoredTrigger(
-          Base::Ref<Aero::TriggerBase> trigger) noexcept {
-          if (!trigger || program_.IsValid()) {
-              return Base::Status::Failure(
-                  Base::ErrorCode::InvalidState,
-                  "DataTemplate Trigger cannot be added after sealing");
-          }
-          return authoredTriggers_.TryPushBack(
-              std::move(trigger));
-      }
-      void ClearAuthoredTriggers() noexcept {
-          authoredTriggers_.Clear();
-      }
-      Base::Span<const Base::Ref<
-          Aero::TriggerBase>>
-      AuthoredTriggers() const noexcept {
-          return {
-              authoredTriggers_.Data(),
-              authoredTriggers_.Size()};
-      }
-    Base::Result<void> RegisterAuthoredName(
-        Base::StringView name,
-        Base::Object& object) noexcept {
-        return authoredNames_.TryRegister(
-            name, object);
-    }
-    const Aero::NameScope&
-    AuthoredNames() const noexcept {
-        return authoredNames_;
-    }
-    void ClearAuthoredNames() noexcept {
-        authoredNames_.Clear();
-    }
-    const Base::Ref<Base::Object>&
-    AuthoredVisualTree() const noexcept {
-        return authoredVisualTree_;
-    }
-    void ClearAuthoredVisualTree() noexcept {
-        authoredVisualTree_.Reset();
-    }
-    Base::Result<void> Seal() noexcept;
-    TypeId DataType() const noexcept {
-        return dataType_;
-    }
-    ResourceKey ImplicitKey() const noexcept {
-        return ResourceKey::FromType(dataType_);
-    }
-    ResourceDictionary& Resources() noexcept {
-        return resources_;
-    }
-    const ResourceDictionary& Resources() const noexcept {
-        return resources_;
-    }
-    Base::Result<void> SetResources(
-        Base::Ref<ResourceDictionary> value) noexcept;
-    Base::Result<void> SetBaseUri(
-        const Base::ResourceUri& value) noexcept {
-        return program_.SetBaseUri(value);
-    }
-    const Base::ResourceUri& BaseUri() const noexcept {
-        return program_.BaseUri();
-    }
-    Base::Result<Base::Ref<Base::Object>>
-        Instantiate(
-            const Base::Ref<Base::Object>& item) const noexcept;
-    bool IsValid() const noexcept {
-        return program_.IsValid();
-    }
-    DeferredObjectProgram& Program() noexcept {
-        return program_;
-    }
-    const DeferredObjectProgram& Program() const noexcept {
-        return program_;
-    }
+    DataTemplate() noexcept;
+    ~DataTemplate() noexcept override;
+    DataTemplate(const DataTemplate&) = delete;
+    DataTemplate& operator=(const DataTemplate&) = delete;
+
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    TypeId GetDataType() const noexcept;
+    Base::Result<void> SetDataType(TypeId value) noexcept;
+    Base::Ref<Base::Object> GetHierarchicalItemsSource() const noexcept;
+    void SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept;
+    Base::Ref<Base::Object> GetHierarchicalItemTemplate() const noexcept;
+    void SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept;
+    ResourceKey GetImplicitKey() const noexcept;
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
+    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    bool GetIsSealed() const noexcept;
 
 private:
-    DeferredObjectProgram program_;
-    TypeId dataType_ = InvalidTypeId;
-      Base::Ref<Base::Object> hierarchicalItemsSource_;
-      Base::Ref<Base::Object> hierarchicalItemTemplate_;
-      ResourceDictionary resources_;
-      Base::Ref<Base::Object> authoredVisualTree_;
-      Base::Vector<Base::Ref<
-          Aero::TriggerBase>>
-          authoredTriggers_;
-      Aero::NameScope authoredNames_;
-  };
+    friend class Detail::DeferredTemplateAccess;
+    void* state_ = nullptr;
+};
 
-class AERO_API ItemsPanelTemplate final
-    : public Base::Object {
+class AERO_API ItemsPanelTemplate final : public Base::Object {
     AERO_DECLARE_TYPE(ItemsPanelTemplate, Base::Object)
 public:
-    ItemsPanelTemplate() noexcept = default;
-    ItemsPanelTemplate(
-        DeferredObjectFactory factory,
-        void* context = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept
-        { (void)program_.Configure(
-            factory, context, std::move(factoryOwner)); }
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Base::Result<void> Configure(
-        DeferredObjectFactory factory,
-        void* context = nullptr,
-        Base::Ref<Base::Object> factoryOwner = {}) noexcept;
-    Base::Result<void> SetAuthoredVisualTree(
-        const Base::Ref<Base::Object>& value) noexcept;
-    const Base::Ref<Base::Object>&
-    AuthoredVisualTree() const noexcept {
-        return authoredVisualTree_;
-    }
-    void ClearAuthoredVisualTree() noexcept {
-        authoredVisualTree_.Reset();
-    }
-    Base::Result<void> Seal() noexcept;
-    ResourceDictionary& Resources() noexcept {
-        return resources_;
-    }
-    const ResourceDictionary& Resources() const noexcept {
-        return resources_;
-    }
-    Base::Result<void> SetResources(
-        Base::Ref<ResourceDictionary> value) noexcept;
-    Base::Result<void> SetBaseUri(
-        const Base::ResourceUri& value) noexcept {
-        return program_.SetBaseUri(value);
-    }
-    const Base::ResourceUri& BaseUri() const noexcept {
-        return program_.BaseUri();
-    }
-    Base::Result<Base::Ref<Base::Object>>
-        Instantiate() const noexcept;
-    bool IsValid() const noexcept {
-        return program_.IsValid();
-    }
-    DeferredObjectProgram& Program() noexcept {
-        return program_;
-    }
-    const DeferredObjectProgram& Program() const noexcept {
-        return program_;
-    }
+    ItemsPanelTemplate() noexcept;
+    ~ItemsPanelTemplate() noexcept override;
+    ItemsPanelTemplate(const ItemsPanelTemplate&) = delete;
+    ItemsPanelTemplate& operator=(const ItemsPanelTemplate&) = delete;
+
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
+    Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
+    bool GetIsSealed() const noexcept;
 
 private:
-    DeferredObjectProgram program_;
-    ResourceDictionary resources_;
-    Base::Ref<Base::Object> authoredVisualTree_;
+    friend class Detail::DeferredTemplateAccess;
+    void* state_ = nullptr;
 };
 
 class AERO_API ItemContainer : public ContentControl {
@@ -747,11 +556,11 @@ public:
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> OpenedEvent{"Opened"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClosedEvent{"Closed"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         Opened() noexcept {
         return GetEvent(OpenedEvent);
     }
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         Closed() noexcept {
         return GetEvent(ClosedEvent);
     }
@@ -846,11 +655,11 @@ public:
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> CollapsedEvent{"Collapsed"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         Expanded() noexcept {
         return GetEvent(ExpandedEvent);
     }
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         Collapsed() noexcept {
         return GetEvent(CollapsedEvent);
     }
@@ -949,7 +758,7 @@ public:
     }
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectionChangedEvent{"SelectionChanged"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         SelectionChanged() noexcept {
         return GetEvent(SelectionChangedEvent);
     }
@@ -1160,7 +969,7 @@ public:
     // strongly typed selection notification above for model-facing code while
     // also publishing the routed surface used by EventTrigger.
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> SelectionChangedRoutedEvent{"SelectionChanged"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         SelectionChanged() noexcept {
         return GetEvent(
             SelectionChangedRoutedEvent);
@@ -1279,11 +1088,11 @@ public:
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> DropDownOpenedEvent{"DropDownOpened"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> DropDownClosedEvent{"DropDownClosed"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         DropDownOpened() noexcept {
         return GetEvent(DropDownOpenedEvent);
     }
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         DropDownClosed() noexcept {
         return GetEvent(DropDownClosedEvent);
     }
@@ -1361,7 +1170,7 @@ private:
             args) noexcept;
     void OnEditableTextChanged(
         Base::Object* sender,
-        const RoutedEventArgs& args) noexcept;
+        RoutedEventArgs& args) noexcept;
     Base::Result<void>
         UpdateSelectionBox() noexcept;
     Base::Result<void>

@@ -33,7 +33,7 @@ struct RenderNodeSnapshot final {
     Rect layoutSlot;
     Rect clip;
     // LayoutClip is meaningful to rendering only when the element explicitly
-    // requests bounds clipping. Otherwise a RenderTransform (for example the
+    // requests bounds clipping. Otherwise a GetRenderTransform (for example the
     // scale installed by Viewbox) is allowed to paint outside its layout slot.
     bool clipsToBounds = false;
     Size renderSize;

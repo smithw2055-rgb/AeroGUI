@@ -46,7 +46,7 @@ Base::Result<void> AddFrameworkResource(
         return InvalidResource(
             "XAML resource scope is not a FrameworkElement");
     }
-    return element->Resources().TryAdd(key, value);
+    return element->GetResources().TryAdd(key, value);
 }
 
 Base::Result<void> AddApplicationResource(
@@ -82,7 +82,7 @@ ResourceDictionary* ResolveFrameworkScope(
     FrameworkElement* element =
         visual.AsFrameworkElement();
     return element != nullptr
-        ? &element->Resources()
+        ? &element->GetResources()
         : nullptr;
 }
 

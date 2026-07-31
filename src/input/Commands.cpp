@@ -329,36 +329,6 @@ Base::Result<InputBindingHandle> CommandManager::TryAddInputBinding(
     return inputBindings_.Back().handle;
 }
 
-Base::Result<void> CommandManager::SnapshotRoute(
-    UIElement& target,
-    RoutedCommand* command,
-    Base::Vector<RouteBinding>& route) noexcept {
-    Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
-    PruneStaleBindings();
-
-    Base::Vector<Aero::Detail::VisualLease> nodes(&Base::GetDefaultAllocator());
-    Base::Result<void> built = Aero::Detail::BuildEventRoute(
-        target, RoutingStrategy::Bubble, nodes);
-    if (!built) return built.GetStatus();
-
-    for (const Aero::Detail::VisualLease& lease : nodes) {
-        Visual* current = lease.Resolve();
-        if (current == nullptr) continue;
-        const VisualHandle owner = Aero::Detail::VisualAccess::Handle(*current);
-        for (const BindingRecord& record : bindings_) {
-            if (record.owner.index != owner.index ||
-                record.owner.generation != owner.generation ||
-                (command != nullptr && record.binding.GetCommand() != command)) {
-                continue;
-            }
-            Base::Result<void> appended = route.TryPushBack({record.owner, record.binding});
-            if (!appended) return appended.GetStatus();
-        }
-    }
-    return {};
-}
-
 Base::Result<bool> CommandManager::CanExecute(
     ICommand& command,
     const Core::Value& parameter,
@@ -393,26 +363,36 @@ Base::Result<bool> CommandManager::CanExecute(
     RoutedCommand& command,
     const Core::Value& parameter,
     UIElement& target) noexcept {
-    Base::Vector<RouteBinding> route(&Base::GetDefaultAllocator());
-    Base::Result<void> snapshot =
-        SnapshotRoute(target, &command, route);
-    if (!snapshot) return snapshot.GetStatus();
+    Base::Result<void> verified = VerifyTarget(target);
+    if (!verified) return verified.GetStatus();
+    PruneStaleBindings();
+
+    Aero::Detail::EventRoute route;
+    Base::Result<void> built = route.Build(target, RoutingStrategy::Bubble);
+    if (!built) return built.GetStatus();
 
     CanExecuteRoutedEventArgs args;
     args.command = &command;
     args.parameter = parameter;
     args.target = &target;
-    for (const RouteBinding& item : route) {
-        Visual* owner = tree_->ResolveHandle(item.owner);
+    for (const Aero::Detail::VisualLease& lease : route.Nodes()) {
+        Visual* owner = lease.Resolve();
         if (owner == nullptr) continue;
-        const CanExecuteRoutedEventHandler& handler =
-            item.binding.GetCanExecute();
-        if (!handler.Empty()) {
-            handler.Invoke(owner, args);
-        } else if (!item.binding.GetExecuted().Empty()) {
-            args.canExecute = true;
+        const VisualHandle ownerHandle = Aero::Detail::VisualAccess::Handle(*owner);
+        for (const BindingRecord& record : bindings_) {
+            if (record.owner.index != ownerHandle.index ||
+                record.owner.generation != ownerHandle.generation ||
+                record.binding.GetCommand() != &command) {
+                continue;
+            }
+            const CanExecuteRoutedEventHandler& handler = record.binding.GetCanExecute();
+            if (!handler.Empty()) {
+                handler.Invoke(owner, args);
+            } else if (!record.binding.GetExecuted().Empty()) {
+                args.canExecute = true;
+            }
+            if (args.handled || !args.continueRouting) return args.canExecute;
         }
-        if (args.handled || !args.continueRouting) break;
     }
     return args.canExecute;
 }
@@ -421,33 +401,40 @@ Base::Result<bool> CommandManager::Execute(
     RoutedCommand& command,
     const Core::Value& parameter,
     UIElement& target) noexcept {
-    if (!target.IsEnabled()) return false;
-    Base::Result<bool> allowed =
-        CanExecute(command, parameter, target);
+    if (!target.GetIsEnabled()) return false;
+    Base::Result<bool> allowed = CanExecute(command, parameter, target);
     if (!allowed || !allowed.Value()) {
         return allowed ? Base::Result<bool>(false)
                        : Base::Result<bool>(allowed.GetStatus());
     }
 
-    Base::Vector<RouteBinding> route(&Base::GetDefaultAllocator());
-    Base::Result<void> snapshot =
-        SnapshotRoute(target, &command, route);
-    if (!snapshot) return snapshot.GetStatus();
+    PruneStaleBindings();
+    Aero::Detail::EventRoute route;
+    Base::Result<void> built = route.Build(target, RoutingStrategy::Bubble);
+    if (!built) return built.GetStatus();
+
     ExecutedRoutedEventArgs args;
     args.command = &command;
     args.parameter = parameter;
     args.target = &target;
     bool invoked = false;
-    for (const RouteBinding& item : route) {
-        Visual* owner = tree_->ResolveHandle(item.owner);
+    for (const Aero::Detail::VisualLease& lease : route.Nodes()) {
+        Visual* owner = lease.Resolve();
         if (owner == nullptr) continue;
-        const ExecutedRoutedEventHandler& handler =
-            item.binding.GetExecuted();
-        if (!handler.Empty()) {
-            handler.Invoke(owner, args);
-            invoked = true;
+        const VisualHandle ownerHandle = Aero::Detail::VisualAccess::Handle(*owner);
+        for (const BindingRecord& record : bindings_) {
+            if (record.owner.index != ownerHandle.index ||
+                record.owner.generation != ownerHandle.generation ||
+                record.binding.GetCommand() != &command) {
+                continue;
+            }
+            const ExecutedRoutedEventHandler& handler = record.binding.GetExecuted();
+            if (!handler.Empty()) {
+                handler.Invoke(owner, args);
+                invoked = true;
+            }
+            if (args.handled || !args.continueRouting) return invoked;
         }
-        if (args.handled || !args.continueRouting) break;
     }
     return invoked;
 }
@@ -455,19 +442,17 @@ Base::Result<bool> CommandManager::Execute(
 Base::Result<bool> CommandManager::ProcessInput(
     UIElement& target,
     const KeyboardInput& input) noexcept {
-    if (input.action != KeyboardAction::Down ||
-        !target.IsEnabled()) return false;
-    Base::Vector<RouteBinding> route(&Base::GetDefaultAllocator());
-    Base::Result<void> snapshot =
-        SnapshotRoute(target, nullptr, route);
-    if (!snapshot) return snapshot.GetStatus();
+    if (input.action != KeyboardAction::Down || !target.GetIsEnabled()) return false;
+    Base::Result<void> verified = VerifyTarget(target);
+    if (!verified) return verified.GetStatus();
 
+    PruneStaleBindings();
     PruneStaleInputBindings();
-    Base::Vector<Aero::Detail::VisualLease> inputRoute(&Base::GetDefaultAllocator());
-    Base::Result<void> inputRouteBuilt = Aero::Detail::BuildEventRoute(
-        target, RoutingStrategy::Bubble, inputRoute);
-    if (!inputRouteBuilt) return inputRouteBuilt.GetStatus();
-    for (const Aero::Detail::VisualLease& lease : inputRoute) {
+    Aero::Detail::EventRoute route;
+    Base::Result<void> built = route.Build(target, RoutingStrategy::Bubble);
+    if (!built) return built.GetStatus();
+
+    for (const Aero::Detail::VisualLease& lease : route.Nodes()) {
         Visual* current = lease.Resolve();
         if (current == nullptr) continue;
         const VisualHandle owner = Aero::Detail::VisualAccess::Handle(*current);
@@ -478,19 +463,21 @@ Base::Result<bool> CommandManager::ProcessInput(
                 continue;
             }
             RoutedCommand& command = *record.binding->GetCommand();
-            if (!command.MatchesInput(input)) continue;
-            return Execute(command, Core::Value::Unset(), target);
+            if (command.MatchesInput(input)) {
+                return Execute(command, Core::Value::Unset(), target);
+            }
         }
-    }
-
-    for (const RouteBinding& item : route) {
-        RoutedCommand* command = item.binding.GetCommand();
-        if (command == nullptr || !command->MatchesInput(input)) continue;
-        Base::Result<bool> allowed =
-            CanExecute(*command, Core::Value::Unset(), target);
-        if (!allowed) return allowed.GetStatus();
-        if (!allowed.Value()) continue;
-        return Execute(*command, Core::Value::Unset(), target);
+        for (const BindingRecord& record : bindings_) {
+            if (record.owner.index != owner.index ||
+                record.owner.generation != owner.generation) {
+                continue;
+            }
+            RoutedCommand* command = record.binding.GetCommand();
+            if (command == nullptr || !command->MatchesInput(input)) continue;
+            Base::Result<bool> allowed = CanExecute(*command, Core::Value::Unset(), target);
+            if (!allowed) return allowed.GetStatus();
+            if (allowed.Value()) return Execute(*command, Core::Value::Unset(), target);
+        }
     }
     return false;
 }

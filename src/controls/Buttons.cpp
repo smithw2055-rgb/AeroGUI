@@ -1,3 +1,4 @@
+#include "VisualStateManagerAccess.hpp"
 #include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
@@ -359,7 +360,7 @@ Base::Result<void> ControlInteractionManager::Attach(
     if (!handle) return handle.GetStatus();
     ButtonRecord record;
     record.handle = handle.Value();
-    record.wasMouseOver = button.IsMouseOver();
+    record.wasMouseOver = button.GetIsMouseOver();
     if (button.RuntimeType() ==
             ToggleButton::StaticTypeId() ||
         button.RuntimeType() ==
@@ -511,7 +512,7 @@ Base::Result<bool> ControlInteractionManager::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(states_->Clear(button));
+        static_cast<void>(Aero::Controls::Detail::VisualStateManagerAccess::Clear(*states_, button));
     }
     if (button.interactionRuntime_ == this) {
         button.interactionRuntime_ = nullptr;
@@ -546,7 +547,7 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
     Base::Result<void> coerced =
         button.CoerceValue(UIElement::IsEnabledProperty);
     if (!coerced) return coerced.GetStatus();
-    if (!button.IsEnabled() &&
+    if (!button.GetIsEnabled() &&
         focus_->FocusedNode() == &button) {
         Base::Result<bool> cleared = focus_->ClearFocus();
         if (!cleared) return cleared.GetStatus();
@@ -570,12 +571,12 @@ ControlInteractionManager::AdvanceTime(
         ButtonBase* button = ResolveButton(index);
         if (button == nullptr ||
             button->RuntimeType() != RepeatButton::StaticTypeId() ||
-            !button->IsEnabled()) {
+            !button->GetIsEnabled()) {
             continue;
         }
         ButtonRecord& record = buttons_[index];
         const bool active = record.keyboardDown ||
-            (record.pointerDown && button->IsMouseOver());
+            (record.pointerDown && button->GetIsMouseOver());
         if (!active) continue;
         auto& repeat = static_cast<RepeatButton&>(*button);
         record.repeatElapsed += elapsedMilliseconds;
@@ -601,7 +602,7 @@ ControlInteractionManager::AdvanceTime(
 
 Base::Result<void> ControlInteractionManager::InvokeClick(
     ButtonBase& button) noexcept {
-    if (!button.IsEnabled()) return {};
+    if (!button.GetIsEnabled()) return {};
     const TypeId type = button.RuntimeType();
     if (type == ToggleButton::StaticTypeId() ||
         type == CheckBox::StaticTypeId()) {
@@ -721,7 +722,7 @@ ControlInteractionManager::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            states_->GoToState(
+            Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&
@@ -732,9 +733,9 @@ ControlInteractionManager::SyncVisualState(
         return {};
     };
     Base::StringView common = "Normal";
-    if (!button.IsEnabled()) common = "Disabled";
-    else if (button.IsPressed()) common = "Pressed";
-    else if (button.IsMouseOver()) common = "PointerOver";
+    if (!button.GetIsEnabled()) common = "Disabled";
+    else if (button.GetIsPressed()) common = "Pressed";
+    else if (button.GetIsMouseOver()) common = "PointerOver";
     Base::Result<void> synchronized =
         apply("CommonStates", common);
     if (!synchronized) {
@@ -742,7 +743,7 @@ ControlInteractionManager::SyncVisualState(
     }
     synchronized = apply(
         "FocusStates",
-        button.IsKeyboardFocused()
+        button.GetIsKeyboardFocused()
             ? Base::StringView("Focused")
             : Base::StringView("Unfocused"));
     if (!synchronized) {
@@ -770,10 +771,10 @@ ControlInteractionManager::SyncVisualState(
 
 void ControlInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
     if (args.changedButton != MouseButton::Left ||
-        !button.IsEnabled()) return;
+        !button.GetIsEnabled()) return;
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
     ButtonRecord& record = buttons_[index];
@@ -794,7 +795,7 @@ void ControlInteractionManager::OnMouseDown(
 
 void ControlInteractionManager::OnMouseUp(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
     if (args.changedButton != MouseButton::Left) return;
     const std::uint32_t index = FindButton(button);
@@ -807,7 +808,7 @@ void ControlInteractionManager::OnMouseUp(
     record.nextRepeat = 0U;
     args.handled = true;
     if (button.GetClickMode() == ClickMode::Release &&
-        button.IsEnabled() && button.IsMouseOver()) {
+        button.GetIsEnabled() && button.GetIsMouseOver()) {
         static_cast<void>(InvokeClick(button));
     }
     static_cast<void>(
@@ -816,9 +817,9 @@ void ControlInteractionManager::OnMouseUp(
 
 void ControlInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
-    if (!button.IsEnabled() ||
+    if (!button.GetIsEnabled() ||
         (args.key != KeyboardKeySpace &&
             args.key != KeyboardKeyEnter)) return;
     const std::uint32_t index = FindButton(button);
@@ -840,7 +841,7 @@ void ControlInteractionManager::OnKeyDown(
 
 void ControlInteractionManager::OnKeyUp(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
     if (args.key != KeyboardKeySpace &&
         args.key != KeyboardKeyEnter) return;
@@ -852,7 +853,7 @@ void ControlInteractionManager::OnKeyUp(
     buttons_[index].nextRepeat = 0U;
     static_cast<void>(button.SetPressedState(false));
     args.handled = true;
-    if (button.IsEnabled() &&
+    if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
         static_cast<void>(InvokeClick(button));
     }
@@ -862,7 +863,7 @@ void ControlInteractionManager::OnKeyUp(
 
 void ControlInteractionManager::OnFocusChanged(
     Base::Object* sender,
-    const KeyboardFocusChangedEventArgs& args) noexcept {
+    KeyboardFocusChangedEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
@@ -933,9 +934,9 @@ void ControlInteractionManager::OnPointerStateChanged(
         index < buttons_.Size(); ++index) {
         ButtonBase* button = ResolveButton(index);
         if (button != &element) continue;
-        const bool mouseOver = button->IsMouseOver();
+        const bool mouseOver = button->GetIsMouseOver();
         if (mouseOver && !buttons_[index].wasMouseOver &&
-            button->IsEnabled() &&
+            button->GetIsEnabled() &&
             button->GetClickMode() == ClickMode::Hover) {
             static_cast<void>(InvokeClick(*button));
         }

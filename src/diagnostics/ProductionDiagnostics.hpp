@@ -140,11 +140,11 @@ private:
         node.parent = parent != nullptr ? NodeId(Aero::Detail::VisualAccess::Handle(*parent)) : 0U;
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
-            node.bounds = element->LayoutSlot();
-            node.enabled = element->IsEnabled();
-            node.focusable = element->Focusable();
-            node.focused = element->IsKeyboardFocused();
-            node.hidden = !element->IsVisible();
+            node.bounds = element->GetLayoutSlot();
+            node.enabled = element->GetIsEnabled();
+            node.focusable = element->GetFocusable();
+            node.focused = element->GetIsKeyboardFocused();
+            node.hidden = !element->GetIsVisible();
         }
         const Core::TypeId type = visual.RuntimeType();
         const bool isHyperlink =
@@ -310,11 +310,11 @@ private:
         }
         const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
-            node.layoutSlot = element->LayoutSlot();
-            node.renderSize = element->RenderSize();
-            node.layoutRevision = element->LayoutRevision();
-            node.measureValid = element->IsMeasureValid();
-            node.arrangeValid = element->IsArrangeValid();
+            node.layoutSlot = element->GetLayoutSlot();
+            node.renderSize = element->GetRenderSize();
+            node.layoutRevision = element->GetLayoutRevision();
+            node.measureValid = element->GetIsMeasureValid();
+            node.arrangeValid = element->GetIsArrangeValid();
         }
         const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();

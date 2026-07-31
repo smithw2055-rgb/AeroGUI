@@ -32,7 +32,7 @@ struct RoutedEventArgs : EventArgs {
     RoutedEvent routedEvent;
     Base::Object* source = nullptr;
     Base::Object* originalSource = nullptr;
-    mutable bool handled = false;
+    bool handled = false;
 };
 
 struct InputEventArgs : RoutedEventArgs {
@@ -83,13 +83,13 @@ struct KeyboardFocusChangedEventArgs final : RoutedEventArgs {
     UIElement* newFocus = nullptr;
 };
 
-using EventHandler = Base::Delegate<void(Base::Object*, const EventArgs&)>;
-using RoutedEventHandler = Base::Delegate<void(Base::Object*, const RoutedEventArgs&)>;
-using MouseEventHandler = Base::Delegate<void(Base::Object*, const MouseEventArgs&)>;
-using MouseButtonEventHandler = Base::Delegate<void(Base::Object*, const MouseButtonEventArgs&)>;
-using MouseWheelEventHandler = Base::Delegate<void(Base::Object*, const MouseWheelEventArgs&)>;
-using KeyEventHandler = Base::Delegate<void(Base::Object*, const KeyEventArgs&)>;
-using TextCompositionEventHandler = Base::Delegate<void(Base::Object*, const TextCompositionEventArgs&)>;
-using KeyboardFocusChangedEventHandler = Base::Delegate<void(Base::Object*, const KeyboardFocusChangedEventArgs&)>;
+using EventHandler = Base::Delegate<void(Base::Object*, EventArgs&)>;
+using RoutedEventHandler = Base::Delegate<void(Base::Object*, RoutedEventArgs&)>;
+using MouseEventHandler = Base::Delegate<void(Base::Object*, MouseEventArgs&)>;
+using MouseButtonEventHandler = Base::Delegate<void(Base::Object*, MouseButtonEventArgs&)>;
+using MouseWheelEventHandler = Base::Delegate<void(Base::Object*, MouseWheelEventArgs&)>;
+using KeyEventHandler = Base::Delegate<void(Base::Object*, KeyEventArgs&)>;
+using TextCompositionEventHandler = Base::Delegate<void(Base::Object*, TextCompositionEventArgs&)>;
+using KeyboardFocusChangedEventHandler = Base::Delegate<void(Base::Object*, KeyboardFocusChangedEventArgs&)>;
 
 } // namespace Aero

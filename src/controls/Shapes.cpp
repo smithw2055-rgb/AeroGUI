@@ -304,7 +304,7 @@ Base::Result<Size> Rectangle::MeasureOverride(
 Base::Result<void> Rectangle::OnRender(
     DrawingContext& context) noexcept {
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
-    const Size renderSize = RenderSize();
+    const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
         return {};
@@ -445,7 +445,7 @@ Base::Result<Size> Ellipse::MeasureOverride(
 Base::Result<void> Ellipse::OnRender(
     DrawingContext& context) noexcept {
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
-    const Size renderSize = RenderSize();
+    const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
         return {};

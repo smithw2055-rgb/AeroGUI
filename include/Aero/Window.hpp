@@ -17,7 +17,7 @@ struct CancelEventArgs final : RoutedEventArgs {
     mutable bool cancel = false;
 };
 
-using CancelEventHandler = Base::Delegate<void(Base::Object*, const CancelEventArgs&)>;
+using CancelEventHandler = Base::Delegate<void(Base::Object*, CancelEventArgs&)>;
 
 class AERO_API Window : public Controls::ContentControl {
     AERO_DECLARE_TYPE(Window, Controls::ContentControl)
@@ -27,7 +27,7 @@ public:
 
     Base::StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, Base::StringView{}); }
     Base::Result<void> SetTitle(Base::StringView value) noexcept { return SetValue(TitleProperty, value); }
-    Base::StringView GetFontFamily() const noexcept { return Aero::FrameworkElement::FontFamily(); }
+    Base::StringView GetFontFamily() const noexcept { return Aero::FrameworkElement::GetFontFamily(); }
     Base::Result<void> SetFontFamily(Base::StringView value) noexcept { return SetValue(FontFamilyProperty, value); }
     WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
     Base::Result<void> SetWindowState(WindowState value) noexcept;
@@ -62,13 +62,13 @@ public:
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> SourceInitializedEvent{"SourceInitialized"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> StateChangedEvent{"StateChanged"};
 
-    UIElement::Event<CancelEventHandler> Closing() noexcept { return GetEvent(ClosingEvent); }
-    UIElement::Event<RoutedEventHandler> Closed() noexcept { return GetEvent(ClosedEvent); }
-    UIElement::Event<RoutedEventHandler> Activated() noexcept { return GetEvent(ActivatedEvent); }
-    UIElement::Event<RoutedEventHandler> Deactivated() noexcept { return GetEvent(DeactivatedEvent); }
-    UIElement::Event<RoutedEventHandler> ContentRendered() noexcept { return GetEvent(ContentRenderedEvent); }
-    UIElement::Event<RoutedEventHandler> SourceInitialized() noexcept { return GetEvent(SourceInitializedEvent); }
-    UIElement::Event<RoutedEventHandler> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
+    UIElement::Event<CancelEventArgs> Closing() noexcept { return GetEvent(ClosingEvent); }
+    UIElement::Event<RoutedEventArgs> Closed() noexcept { return GetEvent(ClosedEvent); }
+    UIElement::Event<RoutedEventArgs> Activated() noexcept { return GetEvent(ActivatedEvent); }
+    UIElement::Event<RoutedEventArgs> Deactivated() noexcept { return GetEvent(DeactivatedEvent); }
+    UIElement::Event<RoutedEventArgs> ContentRendered() noexcept { return GetEvent(ContentRenderedEvent); }
+    UIElement::Event<RoutedEventArgs> SourceInitialized() noexcept { return GetEvent(SourceInitializedEvent); }
+    UIElement::Event<RoutedEventArgs> StateChanged() noexcept { return GetEvent(StateChangedEvent); }
 
 protected:
     explicit Window(Core::TypeId runtimeType) noexcept : ContentControl(runtimeType) {}

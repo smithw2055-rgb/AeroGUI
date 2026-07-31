@@ -1,6 +1,7 @@
 #include "../ui/ThemeCompatibilityTypes.hpp"
 #include "TemplateCompiler.hpp"
 #include "../data/BindingRuntime.hpp"
+#include "../controls/FrameworkTemplateAccess.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
 #include "../media/AnimationAccess.hpp"
 
@@ -538,7 +539,7 @@ CompilePropertyTriggers(
             return InvalidTemplateCompiler(
                 "ControlTemplate Trigger condition requires Property and Value");
         }
-        TypeId targetType = controlTemplate.TargetType();
+        TypeId targetType = controlTemplate.GetTargetType();
         if (!sourceName.Empty()) {
             const TemplatePrototypeNode* target = FindNode(blueprint, sourceName);
             if (target == nullptr) {
@@ -607,7 +608,7 @@ CompilePropertyTriggers(
                     "ControlTemplate Trigger Setter requires Property");
             }
             const Base::StringView targetName = setterObject->TargetName();
-            TypeId targetType = controlTemplate.TargetType();
+            TypeId targetType = controlTemplate.GetTargetType();
             const TemplatePrototypeNode* target = nullptr;
             if (!targetName.Empty()) {
                 target = FindNode(blueprint, targetName);
@@ -618,7 +619,7 @@ CompilePropertyTriggers(
                     // serialized definition vectors; their trigger mutation
                     // is deferred until that declaration-object runtime is
                     // materialized.
-                    if (controlTemplate.AuthoredNames().Find(
+                    if (Controls::Detail::FrameworkTemplateAccess::AuthoredNames(controlTemplate).Find(
                             targetName) != nullptr) {
                         continue;
                     }
@@ -651,7 +652,7 @@ CompilePropertyTriggers(
         return {};
     };
     for (const Base::Ref<Base::Object>& object :
-         controlTemplate.AuthoredTriggers()) {
+         Controls::Detail::FrameworkTemplateAccess::AuthoredTriggers(controlTemplate)) {
         TemplatePropertyTrigger trigger;
         Base::Result<void> configured;
         if (object && object->RuntimeType() == PropertyTrigger::StaticTypeId()) {
@@ -887,12 +888,12 @@ CompileVisualStates(
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
-         controlTemplate.AuthoredVisualStateGroups()) {
+         Controls::Detail::FrameworkTemplateAccess::AuthoredVisualStateGroups(controlTemplate)) {
         Base::Result<void> compiled = compileGroup(groupObject);
         if (!compiled) return compiled.GetStatus();
     }
     Base::Ref<Base::Object> authoredRoot =
-        controlTemplate.AuthoredVisualTree();
+        Controls::Detail::FrameworkTemplateAccess::AuthoredVisualTree(controlTemplate);
     if (authoredRoot &&
         runtime.Types().IsDerivedFrom(
             authoredRoot->RuntimeType(),
@@ -926,8 +927,8 @@ CompileControlTemplateDefinition(
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
-        controlTemplate.AuthoredVisualTree(),
-        &controlTemplate.AuthoredNames(),
+        Controls::Detail::FrameworkTemplateAccess::AuthoredVisualTree(controlTemplate),
+        &Controls::Detail::FrameworkTemplateAccess::AuthoredNames(controlTemplate),
         edges,
         bindings,
         runtime,
@@ -951,7 +952,7 @@ CompileControlTemplateDefinition(
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
-         controlTemplate.AuthoredTriggers()) {
+         Controls::Detail::FrameworkTemplateAccess::AuthoredTriggers(controlTemplate)) {
         if (!authored) continue;
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
@@ -989,7 +990,7 @@ CompileControlTemplateDefinition(
 
     CompiledTemplateDefinition definition;
     definition.targetType =
-        controlTemplate.TargetType();
+        controlTemplate.GetTargetType();
     definition.blueprint =
         std::move(blueprint).Value();
     for (std::uint32_t nodeIndex = 0U;
@@ -1045,13 +1046,13 @@ CompileControlTemplateDefinition(
         }
         const DependencyProperty* source =
             properties.Find(
-                controlTemplate.TargetType(),
+                controlTemplate.GetTargetType(),
                 contentSource);
         if (source == nullptr) {
             return MissingTemplateProperty(
                 "ContentSource property",
                 contentSource,
-                controlTemplate.TargetType(),
+                controlTemplate.GetTargetType(),
                 runtime.Types());
         }
         TemplateBindingPlan binding;

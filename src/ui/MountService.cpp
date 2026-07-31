@@ -250,7 +250,7 @@ Base::Result<UiMountState> MountService::AttachVisual(
                 FrameworkElement& parent) noexcept
                 -> Base::Result<void> {
             for (FrameworkElement* descendant :
-                 parent.RenderChildren()) {
+                 parent.GetRenderChildren()) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached =
                     renderer_->Attach(

@@ -1,4 +1,5 @@
 #include <Aero/Layout.hpp>
+#include "RoutedHandlerStorage.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -37,6 +38,19 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
     return {ClampDimension(value.width, minimum.width, maximum.width),
         ClampDimension(value.height, minimum.height, maximum.height)};
 }
+
+struct RoutedHandlerRecord final {
+    RoutedEventHandle event;
+    Aero::Detail::RoutedHandlerStorage handler;
+    std::uint64_t sequence = 0U;
+    bool handledEventsToo = false;
+};
+
+struct UIElementHandlerState final {
+    Base::Vector<RoutedHandlerRecord> handlers;
+    std::uint64_t nextSequence = 1U;
+};
+
 
 double AlignmentOffset(double available, double actual, bool center, bool end) noexcept {
     const double remaining = std::max(0.0, available - actual);
@@ -173,7 +187,7 @@ double RoundLayoutValue(double value, double dpiScale) noexcept {
 }
 
 UIElement::UIElement(TypeId runtimeType) noexcept
-    : Visual(runtimeType), handlers_() {}
+    : Visual(runtimeType) {}
 
 UIElement::~UIElement() {
     AERO_ASSERT(manager_ == nullptr);
@@ -181,53 +195,113 @@ UIElement::~UIElement() {
     CleanupHandlers();
 }
 
-Base::Result<void> UIElement::TryAddHandler(
+Base::Result<void> UIElement::TryAddHandlerCore(
     RoutedEventHandle event,
-    const Aero::Detail::RoutedHandlerStorage& handler,
+    const HandlerDescriptor& handler,
     bool handledEventsToo) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!event.IsValid() || handler.Empty()) {
-        return InvalidArgument(
-            "Routed event handler requires a valid event and callback");
+    if (!event.IsValid() || handler.value == nullptr || handler.operations == nullptr ||
+        handler.operations->copy == nullptr || handler.operations->destroy == nullptr ||
+        handler.operations->equals == nullptr || handler.operations->invoke == nullptr ||
+        handler.operations->size > 4U * sizeof(void*) ||
+        handler.operations->alignment > alignof(void*)) {
+        return InvalidArgument("Routed event handler requires a valid event and callback");
     }
-    if (nextHandlerSequence_ == 0U) {
+
+    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    if (state == nullptr) {
+        Base::IAllocator& allocator = Base::GetDefaultAllocator();
+        void* memory = allocator.Allocate({
+            sizeof(UIElementHandlerState),
+            alignof(UIElementHandlerState),
+            Base::MemoryTag::Ui});
+        if (memory == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Routed event handler state allocation failed");
+        }
+        state = new (memory) UIElementHandlerState();
+        handlerState_ = state;
+    }
+    if (state->nextSequence == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Routed event handler sequence space exhausted");
     }
-    HandlerRecord record;
+
+    RoutedHandlerRecord record;
     record.event = event;
-    record.handler = handler;
-    record.sequence = nextHandlerSequence_;
+    record.handler = Aero::Detail::RoutedHandlerStorage(
+        handler.value,
+        handler.operations->size,
+        handler.operations->alignment,
+        handler.argsType,
+        handler.operations->copy,
+        handler.operations->destroy,
+        handler.operations->equals,
+        handler.operations->invoke);
+    record.sequence = state->nextSequence++;
     record.handledEventsToo = handledEventsToo;
-    Base::Result<void> appended = handlers_.TryPushBack(record);
-    if (!appended) return appended.GetStatus();
-    ++nextHandlerSequence_;
-    return {};
+    return state->handlers.TryPushBack(std::move(record));
 }
 
-bool UIElement::RemoveHandler(
+bool UIElement::RemoveHandlerCore(
     RoutedEventHandle event,
-    const Aero::Detail::RoutedHandlerStorage& handler) noexcept {
+    const HandlerDescriptor& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access || !event.IsValid() || handler.Empty()) return false;
-    for (std::uint32_t index = 0U; index < handlers_.Size(); ++index) {
-        if (handlers_[index].event == event &&
-            handlers_[index].handler.Equals(handler)) {
-            for (std::uint32_t current = index + 1U;
-                 current < handlers_.Size(); ++current) {
-                handlers_[current - 1U] = std::move(handlers_[current]);
+    if (!access || !event.IsValid() || handler.value == nullptr ||
+        handler.operations == nullptr || handlerState_ == nullptr) {
+        return false;
+    }
+    Aero::Detail::RoutedHandlerStorage probe(
+        handler.value,
+        handler.operations->size,
+        handler.operations->alignment,
+        handler.argsType,
+        handler.operations->copy,
+        handler.operations->destroy,
+        handler.operations->equals,
+        handler.operations->invoke);
+    auto& handlers = static_cast<UIElementHandlerState*>(handlerState_)->handlers;
+    for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
+        if (handlers[index].event == event && handlers[index].handler.Equals(probe)) {
+            for (std::uint32_t current = index + 1U; current < handlers.Size(); ++current) {
+                handlers[current - 1U] = std::move(handlers[current]);
             }
-            handlers_.PopBack();
+            handlers.PopBack();
             return true;
         }
     }
     return false;
 }
 
+void UIElement::InvokeHandlers(
+    RoutedEventHandle event,
+    RoutedEventArgs& args) noexcept {
+    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    if (state == nullptr) return;
+    const std::uint32_t count = state->handlers.Size();
+    for (std::uint32_t index = 0U;
+         index < count && index < state->handlers.Size();
+         ++index) {
+        const RoutedHandlerRecord record = state->handlers[index];
+        if (record.event == event && (!args.handled || record.handledEventsToo)) {
+            record.handler.Invoke(this, args);
+        }
+    }
+}
+
 void UIElement::CleanupHandlers() noexcept {
-    handlers_.Clear();
+    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    if (state == nullptr) return;
+    state->~UIElementHandlerState();
+    Base::GetDefaultAllocator().Deallocate(
+        state,
+        sizeof(UIElementHandlerState),
+        alignof(UIElementHandlerState),
+        Base::MemoryTag::Ui);
+    handlerState_ = nullptr;
 }
 
 Base::Result<void> UIElement::RaiseEvent(
@@ -276,7 +350,7 @@ Base::Result<void> FrameworkElement::SetLayoutRounding(
     return scaleChanged && enabled ? InvalidateMeasure() : Base::Result<void>();
 }
 
-bool UIElement::ClipToBounds() const noexcept {
+bool UIElement::GetClipToBounds() const noexcept {
     return GetValueOr(ClipToBoundsProperty, false);
 }
 BlendMode UIElement::GetBlendMode() const noexcept {
@@ -289,49 +363,49 @@ Base::Ref<Effect> UIElement::GetEffect() const noexcept {
         EffectProperty,
         Base::Ref<Effect>{});
 }
-bool UIElement::IsHitTestVisible() const noexcept {
+bool UIElement::GetIsHitTestVisible() const noexcept {
     return GetValueOr(IsHitTestVisibleProperty, true);
 }
 Visibility UIElement::GetVisibility() const noexcept {
     return GetValueOr(
         VisibilityProperty, Visibility::Visible);
 }
-bool UIElement::IsEnabled() const noexcept {
+bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValueOr(IsEnabledProperty, true)) return false;
     Visual* parent = GetLogicalParent() != nullptr
         ? GetLogicalParent() : GetVisualParent();
     const UIElement* parentElement =
         parent != nullptr ? parent->AsUIElement() : nullptr;
-    return parentElement == nullptr || parentElement->IsEnabled();
+    return parentElement == nullptr || parentElement->GetIsEnabled();
 }
-bool UIElement::AllowDrop() const noexcept {
+bool UIElement::GetAllowDrop() const noexcept {
     return GetValueOr(AllowDropProperty, false);
 }
-bool UIElement::IsMouseOver() const noexcept {
+bool UIElement::GetIsMouseOver() const noexcept {
     return GetValueOr(IsMouseOverProperty, false);
 }
-bool UIElement::IsPressed() const noexcept {
+bool UIElement::GetIsPressed() const noexcept {
     return GetValueOr(IsPressedProperty, false);
 }
-bool UIElement::IsKeyboardFocused() const noexcept {
+bool UIElement::GetIsKeyboardFocused() const noexcept {
     return GetValueOr(IsKeyboardFocusedProperty, false);
 }
-bool UIElement::IsKeyboardFocusWithin() const noexcept {
+bool UIElement::GetIsKeyboardFocusWithin() const noexcept {
     return GetValueOr(IsKeyboardFocusWithinProperty, false);
 }
-bool UIElement::Focusable() const noexcept {
+bool UIElement::GetFocusable() const noexcept {
     return GetValueOr(FocusableProperty, false);
 }
-bool UIElement::IsTabStop() const noexcept {
+bool UIElement::GetIsTabStop() const noexcept {
     return GetValueOr(IsTabStopProperty, false);
 }
-std::uint32_t UIElement::TabIndex() const noexcept {
+std::uint32_t UIElement::GetTabIndex() const noexcept {
     return GetValueOr(TabIndexProperty, 0U);
 }
-bool UIElement::IsFocusScope() const noexcept {
+bool UIElement::GetIsFocusScope() const noexcept {
     return GetValueOr(IsFocusScopeProperty, false);
 }
-bool FrameworkElement::UseLayoutRounding() const noexcept {
+bool FrameworkElement::GetUseLayoutRounding() const noexcept {
     return GetValueOr(UseLayoutRoundingProperty, false);
 }
 bool FrameworkElement::HasWidth() const noexcept {
@@ -342,27 +416,27 @@ bool FrameworkElement::HasHeight() const noexcept {
     return !GetValueOr(
         HeightProperty, Length::Auto()).isAuto;
 }
-double FrameworkElement::Width() const noexcept {
+double FrameworkElement::GetWidth() const noexcept {
     const Length length =
         GetValueOr(WidthProperty, Length::Auto());
     return length.isAuto ? 0.0 : length.value;
 }
-double FrameworkElement::Height() const noexcept {
+double FrameworkElement::GetHeight() const noexcept {
     const Length length =
         GetValueOr(HeightProperty, Length::Auto());
     return length.isAuto ? 0.0 : length.value;
 }
-Size FrameworkElement::MinSize() const noexcept {
+Size FrameworkElement::GetMinSize() const noexcept {
     return {
         GetValueOr(MinWidthProperty, 0.0),
         GetValueOr(MinHeightProperty, 0.0)};
 }
-Size FrameworkElement::MaxSize() const noexcept {
+Size FrameworkElement::GetMaxSize() const noexcept {
     return {
         GetValueOr(MaxWidthProperty, 1.0e12),
         GetValueOr(MaxHeightProperty, 1.0e12)};
 }
-Thickness FrameworkElement::Margin() const noexcept {
+Thickness FrameworkElement::GetMargin() const noexcept {
     return GetValueOr(MarginProperty, Thickness{});
 }
 HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
@@ -432,15 +506,12 @@ Base::Result<void> UIElement::SetTabIndex(std::uint32_t value) noexcept {
 Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
     return SetValue(IsFocusScopeProperty, value);
 }
-Base::Ref<Transform> UIElement::RenderTransform() const noexcept {
+Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
     Base::Result<Base::Ref<Transform>> value =
         GetValue(RenderTransformProperty);
     return value ? std::move(value).Value() : Base::Ref<Transform>{};
 }
-Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
-    return RenderTransform();
-}
-Point UIElement::RenderTransformOrigin() const noexcept {
+Point UIElement::GetRenderTransformOrigin() const noexcept {
     return GetValueOr(RenderTransformOriginProperty, Point{});
 }
 Base::Result<void> UIElement::SetRenderTransform(
@@ -484,7 +555,7 @@ Base::Result<void> FrameworkElement::ClearHeight() noexcept {
 }
 
 Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
-    const Size maximum = MaxSize();
+    const Size maximum = GetMaxSize();
     if (!IsValidLayoutSize(value) || value.width > maximum.width ||
         value.height > maximum.height) {
         return InvalidArgument("Minimum layout size is invalid");
@@ -497,7 +568,7 @@ Base::Result<void> FrameworkElement::SetMinSize(Size value) noexcept {
 }
 
 Base::Result<void> FrameworkElement::SetMaxSize(Size value) noexcept {
-    const Size minimum = MinSize();
+    const Size minimum = GetMinSize();
     if (!IsValidLayoutSize(value) || value.width < minimum.width ||
         value.height < minimum.height) {
         return InvalidArgument("Maximum layout size is invalid");
@@ -960,17 +1031,17 @@ Base::Result<void> LayoutManager::MeasureElement(
 
     const FrameworkElement* framework = element.AsFrameworkElement();
     const Thickness margin = framework != nullptr
-        ? framework->Margin() : Thickness{};
+        ? framework->GetMargin() : Thickness{};
     const Size minimum = framework != nullptr
-        ? framework->MinSize() : Size{};
+        ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
-        ? framework->MaxSize() : Size{1.0e12, 1.0e12};
+        ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
     const bool hasWidth = framework != nullptr && framework->HasWidth();
     const bool hasHeight = framework != nullptr && framework->HasHeight();
     Size available = Deflate(constraint, margin);
     Base::Ref<Transform> layoutTransform =
         framework != nullptr
-        ? framework->LayoutTransform()
+        ? framework->GetLayoutTransform()
         : Base::Ref<Transform>{};
     Base::Transform2D layoutMatrix;
     if (layoutTransform) {
@@ -987,11 +1058,11 @@ Base::Result<void> LayoutManager::MeasureElement(
     available = ClampSize(available, minimum, maximum);
     if (hasWidth) {
         available.width = ClampDimension(
-            framework->Width(), minimum.width, maximum.width);
+            framework->GetWidth(), minimum.width, maximum.width);
     }
     if (hasHeight) {
         available.height = ClampDimension(
-            framework->Height(), minimum.height, maximum.height);
+            framework->GetHeight(), minimum.height, maximum.height);
     }
 
     element.measuring_ = true;
@@ -1045,9 +1116,9 @@ Base::Result<void> LayoutManager::MeasureElement(
     }
     desired.width = std::max(0.0, desired.width);
     desired.height = std::max(0.0, desired.height);
-    if (framework != nullptr && framework->UseLayoutRounding()) {
-        desired.width = RoundLayoutValue(desired.width, framework->DpiScale());
-        desired.height = RoundLayoutValue(desired.height, framework->DpiScale());
+    if (framework != nullptr && framework->GetUseLayoutRounding()) {
+        desired.width = RoundLayoutValue(desired.width, framework->GetDpiScale());
+        desired.height = RoundLayoutValue(desired.height, framework->GetDpiScale());
     }
     element.previousMeasureConstraint_ = constraint;
     element.desiredSize_ = desired;
@@ -1107,18 +1178,18 @@ Base::Result<void> LayoutManager::ArrangeElement(
     }
     FrameworkElement* framework =
         element.AsFrameworkElement();
-    if (framework != nullptr && framework->UseLayoutRounding()) {
-        slot.x = RoundLayoutValue(slot.x, framework->DpiScale());
-        slot.y = RoundLayoutValue(slot.y, framework->DpiScale());
-        slot.width = RoundLayoutValue(slot.width, framework->DpiScale());
-        slot.height = RoundLayoutValue(slot.height, framework->DpiScale());
+    if (framework != nullptr && framework->GetUseLayoutRounding()) {
+        slot.x = RoundLayoutValue(slot.x, framework->GetDpiScale());
+        slot.y = RoundLayoutValue(slot.y, framework->GetDpiScale());
+        slot.width = RoundLayoutValue(slot.width, framework->GetDpiScale());
+        slot.height = RoundLayoutValue(slot.height, framework->GetDpiScale());
     }
     const Thickness margin = framework != nullptr
-        ? framework->Margin() : Thickness{};
+        ? framework->GetMargin() : Thickness{};
     const Size minimum = framework != nullptr
-        ? framework->MinSize() : Size{};
+        ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
-        ? framework->MaxSize() : Size{1.0e12, 1.0e12};
+        ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
     const bool hasWidth = framework != nullptr && framework->HasWidth();
     const bool hasHeight = framework != nullptr && framework->HasHeight();
     const HorizontalAlignment horizontal = framework != nullptr
@@ -1128,7 +1199,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     const Size contentAvailable = Deflate({slot.width, slot.height}, margin);
     Base::Ref<Transform> layoutTransform =
         framework != nullptr
-        ? framework->LayoutTransform()
+        ? framework->GetLayoutTransform()
         : Base::Ref<Transform>{};
     Base::Transform2D layoutMatrix;
     Size naturalAvailable = contentAvailable;
@@ -1151,7 +1222,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     Size finalSize;
     if (hasWidth) {
         finalSize.width = ClampDimension(
-            framework->Width(), minimum.width, maximum.width);
+            framework->GetWidth(), minimum.width, maximum.width);
     } else if (horizontal == HorizontalAlignment::Stretch) {
         finalSize.width = ClampDimension(
             naturalAvailable.width, minimum.width, maximum.width);
@@ -1162,7 +1233,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     }
     if (hasHeight) {
         finalSize.height = ClampDimension(
-            framework->Height(), minimum.height, maximum.height);
+            framework->GetHeight(), minimum.height, maximum.height);
     } else if (vertical == VerticalAlignment::Stretch) {
         finalSize.height = ClampDimension(
             naturalAvailable.height, minimum.height, maximum.height);
@@ -1237,7 +1308,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
         contentSlot.y,
         renderedFootprint.width,
         renderedFootprint.height};
-    element.layoutClip_ = element.ClipToBounds()
+    element.layoutClip_ = element.GetClipToBounds()
         ? Intersect(contentSlot, renderedSlot)
         : renderedSlot;
     element.arrangeValid_ = true;

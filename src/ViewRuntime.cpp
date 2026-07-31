@@ -154,6 +154,24 @@ private:
 } // namespace
 
 struct ViewRuntime::Impl final {
+    struct InputService final {
+        InputService(
+            ObjectTree& tree,
+            Aero::Detail::EventRouter& events,
+            Visual& root,
+            Aero::Detail::CommandManager* commands) noexcept
+            : focus(tree, events),
+              pointer(hitTests, events, root),
+              keyboard(focus, events, tree, commands),
+              text(focus, events, tree) {}
+
+        Aero::Detail::HitTestManager hitTests;
+        Aero::Detail::FocusManager focus;
+        Aero::Detail::PointerInputManager pointer;
+        Aero::Detail::KeyboardInputManager keyboard;
+        Aero::Detail::TextInputManager text;
+    };
+
     struct FragmentMount final {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
@@ -222,11 +240,23 @@ struct ViewRuntime::Impl final {
     Aero::ResourceDictionary systemResources;
     Aero::ResourceDictionary dynamicResourceEnvironment;
 
-    Aero::Detail::HitTestManager hitTests;
-    Aero::Detail::FocusManager* focus = nullptr;
-    Aero::Detail::PointerInputManager* pointer = nullptr;
-    Aero::Detail::KeyboardInputManager* keyboard = nullptr;
-    Aero::Detail::TextInputManager* textInput = nullptr;
+    InputService* input = nullptr;
+
+    Aero::Detail::HitTestManager* HitTests() noexcept {
+        return input != nullptr ? &input->hitTests : nullptr;
+    }
+    Aero::Detail::FocusManager* InputFocus() noexcept {
+        return input != nullptr ? &input->focus : nullptr;
+    }
+    Aero::Detail::PointerInputManager* PointerInput() noexcept {
+        return input != nullptr ? &input->pointer : nullptr;
+    }
+    Aero::Detail::KeyboardInputManager* KeyboardInput() noexcept {
+        return input != nullptr ? &input->keyboard : nullptr;
+    }
+    Aero::Detail::TextInputManager* TextInput() noexcept {
+        return input != nullptr ? &input->text : nullptr;
+    }
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Aero::Detail::ControlRuntimeAccess::
         HyperlinkInteractionManager* hyperlinkInteractions = nullptr;
@@ -469,7 +499,7 @@ struct ViewRuntime::Impl final {
 
         void Invoke(
             Base::Object*,
-            const Aero::RoutedEventArgs&) noexcept {
+            Aero::RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
                 owner == nullptr ||
                 !runtime->animationEventStatus.IsOk()) {
@@ -868,7 +898,7 @@ struct ViewRuntime::Impl final {
             RootVisual();
         if (rootVisual == nullptr ||
             renderer == nullptr) {
-            hitTests.ClearOverlays();
+            if (HitTests() != nullptr) HitTests()->ClearOverlays();
             return {};
         }
         Base::Vector<Aero::Visual*> stack(
@@ -909,7 +939,7 @@ struct ViewRuntime::Impl final {
                         element =
                             ancestor->AsUIElement();
                     if (element != nullptr &&
-                        !element->IsVisible()) {
+                        !element->GetIsVisible()) {
                         open = false;
                         break;
                     }
@@ -948,12 +978,12 @@ struct ViewRuntime::Impl final {
                                     result =
                                         Aero::Media::TransformPoint(
                                                 currentFramework->
-                                                    LocalVisualTransform(),
+                                                    GetLocalVisualTransform(),
                                                 result);
                                 }
                                 const Aero::Rect slot =
                                         currentElement->
-                                            LayoutSlot();
+                                            GetLayoutSlot();
                                 result.x += slot.x;
                                 result.y += slot.y;
                             }
@@ -981,12 +1011,12 @@ struct ViewRuntime::Impl final {
                                     PlacementTarget();
                         if (target &&
                             target->
-                                IsArrangeValid()) {
+                                GetIsArrangeValid()) {
                             origin =
                                 rootOrigin(*target);
                             origin.y +=
                                 target->
-                                    RenderSize().
+                                    GetRenderSize().
                                         height;
                         }
                     }
@@ -1031,13 +1061,15 @@ struct ViewRuntime::Impl final {
                 renderOverlays.AsSpan(),
                 overlayOrigins.AsSpan());
         if (!render) return render.GetStatus();
-        return hitTests.SetOverlays(
-            inputOverlays.AsSpan(),
-            overlayOrigins.AsSpan());
+        return HitTests() != nullptr
+            ? HitTests()->SetOverlays(
+                  inputOverlays.AsSpan(),
+                  overlayOrigins.AsSpan())
+            : Base::Result<void>();
     }
 
     void ClearOverlays() noexcept {
-        hitTests.ClearOverlays();
+        if (HitTests() != nullptr) HitTests()->ClearOverlays();
         renderOverlays.Clear();
         inputOverlays.Clear();
         overlayOrigins.Clear();
@@ -1098,7 +1130,7 @@ struct ViewRuntime::Impl final {
     Base::Result<void> RestoreOverlayFocus()
         noexcept {
         if (!overlayFocusReturn ||
-            focus == nullptr) {
+            InputFocus() == nullptr) {
             overlayFocusReturn.Reset();
             return {};
         }
@@ -1106,7 +1138,7 @@ struct ViewRuntime::Impl final {
             target =
                 std::move(overlayFocusReturn);
         Base::Result<bool> restored =
-            focus->SetFocus(target.Get());
+            InputFocus()->SetFocus(target.Get());
         if (!restored &&
             restored.GetStatus().code !=
                 Base::ErrorCode::NotFound &&
@@ -1265,12 +1297,11 @@ struct ViewRuntime::Impl final {
                                 GetContextMenu(
                                     *element);
                 if (menu) {
-                    if (focus != nullptr &&
+                    if (InputFocus() != nullptr &&
                         !overlayFocusReturn) {
                         Aero::UIElement*
                             focused =
-                                focus->
-                                    FocusedNode();
+                                InputFocus()->FocusedNode();
                         if (focused != nullptr) {
                             overlayFocusReturn =
                                 Base::Ref<
@@ -1302,9 +1333,9 @@ struct ViewRuntime::Impl final {
                     if (!opened) {
                         return opened.GetStatus();
                     }
-                    if (focus != nullptr) {
+                    if (InputFocus() != nullptr) {
                         Base::Result<bool> focused =
-                            focus->SetFocus(
+                            InputFocus()->SetFocus(
                                 menu.Get());
                         if (!focused) {
                             static_cast<void>(
@@ -2187,7 +2218,7 @@ struct ViewRuntime::Impl final {
                         }
                         transform =
                             static_cast<Aero::FrameworkElement&>(
-                                target).LayoutTransform();
+                                target).GetLayoutTransform();
                     } else {
                         if (!metadata->Types().IsDerivedFrom(
                                 target.RuntimeType(),
@@ -2198,7 +2229,7 @@ struct ViewRuntime::Impl final {
                         }
                         transform =
                             static_cast<Aero::UIElement&>(
-                                target).RenderTransform();
+                                target).GetRenderTransform();
                     }
                 }
                 if (!transform ||
@@ -2360,7 +2391,7 @@ struct ViewRuntime::Impl final {
                     }
                     transform =
                         static_cast<Aero::FrameworkElement&>(
-                            target).LayoutTransform();
+                            target).GetLayoutTransform();
                 } else {
                     if (!metadata->Types().IsDerivedFrom(
                             target.RuntimeType(),
@@ -2371,7 +2402,7 @@ struct ViewRuntime::Impl final {
                     }
                     transform =
                         static_cast<Aero::UIElement&>(
-                            target).RenderTransform();
+                            target).GetRenderTransform();
                 }
                 if (!transform) {
                     return Base::Status::Failure(
@@ -3465,7 +3496,7 @@ struct ViewRuntime::Impl final {
                     auto callback =
                         [eventContext](
                             Base::Object* sender,
-                            const Aero::RoutedEventArgs& args) noexcept {
+                            Aero::RoutedEventArgs& args) noexcept {
                             eventContext->Invoke(sender, args);
                         };
                     Aero::RoutedEventHandler handler(callback);
@@ -3799,16 +3830,7 @@ struct ViewRuntime::Impl final {
         }
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
-            textInput);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            keyboard);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            pointer);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            focus);
+            input);
     }
 
     void DestroyInteractions() noexcept {
@@ -3825,26 +3847,14 @@ struct ViewRuntime::Impl final {
         }
         Base::Result<void> status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
-            focus, *tree, *events);
-        if (!status) return status.GetStatus();
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            pointer, hitTests, *events, *rootVisual);
-        if (!status) return status.GetStatus();
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            keyboard, *focus, *events, *tree, commands);
-        if (!status) return status.GetStatus();
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            textInput, *focus, *events, *tree);
+            input, *tree, *events, *rootVisual, commands);
         if (!status) return status.GetStatus();
 
         if (options.attachControlInteractions) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 controlInteractions,
-                *tree, *events, *pointer, *focus,
+                *tree, *events, *PointerInput(), *InputFocus(),
                 *commands, visualStates);
             if (!status) return status.GetStatus();
             status = controlInteractions->Initialize();
@@ -3852,7 +3862,7 @@ struct ViewRuntime::Impl final {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 hyperlinkInteractions,
-                *tree, *events, *pointer, *focus, *commands);
+                *tree, *events, *PointerInput(), *InputFocus(), *commands);
             if (!status) return status.GetStatus();
             status = hyperlinkInteractions->Initialize();
             if (!status) return status.GetStatus();
@@ -3869,8 +3879,8 @@ struct ViewRuntime::Impl final {
                 sliderInteractions,
                 *tree,
                 *events,
-                *pointer,
-                *focus);
+                *PointerInput(),
+                *InputFocus());
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
@@ -3878,7 +3888,7 @@ struct ViewRuntime::Impl final {
                 listBoxInteractions,
                 *tree,
                 *events,
-                *focus,
+                *InputFocus(),
                 visualStates);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
@@ -3887,7 +3897,7 @@ struct ViewRuntime::Impl final {
                 comboBoxInteractions,
                 *tree,
                 *events,
-                *focus);
+                *InputFocus());
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
@@ -3895,7 +3905,7 @@ struct ViewRuntime::Impl final {
                 treeViewInteractions,
                 *tree,
                 *events,
-                *focus,
+                *InputFocus(),
                 visualStates);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
@@ -3904,7 +3914,7 @@ struct ViewRuntime::Impl final {
                 menuInteractions,
                 *tree,
                 *events,
-                *focus,
+                *InputFocus(),
                 *commands);
             if (!status) return status.GetStatus();
         }
@@ -3913,7 +3923,7 @@ struct ViewRuntime::Impl final {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 textBoxInteractions,
-                *tree, *events, *pointer, *focus,
+                *tree, *events, *PointerInput(), *InputFocus(),
                 *options.clipboard);
             if (!status) return status.GetStatus();
         }
@@ -4668,14 +4678,14 @@ ViewRuntime::Impl::ExecuteAnimationAction(
 
     if (type == Animation::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<Animation::SetFocusAction&>(action);
-        if (!setFocus.Engage() || focus == nullptr) return {};
+        if (!setFocus.Engage() || InputFocus() == nullptr) return {};
         Aero::UIElement* target = owner.AsUIElement();
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "SetFocusAction owner is not a UIElement");
         }
-        Base::Result<bool> focused = focus->SetFocus(target);
+        Base::Result<bool> focused = InputFocus()->SetFocus(target);
         return focused
             ? Base::Result<void>()
             : Base::Result<void>(focused.GetStatus());
@@ -5920,14 +5930,14 @@ ViewRuntime::RunFrame() noexcept {
 Base::Result<Input::PointerDispatchResult>
 ViewRuntime::DispatchPointer(
     const Input::PointerInput& input) noexcept {
-    if (!IsMounted() || impl_->pointer == nullptr) {
+    if (!IsMounted() || impl_->PointerInput() == nullptr) {
         return RuntimeNotInitialized(
             "Pointer input requires a mounted ViewRuntime");
     }
     Base::Result<
         Input::PointerDispatchResult>
         dispatched =
-            impl_->pointer->Dispatch(input);
+            impl_->PointerInput()->Dispatch(input);
     if (!dispatched) {
         return dispatched.GetStatus();
     }
@@ -5957,7 +5967,7 @@ ViewRuntime::DispatchPointer(
 Base::Result<Input::KeyboardDispatchResult>
 ViewRuntime::DispatchKeyboard(
     const Input::KeyboardInput& input) noexcept {
-    if (!IsMounted() || impl_->keyboard == nullptr) {
+    if (!IsMounted() || impl_->KeyboardInput() == nullptr) {
         return RuntimeNotInitialized(
             "Keyboard input requires a mounted ViewRuntime");
     }
@@ -5977,17 +5987,17 @@ ViewRuntime::DispatchKeyboard(
             return result;
         }
     }
-    return impl_->keyboard->Dispatch(input);
+    return impl_->KeyboardInput()->Dispatch(input);
 }
 
 Base::Result<Input::TextInputDispatchResult>
 ViewRuntime::DispatchText(
     const Input::TextInput& input) noexcept {
-    if (!IsMounted() || impl_->textInput == nullptr) {
+    if (!IsMounted() || impl_->TextInput() == nullptr) {
         return RuntimeNotInitialized(
             "Text input requires a mounted ViewRuntime");
     }
-    return impl_->textInput->Dispatch(input);
+    return impl_->TextInput()->Dispatch(input);
 }
 
 Base::Result<std::uint32_t>
@@ -6288,7 +6298,7 @@ ViewRuntime::RoutedEvents() noexcept {
 }
 
 Aero::Detail::FocusManager* ViewRuntime::Focus() noexcept {
-    return impl_ != nullptr ? impl_->focus : nullptr;
+    return impl_ != nullptr ? impl_->InputFocus() : nullptr;
 }
 
 Controls::TemplateManager* ViewRuntime::Templates() noexcept {

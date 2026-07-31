@@ -187,7 +187,7 @@ public:
 
     static bool IsMeasured(
         const Controls::TextBlock& owner) noexcept {
-        return owner.IsMeasureValid();
+        return owner.GetIsMeasureValid();
     }
 
 private:
@@ -253,7 +253,7 @@ private:
             if (!item) continue;
             auto& inlineValue =
                 *static_cast<Documents::Inline*>(item.Get());
-            const Aero::Rect slot = inlineValue.LayoutSlot();
+            const Aero::Rect slot = inlineValue.GetLayoutSlot();
             if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
                 const Aero::Rect rect{
                     slot.x, slot.y, 1.0,
@@ -306,7 +306,7 @@ private:
             if (!item) continue;
             const auto& inlineValue =
                 *static_cast<const Documents::Inline*>(item.Get());
-            const Aero::Rect slot = inlineValue.LayoutSlot();
+            const Aero::Rect slot = inlineValue.GetLayoutSlot();
             if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
                 if (requested == cursor || requested == cursor + 1U) {
                     output = {
@@ -363,7 +363,7 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "TextPointer is not bound to a container");
         }
-        if (!position.container_->IsMeasureValid()) {
+        if (!position.container_->GetIsMeasureValid()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Document character rectangles require a valid measure pass");
@@ -666,7 +666,7 @@ bool NavigationService::Detach() noexcept {
 
 void NavigationService::OnRequestNavigate(
     Base::Object*,
-    const RequestNavigateEventArgs& args) noexcept {
+    RequestNavigateEventArgs& args) noexcept {
     if (args.handled || !handler_ ||
         args.hyperlink == nullptr || args.uri.Empty()) {
         return;

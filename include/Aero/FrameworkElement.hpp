@@ -97,77 +97,65 @@ public:
     const FrameworkElement* AsFrameworkElement() const noexcept override {
         return this;
     }
-    FrameworkElement* RenderParent() const noexcept {
+    FrameworkElement* GetRenderParent() const noexcept {
         Visual* parent = GetVisualParent();
         return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
     }
-    FrameworkElementChildRange RenderChildren() const noexcept {
+    FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);
     }
 
-    bool UseLayoutRounding() const noexcept;
-    double DpiScale() const noexcept { return dpiScale_; }
+    bool GetUseLayoutRounding() const noexcept;
+    double GetDpiScale() const noexcept { return dpiScale_; }
     bool HasWidth() const noexcept;
     bool HasHeight() const noexcept;
-    double Width() const noexcept;
-    double Height() const noexcept;
-    double ActualWidth() const noexcept {
+    double GetWidth() const noexcept;
+    double GetHeight() const noexcept;
+    double GetActualWidth() const noexcept {
         return GetValueOr(
             ActualWidthProperty, 0.0);
     }
-    double ActualHeight() const noexcept {
+    double GetActualHeight() const noexcept {
         return GetValueOr(
             ActualHeightProperty, 0.0);
     }
-    Size MinSize() const noexcept;
-    Size MaxSize() const noexcept;
-    Thickness Margin() const noexcept;
-    Base::Ref<Media::Transform> LayoutTransform() const noexcept;
-    Base::Transform2D LocalVisualTransform() const noexcept;
+    Size GetMinSize() const noexcept;
+    Size GetMaxSize() const noexcept;
+    Thickness GetMargin() const noexcept;
+    Base::Ref<Media::Transform> GetLayoutTransform() const noexcept;
+    Base::Transform2D GetLocalVisualTransform() const noexcept;
     Base::Result<Base::Ref<Base::Object>> GetDataContextResult() const noexcept;
-    Base::StringView FontFamily() const noexcept {
+    Base::StringView GetFontFamily() const noexcept {
         Base::StringView family = GetValueOr(
             FontFamilyProperty, Base::StringView{});
         const FrameworkElement* parent =
-            RenderParent();
+            GetRenderParent();
         while (family.Empty() &&
                parent != nullptr) {
             family = parent->GetValueOr(
                 FontFamilyProperty,
                 Base::StringView{});
-            parent = parent->RenderParent();
+            parent = parent->GetRenderParent();
         }
         return family;
     }
-    ResourceDictionary& Resources() noexcept {
+    ResourceDictionary& GetResources() noexcept {
         return resources_;
     }
-    const ResourceDictionary& Resources() const noexcept {
+    const ResourceDictionary& GetResources() const noexcept {
         return resources_;
     }
     Base::Result<void> SetResources(
         Base::Ref<ResourceDictionary> value) noexcept;
-    DependencyObject* TemplatedParent() const noexcept {
+    DependencyObject* GetTemplatedParent() const noexcept {
         return templatedParent_;
     }
     HorizontalAlignment GetHorizontalAlignment() const noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
-    double GetWidth() const noexcept { return Width(); }
-    double GetHeight() const noexcept { return Height(); }
-    double GetActualWidth() const noexcept { return ActualWidth(); }
-    double GetActualHeight() const noexcept { return ActualHeight(); }
-    Size GetMinSize() const noexcept { return MinSize(); }
-    Size GetMaxSize() const noexcept { return MaxSize(); }
-    Thickness GetMargin() const noexcept { return Margin(); }
-    Base::Ref<Media::Transform> GetLayoutTransform() const noexcept { return LayoutTransform(); }
     Base::Ref<Base::Object> GetDataContext() const noexcept {
         Base::Result<Base::Ref<Base::Object>> value = GetDataContextResult();
         return value ? value.Value() : Base::Ref<Base::Object>{};
     }
-    Base::StringView GetFontFamily() const noexcept { return FontFamily(); }
-    ResourceDictionary& GetResources() noexcept { return Resources(); }
-    const ResourceDictionary& GetResources() const noexcept { return Resources(); }
-    DependencyObject* GetTemplatedParent() const noexcept { return TemplatedParent(); }
 
     inline static constexpr Members::Property<Base::Ref<Base::Object>> DataContextProperty{"DataContext"};
     // A common inherited owner lets Window, controls and text elements share

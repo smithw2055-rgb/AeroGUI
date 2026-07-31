@@ -1,6 +1,8 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
 #include "ContentControlAccess.hpp"
+#include "FrameworkTemplateAccess.hpp"
+#include "DeferredTemplateAccess.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>

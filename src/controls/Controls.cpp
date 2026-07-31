@@ -52,8 +52,8 @@ Base::Result<void> Panel::OnRender(
         BackgroundBrush(),
         Rect{
             0.0, 0.0,
-            RenderSize().width,
-            RenderSize().height});
+            GetRenderSize().width,
+            GetRenderSize().height});
 }
 
 Base::Result<void> Control::OnRender(
@@ -64,8 +64,8 @@ Base::Result<void> Control::OnRender(
         BackgroundBrush(),
         Rect{
             0.0, 0.0,
-            RenderSize().width,
-            RenderSize().height});
+            GetRenderSize().width,
+            GetRenderSize().height});
 }
 
 StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
@@ -96,7 +96,7 @@ Base::Result<Size> StackPanel::MeasureOverride(Size availableSize) noexcept {
         else childAvailable.width = 1.0e12;
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
-        const Size childDesired = child->DesiredSize();
+        const Size childDesired = child->GetDesiredSize();
         if (orientation == Orientation::Vertical) {
             desired.width = std::max(desired.width, childDesired.width);
             desired.height += childDesired.height;
@@ -113,7 +113,7 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     const Orientation orientation = GetOrientation();
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         const Rect slot = orientation == Orientation::Vertical
             ? Rect{0.0, offset, finalSize.width, desired.height}
             : Rect{offset, 0.0, desired.width, finalSize.height};
@@ -167,7 +167,7 @@ Base::Result<Size> DockPanel::MeasureOverride(
         Base::Result<void> measured =
             MeasureChild(*child, remaining);
         if (!measured) return measured.GetStatus();
-        const Size childDesired = child->DesiredSize();
+        const Size childDesired = child->GetDesiredSize();
         const Dock dock = ChildDock(*child);
         if (dock == Dock::Left || dock == Dock::Right) {
             consumedWidth += childDesired.width;
@@ -211,7 +211,7 @@ Base::Result<Size> DockPanel::ArrangeOverride(
             LastChildFill() &&
             index + 1U == children.Size();
         if (!fill) {
-            const Size desired = child->DesiredSize();
+            const Size desired = child->GetDesiredSize();
             switch (ChildDock(*child)) {
             case Dock::Left:
                 slot.width = std::min(
@@ -306,7 +306,7 @@ Base::Result<Size> WrapPanel::MeasureOverride(
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (ItemWidth() > 0.0
                 ? ItemWidth() : desired.width)
@@ -347,7 +347,7 @@ Base::Result<Size> WrapPanel::ArrangeOverride(
     double lineCross = 0.0;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         const double childPrimary = horizontal
             ? (ItemWidth() > 0.0
                 ? ItemWidth() : desired.width)
@@ -446,10 +446,10 @@ Base::Result<Size> UniformGrid::MeasureOverride(
         if (!measured) return measured.GetStatus();
         cellDesired.width = std::max(
             cellDesired.width,
-            child->DesiredSize().width);
+            child->GetDesiredSize().width);
         cellDesired.height = std::max(
             cellDesired.height,
-            child->DesiredSize().height);
+            child->GetDesiredSize().height);
     }
     return Size{
         cellDesired.width * columns,
@@ -521,9 +521,9 @@ Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
         if (!measured) return measured.GetStatus();
         const Point position = ChildPosition(*child);
         desired.width = std::max(
-            desired.width, position.x + child->DesiredSize().width);
+            desired.width, position.x + child->GetDesiredSize().width);
         desired.height = std::max(
-            desired.height, position.y + child->DesiredSize().height);
+            desired.height, position.y + child->GetDesiredSize().height);
     }
     return desired;
 }
@@ -531,7 +531,7 @@ Base::Result<Size> Canvas::MeasureOverride(Size) noexcept {
 Base::Result<Size> Canvas::ArrangeOverride(Size finalSize) noexcept {
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         Point position = ChildPosition(*child);
         Base::Result<EffectiveValueSource> leftSource =
             child->GetValueSource(LeftProperty.Handle());
@@ -932,7 +932,7 @@ Base::Result<Size> Grid::MeasureOverride(
             childWidth, childHeight};
         Base::Result<void> measured = MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
-        const Size childDesired = child->DesiredSize();
+        const Size childDesired = child->GetDesiredSize();
         const double widthShare =
             std::max(0.0, childDesired.width - fixedWidth) /
             static_cast<double>(columnSpan);
@@ -1156,7 +1156,7 @@ Base::Result<Size> Viewbox::MeasureOverride(
         {NaturalConstraint, NaturalConstraint});
     if (!measured) return measured.GetStatus();
 
-    const Size natural = child->DesiredSize();
+    const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
         return Size{};
     }
@@ -1210,7 +1210,7 @@ Base::Result<void> Viewbox::ApplyViewTransform(
         return {};
     }
     Base::Ref<Transform> current =
-        child->RenderTransform();
+        child->GetRenderTransform();
     if (current &&
         (!viewTransform_ ||
          current.Get() != viewTransform_.Get())) {
@@ -1249,7 +1249,7 @@ Base::Result<Size> Viewbox::ArrangeOverride(
         return finalSize;
     }
 
-    const Size natural = child->DesiredSize();
+    const Size natural = child->GetDesiredSize();
     if (natural.width <= 0.0 || natural.height <= 0.0) {
         Base::Result<void> arranged = ArrangeChild(
             *child, {0.0, 0.0, 0.0, 0.0});
@@ -1423,7 +1423,7 @@ Base::Result<Size> Border::MeasureOverride(Size availableSize) noexcept {
     Base::Result<void> measured = MeasureChild(
         *child, Deflate(availableSize, chrome));
     if (!measured) return measured.GetStatus();
-    return Inflate(child->DesiredSize(), chrome);
+    return Inflate(child->GetDesiredSize(), chrome);
 }
 
 Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
@@ -1447,7 +1447,7 @@ Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
 Base::Result<void> Border::OnRender(
     DrawingContext& context) noexcept {
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
-    const Rect bounds{0.0, 0.0, RenderSize().width, RenderSize().height};
+    const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
         return {};
@@ -1574,12 +1574,12 @@ Base::Ref<Brush> TextBlock::ForegroundBrush() const noexcept {
     Base::Ref<Brush> brush = GetValueOr(
         ForegroundProperty, Base::Ref<Brush>{});
     const FrameworkElement* parent =
-        RenderParent();
+        GetRenderParent();
     while (!brush && parent != nullptr) {
         brush = parent->GetValueOr(
             ForegroundProperty,
             Base::Ref<Brush>{});
-        parent = parent->RenderParent();
+        parent = parent->GetRenderParent();
     }
     return brush;
 }
@@ -1598,7 +1598,7 @@ double TextBlock::FontSize() const noexcept {
 }
 
 Base::StringView TextBlock::FontFamily() const noexcept {
-    return FrameworkElement::FontFamily();
+    return FrameworkElement::GetFontFamily();
 }
 
 FontWeight TextBlock::GetFontWeight() const noexcept {
@@ -2012,7 +2012,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
         Detail::TextLayoutRequest request;
         request.text = text;
         request.availableSize = availableSize;
-        request.dpiScale = DpiScale();
+        request.dpiScale = GetDpiScale();
         request.pixelSize =
             static_cast<float>(FontSize());
         request.fontFamily = EffectiveFontFamily();
@@ -2103,7 +2103,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
-        Size childDesired = child->DesiredSize();
+        Size childDesired = child->GetDesiredSize();
         if (wrapping &&
             lineWidth > 0.0 &&
             lineWidth + childDesired.width >
@@ -2122,7 +2122,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             if (!measured) {
                 return measured.GetStatus();
             }
-            childDesired = child->DesiredSize();
+            childDesired = child->GetDesiredSize();
         }
         lineWidth += childDesired.width;
         lineHeight =
@@ -2156,7 +2156,7 @@ Base::Result<Size> TextBlock::ArrangeOverride(
             if (!arranged) return arranged.GetStatus();
             continue;
         }
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         if (wrapping && x > 0.0 &&
             x + desired.width > finalSize.width) {
             y += std::max(
@@ -2185,8 +2185,8 @@ Base::Result<void> TextBlock::OnRender(
         Base::Result<void> filled =
             builder.FillRect(
                 {0.0, 0.0,
-                 RenderSize().width,
-                 RenderSize().height},
+                 GetRenderSize().width,
+                 GetRenderSize().height},
                 background);
         if (!filled) return filled.GetStatus();
     }
@@ -2383,7 +2383,7 @@ Base::Result<Size> ContentPresenter::MeasureOverride(
     }
     Base::Result<void> measured = MeasureChild(*content_, availableSize);
     if (!measured) return measured.GetStatus();
-    return content_->DesiredSize();
+    return content_->GetDesiredSize();
 }
 
 Base::Result<Size> ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
@@ -2402,11 +2402,11 @@ Base::Result<Size> ContentPresenter::ArrangeOverride(Size finalSize) noexcept {
 
 namespace Aero::Controls {
 
-std::uint32_t UIElementCollection::Count() const noexcept {
+std::uint32_t UIElementCollection::GetCount() const noexcept {
     return owner_ != nullptr ? owner_->ChildCountCore() : 0U;
 }
 
-UIElement* UIElementCollection::At(std::uint32_t index) const noexcept {
+UIElement* UIElementCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr) return nullptr;
     Base::Ref<Base::Object> child = owner_->ChildAtCore(index);
     return child ? static_cast<UIElement*>(child.Get()) : nullptr;

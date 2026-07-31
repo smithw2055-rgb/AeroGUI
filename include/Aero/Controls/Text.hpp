@@ -143,7 +143,7 @@ public:
         Color value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> TextChangedEvent{"TextChanged"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         TextChanged() noexcept {
         return GetEvent(TextChangedEvent);
     }
@@ -362,7 +362,7 @@ public:
     bool IsComposing() const noexcept;
 
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> PasswordChangedEvent{"PasswordChanged"};
-    UIElement::Event<RoutedEventHandler>
+    UIElement::Event<RoutedEventArgs>
         PasswordChanged() noexcept {
         return GetEvent(PasswordChangedEvent);
     }

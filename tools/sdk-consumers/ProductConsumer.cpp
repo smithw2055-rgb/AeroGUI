@@ -1,4 +1,5 @@
 #include <Aero/App.hpp>
+#include <Aero/App/Launcher.hpp>
 
 #include <type_traits>
 
@@ -52,7 +53,7 @@ protected:
     application.SetShutdownMode(
         Aero::ShutdownMode::OnExplicitShutdown);
     static_cast<void>(application.GetMainWindow());
-    static_cast<void>(application.GetWindows().Count());
+    static_cast<void>(application.GetWindows().GetCount());
     static_cast<void>(application.GetShutdownMode());
     static_cast<void>(window.GetWindowState());
     static_cast<void>(window.GetResizeMode());
@@ -66,7 +67,7 @@ protected:
     ConsumerWindow window;
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
-    static_cast<void>(&Aero::App::Run);
+    static_cast<void>(static_cast<int (*)() noexcept>(&Aero::App::Run));
 }
 
 static_assert(

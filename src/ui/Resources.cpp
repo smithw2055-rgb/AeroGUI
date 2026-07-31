@@ -1039,7 +1039,7 @@ Base::Result<ResourceValue> ResourceResolver::Lookup(
     const FrameworkElement* current = element;
     while (current != nullptr) {
         Base::Result<ResourceValue> local =
-            current->Resources().Lookup(key);
+            current->GetResources().Lookup(key);
         if (local) {
             return local.Value();
         }

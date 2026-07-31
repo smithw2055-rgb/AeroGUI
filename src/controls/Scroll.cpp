@@ -473,7 +473,7 @@ ScrollContentPresenter::PageVertical(
 Base::Result<Size>
 ScrollContentPresenter::MeasureOverride(
     Size availableSize) noexcept {
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
             availableSize);
     }
@@ -514,8 +514,8 @@ ScrollContentPresenter::MeasureOverride(
         if (!synced) return synced.GetStatus();
     } else {
         ScrollData value = data_;
-        value.extentWidth = child->DesiredSize().width;
-        value.extentHeight = child->DesiredSize().height;
+        value.extentWidth = child->GetDesiredSize().width;
+        value.extentHeight = child->GetDesiredSize().height;
         value.viewportWidth = availableSize.width;
         value.viewportHeight = availableSize.height;
         Base::Result<bool> updated = UpdateData(
@@ -531,7 +531,7 @@ ScrollContentPresenter::MeasureOverride(
 Base::Result<Size>
 ScrollContentPresenter::ArrangeOverride(
     Size finalSize) noexcept {
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(
             finalSize);
     }
@@ -565,7 +565,7 @@ void ScrollContentPresenter::OnScrollDataChanged(
     const ScrollData& newData,
     ScrollInputKind kind) noexcept {
     DependencyObject* templatedParent =
-        TemplatedParent();
+        GetTemplatedParent();
     if (templatedParent == nullptr ||
         templatedParent == this ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -1242,13 +1242,13 @@ Base::Result<Size> Track::MeasureOverride(
         if (GetOrientation() == Orientation::Vertical) {
             desired.width = std::max(
                 desired.width,
-                child->DesiredSize().width);
-            desired.height += child->DesiredSize().height;
+                child->GetDesiredSize().width);
+            desired.height += child->GetDesiredSize().height;
         } else {
-            desired.width += child->DesiredSize().width;
+            desired.width += child->GetDesiredSize().width;
             desired.height = std::max(
                 desired.height,
-                child->DesiredSize().height);
+                child->GetDesiredSize().height);
         }
     }
     return desired;
@@ -1864,7 +1864,7 @@ Base::Result<void> Slider::OnRender(
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
-    const Size size = RenderSize();
+    const Size size = GetRenderSize();
     if (size.width <= 0.0 ||
         size.height <= 0.0) {
         return {};
@@ -2075,7 +2075,7 @@ Base::Result<void> TickBar::SetPlacement(
 Base::Result<void> TickBar::OnRender(
     DrawingContext& context) noexcept {
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
-    DependencyObject* parent = TemplatedParent();
+    DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
             parent->RuntimeType(), Slider::StaticTypeId())) {
@@ -2083,7 +2083,7 @@ Base::Result<void> TickBar::OnRender(
     }
 
     const Slider& slider = static_cast<const Slider&>(*parent);
-    const Size size = RenderSize();
+    const Size size = GetRenderSize();
     const bool horizontal =
         Placement() == TickBarPlacement::Top ||
         Placement() == TickBarPlacement::Bottom;
@@ -2301,7 +2301,7 @@ Base::Result<bool> ScrollInteractionManager::Detach(
 
 void ScrollInteractionManager::OnMouseWheel(
     Base::Object* sender,
-    const MouseWheelEventArgs& args) noexcept {
+    MouseWheelEventArgs& args) noexcept {
     auto* viewer = static_cast<ScrollViewer*>(sender);
     if (viewer == nullptr ||
         FindViewer(*viewer) == UINT32_MAX) {
@@ -2529,8 +2529,8 @@ SliderInteractionManager::SetFromPoint(
         horizontal ? point.x : point.y;
     const double length =
         horizontal
-        ? slider.RenderSize().width
-        : slider.RenderSize().height;
+        ? slider.GetRenderSize().width
+        : slider.GetRenderSize().height;
     Base::Result<bool> changed =
         slider.SetValueFromPosition(
             position, length);
@@ -2542,13 +2542,13 @@ SliderInteractionManager::SetFromPoint(
 
 void SliderInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& slider =
         *static_cast<Slider*>(sender);
     const std::uint32_t index =
         Find(slider);
     if (index == UINT32_MAX ||
-        !slider.IsEnabled() ||
+        !slider.GetIsEnabled() ||
         args.changedButton !=
             MouseButton::Left) {
         return;
@@ -2566,8 +2566,8 @@ void SliderInteractionManager::OnMouseDown(
         horizontal ? local.x : local.y;
     const double length =
         horizontal
-        ? slider.RenderSize().width
-        : slider.RenderSize().height;
+        ? slider.GetRenderSize().width
+        : slider.GetRenderSize().height;
     const double range =
         slider.Maximum() - slider.Minimum();
     double normalized = range > 0.0
@@ -2609,7 +2609,7 @@ void SliderInteractionManager::OnMouseDown(
 
 void SliderInteractionManager::OnMouseMove(
     Base::Object* sender,
-    const MouseEventArgs& args) noexcept {
+    MouseEventArgs& args) noexcept {
     auto& slider =
         *static_cast<Slider*>(sender);
     const std::uint32_t index =
@@ -2627,7 +2627,7 @@ void SliderInteractionManager::OnMouseMove(
 
 void SliderInteractionManager::OnMouseUp(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& slider =
         *static_cast<Slider*>(sender);
     const std::uint32_t index =
@@ -2651,11 +2651,11 @@ void SliderInteractionManager::OnMouseUp(
 
 void SliderInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& slider =
         *static_cast<Slider*>(sender);
     if (Find(slider) == UINT32_MAX ||
-        !slider.IsEnabled()) {
+        !slider.GetIsEnabled()) {
         return;
     }
     Base::Result<bool> changed = false;

@@ -1,4 +1,5 @@
 #include "ObjectTree.hpp"
+#include "RoutedHandlerStorage.hpp"
 #include "EventRoute.hpp"
 #include "core/metadata/MetadataBehaviorRegistrationStore.hpp"
 #include <Aero/Layout.hpp>
@@ -34,59 +35,6 @@ RoutedEventCatalog& EventCatalog(void* state) noexcept {
 }
 
 } // namespace
-
-Aero::Detail::RoutedHandlerStorage::RoutedHandlerStorage(
-    const RoutedHandlerStorage& other) noexcept
-    : operations_(other.operations_), argsType_(other.argsType_) {
-    if (operations_ != nullptr) operations_->copy(storage_, other.storage_);
-}
-
-Aero::Detail::RoutedHandlerStorage::RoutedHandlerStorage(
-    RoutedHandlerStorage&& other) noexcept
-    : RoutedHandlerStorage(static_cast<const RoutedHandlerStorage&>(other)) {
-    other.Reset();
-}
-
-Aero::Detail::RoutedHandlerStorage& Aero::Detail::RoutedHandlerStorage::operator=(
-    const RoutedHandlerStorage& other) noexcept {
-    if (this != &other) {
-        Reset();
-        operations_ = other.operations_;
-        argsType_ = other.argsType_;
-        if (operations_ != nullptr) operations_->copy(storage_, other.storage_);
-    }
-    return *this;
-}
-
-Aero::Detail::RoutedHandlerStorage& Aero::Detail::RoutedHandlerStorage::operator=(
-    RoutedHandlerStorage&& other) noexcept {
-    if (this != &other) {
-        *this = static_cast<const RoutedHandlerStorage&>(other);
-        other.Reset();
-    }
-    return *this;
-}
-
-Aero::Detail::RoutedHandlerStorage::~RoutedHandlerStorage() noexcept { Reset(); }
-
-void Aero::Detail::RoutedHandlerStorage::Reset() noexcept {
-    if (operations_ != nullptr) operations_->destroy(storage_);
-    operations_ = nullptr;
-    argsType_ = InvalidTypeId;
-}
-
-bool Aero::Detail::RoutedHandlerStorage::Equals(
-    const RoutedHandlerStorage& other) const noexcept {
-    return operations_ == other.operations_ && argsType_ == other.argsType_ &&
-        (operations_ == nullptr || operations_->equals(storage_, other.storage_));
-}
-
-void Aero::Detail::RoutedHandlerStorage::Invoke(
-    Base::Object* sender,
-    const RoutedEventArgs& args) const noexcept {
-    AERO_ASSERT(operations_ != nullptr && args.eventArgsType == argsType_);
-    operations_->invoke(storage_, sender, args);
-}
 
 Visual::Visual(TypeId runtimeType) noexcept
     : DependencyObject(runtimeType),
@@ -770,14 +718,7 @@ void EventRouter::InvokeNode(
         }
     }
 
-    const std::uint32_t count = element->handlers_.Size();
-    for (std::uint32_t index = 0U; index < count; ++index) {
-        const UIElement::HandlerRecord record = element->handlers_[index];
-        if (record.event == args.routedEvent &&
-            (!args.handled || record.handledEventsToo)) {
-            record.handler.Invoke(element, args);
-        }
-    }
+    element->InvokeHandlers(args.routedEvent, args);
 }
 
 Base::Result<void> EventRouter::RaiseEvent(
@@ -804,9 +745,8 @@ Base::Result<void> EventRouter::RaiseEvent(
         return NotFound("Routed event was not found");
     }
 
-    Base::Vector<Aero::Detail::VisualLease> route;
-    Base::Result<void> built =
-        BuildEventRoute(source, definition->strategy, route);
+    EventRoute route;
+    Base::Result<void> built = route.Build(source, definition->strategy);
     if (!built) {
         return built;
     }
@@ -823,7 +763,7 @@ Base::Result<void> EventRouter::RaiseEvent(
     }
 
     ++raiseDepth_;
-    for (const Aero::Detail::VisualLease& lease : route) {
+    for (const Aero::Detail::VisualLease& lease : route.Nodes()) {
         Visual* node = lease.Resolve();
         if (node != nullptr) InvokeNode(*node, args);
     }

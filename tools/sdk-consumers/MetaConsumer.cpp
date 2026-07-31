@@ -17,17 +17,14 @@ public:
     ConsumerControl() noexcept
         : Control(StaticTypeId()) {}
 
-    inline static constexpr Members::Property<bool>
-        ActiveProperty{"Active"};
-    inline static constexpr Members::RoutedEvent<
-        Aero::RoutedEventArgs>
-        ActivatedEvent{"Activated"};
+    inline static constexpr Members::Property<bool> ActiveProperty{"Active"};
+    inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ActivatedEvent{"Activated"};
 
 protected:
     Aero::Base::Result<void> OnRender(
         Aero::DrawingContext& context) noexcept override {
         return context.DrawRectangle(
-            {0.0, 0.0, RenderSize().width, RenderSize().height},
+            {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
             {0.0F, 0.0F, 0.0F, 0.0F});
     }
 };
@@ -50,8 +47,9 @@ Aero::Base::Result<void> RegisterConsumerModule(
         Aero::Meta::Describe<ConsumerControl>(context)
             .Property(
                 ConsumerControl::ActiveProperty,
-                Aero::Meta::PropertyOptions(false)
-                    .AffectsRender())
+                Aero::Meta::FrameworkPropertyMetadata(
+                    false,
+                    Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
             .Event(
                 ConsumerControl::ActivatedEvent,
                 Aero::Meta::Routing::Bubble)

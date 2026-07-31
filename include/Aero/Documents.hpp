@@ -234,7 +234,7 @@ struct RequestNavigateEventArgs final : Aero::RoutedEventArgs {
     Hyperlink* hyperlink = nullptr;
 };
 using RequestNavigateEventHandler = Base::Delegate<void(
-    Base::Object*, const RequestNavigateEventArgs&)>;
+    Base::Object*, RequestNavigateEventArgs&)>;
 
 class AERO_API Hyperlink final : public Span {
     AERO_DECLARE_TYPE(Hyperlink, Span)
@@ -243,13 +243,11 @@ public:
     ~Hyperlink() override = default;
 
     inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
-    Aero::UIElement::Event<
-        Aero::RoutedEventHandler> Click() noexcept {
+    Aero::UIElement::Event<Aero::RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
     }
     inline static constexpr Members::RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
-    Aero::UIElement::Event<
-        RequestNavigateEventHandler> RequestNavigate() noexcept {
+    Aero::UIElement::Event<RequestNavigateEventArgs> RequestNavigate() noexcept {
         return GetEvent(RequestNavigateEvent);
     }
 
@@ -296,7 +294,7 @@ public:
 private:
     void OnRequestNavigate(
         Base::Object* sender,
-        const RequestNavigateEventArgs& args) noexcept;
+        RequestNavigateEventArgs& args) noexcept;
 
     NavigationHandler handler_;
     Aero::UIElement* root_ = nullptr;

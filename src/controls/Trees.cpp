@@ -1,3 +1,4 @@
+#include "VisualStateManagerAccess.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 
@@ -296,7 +297,7 @@ Base::Result<bool> TreeView::SelectItem(
         if (!cleared) return cleared.GetStatus();
         if (states_ != nullptr) {
             static_cast<void>(
-                states_->GoToState(
+                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -318,7 +319,7 @@ Base::Result<bool> TreeView::SelectItem(
         }
         if (states_ != nullptr) {
             Base::Result<bool> state =
-                states_->GoToState(
+                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
                     *item,
                     "SelectionStates",
                     "Selected");
@@ -546,7 +547,7 @@ TreeViewInteractionManager::CollectVisibleItems(
 
 void TreeViewInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args)
+    MouseButtonEventArgs& args)
     noexcept {
     if (args.changedButton !=
         MouseButton::Left) {
@@ -554,7 +555,7 @@ void TreeViewInteractionManager::OnMouseDown(
     }
     auto& treeView =
         *static_cast<TreeView*>(sender);
-    if (!treeView.IsEnabled()) return;
+    if (!treeView.GetIsEnabled()) return;
     TreeViewItem* item =
         FindItem(
             treeView, args.originalSource);
@@ -573,7 +574,7 @@ void TreeViewInteractionManager::OnMouseDown(
 
 void TreeViewInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     if (args.key != KeyboardKeyUp &&
         args.key != KeyboardKeyDown &&
         args.key != KeyboardKeyLeft &&

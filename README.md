@@ -35,6 +35,8 @@ AeroGUI 的目标不是搬运 Windows WPF 二进制，也不是复制 NoesisGUI�
 
 本仓库当前处于 **runtime vertical slice** 阶段。架构基线、C++17 runtime、metadata-driven XAML、Binding/DataContext、Style/Template、compiled XAML、D3D11/WARP 垂直切片和模块 SDK 已落地主线；当前 M3.5 聚焦文本栈、交互控件、滚动/Items、OpenGL 3.3 与真实 ControlGallery。实现应遵循 [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)，重大决策由 [`docs/adr`](docs/adr) 中的 Accepted ADR 固化。
 
+WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_START.md)。
+
 ## 项目状态
 
 - 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。

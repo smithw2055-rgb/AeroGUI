@@ -117,7 +117,7 @@ Base::Result<void> Image::OnRender(
         pixelHeight_ == 0U) {
         return {};
     }
-    const Size size = RenderSize();
+    const Size size = GetRenderSize();
     if (size.width <= 0.0 ||
         size.height <= 0.0) {
         return {};

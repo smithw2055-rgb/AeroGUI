@@ -161,8 +161,8 @@ Base::Result<Size> Popup::MeasureOverride(
     Size availableSize) noexcept {
     popupDesiredSize_ = {};
     UIElement* popupChild =
-        TemplateChild() != nullptr
-            ? TemplateChild()
+        GetTemplateRoot() != nullptr
+            ? GetTemplateRoot()
             : ContentElement();
     if (!IsOpen() || popupChild == nullptr) {
         return Size{};
@@ -171,7 +171,7 @@ Base::Result<Size> Popup::MeasureOverride(
         MeasureChild(*popupChild, availableSize);
     if (!measured) return measured.GetStatus();
     popupDesiredSize_ =
-        popupChild->DesiredSize();
+        popupChild->GetDesiredSize();
     // Popup content participates in rendering and input, but never consumes
     // space in its placement target's layout.
     return Size{};
@@ -180,8 +180,8 @@ Base::Result<Size> Popup::MeasureOverride(
 Base::Result<Size> Popup::ArrangeOverride(
     Size finalSize) noexcept {
     UIElement* popupChild =
-        TemplateChild() != nullptr
-            ? TemplateChild()
+        GetTemplateRoot() != nullptr
+            ? GetTemplateRoot()
             : ContentElement();
     if (popupChild == nullptr) return finalSize;
     if (!IsOpen()) {
@@ -200,7 +200,7 @@ Base::Result<Size> Popup::ArrangeOverride(
         explicitPlacementTarget.Get();
     if (placementTarget == nullptr) {
         DependencyObject* templatedParent =
-            TemplatedParent();
+            GetTemplatedParent();
         if (templatedParent != nullptr &&
             PropertyRegistry().Types().IsDerivedFrom(
                 templatedParent->RuntimeType(),
@@ -216,8 +216,8 @@ Base::Result<Size> Popup::ArrangeOverride(
     Size targetSize = finalSize;
     Point targetOrigin{};
     if (placementTarget != nullptr &&
-        placementTarget->IsArrangeValid()) {
-        targetSize = placementTarget->RenderSize();
+        placementTarget->GetIsArrangeValid()) {
+        targetSize = placementTarget->GetRenderSize();
         auto absoluteOrigin = [](UIElement& element) noexcept {
             Point result{};
             Visual* current = &element;
@@ -226,7 +226,7 @@ Base::Result<Size> Popup::ArrangeOverride(
                     current->AsUIElement();
                 if (currentElement != nullptr) {
                     const Rect slot =
-                        currentElement->LayoutSlot();
+                        currentElement->GetLayoutSlot();
                     result.x += slot.x;
                     result.y += slot.y;
                 }
@@ -377,7 +377,7 @@ Base::Result<void> Expander::SetDirection(
 
 Base::Result<Size> Expander::MeasureOverride(
     Size availableSize) noexcept {
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         return ContentControl::MeasureOverride(
             availableSize);
     }
@@ -400,7 +400,7 @@ Base::Result<Size> Expander::MeasureOverride(
     Base::Result<void> measured =
         MeasureChild(*ContentElement(), childAvailable);
     if (!measured) return measured.GetStatus();
-    const Size desired = ContentElement()->DesiredSize();
+    const Size desired = ContentElement()->GetDesiredSize();
     return Direction() == ExpandDirection::Left ||
             Direction() == ExpandDirection::Right
         ? Size{desired.width + HeaderExtent, desired.height}
@@ -409,7 +409,7 @@ Base::Result<Size> Expander::MeasureOverride(
 
 Base::Result<Size> Expander::ArrangeOverride(
     Size finalSize) noexcept {
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         return ContentControl::ArrangeOverride(
             finalSize);
     }
@@ -621,7 +621,7 @@ Base::Result<Size> TabControl::MeasureOverride(
                 : Size{availableSize.width,
                     std::max(0.0, availableSize.height - HeaderExtent)});
     if (!measured) return measured.GetStatus();
-    const Size desired = selected->DesiredSize();
+    const Size desired = selected->GetDesiredSize();
     return verticalStrip
         ? Size{desired.width + HeaderExtent, desired.height}
         : Size{desired.width, desired.height + HeaderExtent};
@@ -656,7 +656,7 @@ Base::Result<Size> TabControl::ArrangeOverride(
 }
 
 bool TabPanel::IsVertical() const noexcept {
-    const DependencyObject* parent = TemplatedParent();
+    const DependencyObject* parent = GetTemplatedParent();
     return parent != nullptr &&
         PropertyRegistry().Types().IsDerivedFrom(
             parent->RuntimeType(), TabControl::StaticTypeId()) &&
@@ -679,7 +679,7 @@ Base::Result<Size> TabPanel::MeasureOverride(
         if (child == nullptr) continue;
         Base::Result<void> measured = MeasureChild(*child, availableSize);
         if (!measured) return measured.GetStatus();
-        const Size size = child->DesiredSize();
+        const Size size = child->GetDesiredSize();
         const double primary = vertical ? size.height : size.width;
         const double cross = vertical ? size.width : size.height;
         if (linePrimary > 0.0 && limit < 1.0e11 &&
@@ -716,7 +716,7 @@ Base::Result<Size> TabPanel::ArrangeOverride(
     double lineCross = 0.0;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
-        const Size size = child->DesiredSize();
+        const Size size = child->GetDesiredSize();
         const double primary = vertical ? size.height : size.width;
         const double cross = vertical ? size.width : size.height;
         if ((vertical ? y : x) > 0.0 &&

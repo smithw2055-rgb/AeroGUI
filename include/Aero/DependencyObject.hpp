@@ -14,9 +14,9 @@ using DependencyPropertyChangedEventArgs =
 using DependencyPropertyChangedEventHandler =
     Core::DependencyPropertyChangedEventHandler;
 using PropertyMetadata = Core::PropertyMetadata;
+using FrameworkPropertyMetadata = Core::FrameworkPropertyMetadata;
+using FrameworkPropertyMetadataOptions = Core::FrameworkPropertyMetadataOptions;
 using PropertyMetadataFlags = Core::PropertyMetadataFlags;
-using PropertyValueRank = Core::PropertyValueRank;
-using PropertyValueSourceInfo = Core::PropertyValueSourceInfo;
 using UpdateSourceTrigger = Core::UpdateSourceTrigger;
 
 } // namespace Aero

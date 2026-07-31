@@ -99,19 +99,19 @@ private:
         bool useTransitions = true) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnMouseUp(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnKeyUp(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnFocusChanged(
         Base::Object* sender,
-        const KeyboardFocusChangedEventArgs& args) noexcept;
+        KeyboardFocusChangedEventArgs& args) noexcept;
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
@@ -171,19 +171,19 @@ private:
     Base::Result<void> Invoke(Documents::Hyperlink& link) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnMouseUp(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnKeyUp(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnFocusChanged(
         Base::Object* sender,
-        const KeyboardFocusChangedEventArgs& args) noexcept;
+        KeyboardFocusChangedEventArgs& args) noexcept;
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
@@ -243,22 +243,22 @@ private:
         std::uint32_t index) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnMouseMove(
         Base::Object* sender,
-        const MouseEventArgs& args) noexcept;
+        MouseEventArgs& args) noexcept;
     void OnMouseUp(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnTextInput(
         Base::Object* sender,
-        const TextCompositionEventArgs& args) noexcept;
+        TextCompositionEventArgs& args) noexcept;
     void OnFocusChanged(
         Base::Object* sender,
-        const KeyboardFocusChangedEventArgs& args) noexcept;
+        KeyboardFocusChangedEventArgs& args) noexcept;
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
@@ -292,7 +292,7 @@ private:
 
     void OnMouseWheel(
         Base::Object* sender,
-        const MouseWheelEventArgs& args) noexcept;
+        MouseWheelEventArgs& args) noexcept;
     std::uint32_t FindViewer(
         const ScrollViewer& viewer) const noexcept;
 };
@@ -339,16 +339,16 @@ private:
         Point point) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnMouseMove(
         Base::Object* sender,
-        const MouseEventArgs& args) noexcept;
+        MouseEventArgs& args) noexcept;
     void OnMouseUp(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
     void OnCaptureChanged(
         std::uint32_t pointerId,
         UIElement* target,
@@ -392,11 +392,11 @@ private:
         noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args)
+        MouseButtonEventArgs& args)
         noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
 };
 class AERO_API ControlRuntimeAccess::ComboBoxInteractionManager final {
 public:
@@ -426,10 +426,10 @@ private:
         std::uint32_t index) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
 };
 class AERO_API ControlRuntimeAccess::ListBoxInteractionManager final {
 public:
@@ -471,10 +471,10 @@ private:
         std::uint32_t modifiers) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args) noexcept;
+        MouseButtonEventArgs& args) noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
 };
 class AERO_API ControlRuntimeAccess::TemplateManager final {
 public:
@@ -607,11 +607,11 @@ private:
         MenuItem& item) noexcept;
     void OnMouseDown(
         Base::Object* sender,
-        const MouseButtonEventArgs& args)
+        MouseButtonEventArgs& args)
         noexcept;
     void OnKeyDown(
         Base::Object* sender,
-        const KeyEventArgs& args) noexcept;
+        KeyEventArgs& args) noexcept;
 };
 
 } // namespace Aero::Detail

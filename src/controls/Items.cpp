@@ -1,5 +1,7 @@
 #include <Aero/Controls/Items.hpp>
 #include "ContentControlAccess.hpp"
+#include "ControlAccess.hpp"
+#include "DeferredTemplateAccess.hpp"
 
 #include "ItemContainerGeneratorAccess.hpp"
 #include "render/RenderingInternal.hpp"
@@ -244,160 +246,300 @@ Base::Result<void> ItemsCollection::Reset(
     return {};
 }
 
-Base::Result<void> DeferredObjectProgram::Configure(
-    DeferredObjectFactory factory,
-    void* context) noexcept {
-    return Configure(factory, context, {});
+Base::Result<void> Detail::DeferredObjectProgram::Configure(
+    DeferredObjectFactory valueFactory,
+    void* valueContext) noexcept {
+    return Configure(valueFactory, valueContext, {});
 }
 
-Base::Result<void> DeferredObjectProgram::Configure(
-    DeferredObjectFactory factory,
-    void* context,
-    Base::Ref<Base::Object> factoryOwner) noexcept {
-    if (sealed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
+Base::Result<void> Detail::DeferredObjectProgram::Configure(
+    DeferredObjectFactory valueFactory,
+    void* valueContext,
+    Base::Ref<Base::Object> valueOwner) noexcept {
+    if (sealed) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program is sealed");
     }
-    if (factory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
+    if (valueFactory == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Deferred object factory is null");
     }
-    factory_ = factory;
-    context_ = context;
-    factoryOwner_ = std::move(factoryOwner);
+    factory = valueFactory;
+    context = valueContext;
+    factoryOwner = std::move(valueOwner);
     return {};
 }
 
-Base::Result<void> DeferredObjectProgram::SetBaseUri(
+Base::Result<void> Detail::DeferredObjectProgram::SetBaseUri(
     const Base::ResourceUri& value) noexcept {
-    if (sealed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
+    if (sealed) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program is sealed");
     }
-    baseUri_ = value;
+    baseUri = value;
     return {};
 }
 
-Base::Result<void> DeferredObjectProgram::Seal() noexcept {
-    if (factory_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
+Base::Result<void> Detail::DeferredObjectProgram::Seal() noexcept {
+    if (factory == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program has no factory");
     }
-    sealed_ = true;
+    sealed = true;
     return {};
 }
 
-Base::Result<Base::Ref<Base::Object>>
-DeferredObjectProgram::Instantiate(
+Base::Result<Base::Ref<Base::Object>> Detail::DeferredObjectProgram::Instantiate(
     const Base::Ref<Base::Object>& payload) const noexcept {
-    if (factory_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
+    if (factory == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program is not ready");
     }
-    Base::Result<Base::Ref<Base::Object>> result =
-        factory_(payload, context_);
+    Base::Result<Base::Ref<Base::Object>> result = factory(payload, context);
     if (!result || result.Value()) return result;
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
+    return Base::Status::Failure(Base::ErrorCode::InvalidState,
         "Deferred object factory returned null");
 }
 
-Base::Result<Base::Ref<Base::Object>>
-DataTemplate::Instantiate(
-    const Base::Ref<Base::Object>& item) const noexcept {
-    if (!program_.IsValid() || !item) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DataTemplate is not ready");
+DataTemplate::DataTemplate() noexcept
+    : state_(new (std::nothrow) Detail::DataTemplateState()) {
+    if (state_ == nullptr) {
+        Base::ReportOutOfMemory(sizeof(Detail::DataTemplateState), alignof(Detail::DataTemplateState), Base::MemoryTag::Ui);
     }
-    Base::Result<Base::Ref<Base::Object>> result =
-        program_.Instantiate(item);
-    if (!result || result.Value()) return result;
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "DataTemplate returned null");
 }
 
-Base::Result<void> DataTemplate::Configure(
-    DataTemplateFactory factory,
-    void* context,
-    Base::Ref<Base::Object> factoryOwner) noexcept {
-    return program_.Configure(
-        factory, context, std::move(factoryOwner));
+DataTemplate::~DataTemplate() noexcept {
+    delete static_cast<Detail::DataTemplateState*>(state_);
+    state_ = nullptr;
 }
 
-Base::Result<void> DataTemplate::SetDataType(
-    TypeId value) noexcept {
-    if (program_.IsSealed() ||
-        value == InvalidTypeId) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
+TypeId DataTemplate::GetDataType() const noexcept {
+    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    return state != nullptr ? state->dataType : InvalidTypeId;
+}
+
+Base::Result<void> DataTemplate::SetDataType(TypeId value) noexcept {
+    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    if (state->program.sealed || value == InvalidTypeId) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "DataTemplate DataType is invalid");
     }
-    dataType_ = value;
+    state->dataType = value;
     return {};
 }
 
-Base::Result<void> DataTemplate::SetAuthoredVisualTree(
-    const Base::Ref<Base::Object>& value) noexcept {
-    if (program_.IsSealed() || !value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DataTemplate VisualTree assignment is invalid");
+Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemsSource() const noexcept {
+    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    return state != nullptr ? state->hierarchicalItemsSource : Base::Ref<Base::Object>{};
+}
+
+void DataTemplate::SetHierarchicalItemsSource(Base::Ref<Base::Object> value) noexcept {
+    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
+}
+
+Base::Ref<Base::Object> DataTemplate::GetHierarchicalItemTemplate() const noexcept {
+    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    return state != nullptr ? state->hierarchicalItemTemplate : Base::Ref<Base::Object>{};
+}
+
+void DataTemplate::SetHierarchicalItemTemplate(Base::Ref<Base::Object> value) noexcept {
+    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
+}
+
+ResourceKey DataTemplate::GetImplicitKey() const noexcept {
+    return ResourceKey::FromType(GetDataType());
+}
+
+ResourceDictionary& DataTemplate::GetResources() noexcept {
+    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    if (state != nullptr) return state->resources;
+    static ResourceDictionary fallback;
+    return fallback;
+}
+
+const ResourceDictionary& DataTemplate::GetResources() const noexcept {
+    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    if (state != nullptr) return state->resources;
+    static ResourceDictionary fallback;
+    return fallback;
+}
+
+bool DataTemplate::GetIsSealed() const noexcept {
+    const Detail::DataTemplateState* state = static_cast<const Detail::DataTemplateState*>(state_);
+    return state != nullptr && state->program.sealed;
+}
+
+ItemsPanelTemplate::ItemsPanelTemplate() noexcept
+    : state_(new (std::nothrow) Detail::ItemsPanelTemplateState()) {
+    if (state_ == nullptr) {
+        Base::ReportOutOfMemory(sizeof(Detail::ItemsPanelTemplateState), alignof(Detail::ItemsPanelTemplateState), Base::MemoryTag::Ui);
     }
-    authoredVisualTree_ = value;
+}
+
+ItemsPanelTemplate::~ItemsPanelTemplate() noexcept {
+    delete static_cast<Detail::ItemsPanelTemplateState*>(state_);
+    state_ = nullptr;
+}
+
+ResourceDictionary& ItemsPanelTemplate::GetResources() noexcept {
+    Detail::ItemsPanelTemplateState* state = static_cast<Detail::ItemsPanelTemplateState*>(state_);
+    if (state != nullptr) return state->resources;
+    static ResourceDictionary fallback;
+    return fallback;
+}
+
+const ResourceDictionary& ItemsPanelTemplate::GetResources() const noexcept {
+    const Detail::ItemsPanelTemplateState* state = static_cast<const Detail::ItemsPanelTemplateState*>(state_);
+    if (state != nullptr) return state->resources;
+    static ResourceDictionary fallback;
+    return fallback;
+}
+
+bool ItemsPanelTemplate::GetIsSealed() const noexcept {
+    const Detail::ItemsPanelTemplateState* state = static_cast<const Detail::ItemsPanelTemplateState*>(state_);
+    return state != nullptr && state->program.sealed;
+}
+
+Detail::DataTemplateState* Detail::DeferredTemplateAccess::State(DataTemplate& value) noexcept {
+    return static_cast<DataTemplateState*>(value.state_);
+}
+
+const Detail::DataTemplateState* Detail::DeferredTemplateAccess::State(const DataTemplate& value) noexcept {
+    return static_cast<const DataTemplateState*>(value.state_);
+}
+
+Detail::ItemsPanelTemplateState* Detail::DeferredTemplateAccess::State(ItemsPanelTemplate& value) noexcept {
+    return static_cast<ItemsPanelTemplateState*>(value.state_);
+}
+
+const Detail::ItemsPanelTemplateState* Detail::DeferredTemplateAccess::State(const ItemsPanelTemplate& value) noexcept {
+    return static_cast<const ItemsPanelTemplateState*>(value.state_);
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::Configure(DataTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    return state->program.Configure(factory, context, std::move(owner));
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::Configure(ItemsPanelTemplate& value, DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> owner) noexcept {
+    ItemsPanelTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
+    return state->program.Configure(factory, context, std::move(owner));
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    return state->program.SetBaseUri(uri);
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
+    ItemsPanelTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
+    return state->program.SetBaseUri(uri);
+}
+
+const Base::ResourceUri& Detail::DeferredTemplateAccess::BaseUri(const DataTemplate& value) noexcept {
+    static Base::ResourceUri empty;
+    const DataTemplateState* state = State(value);
+    return state != nullptr ? state->program.baseUri : empty;
+}
+
+const Base::ResourceUri& Detail::DeferredTemplateAccess::BaseUri(const ItemsPanelTemplate& value) noexcept {
+    static Base::ResourceUri empty;
+    const ItemsPanelTemplateState* state = State(value);
+    return state != nullptr ? state->program.baseUri : empty;
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate VisualTree assignment is invalid");
+    state->authoredVisualTree = tree;
     return {};
 }
 
-Base::Result<void> DataTemplate::Seal() noexcept {
-    Base::Result<void> program = program_.Seal();
+Base::Result<void> Detail::DeferredTemplateAccess::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+    ItemsPanelTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
+    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate VisualTree assignment is invalid");
+    state->authoredVisualTree = tree;
+    return {};
+}
+
+void Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
+void Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept { ItemsPanelTemplateState* state = State(value); if (state != nullptr) state->authoredVisualTree.Reset(); }
+
+Base::Result<void> Detail::DeferredTemplateAccess::TryAddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
+    return state->authoredTriggers.TryPushBack(std::move(trigger));
+}
+
+void Detail::DeferredTemplateAccess::ClearAuthoredTriggers(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredTriggers.Clear(); }
+
+Base::Span<const Base::Ref<Aero::TriggerBase>> Detail::DeferredTemplateAccess::AuthoredTriggers(const DataTemplate& value) noexcept {
+    const DataTemplateState* state = State(value);
+    return state != nullptr ? Base::Span<const Base::Ref<Aero::TriggerBase>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Aero::TriggerBase>>{};
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    return state->authoredNames.TryRegister(name, object);
+}
+
+void Detail::DeferredTemplateAccess::ClearAuthoredNames(DataTemplate& value) noexcept { DataTemplateState* state = State(value); if (state != nullptr) state->authoredNames.Clear(); }
+
+const Aero::NameScope& Detail::DeferredTemplateAccess::AuthoredNames(const DataTemplate& value) noexcept {
+    static Aero::NameScope empty;
+    const DataTemplateState* state = State(value);
+    return state != nullptr ? state->authoredNames : empty;
+}
+
+const Base::Ref<Base::Object>& Detail::DeferredTemplateAccess::AuthoredVisualTree(const DataTemplate& value) noexcept {
+    static Base::Ref<Base::Object> empty;
+    const DataTemplateState* state = State(value);
+    return state != nullptr ? state->authoredVisualTree : empty;
+}
+
+const Base::Ref<Base::Object>& Detail::DeferredTemplateAccess::AuthoredVisualTree(const ItemsPanelTemplate& value) noexcept {
+    static Base::Ref<Base::Object> empty;
+    const ItemsPanelTemplateState* state = State(value);
+    return state != nullptr ? state->authoredVisualTree : empty;
+}
+
+Base::Result<void> Detail::DeferredTemplateAccess::Seal(DataTemplate& value) noexcept {
+    DataTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    Base::Result<void> program = state->program.Seal();
     if (!program) return program.GetStatus();
-    return resources_.Seal();
+    return state->resources.Seal();
 }
 
-Base::Result<Base::Ref<Base::Object>>
-ItemsPanelTemplate::Instantiate() const noexcept {
-    if (!program_.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ItemsPanelTemplate is not ready");
-    }
-    Base::Result<Base::Ref<Base::Object>> result =
-        program_.Instantiate();
-    if (!result || result.Value()) return result;
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "ItemsPanelTemplate returned null");
-}
-
-Base::Result<void> ItemsPanelTemplate::Configure(
-    DeferredObjectFactory factory,
-    void* context,
-    Base::Ref<Base::Object> factoryOwner) noexcept {
-    return program_.Configure(
-        factory, context, std::move(factoryOwner));
-}
-
-Base::Result<void> ItemsPanelTemplate::SetAuthoredVisualTree(
-    const Base::Ref<Base::Object>& value) noexcept {
-    if (program_.IsSealed() || !value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ItemsPanelTemplate VisualTree assignment is invalid");
-    }
-    authoredVisualTree_ = value;
-    return {};
-}
-
-Base::Result<void> ItemsPanelTemplate::Seal() noexcept {
-    Base::Result<void> program = program_.Seal();
+Base::Result<void> Detail::DeferredTemplateAccess::Seal(ItemsPanelTemplate& value) noexcept {
+    ItemsPanelTemplateState* state = State(value);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
+    Base::Result<void> program = state->program.Seal();
     if (!program) return program.GetStatus();
-    return resources_.Seal();
+    return state->resources.Seal();
+}
+
+Base::Result<Base::Ref<Base::Object>> Detail::DeferredTemplateAccess::Instantiate(const DataTemplate& value, const Base::Ref<Base::Object>& item) noexcept {
+    const DataTemplateState* state = State(value);
+    if (state == nullptr || state->program.factory == nullptr || !item) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate is not ready");
+    return state->program.Instantiate(item);
+}
+
+Base::Result<Base::Ref<Base::Object>> Detail::DeferredTemplateAccess::Instantiate(const ItemsPanelTemplate& value) noexcept {
+    const ItemsPanelTemplateState* state = State(value);
+    if (state == nullptr || state->program.factory == nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate is not ready");
+    return state->program.Instantiate();
 }
 
 Base::Result<void> ContentControl::StoreContentProperty(
@@ -516,9 +658,9 @@ ContentControl::TryCreateTemplatedContent() const noexcept {
             "ContentControl ContentTemplate is not a DataTemplate");
     }
     Base::Result<Base::Ref<Base::Object>> created =
-        static_cast<DataTemplate*>(
-            contentTemplate.Get())->Instantiate(
-                contentValue_);
+        Detail::DeferredTemplateAccess::Instantiate(
+            *static_cast<DataTemplate*>(contentTemplate.Get()),
+            contentValue_);
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -1000,7 +1142,7 @@ Detail::ItemContainerGeneratorImpl::CreateRecord(
     if (itemTemplate != nullptr) {
         Base::Result<Base::Ref<Base::Object>>
             content =
-                itemTemplate->Instantiate(record.item);
+                Detail::DeferredTemplateAccess::Instantiate(*itemTemplate, record.item);
         if (!content) return content.GetStatus();
         record.content =
             std::move(content).Value();
@@ -1319,7 +1461,7 @@ Detail::ItemContainerGeneratorImpl::DetachRecord(
     }
     if (!record.itemIsOwnContainer &&
         templates_ != nullptr &&
-        container.IsTemplateApplied()) {
+        Detail::ControlAccess::IsTemplateApplied(container)) {
         Base::Result<bool> cleared =
             templates_->Clear(container);
         if (!cleared) {
@@ -1912,20 +2054,16 @@ Detail::ItemContainerGeneratorAccess::Create(
     return generator;
 }
 
-Base::Result<void> DataTemplate::SetResources(
-    Base::Ref<ResourceDictionary> value) noexcept {
-    return Aero::Detail::AssignResourceDictionary(
-        resources_,
-        std::move(value),
-        "DataTemplate Resources is already assigned");
+Base::Result<void> DataTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
+    Detail::DataTemplateState* state = static_cast<Detail::DataTemplateState*>(state_);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
+    return Aero::Detail::AssignResourceDictionary(state->resources, std::move(value), "DataTemplate Resources is already assigned");
 }
 
-Base::Result<void> ItemsPanelTemplate::SetResources(
-    Base::Ref<ResourceDictionary> value) noexcept {
-    return Aero::Detail::AssignResourceDictionary(
-        resources_,
-        std::move(value),
-        "ItemsPanelTemplate Resources is already assigned");
+Base::Result<void> ItemsPanelTemplate::SetResources(Base::Ref<ResourceDictionary> value) noexcept {
+    Detail::ItemsPanelTemplateState* state = static_cast<Detail::ItemsPanelTemplateState*>(state_);
+    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
+    return Aero::Detail::AssignResourceDictionary(state->resources, std::move(value), "ItemsPanelTemplate Resources is already assigned");
 }
 
 } // namespace Aero::Controls

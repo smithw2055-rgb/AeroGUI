@@ -9,11 +9,11 @@ thread_local Application* currentApplication = nullptr;
 
 Application* Application::Current() noexcept { return currentApplication; }
 
-std::uint32_t WindowCollection::Count() const noexcept {
+std::uint32_t WindowCollection::GetCount() const noexcept {
     return owner_ != nullptr && owner_->mainWindow_ != nullptr ? 1U : 0U;
 }
 
-Window* WindowCollection::At(std::uint32_t index) const noexcept {
+Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     return index == 0U && owner_ != nullptr ? owner_->mainWindow_ : nullptr;
 }
 

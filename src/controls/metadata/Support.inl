@@ -28,16 +28,15 @@ Base::Result<void> AddTemplateTrigger(
             Base::ErrorCode::InvalidArgument,
             "Template Trigger cannot be retained");
     }
-    return static_cast<FrameworkTemplate&>(owner)
-        .TryAddAuthoredTrigger(
-            value);
+    return Detail::FrameworkTemplateAccess::TryAddAuthoredTrigger(
+        static_cast<FrameworkTemplate&>(owner), value);
 }
 
 Base::Result<void> ClearTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<FrameworkTemplate&>(owner)
-        .ClearAuthoredTriggers();
+    Detail::FrameworkTemplateAccess::ClearAuthoredTriggers(
+        static_cast<FrameworkTemplate&>(owner));
     return {};
 }
 
@@ -46,16 +45,32 @@ Base::Result<void> SetDeferredTemplateVisualTree(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return static_cast<T&>(object)
-        .SetAuthoredVisualTree(value);
+    if constexpr (std::is_same_v<T, ControlTemplate>) {
+        return Detail::FrameworkTemplateAccess::SetAuthoredVisualTree(
+            static_cast<ControlTemplate&>(object), value);
+    } else if constexpr (std::is_same_v<T, DataTemplate>) {
+        return Detail::DeferredTemplateAccess::SetAuthoredVisualTree(
+            static_cast<DataTemplate&>(object), value);
+    } else {
+        return Detail::DeferredTemplateAccess::SetAuthoredVisualTree(
+            static_cast<ItemsPanelTemplate&>(object), value);
+    }
 }
 
 template<class T>
 Base::Result<void> ClearDeferredTemplateVisualTree(
     Base::Object& object,
     void*) noexcept {
-    static_cast<T&>(object)
-        .ClearAuthoredVisualTree();
+    if constexpr (std::is_same_v<T, ControlTemplate>) {
+        Detail::FrameworkTemplateAccess::ClearAuthoredVisualTree(
+            static_cast<ControlTemplate&>(object));
+    } else if constexpr (std::is_same_v<T, DataTemplate>) {
+        Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(
+            static_cast<DataTemplate&>(object));
+    } else {
+        Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(
+            static_cast<ItemsPanelTemplate&>(object));
+    }
     return {};
 }
 
@@ -63,32 +78,32 @@ Base::Result<void> AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    return static_cast<ControlTemplate&>(object)
-        .TryAddAuthoredVisualStateGroup(value);
+    return Detail::FrameworkTemplateAccess::TryAddAuthoredVisualStateGroup(
+        static_cast<ControlTemplate&>(object), value);
 }
 
 Base::Result<void> ClearTemplateVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
-    static_cast<ControlTemplate&>(object)
-        .ClearAuthoredVisualStateGroups();
+    Detail::FrameworkTemplateAccess::ClearAuthoredVisualStateGroups(
+        static_cast<ControlTemplate&>(object));
     return {};
 }
 
 Core::TypeReference GetControlTemplateTargetType(
     const ControlTemplate& value) noexcept {
-    return {value.TargetType()};
+    return {value.GetTargetType()};
 }
 
 Base::Result<void> SetControlTemplateTargetType(
     ControlTemplate& target,
     Core::TypeReference value) noexcept {
-    return target.TrySetTargetType(value.type);
+    return Detail::FrameworkTemplateAccess::TrySetTargetType(target, value.type);
 }
 
 Core::TypeReference GetDataTemplateType(
     const DataTemplate& value) noexcept {
-    return {value.DataType()};
+    return {value.GetDataType()};
 }
 
 Base::Result<void> SetDataTemplateType(
@@ -259,16 +274,15 @@ Base::Result<void> AddDataTemplateTrigger(
             Base::ErrorCode::InvalidArgument,
             "DataTemplate Trigger cannot be retained");
     }
-    return static_cast<DataTemplate&>(owner)
-        .TryAddAuthoredTrigger(
-            std::move(retained));
+    return Detail::DeferredTemplateAccess::TryAddAuthoredTrigger(
+        static_cast<DataTemplate&>(owner), std::move(retained));
 }
 
 Base::Result<void> ClearDataTemplateTriggers(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<DataTemplate&>(owner)
-        .ClearAuthoredTriggers();
+    Detail::DeferredTemplateAccess::ClearAuthoredTriggers(
+        static_cast<DataTemplate&>(owner));
     return {};
 }
 

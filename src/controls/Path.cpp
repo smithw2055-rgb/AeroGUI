@@ -1059,7 +1059,7 @@ Base::Result<void> Path::OnRender(
         return {};
     }
 
-    const Size target = RenderSize();
+    const Size target = GetRenderSize();
     double scaleX = 1.0;
     double scaleY = 1.0;
     switch (GetStretch()) {

@@ -1,5 +1,6 @@
 #include <Aero/Styling.hpp>
 #include "VisualStateManagerAccess.hpp"
+#include "FrameworkTemplateAccess.hpp"
 #include "TemplateTypes.hpp"
 
 #include <Aero/Core/Metadata/ValueCodec.hpp>
@@ -199,7 +200,7 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
                 }
                 transform =
                     static_cast<FrameworkElement*>(
-                        target)->LayoutTransform();
+                        target)->GetLayoutTransform();
             } else {
                 if (!properties.Types().IsDerivedFrom(
                         target->RuntimeType(),
@@ -210,7 +211,7 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
                 }
                 transform =
                     static_cast<UIElement*>(
-                        target)->RenderTransform();
+                        target)->GetRenderTransform();
             }
         }
         if (!transform ||
@@ -252,7 +253,7 @@ Base::Result<AnimationTarget> ResolveAnimationTarget(
                 "RenderTransform animation target is not a UIElement");
         }
         Base::Ref<Transform> transform =
-            static_cast<UIElement*>(target)->RenderTransform();
+            static_cast<UIElement*>(target)->GetRenderTransform();
         if (!transform) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -512,7 +513,7 @@ const VisualStateGroup* Detail::VisualStateManagerImpl::FindGroup(
     const ControlTemplate& plan,
     Base::StringView groupName) noexcept {
     for (const VisualStateGroup& group :
-        plan.VisualStateGroups()) {
+        Detail::FrameworkTemplateAccess::VisualStateGroups(plan)) {
         if (group.name.View() == groupName) return &group;
     }
     return nullptr;
@@ -1043,7 +1044,7 @@ Base::Result<bool> Detail::VisualStateManagerImpl::GoToState(
     }
     const VisualStateGroup* group = groupName.Empty() ? nullptr : FindGroup(*plan, groupName);
     if (group == nullptr && groupName.Empty()) {
-        for (const VisualStateGroup& candidate : plan->VisualStateGroups()) {
+        for (const VisualStateGroup& candidate : Detail::FrameworkTemplateAccess::VisualStateGroups(*plan)) {
             if (FindState(candidate, stateName) != nullptr) { group = &candidate; groupName = candidate.name.View(); break; }
         }
     }
@@ -1248,7 +1249,7 @@ Base::StringView Detail::VisualStateManagerImpl::CurrentState(
 bool VisualStateManager::GoToState(Control& control, Base::StringView stateName, bool useTransitions) noexcept {
     auto* manager = static_cast<VisualStateManager*>(control.visualStateRuntime_);
     if (manager == nullptr) return false;
-    Base::Result<bool> changed = manager->GoToState(control, {}, stateName, useTransitions);
+    Base::Result<bool> changed = Detail::VisualStateManagerAccess::GoToState(*manager, control, {}, stateName, useTransitions);
     return changed && changed.Value();
 }
 
@@ -1257,43 +1258,30 @@ VisualStateManager::~VisualStateManager() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<bool> VisualStateManager::GoToState(
-    Control& control,
-    Base::StringView groupName,
-    Base::StringView stateName,
-    bool useTransitions) noexcept {
-    auto* runtime = static_cast<Detail::VisualStateManagerImpl*>(impl_);
+Base::Result<bool> Detail::VisualStateManagerAccess::GoToState(
+    VisualStateManager& manager, Control& control, Base::StringView groupName, Base::StringView stateName, bool useTransitions) noexcept {
+    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
     return runtime != nullptr
         ? runtime->GoToState(control, groupName, stateName, useTransitions)
-        : Base::Result<bool>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "VisualStateManager is not initialized"));
+        : Base::Result<bool>(Base::Status::Failure(Base::ErrorCode::NotInitialized, "VisualStateManager is not initialized"));
 }
 
-Base::Result<bool> VisualStateManager::ClearState(
-    Control& control,
-    Base::StringView groupName) noexcept {
-    auto* runtime = static_cast<Detail::VisualStateManagerImpl*>(impl_);
-    return runtime != nullptr
-        ? runtime->ClearState(control, groupName)
-        : Base::Result<bool>(false);
+Base::Result<bool> Detail::VisualStateManagerAccess::ClearState(
+    VisualStateManager& manager, Control& control, Base::StringView groupName) noexcept {
+    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    return runtime != nullptr ? runtime->ClearState(control, groupName) : Base::Result<bool>(false);
 }
 
-Base::Result<std::uint32_t> VisualStateManager::Clear(
-    Control& control) noexcept {
-    auto* runtime = static_cast<Detail::VisualStateManagerImpl*>(impl_);
-    return runtime != nullptr
-        ? runtime->Clear(control)
-        : Base::Result<std::uint32_t>(0U);
+Base::Result<std::uint32_t> Detail::VisualStateManagerAccess::Clear(
+    VisualStateManager& manager, Control& control) noexcept {
+    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    return runtime != nullptr ? runtime->Clear(control) : Base::Result<std::uint32_t>(0U);
 }
 
-Base::StringView VisualStateManager::CurrentState(
-    const Control& control,
-    Base::StringView groupName) const noexcept {
-    auto* runtime = static_cast<Detail::VisualStateManagerImpl*>(impl_);
-    return runtime != nullptr
-        ? runtime->CurrentState(control, groupName)
-        : Base::StringView{};
+Base::StringView Detail::VisualStateManagerAccess::GetCurrentState(
+    const VisualStateManager& manager, const Control& control, Base::StringView groupName) noexcept {
+    auto* runtime = static_cast<VisualStateManagerImpl*>(manager.impl_);
+    return runtime != nullptr ? runtime->CurrentState(control, groupName) : Base::StringView{};
 }
 
 Base::Result<VisualStateManager*>

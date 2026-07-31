@@ -351,6 +351,15 @@ if(sdk_entry_leaks)
         "Default SDK headers expose runtime implementation types: ${sdk_entry_leaks}")
 endif()
 
+aero_collect_matches(default_app_launcher_leak
+    "Aero/App/Launcher[.]hpp|LaunchOptions|GraphicsBackend|class[ \t]+Launcher"
+    "${AERO_SOURCE_DIR}/include/Aero/App.hpp")
+if(default_app_launcher_leak)
+    message(FATAL_ERROR
+        "Default App.hpp must not expose the advanced launcher surface: "
+        "${default_app_launcher_leak}")
+endif()
+
 set(wpf_authoring_headers
     "${AERO_SOURCE_DIR}/include/Aero/Application.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Window.hpp"
@@ -366,6 +375,28 @@ if(wpf_authoring_leaks)
     message(FATAL_ERROR
         "WPF authoring headers expose runtime implementation types: "
         "${wpf_authoring_leaks}")
+endif()
+
+
+set(wpf_single_track_headers
+    "${AERO_SOURCE_DIR}/include/Aero/UIElement.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/FrameworkElement.hpp")
+aero_collect_matches(wpf_legacy_accessors
+    "[ \t](DesiredSize|RenderSize|LayoutSlot|LayoutClip|IsMeasureValid|IsArrangeValid|ClipToBounds|IsHitTestVisible|IsVisible|IsEnabled|AllowDrop|IsMouseOver|IsPressed|IsKeyboardFocused|IsKeyboardFocusWithin|Focusable|IsTabStop|TabIndex|IsFocusScope|RenderTransform|RenderTransformOrigin|UseLayoutRounding|Width|Height|MinSize|MaxSize|Margin|LayoutTransform|LocalVisualTransform|RenderParent|RenderChildren)[ \t]*[(]"
+    ${wpf_single_track_headers})
+if(wpf_legacy_accessors)
+    message(FATAL_ERROR
+        "WPF-facing element headers expose legacy non-Get accessors: "
+        "${wpf_legacy_accessors}")
+endif()
+
+aero_collect_matches(default_property_diagnostics
+    "using[ \t]+(PropertyValueRank|PropertyValueSourceInfo)[ \t]*="
+    "${AERO_SOURCE_DIR}/include/Aero/DependencyObject.hpp")
+if(default_property_diagnostics)
+    message(FATAL_ERROR
+        "Dependency-property provider diagnostics must remain opt-in: "
+        "${default_property_diagnostics}")
 endif()
 
 file(GLOB_RECURSE default_sdk_headers
@@ -395,12 +426,96 @@ if(multiline_static_members)
         "${multiline_static_members}")
 endif()
 aero_collect_matches(removed_public_services
-    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
+    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|RoutedHandlerStorage|RoutedHandlerTraits|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
     ${default_sdk_headers})
 if(removed_public_services)
     message(FATAL_ERROR
         "Removed manager, metadata detail, or text service leaks through public headers: "
         "${removed_public_services}")
+endif()
+
+
+set(routed_event_headers
+    "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/UIElement.hpp")
+aero_collect_matches(const_routed_event_handlers
+    "Delegate<void[(]Base::Object[*],[ \t]*const[ \t]+[A-Za-z0-9_:]+EventArgs[&][)]>"
+    ${routed_event_headers})
+if(const_routed_event_handlers)
+    message(FATAL_ERROR
+        "Routed event handlers must receive mutable event arguments: "
+        "${const_routed_event_handlers}")
+endif()
+
+file(GLOB_RECURSE event_route_sources
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+aero_collect_matches(duplicate_event_routes
+    "BuildEventRoute|SnapshotRoute"
+    ${event_route_sources})
+if(duplicate_event_routes)
+    message(FATAL_ERROR
+        "Input and commands must use the canonical EventRoute: "
+        "${duplicate_event_routes}")
+endif()
+
+aero_collect_matches(split_view_input_services
+    "Aero::Detail::(FocusManager|PointerInputManager|KeyboardInputManager|TextInputManager)[*][ \t]+(focus|pointer|keyboard|textInput)"
+    "${AERO_SOURCE_DIR}/src/ViewRuntime.cpp")
+if(split_view_input_services)
+    message(FATAL_ERROR
+        "ViewRuntime must own input through its private InputService aggregate: "
+        "${split_view_input_services}")
+endif()
+
+aero_collect_matches(command_parent_walk
+    "Get(Visual|Logical)Parent[ \t]*[(]"
+    "${AERO_SOURCE_DIR}/src/input/Commands.cpp")
+if(command_parent_walk)
+    message(FATAL_ERROR
+        "Command routing must consume the canonical EventRoute instead of walking parents: "
+        "${command_parent_walk}")
+endif()
+
+set(control_authoring_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Base.hpp")
+aero_collect_matches(public_template_runtime_surface
+    "(DefaultStyleKey|TemplateGeneration|(^|[ \t])TemplateChild[ \t]*[(]|(^|[ \t])SetTemplateChild[ \t]*[(]|(^|[ \t])IsTemplateApplied[ \t]*[(])"
+    ${control_authoring_headers})
+if(public_template_runtime_surface)
+    message(FATAL_ERROR
+        "Control authoring headers expose template runtime state: "
+        "${public_template_runtime_surface}")
+endif()
+
+aero_collect_matches(legacy_ui_element_collection_surface
+    "(std::uint32_t[ \t]+Count|UIElement[*][ \t]+At|bool[ \t]+Empty)[ \t]*[(]"
+    ${control_authoring_headers})
+if(legacy_ui_element_collection_surface)
+    message(FATAL_ERROR
+        "UIElementCollection must use GetCount/GetItem/GetIsEmpty: "
+        "${legacy_ui_element_collection_surface}")
+endif()
+
+set(template_authoring_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Items.hpp")
+aero_collect_matches(public_template_program_surface
+    "(TemplateBuildContext|TemplateFactoryCallback|TemplateBindingPlan|TemplateMetadataBindingPlan|TemplateTriggerSetter|TemplateTriggerCondition|TemplatePropertyTrigger|DeferredObjectFactory|DeferredObjectProgram|RuntimeData|FactoryContext|AuthoredVisualTree|AuthoredVisualStateGroups|AuthoredNames|SealRuntime)"
+    ${template_authoring_headers})
+if(public_template_program_surface)
+    message(FATAL_ERROR
+        "Template authoring headers expose compiler or runtime program details: "
+        "${public_template_program_surface}")
+endif()
+
+aero_collect_matches(public_visual_state_runtime_surface
+    "(GoToStateCore|ClearStateCore|ClearCore|CurrentStateCore|VisualStateManagerImpl[ \t]*[*])"
+    "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")
+if(public_visual_state_runtime_surface)
+    message(FATAL_ERROR
+        "VisualStateManager must remain a static WPF-facing facade: "
+        "${public_visual_state_runtime_surface}")
 endif()
 
 set(control_runtime_attachment_headers

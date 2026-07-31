@@ -17,6 +17,7 @@ class ItemContainerGeneratorAccess;
 class PanelAccess;
 class DecoratorAccess;
 class ContentControlAccess;
+class ControlAccess;
 }
 
 
@@ -83,9 +84,9 @@ class Panel;
 
 class AERO_API UIElementCollection final {
 public:
-    std::uint32_t Count() const noexcept;
-    bool Empty() const noexcept { return Count() == 0U; }
-    UIElement* At(std::uint32_t index) const noexcept;
+    std::uint32_t GetCount() const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
+    UIElement* GetItem(std::uint32_t index) const noexcept;
     Base::Result<void> Add(Base::Ref<UIElement> child) noexcept;
     Base::Result<void> Remove(UIElement& child) noexcept;
     Base::Result<void> Clear() noexcept;
@@ -183,7 +184,7 @@ protected:
         }
         Base::Result<void> measured = MeasureChild(*child, availableSize);
         if (!measured) return measured.GetStatus();
-        return child->DesiredSize();
+        return child->GetDesiredSize();
     }
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
         UIElement* child = GetChild();
@@ -329,12 +330,12 @@ public:
             ForegroundProperty,
             Base::Ref<Aero::Media::Brush>{});
         const FrameworkElement* parent =
-            RenderParent();
+            GetRenderParent();
         while (!brush && parent != nullptr) {
             brush = parent->GetValueOr(
                 ForegroundProperty,
                 Base::Ref<Aero::Media::Brush>{});
-            parent = parent->RenderParent();
+            parent = parent->GetRenderParent();
         }
         return brush;
     }
@@ -398,46 +399,14 @@ public:
     inline static constexpr Members::Property<bool> OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
     inline static constexpr Members::Property<Base::Ref<ControlTemplate>> TemplateProperty{"Template"};
 
-    // Aero resolves implicit styles by the runtime type, which is the
-    // equivalent of WPF's default style key for built-in controls.
-    TypeId DefaultStyleKey() const noexcept {
-        return RuntimeType();
-    }
-    bool IsTemplateApplied() const noexcept {
-        return templateHandleValue_ != 0U;
-    }
-    std::uint64_t TemplateGeneration() const noexcept {
-        return templateGeneration_;
-    }
     // Returns true only when this call materialized a new template instance.
     // Repeated calls are intentionally idempotent.
     Base::Result<bool> ApplyTemplate() noexcept;
-    DependencyObject* GetTemplateChild(
-        Base::StringView name) const noexcept;
-    DependencyObject* GetTemplateChild(
-        TypeId type) const noexcept;
-    UIElement* TemplateChild() const noexcept {
-        return templateChild_;
-    }
-    Base::Result<void> SetTemplateChild(
-        UIElement* child) noexcept {
-        if (child != nullptr &&
-            child->LayoutParent() != this) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Control template child must be visually attached");
-        }
-        if (templateChild_ != nullptr &&
-            child != nullptr &&
-            templateChild_ != child) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Control already has a template child");
-        }
-        templateChild_ = child;
-        return InvalidateMeasure();
-    }
+
 protected:
+    DependencyObject* GetTemplateChild(Base::StringView name) const noexcept;
+    DependencyObject* GetTemplateChild(TypeId type) const noexcept;
+    UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Control() override = default;
     virtual Base::Result<void> OnApplyTemplate() noexcept {
@@ -450,7 +419,7 @@ protected:
         Base::Result<void> measured =
             MeasureChild(*templateChild_, availableSize);
         if (!measured) return measured.GetStatus();
-        return templateChild_->DesiredSize();
+        return templateChild_->GetDesiredSize();
     }
     Base::Result<Size> ArrangeOverride(
         Size finalSize) noexcept override {
@@ -467,6 +436,22 @@ private:
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimeUiServices;
     friend class VisualStateManager;
+    friend class Detail::ControlAccess;
+    Base::Result<void> SetTemplateChildCore(UIElement* child) noexcept {
+        if (child != nullptr && child->LayoutParent() != this) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Control template root must be visually attached");
+        }
+        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Control already has a template root");
+        }
+        templateChild_ = child;
+        return InvalidateMeasure();
+    }
+
     void AttachTemplateRuntime(
         void* manager) noexcept {
         templateRuntime_ = manager;
@@ -557,7 +542,7 @@ protected:
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
     Base::Result<Size> MeasureOverride(Size availableSize) noexcept override {
-        if (TemplateChild() != nullptr) {
+        if (GetTemplateRoot() != nullptr) {
             return Control::MeasureOverride(availableSize);
         }
         if (content_ == nullptr) {
@@ -573,10 +558,10 @@ protected:
         }
         Base::Result<void> measured = MeasureChild(*content_, availableSize);
         if (!measured) return measured.GetStatus();
-        return content_->DesiredSize();
+        return content_->GetDesiredSize();
     }
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override {
-        if (TemplateChild() != nullptr) {
+        if (GetTemplateRoot() != nullptr) {
             return Control::ArrangeOverride(finalSize);
         }
         if (content_ == nullptr) return finalSize;

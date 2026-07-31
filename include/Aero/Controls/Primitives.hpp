@@ -28,7 +28,7 @@ class AERO_API ButtonBase : public ContentControl {
     AERO_DECLARE_TYPE(ButtonBase, ContentControl)
 public:
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> ClickEvent{"Click"};
-    UIElement::Event<RoutedEventHandler> Click() noexcept {
+    UIElement::Event<RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
     }
 
@@ -115,13 +115,13 @@ public:
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> CheckedEvent{"Checked"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> UncheckedEvent{"Unchecked"};
     inline static constexpr Members::RoutedEvent<RoutedEventArgs> IndeterminateEvent{"Indeterminate"};
-    UIElement::Event<RoutedEventHandler> Checked() noexcept {
+    UIElement::Event<RoutedEventArgs> Checked() noexcept {
         return GetEvent(CheckedEvent);
     }
-    UIElement::Event<RoutedEventHandler> Unchecked() noexcept {
+    UIElement::Event<RoutedEventArgs> Unchecked() noexcept {
         return GetEvent(UncheckedEvent);
     }
-    UIElement::Event<RoutedEventHandler> Indeterminate() noexcept {
+    UIElement::Event<RoutedEventArgs> Indeterminate() noexcept {
         return GetEvent(IndeterminateEvent);
     }
 
@@ -288,7 +288,7 @@ struct ScrollChangedEventArgs final : RoutedEventArgs {
 
 using ScrollChangedEventHandler =
     Base::Delegate<void(
-        Base::Object*, const ScrollChangedEventArgs&)>;
+        Base::Object*, ScrollChangedEventArgs&)>;
 
 class AERO_API ScrollContentPresenter
     : public ContentControl,
@@ -381,7 +381,7 @@ public:
     ~ScrollViewer() override;
 
     inline static constexpr Members::RoutedEvent<ScrollChangedEventArgs> ScrollChangedEvent{"ScrollChanged"};
-    UIElement::Event<ScrollChangedEventHandler>
+    UIElement::Event<ScrollChangedEventArgs>
         ScrollChanged() noexcept {
         return GetEvent(ScrollChangedEvent);
     }
@@ -642,7 +642,7 @@ struct RangeValueChangedEventArgs final : RoutedEventArgs {
 using RangeValueChangedEventHandler =
     Base::Delegate<void(
         Base::Object*,
-        const RangeValueChangedEventArgs&)>;
+        RangeValueChangedEventArgs&)>;
 
 namespace Primitives {
 
@@ -660,8 +660,7 @@ public:
     Base::Result<bool> SetValue(double value) noexcept;
 
     inline static constexpr Members::RoutedEvent<RangeValueChangedEventArgs> ValueChangedEvent{"ValueChanged"};
-    UIElement::Event<
-        RangeValueChangedEventHandler>
+    UIElement::Event<RangeValueChangedEventArgs>
         ValueChanged() noexcept {
         return GetEvent(ValueChangedEvent);
     }

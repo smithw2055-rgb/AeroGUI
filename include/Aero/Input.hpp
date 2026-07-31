@@ -160,9 +160,9 @@ struct ExecutedRoutedEventArgs final : RoutedEventArgs {
 };
 
 using CanExecuteRoutedEventHandler = Base::Delegate<void(
-    Base::Object*, const CanExecuteRoutedEventArgs&)>;
+    Base::Object*, CanExecuteRoutedEventArgs&)>;
 using ExecutedRoutedEventHandler = Base::Delegate<void(
-    Base::Object*, const ExecutedRoutedEventArgs&)>;
+    Base::Object*, ExecutedRoutedEventArgs&)>;
 
 class AERO_API CommandBinding final {
 public:

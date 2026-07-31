@@ -52,6 +52,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Core/RoutedEvent.hpp
     include/Aero/Data.hpp
     include/Aero/DependencyObject.hpp
+    include/Aero/Diagnostics/DependencyProperty.hpp
     include/Aero/Documents.hpp
     include/Aero/DrawingContext.hpp
     include/Aero/FrameworkElement.hpp

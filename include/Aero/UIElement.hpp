@@ -7,6 +7,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/RoutedEvent.hpp>
 
+#include <cstddef>
 #include <new>
 #include <type_traits>
 
@@ -15,75 +16,6 @@ class UiRuntimeAccess;
 class ControlRuntimeAccess;
 }
 
-namespace Aero::Detail {
-
-class RoutedHandlerStorage final {
-public:
-    RoutedHandlerStorage() noexcept = default;
-
-    template<class TArgs>
-    explicit RoutedHandlerStorage(const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
-        static_assert(std::is_base_of<Aero::RoutedEventArgs, TArgs>::value,
-            "Routed event arguments must derive from RoutedEventArgs");
-        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
-        static_assert(sizeof(Handler) <= sizeof(storage_), "Routed handler storage is too small");
-        new (storage_) Handler(handler);
-        operations_ = &OperationsFor<TArgs>();
-        argsType_ = TArgs::StaticTypeId();
-    }
-
-    RoutedHandlerStorage(const RoutedHandlerStorage& other) noexcept;
-    RoutedHandlerStorage(RoutedHandlerStorage&& other) noexcept;
-    RoutedHandlerStorage& operator=(const RoutedHandlerStorage& other) noexcept;
-    RoutedHandlerStorage& operator=(RoutedHandlerStorage&& other) noexcept;
-    ~RoutedHandlerStorage() noexcept;
-
-    bool Empty() const noexcept { return operations_ == nullptr; }
-    Core::TypeId ArgsType() const noexcept { return argsType_; }
-    bool Equals(const RoutedHandlerStorage& other) const noexcept;
-    void Invoke(Base::Object* sender, const RoutedEventArgs& args) const noexcept;
-
-private:
-    struct Operations final {
-        void (*copy)(void*, const void*) noexcept;
-        void (*destroy)(void*) noexcept;
-        bool (*equals)(const void*, const void*) noexcept;
-        void (*invoke)(const void*, Base::Object*, const RoutedEventArgs&) noexcept;
-    };
-
-    template<class TArgs>
-    static const Operations& OperationsFor() noexcept {
-        using Handler = Base::Delegate<void(Base::Object*, const TArgs&)>;
-        static const Operations operations{
-            [](void* destination, const void* source) noexcept {
-                new (destination) Handler(*static_cast<const Handler*>(source));
-            },
-            [](void* value) noexcept { static_cast<Handler*>(value)->~Handler(); },
-            [](const void* left, const void* right) noexcept {
-                return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
-            },
-            [](const void* value, Base::Object* sender, const RoutedEventArgs& args) noexcept {
-                static_cast<const Handler*>(value)->Invoke(sender, static_cast<const TArgs&>(args));
-            }};
-        return operations;
-    }
-
-    void Reset() noexcept;
-
-    alignas(void*) unsigned char storage_[4U * sizeof(void*)]{};
-    const Operations* operations_ = nullptr;
-    Core::TypeId argsType_ = Core::InvalidTypeId;
-};
-
-template<class T>
-struct RoutedHandlerTraits;
-
-template<class TArgs>
-struct RoutedHandlerTraits<Base::Delegate<void(Base::Object*, const TArgs&)>> final {
-    using Args = TArgs;
-};
-
-} // namespace Aero::Detail
 namespace Aero::Input { class RoutedCommand; }
 
 namespace Aero {
@@ -122,45 +54,37 @@ private:
 class AERO_API UIElement : public Visual {
     AERO_DECLARE_TYPE(UIElement, Visual)
 public:
-    template<class THandler>
+    template<class TArgs>
     class Event final {
     public:
+        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
         Event(UIElement& element, RoutedEventHandle event) noexcept
             : element_(&element), event_(event) {}
 
         Base::Result<void> TryAdd(
-            const THandler& handler,
+            const Handler& handler,
             bool handledEventsToo = false) noexcept {
-            using Args = typename Aero::Detail::RoutedHandlerTraits<THandler>::Args;
-            return element_->TryAddHandler(
-                event_, Aero::Detail::RoutedHandlerStorage(
-                    static_cast<const Base::Delegate<
-                        void(Base::Object*, const Args&)>&>(handler)),
-                handledEventsToo);
+            return element_->TryAddHandler(event_, handler, handledEventsToo);
         }
 
-        void Add(const THandler& handler,
+        void Add(const Handler& handler,
             bool handledEventsToo = false) noexcept {
             Base::Result<void> result = TryAdd(handler, handledEventsToo);
             if (!result) {
                 Base::ReportOutOfMemory(
-                    sizeof(Aero::Detail::RoutedHandlerStorage),
-                    alignof(Aero::Detail::RoutedHandlerStorage),
+                    sizeof(Handler),
+                    alignof(Handler),
                     Base::MemoryTag::General);
             }
         }
 
-        void operator+=(const THandler& handler) noexcept { Add(handler); }
+        void operator+=(const Handler& handler) noexcept { Add(handler); }
 
-        bool Remove(const THandler& handler) noexcept {
-            using Args = typename Aero::Detail::RoutedHandlerTraits<THandler>::Args;
-            return element_->RemoveHandler(
-                event_, Aero::Detail::RoutedHandlerStorage(
-                    static_cast<const Base::Delegate<
-                        void(Base::Object*, const Args&)>&>(handler)));
+        bool Remove(const Handler& handler) noexcept {
+            return element_->RemoveHandler(event_, handler);
         }
 
-        void operator-=(const THandler& handler) noexcept {
+        void operator-=(const Handler& handler) noexcept {
             static_cast<void>(Remove(handler));
         }
 
@@ -172,74 +96,72 @@ public:
     template<class TOwner, class TArgs>
     auto GetEvent(
         const Core::RoutedEventRef<TOwner, TArgs>& event) noexcept {
-        using Handler =
-            Base::Delegate<void(Base::Object*, const TArgs&)>;
-        return Event<Handler>(*this, event.Handle());
+        return Event<TArgs>(*this, event.Handle());
     }
 
     inline static constexpr Members::RoutedEvent<MouseEventArgs> PreviewMouseMoveEvent{"PreviewMouseMove"};
-    Event<MouseEventHandler> PreviewMouseMove() noexcept { return GetEvent(PreviewMouseMoveEvent); }
+    Event<MouseEventArgs> PreviewMouseMove() noexcept { return GetEvent(PreviewMouseMoveEvent); }
 
     inline static constexpr Members::RoutedEvent<MouseEventArgs> MouseMoveEvent{"MouseMove"};
-    Event<MouseEventHandler> MouseMove() noexcept {
+    Event<MouseEventArgs> MouseMove() noexcept {
         return GetEvent(MouseMoveEvent);
     }
 
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseDownEvent{"PreviewMouseDown"};
-    Event<MouseButtonEventHandler> PreviewMouseDown() noexcept { return GetEvent(PreviewMouseDownEvent); }
+    Event<MouseButtonEventArgs> PreviewMouseDown() noexcept { return GetEvent(PreviewMouseDownEvent); }
 
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseDownEvent{"MouseDown"};
-    Event<MouseButtonEventHandler> MouseDown() noexcept {
+    Event<MouseButtonEventArgs> MouseDown() noexcept {
         return GetEvent(MouseDownEvent);
     }
 
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> PreviewMouseUpEvent{"PreviewMouseUp"};
-    Event<MouseButtonEventHandler> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }
+    Event<MouseButtonEventArgs> PreviewMouseUp() noexcept { return GetEvent(PreviewMouseUpEvent); }
 
     inline static constexpr Members::RoutedEvent<MouseButtonEventArgs> MouseUpEvent{"MouseUp"};
-    Event<MouseButtonEventHandler> MouseUp() noexcept {
+    Event<MouseButtonEventArgs> MouseUp() noexcept {
         return GetEvent(MouseUpEvent);
     }
 
     inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> PreviewMouseWheelEvent{"PreviewMouseWheel"};
-    Event<MouseWheelEventHandler> PreviewMouseWheel() noexcept { return GetEvent(PreviewMouseWheelEvent); }
+    Event<MouseWheelEventArgs> PreviewMouseWheel() noexcept { return GetEvent(PreviewMouseWheelEvent); }
 
     inline static constexpr Members::RoutedEvent<MouseWheelEventArgs> MouseWheelEvent{"MouseWheel"};
-    Event<MouseWheelEventHandler> MouseWheel() noexcept {
+    Event<MouseWheelEventArgs> MouseWheel() noexcept {
         return GetEvent(MouseWheelEvent);
     }
 
     inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> GotKeyboardFocusEvent{"GotKeyboardFocus"};
-    Event<KeyboardFocusChangedEventHandler> GotKeyboardFocus() noexcept {
+    Event<KeyboardFocusChangedEventArgs> GotKeyboardFocus() noexcept {
         return GetEvent(GotKeyboardFocusEvent);
     }
 
     inline static constexpr Members::RoutedEvent<KeyboardFocusChangedEventArgs> LostKeyboardFocusEvent{"LostKeyboardFocus"};
-    Event<KeyboardFocusChangedEventHandler> LostKeyboardFocus() noexcept {
+    Event<KeyboardFocusChangedEventArgs> LostKeyboardFocus() noexcept {
         return GetEvent(LostKeyboardFocusEvent);
     }
 
     inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyDownEvent{"PreviewKeyDown"};
-    Event<KeyEventHandler> PreviewKeyDown() noexcept { return GetEvent(PreviewKeyDownEvent); }
+    Event<KeyEventArgs> PreviewKeyDown() noexcept { return GetEvent(PreviewKeyDownEvent); }
 
     inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyDownEvent{"KeyDown"};
-    Event<KeyEventHandler> KeyDown() noexcept {
+    Event<KeyEventArgs> KeyDown() noexcept {
         return GetEvent(KeyDownEvent);
     }
 
     inline static constexpr Members::RoutedEvent<KeyEventArgs> PreviewKeyUpEvent{"PreviewKeyUp"};
-    Event<KeyEventHandler> PreviewKeyUp() noexcept { return GetEvent(PreviewKeyUpEvent); }
+    Event<KeyEventArgs> PreviewKeyUp() noexcept { return GetEvent(PreviewKeyUpEvent); }
 
     inline static constexpr Members::RoutedEvent<KeyEventArgs> KeyUpEvent{"KeyUp"};
-    Event<KeyEventHandler> KeyUp() noexcept {
+    Event<KeyEventArgs> KeyUp() noexcept {
         return GetEvent(KeyUpEvent);
     }
 
     inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> PreviewTextInputEvent{"PreviewTextInput"};
-    Event<TextCompositionEventHandler> PreviewTextInput() noexcept { return GetEvent(PreviewTextInputEvent); }
+    Event<TextCompositionEventArgs> PreviewTextInput() noexcept { return GetEvent(PreviewTextInputEvent); }
 
     inline static constexpr Members::RoutedEvent<TextCompositionEventArgs> TextInputEvent{"TextInput"};
-    Event<TextCompositionEventHandler> TextInput() noexcept {
+    Event<TextCompositionEventArgs> TextInput() noexcept {
         return GetEvent(TextInputEvent);
     }
 
@@ -253,92 +175,69 @@ public:
         return parent != nullptr ? parent->AsUIElement() : nullptr;
     }
 
-    Base::Result<void> TryAddHandler(
-        RoutedEventHandle event,
-        const Aero::Detail::RoutedHandlerStorage& handler,
-        bool handledEventsToo = false) noexcept;
     template<class TArgs>
     Base::Result<void> TryAddHandler(
         RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
-        return TryAddHandler(
-            event, Aero::Detail::RoutedHandlerStorage(handler), handledEventsToo);
+        if (handler.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Routed event handler must not be empty");
+        }
+        return TryAddHandlerCore(event, DescribeHandler(handler), handledEventsToo);
     }
     template<class TArgs>
     void AddHandler(
         RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept {
         Base::Result<void> added = TryAddHandler(event, handler, handledEventsToo);
         if (!added) {
-            Base::ReportOutOfMemory(sizeof(Aero::Detail::RoutedHandlerStorage),
-                alignof(Aero::Detail::RoutedHandlerStorage), Base::MemoryTag::General);
+            Base::ReportOutOfMemory(sizeof(handler), alignof(decltype(handler)), Base::MemoryTag::General);
         }
     }
-    bool RemoveHandler(
-        RoutedEventHandle event,
-        const Aero::Detail::RoutedHandlerStorage& handler) noexcept;
     template<class TArgs>
     bool RemoveHandler(
         RoutedEventHandle event,
-        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler) noexcept {
-        return RemoveHandler(event, Aero::Detail::RoutedHandlerStorage(handler));
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
+        return RemoveHandlerCore(event, DescribeHandler(handler));
     }
 
     Base::Result<void> InvalidateMeasure() noexcept;
     Base::Result<void> InvalidateArrange() noexcept;
-    Size DesiredSize() const noexcept { return desiredSize_; }
-    Size RenderSize() const noexcept { return renderSize_; }
-    Rect LayoutSlot() const noexcept { return layoutSlot_; }
-    Rect LayoutClip() const noexcept { return layoutClip_; }
-    bool IsMeasureValid() const noexcept { return measureValid_; }
-    bool IsArrangeValid() const noexcept { return arrangeValid_; }
-    bool ClipToBounds() const noexcept;
+    Size GetDesiredSize() const noexcept { return desiredSize_; }
+    Size GetRenderSize() const noexcept { return renderSize_; }
+    Rect GetLayoutSlot() const noexcept { return layoutSlot_; }
+    Rect GetLayoutClip() const noexcept { return layoutClip_; }
+    bool GetIsMeasureValid() const noexcept { return measureValid_; }
+    bool GetIsArrangeValid() const noexcept { return arrangeValid_; }
+    bool GetClipToBounds() const noexcept;
     BlendMode GetBlendMode() const noexcept;
     Base::Ref<Media::Effect> GetEffect() const noexcept;
-    Base::Ref<Base::Object> OpacityMask() const noexcept {
+    Base::Ref<Base::Object> GetOpacityMask() const noexcept {
         return GetValueOr(
             OpacityMaskProperty,
             Base::Ref<Base::Object>{});
     }
-    bool IsHitTestVisible() const noexcept;
+    bool GetIsHitTestVisible() const noexcept;
     Visibility GetVisibility() const noexcept;
-    bool IsVisible() const noexcept {
+    bool GetIsVisible() const noexcept {
         return GetVisibility() == Visibility::Visible;
     }
-    bool IsEnabled() const noexcept;
-    bool AllowDrop() const noexcept;
-    bool IsMouseOver() const noexcept;
-    bool IsPressed() const noexcept;
-    bool IsKeyboardFocused() const noexcept;
-    bool IsKeyboardFocusWithin() const noexcept;
-    bool Focusable() const noexcept;
-    bool IsTabStop() const noexcept;
-    std::uint32_t TabIndex() const noexcept;
-    bool IsFocusScope() const noexcept;
-    Base::Ref<Media::Transform> RenderTransform() const noexcept;
-    Point RenderTransformOrigin() const noexcept;
-    std::uint64_t LayoutRevision() const noexcept { return layoutRevision_; }
-
-    Size GetDesiredSize() const noexcept { return DesiredSize(); }
-    Size GetRenderSize() const noexcept { return RenderSize(); }
-    bool GetClipToBounds() const noexcept { return ClipToBounds(); }
-    Base::Ref<Base::Object> GetOpacityMask() const noexcept { return OpacityMask(); }
-    bool GetIsHitTestVisible() const noexcept { return IsHitTestVisible(); }
-    bool GetIsVisible() const noexcept { return IsVisible(); }
-    bool GetIsEnabled() const noexcept { return IsEnabled(); }
-    bool GetAllowDrop() const noexcept { return AllowDrop(); }
-    bool GetIsMouseOver() const noexcept { return IsMouseOver(); }
-    bool GetIsPressed() const noexcept { return IsPressed(); }
-    bool GetIsKeyboardFocused() const noexcept { return IsKeyboardFocused(); }
-    bool GetIsKeyboardFocusWithin() const noexcept { return IsKeyboardFocusWithin(); }
-    bool GetFocusable() const noexcept { return Focusable(); }
-    bool GetIsTabStop() const noexcept { return IsTabStop(); }
-    std::uint32_t GetTabIndex() const noexcept { return TabIndex(); }
-    bool GetIsFocusScope() const noexcept { return IsFocusScope(); }
+    bool GetIsEnabled() const noexcept;
+    bool GetAllowDrop() const noexcept;
+    bool GetIsMouseOver() const noexcept;
+    bool GetIsPressed() const noexcept;
+    bool GetIsKeyboardFocused() const noexcept;
+    bool GetIsKeyboardFocusWithin() const noexcept;
+    bool GetFocusable() const noexcept;
+    bool GetIsTabStop() const noexcept;
+    std::uint32_t GetTabIndex() const noexcept;
+    bool GetIsFocusScope() const noexcept;
     Base::Ref<Media::Transform> GetRenderTransform() const noexcept;
-    Point GetRenderTransformOrigin() const noexcept { return RenderTransformOrigin(); }
+    Point GetRenderTransformOrigin() const noexcept;
+    std::uint64_t GetLayoutRevision() const noexcept { return layoutRevision_; }
 
     // Dependency properties
     inline static constexpr Members::Property<bool> ClipToBoundsProperty{"ClipToBounds"};
@@ -397,18 +296,54 @@ private:
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Input::RoutedCommand;
 
-    struct HandlerRecord final {
-        RoutedEventHandle event;
-        Aero::Detail::RoutedHandlerStorage handler;
-        std::uint64_t sequence = 0U;
-        bool handledEventsToo = false;
+    struct HandlerOperations final {
+        std::size_t size = 0U;
+        std::size_t alignment = 0U;
+        void (*copy)(void*, const void*) noexcept = nullptr;
+        void (*destroy)(void*) noexcept = nullptr;
+        bool (*equals)(const void*, const void*) noexcept = nullptr;
+        void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
     };
+
+    struct HandlerDescriptor final {
+        const void* value = nullptr;
+        const HandlerOperations* operations = nullptr;
+        Core::TypeId argsType = Core::InvalidTypeId;
+    };
+
+    template<class TArgs>
+    static HandlerDescriptor DescribeHandler(
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
+        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
+        static const HandlerOperations operations{
+            sizeof(Handler),
+            alignof(Handler),
+            [](void* destination, const void* source) noexcept {
+                new (destination) Handler(*static_cast<const Handler*>(source));
+            },
+            [](void* value) noexcept { static_cast<Handler*>(value)->~Handler(); },
+            [](const void* left, const void* right) noexcept {
+                return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
+            },
+            [](const void* value, Base::Object* sender, RoutedEventArgs& args) noexcept {
+                static_cast<const Handler*>(value)->Invoke(sender, static_cast<TArgs&>(args));
+            }};
+        return {&handler, &operations, TArgs::StaticTypeId()};
+    }
+
+    Base::Result<void> TryAddHandlerCore(
+        RoutedEventHandle event,
+        const HandlerDescriptor& handler,
+        bool handledEventsToo) noexcept;
+    bool RemoveHandlerCore(
+        RoutedEventHandle event,
+        const HandlerDescriptor& handler) noexcept;
+    void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
     void* manager_ = nullptr;
     void* eventRouter_ = nullptr;
     void* commandRouter_ = nullptr;
-    Base::Vector<HandlerRecord> handlers_;
-    std::uint64_t nextHandlerSequence_ = 1U;
+    void* handlerState_ = nullptr;
     Size desiredSize_;
     Size untransformedDesiredSize_;
     Size renderSize_;

@@ -1,4 +1,5 @@
 #pragma once
+#include "RoutedHandlerStorage.hpp"
 
 #include "ThemeStyleRegistry.hpp"
 
@@ -33,7 +34,7 @@ public:
     Base::Result<void> RegisterClassHandler(
         RoutedEventHandle event,
         TypeId classType,
-        const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
         bool handledEventsToo = false) noexcept;
 
     Base::Result<void> RaiseEvent(
@@ -107,10 +108,6 @@ private:
         VisualHandle owner;
         CommandBinding binding;
     };
-    struct RouteBinding final {
-        VisualHandle owner;
-        CommandBinding binding;
-    };
     struct InputBindingRecord final {
         InputBindingHandle handle;
         VisualHandle owner;
@@ -125,10 +122,6 @@ private:
     RequerySuggestedHandler requerySuggested_;
 
     Base::Result<void> VerifyTarget(UIElement& target) const noexcept;
-    Base::Result<void> SnapshotRoute(
-        UIElement& target,
-        RoutedCommand* command,
-        Base::Vector<RouteBinding>& route) noexcept;
     void PruneStaleBindings() noexcept;
     void PruneStaleInputBindings() noexcept;
 };
@@ -780,7 +773,7 @@ template<class TArgs>
 Base::Result<void> EventRouter::RegisterClassHandler(
     RoutedEventHandle event,
     TypeId classType,
-    const Base::Delegate<void(Base::Object*, const TArgs&)>& handler,
+    const Base::Delegate<void(Base::Object*, TArgs&)>& handler,
     bool handledEventsToo) noexcept {
     static_assert(std::is_base_of<RoutedEventArgs, TArgs>::value,
         "Routed event arguments must derive from RoutedEventArgs");

@@ -37,9 +37,9 @@ struct ExitEventArgs final : EventArgs {
 
 class AERO_API WindowCollection final {
 public:
-    std::uint32_t Count() const noexcept;
-    Window* At(std::uint32_t index) const noexcept;
-    bool Empty() const noexcept { return Count() == 0U; }
+    std::uint32_t GetCount() const noexcept;
+    Window* GetItem(std::uint32_t index) const noexcept;
+    bool GetIsEmpty() const noexcept { return GetCount() == 0U; }
 
 private:
     friend class Application;

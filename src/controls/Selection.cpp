@@ -1,3 +1,4 @@
+#include "VisualStateManagerAccess.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
@@ -501,7 +502,7 @@ void Selector::SyncContainers() noexcept {
             item.SetIsSelected(selected));
         if (states_ != nullptr) {
             static_cast<void>(
-                states_->GoToState(
+                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
                     item,
                     "SelectionStates",
                     selected
@@ -773,7 +774,7 @@ Base::Result<bool> ListBox::BringIntoView(
     UIElement* node = container;
     ScrollViewer* viewer = nullptr;
     while (node != nullptr) {
-        const Rect slot = node->LayoutSlot();
+        const Rect slot = node->GetLayoutSlot();
         x += slot.x;
         y += slot.y;
         Visual* parent = node->GetVisualParent();
@@ -795,9 +796,9 @@ Base::Result<bool> ListBox::BringIntoView(
 
     bool changed = false;
     const double width =
-        container->RenderSize().width;
+        container->GetRenderSize().width;
     const double height =
-        container->RenderSize().height;
+        container->GetRenderSize().height;
     double horizontal =
         viewer->HorizontalOffset();
     double vertical =
@@ -1230,7 +1231,7 @@ void ComboBox::OnTextPropertyChanged(
 
 void ComboBox::OnEditableTextChanged(
     Base::Object* sender,
-    const RoutedEventArgs&) noexcept {
+    RoutedEventArgs&) noexcept {
     if (sender != editableTextBox_ ||
         editableTextBox_ == nullptr ||
         synchronizingEditableText_) {
@@ -1567,14 +1568,14 @@ ComboBoxInteractionManager::Detach(
 
 void ComboBoxInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     if (args.changedButton !=
         MouseButton::Left) {
         return;
     }
     auto& comboBox =
         *static_cast<ComboBox*>(sender);
-    if (!comboBox.IsEnabled()) return;
+    if (!comboBox.GetIsEnabled()) return;
     const std::uint32_t index =
         comboBox.FindContainerIndex(
             args.originalSource);
@@ -1598,10 +1599,10 @@ void ComboBoxInteractionManager::OnMouseDown(
 
 void ComboBoxInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& comboBox =
         *static_cast<ComboBox*>(sender);
-    if (!comboBox.IsEnabled()) return;
+    if (!comboBox.GetIsEnabled()) return;
     if (args.key == KeyboardKeyEscape) {
         if (!comboBox.IsDropDownOpen()) return;
         static_cast<void>(
@@ -1841,13 +1842,13 @@ ListBoxInteractionManager::ApplyUserSelection(
 
 void ListBoxInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     if (args.changedButton != MouseButton::Left) {
         return;
     }
     auto& listBox =
         *static_cast<ListBox*>(sender);
-    if (!listBox.IsEnabled()) return;
+    if (!listBox.GetIsEnabled()) return;
     const std::uint32_t recordIndex =
         FindListBox(listBox);
     if (recordIndex == UINT32_MAX) return;
@@ -1875,7 +1876,7 @@ void ListBoxInteractionManager::OnMouseDown(
 
 void ListBoxInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     if (args.key != KeyboardKeyUp &&
         args.key != KeyboardKeyDown &&
         args.key != KeyboardKeyHome &&
@@ -1884,7 +1885,7 @@ void ListBoxInteractionManager::OnKeyDown(
     }
     auto& listBox =
         *static_cast<ListBox*>(sender);
-    if (!listBox.IsEnabled() ||
+    if (!listBox.GetIsEnabled() ||
         listBox.ItemCount() == 0U) {
         return;
     }

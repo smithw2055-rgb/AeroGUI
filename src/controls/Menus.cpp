@@ -554,7 +554,7 @@ MenuInteractionManager::Invoke(
 
 void MenuInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args)
+    MouseButtonEventArgs& args)
     noexcept {
     if (args.changedButton !=
         MouseButton::Left) {
@@ -577,7 +577,7 @@ void MenuInteractionManager::OnMouseDown(
 
 void MenuInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     if (args.key != KeyboardKeyEnter &&
         args.key != KeyboardKeySpace &&
         args.key != KeyboardKeyRight &&

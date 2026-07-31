@@ -230,7 +230,7 @@ Base::Result<void> HyperlinkInteractionManager::RefreshCanExecute(
 Base::Result<void> HyperlinkInteractionManager::Invoke(
     Documents::Hyperlink& link) noexcept {
     const std::uint32_t index = Find(link);
-    if (index == UINT32_MAX || !link.IsEnabled() ||
+    if (index == UINT32_MAX || !link.GetIsEnabled() ||
         !links_[index].commandEnabled) {
         return {};
     }
@@ -264,9 +264,9 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
 
 void HyperlinkInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& link = *static_cast<Documents::Hyperlink*>(sender);
-    if (args.changedButton != MouseButton::Left || !link.IsEnabled()) {
+    if (args.changedButton != MouseButton::Left || !link.GetIsEnabled()) {
         return;
     }
     const std::uint32_t index = Find(link);
@@ -281,7 +281,7 @@ void HyperlinkInteractionManager::OnMouseDown(
 
 void HyperlinkInteractionManager::OnMouseUp(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& link = *static_cast<Documents::Hyperlink*>(sender);
     if (args.changedButton != MouseButton::Left) return;
     const std::uint32_t index = Find(link);
@@ -291,16 +291,16 @@ void HyperlinkInteractionManager::OnMouseUp(
     record.pointerDown = false;
     static_cast<void>(pointer_->ReleasePointer(args.pointerId));
     args.handled = true;
-    if (link.IsEnabled() && link.IsMouseOver()) {
+    if (link.GetIsEnabled() && link.GetIsMouseOver()) {
         static_cast<void>(Invoke(link));
     }
 }
 
 void HyperlinkInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& link = *static_cast<Documents::Hyperlink*>(sender);
-    if (!link.IsEnabled() ||
+    if (!link.GetIsEnabled() ||
         (args.key != KeyboardKeySpace && args.key != KeyboardKeyEnter)) {
         return;
     }
@@ -312,7 +312,7 @@ void HyperlinkInteractionManager::OnKeyDown(
 
 void HyperlinkInteractionManager::OnKeyUp(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& link = *static_cast<Documents::Hyperlink*>(sender);
     if (args.key != KeyboardKeySpace && args.key != KeyboardKeyEnter) return;
     const std::uint32_t index = Find(link);
@@ -324,7 +324,7 @@ void HyperlinkInteractionManager::OnKeyUp(
 
 void HyperlinkInteractionManager::OnFocusChanged(
     Base::Object* sender,
-    const KeyboardFocusChangedEventArgs& args) noexcept {
+    KeyboardFocusChangedEventArgs& args) noexcept {
     auto& link = *static_cast<Documents::Hyperlink*>(sender);
     const std::uint32_t index = Find(link);
     if (index != UINT32_MAX && args.newFocus != &link) {

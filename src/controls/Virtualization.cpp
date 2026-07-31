@@ -790,7 +790,7 @@ VirtualizingStackPanel::MeasureOverride(
         Base::Result<void> measured =
             MeasureChild(*child, childAvailable);
         if (!measured) return measured.GetStatus();
-        const Size desired = child->DesiredSize();
+        const Size desired = child->GetDesiredSize();
         const double extent =
             orientation == Orientation::Vertical
             ? desired.height

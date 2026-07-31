@@ -333,14 +333,14 @@ FrameworkElement::~FrameworkElement() {
     AERO_ASSERT(renderRuntime_ == nullptr);
     AERO_ASSERT(!renderAttached_);
     Base::Ref<Transform> renderTransform =
-        RenderTransform();
+        GetRenderTransform();
     if (renderTransform) {
         renderTransform->DetachOwner(
             this,
             TransformOwnerRole::Render);
     }
     Base::Ref<Transform> layoutTransform =
-        LayoutTransform();
+        GetLayoutTransform();
     if (layoutTransform) {
         layoutTransform->DetachOwner(
             this,
@@ -349,7 +349,7 @@ FrameworkElement::~FrameworkElement() {
 }
 
 Base::Ref<Transform>
-FrameworkElement::LayoutTransform() const noexcept {
+FrameworkElement::GetLayoutTransform() const noexcept {
     Base::Result<Base::Ref<Transform>> value =
         GetValue(LayoutTransformProperty);
     return value
@@ -365,11 +365,11 @@ Base::Result<void> FrameworkElement::SetLayoutTransform(
 }
 
 Base::Transform2D
-FrameworkElement::LocalVisualTransform() const noexcept {
+FrameworkElement::GetLocalVisualTransform() const noexcept {
     Base::Transform2D result;
-    Size visualSize = RenderSize();
+    Size visualSize = GetRenderSize();
     Base::Ref<Transform> layoutTransform =
-        LayoutTransform();
+        GetLayoutTransform();
     if (layoutTransform) {
         result = layoutTransform->Matrix();
         const Rect bounds = TransformBounds(
@@ -389,9 +389,9 @@ FrameworkElement::LocalVisualTransform() const noexcept {
     }
 
     Base::Ref<Transform> renderTransform =
-        RenderTransform();
+        GetRenderTransform();
     if (renderTransform) {
-        const Point origin = RenderTransformOrigin();
+        const Point origin = GetRenderTransformOrigin();
         const double originX =
             origin.x * visualSize.width;
         const double originY =
@@ -653,7 +653,7 @@ RenderManager::~RenderManager() noexcept {
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : element.RenderChildren()) {
+            for (FrameworkElement* child : element.GetRenderChildren()) {
                 self(self, *child);
             }
             element.renderAttached_ = false;
@@ -718,7 +718,7 @@ Base::Result<void> RenderManager::SetRoot(
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
                              FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : element.RenderChildren()) {
+                for (FrameworkElement* child : element.GetRenderChildren()) {
                     self(self, *child);
                 }
                 RemoveQueued(element);
@@ -776,7 +776,7 @@ Base::Result<void> RenderManager::Attach(
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this ||
         child.renderRuntime_ != nullptr || child.renderAttached_ ||
-        child.RenderParent() != &parent) {
+        child.GetRenderParent() != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -793,7 +793,7 @@ Base::Result<void> RenderManager::Attach(
     std::uint32_t required = 1U;
     for (FrameworkElement* current = &parent; current != nullptr;
          current = current->renderAttached_
-             ? current->RenderParent() : nullptr) {
+             ? current->GetRenderParent() : nullptr) {
         if (!current->renderQueued_) ++required;
     }
     Base::Result<void> reserved =
@@ -821,7 +821,7 @@ Base::Result<void> RenderManager::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this || !child.renderAttached_ ||
-        child.RenderParent() != &parent ||
+        child.GetRenderParent() != &parent ||
         child.renderRuntime_ != this) {
         return NotFound(
             "Render parent-child relationship was not found");
@@ -832,7 +832,7 @@ Base::Result<void> RenderManager::Detach(
 
     auto clear = [&](auto&& self,
                      FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : element.RenderChildren()) {
+        for (FrameworkElement* descendant : element.GetRenderChildren()) {
             self(self, *descendant);
         }
         RemoveQueued(element);
@@ -878,7 +878,7 @@ void RenderManager::MarkCommittedSubtree(
     ++element.renderRevision_;
     element.renderValid_ = true;
     element.renderQueued_ = false;
-    for (FrameworkElement* child : element.RenderChildren()) {
+    for (FrameworkElement* child : element.GetRenderChildren()) {
         MarkCommittedSubtree(*child);
     }
 }
@@ -895,7 +895,7 @@ Base::Result<void> RenderManager::Invalidate(
     Base::Vector<FrameworkElement*> path;
     for (FrameworkElement* current = &element; current != nullptr;
          current = current->renderAttached_
-             ? current->RenderParent() : nullptr) {
+             ? current->GetRenderParent() : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.TryPushBack(current);
@@ -1045,7 +1045,7 @@ Base::Result<void> RenderManager::BuildSubtree(
     const bool visible =
         element.GetVisibility() ==
         Visibility::Visible;
-    if ((visible && !element.IsArrangeValid()) ||
+    if ((visible && !element.GetIsArrangeValid()) ||
         element.rendering_) {
         return InvalidState("FrameworkElement must be arranged and non-reentrant");
     }
@@ -1080,7 +1080,7 @@ Base::Result<void> RenderManager::BuildSubtree(
     RenderNodeSnapshot snapshot;
     snapshot.id = element.nodeId_;
     snapshot.parentId = parentId;
-    snapshot.layoutSlot = element.LayoutSlot();
+    snapshot.layoutSlot = element.GetLayoutSlot();
     if (overlayRoot) {
         for (const OverlayRecord& overlay :
              overlays_) {
@@ -1093,11 +1093,11 @@ Base::Result<void> RenderManager::BuildSubtree(
             }
         }
     }
-    snapshot.clip = element.LayoutClip();
-    snapshot.clipsToBounds = element.ClipToBounds();
-    snapshot.renderSize = element.RenderSize();
+    snapshot.clip = element.GetLayoutClip();
+    snapshot.clipsToBounds = element.GetClipToBounds();
+    snapshot.renderSize = element.GetRenderSize();
     snapshot.renderTransform =
-        element.LocalVisualTransform();
+        element.GetLocalVisualTransform();
     snapshot.blendMode =
         element.GetBlendMode();
     Base::Ref<Effect> effect =
@@ -1146,7 +1146,7 @@ Base::Result<void> RenderManager::BuildSubtree(
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : element.RenderChildren()) {
+    for (FrameworkElement* child : element.GetRenderChildren()) {
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(
@@ -1197,7 +1197,7 @@ Base::Result<std::uint32_t> RenderManager::Commit() noexcept {
             overlay == root_ ||
             !overlay->renderAttached_ ||
             overlay->GetVisibility() != Visibility::Visible ||
-            !overlay->IsArrangeValid()) {
+            !overlay->GetIsArrangeValid()) {
             continue;
         }
         built = BuildSubtree(

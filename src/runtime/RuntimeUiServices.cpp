@@ -1,4 +1,5 @@
 #include "RuntimeUiServices.hpp"
+#include "../controls/VisualStateManagerAccess.hpp"
 #include "../controls/TemplateTypes.hpp"
 
 #include <Aero/Controls/Base.hpp>
@@ -224,7 +225,7 @@ void RuntimeUiServices::Detach(
             continue;
         }
         auto& control = *static_cast<Controls::Control*>(node);
-        if (visualStates_ != nullptr) (void)visualStates_->Clear(control);
+        if (visualStates_ != nullptr) (void)Controls::Detail::VisualStateManagerAccess::Clear(*visualStates_, control);
         if (templates_ != nullptr) (void)templates_->Clear(control);
     }
     for (Aero::Visual* node : declarationNodes) {

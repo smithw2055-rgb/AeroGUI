@@ -3,6 +3,8 @@
 #include <Aero/Styling.hpp>
 #include "../ui/MountService.hpp"
 
+namespace Aero::Controls { class ContentPresenter; }
+
 namespace Aero::Controls::Detail {
 
 struct TemplatePart final {

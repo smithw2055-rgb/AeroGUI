@@ -30,7 +30,7 @@ bool ParentToLocal(
     UIElement& element,
     Point parentPosition,
     Point& localPosition) noexcept {
-    const Rect slot = element.LayoutSlot();
+    const Rect slot = element.GetLayoutSlot();
     Point translated{
         parentPosition.x - slot.x,
         parentPosition.y - slot.y};
@@ -42,7 +42,7 @@ bool ParentToLocal(
     }
     Base::Transform2D inverse;
     if (!Media::TryInvertTransform(
-            framework->LocalVisualTransform(),
+            framework->GetLocalVisualTransform(),
             inverse)) {
         return false;
     }
@@ -117,8 +117,8 @@ Base::Result<HitTestResult> HitTestManager::HitTest(
         UIElement* overlay = record.element;
         if (overlay == nullptr ||
             !IsVisualDescendantOrSelf(root, *overlay) ||
-            !overlay->IsArrangeValid() ||
-            !overlay->IsVisible()) {
+            !overlay->GetIsArrangeValid() ||
+            !overlay->GetIsVisible()) {
             continue;
         }
         Point local{
@@ -130,7 +130,7 @@ Base::Result<HitTestResult> HitTestManager::HitTest(
             Base::Transform2D inverse;
             if (!Media::TryInvertTransform(
                     overlayFramework->
-                        LocalVisualTransform(),
+                        GetLocalVisualTransform(),
                     inverse)) {
                 continue;
             }
@@ -167,7 +167,7 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
             "Hit-test root is not a registered UIElement");
     }
     UIElement* targetElement = AsUIElement(target);
-    if (targetElement == nullptr || !targetElement->IsArrangeValid()) {
+    if (targetElement == nullptr || !targetElement->GetIsArrangeValid()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be an arranged UIElement");
     }
@@ -176,7 +176,7 @@ Base::Result<HitTestResult> HitTestManager::RootToLocal(
     Visual* current = &target;
     while (current != &root) {
         UIElement* currentElement = AsUIElement(*current);
-        if (currentElement == nullptr || !currentElement->IsArrangeValid()) {
+        if (currentElement == nullptr || !currentElement->GetIsArrangeValid()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
                 "Pointer capture route contains an unarranged element");
         }
@@ -231,13 +231,13 @@ bool HitTestManager::IsOverlay(
 
 Base::Result<HitTestResult> HitTestManager::HitTestElement(
     UIElement& element, Point position) const noexcept {
-    if (!element.IsVisible() ||
-        !element.IsHitTestVisible()) {
+    if (!element.GetIsVisible() ||
+        !element.GetIsHitTestVisible()) {
         return HitTestResult{};
     }
     const bool contains =
-        Contains(element.RenderSize(), position);
-    if (!contains && element.ClipToBounds()) {
+        Contains(element.GetRenderSize(), position);
+    if (!contains && element.GetClipToBounds()) {
         return HitTestResult{};
     }
 
@@ -251,7 +251,7 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
         // Hidden/template branches may be present in the visual tree before
         // they receive a layout slot. They are not hittable and must not
         // poison hit testing for an otherwise arranged root.
-        if (!child->IsArrangeValid()) continue;
+        if (!child->GetIsArrangeValid()) continue;
         Point childPosition;
         if (!ParentToLocal(
                 *child,
@@ -347,7 +347,7 @@ Base::Result<void> PointerInputManager::UpdateHover(
             "Pointer state requires an ObjectTree");
     }
     VisualHandle next;
-    if (target != nullptr && target->IsEnabled()) {
+    if (target != nullptr && target->GetIsEnabled()) {
         Base::Result<VisualHandle> handle = tree->GetHandle(*target);
         if (!handle) return handle.GetStatus();
         next = handle.Value();
@@ -372,7 +372,7 @@ Base::Result<void> PointerInputManager::UpdateHover(
         while (current != nullptr) {
             UIElement* element = current->AsUIElement();
             if (element != nullptr &&
-                !element->IsMouseOver()) {
+                !element->GetIsMouseOver()) {
                 stateIsCurrent = false;
                 break;
             }
@@ -408,14 +408,14 @@ Base::Result<void> PointerInputManager::UpdateHover(
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         if (element != nullptr &&
-            (!element->IsMouseOver() ||
+            (!element->GetIsMouseOver() ||
              sameTarget ||
              !isAncestorOrSelf(current, previousVisual))) {
             Base::Result<VisualHandle> handle =
                 tree->GetHandle(*current);
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index) ||
-                !element->IsMouseOver()) {
+                !element->GetIsMouseOver()) {
                 Base::Result<void> set =
                     element->SetMouseOverState(true);
                 if (!set) return set.GetStatus();
@@ -465,7 +465,7 @@ Base::Result<void> PointerInputManager::UpdatePressed(
             "Pointer state requires an ObjectTree");
     }
     VisualHandle next;
-    if (target != nullptr && target->IsEnabled()) {
+    if (target != nullptr && target->GetIsEnabled()) {
         Base::Result<VisualHandle> handle = tree->GetHandle(*target);
         if (!handle) return handle.GetStatus();
         next = handle.Value();
@@ -634,9 +634,9 @@ Base::Result<PointerDispatchResult> PointerInputManager::Dispatch(
     PointerDispatchResult result;
     result.hit = hit.Value();
     UIElement* stateTarget = result.hit.HasTarget() &&
-        result.hit.target->IsEnabled() ? result.hit.target : nullptr;
+        result.hit.target->GetIsEnabled() ? result.hit.target : nullptr;
     if (captured != nullptr && stateTarget != nullptr &&
-        !Contains(stateTarget->RenderSize(), result.hit.position)) {
+        !Contains(stateTarget->GetRenderSize(), result.hit.position)) {
         stateTarget = nullptr;
     }
     Base::Result<void> hover =
@@ -715,7 +715,7 @@ UIElement* FocusManager::FindNavigationScope(UIElement* node) noexcept {
         : nullptr;
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
-        if (element != nullptr && element->IsFocusScope()) return element;
+        if (element != nullptr && element->GetIsFocusScope()) return element;
         current = current->GetLogicalParent() != nullptr
             ? current->GetLogicalParent() : current->GetVisualParent();
     }
@@ -730,7 +730,7 @@ Base::Result<void> FocusManager::RememberFocus(
     while (current != nullptr) {
         UIElement* element = current->AsUIElement();
         const bool isScope = current == root ||
-            (element != nullptr && element->IsFocusScope());
+            (element != nullptr && element->GetIsFocusScope());
         if (isScope) {
             Base::Result<VisualHandle> scope =
                 tree_->GetHandle(*current);
@@ -792,14 +792,14 @@ Base::Result<void> FocusManager::CollectCandidates(
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
         if (element != nullptr && element->GetIsLoaded() &&
-            element->IsEnabled() &&
-            element->Focusable() &&
-            element->IsTabStop()) {
+            element->GetIsEnabled() &&
+            element->GetFocusable() &&
+            element->GetIsTabStop()) {
             Base::Result<void> appended = candidates.TryPushBack(
                 {element,
                  element->GetValueOr(
                      KeyboardNavigation::TabIndexProperty,
-                     element->TabIndex()),
+                     element->GetTabIndex()),
                  candidateOrder});
             if (!appended) return appended.GetStatus();
             std::uint32_t index = candidates.Size() - 1U;
@@ -828,7 +828,7 @@ Base::Result<bool> FocusManager::SetFocus(UIElement* node) noexcept {
     if (node == nullptr) return ClearFocus();
     Base::Result<VisualHandle> next = tree_->GetHandle(*node);
     if (!next) return next.GetStatus();
-    if (!node->GetIsLoaded() || !node->IsEnabled()) {
+    if (!node->GetIsLoaded() || !node->GetIsEnabled()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target must be loaded and enabled");
     }
@@ -1062,7 +1062,7 @@ Base::Result<KeyboardDispatchResult> KeyboardInputManager::Dispatch(
         }
         return result;
     }
-    if (!result.target->IsEnabled()) {
+    if (!result.target->GetIsEnabled()) {
         Base::Result<bool> cleared = focus_->ClearFocus();
         if (!cleared) return cleared.GetStatus();
         result.target = nullptr;

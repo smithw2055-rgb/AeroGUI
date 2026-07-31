@@ -52,12 +52,12 @@ Base::Result<void> PopulateControlsTemplates(
             PropertyFlags::None)
         .Property<
             Base::Ref<Base::Object>,
-            &DataTemplate::HierarchicalItemsSource,
+            &DataTemplate::GetHierarchicalItemsSource,
             &DataTemplate::SetHierarchicalItemsSource>(
                 "ItemsSource", PropertyFlags::None)
         .Property<
             Base::Ref<Base::Object>,
-            &DataTemplate::HierarchicalItemTemplate,
+            &DataTemplate::GetHierarchicalItemTemplate,
             &DataTemplate::SetHierarchicalItemTemplate>(
                 "ItemTemplate", PropertyFlags::None)
         .Property<

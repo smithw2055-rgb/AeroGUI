@@ -42,7 +42,7 @@ Point ToLocalPoint(
     Point point) noexcept {
     const UIElement* current = &element;
     while (current != nullptr) {
-        const Rect slot = current->LayoutSlot();
+        const Rect slot = current->GetLayoutSlot();
         point.x -= slot.x;
         point.y -= slot.y;
         current = current->LayoutParent();
@@ -55,7 +55,7 @@ Rect ToRootRect(
     Rect rect) noexcept {
     const UIElement* current = &element;
     while (current != nullptr) {
-        const Rect slot = current->LayoutSlot();
+        const Rect slot = current->GetLayoutSlot();
         rect.x += slot.x;
         rect.y += slot.y;
         current = current->LayoutParent();
@@ -380,7 +380,7 @@ bool PasswordBox::IsComposing() const noexcept {
 Base::Result<Size> PasswordBox::MeasureOverride(
     Size availableSize) noexcept {
     Size templateSize{};
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         Base::Result<Size> measuredTemplate =
             Control::MeasureOverride(availableSize);
         if (!measuredTemplate) {
@@ -390,8 +390,8 @@ Base::Result<Size> PasswordBox::MeasureOverride(
     }
     Base::Result<void> dpi =
         editor_.SetLayoutRounding(
-            UseLayoutRounding(),
-            DpiScale());
+            GetUseLayoutRounding(),
+            GetDpiScale());
     if (!dpi) return dpi.GetStatus();
     Base::Result<void> foreground =
         editor_.SetForeground(Foreground());
@@ -425,7 +425,7 @@ Base::Result<Size> PasswordBox::MeasureOverride(
 
 Base::Result<Size> PasswordBox::ArrangeOverride(
     Size finalSize) noexcept {
-    if (TemplateChild() != nullptr) {
+    if (GetTemplateRoot() != nullptr) {
         Base::Result<Size> arrangedTemplate =
             Control::ArrangeOverride(finalSize);
         if (!arrangedTemplate) {
@@ -444,8 +444,8 @@ Base::Result<void> PasswordBox::OnRender(
     DrawingContext& context) noexcept {
     return editor_.RenderEditor(
         context,
-        RenderSize(),
-        IsKeyboardFocused());
+        GetRenderSize(),
+        GetIsKeyboardFocused());
 }
 
 Base::Result<void>
@@ -659,7 +659,7 @@ Base::Result<void> TextBox::SetFontSize(
 }
 
 Base::StringView TextBox::FontFamily() const noexcept {
-    return FrameworkElement::FontFamily();
+    return FrameworkElement::GetFontFamily();
 }
 
 Base::Result<void> TextBox::SetFontFamily(
@@ -933,7 +933,7 @@ TextBox::BeginComposition() noexcept {
     if (compositionActive_) {
         return {};
     }
-    if (IsReadOnly() || !IsEnabled()) {
+    if (IsReadOnly() || !GetIsEnabled()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "TextBox cannot begin composition while disabled or read-only");
@@ -1517,7 +1517,7 @@ double TextBox::LineHeight() const noexcept {
         return caretStops_[0].height;
     }
     return FontSize() * 1.6 /
-        std::max(1.0, DpiScale());
+        std::max(1.0, GetDpiScale());
 }
 
 Rect TextBox::CaretRectangle() const noexcept {
@@ -1525,7 +1525,7 @@ Rect TextBox::CaretRectangle() const noexcept {
         return {
             -scroll_.horizontalOffset,
             -scroll_.verticalOffset,
-            CaretWidth / std::max(1.0, DpiScale()),
+            CaretWidth / std::max(1.0, GetDpiScale()),
             LineHeight()};
     }
     const std::uint32_t index =
@@ -1537,7 +1537,7 @@ Rect TextBox::CaretRectangle() const noexcept {
     return {
         stop.x - scroll_.horizontalOffset,
         stop.y - scroll_.verticalOffset,
-        CaretWidth / std::max(1.0, DpiScale()),
+        CaretWidth / std::max(1.0, GetDpiScale()),
         stop.height};
 }
 
@@ -1631,12 +1631,12 @@ TextBox::RebuildCaretStops() noexcept {
         ? textSize_.height /
             static_cast<double>(visualLines)
         : FontSize() * 1.6 /
-            std::max(1.0, DpiScale());
+            std::max(1.0, GetDpiScale());
     const double advance =
         wrapColumns_ != UINT32_MAX
         ? DefaultAdvance *
               FontSize() / 16.0 /
-              std::max(1.0, DpiScale())
+              std::max(1.0, GetDpiScale())
         : maximumLineLength != 0U &&
             textSize_.width > 0.0
         ? textSize_.width /
@@ -1644,7 +1644,7 @@ TextBox::RebuildCaretStops() noexcept {
                 maximumLineLength)
         : DefaultAdvance *
               FontSize() / 16.0 /
-            std::max(1.0, DpiScale());
+            std::max(1.0, GetDpiScale());
 
     Base::Result<void> initial =
         caretStops_.TryResize(
@@ -1745,7 +1745,7 @@ Base::Result<Size> TextBox::MeasureOverride(
         const double fallbackAdvance =
             DefaultAdvance *
             FontSize() / 16.0 /
-            std::max(1.0, DpiScale());
+            std::max(1.0, GetDpiScale());
         const double columns =
             std::floor(
                 contentAvailable.width /
@@ -1761,7 +1761,7 @@ Base::Result<Size> TextBox::MeasureOverride(
         request.text = displayText_.View();
         request.availableSize =
             contentAvailable;
-        request.dpiScale = DpiScale();
+        request.dpiScale = GetDpiScale();
         request.pixelSize =
             static_cast<float>(FontSize());
         request.lineHeight =
@@ -1860,11 +1860,11 @@ Base::Result<Size> TextBox::MeasureOverride(
             static_cast<double>(visibleColumns) *
                 DefaultAdvance *
                 FontSize() / 16.0 /
-                std::max(1.0, DpiScale()),
+                std::max(1.0, GetDpiScale()),
             static_cast<double>(
                 std::max(1U, visualLineCount)) *
                 FontSize() * 1.6 /
-                std::max(1.0, DpiScale())};
+                std::max(1.0, GetDpiScale())};
     }
     Base::Result<void> stops =
         RebuildCaretStops();
@@ -1882,7 +1882,7 @@ Base::Result<Size> TextBox::MeasureOverride(
         scroll_.verticalOffset,
         scroll_.extentHeight,
         scroll_.viewportHeight);
-    if (IsKeyboardFocused() ||
+    if (GetIsKeyboardFocused() ||
         compositionActive_) {
         Base::Result<void> visible =
             EnsureCaretVisible();
@@ -1895,7 +1895,7 @@ Base::Result<Size> TextBox::MeasureOverride(
     const double minimumWidth =
         DefaultAdvance *
         FontSize() / 16.0 /
-        std::max(1.0, DpiScale());
+        std::max(1.0, GetDpiScale());
     Size desired{
         std::min(
             std::max(minimumWidth, textSize_.width),
@@ -1949,7 +1949,7 @@ Base::Result<Size> TextBox::ArrangeOverride(
     if (!updated) {
         return updated.GetStatus();
     }
-    if (IsKeyboardFocused() ||
+    if (GetIsKeyboardFocused() ||
         compositionActive_) {
         Base::Result<void> visible =
             EnsureCaretVisible();
@@ -1967,8 +1967,8 @@ Base::Result<void> TextBox::OnRender(
     auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
     const Rect bounds{
         0.0, 0.0,
-        RenderSize().width,
-        RenderSize().height};
+        GetRenderSize().width,
+        GetRenderSize().height};
     const Thickness border =
         BorderThickness();
     const double borderThickness = std::max(
@@ -1976,13 +1976,13 @@ Base::Result<void> TextBox::OnRender(
         std::max(border.top, border.bottom));
     Color borderBrush =
         BorderBrush();
-    if (IsKeyboardFocused() && IsEnabled()) {
+    if (GetIsKeyboardFocused() && GetIsEnabled()) {
         borderBrush = Color{
             11.0F / 255.0F,
             128.0F / 255.0F,
             193.0F / 255.0F,
             1.0F};
-    } else if (IsMouseOver() && IsEnabled()) {
+    } else if (GetIsMouseOver() && GetIsEnabled()) {
         borderBrush = Color{
             93.0F / 255.0F,
             100.0F / 255.0F,
@@ -2002,7 +2002,7 @@ Base::Result<void> TextBox::OnRender(
         chrome = builder.StrokeRect(
             bounds,
             borderBrush,
-            IsKeyboardFocused()
+            GetIsKeyboardFocused()
                 ? std::max(1.0, borderThickness)
                 : borderThickness);
         if (!chrome) {
@@ -2011,8 +2011,8 @@ Base::Result<void> TextBox::OnRender(
     }
     return RenderEditor(
         context,
-        RenderSize(),
-        IsKeyboardFocused());
+        GetRenderSize(),
+        GetIsKeyboardFocused());
 }
 
 Base::Result<void>
@@ -2310,7 +2310,7 @@ TextBox::UpdateCandidateWindow() noexcept {
         : static_cast<UIElement&>(*this);
     candidate.caret =
         ToRootRect(owner, caret);
-    candidate.dpiScale = DpiScale();
+    candidate.dpiScale = GetDpiScale();
     return inputMethodHost_->
         SetCandidateWindow(candidate);
 }
@@ -2843,12 +2843,12 @@ TextBoxInteractionManager::Detach(
 
 void TextBoxInteractionManager::OnMouseDown(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     if (args.changedButton !=
             MouseButton::Left ||
-        !owner.IsEnabled()) {
+        !owner.GetIsEnabled()) {
         return;
     }
     const std::uint32_t index =
@@ -2883,7 +2883,7 @@ void TextBoxInteractionManager::OnMouseDown(
 
 void TextBoxInteractionManager::OnMouseMove(
     Base::Object* sender,
-    const MouseEventArgs& args) noexcept {
+    MouseEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     const std::uint32_t index =
@@ -2909,7 +2909,7 @@ void TextBoxInteractionManager::OnMouseMove(
 
 void TextBoxInteractionManager::OnMouseUp(
     Base::Object* sender,
-    const MouseButtonEventArgs& args) noexcept {
+    MouseButtonEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     const std::uint32_t index =
@@ -2941,7 +2941,7 @@ void TextBoxInteractionManager::OnMouseUp(
 
 void TextBoxInteractionManager::OnKeyDown(
     Base::Object* sender,
-    const KeyEventArgs& args) noexcept {
+    KeyEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     const std::uint32_t index =
@@ -2950,7 +2950,7 @@ void TextBoxInteractionManager::OnKeyDown(
         index != UINT32_MAX
         ? ResolveEditor(index)
         : nullptr;
-    if (!owner.IsEnabled() ||
+    if (!owner.GetIsEnabled() ||
         editor == nullptr) {
         return;
     }
@@ -3037,7 +3037,7 @@ void TextBoxInteractionManager::OnKeyDown(
 
 void TextBoxInteractionManager::OnTextInput(
     Base::Object* sender,
-    const TextCompositionEventArgs& args) noexcept {
+    TextCompositionEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     const std::uint32_t index =
@@ -3046,7 +3046,7 @@ void TextBoxInteractionManager::OnTextInput(
         index != UINT32_MAX
         ? ResolveEditor(index)
         : nullptr;
-    if (!owner.IsEnabled() ||
+    if (!owner.GetIsEnabled() ||
         editor == nullptr ||
         editor->IsReadOnly()) {
         return;
@@ -3068,7 +3068,7 @@ void TextBoxInteractionManager::OnTextInput(
 
 void TextBoxInteractionManager::OnFocusChanged(
     Base::Object* sender,
-    const KeyboardFocusChangedEventArgs& args) noexcept {
+    KeyboardFocusChangedEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
     if (args.newFocus == &owner) {

@@ -195,11 +195,11 @@ InspectorEndpoint::Capture(
         output.dataContext =
             std::move(context).Value();
         output.layoutRect =
-            element->LayoutSlot();
+            element->GetLayoutSlot();
         output.layoutClip =
-            element->LayoutClip();
+            element->GetLayoutClip();
         output.renderSize =
-            element->RenderSize();
+            element->GetRenderSize();
     }
     if (styles_ != nullptr) {
         output.appliedStyle =

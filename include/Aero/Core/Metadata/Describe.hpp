@@ -249,6 +249,11 @@ public:
             PropertyMetadataFlags::BindsTwoWayByDefault;
         return *this;
     }
+    PropertyOptions& Apply(
+        FrameworkPropertyMetadataOptions options) noexcept {
+        flags_ = flags_ | ToPropertyMetadataFlags(options);
+        return *this;
+    }
     PropertyOptions& UpdateSource(
         UpdateSourceTrigger trigger) noexcept {
         updateSourceTrigger_ = trigger;

@@ -1,4 +1,5 @@
 #include <Aero/App/Launcher.hpp>
+#include <Aero/App.hpp>
 
 #include <Aero/Application.hpp>
 #include <Aero/Window.hpp>
@@ -223,9 +224,9 @@ struct Launcher::Impl final {
         window = static_cast<Window*>(windowOwner.Get());
 
         std::uint32_t width =
-            WindowExtent(window->Width(), defaultWidth);
+            WindowExtent(window->GetWidth(), defaultWidth);
         std::uint32_t height =
-            WindowExtent(window->Height(), defaultHeight);
+            WindowExtent(window->GetHeight(), defaultHeight);
         Base::Result<void> native =
             CreateNativeWindow(width, height);
         if (!native) return native.GetStatus();
@@ -707,6 +708,10 @@ void Launcher::DetachRuntime(
     Window* window) noexcept {
     if (application != nullptr) application->Detach();
     if (window != nullptr) window->Detach();
+}
+
+int Run() noexcept {
+    return Run(LaunchOptions{}, nullptr);
 }
 
 int Run(const LaunchOptions& options, Base::IAllocator* allocator) noexcept {
