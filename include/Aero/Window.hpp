@@ -1,27 +1,20 @@
 #pragma once
 
 #include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Platform/Window.hpp>
 
 namespace Aero {
 class View;
 }
 
+namespace Aero::Platform {
+class IWindow;
+}
+
 namespace Aero::App {
 class ApplicationHost;
 namespace Detail {
-
-class IWindowPeer {
-public:
-    virtual ~IWindowPeer() = default;
-    virtual Base::Result<void> Show() noexcept = 0;
-    virtual void Close() noexcept = 0;
-    virtual bool IsOpen() const noexcept = 0;
-    virtual Platform::IWindow* NativeWindow() noexcept = 0;
-    virtual View* HostedView() noexcept = 0;
-};
-
-} // namespace Detail
+class IWindowPeer;
+}
 } // namespace Aero::App
 
 namespace Aero::Integration {
@@ -47,14 +40,6 @@ public:
         Base::StringView value) noexcept {
         return SetValue(TitleProperty, value);
     }
-    Base::StringView FontFamily() const noexcept {
-        return Aero::FrameworkElement::
-            FontFamily();
-    }
-    Base::Result<void> SetFontFamily(
-        Base::StringView value) noexcept {
-        return SetValue(FontFamilyProperty, value);
-    }
 
     Base::Result<void> Show() noexcept;
     void Close() noexcept;
@@ -62,9 +47,6 @@ public:
 
     inline static constexpr Members::Property<Base::String>
         TitleProperty{"Title"};
-    inline static constexpr auto FontFamilyProperty =
-        Aero::FrameworkElement::
-            FontFamilyProperty;
 
 protected:
     explicit Window(Core::TypeId runtimeType) noexcept
