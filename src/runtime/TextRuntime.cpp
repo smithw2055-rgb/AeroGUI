@@ -57,7 +57,9 @@ std::string NormalizedFontName(
     const std::string& value) {
     std::string normalized;
     normalized.reserve(value.size());
-    for (const unsigned char character : value) {
+    for (const char rawCharacter : value) {
+        const auto character =
+            static_cast<unsigned char>(rawCharacter);
         if (std::isalnum(character) != 0) {
             normalized.push_back(
                 static_cast<char>(

@@ -293,6 +293,10 @@ struct ApplicationHost::Impl final
     Base::Result<void> CreateEndpoint(
         std::uint32_t width,
         std::uint32_t height) noexcept {
+#if !AERO_APP_HAS_D3D11 && !AERO_APP_HAS_OPENGL_WINDOW
+        static_cast<void>(width);
+        static_cast<void>(height);
+#endif
         GraphicsBackend selected = backend;
         if (selected == GraphicsBackend::Automatic) {
 #if defined(_WIN32)
