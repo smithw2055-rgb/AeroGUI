@@ -16,9 +16,7 @@ namespace Aero::Documents {
 class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
-class TextSelection;
 }
-namespace Aero::Platform { class IClipboard; }
 namespace Aero::Detail { class DocumentTextAccess; }
 
 namespace Aero::Controls {
@@ -488,14 +486,6 @@ public:
     Documents::InlineCollectionView Inlines() const noexcept;
     Documents::TextPointer ContentStart() noexcept;
     Documents::TextPointer ContentEnd() noexcept;
-    bool IsTextSelectionEnabled() const noexcept;
-    Color SelectionBrush() const noexcept;
-    double SelectionOpacity() const noexcept;
-    Color CaretBrush() const noexcept;
-    Documents::TextSelection Selection() const noexcept;
-    Documents::TextPointer SelectionAnchor() const noexcept;
-    Documents::TextPointer CaretPosition() const noexcept;
-    Base::Result<Rect> CaretRectangle() const noexcept;
     Core::Value MetadataInlines() const noexcept;
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
@@ -519,21 +509,6 @@ public:
         Text::TextTrimming value) noexcept;
     Base::Result<void> SetTextAlignment(
         Text::TextAlignment value) noexcept;
-    Base::Result<void> SetTextSelectionEnabled(
-        bool value) noexcept;
-    Base::Result<void> SetSelectionBrush(
-        Color value) noexcept;
-    Base::Result<void> SetSelectionOpacity(
-        double value) noexcept;
-    Base::Result<void> SetCaretBrush(
-        Color value) noexcept;
-    Base::Result<void> SetSelection(
-        const Documents::TextPointer& anchor,
-        const Documents::TextPointer& caret) noexcept;
-    Base::Result<void> SelectAll() noexcept;
-    Base::Result<void> ClearSelection() noexcept;
-    Base::Result<void> CopySelection(
-        Platform::IClipboard& clipboard) const noexcept;
     Base::Result<void> SetInlineValue(
         Core::Value value) noexcept;
     Base::Result<void> AddOwnedInline(
@@ -574,14 +549,6 @@ public:
         TextAlignmentProperty{"TextAlignment"};
     inline static constexpr Members::Property<Thickness>
         PaddingProperty{"Padding"};
-    inline static constexpr Members::Property<bool>
-        IsTextSelectionEnabledProperty{"IsTextSelectionEnabled"};
-    inline static constexpr Members::Property<Color>
-        SelectionBrushProperty{"SelectionBrush"};
-    inline static constexpr Members::Property<double>
-        SelectionOpacityProperty{"SelectionOpacity"};
-    inline static constexpr Members::Property<Color>
-        CaretBrushProperty{"CaretBrush"};
     Base::Result<void> SetGlyphRun(RenderGlyphRunId glyphRun, Size size) noexcept;
 protected:
     explicit TextBlock(TypeId runtimeType) noexcept;
@@ -591,18 +558,10 @@ protected:
 private:
     friend class Detail::TextServicesAccess;
     friend class Aero::Detail::DocumentTextAccess;
-    friend class Aero::Detail::ControlRuntimeAccess::
-        DocumentSelectionManager;
 
     Base::Result<void> SynchronizeInlineStyle(UIElement& child) noexcept;
     bool IsLineBreak(const UIElement& child) const noexcept;
     Base::StringView EffectiveFontFamily() const noexcept;
-    Base::Result<void> SetSelectionOffsets(
-        std::uint32_t anchor,
-        std::uint32_t caret) noexcept;
-    Base::Result<void> CoerceDocumentSelection() noexcept;
-    Base::Result<void> SetCaretBlinkVisible(
-        bool value) noexcept;
     void ReleaseServiceGlyphRun() noexcept;
 
     Detail::TextLayoutService* layoutService_ = nullptr;
@@ -611,9 +570,6 @@ private:
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;
     Base::Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;
-    std::uint32_t selectionAnchor_ = 0U;
-    std::uint32_t selectionCaret_ = 0U;
-    bool caretBlinkVisible_ = false;
     bool serviceOwnsGlyphRun_ = false;
 };
 

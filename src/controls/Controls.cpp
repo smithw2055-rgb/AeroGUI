@@ -1642,44 +1642,8 @@ Text::TextAlignment TextBlock::TextAlignment() const noexcept {
 
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
     Base::Result<void> changed = SetValue(TextProperty, value);
-    if (!changed) return changed.GetStatus();
-    textHitRegions_.Clear();
-    return CoerceDocumentSelection();
-}
-
-bool TextBlock::IsTextSelectionEnabled() const noexcept {
-    return GetValueOr(IsTextSelectionEnabledProperty, false);
-}
-
-Color TextBlock::SelectionBrush() const noexcept {
-    return GetValueOr(SelectionBrushProperty,
-        Color{46.0F / 255.0F, 174.0F / 255.0F,
-              235.0F / 255.0F, 1.0F});
-}
-
-double TextBlock::SelectionOpacity() const noexcept {
-    return GetValueOr(SelectionOpacityProperty, 0.25);
-}
-
-Color TextBlock::CaretBrush() const noexcept {
-    return GetValueOr(CaretBrushProperty,
-        Color{0.0F, 0.0F, 0.0F, 1.0F});
-}
-
-Base::Result<void> TextBlock::SetTextSelectionEnabled(bool value) noexcept {
-    return SetValue(IsTextSelectionEnabledProperty, value);
-}
-
-Base::Result<void> TextBlock::SetSelectionBrush(Color value) noexcept {
-    return SetValue(SelectionBrushProperty, value);
-}
-
-Base::Result<void> TextBlock::SetSelectionOpacity(double value) noexcept {
-    return SetValue(SelectionOpacityProperty, value);
-}
-
-Base::Result<void> TextBlock::SetCaretBrush(Color value) noexcept {
-    return SetValue(CaretBrushProperty, value);
+    if (changed) textHitRegions_.Clear();
+    return changed;
 }
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
@@ -2023,8 +1987,6 @@ Base::Result<void> TextBlock::SetGlyphRun(
 }
 
 Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
-    Base::Result<void> selection = CoerceDocumentSelection();
-    if (!selection) return selection.GetStatus();
     if (layoutService_ != nullptr) {
         const Base::StringView text = Text();
         if (text.Empty()) {
@@ -2213,46 +2175,30 @@ Base::Result<void> TextBlock::BuildDisplayList(
     DisplayListBuilder& builder) noexcept {
     const Color background = Background();
     if (background.alpha > 0.0F) {
-        Base::Result<void> filled = builder.FillRect(
-            {0.0, 0.0, RenderSize().width, RenderSize().height},
-            background);
+        Base::Result<void> filled =
+            builder.FillRect(
+                {0.0, 0.0,
+                 RenderSize().width,
+                 RenderSize().height},
+                background);
         if (!filled) return filled.GetStatus();
-    }
-    const Documents::TextSelection selection = Selection();
-    if (IsTextSelectionEnabled() && !selection.IsEmpty()) {
-        Base::Result<Documents::TextRange> range = selection.Range();
-        if (!range) return range.GetStatus();
-        Base::Vector<Rect> rectangles;
-        Base::Result<void> geometry =
-            Documents::GetTextRangeRectangles(range.Value(), rectangles);
-        if (!geometry) return geometry.GetStatus();
-        Color selectionColor = SelectionBrush();
-        selectionColor.alpha *= static_cast<float>(SelectionOpacity());
-        for (const Rect& rect : rectangles) {
-            Base::Result<void> filled = builder.FillRect(rect, selectionColor);
-            if (!filled) return filled.GetStatus();
-        }
     }
     for (RenderGlyphRunId glyphRun : glyphRuns_) {
         Base::Result<void> drawn =
             builder.DrawGlyphRun(glyphRun, Foreground());
         if (!drawn) return drawn.GetStatus();
     }
-    if (GetTextDecorations() == TextDecorations::Underline &&
+    if (GetTextDecorations() ==
+            TextDecorations::Underline &&
         glyphRunSize_.width > 0.0) {
-        const double thickness = std::max(1.0, FontSize() * 0.06);
+        const double thickness =
+            std::max(1.0, FontSize() * 0.06);
         const double y = std::max(
-            0.0, glyphRunSize_.height - thickness * 1.5);
-        Base::Result<void> line = builder.FillRect(
-            {0.0, y, glyphRunSize_.width, thickness}, Foreground());
-        if (!line) return line.GetStatus();
-    }
-    if (IsTextSelectionEnabled() && IsKeyboardFocused() &&
-        selection.IsEmpty() && caretBlinkVisible_) {
-        Base::Result<Rect> caret = CaretRectangle();
-        if (!caret) return caret.GetStatus();
-        Base::Result<void> drawn = builder.FillRect(caret.Value(), CaretBrush());
-        if (!drawn) return drawn.GetStatus();
+            0.0,
+            glyphRunSize_.height - thickness * 1.5);
+        return builder.FillRect(
+            {0.0, y, glyphRunSize_.width, thickness},
+            Foreground());
     }
     return {};
 }

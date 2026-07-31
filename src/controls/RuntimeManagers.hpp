@@ -185,62 +185,6 @@ private:
         const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnRequerySuggested() noexcept;
 };
-class AERO_API ControlRuntimeAccess::DocumentSelectionManager final {
-public:
-    DocumentSelectionManager(
-        ObjectTree& tree, RoutedEventManager& events,
-        PointerInputManager& pointer, FocusManager& focus,
-        Platform::IClipboard* clipboard = nullptr) noexcept;
-    ~DocumentSelectionManager() noexcept;
-
-    Base::Result<void> Attach(TextBlock& text) noexcept;
-    Base::Result<bool> Detach(TextBlock& text) noexcept;
-    Base::Result<std::uint32_t> AdvanceTime(
-        std::uint32_t elapsedMilliseconds) noexcept;
-
-private:
-    struct Record final {
-        VisualHandle handle;
-        std::uint32_t pointerId = 0U;
-        Documents::TextPointer anchor;
-        std::uint32_t blinkElapsed = 0U;
-        bool dragging = false;
-    };
-    ObjectTree* tree_ = nullptr;
-    RoutedEventManager* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    Platform::IClipboard* clipboard_ = nullptr;
-    Base::Vector<Record> records_;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseEventHandler mouseMoveHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    KeyboardFocusChangedEventHandler focusChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    PointerCaptureChangedHandler captureChangedHandler_;
-    bool captureSubscribed_ = false;
-
-    std::uint32_t Find(const TextBlock& text) const noexcept;
-    TextBlock* Resolve(std::uint32_t index) noexcept;
-    void RemoveAt(std::uint32_t index) noexcept;
-    Base::Result<void> SynchronizeSelectionEnabled(
-        TextBlock& text) noexcept;
-    Base::Result<void> MoveCaret(
-        TextBlock& text, Documents::LogicalDirection direction, bool extend) noexcept;
-    Base::Result<void> MoveLine(
-        TextBlock& text, double direction, bool extend) noexcept;
-    void OnMouseDown(Base::Object*, const MouseButtonEventArgs&) noexcept;
-    void OnMouseMove(Base::Object*, const MouseEventArgs&) noexcept;
-    void OnMouseUp(Base::Object*, const MouseButtonEventArgs&) noexcept;
-    void OnKeyDown(Base::Object*, const KeyEventArgs&) noexcept;
-    void OnFocusChanged(
-        Base::Object*, const KeyboardFocusChangedEventArgs&) noexcept;
-    void OnPropertyChanged(
-        DependencyObject&, const DependencyPropertyChangedEventArgs&) noexcept;
-    void OnCaptureChanged(
-        std::uint32_t, UIElement*, bool) noexcept;
-};
 class AERO_API ControlRuntimeAccess::TextBoxInteractionManager final {
 public:
     TextBoxInteractionManager(

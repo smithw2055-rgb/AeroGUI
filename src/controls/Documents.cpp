@@ -1,5 +1,4 @@
 #include <Aero/Documents/Documents.hpp>
-#include <Aero/Platform/Clipboard.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -95,8 +94,6 @@ public:
                 : owner.ownedInlines_.Back();
             Base::Result<void> invalidated = owner.InvalidateMeasure();
             if (!invalidated) return invalidated.GetStatus();
-            Base::Result<void> coerced = owner.CoerceDocumentSelection();
-            if (!coerced) return coerced.GetStatus();
             return true;
         }
         return false;
@@ -109,8 +106,7 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Mounted inline collections require a MountService transaction");
         }
-        Base::Result<void> cleared = owner.ClearOwnedInlines();
-        return cleared ? owner.CoerceDocumentSelection() : cleared;
+        return owner.ClearOwnedInlines();
     }
 
     static Base::Result<void> AppendText(
@@ -182,42 +178,6 @@ public:
         const unsigned char byte = static_cast<unsigned char>(
             flattened.View().Data()[offset]);
         return (byte & 0xC0U) != 0x80U;
-    }
-
-    static Base::Result<Documents::TextPointer> NextInsertion(
-        const Documents::TextPointer& position,
-        Documents::LogicalDirection direction) noexcept {
-        if (!position.container_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "TextPointer is not bound to a container");
-        }
-        Base::String text;
-        Base::Result<void> copied = AppendText(*position.container_, text);
-        if (!copied) return copied.GetStatus();
-        std::uint32_t offset = position.offset_;
-        if (offset > text.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "TextPointer exceeds the document text");
-        }
-        if (direction == Documents::LogicalDirection::Forward) {
-            if (offset == text.SizeBytes()) return position;
-            ++offset;
-            while (offset < text.SizeBytes() &&
-                (static_cast<unsigned char>(text.View()[offset]) & 0xC0U) == 0x80U) {
-                ++offset;
-            }
-        } else {
-            if (offset == 0U) return position;
-            --offset;
-            while (offset > 0U &&
-                (static_cast<unsigned char>(text.View()[offset]) & 0xC0U) == 0x80U) {
-                --offset;
-            }
-        }
-        return Documents::TextPointer(
-            *position.container_, offset, direction);
     }
 
     static Base::Span<const Text::TextHitRegion> Hits(
@@ -372,144 +332,6 @@ private:
         return false;
     }
 
-    static Base::Result<void> AppendRangeRect(
-        Base::Vector<Presentation::Rect>& output,
-        Presentation::Rect rect) noexcept {
-        if (!output.Empty()) {
-            Presentation::Rect& previous = output.Back();
-            if (std::abs(previous.y - rect.y) < 0.5 &&
-                std::abs(previous.height - rect.height) < 0.5 &&
-                std::abs(previous.x + previous.width - rect.x) < 0.5) {
-                previous.width += rect.width;
-                return {};
-            }
-        }
-        return output.TryPushBack(rect);
-    }
-
-    static Base::Result<std::uint32_t> RangeRectsRecursive(
-        const Controls::TextBlock& owner,
-        std::uint32_t selectionStart,
-        std::uint32_t selectionEnd,
-        std::uint32_t baseOffset,
-        Presentation::Point origin,
-        Base::Vector<Presentation::Rect>& output,
-        std::uint32_t depth = 0U) noexcept {
-        if (depth >= 1024U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document selection geometry exceeded the nesting limit");
-        }
-        for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
-            const std::uint32_t start = baseOffset + hit.textOffset;
-            const std::uint32_t end = start + hit.textLength;
-            if (end <= selectionStart || start >= selectionEnd) continue;
-            Base::Result<void> appended = AppendRangeRect(
-                output, {origin.x + hit.x, origin.y + hit.y,
-                    std::max(static_cast<double>(hit.width), 1.0),
-                    std::max(static_cast<double>(hit.height), 1.0)});
-            if (!appended) return appended.GetStatus();
-        }
-        std::uint32_t cursor = baseOffset + owner.Text().SizeBytes();
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            const auto& inlineValue =
-                *static_cast<const Documents::Inline*>(item.Get());
-            const Presentation::Rect slot = inlineValue.LayoutSlot();
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                if (cursor >= selectionStart && cursor < selectionEnd) {
-                    Base::Result<void> appended = AppendRangeRect(
-                        output, {origin.x + slot.x, origin.y + slot.y, 1.0,
-                            std::max(owner.FontSize() * 1.2, 1.0)});
-                    if (!appended) return appended.GetStatus();
-                }
-                ++cursor;
-                continue;
-            }
-            Base::Result<std::uint32_t> length = Length(inlineValue);
-            if (!length) return length.GetStatus();
-            const std::uint32_t childEnd = cursor + length.Value();
-            if (childEnd > selectionStart && cursor < selectionEnd) {
-                Base::Result<std::uint32_t> nested = RangeRectsRecursive(
-                    inlineValue, selectionStart, selectionEnd, cursor,
-                    {origin.x + slot.x, origin.y + slot.y}, output, depth + 1U);
-                if (!nested) return nested.GetStatus();
-            }
-            cursor = childEnd;
-        }
-        return cursor - baseOffset;
-    }
-
-    static Base::Result<bool> CaretRectRecursive(
-        const Controls::TextBlock& owner,
-        std::uint32_t requested,
-        Documents::LogicalDirection direction,
-        std::uint32_t baseOffset,
-        Presentation::Point origin,
-        Presentation::Rect& output,
-        std::uint32_t depth = 0U) noexcept {
-        if (depth >= 1024U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document caret geometry exceeded the nesting limit");
-        }
-        const std::uint32_t ownEnd = baseOffset + owner.Text().SizeBytes();
-        if (!owner.textHitRegions_.Empty() &&
-            (requested < ownEnd ||
-             (requested == ownEnd &&
-              direction == Documents::LogicalDirection::Backward))) {
-            const Text::TextHitRegion* selected = &owner.textHitRegions_.Back();
-            for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
-                const std::uint32_t leading = baseOffset + hit.textOffset;
-                const std::uint32_t trailing = leading + hit.textLength;
-                if (requested >= leading && requested <= trailing) {
-                    selected = &hit;
-                    break;
-                }
-            }
-            const std::uint32_t leading = baseOffset + selected->textOffset;
-            const std::uint32_t trailing = leading + selected->textLength;
-            const bool trailingEdge = requested >= trailing ||
-                (requested > leading &&
-                 direction == Documents::LogicalDirection::Forward);
-            output = {origin.x + selected->x +
-                    (trailingEdge ? selected->width : 0.0F),
-                origin.y + selected->y, 1.0,
-                std::max(static_cast<double>(selected->height), 1.0)};
-            return true;
-        }
-        std::uint32_t cursor = ownEnd;
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            const auto& inlineValue =
-                *static_cast<const Documents::Inline*>(item.Get());
-            const Presentation::Rect slot = inlineValue.LayoutSlot();
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                if (requested == cursor || requested == cursor + 1U) {
-                    output = {origin.x + slot.x, origin.y + slot.y, 1.0,
-                        std::max(owner.FontSize() * 1.2, 1.0)};
-                    return true;
-                }
-                ++cursor;
-                continue;
-            }
-            Base::Result<std::uint32_t> length = Length(inlineValue);
-            if (!length) return length.GetStatus();
-            if (requested <= cursor + length.Value()) {
-                return CaretRectRecursive(
-                    inlineValue, requested, direction, cursor,
-                    {origin.x + slot.x, origin.y + slot.y}, output, depth + 1U);
-            }
-            cursor += length.Value();
-        }
-        if (requested == cursor) {
-            output = {origin.x, origin.y, 1.0,
-                std::max(owner.FontSize() * 1.2, 1.0)};
-            return true;
-        }
-        return false;
-    }
-
 public:
     static Base::Result<Documents::TextPointer> PositionFromPoint(
         Controls::TextBlock& owner,
@@ -557,49 +379,6 @@ public:
         }
         return rect;
     }
-
-    static Base::Result<Presentation::Rect> CaretRect(
-        const Documents::TextPointer& position) noexcept {
-        if (!position.container_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "TextPointer is not bound to a container");
-        }
-        if (!position.container_->IsMeasureValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Document caret rectangles require a valid measure pass");
-        }
-        Presentation::Rect rect;
-        Base::Result<bool> found = CaretRectRecursive(
-            *position.container_, position.offset_, position.direction_,
-            0U, {}, rect);
-        if (!found) return found.GetStatus();
-        if (!found.Value()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "TextPointer has no arranged caret rectangle");
-        }
-        return rect;
-    }
-
-    static Base::Result<void> RangeRects(
-        const Documents::TextRange& range,
-        Base::Vector<Presentation::Rect>& output) noexcept {
-        if (!range.IsValid() || range.Start().Container() == nullptr ||
-            range.Start().Container() != range.End().Container()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "TextRange selection geometry requires one document");
-        }
-        output.Clear();
-        if (range.IsEmpty()) return {};
-        Base::Result<std::uint32_t> traversed = RangeRectsRecursive(
-            *range.Start().Container(), range.Start().Offset(),
-            range.End().Offset(), 0U, {}, output);
-        return traversed ? Base::Result<void>()
-                         : Base::Result<void>(traversed.GetStatus());
-    }
 };
 
 } // namespace Aero::Detail
@@ -625,123 +404,6 @@ Documents::TextPointer TextBlock::ContentEnd() noexcept {
     return Documents::TextPointer(
         *this, length ? length.Value() : 0U,
         Documents::LogicalDirection::Backward);
-}
-
-Documents::TextPointer TextBlock::SelectionAnchor() const noexcept {
-    auto& owner = const_cast<TextBlock&>(*this);
-    return Documents::TextPointer(
-        owner, selectionAnchor_, Documents::LogicalDirection::Forward);
-}
-
-Documents::TextPointer TextBlock::CaretPosition() const noexcept {
-    auto& owner = const_cast<TextBlock&>(*this);
-    return Documents::TextPointer(
-        owner, selectionCaret_,
-        selectionCaret_ < selectionAnchor_
-            ? Documents::LogicalDirection::Backward
-            : Documents::LogicalDirection::Forward);
-}
-
-Documents::TextSelection TextBlock::Selection() const noexcept {
-    return Documents::TextSelection(SelectionAnchor(), CaretPosition());
-}
-
-Base::Result<void> TextBlock::SetSelectionOffsets(
-    std::uint32_t anchor, std::uint32_t caret) noexcept {
-    Base::Result<std::uint32_t> length =
-        Aero::Detail::DocumentTextAccess::Length(*this);
-    if (!length) return length.GetStatus();
-    if (anchor > length.Value() || caret > length.Value()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Text selection exceeds the document text");
-    }
-    Base::Result<bool> anchorBoundary =
-        Aero::Detail::DocumentTextAccess::IsUtf8Boundary(*this, anchor);
-    if (!anchorBoundary) return anchorBoundary.GetStatus();
-    Base::Result<bool> caretBoundary =
-        Aero::Detail::DocumentTextAccess::IsUtf8Boundary(*this, caret);
-    if (!caretBoundary) return caretBoundary.GetStatus();
-    if (!anchorBoundary.Value() || !caretBoundary.Value()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text selection must use UTF-8 boundaries");
-    }
-    if (selectionAnchor_ == anchor && selectionCaret_ == caret) {
-        return SetCaretBlinkVisible(true);
-    }
-    selectionAnchor_ = anchor;
-    selectionCaret_ = caret;
-    caretBlinkVisible_ = true;
-    return InvalidateRender();
-}
-
-Base::Result<void> TextBlock::SetSelection(
-    const Documents::TextPointer& anchor,
-    const Documents::TextPointer& caret) noexcept {
-    if (anchor.Container() != this || caret.Container() != this) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextBlock selection pointers must belong to this document");
-    }
-    return SetSelectionOffsets(anchor.Offset(), caret.Offset());
-}
-
-Base::Result<void> TextBlock::SelectAll() noexcept {
-    Base::Result<std::uint32_t> length =
-        Aero::Detail::DocumentTextAccess::Length(*this);
-    return length ? SetSelectionOffsets(0U, length.Value())
-                  : Base::Result<void>(length.GetStatus());
-}
-
-Base::Result<void> TextBlock::ClearSelection() noexcept {
-    return SetSelectionOffsets(selectionCaret_, selectionCaret_);
-}
-
-Base::Result<void> TextBlock::CopySelection(
-    Platform::IClipboard& clipboard) const noexcept {
-    Documents::TextSelection selection = Selection();
-    if (selection.IsEmpty()) return {};
-    Base::String text;
-    Base::Result<void> copied = selection.CopyText(text);
-    return copied ? clipboard.WriteText(text.View()) : copied;
-}
-
-Base::Result<Rect> TextBlock::CaretRectangle() const noexcept {
-    return Documents::GetCaretRect(CaretPosition());
-}
-
-Base::Result<void> TextBlock::CoerceDocumentSelection() noexcept {
-    Base::Result<std::uint32_t> length =
-        Aero::Detail::DocumentTextAccess::Length(*this);
-    if (!length) return length.GetStatus();
-    std::uint32_t anchor = std::min(selectionAnchor_, length.Value());
-    std::uint32_t caret = std::min(selectionCaret_, length.Value());
-    while (anchor > 0U) {
-        Base::Result<bool> boundary =
-            Aero::Detail::DocumentTextAccess::IsUtf8Boundary(*this, anchor);
-        if (!boundary) return boundary.GetStatus();
-        if (boundary.Value()) break;
-        --anchor;
-    }
-    while (caret > 0U) {
-        Base::Result<bool> boundary =
-            Aero::Detail::DocumentTextAccess::IsUtf8Boundary(*this, caret);
-        if (!boundary) return boundary.GetStatus();
-        if (boundary.Value()) break;
-        --caret;
-    }
-    if (anchor == selectionAnchor_ && caret == selectionCaret_) return {};
-    selectionAnchor_ = anchor;
-    selectionCaret_ = caret;
-    caretBlinkVisible_ = true;
-    return InvalidateRender();
-}
-
-Base::Result<void> TextBlock::SetCaretBlinkVisible(bool value) noexcept {
-    if (caretBlinkVisible_ == value) return {};
-    caretBlinkVisible_ = value;
-    return InvalidateRender();
 }
 
 } // namespace Aero::Controls
@@ -862,11 +524,6 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     return TextPointer(*container_, resolved, direction);
 }
 
-Base::Result<TextPointer> TextPointer::GetNextInsertionPosition(
-    LogicalDirection direction) const noexcept {
-    return Aero::Detail::DocumentTextAccess::NextInsertion(*this, direction);
-}
-
 Base::Result<TextRange> TextRange::TryCreate(
     TextPointer start, TextPointer end) noexcept {
     Base::Result<std::int32_t> order = start.CompareTo(end);
@@ -900,28 +557,6 @@ Base::Result<void> TextRange::CopyText(
         start_.Offset(), Length()));
 }
 
-Base::Result<TextSelection> TextSelection::TryCreate(
-    TextPointer anchor, TextPointer caret) noexcept {
-    Base::Result<std::int32_t> compatible = anchor.CompareTo(caret);
-    if (!compatible) return compatible.GetStatus();
-    return TextSelection(anchor, caret);
-}
-
-Base::Result<TextRange> TextSelection::Range() const noexcept {
-    if (!IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextSelection is not valid");
-    }
-    return TextRange::TryCreate(Start(), End());
-}
-
-Base::Result<void> TextSelection::CopyText(Base::String& output) const noexcept {
-    Base::Result<TextRange> range = Range();
-    return range ? range.Value().CopyText(output)
-                 : Base::Result<void>(range.GetStatus());
-}
-
 Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
     Presentation::Point point,
@@ -933,17 +568,6 @@ Base::Result<TextPointer> GetPositionFromPoint(
 Base::Result<Presentation::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
     return Aero::Detail::DocumentTextAccess::CharacterRect(position);
-}
-
-Base::Result<Presentation::Rect> GetCaretRect(
-    const TextPointer& position) noexcept {
-    return Aero::Detail::DocumentTextAccess::CaretRect(position);
-}
-
-Base::Result<void> GetTextRangeRectangles(
-    const TextRange& range,
-    Base::Vector<Presentation::Rect>& output) noexcept {
-    return Aero::Detail::DocumentTextAccess::RangeRects(range, output);
 }
 
 Base::StringView Hyperlink::NavigateUri() const noexcept {

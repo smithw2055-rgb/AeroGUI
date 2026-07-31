@@ -66,21 +66,6 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure()
                 .AffectsArrange()
                 .Validate(&ValidateThicknessValue))
-        .Property(
-            TextBlock::IsTextSelectionEnabledProperty,
-            PropertyOptions(false).AffectsRender())
-        .Property(
-            TextBlock::SelectionBrushProperty,
-            PropertyOptions(Presentation::Color{
-                46.0F / 255.0F, 174.0F / 255.0F,
-                235.0F / 255.0F, 1.0F}).AffectsRender())
-        .Property(
-            TextBlock::SelectionOpacityProperty,
-            PropertyOptions(0.25).AffectsRender()
-                .Validate(&ValidateNormalizedDouble))
-        .Property(
-            TextBlock::CaretBrushProperty,
-            PropertyOptions(black).AffectsRender())
         .Property<
             Value,
             &TextBlock::MetadataInlines,

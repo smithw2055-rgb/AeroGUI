@@ -231,8 +231,6 @@ struct ViewRuntime::Impl final {
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Detail::ControlRuntimeAccess::
         HyperlinkInteractionManager* hyperlinkInteractions = nullptr;
-    Detail::ControlRuntimeAccess::DocumentSelectionManager*
-        documentSelections = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
     struct StoryboardSession final {
         explicit StoryboardSession(
@@ -1688,18 +1686,6 @@ struct ViewRuntime::Impl final {
                     : nullptr);
             AttachPathService(
                 *node, MeshServices());
-            if (documentSelections != nullptr &&
-                metadata->Types().IsDerivedFrom(
-                    type, Controls::TextBlock::StaticTypeId()) &&
-                !metadata->Types().IsDerivedFrom(
-                    type, Documents::Inline::StaticTypeId())) {
-                Base::Result<void> attached = documentSelections->Attach(
-                    *static_cast<Controls::TextBlock*>(node));
-                if (!attached && attached.GetStatus().code !=
-                        Base::ErrorCode::AlreadyExists) {
-                    return attached.GetStatus();
-                }
-            }
             if (controlInteractions != nullptr &&
                 metadata->Types().IsDerivedFrom(
                     type, Controls::ButtonBase::StaticTypeId())) {
@@ -3808,9 +3794,6 @@ struct ViewRuntime::Impl final {
             scrollInteractions);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
-            documentSelections);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
             textBoxInteractions);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Presentation,
@@ -3892,11 +3875,6 @@ struct ViewRuntime::Impl final {
                 *tree, *events, *pointer, *focus, *commands);
             if (!status) return status.GetStatus();
             status = hyperlinkInteractions->Initialize();
-            if (!status) return status.GetStatus();
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
-                documentSelections, *tree, *events, *pointer, *focus,
-                options.clipboard);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
@@ -6048,17 +6026,6 @@ ViewRuntime::AdvanceTime(
                 elapsedMilliseconds);
         if (!controls) return controls.GetStatus();
         actionCount = controls.Value();
-    }
-    if (impl_->documentSelections != nullptr) {
-        Base::Result<std::uint32_t> selections =
-            impl_->documentSelections->AdvanceTime(elapsedMilliseconds);
-        if (!selections) return selections.GetStatus();
-        if (actionCount > UINT32_MAX - selections.Value()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document selection timing action count overflow");
-        }
-        actionCount += selections.Value();
     }
     Base::Result<std::uint32_t> toolTips =
         impl_->AdvanceToolTipTime(

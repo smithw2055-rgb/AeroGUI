@@ -45,8 +45,6 @@ enum class AccessibilityAction : std::uint32_t {
     SetValue = 1U << 3U,
     Scroll = 1U << 4U,
     Navigate = 1U << 5U,
-    Select = 1U << 6U,
-    Copy = 1U << 7U,
 };
 
 using AccessibilityActionFlags = std::uint32_t;
@@ -63,9 +61,6 @@ struct AccessibilityNode final {
     AccessibilityActionFlags actions = 0U;
     Base::String name;
     Base::String value;
-    std::uint32_t textSelectionStart = UINT32_MAX;
-    std::uint32_t textSelectionEnd = UINT32_MAX;
-    std::uint32_t textCaret = UINT32_MAX;
     Presentation::Rect bounds;
     bool enabled = true;
     bool focusable = false;
@@ -181,21 +176,6 @@ private:
             if (!named) return named.GetStatus();
             named = node.value.TryAssign(flattened.View());
             if (!named) return named.GetStatus();
-            if (text.IsTextSelectionEnabled()) {
-                const Documents::TextSelection selection = text.Selection();
-                Base::Result<Documents::TextRange> range = selection.Range();
-                if (!range) return range.GetStatus();
-                node.textSelectionStart = range.Value().Start().Offset();
-                node.textSelectionEnd = range.Value().End().Offset();
-                node.textCaret = selection.CaretPosition().Offset();
-                node.actions |= AccessibilityActionBit(
-                    AccessibilityAction::Focus) |
-                    AccessibilityActionBit(AccessibilityAction::Select);
-                if (!selection.IsEmpty()) {
-                    node.actions |= AccessibilityActionBit(
-                        AccessibilityAction::Copy);
-                }
-            }
         }
         if (isHyperlink) {
             const auto& link =
