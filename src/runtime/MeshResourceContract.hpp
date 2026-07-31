@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdint>
 
@@ -13,13 +13,13 @@ namespace Aero::Detail {
 struct MeshBackendServices final {
     std::uint64_t generation = 0U;
     void* context = nullptr;
-    Base::Result<Presentation::RenderMeshId> (*createMesh)(
+    Base::Result<Render::RenderMeshId> (*createMesh)(
         void* context,
-        Base::Span<const Presentation::Point> vertices,
+        Base::Span<const Aero::Point> vertices,
         Base::Span<const std::uint32_t> indices) noexcept = nullptr;
     void (*releaseMesh)(
         void* context,
-        Presentation::RenderMeshId mesh) noexcept = nullptr;
+        Render::RenderMeshId mesh) noexcept = nullptr;
 };
 
 } // namespace Aero::Detail

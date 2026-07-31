@@ -500,7 +500,7 @@ IGlContextHost
 
 ## 24. Input、IME 与 accessibility
 
-Platform 层负责 raw keyboard、pointer/touch/gamepad、IME composition 和 accessibility API；Presentation 层负责语义和 route。
+Platform 层负责 raw keyboard、pointer/touch/gamepad、IME composition 和 accessibility API；UI 语义层负责语义和 route。
 
 IME 至少支持 composition start/update/commit/cancel、caret rectangle、candidate positioning、UTF-8/UTF-16 conversion、mobile virtual keyboard 和 browser composition events。
 

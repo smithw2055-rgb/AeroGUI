@@ -78,16 +78,16 @@ GridViewColumn::SetDisplayMemberPath(
         DisplayMemberPathProperty, value);
 }
 
-Base::Ref<Presentation::BindingSpec>
+Base::Ref<Data::Binding>
 GridViewColumn::DisplayMemberBinding() const noexcept {
     return GetValueOr(
         DisplayMemberBindingProperty,
-        Base::Ref<Presentation::BindingSpec>{});
+        Base::Ref<Data::Binding>{});
 }
 
 Base::Result<void>
 GridViewColumn::SetDisplayMemberBinding(
-    Base::Ref<Presentation::BindingSpec> value) noexcept {
+    Base::Ref<Data::Binding> value) noexcept {
     return SetValue(
         DisplayMemberBindingProperty, std::move(value));
 }

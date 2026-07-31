@@ -18,7 +18,7 @@
 
 #include <cstdint>
 
-namespace Aero::Presentation {
+namespace Aero {
 class UIElement;
 class Visual;
 }
@@ -113,11 +113,11 @@ public:
 private:
     friend class ObjectWriterState;
 
-    static Base::Result<Presentation::Visual*> ResolveVisual(
+    static Base::Result<Aero::Visual*> ResolveVisual(
         Markup::Schema& schema,
         Base::Object& object,
         Core::TypeId type) noexcept;
-    static Base::Result<Presentation::UIElement*> ResolveUIElement(
+    static Base::Result<Aero::UIElement*> ResolveUIElement(
         Markup::Schema& schema,
         Base::Object& object,
         Core::TypeId type) noexcept;

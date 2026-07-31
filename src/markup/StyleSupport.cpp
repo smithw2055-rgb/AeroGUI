@@ -1,12 +1,12 @@
-#include "PresentationObjectModelInternal.hpp"
+#include "UiObjectModelInternal.hpp"
 
 #include <Aero/Base/String.hpp>
 #include "SchemaInternal.hpp"
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Menus.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/Brushes.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdio>
 #include <new>
@@ -107,31 +107,31 @@ Base::Result<Core::PropertyValue> ToPropertyValue(
     return value;
 }
 
-Presentation::ResourceDictionary* ResolveStyleResources(
+Aero::ResourceDictionary* ResolveStyleResources(
     Base::Object& object,
     void*) noexcept {
     return object.RuntimeType() ==
-            Presentation::Style::StaticTypeId()
-        ? &static_cast<Presentation::Style&>(object).Resources()
+            Aero::Style::StaticTypeId()
+        ? &static_cast<Aero::Style&>(object).Resources()
         : nullptr;
 }
 
-Base::Result<Presentation::ResourceKey> ResolveStyleImplicitKey(
+Base::Result<Aero::ResourceKey> ResolveStyleImplicitKey(
     const Base::Object& object,
     void*) noexcept {
-    if (object.RuntimeType() != Presentation::Style::StaticTypeId()) {
+    if (object.RuntimeType() != Aero::Style::StaticTypeId()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Implicit Style key requires a Style object");
     }
     const Core::TypeId target =
-        static_cast<const Presentation::Style&>(object).TargetType();
+        static_cast<const Aero::Style&>(object).TargetType();
     if (target == Core::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Implicit Style requires TargetType");
     }
-    return Presentation::ResourceKey::FromType(target);
+    return Aero::ResourceKey::FromType(target);
 }
 
 } // namespace
@@ -139,7 +139,7 @@ Base::Result<Presentation::ResourceKey> ResolveStyleImplicitKey(
 namespace Detail {
 
 XamlStyleSchemaFacet::XamlStyleSchemaFacet(
-    const PresentationObjectModelOptions& options) noexcept
+    const UiObjectModelOptions& options) noexcept
     : options_(options) {}
 
 Base::Result<void> XamlStyleSchemaFacet::Register(
@@ -276,18 +276,18 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
     }
-    if (property->ValueType() == Presentation::Length::StaticTypeId() &&
+    if (property->ValueType() == Aero::Length::StaticTypeId() &&
         candidate->Type() == Core::TypeOf<double>()) {
         Base::Result<double> numeric =
             Core::ValueCodec<double>::Decode(*candidate);
         if (!numeric) return numeric.GetStatus();
-        converted = Core::ValueCodec<Presentation::Length>::Encode(
-            Presentation::Length::Pixels(numeric.Value()));
+        converted = Core::ValueCodec<Aero::Length>::Encode(
+            Aero::Length::Pixels(numeric.Value()));
         if (!converted) return converted.GetStatus();
         candidate = &converted.Value();
     }
     if (property->ValueType() ==
-            Presentation::Brush::StaticTypeId() &&
+            Media::Brush::StaticTypeId() &&
         candidate->Type() ==
             Core::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
@@ -295,38 +295,38 @@ Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
                 *candidate);
         if (!color) return color.GetStatus();
         Base::Result<
-            Base::Ref<Presentation::Brush>>
+            Base::Ref<Media::Brush>>
             brush =
-                Presentation::MakeSolidColorBrush(
+                Media::MakeSolidColorBrush(
                     color.Value());
         if (!brush) return brush.GetStatus();
         return Core::Value::FromObject(
-            Presentation::Brush::StaticTypeId(),
+            Media::Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
     }
     if (property->ValueType() == Core::TypeOf<Base::Color>() &&
         candidate->Kind() == Core::ValueKind::Object &&
         options_.properties->Types().IsDerivedFrom(
-            candidate->Type(), Presentation::Brush::StaticTypeId())) {
-        Base::Result<Base::Ref<Presentation::Brush>> brush =
-            Core::ValueCodec<Base::Ref<Presentation::Brush>>::Decode(
+            candidate->Type(), Media::Brush::StaticTypeId())) {
+        Base::Result<Base::Ref<Media::Brush>> brush =
+            Core::ValueCodec<Base::Ref<Media::Brush>>::Decode(
                 *candidate);
         if (!brush) return brush.GetStatus();
-        Presentation::Brush* source = brush.Value().Get();
+        Media::Brush* source = brush.Value().Get();
         if (source == nullptr || source->RuntimeType() !=
-                Presentation::SolidColorBrush::StaticTypeId()) {
+                Media::SolidColorBrush::StaticTypeId()) {
             return InvalidStyleXaml(
                 "Color-backed text property requires SolidColorBrush");
         }
         return Core::ValueCodec<Base::Color>::Encode(
-            static_cast<Presentation::SolidColorBrush*>(source)->GetColor());
+            static_cast<Media::SolidColorBrush*>(source)->GetColor());
     }
     return ToPropertyValue(*candidate, property->ValueType());
 }
 
 Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
-    Presentation::Style& style) noexcept {
+    Aero::Style& style) noexcept {
     if (schema_ == nullptr || options_.properties == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -348,9 +348,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::ValidationFailed,
             "Style TargetType must identify an object type");
     }
-    for (const Base::Ref<Presentation::Setter>& entry :
+    for (const Base::Ref<Aero::Setter>& entry :
          style.AuthoredSetters()) {
-        Presentation::Setter* setter = entry.Get();
+        Aero::Setter* setter = entry.Get();
         if (setter == nullptr || !setter->IsAuthored()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -380,9 +380,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             style.TryAddSetter(*setter);
         if (!added) return added.GetStatus();
     }
-    for (const Base::Ref<Presentation::PropertyTrigger>& entry :
+    for (const Base::Ref<Aero::PropertyTrigger>& entry :
          style.AuthoredTriggers()) {
-        Presentation::PropertyTrigger* trigger =
+        Aero::PropertyTrigger* trigger =
             entry.Get();
         if (trigger == nullptr ||
             !trigger->IsAuthored()) {
@@ -407,7 +407,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             targetType,
             trigger->PropertyName());
         if (!conditionValue) return conditionValue.GetStatus();
-        Presentation::StylePropertyTrigger plan;
+        Aero::StylePropertyTrigger plan;
         plan.property = condition->Handle();
         plan.value = conditionValue.Value();
         Base::Result<void> actions =
@@ -417,9 +417,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         actions = plan.exitActions.TryAppend(
             trigger->ExitActions());
         if (!actions) return actions.GetStatus();
-        for (const Base::Ref<Presentation::Setter>& setterEntry :
+        for (const Base::Ref<Aero::Setter>& setterEntry :
              trigger->AuthoredSetters()) {
-            Presentation::Setter* setter =
+            Aero::Setter* setter =
                 setterEntry.Get();
             if (setter == nullptr ||
                 !setter->IsAuthored()) {
@@ -470,15 +470,15 @@ Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(
         return InvalidStyleXaml("Style initialization requires an extension context");
     }
     return extension->FinalizeStyle(
-        static_cast<Presentation::Style&>(
+        static_cast<Aero::Style&>(
             object));
 }
 
 } // namespace Detail
 
-struct PresentationObjectModel::Impl final {
+struct UiObjectModel::Impl final {
     explicit Impl(
-        const PresentationObjectModelOptions& options) noexcept
+        const UiObjectModelOptions& options) noexcept
         : style(options),
           templates(
               *options.runtime,
@@ -490,8 +490,8 @@ struct PresentationObjectModel::Impl final {
     bool registered = false;
 };
 
-PresentationObjectModel::PresentationObjectModel(
-    const PresentationObjectModelOptions& options) noexcept
+UiObjectModel::UiObjectModel(
+    const UiObjectModelOptions& options) noexcept
     : allocator_(options.allocator != nullptr
           ? options.allocator
           : &Base::GetDefaultAllocator()) {
@@ -509,7 +509,7 @@ PresentationObjectModel::PresentationObjectModel(
     }
 }
 
-PresentationObjectModel::~PresentationObjectModel() noexcept {
+UiObjectModel::~UiObjectModel() noexcept {
     if (impl_ == nullptr) return;
     impl_->~Impl();
     allocator_->Deallocate(
@@ -520,34 +520,34 @@ PresentationObjectModel::~PresentationObjectModel() noexcept {
     impl_ = nullptr;
 }
 
-Base::Result<void> PresentationObjectModel::Register(
+Base::Result<void> UiObjectModel::Register(
     Schema& schema) noexcept {
-    PresentationObjectModelTypes types;
-    types.style = Presentation::Style::StaticTypeId();
-    types.setter = Presentation::Setter::StaticTypeId();
-    types.trigger = Presentation::PropertyTrigger::StaticTypeId();
+    UiObjectModelTypes types;
+    types.style = Aero::Style::StaticTypeId();
+    types.setter = Aero::Setter::StaticTypeId();
+    types.trigger = Aero::PropertyTrigger::StaticTypeId();
     types.styleProperty =
-        Presentation::FrameworkElement::StyleProperty;
+        Aero::FrameworkElement::StyleProperty;
     return Register(schema, types);
 }
 
-Base::Result<void> PresentationObjectModel::Register(
+Base::Result<void> UiObjectModel::Register(
     Schema& schema,
-    const PresentationObjectModelTypes& types) noexcept {
+    const UiObjectModelTypes& types) noexcept {
     if (!optionsValid_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "XAML Presentation object model options are invalid");
+            "XAML UI object model options are invalid");
     }
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
-            "XAML Presentation object model allocation failed");
+            "XAML UI object model allocation failed");
     }
     if (impl_->registered) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "XAML Presentation object model is already registered");
+            "XAML UI object model is already registered");
     }
     Base::Result<void> registered =
         impl_->style.Register(

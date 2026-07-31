@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -1035,10 +1035,10 @@ bool GridSplitter::ShowsPreview() const noexcept {
     return GetValueOr(ShowsPreviewProperty, false);
 }
 
-Base::Ref<Presentation::Style> GridSplitter::PreviewStyle() const noexcept {
+Base::Ref<Aero::Style> GridSplitter::PreviewStyle() const noexcept {
     return GetValueOr(
         PreviewStyleProperty,
-        Base::Ref<Presentation::Style>{});
+        Base::Ref<Aero::Style>{});
 }
 
 Base::Result<void> GridSplitter::SetDragIncrement(double value) noexcept {
@@ -1064,7 +1064,7 @@ Base::Result<void> GridSplitter::SetShowsPreview(bool value) noexcept {
 }
 
 Base::Result<void> GridSplitter::SetPreviewStyle(
-    Base::Ref<Presentation::Style> value) noexcept {
+    Base::Ref<Aero::Style> value) noexcept {
     return SetValue(PreviewStyleProperty, std::move(value));
 }
 
@@ -2043,10 +2043,10 @@ Base::Result<void> Slider::BuildDisplayList(
     return {};
 }
 
-Base::Ref<Presentation::Brush> TickBar::Fill() const noexcept {
+Base::Ref<Media::Brush> TickBar::Fill() const noexcept {
     return GetValueOr(
         FillProperty,
-        Base::Ref<Presentation::Brush>{});
+        Base::Ref<Media::Brush>{});
 }
 
 TickBarPlacement TickBar::Placement() const noexcept {
@@ -2056,7 +2056,7 @@ TickBarPlacement TickBar::Placement() const noexcept {
 }
 
 Base::Result<void> TickBar::SetFill(
-    Base::Ref<Presentation::Brush> value) noexcept {
+    Base::Ref<Media::Brush> value) noexcept {
     return SetValue(FillProperty, std::move(value));
 }
 
@@ -2066,7 +2066,7 @@ Base::Result<void> TickBar::SetPlacement(
 }
 
 Base::Result<void> TickBar::BuildDisplayList(
-    Presentation::DisplayListBuilder& builder) noexcept {
+    Render::DisplayListBuilder& builder) noexcept {
     DependencyObject* parent = TemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -2083,7 +2083,7 @@ Base::Result<void> TickBar::BuildDisplayList(
     const double range = slider.Maximum() - slider.Minimum();
     if (primary <= 0.0 || range < 0.0) return {};
 
-    const Color color = Presentation::SampleBrush(
+    const Color color = Media::SampleBrush(
         Fill(), 0.5, Foreground());
     constexpr double thumbLength = 14.0;
     const double start = std::min(

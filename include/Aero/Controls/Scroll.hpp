@@ -4,10 +4,8 @@
 
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Presentation/Input.hpp>
+#include <Aero/Input/Navigation.hpp>
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Controls {
 
@@ -459,7 +457,7 @@ public:
     GridResizeDirection ResizeDirection() const noexcept;
     GridResizeBehavior ResizeBehavior() const noexcept;
     bool ShowsPreview() const noexcept;
-    Base::Ref<Presentation::Style> PreviewStyle() const noexcept;
+    Base::Ref<Aero::Style> PreviewStyle() const noexcept;
     Base::Result<void> SetDragIncrement(double value) noexcept;
     Base::Result<void> SetKeyboardIncrement(double value) noexcept;
     Base::Result<void> SetResizeDirection(
@@ -468,7 +466,7 @@ public:
         GridResizeBehavior value) noexcept;
     Base::Result<void> SetShowsPreview(bool value) noexcept;
     Base::Result<void> SetPreviewStyle(
-        Base::Ref<Presentation::Style> value) noexcept;
+        Base::Ref<Aero::Style> value) noexcept;
 
     inline static constexpr Members::Property<double>
         DragIncrementProperty{"DragIncrement"};
@@ -481,7 +479,7 @@ public:
     inline static constexpr Members::Property<bool>
         ShowsPreviewProperty{"ShowsPreview"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Style>>
+        Base::Ref<Aero::Style>>
         PreviewStyleProperty{"PreviewStyle"};
 };
 
@@ -672,22 +670,22 @@ public:
     TickBar() noexcept : Control(StaticTypeId()) {}
     ~TickBar() override = default;
 
-    Base::Ref<Presentation::Brush> Fill() const noexcept;
+    Base::Ref<Aero::Media::Brush> Fill() const noexcept;
     TickBarPlacement Placement() const noexcept;
     Base::Result<void> SetFill(
-        Base::Ref<Presentation::Brush> value) noexcept;
+        Base::Ref<Aero::Media::Brush> value) noexcept;
     Base::Result<void> SetPlacement(
         TickBarPlacement value) noexcept;
 
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         FillProperty{"Fill"};
     inline static constexpr Members::Property<TickBarPlacement>
         PlacementProperty{"Placement"};
 
 protected:
     Base::Result<void> BuildDisplayList(
-        Presentation::DisplayListBuilder& builder) noexcept override;
+        Aero::Render::DisplayListBuilder& builder) noexcept override;
 };
 
 class AERO_API ProgressBar final : public RangeBase {

@@ -7,6 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/RuntimeTypes.hpp>
 #include <Aero/UiDocument.hpp>
@@ -94,7 +95,7 @@ public:
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<void> SetContent(
         UiDocument&& document,
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     // Mounts a separately loaded XAML document into an already mounted
     // ContentControl. The document keeps its own names, resources and
     // deferred effects until UnmountContent() is called.
@@ -105,7 +106,7 @@ public:
         Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadContent(
         Base::StringView uri,
-        Presentation::Size availableSize,
+        Aero::Size availableSize,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<UiDocument> LoadCompiled(
@@ -125,22 +126,22 @@ public:
             RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> SetResourceDictionary(
         RuntimeResourceLayer layer,
-        Presentation::ResourceDictionary& dictionary,
+        Aero::ResourceDictionary& dictionary,
         RuntimeResourceLoadMode mode =
             RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> LoadBuiltInTheme(
         BuiltInTheme theme) noexcept;
 
     Base::Result<void> Resize(
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
     Base::Result<ViewFrameResult> RunFrame() noexcept;
-    Base::Result<Presentation::PointerDispatchResult> DispatchPointer(
-        const Presentation::PointerInput& input) noexcept;
-    Base::Result<Presentation::KeyboardDispatchResult> DispatchKeyboard(
-        const Presentation::KeyboardInput& input) noexcept;
-    Base::Result<Presentation::TextInputDispatchResult> DispatchText(
-        const Presentation::TextInput& input) noexcept;
+    Base::Result<Input::PointerDispatchResult> DispatchPointer(
+        const Input::PointerInput& input) noexcept;
+    Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
+        const Input::KeyboardInput& input) noexcept;
+    Base::Result<Input::TextInputDispatchResult> DispatchText(
+        const Input::TextInput& input) noexcept;
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<std::uint32_t> AdvanceAnimationTime(
@@ -166,7 +167,7 @@ public:
 
 private:
     friend class RuntimeEnvironment;
-    friend class Detail::ViewAccess;
+    friend class Aero::Detail::ViewAccess;
     friend class Integration::ReloadCoordinator;
     friend class Integration::ViewHost;
     template<class T, class... Args>

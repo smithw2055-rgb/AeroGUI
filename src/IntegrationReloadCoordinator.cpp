@@ -11,7 +11,7 @@
 
 #include <new>
 #include <utility>
-#include "presentation/RuntimeManagers.hpp"
+#include "ui/RuntimeManagers.hpp"
 #include "controls/RuntimeManagers.hpp"
 
 namespace Aero::Integration {
@@ -167,7 +167,7 @@ struct ReloadCoordinator::Impl final {
     ViewRuntime* host = nullptr;
     Base::IAllocator* allocator = nullptr;
     Base::ResourceUri rootUri;
-    Presentation::Size availableSize;
+    Aero::Size availableSize;
     Base::Vector<RevisionRecord> revisions;
     std::uint64_t generation = 0U;
     bool active = false;
@@ -225,7 +225,7 @@ ReloadCoordinator& ReloadCoordinator::operator=(
 
 Base::Result<void> ReloadCoordinator::Start(
     Base::StringView rootUri,
-    Presentation::Size availableSize,
+    Aero::Size availableSize,
     Core::IDiagnosticSink* diagnostics) noexcept {
     if (impl_ == nullptr || impl_->host == nullptr ||
         !impl_->host->IsInitialized()) {

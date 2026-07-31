@@ -3,7 +3,7 @@
 Base::Result<void> PopulateControlsTextMedia(
     Core::MetadataContext& context) noexcept {
     Base::Result<void> status;
-    const Presentation::Color black{
+    const Render::Color black{
         0.0F, 0.0F, 0.0F, 1.0F};
     auto textBlock = Describe<TextBlock>(context);
     textBlock
@@ -14,12 +14,12 @@ Base::Result<void> PopulateControlsTextMedia(
         .Property(
             TextBlock::BackgroundProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             TextBlock::StrokeProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .AddOwner(
             TextBlock::FontSizeProperty,
@@ -62,7 +62,7 @@ Base::Result<void> PopulateControlsTextMedia(
                 .AffectsMeasure())
         .Property(
             TextBlock::PaddingProperty,
-            PropertyOptions(Presentation::Thickness{})
+            PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()
                 .AffectsArrange()
                 .Validate(&ValidateThicknessValue))
@@ -269,20 +269,20 @@ Base::Result<void> PopulateControlsTextMedia(
             Path::DataProperty,
             PropertyOptions(
                 Base::Ref<
-                    Presentation::Geometry>{})
+                    Media::Geometry>{})
                 .AffectsMeasure()
                 .AffectsRender()
                 .Changed(&OnPathDataChanged))
         .Property(
             Path::FillProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
         .Property(
             Path::StrokeProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender()
                 .Changed(&OnPathColorChanged))
         .Property(
@@ -328,12 +328,12 @@ Base::Result<void> PopulateControlsTextMedia(
     status = path.Result();
     if (!status) return status.GetStatus();
 
-    const Presentation::Color selection{
+    const Render::Color selection{
         46.0F / 255.0F,
         174.0F / 255.0F,
         235.0F / 255.0F,
         1.0F};
-    const Presentation::Color placeholder{
+    const Render::Color placeholder{
         123.0F / 255.0F,
         128.0F / 255.0F,
         133.0F / 255.0F,

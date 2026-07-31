@@ -1,5 +1,5 @@
 #include "RenderEndpointInternal.hpp"
-#include "presentation/BatchPlanner.hpp"
+#include "render/BatchPlanner.hpp"
 
 #include <Aero/Base/Vector.hpp>
 
@@ -27,7 +27,7 @@ class HeadlessEndpointDriver final
     : public Detail::EndpointDriver {
 public:
     Base::Result<void> Submit(
-        const Presentation::RenderPlan&) noexcept override {
+        const Render::RenderPlan&) noexcept override {
         return {};
     }
 
@@ -65,7 +65,7 @@ struct RenderEndpoint::Impl final {
     RenderEndpointState state = RenderEndpointState::Ready;
     Detail::EndpointDriver* driver = nullptr;
     const void* boundOwner = nullptr;
-    Base::Vector<Presentation::RenderPlan> pending;
+    Base::Vector<Render::RenderPlan> pending;
     RenderEndpointStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
     Base::Status asynchronousFailure;
@@ -84,10 +84,10 @@ struct RenderEndpoint::Impl final {
 
     Base::Result<RenderFrameStatistics>
     PlanFrameStatistics(
-        const Presentation::RenderPlan& plan) noexcept {
-        Presentation::Detail::BatchPlanner planner(
+        const Render::RenderPlan& plan) noexcept {
+        Render::Detail::BatchPlanner planner(
             allocator);
-        Base::Result<Presentation::Detail::BatchPlan>
+        Base::Result<Render::Detail::BatchPlan>
             planned = planner.Build(
                 plan, batchingEnabled);
         if (!planned) return planned.GetStatus();
@@ -129,7 +129,7 @@ struct RenderEndpoint::Impl final {
 
     void WorkerMain() noexcept {
         for (;;) {
-            Presentation::RenderPlan plan;
+            Render::RenderPlan plan;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 wake.wait(lock, [this] {
@@ -528,7 +528,7 @@ void RenderEndpointAccess::Unbind(
 
 Base::Result<void> RenderEndpointAccess::Submit(
     RenderEndpoint& endpoint,
-    const Presentation::RenderPlan& plan) noexcept {
+    const Render::RenderPlan& plan) noexcept {
     if (endpoint.impl_ == nullptr ||
         endpoint.impl_->driver == nullptr) {
         return NotInitialized(

@@ -10,14 +10,14 @@ classes.
 
 ## Ownership
 
-Presentation runtime managers are nested under
-`Aero::Detail::PresentationRuntimeAccess`. Controls runtime managers are nested
+UI runtime managers are nested under
+`Aero::Detail::UiRuntimeAccess`. Controls runtime managers are nested
 under `Aero::Detail::ControlRuntimeAccess`.
 
-Private source code retains `Aero::Presentation::XManager` and
+Private source code retains `Aero::Core::XManager` and
 `Aero::Controls::XManager` aliases so implementation call sites stay readable.
 The aliases are incomplete in installed headers; complete declarations remain
-under `src/presentation/RuntimeManagers.hpp` and
+under `src/ui/RuntimeManagers.hpp` and
 `src/controls/RuntimeManagers.hpp`.
 
 Authoring classes grant friendship to one access owner per domain, rather than

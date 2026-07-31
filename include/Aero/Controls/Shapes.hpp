@@ -1,13 +1,15 @@
 #pragma once
 
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/Brushes.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Rendering.hpp>
 
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Media;
+using namespace Aero::Render;
 
 class AERO_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)

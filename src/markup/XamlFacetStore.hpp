@@ -32,15 +32,15 @@ using XamlRegisterNameCallback = Base::Result<void> (*)(
     void* context) noexcept;
 using XamlAddResourceCallback = Base::Result<void> (*)(
     Base::Object& scopeOwner,
-    const Presentation::ResourceKey& key,
+    const Aero::ResourceKey& key,
     const Core::Value& value,
     void* context) noexcept;
 using XamlResolveResourceScopeCallback =
-    Presentation::ResourceDictionary* (*)(
+    Aero::ResourceDictionary* (*)(
     Base::Object& scopeOwner,
     void* context) noexcept;
 using XamlResolveImplicitResourceKeyCallback =
-    Base::Result<Presentation::ResourceKey> (*)(
+    Base::Result<Aero::ResourceKey> (*)(
         const Base::Object& object,
         void* context) noexcept;
 using XamlResolvePropertyTargetCallback =

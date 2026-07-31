@@ -1,4 +1,4 @@
-#include "PresentationObjectModelInternal.hpp"
+#include "UiObjectModelInternal.hpp"
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
@@ -6,20 +6,20 @@
 #include <Aero/Controls/Templates.hpp>
 #include "SchemaInternal.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Style.hpp>
 
 #include "TemplateCompiler.hpp"
 
 #include <new>
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace {
 
 using namespace Aero::Controls;
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 
 class CompiledTemplateProgramOwner final
     : public Base::Object {
@@ -51,7 +51,7 @@ bool HasTypeFlag(
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Presentation::ResourceDictionary* ResolveTemplateResources(
+Aero::ResourceDictionary* ResolveTemplateResources(
     Base::Object& object,
     void*) noexcept {
     if (object.RuntimeType() ==
@@ -72,7 +72,7 @@ Presentation::ResourceDictionary* ResolveTemplateResources(
     return nullptr;
 }
 
-Base::Result<Presentation::ResourceKey>
+Base::Result<Aero::ResourceKey>
 ResolveTemplateImplicitKey(
     const Base::Object& object,
     void*) noexcept {
@@ -87,7 +87,7 @@ ResolveTemplateImplicitKey(
             Base::ErrorCode::NotFound,
             "Template type has no implicit resource key");
     }
-    return Presentation::ResourceKey::FromType(key);
+    return Aero::ResourceKey::FromType(key);
 }
 
 } // namespace
@@ -249,7 +249,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                     return reserved.GetStatus();
                 }
                 for (const Base::Ref<
-                         Presentation::TriggerBase>& trigger :
+                         Aero::TriggerBase>& trigger :
                      dataTemplate.AuthoredTriggers()) {
                     Base::Result<void> retained =
                         compiled.Value().

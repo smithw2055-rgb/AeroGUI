@@ -2,33 +2,31 @@
 
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/Templates.hpp>
-#include <Aero/Presentation/Binding.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/ObjectTree.hpp>
+#include <Aero/Rendering.hpp>
+#include <Aero/Style.hpp>
 
 #include <cstdint>
 
 namespace Aero::Controls {
 }
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Diagnostics {
 
 struct InspectorTreeNode final {
-    Presentation::Visual* node = nullptr;
-    Presentation::VisualHandle handle;
-    Presentation::VisualHandle parent;
+    Aero::Visual* node = nullptr;
+    Aero::VisualHandle handle;
+    Aero::VisualHandle parent;
     Core::TypeId runtimeType =
         Core::InvalidTypeId;
     std::uint32_t depth = 0U;
@@ -51,7 +49,7 @@ struct InspectorSnapshot final {
           effectiveProperties(),
           activeBindings() {}
 
-    Presentation::Visual* target = nullptr;
+    Aero::Visual* target = nullptr;
     Base::Vector<InspectorTreeNode>
         logicalTree;
     Base::Vector<InspectorTreeNode>
@@ -59,17 +57,17 @@ struct InspectorSnapshot final {
     Base::Vector<InspectorProperty>
         effectiveProperties;
     Base::Vector<
-        Presentation::BindingInspection>
+        Data::BindingInspection>
         activeBindings;
     Base::Ref<Base::Object> dataContext;
-    const Presentation::Style*
+    const Aero::Style*
         appliedStyle = nullptr;
     Controls::TemplateHandle
         appliedTemplate;
     Base::Rect layoutRect;
     Base::Rect layoutClip;
     Base::Size renderSize;
-    Presentation::RenderDiagnostics
+    Render::RenderDiagnostics
         render;
     Core::DispatcherFrameTimings
         frameTimings;
@@ -78,13 +76,13 @@ struct InspectorSnapshot final {
 class AERO_API InspectorEndpoint final {
 public:
     InspectorEndpoint(
-        Presentation::ObjectTree& tree,
+        Aero::ObjectTree& tree,
         Core::EffectiveValueEngine& values,
-        Presentation::BindingManager&
+        Aero::Detail::BindingManager&
             bindings,
-        Presentation::RenderManager&
+        Render::RenderManager&
             renderer,
-        Presentation::StyleManager*
+        Aero::Detail::StyleManager*
             styles = nullptr,
         Controls::TemplateManager*
             templates = nullptr) noexcept
@@ -96,26 +94,26 @@ public:
           templates_(templates) {}
 
     Base::Result<void> Capture(
-        Presentation::Visual& target,
+        Aero::Visual& target,
         InspectorSnapshot& output,
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;
 
-    const Presentation::RenderPlan&
+    const Render::RenderPlan&
     RenderPlan() const noexcept {
         return renderer_->CurrentPlan();
     }
 
 private:
-    Presentation::ObjectTree* tree_ =
+    Aero::ObjectTree* tree_ =
         nullptr;
     Core::EffectiveValueEngine* values_ =
         nullptr;
-    Presentation::BindingManager*
+    Aero::Detail::BindingManager*
         bindings_ = nullptr;
-    Presentation::RenderManager*
+    Render::RenderManager*
         renderer_ = nullptr;
-    Presentation::StyleManager* styles_ =
+    Aero::Detail::StyleManager* styles_ =
         nullptr;
     Controls::TemplateManager*
         templates_ = nullptr;

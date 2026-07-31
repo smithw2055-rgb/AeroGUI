@@ -17,7 +17,7 @@ ResourceUri
   -> XamlLoadSession
   -> XamlObjectWriter
   -> Resource / Style / Template plans
-  -> View mount and presentation services
+  -> View mount and UI services
 ```
 
 - URI XAML 由 provider 读取。
@@ -83,7 +83,7 @@ provider 与 tokenizer 都不执行网络访问。
 ## 资源系统
 
 `NameScope`、`ResourceKey`、`ResourceDictionary` 和 `ResourceResolver`
-属于 Presentation。字典值统一为 `Core::Value`，键支持字符串和 `TypeId`。
+属于 UI/Core 资源模型。字典值统一为 `Core::Value`，键支持字符串和 `TypeId`。
 
 字典内部查找顺序为：
 
@@ -133,7 +133,7 @@ plan。显式 Style 使用 Style provider；隐式 Style 使用 `TypeId` 资源�
 保存不同签名的裸回调。data template 的 payload 是数据项，items-panel
 template 使用空 payload；两者都携带规范 base URI 和资源字典。
 
-`XamlPresentationObjectModel` 是 Style/Setter/Trigger/Template 的唯一公开
+`UiObjectModel` 是 Style/Setter/Trigger/Template 的唯一公开
 schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对象编译为
 不可变 plan，不再作为 View 或 `aero-xamlc` 的独立产品调用层。Binding、
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
@@ -191,7 +191,7 @@ compiled document，compiled payload 不存在或 schema identity 不兼容时�
 `AeroMarkupKernel` 包含 tokenizer、node reader 和基础 compiled document/cache，
 只依赖 `AeroCore`。Schema 验证、object writer、资源、Binding、Style 与 Template
 位于上层 `AeroMarkup`，后者才依赖 Controls。架构检查禁止 Kernel 反向包含
-Presentation、Controls 或 Markup integration 目录。
+UI runtime、Controls 或 Markup integration 目录。
 
 ## Schema Manifest 与工具隔离
 

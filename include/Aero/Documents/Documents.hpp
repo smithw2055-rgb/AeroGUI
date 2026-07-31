@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Controls.hpp>
-#include <Aero/Presentation/Commands.hpp>
+#include <Aero/Input/Commands.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -125,9 +125,9 @@ Base::Result<void> CopyText(
     Base::String& output) noexcept;
 Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
-    Presentation::Point point,
+    Aero::Base::Point point,
     bool snapToText = true) noexcept;
-Base::Result<Presentation::Rect> GetCharacterRect(
+Base::Result<Aero::Base::Rect> GetCharacterRect(
     const TextPointer& position) noexcept;
 
 // WPF-shaped document content surface. The implementation deliberately reuses
@@ -218,19 +218,19 @@ public:
     ~LineBreak() override = default;
 
 protected:
-    Base::Result<Presentation::Size> MeasureOverride(
-        Presentation::Size) noexcept override {
-        return Presentation::Size{};
+    Base::Result<Aero::Base::Size> MeasureOverride(
+        Aero::Base::Size) noexcept override {
+        return Aero::Base::Size{};
     }
 };
 
-struct RequestNavigateEventArgs final : Presentation::RoutedEventArgs {
-    AERO_DECLARE_TYPE(RequestNavigateEventArgs, Presentation::RoutedEventArgs)
+struct RequestNavigateEventArgs final : Aero::RoutedEventArgs {
+    AERO_DECLARE_TYPE(RequestNavigateEventArgs, Aero::RoutedEventArgs)
     RequestNavigateEventArgs() noexcept
-        : Presentation::RoutedEventArgs(StaticTypeId()) {}
+        : Aero::RoutedEventArgs(StaticTypeId()) {}
     RequestNavigateEventArgs(
         Base::StringView value, Hyperlink* sourceLink) noexcept
-        : Presentation::RoutedEventArgs(StaticTypeId()),
+        : Aero::RoutedEventArgs(StaticTypeId()),
           uri(value), hyperlink(sourceLink) {}
 
     Base::StringView uri;
@@ -246,39 +246,39 @@ public:
     ~Hyperlink() override = default;
 
     inline static constexpr Members::RoutedEvent<
-        Presentation::RoutedEventArgs> ClickEvent{"Click"};
-    Presentation::UIElement::RoutedEvent_<
-        Presentation::RoutedEventHandler> Click() noexcept {
+        Aero::RoutedEventArgs> ClickEvent{"Click"};
+    Aero::UIElement::RoutedEvent_<
+        Aero::RoutedEventHandler> Click() noexcept {
         return Event(ClickEvent);
     }
     inline static constexpr Members::RoutedEvent<
         RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
-    Presentation::UIElement::RoutedEvent_<
+    Aero::UIElement::RoutedEvent_<
         RequestNavigateEventHandler> RequestNavigate() noexcept {
         return Event(RequestNavigateEvent);
     }
 
     Base::StringView NavigateUri() const noexcept;
-    Presentation::ICommand* Command() const noexcept;
+    Aero::Input::ICommand* Command() const noexcept;
     Base::Ref<Base::Object> CommandParameter() const noexcept;
-    Presentation::UIElement* CommandTarget() const noexcept;
+    Aero::UIElement* CommandTarget() const noexcept;
 
     Base::Result<void> SetNavigateUri(Base::StringView value) noexcept;
     Base::Result<void> SetCommand(
-        Base::Ref<Presentation::ICommand> command) noexcept;
+        Base::Ref<Aero::Input::ICommand> command) noexcept;
     Base::Result<void> SetCommandParameter(
         Base::Ref<Base::Object> parameter) noexcept;
     Base::Result<void> SetCommandTarget(
-        Base::Ref<Presentation::UIElement> target) noexcept;
+        Base::Ref<Aero::UIElement> target) noexcept;
 
     inline static constexpr Members::Property<Base::String>
         NavigateUriProperty{"NavigateUri"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::ICommand>> CommandProperty{"Command"};
+        Base::Ref<Aero::Input::ICommand>> CommandProperty{"Command"};
     inline static constexpr Members::Property<
         Base::Ref<Base::Object>> CommandParameterProperty{"CommandParameter"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::UIElement>> CommandTargetProperty{"CommandTarget"};
+        Base::Ref<Aero::UIElement>> CommandTargetProperty{"CommandTarget"};
 };
 
 using NavigationHandler = Base::Delegate<bool(
@@ -298,7 +298,7 @@ public:
         handler_ = std::move(handler);
     }
     Base::Result<void> Attach(
-        Presentation::UIElement& root) noexcept;
+        Aero::UIElement& root) noexcept;
     bool Detach() noexcept;
     bool IsAttached() const noexcept { return root_ != nullptr; }
 
@@ -308,7 +308,7 @@ private:
         const RequestNavigateEventArgs& args) noexcept;
 
     NavigationHandler handler_;
-    Presentation::UIElement* root_ = nullptr;
+    Aero::UIElement* root_ = nullptr;
     RequestNavigateEventHandler requestHandler_;
 };
 

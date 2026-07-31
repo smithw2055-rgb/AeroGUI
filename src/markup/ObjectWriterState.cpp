@@ -2,7 +2,7 @@
 
 #include "StaticResourceObject.hpp"
 #include <Aero/Markup/CompiledDocument.hpp>
-#include <Aero/Presentation/Brushes.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 #include <utility>
 
@@ -1067,7 +1067,7 @@ Base::Result<void> ObjectWriterState::WriteText(
             return WriteValueToMember(frame, std::move(value), node.Source());
         }
         if (markup == MarkupValueKind::StaticResource) {
-            Base::Result<Presentation::ResourceValue> resource = LookupResource(argument);
+            Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
             if (!resource) {
                 if (loadContext_ != nullptr &&
                     loadContext_->deferUnresolvedStaticResources) {
@@ -1183,7 +1183,7 @@ Base::Result<void> ObjectWriterState::WriteText(
             node.Source());
     }
     if (markup == MarkupValueKind::StaticResource) {
-        Base::Result<Presentation::ResourceValue> resource = LookupResource(argument);
+        Base::Result<Aero::ResourceValue> resource = LookupResource(argument);
         if (!resource) {
             if (loadContext_ != nullptr &&
                 loadContext_->deferUnresolvedStaticResources) {
@@ -1263,7 +1263,7 @@ Base::Result<void> ObjectWriterState::WriteDirectiveText(
 
     CreatedObjectRecord& object = created_[frame.targetObjectIndex];
     if (frame.directive == DirectiveKind::Name) {
-        if (!Presentation::NameScope::IsValidName(node.Value())) {
+        if (!Aero::NameScope::IsValidName(node.Value())) {
             return Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
@@ -1360,7 +1360,7 @@ Base::Result<void> ObjectWriterState::StartPropertyElement(
             created_[targetObjectIndex].type);
     const bool resourceEntries =
         created_[targetObjectIndex].type ==
-            Presentation::ResourceDictionary::StaticTypeId() &&
+            Aero::ResourceDictionary::StaticTypeId() &&
         contentMember &&
         contentMember.Value().id == member.id;
     if (member.kind != Core::MemberKind::Property ||
@@ -1436,7 +1436,7 @@ Base::Result<void> ObjectWriterState::CompleteObject(
                 MessageStaticResourceNotFound,
                 node.Source());
         }
-        Base::Result<Presentation::ResourceValue> resource =
+        Base::Result<Aero::ResourceValue> resource =
             LookupResource(extension.ResourceKey());
         if (!resource) {
             if (loadContext_ != nullptr &&
@@ -1966,7 +1966,7 @@ Base::Result<void> ObjectWriterState::WriteValue(
         member,
         source);
     if (member.valueType ==
-            Presentation::Brush::StaticTypeId() &&
+            Media::Brush::StaticTypeId() &&
         value.Type() ==
             Core::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
@@ -1981,9 +1981,9 @@ Base::Result<void> ObjectWriterState::WriteValue(
                 source);
         }
         Base::Result<
-            Base::Ref<Presentation::Brush>>
+            Base::Ref<Media::Brush>>
             brush =
-                Presentation::MakeSolidColorBrush(
+                Media::MakeSolidColorBrush(
                     color.Value());
         if (!brush) {
             return Failure(
@@ -1994,14 +1994,14 @@ Base::Result<void> ObjectWriterState::WriteValue(
                 source);
         }
         value = Core::Value::FromObject(
-            Presentation::Brush::StaticTypeId(),
+            Media::Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
                 std::move(brush).Value()));
     }
     if (member.valueType == Core::TypeOf<Base::String>() &&
-        value.Type() == Presentation::FontFamily::StaticTypeId() &&
+        value.Type() == Media::FontFamily::StaticTypeId() &&
         value.Kind() == Core::ValueKind::Object && value.AsObject()) {
-        const auto& family = static_cast<const Presentation::FontFamily&>(
+        const auto& family = static_cast<const Media::FontFamily&>(
             *value.AsObject());
         Base::Result<Core::Value> converted = Core::Value::TryFromString(
             Core::TypeOf<Base::String>(), family.Source());
@@ -2024,7 +2024,7 @@ Base::Result<void> ObjectWriterState::WriteValue(
                 candidate.AsObject() &&
                 schema_->Types().IsDerivedFrom(
                     candidate.AsObject()->RuntimeType(),
-                    Presentation::UIElement::StaticTypeId());
+                    Aero::UIElement::StaticTypeId());
         };
     const bool hasVisualStructuralProperty =
         memberProperty != nullptr &&
@@ -2191,7 +2191,7 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
         }
         if (parentObjectIndex < created_.Size() &&
             created_[parentObjectIndex].type ==
-                Presentation::ResourceDictionary::StaticTypeId()) {
+                Aero::ResourceDictionary::StaticTypeId()) {
             Base::Result<ResolvedMember> content =
                 schema_->ResolveContentMember(
                     created_[parentObjectIndex].type);
@@ -2202,7 +2202,7 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
             parentObjectIndex < created_.Size() &&
             targetMember != Core::InvalidMemberId &&
             object.type !=
-                Presentation::ResourceDictionary::
+                Aero::ResourceDictionary::
                     StaticTypeId() &&
             schema_->CreatesResourceScope(
                 created_[parentObjectIndex].type)) {
@@ -2212,7 +2212,7 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
             dictionaryContent =
                 property != nullptr &&
                 property->ValueType() ==
-                    Presentation::ResourceDictionary::
+                    Aero::ResourceDictionary::
                         StaticTypeId();
         }
     }
@@ -2229,12 +2229,12 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
             source);
     }
 
-    Base::Result<Presentation::ResourceKey> resourceKey =
+    Base::Result<Aero::ResourceKey> resourceKey =
         explicitKey
-        ? Presentation::ResourceKey::FromString(
+        ? Aero::ResourceKey::FromString(
               object.key.View())
         : (object.valueElement || !object.object
-            ? Base::Result<Presentation::ResourceKey>(
+            ? Base::Result<Aero::ResourceKey>(
                   Base::Status::Failure(
                       Base::ErrorCode::ValidationFailed,
                       "Unkeyed ResourceDictionary entry must be an object"))
@@ -2305,10 +2305,10 @@ Base::Result<bool> ObjectWriterState::RegisterObjectResource(
     return true;
 }
 
-Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
+Base::Result<Aero::ResourceValue> ObjectWriterState::LookupResource(
     Base::StringView key) const noexcept {
-    Base::Result<Presentation::ResourceKey> resourceKey =
-        Presentation::ResourceKey::FromString(key);
+    Base::Result<Aero::ResourceKey> resourceKey =
+        Aero::ResourceKey::FromString(key);
     Base::StringView extensionName;
     Base::StringView typeName;
     if (ParseMarkupValue(key, extensionName, typeName) ==
@@ -2346,7 +2346,7 @@ Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
             schema_->ResolveType(
                 namespaceUri.Value(), localName);
         if (!type) return type.GetStatus();
-        resourceKey = Presentation::ResourceKey::FromType(
+        resourceKey = Aero::ResourceKey::FromType(
             type.Value()->Id());
     }
     if (!resourceKey) return resourceKey.GetStatus();
@@ -2358,7 +2358,7 @@ Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
             frame.resourceScopeIndex >= resourceScopes_.Size()) {
             continue;
         }
-        Base::Result<Presentation::ResourceValue> value =
+        Base::Result<Aero::ResourceValue> value =
             (resourceScopes_[frame.resourceScopeIndex].external != nullptr
                 ? resourceScopes_[frame.resourceScopeIndex].external
                 : &resourceScopes_[frame.resourceScopeIndex].resources)
@@ -2371,7 +2371,7 @@ Base::Result<Presentation::ResourceValue> ObjectWriterState::LookupResource(
         }
     }
     if (loadContext_ != nullptr && loadContext_->resources != nullptr) {
-        Base::Result<Presentation::ResourceValue> value =
+        Base::Result<Aero::ResourceValue> value =
             loadContext_->resources->Lookup(resourceKey.Value());
         if (value) {
             return value;
@@ -2529,7 +2529,7 @@ ExtensionContext ObjectWriterState::BuildServices(
             frame.resourceScopeIndex >= resourceScopes_.Size()) {
             continue;
         }
-        const Presentation::ResourceDictionary* dictionary =
+        const Aero::ResourceDictionary* dictionary =
             resourceScopes_[frame.resourceScopeIndex].external;
         if (dictionary == nullptr) {
             dictionary =
@@ -2537,7 +2537,7 @@ ExtensionContext ObjectWriterState::BuildServices(
                     frame.resourceScopeIndex].resources;
         }
         bool duplicate = false;
-        for (const Presentation::ResourceDictionary* existing :
+        for (const Aero::ResourceDictionary* existing :
              serviceResourceChain_) {
             if (existing == dictionary) {
                 duplicate = true;
@@ -2556,7 +2556,7 @@ ExtensionContext ObjectWriterState::BuildServices(
     if (loadContext_ != nullptr &&
         loadContext_->resources != nullptr) {
         bool duplicate = false;
-        for (const Presentation::ResourceDictionary* existing :
+        for (const Aero::ResourceDictionary* existing :
              serviceResourceChain_) {
             if (existing == loadContext_->resources) {
                 duplicate = true;
@@ -2583,7 +2583,7 @@ ExtensionContext ObjectWriterState::BuildServices(
     return services;
 }
 
-const Presentation::NameScope*
+const Aero::NameScope*
 ObjectWriterState::FindActiveNameScope() const noexcept {
     for (std::uint32_t index = frames_.Size(); index > 0U; --index) {
         const Frame& frame = frames_[index - 1U];
@@ -2946,7 +2946,7 @@ Base::Result<Base::StringView> ObjectWriterState::NamespaceLookupCallback(
     return static_cast<ObjectWriterState*>(context)->LookupNamespace(prefix);
 }
 
-Base::Result<Presentation::ResourceValue> ObjectWriterState::ResourceLookupCallback(
+Base::Result<Aero::ResourceValue> ObjectWriterState::ResourceLookupCallback(
     void* context,
     Base::StringView key) noexcept {
     if (context == nullptr) {

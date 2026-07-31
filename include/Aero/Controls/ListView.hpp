@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Selection.hpp>
-#include <Aero/Presentation/Binding.hpp>
+#include <Aero/Data/Binding.hpp>
 
 namespace Aero::Controls {
 
@@ -59,10 +59,10 @@ public:
         const noexcept;
     Base::Result<void> SetDisplayMemberPath(
         Base::StringView value) noexcept;
-    Base::Ref<Presentation::BindingSpec>
+    Base::Ref<Aero::Data::Binding>
         DisplayMemberBinding() const noexcept;
     Base::Result<void> SetDisplayMemberBinding(
-        Base::Ref<Presentation::BindingSpec> value) noexcept;
+        Base::Ref<Aero::Data::Binding> value) noexcept;
     Base::Ref<Style> HeaderContainerStyle() const noexcept {
         return GetValueOr(
             HeaderContainerStyleProperty,
@@ -89,7 +89,7 @@ public:
         DisplayMemberPathProperty{
             "DisplayMemberPath"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::BindingSpec>>
+        Base::Ref<Aero::Data::Binding>>
         DisplayMemberBindingProperty{
             "DisplayMemberBinding"};
     inline static constexpr Members::Property<Base::Ref<Style>>
@@ -135,10 +135,10 @@ private:
 // The column collection is normally supplied by a template binding from the
 // owning ListView's GridView and is consumed by the view implementation.
 class AERO_API GridViewHeaderRowPresenter final
-    : public Presentation::FrameworkElement {
+    : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewHeaderRowPresenter,
-        Presentation::FrameworkElement)
+        Aero::FrameworkElement)
 public:
     GridViewHeaderRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}
@@ -180,10 +180,10 @@ public:
 // ListViewItem templates and receives the active GridView columns/content
 // during ListView container realization.
 class AERO_API GridViewRowPresenter final
-    : public Presentation::FrameworkElement {
+    : public Aero::FrameworkElement {
     AERO_DECLARE_TYPE(
         GridViewRowPresenter,
-        Presentation::FrameworkElement)
+        Aero::FrameworkElement)
 public:
     GridViewRowPresenter() noexcept
         : FrameworkElement(StaticTypeId()) {}

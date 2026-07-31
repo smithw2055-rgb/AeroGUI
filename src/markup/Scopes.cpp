@@ -22,7 +22,7 @@ Base::Result<Base::StringView> NamespaceScope::Lookup(
     return lookup_(context_, prefix);
 }
 
-Base::Result<Presentation::ResourceValue> ResourceResolver::Lookup(
+Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
     Base::StringView key) const noexcept {
     if (lookup_ == nullptr) {
         return Base::Status::Failure(

@@ -32,21 +32,21 @@ Base::Status HostFailure(
     return Base::Status::Failure(code, message);
 }
 
-Presentation::MouseButton MapButton(
+Input::MouseButton MapButton(
     Platform::WindowPointerButton button) noexcept {
     switch (button) {
     case Platform::WindowPointerButton::Right:
-        return Presentation::MouseButton::Right;
+        return Input::MouseButton::Right;
     case Platform::WindowPointerButton::Middle:
-        return Presentation::MouseButton::Middle;
+        return Input::MouseButton::Middle;
     case Platform::WindowPointerButton::XButton1:
-        return Presentation::MouseButton::XButton1;
+        return Input::MouseButton::XButton1;
     case Platform::WindowPointerButton::XButton2:
-        return Presentation::MouseButton::XButton2;
+        return Input::MouseButton::XButton2;
     case Platform::WindowPointerButton::Unknown:
     case Platform::WindowPointerButton::Left:
     default:
-        return Presentation::MouseButton::Left;
+        return Input::MouseButton::Left;
     }
 }
 
@@ -189,7 +189,7 @@ struct ApplicationHost::Impl final
         startupUri =
             std::move(resolvedStartupUri).Value();
 
-        Base::Ref<Presentation::ResourceDictionary>
+        Base::Ref<Aero::ResourceDictionary>
             resources = application->Resources();
         if (resources) {
             Base::Result<void> installed =
@@ -379,7 +379,7 @@ struct ApplicationHost::Impl final
             // follows WM_SIZE in the same native queue.
             Base::Result<void> appliedResize = ApplyPendingResize();
             if (!appliedResize) return appliedResize.GetStatus();
-            Presentation::PointerInput input;
+            Input::PointerInput input;
             input.pointerId = 1U;
             input.position = {event.x, event.y};
             input.changedButton = MapButton(event.button);
@@ -388,21 +388,21 @@ struct ApplicationHost::Impl final
             if (event.type ==
                 Platform::WindowEventType::PointerDown) {
                 input.action =
-                    Presentation::PointerAction::Down;
+                    Input::PointerAction::Down;
             } else if (event.type ==
                 Platform::WindowEventType::PointerUp) {
                 input.action =
-                    Presentation::PointerAction::Up;
+                    Input::PointerAction::Up;
             } else if (event.type ==
                 Platform::WindowEventType::PointerWheel) {
                 input.action =
-                    Presentation::PointerAction::Wheel;
+                    Input::PointerAction::Wheel;
             } else {
                 input.action =
-                    Presentation::PointerAction::Move;
+                    Input::PointerAction::Move;
             }
             Base::Result<
-                Presentation::PointerDispatchResult>
+                Input::PointerDispatchResult>
                 dispatched =
                     view->DispatchPointer(input);
             return dispatched
@@ -413,17 +413,17 @@ struct ApplicationHost::Impl final
         case Platform::WindowEventType::KeyDown:
         case Platform::WindowEventType::KeyUp: {
             if (event.key == 0U) return {};
-            Presentation::KeyboardInput input;
+            Input::KeyboardInput input;
             input.action =
                 event.type ==
                     Platform::WindowEventType::KeyDown
-                ? Presentation::KeyboardAction::Down
-                : Presentation::KeyboardAction::Up;
+                ? Input::KeyboardAction::Down
+                : Input::KeyboardAction::Up;
             input.key = event.key;
             input.modifiers = event.modifiers;
             input.isRepeat = event.repeat;
             Base::Result<
-                Presentation::KeyboardDispatchResult>
+                Input::KeyboardDispatchResult>
                 dispatched =
                     view->DispatchKeyboard(input);
             return dispatched
@@ -434,7 +434,7 @@ struct ApplicationHost::Impl final
         case Platform::WindowEventType::TextInput: {
             if (event.textSize == 0U) return {};
             Base::Result<
-                Presentation::TextInputDispatchResult>
+                Input::TextInputDispatchResult>
                 dispatched = view->DispatchText(
                     {event.Text()});
             return dispatched

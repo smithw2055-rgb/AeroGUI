@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Integration/RenderEndpoint.hpp>
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
 namespace Aero::Integration::Detail {
 
@@ -10,7 +10,7 @@ public:
     virtual ~EndpointDriver() = default;
 
     virtual Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept = 0;
+        const Render::RenderPlan& plan) noexcept = 0;
     virtual Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept = 0;
@@ -55,7 +55,7 @@ public:
         const void* owner) noexcept;
     static Base::Result<void> Submit(
         RenderEndpoint& endpoint,
-        const Presentation::RenderPlan& plan) noexcept;
+        const Render::RenderPlan& plan) noexcept;
     static Base::Status FrameStatus(
         RenderEndpoint& endpoint) noexcept;
     static void* QueryInternalService(

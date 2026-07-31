@@ -27,7 +27,7 @@ public:
                Base::Span<const std::uint8_t>
                    pixels) noexcept
                 -> Base::Result<
-                    Presentation::RenderImageId> {
+                    Render::RenderImageId> {
                 return static_cast<
                     ImageRuntimeBackend*>(
                         context)->Create(
@@ -35,7 +35,7 @@ public:
             };
         services_.releaseImage =
             [](void* context,
-               Presentation::RenderImageId image)
+               Render::RenderImageId image)
                 noexcept {
                 static_cast<ImageRuntimeBackend*>(
                     context)->Release(image);
@@ -68,8 +68,8 @@ public:
 
 private:
     struct Resource final {
-        Presentation::RenderImageId id =
-            Presentation::InvalidRenderImageId;
+        Render::RenderImageId id =
+            Render::InvalidRenderImageId;
         Rhi::ResourceHandle texture;
     };
 
@@ -89,7 +89,7 @@ private:
         return {};
     }
 
-    Base::Result<Presentation::RenderImageId>
+    Base::Result<Render::RenderImageId>
     Create(
         std::uint32_t width,
         std::uint32_t height,
@@ -157,7 +157,7 @@ private:
             return submitted.GetStatus();
         }
         if (nextImage_ ==
-            Presentation::InvalidRenderImageId) {
+            Render::InvalidRenderImageId) {
             static_cast<void>(
                 device_->DestroyResource(
                     texture.Value(),
@@ -198,7 +198,7 @@ private:
     }
 
     void Release(
-        Presentation::RenderImageId image) noexcept {
+        Render::RenderImageId image) noexcept {
         for (std::uint32_t index = 0U;
              index < resources_.Size(); ++index) {
             if (resources_[index].id != image) {
@@ -218,7 +218,7 @@ private:
     void Destroy(Resource& resource) noexcept {
         if (renderer_ != nullptr &&
             resource.id !=
-                Presentation::InvalidRenderImageId) {
+                Render::InvalidRenderImageId) {
             static_cast<void>(
                 renderer_->UnregisterImage(
                     resource.id));
@@ -238,7 +238,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
     Rhi::ResourceHandle sampler_;
-    Presentation::RenderImageId nextImage_ =
+    Render::RenderImageId nextImage_ =
         UINT64_C(1) << 44U;
     Aero::Detail::ImageBackendServices services_;
 };

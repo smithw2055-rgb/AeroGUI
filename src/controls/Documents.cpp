@@ -195,13 +195,13 @@ private:
         bool found = false;
         double distance = 0.0;
         std::uint32_t offset = 0U;
-        Presentation::Rect rect;
+        Aero::Rect rect;
     };
 
     static void Consider(
         Candidate& best,
-        Presentation::Point point,
-        Presentation::Rect rect,
+        Aero::Point point,
+        Aero::Rect rect,
         std::uint32_t leading,
         std::uint32_t trailing,
         bool snap) noexcept {
@@ -227,7 +227,7 @@ private:
 
     static Base::Result<std::uint32_t> HitRecursive(
         Controls::TextBlock& owner,
-        Presentation::Point point,
+        Aero::Point point,
         std::uint32_t baseOffset,
         bool snap,
         Candidate& best,
@@ -239,7 +239,7 @@ private:
         }
         const Base::StringView ownText = owner.Text();
         for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
-            Presentation::Rect rect{
+            Aero::Rect rect{
                 static_cast<double>(hit.x),
                 static_cast<double>(hit.y),
                 static_cast<double>(std::max(hit.width, 1.0F)),
@@ -253,16 +253,16 @@ private:
             if (!item) continue;
             auto& inlineValue =
                 *static_cast<Documents::Inline*>(item.Get());
-            const Presentation::Rect slot = inlineValue.LayoutSlot();
+            const Aero::Rect slot = inlineValue.LayoutSlot();
             if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                const Presentation::Rect rect{
+                const Aero::Rect rect{
                     slot.x, slot.y, 1.0,
                     std::max(owner.FontSize() * 1.2, 1.0)};
                 Consider(best, point, rect, cursor, cursor + 1U, snap);
                 ++cursor;
                 continue;
             }
-            Presentation::Point local{
+            Aero::Point local{
                 point.x - slot.x, point.y - slot.y};
             Base::Result<std::uint32_t> childLength =
                 HitRecursive(inlineValue, local, cursor, snap, best, depth + 1U);
@@ -276,8 +276,8 @@ private:
         const Controls::TextBlock& owner,
         std::uint32_t requested,
         std::uint32_t baseOffset,
-        Presentation::Point origin,
-        Presentation::Rect& output,
+        Aero::Point origin,
+        Aero::Rect& output,
         std::uint32_t depth = 0U) noexcept {
         if (depth >= 1024U) {
             return Base::Status::Failure(
@@ -306,7 +306,7 @@ private:
             if (!item) continue;
             const auto& inlineValue =
                 *static_cast<const Documents::Inline*>(item.Get());
-            const Presentation::Rect slot = inlineValue.LayoutSlot();
+            const Aero::Rect slot = inlineValue.LayoutSlot();
             if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
                 if (requested == cursor || requested == cursor + 1U) {
                     output = {
@@ -335,7 +335,7 @@ private:
 public:
     static Base::Result<Documents::TextPointer> PositionFromPoint(
         Controls::TextBlock& owner,
-        Presentation::Point point,
+        Aero::Point point,
         bool snap) noexcept {
         if (!IsMeasured(owner)) {
             return Base::Status::Failure(
@@ -356,7 +356,7 @@ public:
             owner, best.offset, Documents::LogicalDirection::Forward);
     }
 
-    static Base::Result<Presentation::Rect> CharacterRect(
+    static Base::Result<Aero::Rect> CharacterRect(
         const Documents::TextPointer& position) noexcept {
         if (!position.container_) {
             return Base::Status::Failure(
@@ -368,7 +368,7 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Document character rectangles require a valid measure pass");
         }
-        Presentation::Rect rect;
+        Aero::Rect rect;
         Base::Result<bool> found = RectRecursive(
             *position.container_, position.offset_, 0U, {}, rect);
         if (!found) return found.GetStatus();
@@ -559,13 +559,13 @@ Base::Result<void> TextRange::CopyText(
 
 Base::Result<TextPointer> GetPositionFromPoint(
     Controls::TextBlock& container,
-    Presentation::Point point,
+    Aero::Point point,
     bool snapToText) noexcept {
     return Aero::Detail::DocumentTextAccess::PositionFromPoint(
         container, point, snapToText);
 }
 
-Base::Result<Presentation::Rect> GetCharacterRect(
+Base::Result<Aero::Rect> GetCharacterRect(
     const TextPointer& position) noexcept {
     return Aero::Detail::DocumentTextAccess::CharacterRect(position);
 }
@@ -574,10 +574,10 @@ Base::StringView Hyperlink::NavigateUri() const noexcept {
     return GetValueOr(NavigateUriProperty, Base::StringView{});
 }
 
-Presentation::ICommand* Hyperlink::Command() const noexcept {
+Input::ICommand* Hyperlink::Command() const noexcept {
     return GetValueOr(
         CommandProperty,
-        Base::Ref<Presentation::ICommand>{}).Get();
+        Base::Ref<Input::ICommand>{}).Get();
 }
 
 Base::Ref<Base::Object> Hyperlink::CommandParameter() const noexcept {
@@ -586,10 +586,10 @@ Base::Ref<Base::Object> Hyperlink::CommandParameter() const noexcept {
         Base::Ref<Base::Object>{});
 }
 
-Presentation::UIElement* Hyperlink::CommandTarget() const noexcept {
+Aero::UIElement* Hyperlink::CommandTarget() const noexcept {
     return GetValueOr(
         CommandTargetProperty,
-        Base::Ref<Presentation::UIElement>{}).Get();
+        Base::Ref<Aero::UIElement>{}).Get();
 }
 
 Base::Result<void> Hyperlink::SetNavigateUri(
@@ -598,7 +598,7 @@ Base::Result<void> Hyperlink::SetNavigateUri(
 }
 
 Base::Result<void> Hyperlink::SetCommand(
-    Base::Ref<Presentation::ICommand> command) noexcept {
+    Base::Ref<Input::ICommand> command) noexcept {
     return SetValue(CommandProperty, std::move(command));
 }
 
@@ -608,7 +608,7 @@ Base::Result<void> Hyperlink::SetCommandParameter(
 }
 
 Base::Result<void> Hyperlink::SetCommandTarget(
-    Base::Ref<Presentation::UIElement> target) noexcept {
+    Base::Ref<Aero::UIElement> target) noexcept {
     return SetValue(CommandTargetProperty, std::move(target));
 }
 
@@ -622,7 +622,7 @@ NavigationService::~NavigationService() noexcept {
 }
 
 Base::Result<void> NavigationService::Attach(
-    Presentation::UIElement& root) noexcept {
+    Aero::UIElement& root) noexcept {
     if (root_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,

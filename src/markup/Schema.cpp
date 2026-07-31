@@ -1,6 +1,6 @@
 #include "SchemaInternal.hpp"
 
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 
 // Query surface is public; execution operations are reached by source-side
 // friends and SchemaAccess.
@@ -467,10 +467,10 @@ Base::Result<void> Schema::SetMember(
     if (member.valueType == Core::TypeOf<Base::String>() &&
         value.Kind() == Core::ValueKind::Object &&
         !value.IsNullObject() && value.AsObject() &&
-        value.Type() == Presentation::FontFamily::StaticTypeId()) {
+        value.Type() == Media::FontFamily::StaticTypeId()) {
         Base::Result<Core::Value> encoded = Core::Value::TryFromString(
             member.valueType,
-            static_cast<Presentation::FontFamily*>(
+            static_cast<Media::FontFamily*>(
                 value.AsObject().Get())->Source());
         if (!encoded) return encoded.GetStatus();
         convertedValue = std::move(encoded).Value();

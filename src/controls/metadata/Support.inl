@@ -98,14 +98,14 @@ Base::Result<void> SetDataTemplateType(
 }
 
 bool ValidateThicknessValue(
-    const Presentation::Thickness& thickness) noexcept {
-    return Presentation::IsFinite(thickness) &&
+    const Aero::Thickness& thickness) noexcept {
+    return Aero::IsFinite(thickness) &&
         thickness.left >= 0.0 && thickness.top >= 0.0 &&
         thickness.right >= 0.0 && thickness.bottom >= 0.0;
 }
 
 bool ValidateColorValue(
-    const Presentation::Color& color) noexcept {
+    const Render::Color& color) noexcept {
     return std::isfinite(color.red) && std::isfinite(color.green) &&
         std::isfinite(color.blue) && std::isfinite(color.alpha) &&
         color.red >= 0.0F && color.red <= 1.0F &&
@@ -115,7 +115,7 @@ bool ValidateColorValue(
 }
 
 bool ValidateCornerRadiusValue(
-    const Presentation::CornerRadius& radius) noexcept {
+    const Aero::CornerRadius& radius) noexcept {
     return std::isfinite(radius.topLeft) &&
         std::isfinite(radius.topRight) &&
         std::isfinite(radius.bottomRight) &&
@@ -248,11 +248,11 @@ Base::Result<void> AddDataTemplateTrigger(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    Base::Ref<Presentation::TriggerBase> retained =
-        Base::Ref<Presentation::TriggerBase>::
+    Base::Ref<Aero::TriggerBase> retained =
+        Base::Ref<Aero::TriggerBase>::
             TryFromBorrowed(
                 static_cast<
-                    Presentation::TriggerBase&>(
+                    Aero::TriggerBase&>(
                         *value));
     if (!retained) {
         return Base::Status::Failure(
@@ -322,9 +322,9 @@ Base::Result<void> AddGridInputBinding(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    Base::Ref<Presentation::KeyBinding> retained =
-        Base::Ref<Presentation::KeyBinding>::TryFromBorrowed(
-            static_cast<Presentation::KeyBinding&>(*value));
+    Base::Ref<Input::KeyBinding> retained =
+        Base::Ref<Input::KeyBinding>::TryFromBorrowed(
+            static_cast<Input::KeyBinding&>(*value));
     return retained
         ? static_cast<Grid&>(owner).AddInputBinding(std::move(retained))
         : Base::Result<void>(Base::Status::Failure(
@@ -385,8 +385,8 @@ void OnPathDataChanged(
 
 void OnPathColorChanged(
     Core::DependencyObject& object,
-    const Base::Ref<Presentation::Brush>& oldBrush,
-    const Base::Ref<Presentation::Brush>& newBrush) noexcept {
+    const Base::Ref<Media::Brush>& oldBrush,
+    const Base::Ref<Media::Brush>& newBrush) noexcept {
     auto* owner = static_cast<Path&>(object).AsFrameworkElement();
     if (owner != nullptr) {
         if (oldBrush && oldBrush->Owner() == owner) {
@@ -559,7 +559,7 @@ Base::Result<void> SetPanelContent(
             "Panel content child is null");
     }
     return static_cast<Panel&>(owner).AddOwnedChild(
-        child, *static_cast<Presentation::UIElement*>(child.Get()));
+        child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 Base::Result<void> ClearPanelContent(
@@ -578,7 +578,7 @@ Base::Result<void> SetDecoratorContent(
             "Decorator content child is null");
     }
     return static_cast<Decorator&>(owner).SetOwnedChild(
-        child, *static_cast<Presentation::UIElement*>(child.Get()));
+        child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 Base::Result<void> ClearDecoratorContent(
@@ -619,7 +619,7 @@ Base::Result<void> SetContentPresenterContent(
             "ContentPresenter content child is null");
     }
     return static_cast<ContentPresenter&>(owner).SetOwnedContent(
-        child, *static_cast<Presentation::UIElement*>(child.Get()));
+        child, *static_cast<Aero::UIElement*>(child.Get()));
 }
 
 Base::Result<void> ClearContentPresenterContent(
@@ -640,14 +640,14 @@ Base::Result<void> AddTextBlockInline(
     auto& text = static_cast<TextBlock&>(owner);
     if (!text.PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
-            Presentation::UIElement::StaticTypeId())) {
+            Aero::UIElement::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TextBlock inline content must be a UIElement");
     }
     return text.AddOwnedInline(
         child,
-        *static_cast<Presentation::UIElement*>(
+        *static_cast<Aero::UIElement*>(
             child.Get()));
 }
 
@@ -687,8 +687,8 @@ void OnItemsSourceChanged(
             ObjectItemsSource::StaticTypeId()) {
             source = static_cast<ObjectItemsSource*>(value.Get());
         } else if (value->RuntimeType() ==
-                   Presentation::GradientStopCollection::StaticTypeId()) {
-            source = static_cast<Presentation::GradientStopCollection*>(
+                   Media::GradientStopCollection::StaticTypeId()) {
+            source = static_cast<Media::GradientStopCollection*>(
                 value.Get());
         }
     }

@@ -382,7 +382,26 @@ add_library(AeroCore ${AERO_LIBRARY_TYPE}
     src/core/metadata/ValueConversion.cpp
     src/core/ObjectServices.cpp
     src/core/metadata/TypeRegistry.cpp
-    src/core/metadata/Value.cpp)
+    src/core/metadata/Value.cpp
+    src/media/AnimationRuntime.cpp
+    src/media/Animation.cpp
+    src/render/BatchPlanner.cpp
+    src/data/Binding.cpp
+    src/media/Brushes.cpp
+    src/input/Commands.cpp
+    src/media/Effects.cpp
+    src/input/Input.cpp
+    src/media/Images.cpp
+    src/ui/Layout.cpp
+    src/ui/Metadata.cpp
+    src/ui/MountService.cpp
+    src/ui/ObjectTree.cpp
+    src/render/QueuedRenderBackend.cpp
+    src/ui/Resources.cpp
+    src/render/Rendering.cpp
+    src/media/Transforms.cpp
+    src/ui/VisualTreeMount.cpp
+    src/ui/Style.cpp)
 
 add_library(Aero::Core ALIAS AeroCore)
 
@@ -396,6 +415,8 @@ target_link_libraries(AeroCore
         Aero::Base
         Threads::Threads)
 
+target_compile_definitions(
+    AeroCore PUBLIC AERO_UI_RESOURCE_MODEL=2)
 target_compile_features(AeroCore PUBLIC cxx_std_17)
 set_target_properties(AeroCore PROPERTIES
     CXX_STANDARD 17
@@ -406,44 +427,7 @@ set_target_properties(AeroCore PROPERTIES
 
 aero_apply_compiler_options(AeroCore)
 
-add_library(AeroPresentation ${AERO_LIBRARY_TYPE}
-    src/presentation/Animation.cpp
-    src/presentation/AnimationXaml.cpp
-    src/presentation/BatchPlanner.cpp
-    src/presentation/Binding.cpp
-    src/presentation/Brushes.cpp
-    src/presentation/Commands.cpp
-    src/presentation/Effects.cpp
-    src/presentation/Input.cpp
-    src/presentation/Images.cpp
-    src/presentation/Layout.cpp
-    src/presentation/Metadata.cpp
-    src/presentation/MountService.cpp
-    src/presentation/ObjectTree.cpp
-    src/presentation/QueuedRenderBackend.cpp
-    src/presentation/Resources.cpp
-    src/presentation/Rendering.cpp
-    src/presentation/Transforms.cpp
-    src/presentation/VisualTreeMount.cpp
-    src/presentation/Style.cpp)
 
-add_library(Aero::Presentation ALIAS AeroPresentation)
-
-target_include_directories(AeroPresentation
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroPresentation PUBLIC Aero::Core)
-target_compile_definitions(
-    AeroPresentation PUBLIC AERO_PRESENTATION_RESOURCE_MODEL=2)
-target_compile_features(AeroPresentation PUBLIC cxx_std_17)
-set_target_properties(AeroPresentation PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroPresentation)
 
 # Application object model and metadata are shared by the default App
 # product and the built-in schema catalog without pulling in native hosts.
@@ -455,7 +439,7 @@ target_include_directories(AeroAppModel
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroAppModel PUBLIC Aero::Presentation)
+target_link_libraries(AeroAppModel PUBLIC Aero::Core)
 target_compile_features(AeroAppModel PUBLIC cxx_std_17)
 set_target_properties(AeroAppModel PROPERTIES
     CXX_STANDARD 17
@@ -496,7 +480,7 @@ target_include_directories(AeroControls
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroControls
     PUBLIC
-        Aero::Presentation
+        Aero::Core
         Aero::Platform
         Aero::Text)
 target_compile_definitions(
@@ -641,7 +625,7 @@ target_compile_definitions(
 target_link_libraries(AeroMarkup
     PUBLIC Aero::MarkupKernel Aero::Controls)
 target_compile_definitions(
-    AeroMarkup PRIVATE AERO_MARKUP_PRESENTATION_RESOURCES=1)
+    AeroMarkup PRIVATE AERO_MARKUP_UI_RESOURCES=1)
 target_compile_features(AeroMarkup PUBLIC cxx_std_17)
 set_target_properties(AeroMarkup PROPERTIES
     CXX_STANDARD 17
@@ -869,7 +853,7 @@ add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
     src/integration/RenderEndpoint.cpp
     src/RuntimeSafety.cpp
     src/UiDocument.cpp
-    src/runtime/RuntimePresentationServices.cpp
+    src/runtime/RuntimeUiServices.cpp
     src/runtime/ImageRuntime.cpp
     src/runtime/TextRuntime.cpp
     "${_aero_generated_theme_header}")
@@ -1081,7 +1065,7 @@ target_include_directories(AeroRender
         $<INSTALL_INTERFACE:include>
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(
-    AeroRender PUBLIC Aero::Presentation Aero::DetailRhi)
+    AeroRender PUBLIC Aero::Core Aero::DetailRhi)
 target_compile_features(AeroRender PUBLIC cxx_std_17)
 set_target_properties(AeroRender PROPERTIES
     CXX_STANDARD 17
@@ -1480,7 +1464,7 @@ if(_aero_vendored_expat_target)
             EXPORT_NAME RuntimeDetailExpat)
 endif()
 set_target_properties(
-    AeroPresentation PROPERTIES EXPORT_NAME Presentation)
+    AeroCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(
     AeroAppModel PROPERTIES EXPORT_NAME AppDetailModel)
 set_target_properties(
@@ -1526,7 +1510,6 @@ set(_aero_sdk_targets
     AeroTextFreeType
     harfbuzz
     AeroTextHarfBuzz
-    AeroPresentation
     AeroAppModel
     AeroControls
     AeroInspector

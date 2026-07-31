@@ -10,7 +10,7 @@
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 namespace {
 
 Base::Status InvalidPath(const char* message) noexcept {

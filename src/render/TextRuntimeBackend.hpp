@@ -15,7 +15,7 @@ public:
         : renderer_(&renderer) {}
 
     Base::Result<void> RegisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun,
+        Render::RenderGlyphRunId glyphRun,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
@@ -33,7 +33,7 @@ public:
     }
 
     Base::Result<void> UnregisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept override {
+        Render::RenderGlyphRunId glyphRun) noexcept override {
         return renderer_->UnregisterGlyphRun(glyphRun);
     }
 

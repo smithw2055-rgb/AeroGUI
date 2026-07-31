@@ -5,7 +5,7 @@
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 
 Popup::Popup() noexcept
     : Popup(StaticTypeId()) {}

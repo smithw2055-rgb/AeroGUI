@@ -140,10 +140,9 @@ During the first migration phase:
   the existing low-level `ApplicationHost` implementation.
 - Launcher owns `Aero::App::Services`; audio is created lazily through that
   service boundary rather than through Application.
-- Application metadata remains registered once by the current Presentation
-  metadata bootstrap. Its ownership will move to the App layer only when that
-  large registration unit is split, so runtime and tooling never see duplicate
-  type registration during the migration.
+- Application and Window metadata are owned by the App module. Controls does not
+  include or register App types, so the dependency direction remains
+  `Core/UI -> Controls -> App` without duplicate schema registration.
 - New code and documentation use the canonical names.
 
 The compatibility names may be removed before the first stable ABI release.

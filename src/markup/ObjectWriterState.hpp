@@ -124,7 +124,7 @@ private:
         NameScopeRecord& operator=(const NameScopeRecord&) = delete;
 
         std::uint32_t ownerObjectIndex = InvalidIndex;
-        Presentation::NameScope names;
+        Aero::NameScope names;
     };
 
     struct ResourceScopeRecord final {
@@ -137,8 +137,8 @@ private:
         ResourceScopeRecord& operator=(const ResourceScopeRecord&) = delete;
 
         std::uint32_t ownerObjectIndex = InvalidIndex;
-        Presentation::ResourceDictionary resources;
-        const Presentation::ResourceDictionary* external = nullptr;
+        Aero::ResourceDictionary resources;
+        const Aero::ResourceDictionary* external = nullptr;
     };
 
     struct NamespaceBindingRecord final {
@@ -176,12 +176,12 @@ private:
     Base::Vector<CommittedEffect> extensionEffects_;
     Base::Vector<NameScopeRecord> nameScopes_;
     Base::Vector<ResourceScopeRecord> resourceScopes_;
-    Base::Vector<const Presentation::ResourceDictionary*>
+    Base::Vector<const Aero::ResourceDictionary*>
         serviceResourceChain_;
     Base::Vector<NamespaceBindingRecord> namespaceBindings_;
     Base::Vector<PendingNamespaceRecord> pendingNamespaces_;
-    Presentation::NameScope committedNames_;
-    Presentation::ResourceDictionary committedResources_;
+    Aero::NameScope committedNames_;
+    Aero::ResourceDictionary committedResources_;
     VisualContentPlan resultVisualContent_;
     DeferredContentPlan deferredContent_;
     Base::Ref<Base::Object> root_;
@@ -281,7 +281,7 @@ private:
     Base::Result<bool> RegisterObjectResource(
         std::uint32_t objectIndex,
         Core::SourceSpan source) noexcept;
-    Base::Result<Presentation::ResourceValue> LookupResource(
+    Base::Result<Aero::ResourceValue> LookupResource(
         Base::StringView key) const noexcept;
     Base::Result<void> CreateScopesForObject(
         std::uint32_t objectIndex,
@@ -298,7 +298,7 @@ private:
         std::uint32_t targetObjectIndex,
         const ResolvedMember& member,
         Core::SourceSpan source) noexcept;
-    const Presentation::NameScope*
+    const Aero::NameScope*
     FindActiveNameScope() const noexcept;
     Base::Object* FindDeferredContentOwner() const noexcept;
     std::uint32_t FindNameScopeIndexForObject(
@@ -342,7 +342,7 @@ private:
     NamespaceLookupCallback(
         void* context,
         Base::StringView prefix) noexcept;
-    static Base::Result<Presentation::ResourceValue>
+    static Base::Result<Aero::ResourceValue>
     ResourceLookupCallback(
         void* context,
         Base::StringView key) noexcept;

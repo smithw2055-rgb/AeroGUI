@@ -8,7 +8,7 @@ namespace Aero::Controls::Detail {
 class TextLayoutService;
 }
 
-namespace Aero::Presentation {
+namespace Aero::Render {
 class IRenderBackend;
 }
 
@@ -24,7 +24,7 @@ public:
     TextRuntime& operator=(const TextRuntime&) = delete;
 
     Base::Result<void> Initialize(
-        Presentation::IRenderBackend& backend,
+        Render::IRenderBackend& backend,
         const Integration::TextOptions& options) noexcept;
     Base::Result<bool> SynchronizeBackend(
         bool force = false) noexcept;

@@ -11,6 +11,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Integration/ViewHost.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/RuntimeTypes.hpp>
 #include <Aero/UiDocument.hpp>
@@ -34,10 +35,12 @@ class IClipboard;
 class ITextInputMethodHost;
 }
 
-namespace Aero::Presentation {
+namespace Aero {
 class ObjectTree;
-class RenderManager;
 class ResourceDictionary;
+}
+namespace Aero::Render {
+class RenderManager;
 }
 
 namespace Aero::Markup {
@@ -109,38 +112,38 @@ public:
             RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> SetResourceDictionary(
         RuntimeResourceLayer layer,
-        Presentation::ResourceDictionary& dictionary,
+        Aero::ResourceDictionary& dictionary,
         RuntimeResourceLoadMode mode =
             RuntimeResourceLoadMode::Replace) noexcept;
     Base::Result<void> LoadBuiltInTheme(
         BuiltInTheme theme) noexcept;
     Base::Result<void> Mount(
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> Mount(
         Base::Ref<Base::Object> root,
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> Mount(
         UiDocument&& document,
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> ReplaceMountedDocument(
         UiDocument&& document,
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> MountContent(
         Controls::ContentControl& host,
         UiDocument&& document) noexcept;
     Base::Result<void> UnmountContent(
         Controls::ContentControl& host) noexcept;
     Base::Result<void> Resize(
-        Presentation::Size availableSize) noexcept;
+        Aero::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
 
     Base::Result<RuntimeFrameResult> RunFrame() noexcept;
-    Base::Result<Presentation::PointerDispatchResult> DispatchPointer(
-        const Presentation::PointerInput& input) noexcept;
-    Base::Result<Presentation::KeyboardDispatchResult> DispatchKeyboard(
-        const Presentation::KeyboardInput& input) noexcept;
-    Base::Result<Presentation::TextInputDispatchResult> DispatchText(
-        const Presentation::TextInput& input) noexcept;
+    Base::Result<Input::PointerDispatchResult> DispatchPointer(
+        const Input::PointerInput& input) noexcept;
+    Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
+        const Input::KeyboardInput& input) noexcept;
+    Base::Result<Input::TextInputDispatchResult> DispatchText(
+        const Input::TextInput& input) noexcept;
     Base::Result<std::uint32_t> AdvanceTime(
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<std::uint32_t> AdvanceAnimationTime(
@@ -167,14 +170,14 @@ public:
     Core::MetadataDomain* Metadata() noexcept;
     Core::MetadataRuntime* MetadataRuntime() noexcept;
     Core::EffectiveValueEngine* EffectiveValues() noexcept;
-    Presentation::AnimationManager* Animations() noexcept;
-    Presentation::ObjectTree* Tree() noexcept;
-    Presentation::LayoutManager* Layout() noexcept;
-    Presentation::RenderManager* Renderer() noexcept;
-    Presentation::BindingManager* Bindings() noexcept;
-    Presentation::CommandManager* Commands() noexcept;
-    Presentation::RoutedEventManager* RoutedEvents() noexcept;
-    Presentation::FocusManager* Focus() noexcept;
+    Aero::Detail::AnimationManager* Animations() noexcept;
+    Aero::ObjectTree* Tree() noexcept;
+    Aero::Detail::LayoutManager* Layout() noexcept;
+    Render::RenderManager* Renderer() noexcept;
+    Aero::Detail::BindingManager* Bindings() noexcept;
+    Aero::Detail::CommandManager* Commands() noexcept;
+    Aero::Detail::RoutedEventManager* RoutedEvents() noexcept;
+    Aero::Detail::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;
     Markup::Schema* Schema() noexcept;
@@ -183,10 +186,10 @@ public:
     Markup::DocumentCache* DocumentCache() noexcept;
     const Base::ResourceUri& CurrentDocumentUri() const noexcept;
     Base::Span<const Base::ResourceUri> CurrentDocumentDependencies() const noexcept;
-    Presentation::ResourceDictionary* ApplicationResources() noexcept;
-    Presentation::ResourceDictionary* ThemeResources() noexcept;
-    Presentation::ResourceDictionary* SystemResources() noexcept;
-    Presentation::StyleManager* Styles() noexcept;
+    Aero::ResourceDictionary* ApplicationResources() noexcept;
+    Aero::ResourceDictionary* ThemeResources() noexcept;
+    Aero::ResourceDictionary* SystemResources() noexcept;
+    Aero::Detail::StyleManager* Styles() noexcept;
 
 private:
     struct Impl;

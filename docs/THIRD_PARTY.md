@@ -226,10 +226,10 @@ Core targets 不直接 link 第三方库：
 ```text
 AeroBase       -> no third-party runtime dependency
 AeroCore       -> AeroBase only
-AeroPresentation -> AeroCore only
-AeroControls   -> AeroPresentation only
+AeroCore -> AeroCore only
+AeroControls   -> AeroCore only
 AeroMarkup     -> AeroControls + IXmlTokenizer
-AeroRender     -> AeroPresentation + AeroRHI + text/geometry interfaces
+AeroRender     -> AeroCore + AeroRHI + text/geometry interfaces
 AeroPlatform   -> host/platform contracts
 ```
 

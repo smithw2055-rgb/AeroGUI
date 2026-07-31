@@ -29,7 +29,7 @@ struct TextRuntimeConfig final {
     Text::TextAlignment alignment =
         Text::TextAlignment::Start;
     Text::GlyphAtlasConfig atlas;
-    Presentation::RenderGlyphRunId firstGlyphRunId =
+    Render::RenderGlyphRunId firstGlyphRunId =
         UINT64_C(1) << 32U;
 };
 

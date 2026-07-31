@@ -23,16 +23,16 @@ public:
         services_.context = this;
         services_.createMesh =
             [](void* context,
-               Base::Span<const Presentation::Point> vertices,
+               Base::Span<const Aero::Point> vertices,
                Base::Span<const std::uint32_t> indices) noexcept
                 -> Base::Result<
-                    Presentation::RenderMeshId> {
+                    Render::RenderMeshId> {
                 return static_cast<MeshRuntimeBackend*>(
                     context)->Create(vertices, indices);
             };
         services_.releaseMesh =
             [](void* context,
-               Presentation::RenderMeshId mesh) noexcept {
+               Render::RenderMeshId mesh) noexcept {
                 static_cast<MeshRuntimeBackend*>(
                     context)->Release(mesh);
             };
@@ -83,8 +83,8 @@ private:
     };
 
     struct Resource final {
-        Presentation::RenderMeshId id =
-            Presentation::InvalidRenderMeshId;
+        Render::RenderMeshId id =
+            Render::InvalidRenderMeshId;
         Rhi::ResourceHandle vertexBuffer;
         Rhi::ResourceHandle indexBuffer;
     };
@@ -104,7 +104,7 @@ private:
     // along its topological boundary. It is independent of MSAA and avoids
     // seams on internal tessellation edges.
     Base::Result<void> BuildAntialiasedGeometry(
-        Base::Span<const Presentation::Point> points,
+        Base::Span<const Aero::Point> points,
         Base::Span<const std::uint32_t> sourceIndices,
         Base::Vector<Vertex>& vertices,
         Base::Vector<std::uint32_t>& outputIndices) noexcept {
@@ -119,7 +119,7 @@ private:
         if (!reserved) return reserved.GetStatus();
 
         constexpr double Quantization = 100000.0;
-        auto findWeld = [&](const Presentation::Point& point)
+        auto findWeld = [&](const Aero::Point& point)
             noexcept -> Base::Result<std::uint32_t> {
             const std::int64_t x = static_cast<std::int64_t>(
                 std::llround(point.x * Quantization));
@@ -137,7 +137,7 @@ private:
             return welds.Size() - 1U;
         };
 
-        for (const Presentation::Point point : points) {
+        for (const Aero::Point point : points) {
             Base::Result<std::uint32_t> weld = findWeld(point);
             if (!weld) return weld.GetStatus();
             Base::Result<void> added = weldIds.TryPushBack(weld.Value());
@@ -155,9 +155,9 @@ private:
             const std::uint32_t triangle[] = {
                 sourceIndices[index], sourceIndices[index + 1U],
                 sourceIndices[index + 2U]};
-            const Presentation::Point& a = points[triangle[0]];
-            const Presentation::Point& b = points[triangle[1]];
-            const Presentation::Point& c = points[triangle[2]];
+            const Aero::Point& a = points[triangle[0]];
+            const Aero::Point& b = points[triangle[1]];
+            const Aero::Point& c = points[triangle[2]];
             const double area = (b.x - a.x) * (c.y - a.y) -
                 (b.y - a.y) * (c.x - a.x);
             if (std::abs(area) <= 1.0e-12) continue;
@@ -182,8 +182,8 @@ private:
                     ++existing->uses;
                     continue;
                 }
-                const Presentation::Point& start = points[first];
-                const Presentation::Point& end = points[second];
+                const Aero::Point& start = points[first];
+                const Aero::Point& end = points[second];
                 const double dx = end.x - start.x;
                 const double dy = end.y - start.y;
                 const double length = std::hypot(dx, dy);
@@ -251,9 +251,9 @@ private:
         return {};
     }
 
-    Base::Result<Presentation::RenderMeshId>
+    Base::Result<Render::RenderMeshId>
     Create(
-        Base::Span<const Presentation::Point> points,
+        Base::Span<const Aero::Point> points,
         Base::Span<const std::uint32_t> indices) noexcept {
         if (device_ == nullptr ||
             renderer_ == nullptr ||
@@ -284,7 +284,7 @@ private:
             }
         }
 
-        for (const Presentation::Point point : points) {
+        for (const Aero::Point point : points) {
             if (!std::isfinite(point.x) || !std::isfinite(point.y) ||
                 std::abs(point.x) > std::numeric_limits<float>::max() ||
                 std::abs(point.y) > std::numeric_limits<float>::max()) {
@@ -363,7 +363,7 @@ private:
         }
 
         if (nextMesh_ ==
-            Presentation::InvalidRenderMeshId) {
+            Render::InvalidRenderMeshId) {
             DestroyBuffers(
                 resource, submitted.Value());
             return Base::Status::Failure(
@@ -397,7 +397,7 @@ private:
     }
 
     void Release(
-        Presentation::RenderMeshId mesh) noexcept {
+        Render::RenderMeshId mesh) noexcept {
         for (std::uint32_t index = 0U;
              index < resources_.Size(); ++index) {
             if (resources_[index].id != mesh) {
@@ -417,14 +417,14 @@ private:
     void Destroy(Resource& resource) noexcept {
         if (renderer_ != nullptr &&
             resource.id !=
-                Presentation::InvalidRenderMeshId) {
+                Render::InvalidRenderMeshId) {
             static_cast<void>(
                 renderer_->UnregisterMesh(
                     resource.id));
         }
         DestroyBuffers(resource);
         resource.id =
-            Presentation::InvalidRenderMeshId;
+            Render::InvalidRenderMeshId;
     }
 
     void DestroyBuffers(
@@ -456,7 +456,7 @@ private:
     Renderer* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
-    Presentation::RenderMeshId nextMesh_ =
+    Render::RenderMeshId nextMesh_ =
         UINT64_C(1) << 48U;
     Aero::Detail::MeshBackendServices services_;
 };

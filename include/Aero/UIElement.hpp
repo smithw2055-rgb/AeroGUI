@@ -5,6 +5,6 @@
 
 namespace Aero {
 
-using UIElement = Presentation::UIElement;
+using UIElement = Aero::UIElement;
 
 } // namespace Aero

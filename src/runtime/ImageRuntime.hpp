@@ -10,9 +10,7 @@ namespace Aero::Markup {
 class SourceProviderRegistry;
 }
 
-namespace Aero::Presentation {
-class Visual;
-}
+namespace Aero { class Visual; }
 
 namespace Aero::Detail {
 
@@ -27,7 +25,7 @@ public:
         const ImageRuntime&) = delete;
 
     Base::Result<bool> Synchronize(
-        Presentation::Visual* root,
+        Aero::Visual* root,
         const Base::ResourceUri& documentUri,
         Markup::SourceProviderRegistry& sources,
         ImageBackendServices* backend,
@@ -42,7 +40,7 @@ private:
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Record> records_;
     std::uint64_t epoch_ = 0U;
-    Presentation::RenderImageId
+    Render::RenderImageId
         nextHeadlessImage_ =
             UINT64_C(1) << 40U;
 };

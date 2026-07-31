@@ -29,35 +29,36 @@
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
-#include <Aero/Presentation/Binding.hpp>
-#include <Aero/Presentation/Animation.hpp>
-#include <Aero/Presentation/AnimationXaml.hpp>
-#include <Aero/Presentation/Commands.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Brushes.hpp>
-#include <Aero/Presentation/Resources.hpp>
-#include <Aero/Presentation/Style.hpp>
-#include <Aero/Presentation/Transforms.hpp>
-#include <Aero/Presentation/VisualTreeMount.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Detail/AnimationRuntime.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Input/Commands.hpp>
+#include <Aero/ObjectTree.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Media/Transforms.hpp>
+#include <Aero/Detail/VisualTreeMount.hpp>
 #include <Aero/BuiltinThemes.generated.hpp>
 
-#include "runtime/RuntimePresentationServices.hpp"
+#include "runtime/RuntimeUiServices.hpp"
 #include "runtime/DataTemplateTriggerContext.hpp"
 #include "runtime/ControlRuntimeAccess.hpp"
 #include "controls/TextServicesAccess.hpp"
 #include "controls/PathServicesAccess.hpp"
 #include "integration/RenderEndpointInternal.hpp"
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 #include "render/TextBackendAccess.hpp"
 
 #include <chrono>
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "presentation/RuntimeManagers.hpp"
+#include "ui/RuntimeManagers.hpp"
 #include "controls/RuntimeManagers.hpp"
 
 namespace Aero {
+namespace Animation = Media::Animation;
 namespace {
 
 Base::Status RuntimeInvalidState(const char* message) noexcept {
@@ -118,7 +119,7 @@ void DestroyRuntimeObject(
 }
 
 class EndpointRenderBackend final
-    : public Presentation::IRenderBackend {
+    : public Render::IRenderBackend {
 public:
     void SetEndpoint(
         Base::Ref<Integration::RenderEndpoint> endpoint) noexcept {
@@ -130,7 +131,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override {
+        const Render::RenderPlan& plan) noexcept override {
         if (!endpoint_) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -158,7 +159,7 @@ struct ViewRuntime::Impl final {
     struct FragmentMount final {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
-        Presentation::MountEdgeState rootEdge;
+        Aero::Detail::MountEdgeState rootEdge;
     };
 
     Impl(
@@ -199,37 +200,37 @@ struct ViewRuntime::Impl final {
     Core::MetadataRuntime* metadataRuntime = nullptr;
     Core::ObjectServicesScope* objectServices = nullptr;
     Core::EffectiveValueEngine* values = nullptr;
-    Presentation::AnimationManager* animations = nullptr;
-    Presentation::ObjectTree* tree = nullptr;
-    Presentation::LayoutManager* layout = nullptr;
-    Presentation::RenderManager* renderer = nullptr;
-    Detail::ImageRuntime* imageRuntime = nullptr;
-    Detail::TextRuntime* textRuntime = nullptr;
-    Presentation::BindingManager* bindings = nullptr;
-    Presentation::RoutedEventManager* events = nullptr;
-    Presentation::CommandManager* commands = nullptr;
+    Aero::Detail::AnimationManager* animations = nullptr;
+    Aero::ObjectTree* tree = nullptr;
+    Aero::Detail::LayoutManager* layout = nullptr;
+    Render::RenderManager* renderer = nullptr;
+    Aero::Detail::ImageRuntime* imageRuntime = nullptr;
+    Aero::Detail::TextRuntime* textRuntime = nullptr;
+    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::Detail::RoutedEventManager* events = nullptr;
+    Aero::Detail::CommandManager* commands = nullptr;
     Controls::TemplateManager* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
-    Presentation::StyleManager* styles = nullptr;
-    Detail::RuntimePresentationServices presentationServices;
+    Aero::Detail::StyleManager* styles = nullptr;
+    Aero::Detail::RuntimeUiServices uiServices;
 
     Markup::Schema* schema = nullptr;
-    Presentation::VisualTreeMount* visualMount = nullptr;
+    Aero::Detail::VisualTreeMount* visualMount = nullptr;
     Markup::SourceProviderRegistry xamlSources;
     Markup::EmbeddedSourceProvider embeddedXaml;
     Markup::FileSourceProvider fileXaml;
-    Presentation::ResourceDictionary applicationResources;
-    Presentation::ResourceDictionary themeResources;
-    Presentation::ResourceDictionary systemResources;
-    Presentation::ResourceDictionary dynamicResourceEnvironment;
+    Aero::ResourceDictionary applicationResources;
+    Aero::ResourceDictionary themeResources;
+    Aero::ResourceDictionary systemResources;
+    Aero::ResourceDictionary dynamicResourceEnvironment;
 
-    Presentation::HitTestManager hitTests;
-    Presentation::FocusManager* focus = nullptr;
-    Presentation::PointerInputManager* pointer = nullptr;
-    Presentation::KeyboardInputManager* keyboard = nullptr;
-    Presentation::TextInputManager* textInput = nullptr;
+    Aero::Detail::HitTestManager hitTests;
+    Aero::Detail::FocusManager* focus = nullptr;
+    Aero::Detail::PointerInputManager* pointer = nullptr;
+    Aero::Detail::KeyboardInputManager* keyboard = nullptr;
+    Aero::Detail::TextInputManager* textInput = nullptr;
     Controls::ControlInteractionManager* controlInteractions = nullptr;
-    Detail::ControlRuntimeAccess::
+    Aero::Detail::ControlRuntimeAccess::
         HyperlinkInteractionManager* hyperlinkInteractions = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
     struct StoryboardSession final {
@@ -237,10 +238,10 @@ struct ViewRuntime::Impl final {
             Base::IAllocator* allocator) noexcept
             : handles(allocator) {}
 
-        Presentation::FrameworkElement* owner = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
         Base::String name;
         Base::Vector<
-            Presentation::AnimationHandle>
+            Aero::Detail::Animation::AnimationHandle>
             handles;
     };
     Base::Vector<StoryboardSession>
@@ -251,16 +252,16 @@ struct ViewRuntime::Impl final {
             : handles(allocator) {}
 
         Base::Ref<Animation::Storyboard> storyboard;
-        Presentation::FrameworkElement* owner = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
         Base::Vector<
-            Presentation::AnimationHandle>
+            Aero::Detail::Animation::AnimationHandle>
             handles;
     };
     struct StoryboardCompletedSubscription final {
         Animation::StoryboardCompletedTrigger* trigger =
             nullptr;
-        Presentation::FrameworkElement* owner = nullptr;
-        const Presentation::NameScope* names = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
     };
     Base::Vector<StoryboardCompletionSession>
         storyboardCompletionSessions;
@@ -268,12 +269,12 @@ struct ViewRuntime::Impl final {
         storyboardCompletedSubscriptions;
     Base::Result<void> ExecuteAnimationAction(
         Animation::TriggerAction& action,
-        Presentation::FrameworkElement& owner,
-        Detail::DataTemplateTriggerContext*
+        Aero::FrameworkElement& owner,
+        Aero::Detail::DataTemplateTriggerContext*
             dataTemplateContext = nullptr,
-        const Presentation::NameScope* names = nullptr) noexcept;
+        const Aero::NameScope* names = nullptr) noexcept;
     void CancelStoryboardCompletionSessions(
-        Base::Span<const Presentation::AnimationHandle>
+        Base::Span<const Aero::Detail::Animation::AnimationHandle>
             handles) noexcept;
     Base::Result<std::uint32_t>
     ProcessStoryboardCompletions() noexcept;
@@ -286,14 +287,14 @@ struct ViewRuntime::Impl final {
         if (runtime == nullptr ||
             !runtime->metadata->Types().IsDerivedFrom(
                 owner.RuntimeType(),
-                Presentation::FrameworkElement::
+                Aero::FrameworkElement::
                     StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Style Trigger action owner is not a FrameworkElement");
         }
         auto& element =
-            static_cast<Presentation::FrameworkElement&>(
+            static_cast<Aero::FrameworkElement&>(
                 owner);
         for (const Base::Ref<Base::Object>& authored :
              actions) {
@@ -318,12 +319,12 @@ struct ViewRuntime::Impl final {
     struct AnimationEventContext final {
         Impl* runtime = nullptr;
         Animation::EventTrigger* trigger = nullptr;
-        Presentation::FrameworkElement* owner = nullptr;
-        const Presentation::NameScope* names = nullptr;
+        Aero::FrameworkElement* owner = nullptr;
+        const Aero::NameScope* names = nullptr;
 
         Base::Result<bool> EvaluateComparison(
             const Animation::ComparisonCondition& condition) noexcept {
-            const Base::Ref<Presentation::BindingSpec> binding =
+            const Base::Ref<Data::Binding> binding =
                 condition.LeftOperand();
             if (!binding || runtime == nullptr ||
                 runtime->metadataRuntime == nullptr) {
@@ -470,7 +471,7 @@ struct ViewRuntime::Impl final {
 
         void Invoke(
             Base::Object*,
-            const Presentation::RoutedEventArgs&) noexcept {
+            const Aero::RoutedEventArgs&) noexcept {
             if (runtime == nullptr || trigger == nullptr ||
                 owner == nullptr ||
                 !runtime->animationEventStatus.IsOk()) {
@@ -497,9 +498,9 @@ struct ViewRuntime::Impl final {
         }
     };
     struct AnimationEventSubscription final {
-        Presentation::UIElement* owner = nullptr;
+        Aero::UIElement* owner = nullptr;
         Core::RoutedEventHandle event;
-        Presentation::RoutedEventHandler handler;
+        Aero::RoutedEventHandler handler;
         AnimationEventContext* context = nullptr;
     };
     Base::Vector<AnimationEventSubscription>
@@ -507,7 +508,7 @@ struct ViewRuntime::Impl final {
     struct DataTemplateTriggerHandlerContext final {
         Impl* runtime = nullptr;
         Base::Ref<
-            Detail::DataTemplateTriggerContext>
+            Aero::Detail::DataTemplateTriggerContext>
             triggerContext;
         std::uint32_t triggerIndex = 0U;
         std::uint32_t conditionIndex = 0U;
@@ -537,21 +538,21 @@ struct ViewRuntime::Impl final {
     Controls::MenuInteractionManager* menuInteractions = nullptr;
     Base::Vector<Controls::ItemContainerGenerator*>
         itemGenerators;
-    Base::Vector<Presentation::VisualHandle>
-        pendingGeneratedPresentation;
-    Base::Vector<Presentation::FrameworkElement*>
+    Base::Vector<Aero::VisualHandle>
+        pendingGeneratedVisuals;
+    Base::Vector<Aero::FrameworkElement*>
         renderOverlays;
-    Base::Vector<Presentation::UIElement*>
+    Base::Vector<Aero::UIElement*>
         inputOverlays;
-    Base::Vector<Presentation::Point>
+    Base::Vector<Aero::Point>
         overlayOrigins;
     Base::Ref<Controls::ToolTip>
         pendingToolTip;
     Base::Ref<Controls::ToolTip>
         activeToolTip;
-    Base::Ref<Presentation::UIElement>
+    Base::Ref<Aero::UIElement>
         toolTipTarget;
-    Base::Ref<Presentation::UIElement>
+    Base::Ref<Aero::UIElement>
         overlayFocusReturn;
     std::uint32_t toolTipElapsed = 0U;
     std::uint32_t toolTipVisibleElapsed = 0U;
@@ -567,7 +568,7 @@ struct ViewRuntime::Impl final {
     bool mounted = false;
     bool terminal = false;
 
-    Presentation::IRenderBackend& SelectedBackend() noexcept {
+    Render::IRenderBackend& SelectedBackend() noexcept {
         return endpointBackend;
     }
 
@@ -577,27 +578,27 @@ struct ViewRuntime::Impl final {
         if (!light) return light.GetStatus();
         Base::Result<void> status = embeddedXaml.TryAdd(
             light.Value(),
-            {Detail::AeroThemeLightSource,
+            {Aero::Detail::AeroThemeLightSource,
              static_cast<std::uint32_t>(
-                 sizeof(Detail::AeroThemeLightSource))});
+                 sizeof(Aero::Detail::AeroThemeLightSource))});
         if (!status) return status.GetStatus();
         Base::Result<Base::ResourceUri> dark =
             BuiltInThemeUri(Base::StringView("Dark.xaml"));
         if (!dark) return dark.GetStatus();
         status = embeddedXaml.TryAdd(
             dark.Value(),
-            {Detail::AeroThemeDarkSource,
+            {Aero::Detail::AeroThemeDarkSource,
              static_cast<std::uint32_t>(
-                 sizeof(Detail::AeroThemeDarkSource))});
+                 sizeof(Aero::Detail::AeroThemeDarkSource))});
         if (!status) return status.GetStatus();
         Base::Result<Base::ResourceUri> generic =
             BuiltInThemeUri(Base::StringView("Generic.xaml"));
         if (!generic) return generic.GetStatus();
         status = embeddedXaml.TryAdd(
             generic.Value(),
-            {Detail::AeroThemeGenericSource,
+            {Aero::Detail::AeroThemeGenericSource,
              static_cast<std::uint32_t>(
-                 sizeof(Detail::AeroThemeGenericSource))});
+                 sizeof(Aero::Detail::AeroThemeGenericSource))});
         if (!status) return status.GetStatus();
 
         status = xamlSources.TryRegister(
@@ -658,7 +659,7 @@ struct ViewRuntime::Impl final {
     }
 
     void AttachTextService(
-        Presentation::Visual& node,
+        Aero::Visual& node,
         Controls::Detail::TextLayoutService* service,
         bool invalidate = false) noexcept {
         if (metadata == nullptr) return;
@@ -704,7 +705,7 @@ struct ViewRuntime::Impl final {
     }
 
     void AttachPathService(
-        Presentation::Visual& node,
+        Aero::Visual& node,
         Aero::Detail::MeshBackendServices* service,
         bool invalidate = false) noexcept {
         if (metadata == nullptr) return;
@@ -720,25 +721,25 @@ struct ViewRuntime::Impl final {
     }
 
     void VisitTextServices(
-        Presentation::Visual* rootVisual,
+        Aero::Visual* rootVisual,
         Controls::Detail::TextLayoutService* service,
         bool invalidate = false,
         bool ancestorsVisible = true) noexcept {
         if (rootVisual == nullptr) return;
         bool effectivelyVisible = ancestorsVisible;
-        if (Presentation::UIElement* element =
+        if (Aero::UIElement* element =
                 rootVisual->AsUIElement();
             element != nullptr) {
             effectivelyVisible =
                 ancestorsVisible &&
                 element->GetVisibility() ==
-                    Presentation::Visibility::Visible;
+                    Aero::Visibility::Visible;
         }
         AttachTextService(
             *rootVisual,
             service,
             invalidate && effectivelyVisible);
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              rootVisual->VisualChildren()) {
             VisitTextServices(
                 child,
@@ -749,25 +750,25 @@ struct ViewRuntime::Impl final {
     }
 
     void VisitPathServices(
-        Presentation::Visual* rootVisual,
+        Aero::Visual* rootVisual,
         Aero::Detail::MeshBackendServices* service,
         bool invalidate = false,
         bool ancestorsVisible = true) noexcept {
         if (rootVisual == nullptr) return;
         bool effectivelyVisible = ancestorsVisible;
-        if (Presentation::UIElement* element =
+        if (Aero::UIElement* element =
                 rootVisual->AsUIElement();
             element != nullptr) {
             effectivelyVisible =
                 ancestorsVisible &&
                 element->GetVisibility() ==
-                    Presentation::Visibility::Visible;
+                    Aero::Visibility::Visible;
         }
         AttachPathService(
             *rootVisual,
             service,
             invalidate && effectivelyVisible);
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              rootVisual->VisualChildren()) {
             VisitPathServices(
                 child,
@@ -778,7 +779,7 @@ struct ViewRuntime::Impl final {
     }
 
     static void TextLifecycleHook(
-        const Presentation::ObjectTreeLifecycleEvent& event,
+        const Aero::ObjectTreeLifecycleEvent& event,
         void* context) noexcept {
         auto* runtime = static_cast<Impl*>(context);
         if (runtime == nullptr || event.node == nullptr) {
@@ -800,14 +801,14 @@ struct ViewRuntime::Impl final {
         loadedDocument.Clear();
     }
 
-    Presentation::ResourceEnvironment ResourceEnvironment() const noexcept {
+    Aero::ResourceEnvironment ResourceEnvironment() const noexcept {
         return {
             &applicationResources,
             &themeResources,
             &systemResources};
     }
 
-    Base::Result<Presentation::ResourceDictionary*>
+    Base::Result<Aero::ResourceDictionary*>
     ResolveResourceLayer(
         RuntimeResourceLayer layer) noexcept {
         switch (layer) {
@@ -844,41 +845,41 @@ struct ViewRuntime::Impl final {
         return rebuilt;
     }
 
-    void DetachRuntimePresentation() noexcept {
-        presentationServices.Detach(
+    void DetachRuntimeUi() noexcept {
+        uiServices.Detach(
             RootVisual(),
             {loadedDocument.visualContent.nodes.Data(),
              loadedDocument.visualContent.nodes.Size()});
     }
 
-    Presentation::Visual* RootVisual() noexcept {
+    Aero::Visual* RootVisual() noexcept {
         if (!root) return nullptr;
         if (!metadata->Types().IsDerivedFrom(
                 root->RuntimeType(),
-                Presentation::Visual::StaticTypeId())) {
+                Aero::Visual::StaticTypeId())) {
             return nullptr;
         }
-        return static_cast<Presentation::Visual*>(root.Get());
+        return static_cast<Aero::Visual*>(root.Get());
     }
 
     Base::Result<void> SynchronizeOverlays() noexcept {
         renderOverlays.Clear();
         inputOverlays.Clear();
         overlayOrigins.Clear();
-        Presentation::Visual* rootVisual =
+        Aero::Visual* rootVisual =
             RootVisual();
         if (rootVisual == nullptr ||
             renderer == nullptr) {
             hitTests.ClearOverlays();
             return {};
         }
-        Base::Vector<Presentation::Visual*> stack(
+        Base::Vector<Aero::Visual*> stack(
             allocator);
         Base::Result<void> appended =
             stack.TryPushBack(rootVisual);
         if (!appended) return appended.GetStatus();
         while (!stack.Empty()) {
-            Presentation::Visual* node =
+            Aero::Visual* node =
                 stack.Back();
             stack.PopBack();
             if (node == nullptr) continue;
@@ -903,10 +904,10 @@ struct ViewRuntime::Impl final {
                         node)->IsOpen();
             }
             if (open) {
-                Presentation::Visual* ancestor =
+                Aero::Visual* ancestor =
                     node;
                 while (ancestor != nullptr) {
-                    Presentation::UIElement*
+                    Aero::UIElement*
                         element =
                             ancestor->AsUIElement();
                     if (element != nullptr &&
@@ -919,43 +920,40 @@ struct ViewRuntime::Impl final {
                 }
             }
             if (open) {
-                Presentation::FrameworkElement*
+                Aero::FrameworkElement*
                     framework =
                         node->AsFrameworkElement();
-                Presentation::UIElement* input =
+                Aero::UIElement* input =
                     node->AsUIElement();
                 if (framework != nullptr &&
                     input != nullptr) {
                     auto rootOrigin = [](
-                        Presentation::UIElement&
+                        Aero::UIElement&
                             element) noexcept {
-                        Presentation::Point
+                        Aero::Point
                             result{};
-                        Presentation::Visual*
+                        Aero::Visual*
                             current = &element;
                         while (current != nullptr) {
-                            Presentation::UIElement*
+                            Aero::UIElement*
                                 currentElement =
                                     current->
                                         AsUIElement();
                             if (currentElement !=
                                 nullptr) {
-                                Presentation::
-                                    FrameworkElement*
+                                Aero::FrameworkElement*
                                     currentFramework =
                                         currentElement->
                                             AsFrameworkElement();
                                 if (currentFramework !=
                                     nullptr) {
                                     result =
-                                        Presentation::
-                                            TransformPoint(
+                                        Aero::Media::TransformPoint(
                                                 currentFramework->
                                                     LocalVisualTransform(),
                                                 result);
                                 }
-                                const Presentation::
-                                    Rect slot =
+                                const Aero::Rect slot =
                                         currentElement->
                                             LayoutSlot();
                                 result.x += slot.x;
@@ -967,7 +965,7 @@ struct ViewRuntime::Impl final {
                         }
                         return result;
                     };
-                    Presentation::Point origin =
+                    Aero::Point origin =
                         rootOrigin(*input);
                     if (metadata->Types().
                             IsDerivedFrom(
@@ -976,7 +974,7 @@ struct ViewRuntime::Impl final {
                                     ContextMenu::
                                         StaticTypeId())) {
                         Base::Ref<
-                            Presentation::UIElement>
+                            Aero::UIElement>
                             target =
                                 static_cast<
                                     Controls::
@@ -1015,7 +1013,7 @@ struct ViewRuntime::Impl final {
                 }
             }
             const Base::Span<
-                Presentation::Visual* const>
+                Aero::Visual* const>
                 children =
                     node->VisualChildren();
             for (std::uint32_t index =
@@ -1053,7 +1051,7 @@ struct ViewRuntime::Impl final {
     }
 
     void CloseAllOverlays() noexcept {
-        for (Presentation::UIElement* overlay :
+        for (Aero::UIElement* overlay :
              inputOverlays) {
             if (overlay == nullptr) continue;
             const Core::TypeId type =
@@ -1087,10 +1085,10 @@ struct ViewRuntime::Impl final {
     }
 
     static bool IsVisualDescendantOrSelf(
-        const Presentation::Visual& root,
-        const Presentation::Visual& target)
+        const Aero::Visual& root,
+        const Aero::Visual& target)
         noexcept {
-        const Presentation::Visual* current =
+        const Aero::Visual* current =
             &target;
         while (current != &root) {
             current = current->VisualParent();
@@ -1106,7 +1104,7 @@ struct ViewRuntime::Impl final {
             overlayFocusReturn.Reset();
             return {};
         }
-        Base::Ref<Presentation::UIElement>
+        Base::Ref<Aero::UIElement>
             target =
                 std::move(overlayFocusReturn);
         Base::Result<bool> restored =
@@ -1122,11 +1120,11 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> DismissOverlaysForPointer(
-        const Presentation::PointerInput& input,
-        Presentation::UIElement* target)
+        const Input::PointerInput& input,
+        Aero::UIElement* target)
         noexcept {
         if (input.action !=
-                Presentation::PointerAction::Down ||
+                Input::PointerAction::Down ||
             inputOverlays.Empty()) {
             return {};
         }
@@ -1135,7 +1133,7 @@ struct ViewRuntime::Impl final {
                  inputOverlays.Size();
              index > 0U;
              --index) {
-            Presentation::UIElement* overlay =
+            Aero::UIElement* overlay =
                 inputOverlays[index - 1U];
             if (overlay == nullptr) continue;
             if (target != nullptr &&
@@ -1193,7 +1191,7 @@ struct ViewRuntime::Impl final {
                  inputOverlays.Size();
              index > 0U;
              --index) {
-            Presentation::UIElement* overlay =
+            Aero::UIElement* overlay =
                 inputOverlays[index - 1U];
             if (overlay == nullptr) continue;
             const Core::TypeId type =
@@ -1247,19 +1245,19 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> OpenContextMenuForPointer(
-        const Presentation::PointerInput& input,
-        Presentation::UIElement* hitTarget)
+        const Input::PointerInput& input,
+        Aero::UIElement* hitTarget)
         noexcept {
         if (input.action !=
-                Presentation::PointerAction::Down ||
+                Input::PointerAction::Down ||
             input.changedButton !=
-                Presentation::MouseButton::Right) {
+                Input::MouseButton::Right) {
             return {};
         }
-        Presentation::Visual* current =
+        Aero::Visual* current =
             hitTarget;
         while (current != nullptr) {
-            Presentation::UIElement* element =
+            Aero::UIElement* element =
                 current->AsUIElement();
             if (element != nullptr) {
                 Base::Ref<Controls::ContextMenu>
@@ -1271,25 +1269,23 @@ struct ViewRuntime::Impl final {
                 if (menu) {
                     if (focus != nullptr &&
                         !overlayFocusReturn) {
-                        Presentation::UIElement*
+                        Aero::UIElement*
                             focused =
                                 focus->
                                     FocusedNode();
                         if (focused != nullptr) {
                             overlayFocusReturn =
                                 Base::Ref<
-                                    Presentation::
-                                        UIElement>::
+                                    Aero::UIElement>::
                                     TryFromBorrowed(
                                         *focused);
                         }
                     }
                     Base::Ref<
-                        Presentation::UIElement>
+                        Aero::UIElement>
                         target =
                             Base::Ref<
-                                Presentation::
-                                    UIElement>::
+                                Aero::UIElement>::
                                 TryFromBorrowed(
                                     *element);
                     if (target) {
@@ -1329,11 +1325,11 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> UpdateToolTipForPointer(
-        const Presentation::PointerInput& input,
-        Presentation::UIElement* hitTarget)
+        const Input::PointerInput& input,
+        Aero::UIElement* hitTarget)
         noexcept {
         if (input.action ==
-                Presentation::PointerAction::Down) {
+                Input::PointerAction::Down) {
             if (activeToolTip) {
                 Base::Result<void> closed =
                     activeToolTip->SetIsOpen(false);
@@ -1350,16 +1346,16 @@ struct ViewRuntime::Impl final {
             return {};
         }
         if (input.action !=
-            Presentation::PointerAction::Move) {
+            Input::PointerAction::Move) {
             return {};
         }
         Base::Ref<Controls::ToolTip> next;
-        Base::Ref<Presentation::UIElement>
+        Base::Ref<Aero::UIElement>
             nextTarget;
-        Presentation::Visual* current =
+        Aero::Visual* current =
             hitTarget;
         while (current != nullptr) {
-            Presentation::UIElement* element =
+            Aero::UIElement* element =
                 current->AsUIElement();
             if (element != nullptr) {
                 next =
@@ -1368,7 +1364,7 @@ struct ViewRuntime::Impl final {
                 if (next) {
                     nextTarget =
                         Base::Ref<
-                            Presentation::UIElement>::
+                            Aero::UIElement>::
                             TryFromBorrowed(
                                 *element);
                     break;
@@ -1460,24 +1456,24 @@ struct ViewRuntime::Impl final {
         return 1U;
     }
 
-    Base::Result<Presentation::Visual*> ResolveVisual(
+    Base::Result<Aero::Visual*> ResolveVisual(
         Base::Object& object, Core::TypeId type) noexcept {
         if (object.RuntimeType() != type ||
             !metadata->Types().IsDerivedFrom(
-                type, Presentation::Visual::StaticTypeId())) {
+                type, Aero::Visual::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ViewRuntime root is not a registered Visual");
         }
-        return static_cast<Presentation::Visual*>(&object);
+        return static_cast<Aero::Visual*>(&object);
     }
 
-    Base::Result<Presentation::UIElement*> ResolveUIElement(
+    Base::Result<Aero::UIElement*> ResolveUIElement(
         Base::Object& object, Core::TypeId type) noexcept {
-        Base::Result<Presentation::Visual*> visual =
+        Base::Result<Aero::Visual*> visual =
             ResolveVisual(object, type);
         if (!visual) return visual.GetStatus();
-        Presentation::UIElement* element =
+        Aero::UIElement* element =
             visual.Value()->AsUIElement();
         if (element == nullptr) {
             return Base::Status::Failure(
@@ -1487,37 +1483,37 @@ struct ViewRuntime::Impl final {
         return element;
     }
 
-    Presentation::FrameworkElement* ResolveFrameworkElement(
+    Aero::FrameworkElement* ResolveFrameworkElement(
         Base::Object& object, Core::TypeId type) noexcept {
-        Base::Result<Presentation::Visual*> visual =
+        Base::Result<Aero::Visual*> visual =
             ResolveVisual(object, type);
         return visual ? visual.Value()->AsFrameworkElement() : nullptr;
     }
 
     Base::Result<void> CreateTemplateServices() noexcept {
         Base::Result<void> status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             templates, *tree, *values,
             Core::Detail::MetadataDomainAccess::
                 DependencyProperties(*metadata),
             layout, renderer, metadataRuntime, bindings);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             visualStates, *values, *templates,
             *animations,
             Core::Detail::MetadataDomainAccess::
                 DependencyProperties(*metadata));
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             styles, *values,
             Core::Detail::MetadataDomainAccess::
                 DependencyProperties(*metadata));
         if (!status) return status.GetStatus();
         styles->SetTriggerActionHandler(
             &Impl::ExecuteStyleTriggerActions, this);
-        presentationServices.Configure(
+        uiServices.Configure(
             *allocator,
             *metadata,
             *values,
@@ -1530,7 +1526,7 @@ struct ViewRuntime::Impl final {
     }
 
     static Base::Result<void> GeneratedItemSubtreeChanged(
-        Presentation::Visual& root,
+        Aero::Visual& root,
         Controls::ItemSubtreeChange change,
         void* context) noexcept {
         auto* runtime = static_cast<Impl*>(context);
@@ -1541,21 +1537,21 @@ struct ViewRuntime::Impl final {
         }
         if (change ==
             Controls::ItemSubtreeChange::Unmounting) {
-            Base::Result<Presentation::VisualHandle>
+            Base::Result<Aero::VisualHandle>
                 rootHandle =
                     runtime->tree->GetHandle(root);
             if (rootHandle) {
                 for (std::uint32_t index = 0U;
                      index <
                          runtime->
-                             pendingGeneratedPresentation.
+                             pendingGeneratedVisuals.
                                  Size();) {
                     if (runtime->
-                            pendingGeneratedPresentation[
+                            pendingGeneratedVisuals[
                                 index].index !=
                             rootHandle.Value().index ||
                         runtime->
-                            pendingGeneratedPresentation[
+                            pendingGeneratedVisuals[
                                 index].generation !=
                             rootHandle.Value().generation) {
                         ++index;
@@ -1565,47 +1561,47 @@ struct ViewRuntime::Impl final {
                              index + 1U;
                          move <
                              runtime->
-                                 pendingGeneratedPresentation.
+                                 pendingGeneratedVisuals.
                                      Size();
                          ++move) {
                         runtime->
-                            pendingGeneratedPresentation[
+                            pendingGeneratedVisuals[
                                 move - 1U] =
                             runtime->
-                                pendingGeneratedPresentation[
+                                pendingGeneratedVisuals[
                                     move];
                     }
                     runtime->
-                        pendingGeneratedPresentation.
+                        pendingGeneratedVisuals.
                             PopBack();
                     return {};
                 }
             }
-            runtime->presentationServices.Detach(
+            runtime->uiServices.Detach(
                 &root, {});
             return {};
         }
         if (runtime->bindings != nullptr &&
             runtime->bindings->IsFlushing()) {
-            Base::Result<Presentation::VisualHandle>
+            Base::Result<Aero::VisualHandle>
                 handle =
                     runtime->tree->GetHandle(root);
             if (!handle) return handle.GetStatus();
             return runtime->
-                pendingGeneratedPresentation.
+                pendingGeneratedVisuals.
                     TryPushBack(handle.Value());
         }
         Base::Result<void> applied =
-            runtime->presentationServices.Apply(root);
+            runtime->uiServices.Apply(root);
         if (!applied) {
-            runtime->presentationServices.Detach(
+            runtime->uiServices.Detach(
                 &root, {});
             return applied.GetStatus();
         }
         Base::Result<std::uint32_t> started =
             runtime->StartLoadedAnimations(&root);
         if (!started) {
-            runtime->presentationServices.Detach(
+            runtime->uiServices.Detach(
                 &root, {});
             return started.GetStatus();
         }
@@ -1613,26 +1609,26 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void>
-    FlushGeneratedPresentation() noexcept {
+    FlushGeneratedVisuals() noexcept {
         constexpr std::uint32_t MaximumWaves = 16U;
         for (std::uint32_t wave = 0U;
              wave < MaximumWaves;
              ++wave) {
-            if (pendingGeneratedPresentation.Empty()) {
+            if (pendingGeneratedVisuals.Empty()) {
                 return {};
             }
-            Base::Vector<Presentation::VisualHandle>
+            Base::Vector<Aero::VisualHandle>
                 pending =
                     std::move(
-                        pendingGeneratedPresentation);
-            pendingGeneratedPresentation.Clear();
-            for (const Presentation::VisualHandle handle :
+                        pendingGeneratedVisuals);
+            pendingGeneratedVisuals.Clear();
+            for (const Aero::VisualHandle handle :
                  pending) {
-                Presentation::Visual* subtreeRoot =
+                Aero::Visual* subtreeRoot =
                     tree->ResolveHandle(handle);
                 if (subtreeRoot == nullptr) continue;
                 Base::Result<void> applied =
-                    presentationServices.Apply(
+                    uiServices.Apply(
                         *subtreeRoot);
                 if (!applied) return applied.GetStatus();
                 Base::Result<std::uint32_t> started =
@@ -1645,37 +1641,37 @@ struct ViewRuntime::Impl final {
         }
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "Generated item presentation exceeded the bounded activation waves");
+            "Generated item visual activation exceeded the bounded activation waves");
     }
 
     void DestroyTemplateServices() noexcept {
-        presentationServices.Reset();
+        uiServices.Reset();
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             styles);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             visualStates);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             templates);
     }
 
     Base::Result<void> VisitAndAttach(
-        Presentation::Visual& rootVisual) noexcept {
-        Base::Vector<Presentation::Visual*> stack(allocator);
+        Aero::Visual& rootVisual) noexcept {
+        Base::Vector<Aero::Visual*> stack(allocator);
         Base::Result<void> pushed =
             stack.TryPushBack(&rootVisual);
         if (!pushed) return pushed.GetStatus();
         while (!stack.Empty()) {
-            Presentation::Visual* node = stack.Back();
+            Aero::Visual* node = stack.Back();
             stack.PopBack();
             if (node == nullptr) continue;
             const Core::TypeId type = node->RuntimeType();
             if (metadata->Types().IsDerivedFrom(
                     type,
                     Controls::Control::StaticTypeId())) {
-                Detail::ControlRuntimeAccess::Attach(
+                Aero::Detail::ControlRuntimeAccess::Attach(
                     *static_cast<Controls::Control*>(node),
                     events);
             }
@@ -1826,7 +1822,7 @@ struct ViewRuntime::Impl final {
                     Base::Result<void> created =
                         CreateRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             generator,
                             *tree,
                             *layout,
@@ -1856,23 +1852,23 @@ struct ViewRuntime::Impl final {
                     if (!attached) {
                         DestroyRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             generator);
                         return attached.GetStatus();
                     }
-                    Base::Result<void> presented =
-                        presentationServices.Apply(
+                    Base::Result<void> generatedUiApplied =
+                        uiServices.Apply(
                             *host);
-                    if (!presented) {
-                        presentationServices.Detach(
+                    if (!generatedUiApplied) {
+                        uiServices.Detach(
                             host, {});
                         static_cast<void>(
                             generator->Detach());
                         DestroyRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             generator);
-                        return presented.GetStatus();
+                        return generatedUiApplied.GetStatus();
                     }
                     Base::Result<void> tracked =
                         itemGenerators.TryPushBack(
@@ -1882,13 +1878,13 @@ struct ViewRuntime::Impl final {
                             generator->Detach());
                         DestroyRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             generator);
                         return tracked.GetStatus();
                     }
                 }
             }
-            const Base::Span<Presentation::Visual* const>
+            const Base::Span<Aero::Visual* const>
                 children = node->VisualChildren();
             for (std::uint32_t index = 0U;
                  index < children.Size(); ++index) {
@@ -1900,7 +1896,7 @@ struct ViewRuntime::Impl final {
     }
 
     void ClearTextInputHosts(
-        Presentation::Visual* node) noexcept {
+        Aero::Visual* node) noexcept {
         if (node == nullptr) return;
         if (metadata->Types().IsDerivedFrom(
                 node->RuntimeType(),
@@ -1918,7 +1914,7 @@ struct ViewRuntime::Impl final {
                     Controls::PasswordBox*>(node)->
                     SetInputMethodHost(nullptr));
         }
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              node->VisualChildren()) {
             ClearTextInputHosts(child);
         }
@@ -2147,13 +2143,13 @@ struct ViewRuntime::Impl final {
                     !value.Value().AsObject() ||
                     !metadata->Types().IsDerivedFrom(
                         value.Value().AsObject()->RuntimeType(),
-                        Presentation::GradientBrush::StaticTypeId())) {
+                        Media::GradientBrush::StaticTypeId())) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
                         "Storyboard target property is not a GradientBrush");
                 }
                 auto& brush = static_cast<
-                    Presentation::GradientBrush&>(
+                    Media::GradientBrush&>(
                         *value.Value().AsObject());
                 const auto stops = brush.GradientStops();
                 if (parsedIndex >= stops.Size() ||
@@ -2169,18 +2165,18 @@ struct ViewRuntime::Impl final {
                 path = terminalPath;
                 indexedPathResolved = true;
             } else if (transformChildren) {
-                Base::Ref<Presentation::Transform> transform;
+                Base::Ref<Media::Transform> transform;
                 if (beforeIndex ==
                         Base::StringView(
                             "(TransformGroup.Children)") &&
                     metadata->Types().IsDerivedFrom(
                         target.RuntimeType(),
-                        Presentation::TransformGroup::StaticTypeId())) {
+                        Media::TransformGroup::StaticTypeId())) {
                     transform =
-                        Base::Ref<Presentation::Transform>::
+                        Base::Ref<Media::Transform>::
                             TryFromBorrowed(
                                 static_cast<
-                                    Presentation::Transform&>(
+                                    Media::Transform&>(
                                         target));
                 } else {
                     const bool layoutPath =
@@ -2193,37 +2189,37 @@ struct ViewRuntime::Impl final {
                     if (layoutPath) {
                         if (!metadata->Types().IsDerivedFrom(
                                 target.RuntimeType(),
-                                Presentation::FrameworkElement::StaticTypeId())) {
+                                Aero::FrameworkElement::StaticTypeId())) {
                             return Base::Status::Failure(
                                 Base::ErrorCode::InvalidArgument,
                                 "Storyboard LayoutTransform target is not a FrameworkElement");
                         }
                         transform =
-                            static_cast<Presentation::FrameworkElement&>(
+                            static_cast<Aero::FrameworkElement&>(
                                 target).LayoutTransform();
                     } else {
                         if (!metadata->Types().IsDerivedFrom(
                                 target.RuntimeType(),
-                                Presentation::UIElement::StaticTypeId())) {
+                                Aero::UIElement::StaticTypeId())) {
                             return Base::Status::Failure(
                                 Base::ErrorCode::InvalidArgument,
                                 "Storyboard RenderTransform target is not a UIElement");
                         }
                         transform =
-                            static_cast<Presentation::UIElement&>(
+                            static_cast<Aero::UIElement&>(
                                 target).RenderTransform();
                     }
                 }
                 if (!transform ||
                     !metadata->Types().IsDerivedFrom(
                         transform->RuntimeType(),
-                        Presentation::TransformGroup::StaticTypeId())) {
+                        Media::TransformGroup::StaticTypeId())) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
                         "Storyboard transform path has no TransformGroup");
                 }
                 auto& group = static_cast<
-                    Presentation::TransformGroup&>(
+                    Media::TransformGroup&>(
                         *transform);
                 const auto children = group.Children();
                 if (parsedIndex >= children.Size() ||
@@ -2362,28 +2358,28 @@ struct ViewRuntime::Impl final {
                     ownerProperty ==
                     Base::StringView(
                         "LayoutTransform");
-                Base::Ref<Presentation::Transform> transform;
+                Base::Ref<Media::Transform> transform;
                 if (layoutPath) {
                     if (!metadata->Types().IsDerivedFrom(
                             target.RuntimeType(),
-                            Presentation::FrameworkElement::StaticTypeId())) {
+                            Aero::FrameworkElement::StaticTypeId())) {
                         return Base::Status::Failure(
                             Base::ErrorCode::InvalidArgument,
                             "LayoutTransform animation target is not a FrameworkElement");
                     }
                     transform =
-                        static_cast<Presentation::FrameworkElement&>(
+                        static_cast<Aero::FrameworkElement&>(
                             target).LayoutTransform();
                 } else {
                     if (!metadata->Types().IsDerivedFrom(
                             target.RuntimeType(),
-                            Presentation::UIElement::StaticTypeId())) {
+                            Aero::UIElement::StaticTypeId())) {
                         return Base::Status::Failure(
                             Base::ErrorCode::InvalidArgument,
                             "RenderTransform animation target is not a UIElement");
                     }
                     transform =
-                        static_cast<Presentation::UIElement&>(
+                        static_cast<Aero::UIElement&>(
                             target).RenderTransform();
                 }
                 if (!transform) {
@@ -2469,9 +2465,9 @@ struct ViewRuntime::Impl final {
     }
 
     struct StoryboardTimingContext final {
-        Presentation::AnimationTime beginTimeMicroseconds = 0U;
-        Presentation::AnimationTime durationMicroseconds = 0U;
-        Presentation::RepeatBehavior repeat;
+        Aero::Detail::Animation::AnimationTime beginTimeMicroseconds = 0U;
+        Aero::Detail::Animation::AnimationTime durationMicroseconds = 0U;
+        Aero::Detail::Animation::RepeatBehavior repeat;
         double speedRatio = 1.0;
         bool hasDuration = false;
         bool hasRepeat = false;
@@ -2485,7 +2481,7 @@ struct ViewRuntime::Impl final {
             inherited != nullptr
             ? *inherited
             : StoryboardTimingContext{};
-        const Presentation::TimelineTiming& authored =
+        const Aero::Detail::Animation::TimelineTiming& authored =
             storyboard.Timing();
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
@@ -2509,10 +2505,10 @@ struct ViewRuntime::Impl final {
         return result;
     }
 
-    Presentation::TimelineTiming EffectiveTimelineTiming(
+    Aero::Detail::Animation::TimelineTiming EffectiveTimelineTiming(
         const Animation::Timeline& timeline,
         const StoryboardTimingContext* inherited) noexcept {
-        Presentation::TimelineTiming result =
+        Aero::Detail::Animation::TimelineTiming result =
             timeline.Timing();
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
@@ -2538,10 +2534,10 @@ struct ViewRuntime::Impl final {
     Base::Result<std::uint32_t>
     RetainStartedAnimation(
         Base::Result<
-            Presentation::AnimationHandle>
+            Aero::Detail::Animation::AnimationHandle>
             started,
         Base::Vector<
-            Presentation::AnimationHandle>*
+            Aero::Detail::Animation::AnimationHandle>*
             retainedHandles) noexcept {
         if (!started) {
             return started.GetStatus();
@@ -2562,12 +2558,12 @@ struct ViewRuntime::Impl final {
 
     Base::Result<std::uint32_t> BeginTimeline(
         Animation::Timeline& timeline,
-        Presentation::FrameworkElement& triggerOwner,
+        Aero::FrameworkElement& triggerOwner,
         const StoryboardTimingContext* inherited = nullptr,
         Base::Vector<
-            Presentation::AnimationHandle>*
+            Aero::Detail::Animation::AnimationHandle>*
             retainedHandles = nullptr,
-        Detail::DataTemplateTriggerContext*
+        Aero::Detail::DataTemplateTriggerContext*
             dataTemplateContext = nullptr) noexcept {
         if (animations == nullptr) {
             return Base::Status::Failure(
@@ -2643,12 +2639,12 @@ struct ViewRuntime::Impl final {
         if (type == Animation::DoubleAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<Animation::DoubleAnimation&>(timeline);
-            Presentation::DoubleAnimation runtime =
+            Aero::Detail::Animation::DoubleAnimation runtime =
                 animation.RuntimeAnimation();
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Presentation::AnimationHandle> started =
+            Base::Result<Aero::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2660,12 +2656,12 @@ struct ViewRuntime::Impl final {
         if (type == Animation::ColorAnimation::StaticTypeId()) {
             auto& animation =
                 static_cast<Animation::ColorAnimation&>(timeline);
-            Presentation::ColorAnimation runtime =
+            Aero::Detail::Animation::ColorAnimation runtime =
                 animation.RuntimeAnimation();
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
-            Base::Result<Presentation::AnimationHandle> started =
+            Base::Result<Aero::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2681,13 +2677,13 @@ struct ViewRuntime::Impl final {
                 static_cast<
                     Animation::PointAnimation&>(
                         timeline);
-            Presentation::PointAnimation runtime =
+            Aero::Detail::Animation::PointAnimation runtime =
                 animation.RuntimeAnimation();
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Presentation::AnimationHandle>
+                Aero::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2703,13 +2699,13 @@ struct ViewRuntime::Impl final {
                 static_cast<
                     Animation::RectAnimation&>(
                         timeline);
-            Presentation::RectAnimation runtime =
+            Aero::Detail::Animation::RectAnimation runtime =
                 animation.RuntimeAnimation();
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Presentation::AnimationHandle>
+                Aero::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2725,13 +2721,13 @@ struct ViewRuntime::Impl final {
                 static_cast<
                     Animation::ThicknessAnimation&>(
                         timeline);
-            Presentation::ThicknessAnimation runtime =
+            Aero::Detail::Animation::ThicknessAnimation runtime =
                 animation.RuntimeAnimation();
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
             Base::Result<
-                Presentation::AnimationHandle>
+                Aero::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2744,7 +2740,7 @@ struct ViewRuntime::Impl final {
             Animation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
             auto& animation = static_cast<
                 Animation::DoubleAnimationUsingKeyFrames&>(timeline);
-            Base::Vector<Presentation::DoubleKeyFrame> frames(allocator);
+            Base::Vector<Aero::Detail::Animation::DoubleKeyFrame> frames(allocator);
             for (const Base::Ref<Animation::DoubleKeyFrame>& frame :
                  animation.KeyFrames()) {
                 if (!frame) continue;
@@ -2754,7 +2750,7 @@ struct ViewRuntime::Impl final {
             }
             for (std::uint32_t index = 1U;
                  index < frames.Size(); ++index) {
-                Presentation::DoubleKeyFrame current =
+                Aero::Detail::Animation::DoubleKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -2772,7 +2768,7 @@ struct ViewRuntime::Impl final {
             if (!base) return base.GetStatus();
             Base::Result<double> baseDouble =
                 Core::ValueCodec<double>::Decode(base.Value());
-            Presentation::DoubleKeyFrameAnimation runtime;
+            Aero::Detail::Animation::DoubleKeyFrameAnimation runtime;
             if (baseDouble) {
                 runtime.baseValue = baseDouble.Value();
             } else if (!frames.Empty() &&
@@ -2795,7 +2791,7 @@ struct ViewRuntime::Impl final {
                     frames.Back().keyTimeMicroseconds;
             }
             runtime.keyFrames = frames.AsSpan();
-            Base::Result<Presentation::AnimationHandle> started =
+            Base::Result<Aero::Detail::Animation::AnimationHandle> started =
                 animations->Begin(
                     propertyTarget, propertyHandle, runtime);
             return RetainStartedAnimation(
@@ -2808,7 +2804,7 @@ struct ViewRuntime::Impl final {
             auto& animation = static_cast<
                 Animation::ColorAnimationUsingKeyFrames&>(
                     timeline);
-            Base::Vector<Presentation::ColorKeyFrame>
+            Base::Vector<Aero::Detail::Animation::ColorKeyFrame>
                 frames(allocator);
             for (const Base::Ref<
                      Animation::ColorKeyFrame>& frame :
@@ -2824,7 +2820,7 @@ struct ViewRuntime::Impl final {
             for (std::uint32_t index = 1U;
                  index < frames.Size();
                  ++index) {
-                Presentation::ColorKeyFrame current =
+                Aero::Detail::Animation::ColorKeyFrame current =
                     frames[index];
                 std::uint32_t position = index;
                 while (position > 0U &&
@@ -2847,7 +2843,7 @@ struct ViewRuntime::Impl final {
             if (!baseColor) {
                 return baseColor.GetStatus();
             }
-            Presentation::ColorKeyFrameAnimation
+            Aero::Detail::Animation::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = baseColor.Value();
             runtime.timing =
@@ -2862,7 +2858,7 @@ struct ViewRuntime::Impl final {
             }
             runtime.keyFrames = frames.AsSpan();
             Base::Result<
-                Presentation::AnimationHandle>
+                Aero::Detail::Animation::AnimationHandle>
                 started = animations->Begin(
                     propertyTarget,
                     propertyHandle,
@@ -2872,7 +2868,7 @@ struct ViewRuntime::Impl final {
                 retainedHandles);
         }
 
-        Base::Vector<Presentation::DiscreteAnimationKeyFrame>
+        Base::Vector<Aero::Detail::Animation::DiscreteAnimationKeyFrame>
             frames(allocator);
         if (type ==
             Animation::ThicknessAnimationUsingKeyFrames::
@@ -2884,7 +2880,7 @@ struct ViewRuntime::Impl final {
                      Animation::ThicknessKeyFrame>& frame :
                  animation.KeyFrames()) {
                 if (!frame) continue;
-                Presentation::DiscreteAnimationKeyFrame runtime;
+                Aero::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->KeyTimeMicroseconds();
                 Base::Result<Core::PropertyValue> encoded =
@@ -2909,7 +2905,7 @@ struct ViewRuntime::Impl final {
                      Animation::DiscreteBooleanKeyFrame>& frame :
                  animation.KeyFrames()) {
                 if (!frame) continue;
-                Presentation::DiscreteAnimationKeyFrame runtime;
+                Aero::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->KeyTimeMicroseconds();
                 Base::Result<Core::PropertyValue> encoded =
@@ -2928,7 +2924,7 @@ struct ViewRuntime::Impl final {
                      Animation::DiscreteObjectKeyFrame>& frame :
                  animation.KeyFrames()) {
                 if (!frame) continue;
-                Presentation::DiscreteAnimationKeyFrame runtime;
+                Aero::Detail::Animation::DiscreteAnimationKeyFrame runtime;
                 runtime.keyTimeMicroseconds =
                     frame->KeyTimeMicroseconds();
                 runtime.value = frame->Value();
@@ -2943,7 +2939,7 @@ struct ViewRuntime::Impl final {
         }
         for (std::uint32_t index = 1U;
              index < frames.Size(); ++index) {
-            Presentation::DiscreteAnimationKeyFrame current =
+            Aero::Detail::Animation::DiscreteAnimationKeyFrame current =
                 std::move(frames[index]);
             std::uint32_t position = index;
             while (position > 0U &&
@@ -2959,7 +2955,7 @@ struct ViewRuntime::Impl final {
         Base::Result<Core::PropertyValue> base =
             propertyTarget.GetValue(propertyHandle);
         if (!base) return base.GetStatus();
-        Presentation::DiscreteAnimation runtime;
+        Aero::Detail::Animation::DiscreteAnimation runtime;
         runtime.baseValue = base.Value();
         runtime.timing =
             EffectiveTimelineTiming(
@@ -2970,7 +2966,7 @@ struct ViewRuntime::Impl final {
                 frames.Back().keyTimeMicroseconds;
         }
         runtime.keyFrames = frames.AsSpan();
-        Base::Result<Presentation::AnimationHandle> started =
+        Base::Result<Aero::Detail::Animation::AnimationHandle> started =
             animations->Begin(
                 propertyTarget, propertyHandle, runtime);
         return RetainStartedAnimation(
@@ -3012,8 +3008,8 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<bool> EvaluateDataTemplateCondition(
-        Detail::DataTemplateTriggerContext& context,
-        Detail::DataTemplateTriggerCondition& condition) noexcept {
+        Aero::Detail::DataTemplateTriggerContext& context,
+        Aero::Detail::DataTemplateTriggerCondition& condition) noexcept {
         Core::PropertyValue current;
         if (condition.dependencySource &&
             condition.property.IsValid()) {
@@ -3057,7 +3053,7 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> EnsureDataTemplateProviderTokens(
-        Detail::DataTemplateTriggerContext& context) noexcept {
+        Aero::Detail::DataTemplateTriggerContext& context) noexcept {
         if (values == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -3071,9 +3067,9 @@ struct ViewRuntime::Impl final {
         }
 
         std::uint64_t ordinal = 0U;
-        for (Detail::DataTemplatePropertyTrigger& trigger :
+        for (Aero::Detail::DataTemplatePropertyTrigger& trigger :
              context.triggers) {
-            for (Detail::DataTemplateTriggerSetter& setter :
+            for (Aero::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (ordinal > UINT32_MAX) {
                     return Base::Status::Failure(
@@ -3097,7 +3093,7 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> EvaluateDataTemplateTrigger(
-        Detail::DataTemplateTriggerContext& context,
+        Aero::Detail::DataTemplateTriggerContext& context,
         std::uint32_t triggerIndex) noexcept {
         if (triggerIndex >= context.triggers.Size() ||
             context.root == nullptr ||
@@ -3110,10 +3106,10 @@ struct ViewRuntime::Impl final {
             EnsureDataTemplateProviderTokens(context);
         if (!providerTokens) return providerTokens.GetStatus();
 
-        Detail::DataTemplatePropertyTrigger& trigger =
+        Aero::Detail::DataTemplatePropertyTrigger& trigger =
             context.triggers[triggerIndex];
         bool active = !trigger.conditions.Empty();
-        for (Detail::DataTemplateTriggerCondition& condition :
+        for (Aero::Detail::DataTemplateTriggerCondition& condition :
              trigger.conditions) {
             Base::Result<bool> matches =
                 EvaluateDataTemplateCondition(context, condition);
@@ -3126,7 +3122,7 @@ struct ViewRuntime::Impl final {
         if (active == trigger.active) return {};
 
         if (active) {
-            for (const Detail::DataTemplateTriggerSetter& setter :
+            for (const Aero::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
                 Base::Result<void> applied =
@@ -3140,7 +3136,7 @@ struct ViewRuntime::Impl final {
                 }
             }
         } else {
-            for (const Detail::DataTemplateTriggerSetter& setter :
+            for (const Aero::Detail::DataTemplateTriggerSetter& setter :
                  trigger.setters) {
                 if (!setter.target) continue;
                 Base::Result<bool> cleared =
@@ -3186,20 +3182,20 @@ struct ViewRuntime::Impl final {
 
     Base::Result<std::uint32_t>
     StartDataTemplateTriggers(
-        Detail::DataTemplateTriggerContext&
+        Aero::Detail::DataTemplateTriggerContext&
             context) noexcept {
         std::uint32_t count = 0U;
         for (std::uint32_t triggerIndex = 0U;
              triggerIndex < context.triggers.Size();
              ++triggerIndex) {
-            Detail::DataTemplatePropertyTrigger&
+            Aero::Detail::DataTemplatePropertyTrigger&
                 trigger =
                     context.triggers[triggerIndex];
             for (std::uint32_t conditionIndex = 0U;
                  conditionIndex <
                      trigger.conditions.Size();
                  ++conditionIndex) {
-                Detail::DataTemplateTriggerCondition&
+                Aero::Detail::DataTemplateTriggerCondition&
                     condition =
                         trigger.conditions[conditionIndex];
                 if ((!condition.dependencySource ||
@@ -3276,7 +3272,7 @@ struct ViewRuntime::Impl final {
                 Base::Result<void> created =
                     CreateRuntimeObject(
                         *allocator,
-                        Base::MemoryTag::Presentation,
+                        Base::MemoryTag::Ui,
                         handlerContext);
                 if (!created) {
                     return created.GetStatus();
@@ -3284,7 +3280,7 @@ struct ViewRuntime::Impl final {
                 handlerContext->runtime = this;
                 handlerContext->triggerContext =
                     Base::Ref<
-                        Detail::
+                        Aero::Detail::
                             DataTemplateTriggerContext>::
                         FromBorrowed(context);
                 handlerContext->triggerIndex =
@@ -3310,7 +3306,7 @@ struct ViewRuntime::Impl final {
                 if (!subscribed) {
                     DestroyRuntimeObject(
                         *allocator,
-                        Base::MemoryTag::Presentation,
+                        Base::MemoryTag::Ui,
                         handlerContext);
                     return subscribed.GetStatus();
                 }
@@ -3331,7 +3327,7 @@ struct ViewRuntime::Impl final {
                                 handler));
                     DestroyRuntimeObject(
                         *allocator,
-                        Base::MemoryTag::Presentation,
+                        Base::MemoryTag::Ui,
                         handlerContext);
                     return retained.GetStatus();
                 }
@@ -3348,11 +3344,11 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<std::uint32_t> StartLoadedAnimations(
-        Presentation::Visual* visual,
-        const Presentation::NameScope* names = nullptr) noexcept {
+        Aero::Visual* visual,
+        const Aero::NameScope* names = nullptr) noexcept {
         if (visual == nullptr) return std::uint32_t{0U};
         std::uint32_t count = 0U;
-        Presentation::FrameworkElement* element =
+        Aero::FrameworkElement* element =
             visual->AsFrameworkElement();
         if (element != nullptr) {
             if (commands != nullptr &&
@@ -3360,10 +3356,10 @@ struct ViewRuntime::Impl final {
                     element->RuntimeType(),
                     Controls::Grid::StaticTypeId())) {
                 auto& grid = static_cast<Controls::Grid&>(*element);
-                for (const Base::Ref<Presentation::KeyBinding>& binding :
+                for (const Base::Ref<Input::KeyBinding>& binding :
                      grid.InputBindings()) {
                     if (!binding) continue;
-                    Base::Result<Presentation::InputBindingHandle> added =
+                    Base::Result<Input::InputBindingHandle> added =
                         commands->TryAddInputBinding(*element, binding);
                     if (!added) return added.GetStatus();
                 }
@@ -3374,13 +3370,13 @@ struct ViewRuntime::Impl final {
                     continue;
                 }
                 if (authored->RuntimeType() ==
-                    Detail::
+                    Aero::Detail::
                         DataTemplateTriggerContext::
                             StaticTypeId()) {
                     Base::Result<std::uint32_t> started =
                         StartDataTemplateTriggers(
                             static_cast<
-                                Detail::
+                                Aero::Detail::
                                     DataTemplateTriggerContext&>(
                                         *authored));
                     if (!started) {
@@ -3431,7 +3427,7 @@ struct ViewRuntime::Impl final {
                 if (eventSource == nullptr ||
                     !metadata->Types().IsDerivedFrom(
                         eventSource->RuntimeType(),
-                        Presentation::UIElement::
+                        Aero::UIElement::
                             StaticTypeId())) {
                     return Base::Status::Failure(
                         Base::ErrorCode::NotFound,
@@ -3439,7 +3435,7 @@ struct ViewRuntime::Impl final {
                 }
                 auto* eventElement =
                     static_cast<
-                        Presentation::UIElement*>(
+                        Aero::UIElement*>(
                             eventSource);
                 if (routedEvent != Base::StringView("Loaded") &&
                     routedEvent !=
@@ -3471,7 +3467,7 @@ struct ViewRuntime::Impl final {
                     Base::Result<void> created =
                         CreateRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             eventContext);
                     if (!created) return created.GetStatus();
                     eventContext->runtime = this;
@@ -3481,17 +3477,17 @@ struct ViewRuntime::Impl final {
                     auto callback =
                         [eventContext](
                             Base::Object* sender,
-                            const Presentation::RoutedEventArgs& args) noexcept {
+                            const Aero::RoutedEventArgs& args) noexcept {
                             eventContext->Invoke(sender, args);
                         };
-                    Presentation::RoutedEventHandler handler(callback);
+                    Aero::RoutedEventHandler handler(callback);
                     Base::Result<void> subscribed =
                         eventElement->TryAddHandler(
                             eventHandle, handler);
                     if (!subscribed) {
                         DestroyRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             eventContext);
                         return subscribed.GetStatus();
                     }
@@ -3510,7 +3506,7 @@ struct ViewRuntime::Impl final {
                                 eventHandle, handler));
                         DestroyRuntimeObject(
                             *allocator,
-                            Base::MemoryTag::Presentation,
+                            Base::MemoryTag::Ui,
                             eventContext);
                         return retained.GetStatus();
                     }
@@ -3535,7 +3531,7 @@ struct ViewRuntime::Impl final {
                 }
             }
         }
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              visual->VisualChildren()) {
             Base::Result<std::uint32_t> started =
                 StartLoadedAnimations(child, names);
@@ -3551,8 +3547,8 @@ struct ViewRuntime::Impl final {
     }
 
     bool IsInVisualSubtree(
-        Presentation::Visual* node,
-        const Presentation::Visual& fragmentRoot) const noexcept {
+        Aero::Visual* node,
+        const Aero::Visual& fragmentRoot) const noexcept {
         while (node != nullptr) {
             if (node == &fragmentRoot) return true;
             node = node->LogicalParent() != nullptr
@@ -3563,11 +3559,11 @@ struct ViewRuntime::Impl final {
     }
 
     void ClearDataTemplateTriggerProviders(
-        Detail::DataTemplateTriggerContext& context) noexcept {
+        Aero::Detail::DataTemplateTriggerContext& context) noexcept {
         if (values != nullptr) {
-            for (Detail::DataTemplatePropertyTrigger& trigger :
+            for (Aero::Detail::DataTemplatePropertyTrigger& trigger :
                  context.triggers) {
-                for (Detail::DataTemplateTriggerSetter& setter :
+                for (Aero::Detail::DataTemplateTriggerSetter& setter :
                      trigger.setters) {
                     if (!setter.target || !setter.token.IsValid()) continue;
                     static_cast<void>(
@@ -3584,21 +3580,21 @@ struct ViewRuntime::Impl final {
     }
 
     void ClearDataTemplateTriggerProvidersInSubtree(
-        Presentation::Visual& visual) noexcept {
-        Presentation::FrameworkElement* element =
+        Aero::Visual& visual) noexcept {
+        Aero::FrameworkElement* element =
             visual.AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
                  element->AuthoredTriggers()) {
                 if (authored && authored->RuntimeType() ==
-                    Detail::DataTemplateTriggerContext::StaticTypeId()) {
+                    Aero::Detail::DataTemplateTriggerContext::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
-                        static_cast<Detail::DataTemplateTriggerContext&>(
+                        static_cast<Aero::Detail::DataTemplateTriggerContext&>(
                             *authored));
                 }
             }
         }
-        for (Presentation::Visual* child : visual.VisualChildren()) {
+        for (Aero::Visual* child : visual.VisualChildren()) {
             if (child != nullptr) {
                 ClearDataTemplateTriggerProvidersInSubtree(*child);
             }
@@ -3606,7 +3602,7 @@ struct ViewRuntime::Impl final {
     }
 
     void ClearAnimationSubscriptionsFor(
-        Presentation::Visual& fragmentRoot) noexcept {
+        Aero::Visual& fragmentRoot) noexcept {
         ClearDataTemplateTriggerProvidersInSubtree(fragmentRoot);
         for (std::uint32_t index = 0U;
              index < dataTemplateTriggerSubscriptions.Size();) {
@@ -3616,9 +3612,9 @@ struct ViewRuntime::Impl final {
                 subscription.source != nullptr &&
                 metadata->Types().IsDerivedFrom(
                     subscription.source->RuntimeType(),
-                    Presentation::Visual::StaticTypeId()) &&
+                    Aero::Visual::StaticTypeId()) &&
                 IsInVisualSubtree(
-                    static_cast<Presentation::Visual*>(
+                    static_cast<Aero::Visual*>(
                         subscription.source), fragmentRoot);
             const bool contextMatches =
                 subscription.context != nullptr &&
@@ -3638,7 +3634,7 @@ struct ViewRuntime::Impl final {
                 subscription.source->RemoveValueChangedHandler(
                     subscription.property, subscription.handler));
             DestroyRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 subscription.context);
             for (std::uint32_t next = index + 1U;
                  next < dataTemplateTriggerSubscriptions.Size(); ++next) {
@@ -3660,7 +3656,7 @@ struct ViewRuntime::Impl final {
             static_cast<void>(subscription.owner->RemoveHandler(
                 subscription.event, subscription.handler));
             DestroyRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 subscription.context);
             for (std::uint32_t next = index + 1U;
                  next < animationEventSubscriptions.Size(); ++next) {
@@ -3679,7 +3675,7 @@ struct ViewRuntime::Impl final {
             }
             CancelStoryboardCompletionSessions(session.handles.AsSpan());
             if (animations != nullptr) {
-                for (Presentation::AnimationHandle handle : session.handles) {
+                for (Aero::Detail::Animation::AnimationHandle handle : session.handles) {
                     static_cast<void>(animations->Remove(handle));
                 }
             }
@@ -3722,7 +3718,7 @@ struct ViewRuntime::Impl final {
             }
             DestroyRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 subscription.context);
         }
         dataTemplateTriggerSubscriptions.Clear();
@@ -3736,7 +3732,7 @@ struct ViewRuntime::Impl final {
             }
             DestroyRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 subscription.context);
         }
         animationEventSubscriptions.Clear();
@@ -3746,16 +3742,16 @@ struct ViewRuntime::Impl final {
     }
 
     void ClearRuntimeEvents(
-        Presentation::Visual* node) noexcept {
+        Aero::Visual* node) noexcept {
         if (node == nullptr) return;
         if (metadata->Types().IsDerivedFrom(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
-            Detail::ControlRuntimeAccess::Attach(
+            Aero::Detail::ControlRuntimeAccess::Attach(
                 *static_cast<Controls::Control*>(node),
                 nullptr);
         }
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              node->VisualChildren()) {
             ClearRuntimeEvents(child);
         }
@@ -3775,31 +3771,31 @@ struct ViewRuntime::Impl final {
         ClearTextInputHosts(RootVisual());
         ClearRuntimeEvents(RootVisual());
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             menuInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             treeViewInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             comboBoxInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             listBoxInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             sliderInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             scrollInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             textBoxInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             hyperlinkInteractions);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             controlInteractions);
     }
 
@@ -3813,21 +3809,21 @@ struct ViewRuntime::Impl final {
                     generator->Detach());
                 DestroyRuntimeObject(
                     *allocator,
-                    Base::MemoryTag::Presentation,
+                    Base::MemoryTag::Ui,
                     generator);
             }
         }
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             textInput);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             keyboard);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             pointer);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             focus);
     }
 
@@ -3837,32 +3833,32 @@ struct ViewRuntime::Impl final {
     }
 
     Base::Result<void> CreateInteractions() noexcept {
-        Presentation::Visual* rootVisual = RootVisual();
+        Aero::Visual* rootVisual = RootVisual();
         if (rootVisual == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Runtime root is not a registered Visual");
         }
         Base::Result<void> status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             focus, *tree, *events);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             pointer, hitTests, *events, *rootVisual);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             keyboard, *focus, *events, *tree, commands);
         if (!status) return status.GetStatus();
         status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             textInput, *focus, *events, *tree);
         if (!status) return status.GetStatus();
 
         if (options.attachControlInteractions) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 controlInteractions,
                 *tree, *events, *pointer, *focus,
                 *commands, visualStates);
@@ -3870,7 +3866,7 @@ struct ViewRuntime::Impl final {
             status = controlInteractions->Initialize();
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 hyperlinkInteractions,
                 *tree, *events, *pointer, *focus, *commands);
             if (!status) return status.GetStatus();
@@ -3878,14 +3874,14 @@ struct ViewRuntime::Impl final {
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 scrollInteractions,
                 *tree,
                 *events);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 sliderInteractions,
                 *tree,
                 *events,
@@ -3894,7 +3890,7 @@ struct ViewRuntime::Impl final {
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 listBoxInteractions,
                 *tree,
                 *events,
@@ -3903,7 +3899,7 @@ struct ViewRuntime::Impl final {
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 comboBoxInteractions,
                 *tree,
                 *events,
@@ -3911,7 +3907,7 @@ struct ViewRuntime::Impl final {
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 treeViewInteractions,
                 *tree,
                 *events,
@@ -3920,7 +3916,7 @@ struct ViewRuntime::Impl final {
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
-                Base::MemoryTag::Presentation,
+                Base::MemoryTag::Ui,
                 menuInteractions,
                 *tree,
                 *events,
@@ -3931,7 +3927,7 @@ struct ViewRuntime::Impl final {
         if (options.attachTextEditing &&
             options.clipboard != nullptr) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 textBoxInteractions,
                 *tree, *events, *pointer, *focus,
                 *options.clipboard);
@@ -3946,7 +3942,7 @@ struct ViewRuntime::Impl final {
 
     void ShutdownServices() noexcept {
         BeginDestroyInteractions();
-        DetachRuntimePresentation();
+        DetachRuntimeUi();
         FinishDestroyInteractions();
         static_cast<void>(UnmountAllFragments());
         DestroyTemplateServices();
@@ -3973,26 +3969,26 @@ struct ViewRuntime::Impl final {
         if (effectLifetime) effectLifetime->Invalidate();
 
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation, visualMount);
+            *allocator, Base::MemoryTag::Ui, visualMount);
 
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             commands);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             events);
         if (bindings != nullptr) bindings->Shutdown();
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             bindings);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             renderer);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             layout);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             tree);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Render,
@@ -4001,13 +3997,13 @@ struct ViewRuntime::Impl final {
             *allocator, Base::MemoryTag::Render,
             imageRuntime);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             animations);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             values);
         DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Presentation,
+            *allocator, Base::MemoryTag::Ui,
             objectServices);
         schema = nullptr;
         metadataRuntime = nullptr;
@@ -4084,7 +4080,7 @@ struct ViewRuntime::Impl final {
 
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 objectServices, dispatcher,
                 Core::Detail::MetadataDomainAccess::
                     DependencyProperties(*metadata),
@@ -4092,7 +4088,7 @@ struct ViewRuntime::Impl final {
         }
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 values, dispatcher,
                 Core::Detail::MetadataDomainAccess::
                     DependencyProperties(*metadata));
@@ -4100,7 +4096,7 @@ struct ViewRuntime::Impl final {
         if (status) status = values->Initialize();
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 animations, dispatcher, *values, allocator);
         }
         if (status) status = animations->Initialize();
@@ -4110,19 +4106,19 @@ struct ViewRuntime::Impl final {
         }
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 tree, dispatcher, *values);
         }
         if (status) status = tree->Initialize();
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 layout, dispatcher);
         }
         if (status) status = layout->Initialize();
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 renderer, dispatcher, SelectedBackend());
         }
         if (status) status = renderer->Initialize();
@@ -4146,20 +4142,20 @@ struct ViewRuntime::Impl final {
         }
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 bindings, dispatcher);
         }
         if (status) status = bindings->Initialize();
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 events,
                 Core::Detail::MetadataDomainAccess::
                     RoutedEventState(*metadata));
         }
         if (status) {
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 commands, *tree);
         }
         if (status) status = CreateTemplateServices();
@@ -4173,7 +4169,7 @@ struct ViewRuntime::Impl final {
         if (status && schemaBundle->IsFrozen()) {
             schema = &schemaBundle->Schema();
             status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Presentation,
+                *allocator, Base::MemoryTag::Ui,
                 visualMount, *tree, *layout, renderer);
         }
         if (!status) {
@@ -4187,19 +4183,19 @@ struct ViewRuntime::Impl final {
 
     Base::Result<void> CommitResourceLayer(
         UiDocument document,
-        Presentation::ResourceDictionary& target,
+        Aero::ResourceDictionary& target,
         bool merge) noexcept {
         const Base::Ref<Base::Object>& rootObject =
             document.Root();
         if (!rootObject ||
             rootObject->RuntimeType() !=
-                Presentation::ResourceDictionary::StaticTypeId()) {
+                Aero::ResourceDictionary::StaticTypeId()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ViewRuntime resource document root must be ResourceDictionary");
         }
         auto& dictionary =
-            static_cast<Presentation::ResourceDictionary&>(
+            static_cast<Aero::ResourceDictionary&>(
                 *rootObject);
         if (merge) {
             Base::Result<void> merged =
@@ -4224,7 +4220,7 @@ struct ViewRuntime::Impl final {
                 : restored;
         }
 
-        Presentation::ResourceDictionary previous =
+        Aero::ResourceDictionary previous =
             std::move(target);
         target = std::move(dictionary);
         Base::Result<void> rebuilt =
@@ -4240,7 +4236,7 @@ struct ViewRuntime::Impl final {
 
     Base::Result<void> LoadResourceLayer(
         Base::StringView uri,
-        Presentation::ResourceDictionary& target,
+        Aero::ResourceDictionary& target,
         Core::IDiagnosticSink* diagnostics,
         bool merge = false) noexcept {
         if (!initialized) {
@@ -4275,7 +4271,7 @@ struct ViewRuntime::Impl final {
     Base::Result<void> LoadCompiledResourceLayer(
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        Presentation::ResourceDictionary& target,
+        Aero::ResourceDictionary& target,
         bool merge = false) noexcept {
         if (!initialized) {
             return RuntimeNotInitialized(
@@ -4310,12 +4306,12 @@ struct ViewRuntime::Impl final {
         }
         if (!metadata->Types().IsDerivedFrom(
                 requestedRoot->RuntimeType(),
-                Presentation::Visual::StaticTypeId())) {
+                Aero::Visual::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "ViewRuntime root must derive from Visual");
         }
-        Base::Result<Presentation::UIElement*> rootLayout =
+        Base::Result<Aero::UIElement*> rootLayout =
             ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
         return rootLayout
             ? Base::Result<void>()
@@ -4324,7 +4320,7 @@ struct ViewRuntime::Impl final {
 
     Base::Result<void> MountRoot(
         Base::Ref<Base::Object> requestedRoot,
-        Presentation::Size availableSize) noexcept {
+        Aero::Size availableSize) noexcept {
         if (!initialized) {
             return RuntimeNotInitialized(
                 "ViewRuntime must be initialized before mounting");
@@ -4340,10 +4336,10 @@ struct ViewRuntime::Impl final {
             return RuntimeInvalidState(
                 "Mounted root does not match the staged XAML document");
         }
-        Base::Result<Presentation::Visual*> rootVisual =
+        Base::Result<Aero::Visual*> rootVisual =
             ResolveVisual(*requestedRoot, requestedRoot->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
-        Base::Result<Presentation::UIElement*> rootLayout =
+        Base::Result<Aero::UIElement*> rootLayout =
             ResolveUIElement(*requestedRoot, requestedRoot->RuntimeType());
         if (!rootLayout) return rootLayout.GetStatus();
         Base::Result<void> rootTracked =
@@ -4363,23 +4359,23 @@ struct ViewRuntime::Impl final {
         if (!mountedResult) return mountedResult.GetStatus();
         root = std::move(requestedRoot);
         mounted = true;
-        Base::Result<void> presentation =
-            presentationServices.Apply(*rootVisual.Value());
-        if (!presentation) {
-            DetachRuntimePresentation();
+        Base::Result<void> uiApplied =
+            uiServices.Apply(*rootVisual.Value());
+        if (!uiApplied) {
+            DetachRuntimeUi();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
             root.Reset();
             ClearLoadedDocument();
-            return presentation.GetStatus();
+            return uiApplied.GetStatus();
         }
         Base::Result<void> interactions =
             CreateInteractions();
         if (!interactions) {
             BeginDestroyInteractions();
-            DetachRuntimePresentation();
+            DetachRuntimeUi();
             FinishDestroyInteractions();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4395,7 +4391,7 @@ struct ViewRuntime::Impl final {
                 loadedDocument.visualContent.mountEdges.Size()});
         if (!completed) {
             BeginDestroyInteractions();
-            DetachRuntimePresentation();
+            DetachRuntimeUi();
             FinishDestroyInteractions();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4405,12 +4401,12 @@ struct ViewRuntime::Impl final {
             ClearLoadedDocument();
             return completed.GetStatus();
         }
-        presentation =
-            presentationServices.Apply(
+        uiApplied =
+            uiServices.Apply(
                 *rootVisual.Value());
-        if (!presentation) {
+        if (!uiApplied) {
             BeginDestroyInteractions();
-            DetachRuntimePresentation();
+            DetachRuntimeUi();
             FinishDestroyInteractions();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4418,12 +4414,12 @@ struct ViewRuntime::Impl final {
             mounted = false;
             root.Reset();
             ClearLoadedDocument();
-            return presentation.GetStatus();
+            return uiApplied.GetStatus();
         }
         Base::Result<void> effects = loadedDocument.effects.Commit();
         if (!effects) {
             BeginDestroyInteractions();
-            DetachRuntimePresentation();
+            DetachRuntimeUi();
             FinishDestroyInteractions();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4441,7 +4437,7 @@ struct ViewRuntime::Impl final {
             }
             storyboardSessions.Clear();
             BeginDestroyInteractions();
-            DetachRuntimePresentation();
+            DetachRuntimeUi();
             FinishDestroyInteractions();
             static_cast<void>(visualMount->Unmount({
                 loadedDocument.visualContent.mountEdges.Data(),
@@ -4457,32 +4453,32 @@ struct ViewRuntime::Impl final {
     Base::Result<void> DetachFragment(
         FragmentMount& fragment) noexcept {
         if (!fragment.document.root) return {};
-        Base::Result<Presentation::Visual*> rootVisual =
+        Base::Result<Aero::Visual*> rootVisual =
             ResolveVisual(
                 *fragment.document.root,
                 fragment.document.root->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
         ClearAnimationSubscriptionsFor(*rootVisual.Value());
 
-        presentationServices.Detach(
+        uiServices.Detach(
             rootVisual.Value(),
             {fragment.document.visualContent.nodes.Data(),
              fragment.document.visualContent.nodes.Size()});
 
-        Presentation::MountService mounts(
+        Aero::Detail::MountService mounts(
             *tree, layout, renderer);
         std::uint32_t remaining = 0U;
-        for (const Presentation::VisualTreeMountEdge& edge :
+        for (const Aero::Detail::VisualTreeMountEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.IsAttached()) ++remaining;
         }
         while (remaining > 0U) {
             bool progressed = false;
-            for (Presentation::VisualTreeMountEdge& edge :
+            for (Aero::Detail::VisualTreeMountEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (!edge.state.IsAttached()) continue;
                 bool hasMountedChild = false;
-                for (const Presentation::VisualTreeMountEdge& candidate :
+                for (const Aero::Detail::VisualTreeMountEdge& candidate :
                      fragment.document.visualContent.mountEdges) {
                     if (candidate.state.IsAttached() &&
                         candidate.parent == edge.child) {
@@ -4557,7 +4553,7 @@ struct ViewRuntime::Impl final {
         }
         storyboardSessions.Clear();
         BeginDestroyInteractions();
-        DetachRuntimePresentation();
+        DetachRuntimeUi();
         FinishDestroyInteractions();
         Base::Result<void> fragments = UnmountAllFragments();
         if (!fragments) return fragments.GetStatus();
@@ -4599,10 +4595,10 @@ DataTemplateTriggerHandlerContext::Invoke(
 Base::Result<void>
 ViewRuntime::Impl::ExecuteAnimationAction(
     Animation::TriggerAction& action,
-    Presentation::FrameworkElement& owner,
-    Detail::DataTemplateTriggerContext*
+    Aero::FrameworkElement& owner,
+    Aero::Detail::DataTemplateTriggerContext*
         dataTemplateContext,
-    const Presentation::NameScope* names) noexcept {
+    const Aero::NameScope* names) noexcept {
     const Core::TypeId type =
         action.RuntimeType();
     if (type ==
@@ -4665,20 +4661,20 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                 property->ValueType());
         }
         if (property->ValueType() ==
-                Presentation::Brush::StaticTypeId() &&
+                Media::Brush::StaticTypeId() &&
             value.Type() == Core::TypeOf<Base::Color>()) {
             Base::Result<Base::Color> color =
                 Core::ValueCodec<Base::Color>::Decode(
                     value);
             if (!color) return color.GetStatus();
             Base::Result<
-                Base::Ref<Presentation::Brush>>
+                Base::Ref<Media::Brush>>
                 brush =
-                    Presentation::MakeSolidColorBrush(
+                    Media::MakeSolidColorBrush(
                         color.Value());
             if (!brush) return brush.GetStatus();
             value = Core::PropertyValue::FromObject(
-                Presentation::Brush::StaticTypeId(),
+                Media::Brush::StaticTypeId(),
                 Base::Ref<Base::Object>(
                     std::move(brush).Value()));
         }
@@ -4689,7 +4685,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
     if (type == Animation::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<Animation::SetFocusAction&>(action);
         if (!setFocus.Engage() || focus == nullptr) return {};
-        Presentation::UIElement* target = owner.AsUIElement();
+        Aero::UIElement* target = owner.AsUIElement();
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
@@ -4704,11 +4700,11 @@ ViewRuntime::Impl::ExecuteAnimationAction(
     if (type == Animation::RemoveElementAction::StaticTypeId()) {
         auto& remove = static_cast<Animation::RemoveElementAction&>(action);
         Base::Object* targetObject = static_cast<Base::Object*>(&owner);
-        Base::Ref<Presentation::BindingSpec> targetBinding =
+        Base::Ref<Data::Binding> targetBinding =
             remove.TargetObject();
         if (targetBinding) {
             if (targetBinding->RelativeSource() !=
-                    Presentation::BindingRelativeSource::Ancestor ||
+                    Data::RelativeSourceMode::Ancestor ||
                 targetBinding->AncestorType() !=
                     Base::StringView("ContextMenu") ||
                 targetBinding->Path() !=
@@ -4717,7 +4713,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                     Base::ErrorCode::Unsupported,
                     "RemoveElementAction TargetObject binding is not supported");
             }
-            Presentation::Visual* current = &owner;
+            Aero::Visual* current = &owner;
             Controls::ContextMenu* contextMenu = nullptr;
             while (current != nullptr) {
                 if (metadata->Types().IsDerivedFrom(
@@ -4742,13 +4738,13 @@ ViewRuntime::Impl::ExecuteAnimationAction(
         if (targetObject == nullptr ||
             !metadata->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
-                Presentation::UIElement::StaticTypeId())) {
+                Aero::UIElement::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "RemoveElementAction target is not a UIElement");
         }
-        auto& target = static_cast<Presentation::UIElement&>(*targetObject);
-        Presentation::Visual* current = target.LogicalParent() != nullptr
+        auto& target = static_cast<Aero::UIElement&>(*targetObject);
+        Aero::Visual* current = target.LogicalParent() != nullptr
             ? target.LogicalParent() : target.VisualParent();
         while (current != nullptr) {
             if (metadata->Types().IsDerivedFrom(
@@ -4802,7 +4798,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                 }
                 CancelStoryboardCompletionSessions(
                     existing.handles.AsSpan());
-                for (Presentation::AnimationHandle handle :
+                for (Aero::Detail::Animation::AnimationHandle handle :
                      existing.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -4828,7 +4824,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                 &completion.handles,
                 dataTemplateContext);
         if (!started) {
-            for (Presentation::AnimationHandle handle :
+            for (Aero::Detail::Animation::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -4845,7 +4841,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
                     completion.handles.AsSpan());
             }
             if (!named) {
-                for (Presentation::AnimationHandle handle :
+                for (Aero::Detail::Animation::AnimationHandle handle :
                      completion.handles) {
                     static_cast<void>(
                         animations->Remove(handle));
@@ -4857,7 +4853,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
             storyboardCompletionSessions.TryPushBack(
                 std::move(completion));
         if (!retained) {
-            for (Presentation::AnimationHandle handle :
+            for (Aero::Detail::Animation::AnimationHandle handle :
                  completion.handles) {
                 static_cast<void>(
                     animations->Remove(handle));
@@ -4868,7 +4864,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
             retained = storyboardSessions.TryPushBack(
                 std::move(namedSession));
             if (!retained) {
-                for (Presentation::AnimationHandle handle :
+                for (Aero::Detail::Animation::AnimationHandle handle :
                      storyboardCompletionSessions.Back().
                          handles) {
                     static_cast<void>(
@@ -4893,7 +4889,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
         for (StoryboardCompletionSession& session : storyboardCompletionSessions) {
             if (session.owner != &owner || session.storyboard.Get() != control.StoryboardValue().Get()) continue;
             found = true;
-            for (Presentation::AnimationHandle handle : session.handles) {
+            for (Aero::Detail::Animation::AnimationHandle handle : session.handles) {
                 Base::Result<void> result;
                 if (control.ControlOption() == Animation::ControlStoryboardAction::Option::Stop) result = animations->Stop(handle);
                 else if (control.ControlOption() == Animation::ControlStoryboardAction::Option::Pause) result = animations->Pause(handle);
@@ -4936,7 +4932,7 @@ ViewRuntime::Impl::ExecuteAnimationAction(
     }
     StoryboardSession& session =
         storyboardSessions[sessionIndex];
-    for (Presentation::AnimationHandle handle :
+    for (Aero::Detail::Animation::AnimationHandle handle :
          session.handles) {
         Base::Result<void> result;
         if (type ==
@@ -4995,14 +4991,14 @@ ViewRuntime::Impl::ExecuteAnimationAction(
 
 void ViewRuntime::Impl::
 CancelStoryboardCompletionSessions(
-    Base::Span<const Presentation::AnimationHandle>
+    Base::Span<const Aero::Detail::Animation::AnimationHandle>
         handles) noexcept {
     for (std::uint32_t index = 0U;
          index < storyboardCompletionSessions.Size();) {
         bool matches = false;
-        for (Presentation::AnimationHandle sessionHandle :
+        for (Aero::Detail::Animation::AnimationHandle sessionHandle :
              storyboardCompletionSessions[index].handles) {
-            for (Presentation::AnimationHandle handle :
+            for (Aero::Detail::Animation::AnimationHandle handle :
                  handles) {
                 if (sessionHandle == handle) {
                     matches = true;
@@ -5034,14 +5030,14 @@ ViewRuntime::Impl::ProcessStoryboardCompletions() noexcept {
         StoryboardCompletionSession& session =
             storyboardCompletionSessions[index];
         bool completed = true;
-        for (Presentation::AnimationHandle handle :
+        for (Aero::Detail::Animation::AnimationHandle handle :
              session.handles) {
-            const Presentation::AnimationState state =
+            const Aero::Detail::Animation::AnimationState state =
                 animations->State(handle);
             if (state ==
-                    Presentation::AnimationState::Active ||
+                    Aero::Detail::Animation::AnimationState::Active ||
                 state ==
-                    Presentation::AnimationState::Paused) {
+                    Aero::Detail::Animation::AnimationState::Paused) {
                 completed = false;
                 break;
             }
@@ -5263,7 +5259,7 @@ Base::Result<void> ViewRuntime::LoadResources(
     Base::StringView uri,
     RuntimeResourceLoadMode mode,
     Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<Presentation::ResourceDictionary*> target =
+    Base::Result<Aero::ResourceDictionary*> target =
         impl_->ResolveResourceLayer(layer);
     if (!target) return target.GetStatus();
     return impl_->LoadResourceLayer(
@@ -5279,7 +5275,7 @@ ViewRuntime::LoadCompiledResources(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     RuntimeResourceLoadMode mode) noexcept {
-    Base::Result<Presentation::ResourceDictionary*> target =
+    Base::Result<Aero::ResourceDictionary*> target =
         impl_->ResolveResourceLayer(layer);
     if (!target) return target.GetStatus();
     return impl_->LoadCompiledResourceLayer(
@@ -5291,7 +5287,7 @@ ViewRuntime::LoadCompiledResources(
 
 Base::Result<void> ViewRuntime::SetResourceDictionary(
     RuntimeResourceLayer layer,
-    Presentation::ResourceDictionary& dictionary,
+    Aero::ResourceDictionary& dictionary,
     RuntimeResourceLoadMode mode) noexcept {
     if (impl_ == nullptr || !impl_->initialized) {
         return RuntimeNotInitialized(
@@ -5302,10 +5298,10 @@ Base::Result<void> ViewRuntime::SetResourceDictionary(
         return RuntimeInvalidState(
             "ViewRuntime resource layers must be set before a document is mounted");
     }
-    Base::Result<Presentation::ResourceDictionary*> target =
+    Base::Result<Aero::ResourceDictionary*> target =
         impl_->ResolveResourceLayer(layer);
     if (!target) return target.GetStatus();
-    Base::Result<Presentation::ResourceDictionary> shared =
+    Base::Result<Aero::ResourceDictionary> shared =
         dictionary.Share();
     if (!shared) return shared.GetStatus();
     if (mode == RuntimeResourceLoadMode::Merge) {
@@ -5315,7 +5311,7 @@ Base::Result<void> ViewRuntime::SetResourceDictionary(
         return impl_->RebuildDynamicResourceEnvironment();
     }
 
-    Presentation::ResourceDictionary previous =
+    Aero::ResourceDictionary previous =
         std::move(*target.Value());
     *target.Value() = std::move(shared).Value();
     Base::Result<void> rebuilt =
@@ -5343,12 +5339,12 @@ Base::Result<void> ViewRuntime::LoadBuiltInTheme(
     }
     const std::uint8_t* paletteBytes =
         theme == BuiltInTheme::Light
-        ? Detail::AeroThemeLightCompiled
-        : Detail::AeroThemeDarkCompiled;
+        ? Aero::Detail::AeroThemeLightCompiled
+        : Aero::Detail::AeroThemeDarkCompiled;
     const std::uint32_t paletteSize =
         theme == BuiltInTheme::Light
-        ? Detail::AeroThemeLightCompiledSize
-        : Detail::AeroThemeDarkCompiledSize;
+        ? Aero::Detail::AeroThemeLightCompiledSize
+        : Aero::Detail::AeroThemeDarkCompiledSize;
     Base::Result<Base::ResourceUri> paletteUri =
         BuiltInThemeUri(
             theme == BuiltInTheme::Light
@@ -5360,7 +5356,7 @@ Base::Result<void> ViewRuntime::LoadBuiltInTheme(
             Base::StringView("Generic.xaml"));
     if (!genericUri) return genericUri.GetStatus();
 
-    Presentation::ResourceDictionary previous =
+    Aero::ResourceDictionary previous =
         std::move(impl_->themeResources);
     Base::Result<void> loaded = paletteSize != 0U
         ? LoadCompiledResources(
@@ -5371,11 +5367,11 @@ Base::Result<void> ViewRuntime::LoadBuiltInTheme(
               RuntimeResourceLayer::Theme,
               paletteUri.Value().Canonical());
     if (loaded) {
-        loaded = Detail::AeroThemeGenericCompiledSize != 0U
+        loaded = Aero::Detail::AeroThemeGenericCompiledSize != 0U
             ? LoadCompiledResources(
                   RuntimeResourceLayer::Theme,
-                  {Detail::AeroThemeGenericCompiled,
-                   Detail::AeroThemeGenericCompiledSize},
+                  {Aero::Detail::AeroThemeGenericCompiled,
+                   Aero::Detail::AeroThemeGenericCompiledSize},
                   genericUri.Value(),
                   RuntimeResourceLoadMode::Merge)
             : LoadResources(
@@ -5396,7 +5392,7 @@ Base::Result<void> ViewRuntime::LoadBuiltInTheme(
 }
 
 Base::Result<void> ViewRuntime::Mount(
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     if (!impl_->loadedDocument.root) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -5408,14 +5404,14 @@ Base::Result<void> ViewRuntime::Mount(
 
 Base::Result<void> ViewRuntime::Mount(
     Base::Ref<Base::Object> root,
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     return impl_->MountRoot(
         std::move(root), availableSize);
 }
 
 Base::Result<void> ViewRuntime::Mount(
     UiDocument&& document,
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     Base::Result<void> ready = impl_->BeginDocumentLoad();
     if (!ready) return ready.GetStatus();
     if (!document.IsValid()) {
@@ -5423,7 +5419,7 @@ Base::Result<void> ViewRuntime::Mount(
             Base::ErrorCode::InvalidArgument,
             "ViewRuntime cannot mount an empty UI document");
     }
-    if (Detail::UiDocumentAccess::RuntimeLifetime(document) !=
+    if (Aero::Detail::UiDocumentAccess::RuntimeLifetime(document) !=
         impl_->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5432,14 +5428,14 @@ Base::Result<void> ViewRuntime::Mount(
     Base::Result<void> valid = impl_->ValidateDocumentRoot(document.Root());
     if (!valid) return valid.GetStatus();
     impl_->loadedDocument =
-        Detail::UiDocumentAccess::Take(document);
+        Aero::Detail::UiDocumentAccess::Take(document);
     return impl_->MountRoot(
         impl_->loadedDocument.root, availableSize);
 }
 
 Base::Result<void> ViewRuntime::ReplaceMountedDocument(
     UiDocument&& document,
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     if (impl_ == nullptr || !impl_->initialized || !impl_->mounted) {
         return RuntimeInvalidState(
             "ViewRuntime document replacement requires a mounted view");
@@ -5449,7 +5445,7 @@ Base::Result<void> ViewRuntime::ReplaceMountedDocument(
             Base::ErrorCode::InvalidArgument,
             "ViewRuntime cannot replace a document with an empty document");
     }
-    if (Detail::UiDocumentAccess::RuntimeLifetime(document) !=
+    if (Aero::Detail::UiDocumentAccess::RuntimeLifetime(document) !=
         impl_->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5459,11 +5455,11 @@ Base::Result<void> ViewRuntime::ReplaceMountedDocument(
     if (!valid) return valid.GetStatus();
 
     Markup::LoaderResult next =
-        Detail::UiDocumentAccess::Take(document);
+        Aero::Detail::UiDocumentAccess::Take(document);
     if (!next.root ||
         !impl_->metadata->Types().IsDerivedFrom(
             next.root->RuntimeType(),
-            Presentation::Visual::StaticTypeId())) {
+            Aero::Visual::StaticTypeId())) {
         next.Clear();
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5508,7 +5504,7 @@ Base::Result<void> ViewRuntime::MountContent(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (Detail::UiDocumentAccess::RuntimeLifetime(document) !=
+    if (Aero::Detail::UiDocumentAccess::RuntimeLifetime(document) !=
         impl_->effectLifetime.Get()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -5542,12 +5538,12 @@ Base::Result<void> ViewRuntime::MountContent(
 
     Impl::FragmentMount fragment;
     fragment.host = &host;
-    fragment.document = Detail::UiDocumentAccess::Take(document);
-    Base::Result<Presentation::Visual*> rootVisual =
+    fragment.document = Aero::Detail::UiDocumentAccess::Take(document);
+    Base::Result<Aero::Visual*> rootVisual =
         impl_->ResolveVisual(
             *fragment.document.root,
             fragment.document.root->RuntimeType());
-    Base::Result<Presentation::UIElement*> rootElement =
+    Base::Result<Aero::UIElement*> rootElement =
         impl_->ResolveUIElement(
             *fragment.document.root,
             fragment.document.root->RuntimeType());
@@ -5570,9 +5566,9 @@ Base::Result<void> ViewRuntime::MountContent(
         return assigned.GetStatus();
     }
 
-    Presentation::MountService mounts(
+    Aero::Detail::MountService mounts(
         *impl_->tree, impl_->layout, impl_->renderer);
-    Base::Result<Presentation::MountEdgeState> rootMounted =
+    Base::Result<Aero::Detail::MountEdgeState> rootMounted =
         mounts.Attach(host, *rootVisual.Value());
     if (!rootMounted) {
         static_cast<void>(host.SetContent(nullptr));
@@ -5587,13 +5583,13 @@ Base::Result<void> ViewRuntime::MountContent(
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
         std::uint32_t attached = 0U;
-        for (const Presentation::VisualTreeMountEdge& edge :
+        for (const Aero::Detail::VisualTreeMountEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.logicalAttached) ++attached;
         }
         while (attached < fragment.document.visualContent.mountEdges.Size()) {
             bool progressed = false;
-            for (Presentation::VisualTreeMountEdge& edge :
+            for (Aero::Detail::VisualTreeMountEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
@@ -5601,7 +5597,7 @@ Base::Result<void> ViewRuntime::MountContent(
                     (deferred && edge.child->OwningTree() == impl_->tree)) {
                     continue;
                 }
-                Base::Result<Presentation::MountEdgeState> mounted =
+                Base::Result<Aero::Detail::MountEdgeState> mounted =
                     mounts.Attach(*edge.parent, *edge.child);
                 if (!mounted) return mounted.GetStatus();
                 edge.state = std::move(mounted).Value();
@@ -5619,7 +5615,7 @@ Base::Result<void> ViewRuntime::MountContent(
         return attached.GetStatus();
     }
     Base::Result<void> applied =
-        impl_->presentationServices.Apply(*rootVisual.Value());
+        impl_->uiServices.Apply(*rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
@@ -5629,7 +5625,7 @@ Base::Result<void> ViewRuntime::MountContent(
         detachFailedFragment();
         return attached.GetStatus();
     }
-    applied = impl_->presentationServices.Apply(*rootVisual.Value());
+    applied = impl_->uiServices.Apply(*rootVisual.Value());
     if (!applied) {
         detachFailedFragment();
         return applied.GetStatus();
@@ -5674,7 +5670,7 @@ Base::Result<void> ViewRuntime::UnmountContent(
 }
 
 Base::Result<void> ViewRuntime::Resize(
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     if (!IsMounted() || impl_ == nullptr ||
         impl_->visualMount == nullptr) {
         return Base::Status::Failure(
@@ -5714,9 +5710,9 @@ ViewRuntime::RunFrame() noexcept {
         if (generation !=
             impl_->endpointGeneration) {
             endpointGenerationChanged = true;
-            Presentation::Visual* rootVisual =
+            Aero::Visual* rootVisual =
                 impl_->RootVisual();
-            Presentation::FrameworkElement* root =
+            Aero::FrameworkElement* root =
                 rootVisual != nullptr
                 ? rootVisual->AsFrameworkElement()
                 : nullptr;
@@ -5760,9 +5756,9 @@ ViewRuntime::RunFrame() noexcept {
             return synchronized.GetStatus();
         }
         if (synchronized.Value()) {
-            Presentation::Visual* rootVisual =
+            Aero::Visual* rootVisual =
                 impl_->RootVisual();
-            Presentation::FrameworkElement* root =
+            Aero::FrameworkElement* root =
                 rootVisual != nullptr
                 ? rootVisual->AsFrameworkElement()
                 : nullptr;
@@ -5815,10 +5811,10 @@ ViewRuntime::RunFrame() noexcept {
         if (!ran) return ran.GetStatus();
         if (phase ==
             Core::DispatcherFramePhase::DataBind) {
-            Base::Result<void> presented =
-                impl_->FlushGeneratedPresentation();
-            if (!presented) {
-                return presented.GetStatus();
+            Base::Result<void> generatedVisualsFlushed =
+                impl_->FlushGeneratedVisuals();
+            if (!generatedVisualsFlushed) {
+                return generatedVisualsFlushed.GetStatus();
             }
         }
         if (traceEndpointFrame) {
@@ -5896,7 +5892,7 @@ ViewRuntime::RunFrame() noexcept {
     }
     result.frameNumber = ++impl_->frameNumber;
     impl_->traceEndpointFrame = false;
-    const Presentation::LayoutDiagnostics layout =
+    const Aero::LayoutDiagnostics layout =
         impl_->layout->Diagnostics();
     result.layout.passVersion = layout.passVersion;
     result.layout.measuredCount = layout.measuredCount;
@@ -5905,7 +5901,7 @@ ViewRuntime::RunFrame() noexcept {
         layout.pendingMeasureCount;
     result.layout.pendingArrangeCount =
         layout.pendingArrangeCount;
-    const Presentation::RenderDiagnostics render =
+    const Render::RenderDiagnostics render =
         impl_->renderer->Diagnostics();
     result.render.snapshotVersion = render.commitVersion;
     result.render.nodeCount = render.nodeCount;
@@ -5939,21 +5935,21 @@ ViewRuntime::RunFrame() noexcept {
     return result;
 }
 
-Base::Result<Presentation::PointerDispatchResult>
+Base::Result<Input::PointerDispatchResult>
 ViewRuntime::DispatchPointer(
-    const Presentation::PointerInput& input) noexcept {
+    const Input::PointerInput& input) noexcept {
     if (!IsMounted() || impl_->pointer == nullptr) {
         return RuntimeNotInitialized(
             "Pointer input requires a mounted ViewRuntime");
     }
     Base::Result<
-        Presentation::PointerDispatchResult>
+        Input::PointerDispatchResult>
         dispatched =
             impl_->pointer->Dispatch(input);
     if (!dispatched) {
         return dispatched.GetStatus();
     }
-    Presentation::UIElement* target =
+    Aero::UIElement* target =
         dispatched.Value().hit.target;
     Base::Result<void> dismissed =
         impl_->DismissOverlaysForPointer(
@@ -5976,24 +5972,24 @@ ViewRuntime::DispatchPointer(
     return dispatched;
 }
 
-Base::Result<Presentation::KeyboardDispatchResult>
+Base::Result<Input::KeyboardDispatchResult>
 ViewRuntime::DispatchKeyboard(
-    const Presentation::KeyboardInput& input) noexcept {
+    const Input::KeyboardInput& input) noexcept {
     if (!IsMounted() || impl_->keyboard == nullptr) {
         return RuntimeNotInitialized(
             "Keyboard input requires a mounted ViewRuntime");
     }
     if (input.action ==
-            Presentation::KeyboardAction::Down &&
+            Input::KeyboardAction::Down &&
         input.key ==
-            Presentation::KeyboardKeyEscape) {
+            Input::KeyboardKeyEscape) {
         Base::Result<bool> dismissed =
             impl_->DismissTopOverlayForEscape();
         if (!dismissed) {
             return dismissed.GetStatus();
         }
         if (dismissed.Value()) {
-            Presentation::KeyboardDispatchResult
+            Input::KeyboardDispatchResult
                 result;
             result.routed = true;
             return result;
@@ -6002,9 +5998,9 @@ ViewRuntime::DispatchKeyboard(
     return impl_->keyboard->Dispatch(input);
 }
 
-Base::Result<Presentation::TextInputDispatchResult>
+Base::Result<Input::TextInputDispatchResult>
 ViewRuntime::DispatchText(
-    const Presentation::TextInput& input) noexcept {
+    const Input::TextInput& input) noexcept {
     if (!IsMounted() || impl_->textInput == nullptr) {
         return RuntimeNotInitialized(
             "Text input requires a mounted ViewRuntime");
@@ -6039,7 +6035,7 @@ ViewRuntime::AdvanceTime(
     actionCount += toolTips.Value();
     Base::Result<std::uint32_t> animations =
         impl_->animations->AdvanceBy(
-            static_cast<Presentation::AnimationTime>(
+            static_cast<Aero::Detail::Animation::AnimationTime>(
                 elapsedMilliseconds) * 1000U);
     if (!animations) return animations.GetStatus();
     Base::Result<std::uint32_t> completed =
@@ -6068,7 +6064,7 @@ ViewRuntime::AdvanceAnimationTime(
     }
     Base::Result<std::uint32_t> advanced =
         impl_->animations->AdvanceBy(
-        static_cast<Presentation::AnimationTime>(
+        static_cast<Aero::Detail::Animation::AnimationTime>(
             elapsedMilliseconds) * 1000U);
     if (!advanced) return advanced.GetStatus();
     Base::Result<std::uint32_t> completed =
@@ -6096,9 +6092,9 @@ ViewRuntime::SetRenderBatchingEnabledForTesting(
         impl_->endpoint->
             SetBatchingEnabledForTesting(enabled);
     if (!changed) return changed.GetStatus();
-    Presentation::Visual* rootVisual =
+    Aero::Visual* rootVisual =
         impl_->RootVisual();
-    Presentation::FrameworkElement* root =
+    Aero::FrameworkElement* root =
         rootVisual != nullptr
         ? rootVisual->AsFrameworkElement()
         : nullptr;
@@ -6224,9 +6220,9 @@ Base::Result<void> ViewRuntime::SetRenderEndpoint(
             impl_->MeshServices(),
             true);
         tracePhase("paths-attached");
-        Presentation::Visual* rootVisual =
+        Aero::Visual* rootVisual =
             impl_->RootVisual();
-        Presentation::FrameworkElement* root =
+        Aero::FrameworkElement* root =
             rootVisual != nullptr
             ? rootVisual->AsFrameworkElement()
             : nullptr;
@@ -6279,37 +6275,37 @@ ViewRuntime::EffectiveValues() noexcept {
     return impl_ != nullptr ? impl_->values : nullptr;
 }
 
-Presentation::AnimationManager*
+Aero::Detail::AnimationManager*
 ViewRuntime::Animations() noexcept {
     return impl_ != nullptr ? impl_->animations : nullptr;
 }
 
-Presentation::ObjectTree* ViewRuntime::Tree() noexcept {
+Aero::ObjectTree* ViewRuntime::Tree() noexcept {
     return impl_ != nullptr ? impl_->tree : nullptr;
 }
 
-Presentation::LayoutManager* ViewRuntime::Layout() noexcept {
+Aero::Detail::LayoutManager* ViewRuntime::Layout() noexcept {
     return impl_ != nullptr ? impl_->layout : nullptr;
 }
 
-Presentation::RenderManager* ViewRuntime::Renderer() noexcept {
+Render::RenderManager* ViewRuntime::Renderer() noexcept {
     return impl_ != nullptr ? impl_->renderer : nullptr;
 }
 
-Presentation::BindingManager* ViewRuntime::Bindings() noexcept {
+Aero::Detail::BindingManager* ViewRuntime::Bindings() noexcept {
     return impl_ != nullptr ? impl_->bindings : nullptr;
 }
 
-Presentation::CommandManager* ViewRuntime::Commands() noexcept {
+Aero::Detail::CommandManager* ViewRuntime::Commands() noexcept {
     return impl_ != nullptr ? impl_->commands : nullptr;
 }
 
-Presentation::RoutedEventManager*
+Aero::Detail::RoutedEventManager*
 ViewRuntime::RoutedEvents() noexcept {
     return impl_ != nullptr ? impl_->events : nullptr;
 }
 
-Presentation::FocusManager* ViewRuntime::Focus() noexcept {
+Aero::Detail::FocusManager* ViewRuntime::Focus() noexcept {
     return impl_ != nullptr ? impl_->focus : nullptr;
 }
 
@@ -6360,28 +6356,28 @@ ViewRuntime::CurrentDocumentDependencies() const noexcept {
         : Base::Span<const Base::ResourceUri>{};
 }
 
-Presentation::ResourceDictionary*
+Aero::ResourceDictionary*
 ViewRuntime::ApplicationResources() noexcept {
     return impl_ != nullptr
         ? &impl_->applicationResources
         : nullptr;
 }
 
-Presentation::ResourceDictionary*
+Aero::ResourceDictionary*
 ViewRuntime::ThemeResources() noexcept {
     return impl_ != nullptr
         ? &impl_->themeResources
         : nullptr;
 }
 
-Presentation::ResourceDictionary*
+Aero::ResourceDictionary*
 ViewRuntime::SystemResources() noexcept {
     return impl_ != nullptr
         ? &impl_->systemResources
         : nullptr;
 }
 
-Presentation::StyleManager*
+Aero::Detail::StyleManager*
 ViewRuntime::Styles() noexcept {
     return impl_ != nullptr ? impl_->styles : nullptr;
 }

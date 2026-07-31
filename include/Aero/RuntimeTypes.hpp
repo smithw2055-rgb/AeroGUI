@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Presentation/Geometry.hpp>
-#include <Aero/Presentation/InputValues.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Input/Values.hpp>
 
 #include <cstdint>
 

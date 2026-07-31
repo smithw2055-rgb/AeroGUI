@@ -4,14 +4,12 @@
 
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Collections/ItemsSource.hpp>
-#include <Aero/Presentation/MountService.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Detail/MountService.hpp>
+#include <Aero/Style.hpp>
 
 #include <utility>
 
-namespace Aero::Presentation {
-class RenderManager;
-}
+namespace Aero::Render { class RenderManager; }
 
 namespace Aero::Controls {
 
@@ -25,7 +23,7 @@ enum class ItemSubtreeChange : std::uint8_t {
 };
 
 using ItemSubtreeCallback = Base::Result<void> (*)(
-    Presentation::Visual& root,
+    Aero::Visual& root,
     ItemSubtreeChange change,
     void* context) noexcept;
 
@@ -277,7 +275,7 @@ public:
       Base::Result<void> SetAuthoredVisualTree(
           const Base::Ref<Base::Object>& value) noexcept;
       Base::Result<void> TryAddAuthoredTrigger(
-          Base::Ref<Presentation::TriggerBase> trigger) noexcept {
+          Base::Ref<Aero::TriggerBase> trigger) noexcept {
           if (!trigger || program_.IsValid()) {
               return Base::Status::Failure(
                   Base::ErrorCode::InvalidState,
@@ -290,7 +288,7 @@ public:
           authoredTriggers_.Clear();
       }
       Base::Span<const Base::Ref<
-          Presentation::TriggerBase>>
+          Aero::TriggerBase>>
       AuthoredTriggers() const noexcept {
           return {
               authoredTriggers_.Data(),
@@ -302,7 +300,7 @@ public:
         return authoredNames_.TryRegister(
             name, object);
     }
-    const Presentation::NameScope&
+    const Aero::NameScope&
     AuthoredNames() const noexcept {
         return authoredNames_;
     }
@@ -359,9 +357,9 @@ private:
       ResourceDictionary resources_;
       Base::Ref<Base::Object> authoredVisualTree_;
       Base::Vector<Base::Ref<
-          Presentation::TriggerBase>>
+          Aero::TriggerBase>>
           authoredTriggers_;
-      Presentation::NameScope authoredNames_;
+      Aero::NameScope authoredNames_;
   };
 
 class AERO_API ItemsPanelTemplate final
@@ -745,7 +743,7 @@ private:
         std::uint32_t index) noexcept;
     Base::Result<void> AttachOwnedSubtree(
         Record& record,
-        Presentation::Visual& root) noexcept;
+        Aero::Visual& root) noexcept;
     Base::Result<void> DetachOwnedSubtree(
         Record& record) noexcept;
     Base::Result<void> DetachRecord(

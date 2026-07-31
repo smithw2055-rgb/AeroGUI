@@ -5,8 +5,8 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Presentation/Resources.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Style.hpp>
 #include <Aero/Controls/Templates.hpp>
 
 namespace Aero::Markup {
@@ -50,13 +50,13 @@ private:
 class AERO_API ResourceResolver final {
 public:
     using LookupCallback =
-        Base::Result<Presentation::ResourceValue> (*)(
+        Base::Result<Aero::ResourceValue> (*)(
         void* context,
         Base::StringView key) noexcept;
 
     ResourceResolver() noexcept = default;
 
-    Base::Result<Presentation::ResourceValue> Lookup(
+    Base::Result<Aero::ResourceValue> Lookup(
         Base::StringView key) const noexcept;
     bool IsAvailable() const noexcept {
         return lookup_ != nullptr;

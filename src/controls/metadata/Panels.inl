@@ -219,7 +219,7 @@ Base::Result<void> PopulateControlsPanels(
             "RowDefinitions",
             &AddGridRowDefinition,
             &ClearGridRowDefinitions)
-        .Collection<Presentation::KeyBinding>(
+        .Collection<Input::KeyBinding>(
             "InputBindings",
             &AddGridInputBinding,
             &ClearGridInputBindings)
@@ -250,29 +250,29 @@ Base::Result<void> PopulateControlsPanels(
         .Property(
             Border::BackgroundProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             Border::BorderBrushProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             Border::BorderThicknessProperty,
-            PropertyOptions(Presentation::Thickness{})
+            PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()
                 .AffectsRender()
                 .Validate(&ValidateThicknessValue))
         .Property(
             Border::CornerRadiusProperty,
             PropertyOptions(
-                Presentation::CornerRadius{})
+                Aero::CornerRadius{})
                 .AffectsRender()
                 .Validate(
                     &ValidateCornerRadiusValue))
         .Property(
             Border::PaddingProperty,
-            PropertyOptions(Presentation::Thickness{})
+            PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()
                 .Validate(&ValidateThicknessValue))
         .Factory();

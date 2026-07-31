@@ -3,7 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 #include <Aero/Text/TextLayout.hpp>
 #include <Aero/Text/TextTypes.hpp>
 
@@ -11,7 +11,7 @@ namespace Aero::Controls::Detail {
 
 struct TextLayoutRequest final {
     Base::StringView text;
-    Presentation::Size availableSize;
+    Aero::Size availableSize;
     double dpiScale = 1.0;
     float pixelSize = 16.0F;
     float lineHeight = 0.0F;
@@ -30,9 +30,9 @@ struct TextLayoutResult final {
         Base::IAllocator* allocator = nullptr) noexcept
         : glyphRuns(allocator), hitRegions(allocator) {}
 
-    Base::Vector<Presentation::RenderGlyphRunId> glyphRuns;
+    Base::Vector<Render::RenderGlyphRunId> glyphRuns;
     Base::Vector<Text::TextHitRegion> hitRegions;
-    Presentation::Size desiredSize;
+    Aero::Size desiredSize;
 };
 
 class TextLayoutService {
@@ -43,7 +43,7 @@ public:
         const TextLayoutRequest& request,
         TextLayoutResult& output) noexcept = 0;
     virtual void ReleaseGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept = 0;
+        Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
 
 } // namespace Aero::Controls::Detail

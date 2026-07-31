@@ -268,7 +268,7 @@ Base::Result<void> Schema::RegisterName(
 Base::Result<void> Schema::AddResource(
     Core::TypeId scopeType,
     Base::Object& scopeOwner,
-    const Presentation::ResourceKey& key,
+    const Aero::ResourceKey& key,
     const Core::Value& value) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
         scopeType, runtime_->Types());
@@ -277,7 +277,7 @@ Base::Result<void> Schema::AddResource(
         return facet->addResource(
             scopeOwner, key, value, facet->context);
     }
-    Presentation::ResourceDictionary* resources =
+    Aero::ResourceDictionary* resources =
         facet->resolveResourceScope != nullptr
         ? facet->resolveResourceScope(
               scopeOwner,
@@ -288,7 +288,7 @@ Base::Result<void> Schema::AddResource(
         : Base::Result<void>();
 }
 
-Presentation::ResourceDictionary* Schema::ResolveResourceScope(
+Aero::ResourceDictionary* Schema::ResolveResourceScope(
     Core::TypeId scopeType,
     Base::Object& scopeOwner) const noexcept {
     const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
@@ -298,7 +298,7 @@ Presentation::ResourceDictionary* Schema::ResolveResourceScope(
         : nullptr;
 }
 
-Base::Result<Presentation::ResourceKey>
+Base::Result<Aero::ResourceKey>
 Schema::ResolveImplicitResourceKey(
     Core::TypeId type,
     const Base::Object& object) const noexcept {

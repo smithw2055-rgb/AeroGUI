@@ -124,19 +124,19 @@ static_assert(
 static_assert(
     std::is_same<
         Aero::UIElement,
-        Aero::Presentation::UIElement>::value,
+        Aero::UIElement>::value,
     "Root UIElement must preserve runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::FrameworkElement,
-        Aero::Presentation::FrameworkElement>::value,
+        Aero::FrameworkElement>::value,
     "Root FrameworkElement must preserve runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::RoutedEventArgs,
-        Aero::Presentation::RoutedEventArgs>::value,
+        Aero::RoutedEventArgs>::value,
     "Root routed-event arguments must preserve type identity");
 
 static_assert(
@@ -146,7 +146,7 @@ static_assert(
 static_assert(
     std::is_same<
         Aero::HorizontalAlignment,
-        Aero::Presentation::HorizontalAlignment>::value,
+        Aero::HorizontalAlignment>::value,
     "Root alignment must preserve value type identity");
 
 static_assert(
@@ -164,43 +164,43 @@ static_assert(
 static_assert(
     std::is_same<
         Aero::Data::Binding,
-        Aero::Presentation::BindingSpec>::value,
+        Aero::Data::Binding>::value,
     "Data binding projection must preserve runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::Input::ICommand,
-        Aero::Presentation::ICommand>::value,
+        Aero::Input::ICommand>::value,
     "Input projection must preserve command runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::Media::Brush,
-        Aero::Presentation::Brush>::value,
+        Aero::Media::Brush>::value,
     "Media projection must preserve brush runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::Media::Geometry,
-        Aero::Presentation::Geometry>::value,
+        Aero::Media::Geometry>::value,
     "Media geometry projection must preserve runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::Media::Animation::Timeline,
-        Aero::Animation::Timeline>::value,
+        Aero::Media::Animation::Timeline>::value,
     "Media.Animation projection must preserve timeline runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::ResourceDictionary,
-        Aero::Presentation::ResourceDictionary>::value,
+        Aero::ResourceDictionary>::value,
     "Root ResourceDictionary projection must preserve runtime type identity");
 
 static_assert(
     std::is_same<
         Aero::Style,
-        Aero::Presentation::Style>::value,
+        Aero::Style>::value,
     "Root Style projection must preserve runtime type identity");
 
 static_assert(

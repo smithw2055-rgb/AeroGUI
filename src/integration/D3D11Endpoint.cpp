@@ -261,7 +261,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override {
+        const Render::RenderPlan& plan) noexcept override {
         return renderer_ != nullptr
             ? renderer_->Submit(plan)
             : Base::Result<void>(

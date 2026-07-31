@@ -2,11 +2,10 @@
 #include <Aero/Controls/Templates.hpp>
 
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
-using namespace Presentation;
 
 TreeViewItem::TreeViewItem() noexcept
     : TreeViewItem(StaticTypeId()) {}

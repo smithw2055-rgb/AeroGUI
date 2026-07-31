@@ -5,11 +5,11 @@
 Public Aero headers describe WPF/XAML authoring semantics. Runtime composition
 services that coordinate queues, input, binding, styles, templates, or control
 interaction are implementation details. They live under `src/` and are consumed
-by Runtime, Markup, Presentation, and Controls internally.
+by Runtime, Markup, and Controls internally.
 
 ## Private manager groups
 
-Presentation runtime managers include routed-event dispatch, commands, hit
+UI runtime managers include routed-event dispatch, commands, hit
 testing and input routing, layout, binding, animation, style, and theme-style
 coordination. Controls runtime managers include template application and concrete
 interaction services for buttons, scrolling, selection, menus, trees, and text
@@ -17,7 +17,7 @@ editing.
 
 The complete declarations are grouped in private source headers:
 
-- `src/presentation/RuntimeManagers.hpp`
+- `src/ui/RuntimeManagers.hpp`
 - `src/controls/RuntimeManagers.hpp`
 
 Public classes retain only forward declarations where private friendship or an

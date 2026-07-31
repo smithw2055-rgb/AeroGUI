@@ -7,7 +7,7 @@ namespace Aero::Detail {
 
 inline void ControlRuntimeAccess::Attach(
     Controls::Control& control,
-    Presentation::RoutedEventManager* events) noexcept {
+    Aero::Detail::RoutedEventManager* events) noexcept {
     control.routedEvents_ = events;
 }
 

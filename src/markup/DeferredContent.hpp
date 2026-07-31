@@ -8,10 +8,8 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Presentation/Binding.hpp>
+#include <Aero/Data/Binding.hpp>
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Markup {
 
@@ -28,15 +26,15 @@ struct DeferredBindingEdge final {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
     Core::DependencyObject* target = nullptr;
-    Presentation::BindingManager* manager = nullptr;
+    Aero::Detail::BindingManager* manager = nullptr;
     Core::MetadataRuntime* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
-    Presentation::BindingMode mode =
-        Presentation::BindingMode::OneWay;
+    Data::BindingMode mode =
+        Data::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
 };
@@ -62,13 +60,13 @@ public:
         Base::Object& owner,
         Base::Object* source,
         Core::DependencyObject& target,
-        Presentation::BindingManager& manager,
+        Aero::Detail::BindingManager& manager,
         Core::MetadataRuntime& metadata,
         Core::DependencyPropertyHandle targetProperty,
         Core::DependencyPropertyHandle dataContextProperty,
         Base::StringView path,
         Base::StringView stringFormat,
-        Presentation::BindingMode mode,
+        Data::BindingMode mode,
         Core::UpdateSourceTrigger updateSourceTrigger,
         bool bindsToSource) noexcept;
     Base::Result<void> CopyBindingsForOwner(

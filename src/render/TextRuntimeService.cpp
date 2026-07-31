@@ -54,7 +54,7 @@ bool IsValidConfig(
         !std::isfinite(config.lineHeight) ||
         config.lineHeight < 0.0F ||
         config.firstGlyphRunId ==
-            Presentation::InvalidRenderGlyphRunId) {
+            Render::InvalidRenderGlyphRunId) {
         return false;
     }
     for (const Text::FontFace& fallback :
@@ -88,8 +88,8 @@ struct TextRuntimeService::Impl final {
     };
 
     struct RunResource final {
-        Presentation::RenderGlyphRunId id =
-            Presentation::InvalidRenderGlyphRunId;
+        Render::RenderGlyphRunId id =
+            Render::InvalidRenderGlyphRunId;
         Rhi::ResourceHandle vertexBuffer;
         Rhi::ResourceHandle indexBuffer;
         Base::Vector<Text::GlyphAtlasPlacement> placements;
@@ -114,7 +114,7 @@ struct TextRuntimeService::Impl final {
     Base::Vector<PageResource> pages;
     Base::Vector<RunResource> runs;
     Rhi::ResourceHandle sampler;
-    Presentation::RenderGlyphRunId nextGlyphRun = 1U;
+    Render::RenderGlyphRunId nextGlyphRun = 1U;
     std::uint64_t useStamp = 1U;
     Rhi::FenceValue lastUploadFence = 0U;
     bool initialized = false;
@@ -221,7 +221,7 @@ TextRuntimeService::RecoverDeviceResources(
 
     for (const Impl::RunResource& run : impl_->runs) {
         if (run.id !=
-            Presentation::InvalidRenderGlyphRunId) {
+            Render::InvalidRenderGlyphRunId) {
             (void)sink_->UnregisterGlyphRun(run.id);
         }
     }
@@ -246,7 +246,7 @@ void TextRuntimeService::Shutdown() noexcept {
             : 0U;
     for (Impl::RunResource& run : impl_->runs) {
         if (sink_ != nullptr &&
-            run.id != Presentation::InvalidRenderGlyphRunId) {
+            run.id != Render::InvalidRenderGlyphRunId) {
             (void)sink_->UnregisterGlyphRun(run.id);
         }
         if (device_ != nullptr) {
@@ -341,7 +341,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
             Base::ErrorCode::NotInitialized,
             "TextBlock render service is not initialized");
     }
-    if (!Presentation::IsValidLayoutSize(
+    if (!Aero::IsValidLayoutSize(
             request.availableSize) ||
         !std::isfinite(request.dpiScale) ||
         request.dpiScale <= 0.0 ||
@@ -771,7 +771,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     std::uint32_t registeredCount = 0U;
     for (BatchBuild& batch : batches) {
         if (impl_->nextGlyphRun ==
-            Presentation::InvalidRenderGlyphRunId) {
+            Render::InvalidRenderGlyphRunId) {
             for (std::uint32_t rollback = 0U;
                  rollback < registeredCount; ++rollback) {
                 (void)sink_->UnregisterGlyphRun(
@@ -782,7 +782,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
                 Base::ErrorCode::OutOfRange,
                 "Text glyph-run ID space is exhausted");
         }
-        const Presentation::RenderGlyphRunId id =
+        const Render::RenderGlyphRunId id =
             impl_->nextGlyphRun++;
         Base::Result<void> registered =
             sink_->RegisterGlyphRun(
@@ -822,7 +822,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     }
 
     for (Impl::RunResource& run : prepared) {
-        const Presentation::RenderGlyphRunId id = run.id;
+        const Render::RenderGlyphRunId id = run.id;
         Base::Result<Impl::RunResource*> stored =
             impl_->runs.TryEmplaceBack(std::move(run));
         if (!stored) return stored.GetStatus();
@@ -834,9 +834,9 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
 }
 
 void TextRuntimeService::ReleaseGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun) noexcept {
+    Render::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized() ||
-        glyphRun == Presentation::InvalidRenderGlyphRunId) {
+        glyphRun == Render::InvalidRenderGlyphRunId) {
         return;
     }
     for (Impl::RunResource& run : impl_->runs) {

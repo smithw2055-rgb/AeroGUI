@@ -9,14 +9,14 @@
 #include <Aero/Base/Hash.hpp>
 #include "ObjectWriter.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Presentation/Rendering.hpp>
-#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Rendering.hpp>
+#include <Aero/Resources.hpp>
 
 #include <cstdio>
 #include <filesystem>
 #include <new>
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace LoaderDiagnosticCodes {
@@ -73,7 +73,7 @@ private:
     Core::IDiagnosticSink* diagnostics_ = nullptr;
 };
 
-using Presentation::ResourceDictionary;
+using Aero::ResourceDictionary;
 
 namespace {
 
@@ -1053,7 +1053,7 @@ Loader::Impl::Operation::ResolveResourceDependencies(
         }
     }
 
-    for (Presentation::Visual* visual : result.visualContent.nodes) {
+    for (Aero::Visual* visual : result.visualContent.nodes) {
         if (visual == nullptr ||
             (result.root && visual == result.root.Get())) {
             continue;
@@ -1091,7 +1091,7 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
     for (std::uint32_t index = 0U;
          index < dictionary.Size();
          ++index) {
-        Base::Result<Presentation::ResourceEntrySnapshot>
+        Base::Result<Aero::ResourceEntrySnapshot>
             entry = dictionary.EntryAt(index);
         if (!entry) return entry.GetStatus();
         const Core::Value& value = entry.Value().value;

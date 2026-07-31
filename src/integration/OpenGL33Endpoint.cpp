@@ -283,7 +283,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override {
+        const Render::RenderPlan& plan) noexcept override {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         return renderer_ != nullptr

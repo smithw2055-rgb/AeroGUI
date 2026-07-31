@@ -12,7 +12,7 @@
 | XAML activation wrapper | `Core::ActivationProviderRegistry` |
 | 旧 `Load(reader/document)` | `View::Parse` / `View::LoadCompiled` |
 | root-only object-writer load | 保留完整 `XamlLoadResult` |
-| 独立注册 Style/Template XAML extension | `XamlPresentationObjectModel::Register` |
+| 独立注册 Style/Template XAML extension | `UiObjectModel::Register` |
 
 `View::Load` 的参数是 URI，不猜测字符串是路径还是 XAML 内容。相对 URI
 需要有效 base URI；网络 scheme 默认失败。

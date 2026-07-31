@@ -3,8 +3,8 @@
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
 
 #include <Aero/Controls/Templates.hpp>
-#include <Aero/Presentation/Commands.hpp>
-#include <Aero/Presentation/Input.hpp>
+#include <Aero/Input/Commands.hpp>
+#include <Aero/Input/Navigation.hpp>
 
 namespace Aero::Controls {
 

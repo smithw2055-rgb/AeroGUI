@@ -4,7 +4,7 @@
 #include <Aero/Controls/Metadata.hpp>
 #include <Aero/Core/Metadata/CoreMetadata.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Presentation/Metadata.hpp>
+#include <Aero/Detail/UiMetadata.hpp>
 
 namespace Aero {
 
@@ -13,7 +13,7 @@ Base::Result<void> RegisterBuiltInUiModules(
     Base::Result<void> registered =
         Core::TryRegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = Presentation::TryRegisterPresentationMetadata(domain);
+    registered = Aero::Detail::TryRegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
     registered = App::TryRegisterAppMetadata(domain);
     if (!registered) return registered.GetStatus();

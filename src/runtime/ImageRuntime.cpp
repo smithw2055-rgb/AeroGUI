@@ -1,14 +1,14 @@
 #include "ImageRuntime.hpp"
 
 #include "ImageControlAccess.hpp"
-#include "presentation/ImageBrushAccess.hpp"
+#include "media/ImageBrushAccess.hpp"
 
 #include <Aero/Controls/Images.hpp>
 #include <Aero/Controls/Shapes.hpp>
 #include "markup/Loader.hpp"
-#include <Aero/Presentation/Brushes.hpp>
-#include <Aero/Presentation/Images.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/ObjectTree.hpp>
 
 #include <limits>
 #include <utility>
@@ -48,8 +48,8 @@ Base::Result<Base::ResourceUri> ResolveImageUri(
 struct ImageRuntime::Record final {
     Base::ResourceUri resolvedUri;
     Base::Vector<std::uint8_t> pixels;
-    Presentation::RenderImageId renderImage =
-        Presentation::InvalidRenderImageId;
+    Render::RenderImageId renderImage =
+        Render::InvalidRenderImageId;
     std::uint64_t backendGeneration = 0U;
     std::uint64_t seenEpoch = 0U;
     std::uint32_t width = 0U;
@@ -73,7 +73,7 @@ ImageRuntime::~ImageRuntime() noexcept {
 }
 
 Base::Result<bool> ImageRuntime::Synchronize(
-    Presentation::Visual* root,
+    Aero::Visual* root,
     const Base::ResourceUri& documentUri,
     Markup::SourceProviderRegistry& sources,
     ImageBackendServices* backend,
@@ -85,12 +85,12 @@ Base::Result<bool> ImageRuntime::Synchronize(
     if (backendGenerationChanged) {
         for (Record& record : records_) {
             record.renderImage =
-                Presentation::InvalidRenderImageId;
+                Render::InvalidRenderImageId;
             record.backendGeneration = 0U;
         }
     }
 
-    Base::Vector<Presentation::Visual*> pending(
+    Base::Vector<Aero::Visual*> pending(
         allocator_);
     if (root != nullptr) {
         Base::Result<void> queued =
@@ -98,20 +98,20 @@ Base::Result<bool> ImageRuntime::Synchronize(
         if (!queued) return queued.GetStatus();
     }
     while (!pending.Empty()) {
-        Presentation::Visual* visual =
+        Aero::Visual* visual =
             pending[pending.Size() - 1U];
         pending.PopBack();
         if (visual == nullptr) continue;
-        for (Presentation::Visual* child :
+        for (Aero::Visual* child :
              visual->VisualChildren()) {
             Base::Result<void> queued =
                 pending.TryPushBack(child);
             if (!queued) return queued.GetStatus();
         }
         Controls::Image* imageControl = nullptr;
-        Presentation::ImageBrush* imageBrush =
+        Media::ImageBrush* imageBrush =
             nullptr;
-        Base::Ref<Presentation::ImageSource>
+        Base::Ref<Media::ImageSource>
             source;
         if (visual->RuntimeType() ==
                 Controls::Image::StaticTypeId()) {
@@ -136,17 +136,17 @@ Base::Result<bool> ImageRuntime::Synchronize(
                             visual);
             }
             if (shape == nullptr) continue;
-            Base::Ref<Presentation::Brush>
+            Base::Ref<Media::Brush>
                 fill = shape->FillBrush();
             if (!fill ||
                 fill->RuntimeType() !=
-                    Presentation::ImageBrush::
+                    Media::ImageBrush::
                         StaticTypeId()) {
                 continue;
             }
             imageBrush =
                 static_cast<
-                    Presentation::ImageBrush*>(
+                    Media::ImageBrush*>(
                         fill.Get());
             source = imageBrush->Source();
         }
@@ -156,14 +156,12 @@ Base::Result<bool> ImageRuntime::Synchronize(
                 ? ImageControlAccess::
                     SetRuntimeImage(
                     *imageControl,
-                    Presentation::
-                        InvalidRenderImageId,
+                    Render::InvalidRenderImageId,
                     0U, 0U)
                 : ImageBrushAccess::
                     SetRuntimeImage(
                     *imageBrush,
-                    Presentation::
-                        InvalidRenderImageId,
+                    Render::InvalidRenderImageId,
                     0U, 0U);
             if (!cleared) {
                 return cleared.GetStatus();
@@ -171,7 +169,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
             continue;
         }
         if (source->RuntimeType() !=
-            Presentation::BitmapImage::
+            Media::BitmapImage::
                 StaticTypeId()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
@@ -179,7 +177,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
         }
         auto* bitmap =
             static_cast<
-                Presentation::BitmapImage*>(
+                Media::BitmapImage*>(
                     source.Get());
         Base::Result<Base::ResourceUri> resolved =
             ResolveImageUri(
@@ -212,8 +210,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
                 resolved.Value() ||
             record->pixels.Empty()) {
             if (record->renderImage !=
-                    Presentation::
-                        InvalidRenderImageId &&
+                    Render::InvalidRenderImageId &&
                 backend != nullptr &&
                 backend->generation ==
                     record->backendGeneration &&
@@ -223,7 +220,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
                     record->renderImage);
             }
             record->renderImage =
-                Presentation::InvalidRenderImageId;
+                Render::InvalidRenderImageId;
             record->backendGeneration = 0U;
             record->pixels.Clear();
             record->width = 0U;
@@ -315,12 +312,11 @@ Base::Result<bool> ImageRuntime::Synchronize(
                     "Image backend service is incomplete");
             }
             if (record->renderImage ==
-                    Presentation::
-                        InvalidRenderImageId ||
+                    Render::InvalidRenderImageId ||
                 record->backendGeneration !=
                     backend->generation) {
                 Base::Result<
-                    Presentation::RenderImageId>
+                    Render::RenderImageId>
                     uploaded = backend->createImage(
                         backend->context,
                         record->width,
@@ -337,11 +333,9 @@ Base::Result<bool> ImageRuntime::Synchronize(
             }
         } else if (
             record->renderImage ==
-                Presentation::
-                    InvalidRenderImageId) {
+                Render::InvalidRenderImageId) {
             if (nextHeadlessImage_ ==
-                Presentation::
-                    InvalidRenderImageId) {
+                Render::InvalidRenderImageId) {
                 return Base::Status::Failure(
                     Base::ErrorCode::OutOfRange,
                     "Headless image ID space is exhausted");
@@ -372,8 +366,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
         if (record.seenEpoch == epoch_) continue;
         if (backend != nullptr &&
             record.renderImage !=
-                Presentation::
-                    InvalidRenderImageId &&
+                Render::InvalidRenderImageId &&
             record.backendGeneration ==
                 backend->generation &&
             backend->releaseImage != nullptr) {
@@ -398,7 +391,7 @@ void ImageRuntime::ReleaseBackendResources(
         if (backend != nullptr &&
             backend->releaseImage != nullptr &&
             record.renderImage !=
-                Presentation::InvalidRenderImageId &&
+                Render::InvalidRenderImageId &&
             record.backendGeneration ==
                 backend->generation) {
             backend->releaseImage(
@@ -406,7 +399,7 @@ void ImageRuntime::ReleaseBackendResources(
                 record.renderImage);
         }
         record.renderImage =
-            Presentation::InvalidRenderImageId;
+            Render::InvalidRenderImageId;
         record.backendGeneration = 0U;
     }
 }

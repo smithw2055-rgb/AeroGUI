@@ -13,12 +13,12 @@
 #include <Aero/Controls/Selection.hpp>
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Controls/Menus.hpp>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Detail {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 using namespace Aero::Controls;
 
 class AERO_API ControlRuntimeAccess::ControlInteractionManager final {
@@ -481,7 +481,7 @@ public:
         LayoutManager* layout = nullptr,
         RenderManager* renderer = nullptr,
         Core::MetadataRuntime* metadata = nullptr,
-        Presentation::BindingManager* bindings = nullptr) noexcept
+        Aero::Detail::BindingManager* bindings = nullptr) noexcept
         : tree_(&tree),
           providerSession_(values),
           values_(&providerSession_),
@@ -523,7 +523,7 @@ private:
         Base::Vector<TemplatePart> parts;
         Base::Vector<TemplateContentProjection> projections;
         NameScope names;
-        Base::Vector<Presentation::BindingHandle>
+        Base::Vector<Data::BindingHandle>
             metadataBindings;
     };
 
@@ -534,7 +534,7 @@ private:
     LayoutManager* layout_ = nullptr;
     RenderManager* renderer_ = nullptr;
     Core::MetadataRuntime* metadata_ = nullptr;
-    Presentation::BindingManager* bindings_ = nullptr;
+    Aero::Detail::BindingManager* bindings_ = nullptr;
     MountService mounts_;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;

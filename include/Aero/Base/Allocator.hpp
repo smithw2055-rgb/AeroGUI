@@ -14,7 +14,7 @@ enum class MemoryTag : std::uint16_t {
     Object,
     WeakControlBlock,
     Markup,
-    Presentation,
+    Ui,
     Render,
     Platform,
     Test

@@ -134,16 +134,14 @@ flowchart TB
     Host --> Device[GPU Device / Queue / GL Context / Frame Scheduler]
 
     UI --> Markup[AeroMarkup]
-    Markup --> Core[AeroCore]
-    UI --> Presentation[AeroPresentation]
-    Presentation --> Core
-    Controls[AeroControls] --> Presentation
+    UI --> Core[AeroCore]
+    Markup --> Core
+    Controls[AeroControls] --> Core
 
     Core --> Base[AeroBase]
     Markup --> Base
-    Presentation --> Base
 
-    Presentation --> Tx[Immutable RenderTransaction]
+    Core --> Tx[Immutable RenderTransaction]
     Tx --> Render[AeroRender]
     Render --> RHI[AeroRHI]
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
@@ -162,7 +160,7 @@ flowchart TB
 | `AeroBase` | allocator、memory、String、containers、Result、Ref/WeakRef、diagnostics 基础 |
 | `AeroCore` | Object、Dispatcher、TypeRegistry、DependencyProperty、Expression、事件基础 |
 | `AeroMarkup` | XML/XAML node stream、schema、object writer、markup extension、compiled XAML IR |
-| `AeroPresentation` | Visual/UIElement/FrameworkElement、树、layout、Binding、Resource、Style、Template、Input |
+| `AeroCore` | Visual/UIElement/FrameworkElement、树、layout、Binding、Resource、Style、Template、Input |
 | `AeroControls` | Control、ContentControl、ItemsControl、Panel 和标准控件 |
 | `AeroRender` | render tree、scene transactions、geometry/text/image cache、RenderPlan |
 | `AeroRHI` | GPU resource、pipeline、pass、command、state 与 synchronization contracts |
@@ -172,8 +170,8 @@ flowchart TB
 约束：
 
 - Base 不依赖第三方 runtime 库；
-- Core 不依赖 Presentation、Controls、Platform 或 renderer；
-- Presentation 不包含 Win32/X11/Cocoa/D3D/Vulkan/Metal/GL/WebGL/sokol 类型；
+- Core 不依赖 UI runtime、Controls、Platform 或 renderer；
+- AeroCore 的 UI/Data/Input/Media 语义不包含 Win32/X11/Cocoa/D3D/Vulkan/Metal/GL/WebGL/sokol 类型；
 - Render 不依赖 control class；
 - RHI 不依赖 XAML、Binding、Visual 或 window-system API；
 - GLX/EGL/WGL/HTML Canvas adapter 不定义 drawing primitive；
@@ -200,7 +198,7 @@ Delegate / Subscription / Handle
 
 - UTF-8 是 Runtime 字符串规范编码；
 - containers 使用显式 allocator；
-- `Collection<T>` 是 Presentation 层 observable model，不是 Vector 别名；
+- `Collection<T>` 是 UI 语义层 observable model，不是 Vector 别名；
 - public binary boundary 不暴露 STL owning types；
 - Runtime API 不 throw，也不依赖 RTTI；
 - dynamic SDK/plugin boundary 使用 versioned C function table、POD 和 opaque handles；
@@ -417,7 +415,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 
 - [`spec/FOUNDATION_ABI.md`](spec/FOUNDATION_ABI.md)：C++17、allocator、String、containers、Ref/WeakRef 与 ABI；
 - [`spec/CORE_RUNTIME.md`](spec/CORE_RUNTIME.md)：Object、Dispatcher、metadata、Dependency Property 和 tree transaction；
-- [`spec/XAML_PRESENTATION.md`](spec/XAML_PRESENTATION.md)：XAML、Resource、Binding、Layout、Event、Style、Template 和 Controls；
+- [`spec/XAML_UI_MODEL.md`](spec/XAML_UI_MODEL.md)：XAML、Resource、Binding、Layout、Event、Style、Template 和 Controls UI 语义；
 - [`spec/RENDERING_PLATFORM.md`](spec/RENDERING_PLATFORM.md)：RenderTransaction、AeroRHI、native GPU、platform、text 和 image；
 - [`spec/COMPATIBILITY_BACKENDS.md`](spec/COMPATIBILITY_BACKENDS.md)：D3D11、OpenGL、GLES、GLX/EGL/WGL 和 WebGL 2；
 - [`spec/QUALITY_ROADMAP.md`](spec/QUALITY_ROADMAP.md)：diagnostics、build、test、performance、security、milestone；

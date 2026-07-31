@@ -17,12 +17,10 @@
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Presentation/AnimationXaml.hpp>
+#include <Aero/Media/Animation.hpp>
 
 #include <cstdint>
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Markup::Detail {
 
@@ -55,7 +53,7 @@ public:
         return {setters_.Data(), setters_.Size()};
     }
     Base::Result<void> SetStoryboard(
-        Base::Ref<Animation::Storyboard> value) noexcept {
+        Base::Ref<Media::Animation::Storyboard> value) noexcept {
         if (storyboard_ && value) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -64,7 +62,7 @@ public:
         storyboard_ = std::move(value);
         return {};
     }
-    const Base::Ref<Animation::Storyboard>&
+    const Base::Ref<Media::Animation::Storyboard>&
     StoryboardValue() const noexcept {
         return storyboard_;
     }
@@ -72,7 +70,7 @@ public:
 private:
     Base::String name_;
     Base::Vector<Base::Ref<Base::Object>> setters_;
-    Base::Ref<Animation::Storyboard> storyboard_;
+    Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
 class XamlVisualTransitionObject final
@@ -106,23 +104,23 @@ public:
     }
     Base::Result<void> SetGeneratedDuration(
         Base::StringView value) noexcept {
-        Animation::Storyboard validator;
+        Media::Animation::Storyboard validator;
         Base::Result<void> valid =
             validator.SetDuration(value);
         if (!valid) return valid.GetStatus();
         return generatedDuration_.TryAssign(value);
     }
-    Base::Ref<Animation::EasingFunctionBase>
+    Base::Ref<Media::Animation::EasingFunctionBase>
     GeneratedEasingFunction() const noexcept {
         return generatedEasingFunction_;
     }
     Base::Result<void> SetGeneratedEasingFunction(
-        Base::Ref<Animation::EasingFunctionBase> value) noexcept {
+        Base::Ref<Media::Animation::EasingFunctionBase> value) noexcept {
         generatedEasingFunction_ = std::move(value);
         return {};
     }
     Base::Result<void> SetStoryboard(
-        Base::Ref<Animation::Storyboard> value) noexcept {
+        Base::Ref<Media::Animation::Storyboard> value) noexcept {
         if (storyboard_ && value) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -131,7 +129,7 @@ public:
         storyboard_ = std::move(value);
         return {};
     }
-    const Base::Ref<Animation::Storyboard>&
+    const Base::Ref<Media::Animation::Storyboard>&
     StoryboardValue() const noexcept {
         return storyboard_;
     }
@@ -140,9 +138,9 @@ private:
     Base::String from_;
     Base::String to_;
     Base::String generatedDuration_;
-    Base::Ref<Animation::EasingFunctionBase>
+    Base::Ref<Media::Animation::EasingFunctionBase>
         generatedEasingFunction_;
-    Base::Ref<Animation::Storyboard> storyboard_;
+    Base::Ref<Media::Animation::Storyboard> storyboard_;
 };
 
 class XamlVisualStateGroupObject final
@@ -257,14 +255,14 @@ struct TemplatePrototypeNode final {
 struct TemplatePrototypeBinding final {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
-    Presentation::BindingManager* manager = nullptr;
+    Aero::Detail::BindingManager* manager = nullptr;
     Core::MetadataRuntime* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
     Base::String stringFormat;
-    Presentation::BindingMode mode =
-        Presentation::BindingMode::OneWay;
+    Data::BindingMode mode =
+        Data::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
 };
@@ -274,14 +272,14 @@ struct CompiledTemplateBlueprint final {
     Core::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
-    Base::Vector<Base::Ref<Presentation::TriggerBase>>
+    Base::Vector<Base::Ref<Aero::TriggerBase>>
         dataTemplateTriggers;
     // Non-property triggers are retained on the compiled blueprint so every
     // control-template instance can materialize its own sources, name scope,
     // subscriptions, and animation actions.
-    Base::Vector<Base::Ref<Presentation::TriggerBase>>
+    Base::Vector<Base::Ref<Aero::TriggerBase>>
         controlTemplateDataTriggers;
-    Base::Vector<Base::Ref<Animation::EventTrigger>>
+    Base::Vector<Base::Ref<Media::Animation::EventTrigger>>
         controlTemplateEventTriggers;
     std::uint32_t contentPresenter = UINT32_MAX;
 };
@@ -309,7 +307,7 @@ BuildCompiledDeferredTemplate(
 Base::Result<CompiledTemplateBlueprint>
 CompileDeferredTemplateBlueprint(
     const Base::Ref<Base::Object>& visualTree,
-    const Presentation::NameScope* names,
+    const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     Core::MetadataRuntime& runtime,

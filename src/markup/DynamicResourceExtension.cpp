@@ -1,17 +1,17 @@
 #include "Extensions.hpp"
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 // Dynamic-resource markup-extension implementation.
 #include "SchemaInternal.hpp"
 
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Style.hpp>
 
 #include <new>
 #include <utility>
 
 namespace Aero::Markup {
-using Presentation::ResourceChangeSubscription;
-using Presentation::ResourceDictionary;
+using Aero::ResourceChangeSubscription;
+using Aero::ResourceDictionary;
 
 namespace {
 
@@ -72,7 +72,7 @@ Base::Result<Core::PropertyValue> EvaluateDynamicResource(
         if (source.resources == nullptr) {
             continue;
         }
-        Base::Result<Presentation::ResourceValue> resource =
+        Base::Result<Aero::ResourceValue> resource =
             source.resources->Lookup(state->key.View());
         if (resource) {
             return resource.Value();
@@ -90,7 +90,7 @@ Base::Result<Core::PropertyValue> EvaluateDynamicResource(
 void ResourceChanged(
     void* context,
     Base::StringView key,
-    Presentation::ResourceChangeKind,
+    Aero::ResourceChangeKind,
     std::uint64_t) noexcept {
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
     if (state == nullptr || state->engine == nullptr || state->target == nullptr) {
@@ -206,7 +206,7 @@ Base::Result<Core::PropertyExpression> DynamicResource::CreateExpression(
             Base::ErrorCode::InvalidArgument,
             "DynamicResource requires resources, a target property, and a non-empty key");
     }
-    Base::Result<Presentation::ResourceValue> existing =
+    Base::Result<Aero::ResourceValue> existing =
         Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DynamicResource key is not available");
@@ -352,7 +352,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     // built; the style finalizer subsequently converts that value for the
     // target dependency property.
     if (services.targetObject->RuntimeType() ==
-        Presentation::Setter::StaticTypeId()) {
+        Aero::Setter::StaticTypeId()) {
         // Template/style setters are authored before their eventual target
         // exists. Resolve from the complete parse-time resource scope, not
         // only the immediate fallback dictionary: a theme's brushes commonly
@@ -360,7 +360,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
         for (const ResourceDictionary* resources :
              services.ambientResourceChain) {
             if (resources == nullptr) continue;
-            Base::Result<Presentation::ResourceValue> resource =
+            Base::Result<Aero::ResourceValue> resource =
                 resources->Lookup(key);
             if (resource) {
                 return ProvidedValue::FromValue(
@@ -372,7 +372,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             }
         }
         if (services.fallbackResources != nullptr) {
-            Base::Result<Presentation::ResourceValue> resource =
+            Base::Result<Aero::ResourceValue> resource =
                 services.fallbackResources->Lookup(key);
             if (resource) {
                 return ProvidedValue::FromValue(

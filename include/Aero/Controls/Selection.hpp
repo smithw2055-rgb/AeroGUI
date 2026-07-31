@@ -4,7 +4,7 @@
 
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
-#include <Aero/Presentation/Input.hpp>
+#include <Aero/Input/Navigation.hpp>
 
 namespace Aero::Controls {
 
@@ -348,7 +348,7 @@ private:
     Base::Result<void>
         UpdateSelectionBox() noexcept;
     Base::Result<void>
-        UpdateEditablePresentation() noexcept;
+        UpdateEditableVisualState() noexcept;
     void SynchronizeContainers() noexcept;
     std::uint32_t FindContainerIndex(
         Base::Object* source) const noexcept;

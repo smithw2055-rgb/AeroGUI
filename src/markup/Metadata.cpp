@@ -1,10 +1,10 @@
 #include <Aero/Markup/Schema.hpp>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 // Markup-specific metadata declarations.
 
 #include <Aero/Core/Metadata/Describe.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Style.hpp>
 
 #include "TemplateCompiler.hpp"
 #include "StaticResourceObject.hpp"
@@ -13,7 +13,7 @@ namespace Aero::Markup::Detail {
 namespace {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 
 class DynamicResourceExtensionToken final
     : public Base::Object {
@@ -22,19 +22,6 @@ class DynamicResourceExtensionToken final
         Base::Object,
         "urn:aero",
         "DynamicResource")
-public:
-    Core::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-};
-
-class BindingExtensionToken final
-    : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        BindingExtensionToken,
-        Base::Object,
-        "urn:aero",
-        "Binding")
 public:
     Core::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
@@ -183,10 +170,10 @@ Base::Result<void> AddStateContent(
         return state.AddSetter(value);
     }
     if (value->RuntimeType() ==
-        Animation::Storyboard::StaticTypeId()) {
+        Media::Animation::Storyboard::StaticTypeId()) {
         return state.SetStoryboard(
-            Base::Ref<Animation::Storyboard>::FromBorrowed(
-                *static_cast<Animation::Storyboard*>(value.Get())));
+            Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
+                *static_cast<Media::Animation::Storyboard*>(value.Get())));
     }
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
@@ -208,15 +195,15 @@ Base::Result<void> SetTransitionStoryboard(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if (!value || value->RuntimeType() !=
-            Animation::Storyboard::StaticTypeId()) {
+            Media::Animation::Storyboard::StaticTypeId()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "VisualTransition content expects Storyboard");
     }
     return static_cast<XamlVisualTransitionObject&>(
         object).SetStoryboard(
-            Base::Ref<Animation::Storyboard>::FromBorrowed(
-                *static_cast<Animation::Storyboard*>(
+            Base::Ref<Media::Animation::Storyboard>::FromBorrowed(
+                *static_cast<Media::Animation::Storyboard*>(
                     value.Get())));
 }
 
@@ -236,11 +223,6 @@ Base::Result<void> PopulateMarkupMetadata(
             context,
             TypeFlags::MarkupExtension |
                 TypeFlags::Sealed).Result();
-    if (!status) return status.GetStatus();
-    status = Describe<BindingExtensionToken>(
-        context,
-        TypeFlags::MarkupExtension |
-            TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
     status = Describe<StaticExtensionToken>(
         context,
@@ -334,12 +316,12 @@ Base::Result<void> PopulateMarkupMetadata(
             &XamlVisualTransitionObject::GeneratedDuration,
             &XamlVisualTransitionObject::SetGeneratedDuration)
         .Property<
-            Base::Ref<Animation::EasingFunctionBase>,
+            Base::Ref<Media::Animation::EasingFunctionBase>,
             &XamlVisualTransitionObject::GeneratedEasingFunction,
             &XamlVisualTransitionObject::SetGeneratedEasingFunction>(
             "GeneratedEasingFunction",
             PropertyFlags::Structural)
-        .Content<Animation::Storyboard>(
+        .Content<Media::Animation::Storyboard>(
             "Storyboard",
             ContentKind::Single,
             &SetTransitionStoryboard,

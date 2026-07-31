@@ -20,9 +20,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace Aero::Presentation {
-class ResourceDictionary;
-}
+namespace Aero { class ResourceDictionary; }
 
 namespace Aero::Core {
 class DependencyPropertyRegistry;

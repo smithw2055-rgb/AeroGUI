@@ -161,7 +161,7 @@ MUST：
 
 ## 7. Collection 不是底层容器
 
-`Collection<T>`、`ObservableCollection<T>` 和 `CollectionView` 属于 Presentation/Application model：
+`Collection<T>`、`ObservableCollection<T>` 和 `CollectionView` 属于 UI/Application model：
 
 - 它们是 `Object`；
 - 具有 reflection/type metadata；

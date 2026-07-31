@@ -16,10 +16,10 @@
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Controls/Trees.hpp>
 #include <Aero/Controls/Virtualization.hpp>
-#include <Aero/Presentation/Brushes.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Core/Metadata/Describe.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Style.hpp>
 
 #include "PathServicesAccess.hpp"
 

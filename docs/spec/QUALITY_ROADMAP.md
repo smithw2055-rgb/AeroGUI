@@ -208,8 +208,8 @@ AERO_PROFILE_CONSOLE
 ## 7. 建议目录
 
 ```text
-include/Aero/{Base,Core,Markup,Presentation,Controls,Render,Platform}
-src/{base,core,markup,presentation,controls,render,platform}
+include/Aero/{Base,Core,Markup,Controls,Data,Input,Media,Detail,Render,Platform}
+src/{base,core,markup,ui,data,input,media,controls,render,runtime,platform}
 backends/{rhi_d3d12,rhi_d3d11,rhi_vulkan,rhi_metal}
 backends/{rhi_opengl33,rhi_gles30,rhi_webgl2,rhi_null,rhi_sokol}
 backends/{platform_win32,platform_glx,platform_egl,platform_wgl}
@@ -239,7 +239,7 @@ Unit/property/fuzz tests 覆盖：
 - public header compile with C++17 only；
 - source scan 阻止 C++20 token/header accidental use。
 
-## 9. Core 与 Presentation tests
+## 9. Core 与 UI semantic tests
 
 Unit tests 覆盖：
 
@@ -645,4 +645,4 @@ Fuzz targets：
 27. Evaluate/fuzz optional libtess2；
 28. Add optional sokol adapter only after AeroRHI contract stabilizes。
 
-任何 control Issue 必须依赖相应 Foundation/Core/Presentation 任务；任何 backend Issue 必须依赖 RenderPlan 与 AeroRHI contract。
+任何 control Issue 必须依赖相应 Foundation/Core/UI semantics 任务；任何 backend Issue 必须依赖 RenderPlan 与 AeroRHI contract。

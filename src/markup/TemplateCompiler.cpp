@@ -8,20 +8,20 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Controls/Scroll.hpp>
 #include <Aero/Controls/Selection.hpp>
-#include <Aero/Presentation/Style.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdio>
 #include <utility>
 #include "../controls/RuntimeManagers.hpp"
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Markup::Detail {
 namespace {
 
 using namespace Aero::Core;
 using namespace Aero::Controls;
-using namespace Aero::Presentation;
+
 
 Base::Status InvalidTemplateCompiler(
     const char* message) noexcept {
@@ -116,7 +116,7 @@ std::uint32_t FindPrototypeObject(
 Base::Result<CompiledTemplateBlueprint>
 CompileBlueprint(
     const Base::Ref<Base::Object>& visualTree,
-    const Presentation::NameScope* names,
+    const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     MetadataRuntime& runtime,
@@ -341,7 +341,7 @@ Base::Result<Value> ConvertSetterValue(
     // available after the template has an instance and a templated parent.
     if (value.Kind() == ValueKind::Object &&
         !value.IsNullObject() &&
-        value.Type() == BindingSpec::StaticTypeId()) {
+        value.Type() == Data::Binding::StaticTypeId()) {
         return value;
     }
     if (property.AcceptsAnyValue()) {
@@ -575,12 +575,12 @@ CompilePropertyTriggers(
             propertyName == Base::StringView(
                 "local:Element.IsFocusEngaged")
             ? properties.Find(
-                Presentation::Element::
+                Aero::Element::
                     IsFocusEngagedProperty.Handle())
             : propertyName == Base::StringView(
                 "local:Text.PasswordLength")
             ? properties.Find(
-                Presentation::TextProperties::
+                Aero::TextProperties::
                     PasswordLengthProperty.Handle())
             : ResolveTemplateProperty(properties, targetType, propertyName);
         if (property == nullptr) {
@@ -866,7 +866,7 @@ CompileVisualStates(
             }
             if (!assigned) return assigned.GetStatus();
             if (!sourceTransition.GeneratedDuration().Empty()) {
-                Animation::Storyboard duration;
+                Media::Animation::Storyboard duration;
                 assigned = duration.SetDuration(
                     sourceTransition.GeneratedDuration());
                 if (!assigned) return assigned.GetStatus();
@@ -972,10 +972,10 @@ CompileControlTemplateDefinition(
                     std::move(retained));
             if (!added) return added.GetStatus();
         } else if (authored->RuntimeType() ==
-                   Animation::EventTrigger::StaticTypeId()) {
-            Base::Ref<Animation::EventTrigger> retained =
-                Base::Ref<Animation::EventTrigger>::TryFromBorrowed(
-                    static_cast<Animation::EventTrigger&>(*authored));
+                   Media::Animation::EventTrigger::StaticTypeId()) {
+            Base::Ref<Media::Animation::EventTrigger> retained =
+                Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
+                    static_cast<Media::Animation::EventTrigger&>(*authored));
             if (!retained) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate EventTrigger cannot be retained");
@@ -1082,7 +1082,7 @@ CompileControlTemplateDefinition(
 Base::Result<CompiledTemplateBlueprint>
 CompileDeferredTemplateBlueprint(
     const Base::Ref<Base::Object>& visualTree,
-    const Presentation::NameScope* names,
+    const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     MetadataRuntime& runtime,
@@ -1140,7 +1140,7 @@ Base::Result<bool> DeferredTriggerValuesMatch(
 }
 
 Base::Result<Value> ReadDeferredTriggerBinding(
-    const BindingSpec& binding,
+    const Data::Binding& binding,
     const Base::Ref<Base::Object>& payload,
     MetadataRuntime& runtime) noexcept {
     if (!payload || binding.Path().Empty()) {
@@ -1557,7 +1557,7 @@ Base::Result<void> BuildCompiledTemplate(
             }
             return {};
         };
-        auto sourceFor = [&](const BindingSpec& binding) noexcept
+        auto sourceFor = [&](const Data::Binding& binding) noexcept
             -> Base::Object* {
             if (!binding.ElementName().Empty()) {
                 return triggerContext->FindName(binding.ElementName());
@@ -1590,7 +1590,7 @@ Base::Result<void> BuildCompiledTemplate(
                     property.PropertyName() == Base::StringView(
                         "local:Element.IsFocusEngaged")
                     ? blueprint->properties->Find(
-                        Presentation::Element::
+                        Aero::Element::
                             IsFocusEngagedProperty.Handle())
                     : blueprint->properties->Find(
                         sourceType, property.PropertyName());

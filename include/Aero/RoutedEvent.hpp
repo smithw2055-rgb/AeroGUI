@@ -1,16 +1,16 @@
 #pragma once
 
 #include <Aero/Core/RoutedEvent.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/ObjectTree.hpp>
 
 namespace Aero {
 
 using RoutedEventHandle = Core::RoutedEventHandle;
 using RoutingStrategy = Core::RoutingStrategy;
 
-using EventArgs = Presentation::EventArgs;
-using RoutedEventArgs = Presentation::RoutedEventArgs;
-using EventHandler = Presentation::EventHandler;
-using RoutedEventHandler = Presentation::RoutedEventHandler;
+using EventArgs = Aero::EventArgs;
+using RoutedEventArgs = Aero::RoutedEventArgs;
+using EventHandler = Aero::EventHandler;
+using RoutedEventHandler = Aero::RoutedEventHandler;
 
 } // namespace Aero

@@ -144,7 +144,7 @@ Base::Result<void> PopulateControlsItems(
                 .AffectsRender()
                 .BindsTwoWayByDefault())
         .Override(
-            Presentation::UIElement::IsTabStopProperty,
+            Aero::UIElement::IsTabStopProperty,
             PropertyOptions(true))
         .Factory();
     status = listBoxItem.Result();
@@ -194,7 +194,7 @@ Base::Result<void> PopulateControlsItems(
                 Core::Value::NullObject(
                     Core::TypeOf<Base::Object>())))
         .Override(
-            Presentation::UIElement::
+            Aero::UIElement::
                 IsTabStopProperty,
             PropertyOptions(true))
         .Factory();
@@ -210,7 +210,7 @@ Base::Result<void> PopulateControlsItems(
                 .AffectsRender()
                 .BindsTwoWayByDefault())
         .Override(
-            Presentation::UIElement::
+            Aero::UIElement::
                 IsTabStopProperty,
             PropertyOptions(true))
         .Factory();
@@ -331,7 +331,7 @@ Base::Result<void> PopulateControlsItems(
                 Base::Ref<ItemsPanelTemplate>{})
                 .AffectsMeasure())
         .Override(
-            Presentation::UIElement::
+            Aero::UIElement::
                 IsTabStopProperty,
             PropertyOptions(true))
         .Content<Base::Object>(
@@ -457,7 +457,7 @@ Base::Result<void> PopulateControlsItems(
             GridViewColumn::
                 DisplayMemberBindingProperty,
             PropertyOptions(
-                Base::Ref<Presentation::BindingSpec>{}))
+                Base::Ref<Data::Binding>{}))
         .Property(
             GridViewColumn::HeaderContainerStyleProperty,
             PropertyOptions(Base::Ref<Style>{}))
@@ -542,7 +542,7 @@ Base::Result<void> PopulateControlsItems(
         Describe<ListViewItem>(context);
     listViewItem
         .Override(
-            Presentation::UIElement::
+            Aero::UIElement::
                 IsTabStopProperty,
             PropertyOptions(true))
         .Factory();

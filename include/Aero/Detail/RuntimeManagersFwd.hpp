@@ -9,7 +9,7 @@ class Control;
 
 namespace Aero::Detail {
 
-class PresentationRuntimeAccess final {
+class UiRuntimeAccess final {
 public:
     class RoutedEventManager;
     class CommandManager;
@@ -27,34 +27,20 @@ public:
 
 } // namespace Aero::Detail
 
-namespace Aero::Presentation {
-
-using RoutedEventManager =
-    Aero::Detail::PresentationRuntimeAccess::RoutedEventManager;
-using CommandManager =
-    Aero::Detail::PresentationRuntimeAccess::CommandManager;
-using HitTestManager =
-    Aero::Detail::PresentationRuntimeAccess::HitTestManager;
-using PointerInputManager =
-    Aero::Detail::PresentationRuntimeAccess::PointerInputManager;
-using FocusManager =
-    Aero::Detail::PresentationRuntimeAccess::FocusManager;
-using KeyboardInputManager =
-    Aero::Detail::PresentationRuntimeAccess::KeyboardInputManager;
-using TextInputManager =
-    Aero::Detail::PresentationRuntimeAccess::TextInputManager;
-using LayoutManager =
-    Aero::Detail::PresentationRuntimeAccess::LayoutManager;
-using BindingManager =
-    Aero::Detail::PresentationRuntimeAccess::BindingManager;
-using AnimationManager =
-    Aero::Detail::PresentationRuntimeAccess::AnimationManager;
-using StyleManager =
-    Aero::Detail::PresentationRuntimeAccess::StyleManager;
-using ThemeStyleManager =
-    Aero::Detail::PresentationRuntimeAccess::ThemeStyleManager;
-
-} // namespace Aero::Presentation
+namespace Aero::Detail {
+using RoutedEventManager = UiRuntimeAccess::RoutedEventManager;
+using CommandManager = UiRuntimeAccess::CommandManager;
+using HitTestManager = UiRuntimeAccess::HitTestManager;
+using PointerInputManager = UiRuntimeAccess::PointerInputManager;
+using FocusManager = UiRuntimeAccess::FocusManager;
+using KeyboardInputManager = UiRuntimeAccess::KeyboardInputManager;
+using TextInputManager = UiRuntimeAccess::TextInputManager;
+using LayoutManager = UiRuntimeAccess::LayoutManager;
+using BindingManager = UiRuntimeAccess::BindingManager;
+using AnimationManager = UiRuntimeAccess::AnimationManager;
+using StyleManager = UiRuntimeAccess::StyleManager;
+using ThemeStyleManager = UiRuntimeAccess::ThemeStyleManager;
+} // namespace Aero::Detail
 
 namespace Aero::Detail {
 
@@ -73,7 +59,7 @@ public:
 
     static void Attach(
         Controls::Control& control,
-        Presentation::RoutedEventManager* events) noexcept;
+        Aero::Detail::RoutedEventManager* events) noexcept;
 };
 
 } // namespace Aero::Detail

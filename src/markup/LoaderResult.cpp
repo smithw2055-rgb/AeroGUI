@@ -15,8 +15,8 @@ Base::Result<void> VisualContentPlan::TryReserve(
 }
 
 Base::Result<void> VisualContentPlan::TryAddNode(
-    Presentation::Visual& node) noexcept {
-    for (Presentation::Visual* existing : nodes) {
+    Aero::Visual& node) noexcept {
+    for (Aero::Visual* existing : nodes) {
         if (existing == &node) return {};
     }
     return nodes.TryPushBack(&node);

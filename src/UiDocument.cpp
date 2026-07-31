@@ -1,7 +1,7 @@
 #include <Aero/UiDocument.hpp>
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Resources.hpp>
 
 #include "UiDocumentAccess.hpp"
 
@@ -37,7 +37,7 @@ UiDocument& UiDocument::operator=(UiDocument&& other) noexcept {
     return *this;
 }
 
-Base::Result<UiDocument> Detail::UiDocumentAccess::Adopt(
+Base::Result<UiDocument> Aero::Detail::UiDocumentAccess::Adopt(
     Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
@@ -88,11 +88,11 @@ std::uint32_t UiDocument::NamedObjectCount() const noexcept {
     return impl_ != nullptr ? impl_->result.names.Size() : 0U;
 }
 
-Presentation::ResourceDictionary* UiDocument::Resources() noexcept {
+Aero::ResourceDictionary* UiDocument::Resources() noexcept {
     return impl_ != nullptr ? &impl_->result.resources : nullptr;
 }
 
-const Presentation::ResourceDictionary* UiDocument::Resources() const noexcept {
+const Aero::ResourceDictionary* UiDocument::Resources() const noexcept {
     return impl_ != nullptr ? &impl_->result.resources : nullptr;
 }
 
@@ -110,14 +110,14 @@ Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
 }
 
 const Markup::EffectLifetime*
-Detail::UiDocumentAccess::RuntimeLifetime(
+Aero::Detail::UiDocumentAccess::RuntimeLifetime(
     const UiDocument& document) noexcept {
     return document.impl_ != nullptr
         ? document.impl_->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-Markup::LoaderResult Detail::UiDocumentAccess::Take(
+Markup::LoaderResult Aero::Detail::UiDocumentAccess::Take(
     UiDocument& document) noexcept {
     if (document.impl_ == nullptr) {
         Markup::LoaderResult empty;

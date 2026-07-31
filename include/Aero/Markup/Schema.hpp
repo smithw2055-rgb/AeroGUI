@@ -18,10 +18,7 @@
 
 #include <cstdint>
 
-namespace Aero::Presentation {
-class ResourceDictionary;
-class ResourceKey;
-}
+namespace Aero { class ResourceDictionary; class ResourceKey; }
 
 namespace Aero {
 class SchemaBundle;
@@ -158,12 +155,12 @@ private:
     Base::Result<void> AddResource(
         Core::TypeId scopeType,
         Base::Object& scopeOwner,
-        const Presentation::ResourceKey& key,
+        const Aero::ResourceKey& key,
         const Core::Value& value) const noexcept;
-    Presentation::ResourceDictionary* ResolveResourceScope(
+    Aero::ResourceDictionary* ResolveResourceScope(
         Core::TypeId scopeType,
         Base::Object& scopeOwner) const noexcept;
-    Base::Result<Presentation::ResourceKey> ResolveImplicitResourceKey(
+    Base::Result<Aero::ResourceKey> ResolveImplicitResourceKey(
         Core::TypeId type,
         const Base::Object& object) const noexcept;
 

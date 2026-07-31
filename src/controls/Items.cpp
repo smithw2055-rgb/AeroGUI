@@ -1,16 +1,16 @@
 #include <Aero/Controls/Items.hpp>
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
-#include "../presentation/ResourceAssignment.hpp"
+#include "../ui/ResourceAssignment.hpp"
 #include <Aero/Controls/Virtualization.hpp>
 
 #include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <algorithm>
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -901,7 +901,7 @@ ItemContainerGenerator::CreateRecord(
                 Core::ValueKind::String) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
-                "Boxed data item has no default text presentation");
+                "Boxed data item has no default text representation");
         }
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
@@ -956,15 +956,15 @@ ItemContainerGenerator::CreateRecord(
 Base::Result<void>
 ItemContainerGenerator::AttachOwnedSubtree(
     Record& record,
-    Presentation::Visual& root) noexcept {
-    Base::Vector<Presentation::Visual*> pending;
+    Aero::Visual& root) noexcept {
+    Base::Vector<Aero::Visual*> pending;
     Base::Result<void> pushed =
         pending.TryPushBack(&root);
     if (!pushed) return pushed.GetStatus();
 
     const auto attachChild =
         [this, &record, &pending](
-            Presentation::Visual& parent,
+            Aero::Visual& parent,
             const Base::Ref<Base::Object>& owned)
             noexcept -> Base::Result<void> {
         if (!owned ||
@@ -975,7 +975,7 @@ ItemContainerGenerator::AttachOwnedSubtree(
             return {};
         }
         auto& child =
-            *static_cast<Presentation::Visual*>(
+            *static_cast<Aero::Visual*>(
                 owned.Get());
         if (child.VisualParent() == &parent &&
             child.OwningTree() == tree_) {
@@ -1013,7 +1013,7 @@ ItemContainerGenerator::AttachOwnedSubtree(
     };
 
     while (!pending.Empty()) {
-        Presentation::Visual* current =
+        Aero::Visual* current =
             pending.Back();
         pending.PopBack();
         if (current == nullptr) continue;
@@ -1141,12 +1141,12 @@ ItemContainerGenerator::AttachRecord(
             return selected.GetStatus();
         }
     }
-    // Presentation activation starts at the generated container. This is
+    // UI activation starts at the generated container. This is
     // required for implicit container styles and control templates (for
     // example ComboBoxItem), while traversal still reaches DataTemplate
     // content mounted beneath it.
-    Presentation::Visual& subtree =
-        static_cast<Presentation::Visual&>(container);
+    Aero::Visual& subtree =
+        static_cast<Aero::Visual&>(container);
     Base::Result<void> subtreeAttached =
         AttachOwnedSubtree(record, subtree);
     if (!subtreeAttached) {
@@ -1188,8 +1188,8 @@ ItemContainerGenerator::DetachRecord(
     };
     if (record.subtreeMounted &&
         subtreeCallback_ != nullptr) {
-        Presentation::Visual& subtree =
-            static_cast<Presentation::Visual&>(
+        Aero::Visual& subtree =
+            static_cast<Aero::Visual&>(
                 container);
         capture(subtreeCallback_(
             subtree,
@@ -1309,11 +1309,11 @@ void ItemContainerGenerator::RemoveRecordAt(
 Base::Result<void>
 ItemContainerGenerator::ReorderVisuals() noexcept {
     for (Record& record : records_) {
-        Base::Result<void> detached = mounts_.DetachPresentation(record.containerMount);
+        Base::Result<void> detached = mounts_.DetachVisual(record.containerMount);
         if (!detached) return detached.GetStatus();
     }
     for (Record& record : records_) {
-        Base::Result<void> attached = mounts_.AttachPresentation(record.containerMount, *host_);
+        Base::Result<void> attached = mounts_.AttachVisual(record.containerMount, *host_);
         if (!attached) return attached.GetStatus();
     }
     return {};
@@ -1664,7 +1664,7 @@ ItemContainerGenerator::ItemFromContainer(
 
 Base::Result<void> DataTemplate::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Presentation::Detail::AssignResourceDictionary(
+    return Aero::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "DataTemplate Resources is already assigned");
@@ -1672,7 +1672,7 @@ Base::Result<void> DataTemplate::SetResources(
 
 Base::Result<void> ItemsPanelTemplate::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Presentation::Detail::AssignResourceDictionary(
+    return Aero::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "ItemsPanelTemplate Resources is already assigned");

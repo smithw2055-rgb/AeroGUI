@@ -5,8 +5,6 @@
 #include "Loader.hpp"
 #include "LoaderResult.hpp"
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Markup {
 
@@ -15,10 +13,10 @@ using LoadFinalizeCallback = Base::Result<void> (*)(
     void* context) noexcept;
 
 struct LoadContext final {
-    const Presentation::ResourceDictionary* resources = nullptr;
+    const Aero::ResourceDictionary* resources = nullptr;
     Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Presentation::BindingManager* bindings = nullptr;
-    Presentation::ResourceDictionary* fallbackResources = nullptr;
+    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::ResourceDictionary* fallbackResources = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
     Base::Object* templatedParent = nullptr;
     Base::Ref<Base::Object> existingRoot;

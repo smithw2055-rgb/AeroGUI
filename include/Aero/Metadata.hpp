@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Meta.hpp>
+
 #include <Aero/Core/Metadata/Describe.hpp>
 #include <Aero/Core/Metadata/ValueCodec.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
@@ -29,14 +31,7 @@ using RoutedEventRef =
     Core::RoutedEventRef<TOwner, TArgs>;
 
 template<class TValue>
-class PropertyOptions final
-    : public Core::PropertyOptions<TValue> {
-public:
-    using Core::PropertyOptions<TValue>::PropertyOptions;
-};
-
-template<class TValue>
-PropertyOptions(TValue) -> PropertyOptions<TValue>;
+using PropertyOptions = Meta::PropertyOptions<TValue>;
 
 template<class T>
 using ValueCodec = Core::ValueCodec<T>;

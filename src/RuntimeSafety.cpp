@@ -195,9 +195,9 @@ EventRouteLifetimeSnapshot::EventRouteLifetimeSnapshot(
     : nodes_(allocator) {}
 
 Base::Result<void> EventRouteLifetimeSnapshot::TryAdd(
-    Presentation::Visual& visual) noexcept {
+    Aero::Visual& visual) noexcept {
     return nodes_.TryPushBack(
-        Base::Ref<Presentation::Visual>::FromBorrowed(
+        Base::Ref<Aero::Visual>::FromBorrowed(
             visual));
 }
 

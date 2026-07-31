@@ -7,7 +7,7 @@
 
 #include <algorithm>
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -1157,7 +1157,7 @@ Base::Result<void> ComboBox::OnApplyTemplate()
     if (!selectionUpdated) {
         return selectionUpdated.GetStatus();
     }
-    return UpdateEditablePresentation();
+    return UpdateEditableVisualState();
 }
 
 void ComboBox::OnTemplateDetached() noexcept {
@@ -1206,7 +1206,7 @@ void ComboBox::OnEditablePropertyChanged(
     const DependencyPropertyChangedEventArgs&)
         noexcept {
     static_cast<void>(
-        UpdateEditablePresentation());
+        UpdateEditableVisualState());
 }
 
 void ComboBox::OnTextPropertyChanged(
@@ -1356,11 +1356,11 @@ ComboBox::UpdateSelectionBox() noexcept {
             return textPublished.GetStatus();
         }
     }
-    return UpdateEditablePresentation();
+    return UpdateEditableVisualState();
 }
 
 Base::Result<void>
-ComboBox::UpdateEditablePresentation() noexcept {
+ComboBox::UpdateEditableVisualState() noexcept {
     if (selectionBox_ != nullptr) {
         Base::Result<void> visible =
             selectionBox_->SetVisibility(

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 #include "runtime/MeshResourceContract.hpp"
 #include "runtime/ImageResourceContract.hpp"
 #include "runtime/TextResourceContract.hpp"
@@ -17,21 +17,21 @@ inline constexpr std::uint64_t ImageBackendServiceId =
 class RenderBackendAccess final {
 public:
     static Aero::Detail::TextBackendServices* TextServices(
-        Presentation::IRenderBackend& backend) noexcept {
+        Render::IRenderBackend& backend) noexcept {
         return static_cast<Aero::Detail::TextBackendServices*>(
             backend.QueryInternalService(
                 TextBackendServiceId));
     }
 
     static Aero::Detail::MeshBackendServices* MeshServices(
-        Presentation::IRenderBackend& backend) noexcept {
+        Render::IRenderBackend& backend) noexcept {
         return static_cast<Aero::Detail::MeshBackendServices*>(
             backend.QueryInternalService(
                 MeshBackendServiceId));
     }
 
     static Aero::Detail::ImageBackendServices* ImageServices(
-        Presentation::IRenderBackend& backend) noexcept {
+        Render::IRenderBackend& backend) noexcept {
         return static_cast<
             Aero::Detail::ImageBackendServices*>(
                 backend.QueryInternalService(
@@ -39,7 +39,7 @@ public:
     }
 
     static void* InternalService(
-        Presentation::IRenderBackend& backend,
+        Render::IRenderBackend& backend,
         std::uint64_t service) noexcept {
         return backend.QueryInternalService(service);
     }

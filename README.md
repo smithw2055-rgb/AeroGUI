@@ -119,21 +119,18 @@ flowchart LR
     Host --> App[AeroApplication]
     Host --> Device[Host GPU Device / Queue / Context]
 
-    App --> Markup[AeroMarkup]
-    App --> Presentation[AeroPresentation]
-    App --> Controls[AeroControls]
-
-    Markup --> Controls
-    Controls --> Presentation
-    Presentation --> Core[AeroCore]
+    App --> Gui[AeroGui]
+    Gui --> Markup[AeroMarkup]
+    Markup --> Controls[AeroControls]
+    Controls --> Core[AeroCore]
+    Markup --> Core
     Controls -. text services .-> Text[AeroText]
 
     Core --> Base[AeroBase]
     Text --> Base
     Markup --> Base
-    Presentation --> Base
 
-    Presentation --> Tx[Immutable RenderTransaction]
+    Core --> Tx[Immutable RenderTransaction]
     Tx --> Render[AeroRender]
     Render --> RHI[AeroRHI]
     Device --> RHI
@@ -150,21 +147,26 @@ Public C++ APIs follow the same module boundary:
 ```text
 Aero::Base
   -> Aero::Core
-  -> Aero::Presentation
   -> Aero::Controls
-  -> Aero::Markup / application integration
+  -> Aero::Markup / Aero::Gui
+  -> Aero::App / Aero::Integration
+
+Public C++ types are organized by WPF semantics rather than build targets:
+`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Media`,
+`Aero::Media::Animation`, `Aero::Input`, and `Aero::Markup`.
 
 Aero::Text
   -> Aero::Base
 ```
 
-`Aero::Text` 是独立的 provider 合同层，不依赖 Core、Presentation、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
+`Aero::Text` 是独立的 provider 合同层，不依赖 Core、UI runtime、Controls、Markup、Render 或 RHI。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
 仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewHostOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
 
 Core metadata and property-system headers live under
-`Aero/Core/Metadata` and `Aero/Core/Property`. Presentation and controls use
-their own include, source, and test directories. Legacy `Aero/Core/*.hpp`
+`Aero/Core/Metadata` and `Aero/Core/Property`. UI semantics are grouped under
+`Aero`, `Aero::Data`, `Aero::Input`, and `Aero::Media`; controls retain their
+own public include and source directories. Legacy `Aero/Core/*.hpp`
 forwarding paths and old namespace aliases are not provided; callers must use
 the owning module's public include path and namespace.
 
@@ -186,7 +188,7 @@ Delegate / Subscription / Handle
 
 - `String` 的规范编码为 UTF-8；UTF-16 仅存在于平台桥接和显式转换边界。
 - `Vector`、`HashMap`、`HashSet` 使用显式 allocator，不依赖异常处理分配失败。
-- `Collection<T>` 是 Presentation 层的可观察集合语义，不等同于底层动态数组。
+- `Collection<T>` 是 UI 语义层的可观察集合语义，不等同于底层动态数组。
 - `Ref<T>` / `WeakRef<T>` 用于 `Object` 派生类型；不使用名称含糊且与旧标准库冲突的 `AutoPtr`。
 - STL 算法和私有实现可在不穿越 ABI、且不破坏构建约束时使用；工具和测试可以更自由地使用 C++17 STL。
 
@@ -349,8 +351,8 @@ Linux 使用同一 `--backend=opengl` 命令并通过 GLX 呈现。`--xaml=both 
 
 ```text
 AeroGUI/
-├── include/Aero/{Base,Core,Markup,Presentation,Controls,Render,Platform}
-├── src/{base,core,markup,presentation,controls,render,platform}
+├── include/Aero/{Base,Core,Markup,Controls,Data,Input,Media,Detail,Render,Platform}
+├── src/{base,core,markup,ui,data,input,media,controls,render,runtime,platform}
 ├── backends/
 │   ├── rhi_d3d12/
 │   ├── rhi_d3d11/
@@ -415,7 +417,7 @@ AeroGUI/
 - [`docs/WPF_CPP_PORT_SPEC.md`](docs/WPF_CPP_PORT_SPEC.md)
 - [`docs/spec/FOUNDATION_ABI.md`](docs/spec/FOUNDATION_ABI.md)
 - [`docs/spec/CORE_RUNTIME.md`](docs/spec/CORE_RUNTIME.md)
-- [`docs/spec/XAML_PRESENTATION.md`](docs/spec/XAML_PRESENTATION.md)
+- [`docs/spec/XAML_UI_MODEL.md`](docs/spec/XAML_UI_MODEL.md)
 - [`docs/spec/RENDERING_PLATFORM.md`](docs/spec/RENDERING_PLATFORM.md)
 - [`docs/spec/COMPATIBILITY_BACKENDS.md`](docs/spec/COMPATIBILITY_BACKENDS.md)
 - [`docs/spec/QUALITY_ROADMAP.md`](docs/spec/QUALITY_ROADMAP.md)

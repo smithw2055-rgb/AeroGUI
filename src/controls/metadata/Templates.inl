@@ -7,7 +7,7 @@ Base::Result<void> PopulateControlsTemplates(
         context, TypeFlags::Abstract);
     frameworkTemplate
         .Property<
-            Base::Ref<Presentation::ResourceDictionary>,
+            Base::Ref<Aero::ResourceDictionary>,
             &FrameworkTemplate::SetResources>(
                 "Resources",
                 PropertyFlags::Structural)
@@ -61,11 +61,11 @@ Base::Result<void> PopulateControlsTemplates(
             &DataTemplate::SetHierarchicalItemTemplate>(
                 "ItemTemplate", PropertyFlags::None)
         .Property<
-            Base::Ref<Presentation::ResourceDictionary>,
+            Base::Ref<Aero::ResourceDictionary>,
             &DataTemplate::SetResources>(
                 "Resources",
                 PropertyFlags::Structural)
-        .Collection<Presentation::TriggerBase>(
+        .Collection<Aero::TriggerBase>(
             "Triggers",
             &AddDataTemplateTrigger,
             &ClearDataTemplateTriggers)
@@ -83,7 +83,7 @@ Base::Result<void> PopulateControlsTemplates(
         Describe<ItemsPanelTemplate>(context);
     itemsPanelTemplate
         .Property<
-            Base::Ref<Presentation::ResourceDictionary>,
+            Base::Ref<Aero::ResourceDictionary>,
             &ItemsPanelTemplate::SetResources>(
                 "Resources",
                 PropertyFlags::Structural)

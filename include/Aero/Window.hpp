@@ -48,7 +48,7 @@ public:
         return SetValue(TitleProperty, value);
     }
     Base::StringView FontFamily() const noexcept {
-        return Presentation::FrameworkElement::
+        return Aero::FrameworkElement::
             FontFamily();
     }
     Base::Result<void> SetFontFamily(
@@ -63,7 +63,7 @@ public:
     inline static constexpr Members::Property<Base::String>
         TitleProperty{"Title"};
     inline static constexpr auto FontFamilyProperty =
-        Presentation::FrameworkElement::
+        Aero::FrameworkElement::
             FontFamilyProperty;
 
 protected:

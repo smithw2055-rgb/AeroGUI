@@ -1,7 +1,7 @@
 #include "ObjectWriterState.hpp"
 
 #include <utility>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Markup {
 namespace {
@@ -106,13 +106,13 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
     Core::DependencyObject& target,
-    Presentation::BindingManager& manager,
+    Aero::Detail::BindingManager& manager,
     Core::MetadataRuntime& metadata,
     Core::DependencyPropertyHandle targetProperty,
     Core::DependencyPropertyHandle dataContextProperty,
     Base::StringView path,
     Base::StringView stringFormat,
-    Presentation::BindingMode mode,
+    Data::BindingMode mode,
     Core::UpdateSourceTrigger updateSourceTrigger,
     bool bindsToSource) noexcept {
     if (!targetProperty.IsValid() ||
@@ -258,27 +258,27 @@ Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     return state.Load(document);
 }
 
-Base::Result<Presentation::Visual*> ObjectWriter::ResolveVisual(
+Base::Result<Aero::Visual*> ObjectWriter::ResolveVisual(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     Core::TypeId type) noexcept {
     if (object.RuntimeType() != type ||
         !schema.Types().IsDerivedFrom(
-            type, Presentation::Visual::StaticTypeId())) {
+            type, Aero::Visual::StaticTypeId())) {
         return InvalidContent(
             "XAML object metadata is not compatible with Visual");
     }
-    return static_cast<Presentation::Visual*>(&object);
+    return static_cast<Aero::Visual*>(&object);
 }
 
-Base::Result<Presentation::UIElement*> ObjectWriter::ResolveUIElement(
+Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     Core::TypeId type) noexcept {
-    Base::Result<Presentation::Visual*> visual =
+    Base::Result<Aero::Visual*> visual =
         ResolveVisual(schema, object, type);
     if (!visual) return visual.GetStatus();
-    Presentation::UIElement* element =
+    Aero::UIElement* element =
         visual.Value()->AsUIElement();
     if (element == nullptr) {
         return InvalidContent("XAML object is not a UIElement");
@@ -337,7 +337,7 @@ Base::Result<void> ObjectWriter::StageContent(
     }
 
     Base::Object* childObject = value.AsObject().Get();
-    Base::Result<Presentation::UIElement*> childResult =
+    Base::Result<Aero::UIElement*> childResult =
         ResolveUIElement(schema, *childObject, value.Type());
     if (!childResult) return childResult.GetStatus();
 
@@ -347,7 +347,7 @@ Base::Result<void> ObjectWriter::StageContent(
     if (services.deferredContentOwner == &object &&
         !schema.Types().IsDerivedFrom(
             services.targetObjectType,
-            Presentation::Visual::StaticTypeId())) {
+            Aero::Visual::StaticTypeId())) {
         if (structuralProperty) {
             return InvalidContent(
                 "A non-visual template root cannot use a visual structural property");
@@ -358,7 +358,7 @@ Base::Result<void> ObjectWriter::StageContent(
             value.AsObject());
     }
 
-    Base::Result<Presentation::UIElement*> parentResult =
+    Base::Result<Aero::UIElement*> parentResult =
         ResolveUIElement(
             schema, object, services.targetObjectType);
     if (!parentResult) return parentResult.GetStatus();
@@ -391,11 +391,11 @@ Base::Result<void> ObjectWriter::StageContent(
         plan->nodes.Size() + 2U);
     if (!reserved) return reserved.GetStatus();
 
-    Base::Result<Presentation::Visual*> parentNode =
+    Base::Result<Aero::Visual*> parentNode =
         ResolveVisual(
             schema, object, services.targetObjectType);
     if (!parentNode) return parentNode.GetStatus();
-    Base::Result<Presentation::Visual*> childNode =
+    Base::Result<Aero::Visual*> childNode =
         ResolveVisual(schema, *childObject, value.Type());
     if (!childNode) return childNode.GetStatus();
 

@@ -1,7 +1,7 @@
 #include "Inspector.hpp"
 
 #include <Aero/Controls/ControlPrimitives.hpp>
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 #include "../controls/RuntimeManagers.hpp"
 
 namespace Aero::Diagnostics {
@@ -10,7 +10,7 @@ namespace {
 using namespace Aero::Base;
 using namespace Aero::Controls;
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 
 enum class TreeKind : std::uint8_t {
     Logical = 0U,
@@ -73,14 +73,14 @@ Result<void> AppendTree(
 
 Base::Result<void>
 InspectorEndpoint::Capture(
-    Presentation::Visual& target,
+    Aero::Visual& target,
     InspectorSnapshot& output,
     std::uint32_t maxTreeNodes)
     const noexcept {
     using namespace Aero::Base;
     using namespace Aero::Controls;
     using namespace Aero::Core;
-    using namespace Aero::Presentation;
+
 
     if (tree_ == nullptr ||
         values_ == nullptr ||

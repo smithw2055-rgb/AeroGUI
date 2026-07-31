@@ -222,7 +222,7 @@ public:
         Text::TextWrapping>
         TextWrappingProperty{"TextWrapping"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         PlaceholderForegroundProperty{
             "PlaceholderForeground"};
     inline static constexpr Members::Property<double>
@@ -241,15 +241,15 @@ public:
     inline static constexpr Members::Property<std::uint32_t>
         MinLinesProperty{"MinLines"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         ForegroundProperty{"Foreground"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         SelectionBrushProperty{"SelectionBrush"};
     inline static constexpr Members::Property<double>
         SelectionOpacityProperty{"SelectionOpacity"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         CaretBrushProperty{"CaretBrush"};
 
 protected:
@@ -401,15 +401,15 @@ public:
     inline static constexpr Members::Property<Base::String>
         PlaceholderProperty{"Placeholder"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         ForegroundProperty{"Foreground"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         SelectionBrushProperty{"SelectionBrush"};
     inline static constexpr Members::Property<double>
         SelectionOpacityProperty{"SelectionOpacity"};
     inline static constexpr Members::Property<
-        Presentation::Color>
+        Aero::Media::Color>
         CaretBrushProperty{"CaretBrush"};
 
 protected:

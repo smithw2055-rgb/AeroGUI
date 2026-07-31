@@ -28,7 +28,7 @@ AeroGUI 目标包括 Windows、Linux、macOS、Android、iOS、游戏引擎和�
    - `Object`、intrusive `Ref<T>` / `WeakRef<T>`、`Unique<T>`；
    - delegate、subscription 和 opaque handle。
 4. 不采用 `AutoPtr` 名称；对象自动引用类型明确命名为 `Ref<T>` / `WeakRef<T>`，避免与已废弃的 `std::auto_ptr` 概念混淆。
-5. `Collection<T>` / `ObservableCollection<T>` 是 Presentation 层的可观察对象模型，不是 `Vector<T>` 的别名或继承包装。
+5. `Collection<T>` / `ObservableCollection<T>` 是 UI 语义层的可观察对象模型，不是 `Vector<T>` 的别名或继承包装。
 6. 标准库并非全面禁止：Runtime 私有实现和工具可在 C++17、ABI 和构建约束允许时使用 STL；但公共二进制边界不暴露 STL owning type、allocator、iterator、exception 或 RTTI 类型。
 7. Runtime 公共 API 不依赖 C++ exception 或 C++ RTTI。
 8. 稳定 shared-library/plugin 边界使用版本化 C function table、opaque handle、fixed-width POD、`StringView` 和 `Span`。

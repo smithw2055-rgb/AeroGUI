@@ -1,19 +1,19 @@
 #include <Aero/Controls/Templates.hpp>
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
-#include "../presentation/ResourceAssignment.hpp"
+#include "../ui/ResourceAssignment.hpp"
 
 #include <Aero/Controls/Controls.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/ObjectTree.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdio>
 #include <utility>
 #include "RuntimeManagers.hpp"
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Controls {
 
@@ -48,7 +48,7 @@ bool IsDeferredBindingSetterValue(
     const PropertyValue& value) noexcept {
     return value.Kind() == ValueKind::Object &&
         !value.IsNullObject() &&
-        value.Type() == Presentation::BindingSpec::StaticTypeId();
+        value.Type() == Data::Binding::StaticTypeId();
 }
 
 Base::Result<PropertyValue> ConvertTemplateBindingValue(
@@ -68,14 +68,14 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
         return value;
     }
     if (target.ValueType() ==
-            Core::TypeOf<Presentation::Length>() &&
+            Core::TypeOf<Aero::Length>() &&
         value.Type() == Core::TypeOf<double>()) {
         Base::Result<double> numeric =
             Core::ValueCodec<double>::Decode(value);
         if (!numeric) return numeric.GetStatus();
         return Core::ValueCodec<
-            Presentation::Length>::Encode(
-                Presentation::Length::Pixels(
+            Aero::Length>::Encode(
+                Aero::Length::Pixels(
                     numeric.Value()));
     }
     return Base::Status::Failure(
@@ -232,16 +232,16 @@ TemplateBuildContext::ProjectContentCore(
     projection.originalVisualParent = content->VisualParent();
 
     auto restore = [&]() noexcept {
-        (void)mounts_.DetachPresentation(
+        (void)mounts_.DetachVisual(
             projection.projectedMount);
         if (presenter != nullptr) {
             (void)presenter->SetContent(nullptr);
         } else {
             (void)contentHost->SetContent(nullptr);
         }
-        if (projection.detachedOriginalPresentation &&
+        if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            (void)mounts_.AttachPresentation(
+            (void)mounts_.AttachVisual(
                 *projection.originalVisualParent, *content);
         }
         if (projection.attachedLogical) {
@@ -255,7 +255,7 @@ TemplateBuildContext::ProjectContentCore(
         projection.attachedLogical = true;
     }
     if (projection.originalVisualParent != nullptr) {
-        PresentationMountState original;
+        UiMountState original;
         original.visualParent = projection.originalVisualParent;
         original.child = content;
         original.visualAttached = true;
@@ -264,18 +264,18 @@ TemplateBuildContext::ProjectContentCore(
         original.renderAttached = renderer_ != nullptr &&
             projection.originalVisualParent->AsFrameworkElement() != nullptr &&
             content->AsFrameworkElement() != nullptr;
-        Base::Result<void> detached = mounts_.DetachPresentation(original);
+        Base::Result<void> detached = mounts_.DetachVisual(original);
         if (!detached) {
             if (projection.attachedLogical) {
                 (void)tree_->DetachLogical(owner, *content);
             }
             return detached.GetStatus();
         }
-        projection.detachedOriginalPresentation = true;
+        projection.detachedOriginalVisual = true;
     }
 
-    Base::Result<PresentationMountState> projected =
-        mounts_.AttachPresentation(
+    Base::Result<UiMountState> projected =
+        mounts_.AttachVisual(
             presenterVisual, *content);
     if (!projected) {
         restore();
@@ -400,16 +400,16 @@ void TemplateBuildContext::Rollback() noexcept {
             projection.content == nullptr) {
             continue;
         }
-        (void)mounts_.DetachPresentation(
+        (void)mounts_.DetachVisual(
             projection.projectedMount);
         if (projection.presenter != nullptr) {
             (void)projection.presenter->SetContent(nullptr);
         } else {
             (void)projection.contentHost->SetContent(nullptr);
         }
-        if (projection.detachedOriginalPresentation &&
+        if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            (void)mounts_.AttachPresentation(
+            (void)mounts_.AttachVisual(
                 *projection.originalVisualParent, *projection.content);
         }
         if (projection.attachedLogical && projection.owner != nullptr) {
@@ -584,7 +584,7 @@ FrameworkTemplate::TryAddTemplatedParentBinding(
     Base::StringView path,
     Base::StringView stringFormat,
     DependencyPropertyHandle targetProperty,
-    Presentation::BindingMode mode,
+    Data::BindingMode mode,
     Core::UpdateSourceTrigger updateSourceTrigger) noexcept {
     if (sealed_) {
         return InvalidTemplate(
@@ -973,7 +973,7 @@ DependencyObject* Control::GetTemplateChild(
 
 Base::Result<void> FrameworkTemplate::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
-    return Presentation::Detail::AssignResourceDictionary(
+    return Aero::Detail::AssignResourceDictionary(
         resources_,
         std::move(value),
         "FrameworkTemplate Resources is already assigned");
@@ -1439,7 +1439,7 @@ Base::Result<void> TemplateManager::AttachMetadataBindings(
                 Base::ErrorCode::NotFound,
                 "TemplatedParent Binding target name was not found");
         }
-        Presentation::MetadataBindingDescriptor descriptor;
+        Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = metadata_;
         descriptor.source = instance.parent;
         descriptor.target = target;
@@ -1450,7 +1450,7 @@ Base::Result<void> TemplateManager::AttachMetadataBindings(
         descriptor.mode = binding.mode;
         descriptor.updateSourceTrigger =
             binding.updateSourceTrigger;
-        Base::Result<Presentation::BindingHandle> attached =
+        Base::Result<Data::BindingHandle> attached =
             bindings_->Attach(descriptor);
         if (!attached) return attached.GetStatus();
         Base::Result<void> tracked =
@@ -1467,7 +1467,7 @@ Base::Result<void> TemplateManager::AttachMetadataBindings(
 void TemplateManager::DetachMetadataBindings(
     Instance& instance) noexcept {
     if (bindings_ != nullptr) {
-        for (Presentation::BindingHandle handle :
+        for (Data::BindingHandle handle :
              instance.metadataBindings) {
             (void)bindings_->Detach(handle);
         }
@@ -1596,17 +1596,17 @@ Base::Result<void> TemplateManager::ClearAt(
             continue;
         }
         Base::Result<void> projectedDetached =
-            mounts_.DetachPresentation(projection.projectedMount);
+            mounts_.DetachVisual(projection.projectedMount);
         if (!projectedDetached) return projectedDetached.GetStatus();
         Base::Result<void> presenterCleared =
             projection.presenter != nullptr
             ? projection.presenter->SetContent(nullptr)
             : projection.contentHost->SetContent(nullptr);
         if (!presenterCleared) return presenterCleared.GetStatus();
-        if (projection.detachedOriginalPresentation &&
+        if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            Base::Result<PresentationMountState> restored =
-                mounts_.AttachPresentation(
+            Base::Result<UiMountState> restored =
+                mounts_.AttachVisual(
                     *projection.originalVisualParent, *projection.content);
             if (!restored) return restored.GetStatus();
         }

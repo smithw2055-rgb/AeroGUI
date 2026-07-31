@@ -24,29 +24,18 @@ list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/Core/Dispatcher.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/ObjectServices.hpp")
 aero_collect_matches(core_reverse
-    "#[ \t]*include[ \t]*<Aero/(Presentation|Controls)/"
+    "#[ \t]*include[ \t]*<Aero/Controls/"
     ${core_files})
 if(core_reverse)
     message(FATAL_ERROR
-        "Core must not include Presentation or Controls: ${core_reverse}")
-endif()
-
-file(GLOB_RECURSE presentation_files
-    "${AERO_SOURCE_DIR}/src/presentation/*.cpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Presentation/*.hpp")
-aero_collect_matches(presentation_reverse
-    "#[ \t]*include[ \t]*<Aero/Controls/"
-    ${presentation_files})
-if(presentation_reverse)
-    message(FATAL_ERROR
-        "Presentation must not include Controls: ${presentation_reverse}")
+        "Core must not include Controls: ${core_reverse}")
 endif()
 
 file(GLOB_RECURSE text_files
     "${AERO_SOURCE_DIR}/src/text/*.cpp"
     "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
 aero_collect_matches(text_reverse
-    "#[ \t]*include[ \t]*<Aero/(Core|Presentation|Controls|Markup|Render|Rhi)/"
+    "#[ \t]*include[ \t]*<Aero/(Core|Controls|Markup|Render|Rhi)/"
     ${text_files})
 if(text_reverse)
     message(FATAL_ERROR
@@ -56,7 +45,7 @@ endif()
 file(GLOB_RECURSE rhi_public_files
     "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp")
 aero_collect_matches(rhi_reverse
-    "#[ \t]*include[ \t]*<Aero/(Core|Presentation|Controls|Markup|Render|Text)/"
+    "#[ \t]*include[ \t]*<Aero/(Core|Controls|Markup|Render|Text)/"
     ${rhi_public_files})
 if(rhi_reverse)
     message(FATAL_ERROR
@@ -114,7 +103,6 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Core/Events/RoutedEventCatalog.hpp"
     "include/Aero/Core/Metadata/Detail/DescriptionBuilder.hpp"
     "include/Aero/Controls/TextBlockLayoutService.hpp"
-    "include/Aero/Presentation/QueuedRenderBackend.hpp"
     "include/Aero/Render/Renderer.hpp"
     "include/Aero/Render/D3D11RendererBackend.hpp"
     "include/Aero/Render/OpenGL33RendererBackend.hpp"
@@ -150,7 +138,6 @@ file(GLOB_RECURSE production_code
     "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Markup/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Presentation/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Render/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
@@ -163,7 +150,7 @@ if(legacy_markup_includes)
 endif()
 
 set(legacy_header_pattern
-    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|ObjectTree|Rendering|Style|Presentation|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
+    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|ObjectTree|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
 file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp"
@@ -175,7 +162,6 @@ file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Markup/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Presentation/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Render/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
@@ -194,7 +180,7 @@ set(markup_kernel_files
     "${AERO_SOURCE_DIR}/src/markup/XmlTokenizer.cpp"
     "${AERO_SOURCE_DIR}/include/Aero/Markup/CompiledDocument.hpp")
 aero_collect_matches(markup_kernel_reverse
-    "#[ \t]*include[ \t]*<Aero/(Presentation|Controls|Markup/(Loader|Resources|Schema|Extensions))[.]hpp>"
+    "#[ \t]*include[ \t]*<Aero/(Controls|Markup/(Loader|Resources|Schema|Extensions))[.]hpp>"
     ${markup_kernel_files})
 if(markup_kernel_reverse)
     message(FATAL_ERROR
@@ -294,6 +280,21 @@ if(removed_cmake_aliases)
     message(FATAL_ERROR
         "Removed public RHI, render, or module-catalog CMake aliases remain: "
         "${removed_cmake_aliases}")
+endif()
+
+message(STATUS "Aero architecture dependency checks passed")
+
+file(GLOB_RECURSE retired_surface_files
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+aero_collect_matches(retired_ui
+    "Aero::UI([^A-Za-z0-9_]|$)|Aero/UI/|AeroUI"
+    ${retired_surface_files}
+    "${AERO_SOURCE_DIR}/CMakeLists.txt")
+if(retired_ui)
+    message(FATAL_ERROR
+        "Retired UI layer remains: ${retired_ui}")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

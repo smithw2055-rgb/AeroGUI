@@ -1,6 +1,6 @@
 #pragma once
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
@@ -11,9 +11,9 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Documents.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/ObjectTree.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdint>
 #include <utility>
@@ -61,7 +61,7 @@ struct AccessibilityNode final {
     AccessibilityActionFlags actions = 0U;
     Base::String name;
     Base::String value;
-    Presentation::Rect bounds;
+    Aero::Rect bounds;
     bool enabled = true;
     bool focusable = false;
     bool focused = false;
@@ -75,16 +75,16 @@ public:
         : nodes_(allocator) {}
 
     Base::Result<void> Capture(
-        const Presentation::ObjectTree& tree) noexcept {
+        const Aero::ObjectTree& tree) noexcept {
         nodes_.Clear();
-        const Presentation::Visual* root = tree.Root();
+        const Aero::Visual* root = tree.Root();
         return root != nullptr ? CaptureNode(*root) : Base::Result<void>{};
     }
 
     Base::Result<void> TryAdd(
         AccessibilityNode node) noexcept {
         if (node.id == 0U ||
-            !Presentation::IsValidLayoutRect(node.bounds)) {
+            !Aero::IsValidLayoutRect(node.bounds)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Accessibility node is invalid");
@@ -124,7 +124,7 @@ private:
     Base::Vector<AccessibilityNode> nodes_;
 
     static std::uint64_t NodeId(
-        Presentation::VisualHandle handle) noexcept {
+        Aero::VisualHandle handle) noexcept {
         return handle.IsValid()
             ? (static_cast<std::uint64_t>(handle.generation) << 32U) |
                   (static_cast<std::uint64_t>(handle.index) + 1U)
@@ -132,13 +132,13 @@ private:
     }
 
     Base::Result<void> CaptureNode(
-        const Presentation::Visual& visual) noexcept {
+        const Aero::Visual& visual) noexcept {
         AccessibilityNode node;
         node.id = NodeId(visual.Handle());
-        const Presentation::Visual* parent = visual.LogicalParent();
+        const Aero::Visual* parent = visual.LogicalParent();
         if (parent == nullptr) parent = visual.VisualParent();
         node.parent = parent != nullptr ? NodeId(parent->Handle()) : 0U;
-        const Presentation::UIElement* element = visual.AsUIElement();
+        const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
             node.bounds = element->LayoutSlot();
             node.enabled = element->IsEnabled();
@@ -192,17 +192,17 @@ private:
             Base::Result<void> added = TryAdd(std::move(node));
             if (!added) return added.GetStatus();
         }
-        const Base::Span<Presentation::Visual* const> logical =
+        const Base::Span<Aero::Visual* const> logical =
             visual.LogicalChildren();
-        for (Presentation::Visual* child : logical) {
+        for (Aero::Visual* child : logical) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();
         }
-        for (Presentation::Visual* child : visual.VisualChildren()) {
+        for (Aero::Visual* child : visual.VisualChildren()) {
             if (child == nullptr) continue;
             bool alreadyCaptured = false;
-            for (Presentation::Visual* logicalChild : logical) {
+            for (Aero::Visual* logicalChild : logical) {
                 if (logicalChild == child) {
                     alreadyCaptured = true;
                     break;
@@ -238,12 +238,12 @@ struct AccessibilityPlatformAdapter final {
 };
 
 struct InspectorTreeNode final {
-    Presentation::VisualHandle handle;
-    Presentation::VisualHandle logicalParent;
-    Presentation::VisualHandle visualParent;
+    Aero::VisualHandle handle;
+    Aero::VisualHandle logicalParent;
+    Aero::VisualHandle visualParent;
     Base::MetaTypeId runtimeType = Base::InvalidMetaTypeId;
-    Presentation::Rect layoutSlot;
-    Presentation::Size renderSize;
+    Aero::Rect layoutSlot;
+    Aero::Size renderSize;
     std::uint64_t layoutRevision = 0U;
     std::uint64_t renderRevision = 0U;
     bool loaded = false;
@@ -266,10 +266,10 @@ public:
         : nodes_(allocator) {}
 
     Base::Result<void> Capture(
-        const Presentation::ObjectTree& tree,
-        const Presentation::RenderPlan* plan = nullptr) noexcept {
+        const Aero::ObjectTree& tree,
+        const Render::RenderPlan* plan = nullptr) noexcept {
         nodes_.Clear();
-        const Presentation::Visual* root = tree.Root();
+        const Aero::Visual* root = tree.Root();
         if (root != nullptr) {
             Base::Result<void> captured = CaptureNode(*root);
             if (!captured) return captured.GetStatus();
@@ -297,7 +297,7 @@ private:
     std::uint64_t treeVersion_ = 0U;
 
     Base::Result<void> CaptureNode(
-        const Presentation::Visual& visual) noexcept {
+        const Aero::Visual& visual) noexcept {
         InspectorTreeNode node;
         node.handle = visual.Handle();
         node.runtimeType = visual.RuntimeType();
@@ -308,7 +308,7 @@ private:
         if (visual.VisualParent() != nullptr) {
             node.visualParent = visual.VisualParent()->Handle();
         }
-        const Presentation::UIElement* element = visual.AsUIElement();
+        const Aero::UIElement* element = visual.AsUIElement();
         if (element != nullptr) {
             node.layoutSlot = element->LayoutSlot();
             node.renderSize = element->RenderSize();
@@ -316,7 +316,7 @@ private:
             node.measureValid = element->IsMeasureValid();
             node.arrangeValid = element->IsArrangeValid();
         }
-        const Presentation::FrameworkElement* framework =
+        const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();
         if (framework != nullptr) {
             node.renderRevision = framework->RenderRevision();
@@ -324,7 +324,7 @@ private:
         }
         Base::Result<void> appended = nodes_.TryPushBack(node);
         if (!appended) return appended.GetStatus();
-        for (Presentation::Visual* child : visual.LogicalChildren()) {
+        for (Aero::Visual* child : visual.LogicalChildren()) {
             if (child == nullptr) continue;
             Base::Result<void> captured = CaptureNode(*child);
             if (!captured) return captured.GetStatus();

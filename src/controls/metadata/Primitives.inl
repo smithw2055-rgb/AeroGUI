@@ -9,7 +9,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Panel::BackgroundProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             Panel::ZIndexProperty,
@@ -18,7 +18,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Panel::IsItemsHostProperty,
             PropertyOptions(false))
-        .Content<Presentation::UIElement>(
+        .Content<Aero::UIElement>(
             "Children", ContentKind::Collection,
             &SetPanelContent, &ClearPanelContent,
             ContentFlags::Visual);
@@ -26,7 +26,7 @@ Base::Result<void> PopulateControlsPrimitives(
     if (!status) return status.GetStatus();
 
     auto decorator = Describe<Decorator>(context);
-    decorator.Content<Presentation::UIElement>(
+    decorator.Content<Aero::UIElement>(
         "Content", ContentKind::Single,
         &SetDecoratorContent, &ClearDecoratorContent,
         ContentFlags::Visual)
@@ -56,22 +56,22 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Control::BackgroundProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             Control::BorderBrushProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Brush>{})
+                Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             Control::BorderThicknessProperty,
-            PropertyOptions(Presentation::Thickness{})
+            PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()
                 .AffectsRender()
                 .Validate(&ValidateThicknessValue))
         .Property(
             Control::PaddingProperty,
-            PropertyOptions(Presentation::Thickness{})
+            PropertyOptions(Aero::Thickness{})
                 .AffectsMeasure()
                 .Validate(&ValidateThicknessValue))
         .Property(
@@ -81,12 +81,12 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Control::HorizontalContentAlignmentProperty,
             PropertyOptions(
-                Presentation::HorizontalAlignment::Left)
+                Aero::HorizontalAlignment::Left)
                 .AffectsArrange())
         .Property(
             Control::VerticalContentAlignmentProperty,
             PropertyOptions(
-                Presentation::VerticalAlignment::Top)
+                Aero::VerticalAlignment::Top)
                 .AffectsArrange())
         .Property(
             Control::FontSizeProperty,
@@ -98,7 +98,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Property(
             Control::FocusVisualStyleProperty,
             PropertyOptions(
-                Base::Ref<Presentation::Style>{}))
+                Base::Ref<Aero::Style>{}))
         .Property(
             Control::OverridesDefaultStyleProperty,
             PropertyOptions(false))
@@ -414,7 +414,7 @@ Base::Result<void> PopulateControlsPrimitives(
             PropertyOptions(false))
         .Property(
             GridSplitter::PreviewStyleProperty,
-            PropertyOptions(Base::Ref<Presentation::Style>{}))
+            PropertyOptions(Base::Ref<Aero::Style>{}))
         .Factory();
     status = gridSplitter.Result();
     if (!status) return status.GetStatus();
@@ -518,7 +518,7 @@ Base::Result<void> PopulateControlsPrimitives(
     tickBar
         .Property(
             TickBar::FillProperty,
-            PropertyOptions(Base::Ref<Presentation::Brush>{})
+            PropertyOptions(Base::Ref<Media::Brush>{})
                 .AffectsRender())
         .Property(
             TickBar::PlacementProperty,

@@ -10,7 +10,7 @@
 
 #include <new>
 #include <utility>
-#include "presentation/RuntimeManagers.hpp"
+#include "ui/RuntimeManagers.hpp"
 #include "controls/RuntimeManagers.hpp"
 
 namespace Aero {
@@ -189,7 +189,7 @@ Base::Result<UiDocument> View::Parse(
 
 Base::Result<void> View::SetContent(
     UiDocument&& document,
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     return impl_->runtime.IsMounted()
         ? impl_->runtime.ReplaceMountedDocument(
               std::move(document), availableSize)
@@ -220,7 +220,7 @@ Base::Result<void> View::UnmountContent(
 
 Base::Result<void> View::LoadContent(
     Base::StringView uri,
-    Presentation::Size availableSize,
+    Aero::Size availableSize,
     Core::IDiagnosticSink* diagnostics) noexcept {
     Base::Result<UiDocument> loaded =
         Load(uri, diagnostics);
@@ -255,7 +255,7 @@ Base::Result<void> View::LoadCompiledResources(
 
 Base::Result<void> View::SetResourceDictionary(
     RuntimeResourceLayer layer,
-    Presentation::ResourceDictionary& dictionary,
+    Aero::ResourceDictionary& dictionary,
     RuntimeResourceLoadMode mode) noexcept {
     return impl_ != nullptr
         ? impl_->runtime.SetResourceDictionary(
@@ -272,7 +272,7 @@ Base::Result<void> View::LoadBuiltInTheme(
 }
 
 Base::Result<void> View::Resize(
-    Presentation::Size availableSize) noexcept {
+    Aero::Size availableSize) noexcept {
     return impl_->runtime.Resize(availableSize);
 }
 
@@ -284,21 +284,21 @@ Base::Result<ViewFrameResult> View::RunFrame() noexcept {
     return impl_->runtime.RunFrame();
 }
 
-Base::Result<Presentation::PointerDispatchResult>
+Base::Result<Input::PointerDispatchResult>
 View::DispatchPointer(
-    const Presentation::PointerInput& input) noexcept {
+    const Input::PointerInput& input) noexcept {
     return impl_->runtime.DispatchPointer(input);
 }
 
-Base::Result<Presentation::KeyboardDispatchResult>
+Base::Result<Input::KeyboardDispatchResult>
 View::DispatchKeyboard(
-    const Presentation::KeyboardInput& input) noexcept {
+    const Input::KeyboardInput& input) noexcept {
     return impl_->runtime.DispatchKeyboard(input);
 }
 
-Base::Result<Presentation::TextInputDispatchResult>
+Base::Result<Input::TextInputDispatchResult>
 View::DispatchText(
-    const Presentation::TextInput& input) noexcept {
+    const Input::TextInput& input) noexcept {
     return impl_->runtime.DispatchText(input);
 }
 

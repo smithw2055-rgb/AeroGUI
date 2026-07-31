@@ -11,11 +11,9 @@
 
 #include <cstdint>
 
-namespace Aero::Presentation {
-class ResourceDictionary;
-}
-
 namespace Aero {
+
+class ResourceDictionary;
 
 namespace Detail {
 class UiDocumentAccess;
@@ -41,13 +39,13 @@ public:
         Base::StringView name,
         Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
     std::uint32_t NamedObjectCount() const noexcept;
-    Presentation::ResourceDictionary* Resources() noexcept;
-    const Presentation::ResourceDictionary* Resources() const noexcept;
+    Aero::ResourceDictionary* Resources() noexcept;
+    const Aero::ResourceDictionary* Resources() const noexcept;
     const Base::ResourceUri& CanonicalUri() const noexcept;
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
 
 private:
-    friend class Detail::UiDocumentAccess;
+    friend class Aero::Detail::UiDocumentAccess;
     struct Impl;
 
     void Reset() noexcept;

@@ -8,7 +8,7 @@ class ImageControlAccess final {
 public:
     static Base::Result<void> SetRuntimeImage(
         Controls::Image& image,
-        Presentation::RenderImageId renderImage,
+        Render::RenderImageId renderImage,
         std::uint32_t pixelWidth,
         std::uint32_t pixelHeight) noexcept {
         const bool measureChanged =

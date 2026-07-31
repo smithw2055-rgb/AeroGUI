@@ -12,7 +12,7 @@ using OpenGL33RenderPlanSubmitStatistics = RendererStatistics;
 RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
 class OpenGL33RenderPlanBackend final
-    : public Presentation::IRenderBackend {
+    : public Render::IRenderBackend {
 public:
     OpenGL33RenderPlanBackend(
         Rhi::RhiDevice& device,
@@ -30,22 +30,22 @@ public:
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
     Base::Result<void> RegisterImage(
-        Presentation::RenderImageId image,
+        Render::RenderImageId image,
         Rhi::ResourceHandle texture,
         Rhi::ResourceHandle sampler) noexcept;
     Base::Result<void> UnregisterImage(
-        Presentation::RenderImageId image) noexcept;
+        Render::RenderImageId image) noexcept;
     Base::Result<void> RegisterMesh(
-        Presentation::RenderMeshId mesh,
+        Render::RenderMeshId mesh,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
         Rhi::IndexType indexType =
             Rhi::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
-        Presentation::RenderMeshId mesh) noexcept;
+        Render::RenderMeshId mesh) noexcept;
     Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override;
+        const Render::RenderPlan& plan) noexcept override;
     bool IsInitialized() const noexcept;
     Rhi::FenceValue LastSubmittedFence() const noexcept;
     OpenGL33RenderPlanSubmitStatistics
@@ -55,7 +55,7 @@ public:
 private:
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun,
+        Render::RenderGlyphRunId glyphRun,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
@@ -63,7 +63,7 @@ private:
         Rhi::ResourceHandle sampler,
         Rhi::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept;
+        Render::RenderGlyphRunId glyphRun) noexcept;
     void* QueryInternalService(
         std::uint64_t service) noexcept override;
 

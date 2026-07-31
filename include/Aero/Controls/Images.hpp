@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Aero/Presentation/Images.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Rendering.hpp>
 
 namespace Aero::Detail {
 class ImageControlAccess;
@@ -11,7 +11,9 @@ class ImageControlAccess;
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Media;
+using namespace Aero::Render;
 
 class AERO_API Image final : public FrameworkElement {
     AERO_DECLARE_TYPE(Image, FrameworkElement)

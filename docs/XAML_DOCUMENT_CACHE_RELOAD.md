@@ -62,7 +62,7 @@ source 逆序删除，避免提前丢失反向边。
 
 成功 XAML load 产生的 Binding 和 DynamicResource 不会立即写入 View service。
 `XamlLoadSession` 只把 deferred effect plan 移入 `XamlLoadResult` 和 `UiDocument`；
-`View::SetContent()` 在视觉树、Presentation service 与交互注册全部成功后提交
+`View::SetContent()` 在视觉树、UI service 与交互注册全部成功后提交
 这些 effects。提交中途失败会逆序撤销已提交项。
 
 文档清理顺序为：

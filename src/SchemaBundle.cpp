@@ -3,14 +3,14 @@
 #include <Aero/Base/Assert.hpp>
 #include "markup/Extensions.hpp"
 #include "core/metadata/MetadataDomainAccess.hpp"
-#include "markup/PresentationObjectModel.hpp"
+#include "markup/UiObjectModel.hpp"
 #include "markup/ResourceSupport.hpp"
 #include "markup/ObjectWriter.hpp"
 #include <Aero/Markup/Schema.hpp>
 
 #include <new>
 #include <utility>
-#include "presentation/RuntimeManagers.hpp"
+#include "ui/RuntimeManagers.hpp"
 
 namespace Aero {
 namespace {
@@ -56,7 +56,7 @@ struct SchemaBundle::Impl final {
     Markup::Schema* schema = nullptr;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
     Markup::BindingExtension* binding = nullptr;
-    Markup::PresentationObjectModel* presentation = nullptr;
+    Markup::UiObjectModel* uiObjectModel = nullptr;
     Markup::ResourceExtension resourceExtension;
     Markup::StaticExtension staticExtension;
     Markup::TypeExtension typeExtension;
@@ -67,7 +67,7 @@ struct SchemaBundle::Impl final {
     bool terminal = false;
 
     ~Impl() noexcept {
-        Destroy(*allocator, Base::MemoryTag::Markup, presentation);
+        Destroy(*allocator, Base::MemoryTag::Markup, uiObjectModel);
         Destroy(*allocator, Base::MemoryTag::Markup, binding);
         Destroy(*allocator, Base::MemoryTag::Markup, dynamicResource);
         Destroy(*allocator, Base::MemoryTag::Markup, schema);
@@ -170,7 +170,7 @@ Base::Result<void> SchemaBundle::Finalize(
             Base::MemoryTag::Markup,
             Markup::BindingExtensionOptions{
                 nullptr,
-                Presentation::FrameworkElement::
+                Aero::FrameworkElement::
                     DataContextProperty.Handle()});
     if (!binding) {
         impl_->terminal = true;
@@ -178,20 +178,20 @@ Base::Result<void> SchemaBundle::Finalize(
     }
     impl_->binding = binding.Value();
 
-    Base::Result<Markup::PresentationObjectModel*> presentation =
-        Create<Markup::PresentationObjectModel>(
+    Base::Result<Markup::UiObjectModel*> uiObjectModel =
+        Create<Markup::UiObjectModel>(
             *impl_->allocator,
             Base::MemoryTag::Markup,
-            Markup::PresentationObjectModelOptions{
+            Markup::UiObjectModelOptions{
                 impl_->runtime,
                 &Core::Detail::MetadataDomainAccess::
                     DependencyProperties(impl_->metadata),
                 &programAllocator});
-    if (!presentation) {
+    if (!uiObjectModel) {
         impl_->terminal = true;
-        return presentation.GetStatus();
+        return uiObjectModel.GetStatus();
     }
-    impl_->presentation = presentation.Value();
+    impl_->uiObjectModel = uiObjectModel.Value();
 
     Base::Result<void> status =
         impl_->resourceExtension.Register(*impl_->schema);
@@ -233,7 +233,7 @@ Base::Result<void> SchemaBundle::Finalize(
                         "TemplateBinding")));
     }
     if (status) {
-        status = impl_->presentation->Register(
+        status = impl_->uiObjectModel->Register(
             *impl_->schema);
     }
     if (status) status = impl_->runtime->Freeze();

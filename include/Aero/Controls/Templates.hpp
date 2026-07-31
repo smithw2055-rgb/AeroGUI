@@ -9,17 +9,15 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Presentation/AnimationXaml.hpp>
-#include <Aero/Presentation/Binding.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Core/Property/PropertyProviderSession.hpp>
-#include <Aero/Presentation/MountService.hpp>
-#include <Aero/Presentation/ObjectTree.hpp>
+#include <Aero/Detail/MountService.hpp>
+#include <Aero/ObjectTree.hpp>
 
 #include <type_traits>
 
-namespace Aero::Presentation {
-class RenderManager;
-}
+namespace Aero::Render { class RenderManager; }
 
 namespace Aero::Markup::Detail {
 class XamlTemplateSchemaFacet;
@@ -28,7 +26,12 @@ class XamlTemplateSchemaFacet;
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Data;
+using namespace Aero::Input;
+using namespace Aero::Media;
+using namespace Aero::Render;
+using namespace Aero::Detail;
 
 class ContentPresenter;
 class ItemsPanelTemplate;
@@ -56,9 +59,9 @@ struct TemplateContentProjection final {
     ContentControl* contentHost = nullptr;
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
-    PresentationMountState projectedMount;
+    UiMountState projectedMount;
     bool attachedLogical = false;
-    bool detachedOriginalPresentation = false;
+    bool detachedOriginalVisual = false;
 };
 
 class AERO_API TemplateBuildContext final {
@@ -161,8 +164,8 @@ struct TemplateMetadataBindingPlan final {
     Base::String path;
     Base::String stringFormat;
     DependencyPropertyHandle targetProperty;
-    Presentation::BindingMode mode =
-        Presentation::BindingMode::OneWay;
+    Aero::Data::BindingMode mode =
+        Aero::Data::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
 };
@@ -193,15 +196,15 @@ struct VisualStateSetter final {
 struct VisualState final {
     Base::String name;
     Base::Vector<VisualStateSetter> setters;
-    Base::Ref<Animation::Storyboard> storyboard;
+    Base::Ref<Media::Animation::Storyboard> storyboard;
 };
 
 struct VisualTransition final {
     Base::String from;
     Base::String to;
-    Presentation::AnimationTime generatedDurationMicroseconds = 0U;
-    Base::Ref<Animation::EasingFunctionBase> generatedEasingFunction;
-    Base::Ref<Animation::Storyboard> storyboard;
+    Aero::Detail::Animation::AnimationTime generatedDurationMicroseconds = 0U;
+    Base::Ref<Media::Animation::EasingFunctionBase> generatedEasingFunction;
+    Base::Ref<Media::Animation::Storyboard> storyboard;
 };
 
 struct VisualStateGroup final {
@@ -242,7 +245,7 @@ public:
         Base::StringView path,
         Base::StringView stringFormat,
         DependencyPropertyHandle targetProperty,
-        Presentation::BindingMode mode,
+        Aero::Data::BindingMode mode,
         Core::UpdateSourceTrigger updateSourceTrigger) noexcept;
     template<
         class TSourceOwner,
@@ -488,7 +491,7 @@ public:
     VisualStateManager(
         EffectiveValueEngine& values,
         TemplateManager& templates,
-        Presentation::AnimationManager& animations,
+        Aero::Detail::AnimationManager& animations,
         DependencyPropertyRegistry& properties) noexcept
         : values_(&values),
           templates_(&templates),
@@ -514,7 +517,7 @@ private:
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
-        Base::Vector<Presentation::AnimationHandle>
+        Base::Vector<Aero::Detail::Animation::AnimationHandle>
             animations;
     };
 
@@ -527,7 +530,7 @@ private:
 
     EffectiveValueEngine* values_ = nullptr;
     TemplateManager* templates_ = nullptr;
-    Presentation::AnimationManager* animations_ = nullptr;
+    Aero::Detail::AnimationManager* animations_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<ActiveGroup> active_;
 
@@ -555,13 +558,13 @@ private:
         TemplateHandle handle,
         const VisualState& state,
         ActiveGroup& active,
-        const Presentation::TimelineTiming& parent = {}) noexcept;
+        const Aero::Detail::Animation::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> StartStoryboardAnimations(
         Control& control,
         TemplateHandle handle,
-        Animation::Storyboard& storyboard,
+        Media::Animation::Storyboard& storyboard,
         ActiveGroup& active,
-        const Presentation::TimelineTiming& parent = {}) noexcept;
+        const Aero::Detail::Animation::TimelineTiming& parent = {}) noexcept;
     Base::Result<void> CaptureTransitionValues(
         TemplateHandle handle,
         const VisualState& next,

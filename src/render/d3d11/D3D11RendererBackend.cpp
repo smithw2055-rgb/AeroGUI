@@ -195,7 +195,7 @@ bool D3D11RenderPlanBackend::IsInitialized() const noexcept {
 }
 
 Base::Result<void> D3D11RenderPlanBackend::RegisterImage(
-    Presentation::RenderImageId image,
+    Render::RenderImageId image,
     Rhi::ResourceHandle texture,
     Rhi::ResourceHandle sampler) noexcept {
     return IsInitialized()
@@ -205,7 +205,7 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterImage(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::UnregisterImage(
-    Presentation::RenderImageId image) noexcept {
+    Render::RenderImageId image) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterImage(image)
         : Base::Result<void>(NotInitialized(
@@ -213,7 +213,7 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterImage(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::RegisterMesh(
-    Presentation::RenderMeshId mesh,
+    Render::RenderMeshId mesh,
     Rhi::ResourceHandle vertexBuffer,
     Rhi::ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -226,7 +226,7 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterMesh(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::UnregisterMesh(
-    Presentation::RenderMeshId mesh) noexcept {
+    Render::RenderMeshId mesh) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterMesh(mesh)
         : Base::Result<void>(NotInitialized(
@@ -234,7 +234,7 @@ Base::Result<void> D3D11RenderPlanBackend::UnregisterMesh(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun,
+    Render::RenderGlyphRunId glyphRun,
     Rhi::ResourceHandle vertexBuffer,
     Rhi::ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -250,7 +250,7 @@ Base::Result<void> D3D11RenderPlanBackend::RegisterGlyphRun(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::UnregisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun) noexcept {
+    Render::RenderGlyphRunId glyphRun) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterGlyphRun(glyphRun)
         : Base::Result<void>(NotInitialized(
@@ -273,7 +273,7 @@ void* D3D11RenderPlanBackend::QueryInternalService(
 }
 
 Base::Result<void> D3D11RenderPlanBackend::Submit(
-    const Presentation::RenderPlan& plan) noexcept {
+    const Render::RenderPlan& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("D3D11 render adapter is not initialized");
     }

@@ -35,22 +35,22 @@ Base::Status Unsupported(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
 }
 
-Presentation::Transform2D IdentityTransform() noexcept {
+Media::Transform2D IdentityTransform() noexcept {
     return {};
 }
 
-Presentation::Transform2D Translation(double x, double y) noexcept {
-    Presentation::Transform2D value;
+Media::Transform2D Translation(double x, double y) noexcept {
+    Media::Transform2D value;
     value.dx = x;
     value.dy = y;
     return value;
 }
 
 // Transforms use row-vector affine form: (x, y, 1) * M.
-Presentation::Transform2D Compose(
-    const Presentation::Transform2D& first,
-    const Presentation::Transform2D& second) noexcept {
-    Presentation::Transform2D output;
+Media::Transform2D Compose(
+    const Media::Transform2D& first,
+    const Media::Transform2D& second) noexcept {
+    Media::Transform2D output;
     output.m11 = first.m11 * second.m11 + first.m12 * second.m21;
     output.m12 = first.m11 * second.m12 + first.m12 * second.m22;
     output.m21 = first.m21 * second.m11 + first.m22 * second.m21;
@@ -61,7 +61,7 @@ Presentation::Transform2D Compose(
 }
 
 void TransformPoint(
-    const Presentation::Transform2D& transform,
+    const Media::Transform2D& transform,
     double x,
     double y,
     double& outputX,
@@ -70,9 +70,9 @@ void TransformPoint(
     outputY = x * transform.m12 + y * transform.m22 + transform.dy;
 }
 
-Presentation::Rect TransformBounds(
-    const Presentation::Transform2D& transform,
-    Presentation::Rect rect) noexcept {
+Aero::Rect TransformBounds(
+    const Media::Transform2D& transform,
+    Aero::Rect rect) noexcept {
     double x0 = 0.0;
     double y0 = 0.0;
     double x1 = 0.0;
@@ -92,7 +92,7 @@ Presentation::Rect TransformBounds(
     return {minimumX, minimumY, maximumX - minimumX, maximumY - minimumY};
 }
 
-Presentation::Rect IntersectRect(Presentation::Rect left, Presentation::Rect right) noexcept {
+Aero::Rect IntersectRect(Aero::Rect left, Aero::Rect right) noexcept {
     const double x0 = std::fmax(left.x, right.x);
     const double y0 = std::fmax(left.y, right.y);
     const double x1 = std::fmin(left.x + left.width, right.x + right.width);
@@ -100,7 +100,7 @@ Presentation::Rect IntersectRect(Presentation::Rect left, Presentation::Rect rig
     return {x0, y0, std::fmax(0.0, x1 - x0), std::fmax(0.0, y1 - y0)};
 }
 
-bool IsEmpty(Presentation::Rect rect) noexcept {
+bool IsEmpty(Aero::Rect rect) noexcept {
     return rect.width <= 0.0 || rect.height <= 0.0;
 }
 
@@ -114,9 +114,9 @@ constexpr std::uint32_t MaxShaderClips = 32U;
 constexpr std::uint32_t MaxRectangleBatchInstances = 64U;
 
 struct ClipState final {
-    Presentation::Rect rect;
-    Presentation::Transform2D transform;
-    Presentation::Rect bounds;
+    Aero::Rect rect;
+    Media::Transform2D transform;
+    Aero::Rect bounds;
 };
 
 struct ShaderRectConstants final {
@@ -186,8 +186,8 @@ static_assert(sizeof(ShaderGlyphConstants) <= 64U * 1024U,
 
 Base::Result<void> PushClipState(
     Base::Vector<ClipState>& clips,
-    Presentation::Rect rect,
-    const Presentation::Transform2D& transform) noexcept {
+    Aero::Rect rect,
+    const Media::Transform2D& transform) noexcept {
     if (clips.Size() >= MaxShaderClips) {
         return Unsupported("Renderer clip nesting exceeds shader capacity");
     }
@@ -196,8 +196,8 @@ Base::Result<void> PushClipState(
     if (!std::isfinite(determinant) || std::fabs(determinant) < 1.0e-12) {
         return Unsupported("Renderer cannot clip through a singular transform");
     }
-    Presentation::Rect bounds = TransformBounds(transform, rect);
-    if (!Presentation::IsValidLayoutRect(bounds)) {
+    Aero::Rect bounds = TransformBounds(transform, rect);
+    if (!Aero::IsValidLayoutRect(bounds)) {
         return InvalidArgument("Renderer clip bounds are invalid");
     }
     if (!clips.Empty()) {
@@ -207,13 +207,13 @@ Base::Result<void> PushClipState(
 }
 
 struct NodeState final {
-    Presentation::RenderNodeId id = Presentation::InvalidRenderNodeId;
-    Presentation::Transform2D transform;
+    Render::RenderNodeId id = Render::InvalidRenderNodeId;
+    Media::Transform2D transform;
     ClipState clip;
     bool clipsToBounds = false;
     std::uint32_t parentIndex = UINT32_MAX;
-    Presentation::RenderNodeId containingEffect =
-        Presentation::InvalidRenderNodeId;
+    Render::RenderNodeId containingEffect =
+        Render::InvalidRenderNodeId;
     std::uint32_t containingEffectCount = 0U;
 };
 
@@ -222,7 +222,7 @@ Base::Result<void> AppendDraw(
     CommandEncoder& encoder,
     ResourceHandle uniformBuffer,
     const Constants& constants,
-    Presentation::Rect scissor,
+    Aero::Rect scissor,
     std::uint32_t instanceCount = 1U) noexcept {
     const auto* bytes = reinterpret_cast<const std::uint8_t*>(&constants);
     Base::Result<void> uploaded = encoder.UploadBuffer(
@@ -237,13 +237,13 @@ Base::Result<void> AppendDraw(
 }
 
 struct ImageBinding final {
-    Presentation::RenderImageId id = Presentation::InvalidRenderImageId;
+    Render::RenderImageId id = Render::InvalidRenderImageId;
     ResourceHandle texture;
     ResourceHandle sampler;
 };
 
 struct MeshBinding final {
-    Presentation::RenderMeshId id = Presentation::InvalidRenderMeshId;
+    Render::RenderMeshId id = Render::InvalidRenderMeshId;
     ResourceHandle vertexBuffer;
     ResourceHandle indexBuffer;
     std::uint32_t indexCount = 0U;
@@ -251,7 +251,7 @@ struct MeshBinding final {
 };
 
 struct GlyphBinding final {
-    Presentation::RenderGlyphRunId id = Presentation::InvalidRenderGlyphRunId;
+    Render::RenderGlyphRunId id = Render::InvalidRenderGlyphRunId;
     ResourceHandle vertexBuffer;
     ResourceHandle indexBuffer;
     std::uint32_t indexCount = 0U;
@@ -298,7 +298,7 @@ struct Renderer::Impl final {
     std::array<ResourceHandle, 4U>
         glyphPipelines;
     Base::Vector<NodeState> nodes;
-    Base::Vector<Presentation::Transform2D> transforms;
+    Base::Vector<Media::Transform2D> transforms;
     Base::Vector<ClipState> clips;
     Base::Vector<double> opacities;
     Base::Vector<std::uint32_t> nodePath;
@@ -634,13 +634,13 @@ void Renderer::Shutdown() noexcept {
 }
 
 Base::Result<void> Renderer::RegisterImage(
-    Presentation::RenderImageId image,
+    Render::RenderImageId image,
     ResourceHandle texture,
     ResourceHandle sampler) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    if (image == Presentation::InvalidRenderImageId ||
+    if (image == Render::InvalidRenderImageId ||
         texture.type != ResourceType::Texture ||
         sampler.type != ResourceType::Sampler || !device_->IsAlive(texture) ||
         !device_->IsAlive(sampler)) {
@@ -656,7 +656,7 @@ Base::Result<void> Renderer::RegisterImage(
 }
 
 Base::Result<void> Renderer::UnregisterImage(
-    Presentation::RenderImageId image) noexcept {
+    Render::RenderImageId image) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
@@ -675,7 +675,7 @@ Base::Result<void> Renderer::UnregisterImage(
 }
 
 Base::Result<void> Renderer::RegisterMesh(
-    Presentation::RenderMeshId mesh,
+    Render::RenderMeshId mesh,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -683,7 +683,7 @@ Base::Result<void> Renderer::RegisterMesh(
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    if (mesh == Presentation::InvalidRenderMeshId || indexCount == 0U ||
+    if (mesh == Render::InvalidRenderMeshId || indexCount == 0U ||
         vertexBuffer.type != ResourceType::Buffer ||
         indexBuffer.type != ResourceType::Buffer || !device_->IsAlive(vertexBuffer) ||
         !device_->IsAlive(indexBuffer)) {
@@ -700,7 +700,7 @@ Base::Result<void> Renderer::RegisterMesh(
 }
 
 Base::Result<void> Renderer::UnregisterMesh(
-    Presentation::RenderMeshId mesh) noexcept {
+    Render::RenderMeshId mesh) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
@@ -719,7 +719,7 @@ Base::Result<void> Renderer::UnregisterMesh(
 }
 
 Base::Result<void> Renderer::RegisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun,
+    Render::RenderGlyphRunId glyphRun,
     ResourceHandle vertexBuffer,
     ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -729,7 +729,7 @@ Base::Result<void> Renderer::RegisterGlyphRun(
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
-    if (glyphRun == Presentation::InvalidRenderGlyphRunId || indexCount == 0U ||
+    if (glyphRun == Render::InvalidRenderGlyphRunId || indexCount == 0U ||
         vertexBuffer.type != ResourceType::Buffer ||
         indexBuffer.type != ResourceType::Buffer ||
         atlasTexture.type != ResourceType::Texture ||
@@ -750,7 +750,7 @@ Base::Result<void> Renderer::RegisterGlyphRun(
 }
 
 Base::Result<void> Renderer::UnregisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun) noexcept {
+    Render::RenderGlyphRunId glyphRun) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer backend is not initialized");
     }
@@ -791,7 +791,7 @@ bool Renderer::IsBatchingEnabled() const noexcept {
 }
 
 Base::Result<CommandList> Renderer::Record(
-    const Presentation::RenderPlan& plan,
+    const Render::RenderPlan& plan,
     const RenderTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");
@@ -810,10 +810,10 @@ Base::Result<CommandList> Renderer::Record(
     const std::uint32_t width = target.width;
     const std::uint32_t height = target.height;
     std::uint32_t effectCount = 0U;
-    for (const Presentation::RenderNodeSnapshot& node :
+    for (const Render::RenderNodeSnapshot& node :
          plan.Nodes()) {
         if (node.effect.kind !=
-            Presentation::RenderEffectKind::None) {
+            Render::RenderEffectKind::None) {
             ++effectCount;
         }
     }
@@ -1003,22 +1003,22 @@ Base::Result<CommandList> Renderer::Record(
         return result;
     };
 
-    const Presentation::Rect targetClip = {
+    const Aero::Rect targetClip = {
         0.0, 0.0, static_cast<double>(width), static_cast<double>(height)};
-    const Base::Span<const Presentation::RenderCommand> commands = plan.Commands();
+    const Base::Span<const Render::RenderCommand> commands = plan.Commands();
     auto recordNodes = [&](
-        Presentation::RenderNodeId effectRoot,
+        Render::RenderNodeId effectRoot,
         bool mainPass) noexcept
         -> Base::Result<void> {
     activePipeline = ActivePipeline::None;
     activeBlendMode = UINT32_MAX;
     impl_->nodes.Clear();
     std::uint32_t effectOrdinal = 0U;
-    for (const Presentation::RenderNodeSnapshot& node : plan.Nodes()) {
+    for (const Render::RenderNodeSnapshot& node : plan.Nodes()) {
         const std::uint32_t nodeEffectSurfaceIndex =
             effectOrdinal;
         if (node.effect.kind !=
-            Presentation::RenderEffectKind::None) {
+            Render::RenderEffectKind::None) {
             ++effectOrdinal;
         }
         const std::uint32_t blendMode =
@@ -1036,7 +1036,7 @@ Base::Result<CommandList> Renderer::Record(
                 duplicateId ||
                 existing.id == node.id;
         }
-        if (node.id == Presentation::InvalidRenderNodeId) {
+        if (node.id == Render::InvalidRenderNodeId) {
             encoded = InvalidArgument(
                 "Renderer node identity is invalid");
             break;
@@ -1046,18 +1046,18 @@ Base::Result<CommandList> Renderer::Record(
                 "Renderer node identity is duplicated");
             break;
         }
-        if (!Presentation::IsValidLayoutRect(
+        if (!Aero::IsValidLayoutRect(
                 node.layoutSlot)) {
             encoded = InvalidArgument(
                 "Renderer node layout slot is invalid");
             break;
         }
-        if (!Presentation::IsValidLayoutRect(node.clip)) {
+        if (!Aero::IsValidLayoutRect(node.clip)) {
             encoded = InvalidArgument(
                 "Renderer node clip is invalid");
             break;
         }
-        if (!Presentation::IsValidLayoutSize(
+        if (!Aero::IsValidLayoutSize(
                 node.renderSize)) {
             encoded = InvalidArgument(
                 "Renderer node render size is invalid");
@@ -1071,16 +1071,15 @@ Base::Result<CommandList> Renderer::Record(
         if (static_cast<std::uint8_t>(
                 node.effect.kind) >
                 static_cast<std::uint8_t>(
-                    Presentation::
-                        RenderEffectKind::DropShadow) ||
+                    Render::RenderEffectKind::DropShadow) ||
             !std::isfinite(node.effect.radius) ||
             node.effect.radius < 0.0 ||
             !std::isfinite(node.effect.direction) ||
             !std::isfinite(node.effect.depth) ||
             node.effect.depth < 0.0 ||
-            !Presentation::IsValidOpacity(
+            !Render::IsValidOpacity(
                 node.effect.opacity) ||
-            !Presentation::IsFinite(
+            !Render::IsFinite(
                 node.effect.color)) {
             encoded = InvalidArgument(
                 "Renderer node effect is invalid");
@@ -1094,13 +1093,13 @@ Base::Result<CommandList> Renderer::Record(
             break;
         }
 
-        Presentation::Transform2D parentTransform = IdentityTransform();
-        Presentation::Rect parentClip = targetClip;
+        Media::Transform2D parentTransform = IdentityTransform();
+        Aero::Rect parentClip = targetClip;
         std::uint32_t parentIndex = UINT32_MAX;
-        Presentation::RenderNodeId containingEffect =
-            Presentation::InvalidRenderNodeId;
+        Render::RenderNodeId containingEffect =
+            Render::InvalidRenderNodeId;
         std::uint32_t containingEffectCount = 0U;
-        if (node.parentId != Presentation::InvalidRenderNodeId) {
+        if (node.parentId != Render::InvalidRenderNodeId) {
             const NodeState* parent = nullptr;
             for (std::uint32_t index = impl_->nodes.Size(); index > 0U; --index) {
                 const NodeState& candidate = impl_->nodes[index - 1U];
@@ -1122,12 +1121,12 @@ Base::Result<CommandList> Renderer::Record(
                 parent->containingEffectCount;
         }
         if (node.effect.kind !=
-            Presentation::RenderEffectKind::None) {
+            Render::RenderEffectKind::None) {
             containingEffect = node.id;
             ++containingEffectCount;
         }
 
-        const Presentation::Transform2D nodeTransform = Compose(
+        const Media::Transform2D nodeTransform = Compose(
             Compose(
                 node.renderTransform,
                 Translation(
@@ -1136,9 +1135,9 @@ Base::Result<CommandList> Renderer::Record(
             parentTransform);
         ClipState nodeClip{node.clip, parentTransform, parentClip};
         if (node.clipsToBounds) {
-            const Presentation::Rect nodeBounds =
+            const Aero::Rect nodeBounds =
                 TransformBounds(parentTransform, node.clip);
-            if (!Presentation::IsValidLayoutRect(nodeBounds)) {
+            if (!Aero::IsValidLayoutRect(nodeBounds)) {
                 encoded = InvalidArgument("Renderer node clip bounds are invalid");
                 break;
             }
@@ -1212,11 +1211,11 @@ Base::Result<CommandList> Renderer::Record(
 
         bool isInRequestedSubtree =
             effectRoot ==
-                Presentation::InvalidRenderNodeId;
+                Render::InvalidRenderNodeId;
         for (std::uint32_t pathIndex = 0U;
              pathIndex < impl_->nodePath.Size();
              ++pathIndex) {
-            const Presentation::RenderNodeId pathId =
+            const Render::RenderNodeId pathId =
                 impl_->nodes[
                     impl_->nodePath[
                         pathIndex]].id;
@@ -1235,7 +1234,7 @@ Base::Result<CommandList> Renderer::Record(
         bool shouldDraw =
             mainPass
             ? currentNodeState.containingEffect ==
-                Presentation::InvalidRenderNodeId
+                Render::InvalidRenderNodeId
             : isInRequestedSubtree;
         if (mainPass &&
             currentNodeState.containingEffect ==
@@ -1249,7 +1248,7 @@ Base::Result<CommandList> Renderer::Record(
                     "Renderer effect surface is unavailable");
                 break;
             }
-            Presentation::Rect effectBounds =
+            Aero::Rect effectBounds =
                 TransformBounds(
                     nodeTransform,
                     {0.0, 0.0,
@@ -1260,8 +1259,7 @@ Base::Result<CommandList> Renderer::Record(
                     node.effect.radius,
                     50.0) +
                 (node.effect.kind ==
-                     Presentation::
-                         RenderEffectKind::DropShadow
+                     Render::RenderEffectKind::DropShadow
                  ? node.effect.depth
                  : 0.0);
             effectBounds.x -= effectPadding;
@@ -1360,8 +1358,7 @@ Base::Result<CommandList> Renderer::Record(
                     node.effect.radius,
                     50.0) * 0.5;
             if (node.effect.kind ==
-                Presentation::
-                    RenderEffectKind::DropShadow) {
+                Render::RenderEffectKind::DropShadow) {
                 constexpr double DegreesToRadians =
                     0.017453292519943295769;
                 const double radians =
@@ -1421,11 +1418,11 @@ Base::Result<CommandList> Renderer::Record(
                   ? node.commandCount
                   : 0U);
              ++commandIndex) {
-            const Presentation::RenderCommand& command =
+            const Render::RenderCommand& command =
                 commands[node.commandOffset + commandIndex];
             switch (command.kind) {
-            case Presentation::RenderCommandKind::PushClip: {
-                if (!Presentation::IsValidLayoutRect(command.rect)) {
+            case Render::RenderCommandKind::PushClip: {
+                if (!Aero::IsValidLayoutRect(command.rect)) {
                     encoded = InvalidArgument("Renderer contains an invalid clip");
                     break;
                 }
@@ -1435,15 +1432,15 @@ Base::Result<CommandList> Renderer::Record(
                 if (!pushed) encoded = pushed;
                 break;
             }
-            case Presentation::RenderCommandKind::PopClip:
+            case Render::RenderCommandKind::PopClip:
                 if (impl_->clips.Size() <= baseClipCount) {
                     encoded = InvalidState("Renderer clip stack underflow");
                 } else {
                     impl_->clips.PopBack();
                 }
                 break;
-            case Presentation::RenderCommandKind::PushOpacity: {
-                if (!Presentation::IsValidOpacity(command.scalar)) {
+            case Render::RenderCommandKind::PushOpacity: {
+                if (!Render::IsValidOpacity(command.scalar)) {
                     encoded = InvalidArgument("Renderer contains invalid opacity");
                     break;
                 }
@@ -1452,15 +1449,15 @@ Base::Result<CommandList> Renderer::Record(
                 if (!pushed) encoded = pushed;
                 break;
             }
-            case Presentation::RenderCommandKind::PopOpacity:
+            case Render::RenderCommandKind::PopOpacity:
                 if (impl_->opacities.Size() <= 1U) {
                     encoded = InvalidState("Renderer opacity stack underflow");
                 } else {
                     impl_->opacities.PopBack();
                 }
                 break;
-            case Presentation::RenderCommandKind::PushTransform: {
-                if (!Presentation::IsFinite(command.transform)) {
+            case Render::RenderCommandKind::PushTransform: {
+                if (!Render::IsFinite(command.transform)) {
                     encoded = InvalidArgument("Renderer contains an invalid transform");
                     break;
                 }
@@ -1470,47 +1467,47 @@ Base::Result<CommandList> Renderer::Record(
                 if (!pushed) encoded = pushed;
                 break;
             }
-            case Presentation::RenderCommandKind::PopTransform:
+            case Render::RenderCommandKind::PopTransform:
                 if (impl_->transforms.Size() <= 1U) {
                     encoded = InvalidState("Renderer transform stack underflow");
                 } else {
                     impl_->transforms.PopBack();
                 }
                 break;
-            case Presentation::RenderCommandKind::FillRect:
-            case Presentation::RenderCommandKind::FillRoundedRect:
-            case Presentation::RenderCommandKind::StrokeRect: {
+            case Render::RenderCommandKind::FillRect:
+            case Render::RenderCommandKind::FillRoundedRect:
+            case Render::RenderCommandKind::StrokeRect: {
                 encoded =
                     bindRectanglePipeline(
                         blendMode);
                 if (!encoded) {
                     break;
                 }
-                if (!Presentation::IsValidLayoutRect(command.rect) ||
-                    !Presentation::IsFinite(command.color) ||
-                    ((command.kind == Presentation::RenderCommandKind::FillRoundedRect ||
-                      command.kind == Presentation::RenderCommandKind::StrokeRect) &&
+                if (!Aero::IsValidLayoutRect(command.rect) ||
+                    !Render::IsFinite(command.color) ||
+                    ((command.kind == Render::RenderCommandKind::FillRoundedRect ||
+                      command.kind == Render::RenderCommandKind::StrokeRect) &&
                      (!std::isfinite(command.scalar) || command.scalar < 0.0))) {
                     encoded = InvalidArgument("Renderer contains invalid rectangle geometry");
                     break;
                 }
-                if (command.kind == Presentation::RenderCommandKind::FillRoundedRect &&
+                if (command.kind == Render::RenderCommandKind::FillRoundedRect &&
                     command.scalar * 2.0 >
                         std::fmin(command.rect.width, command.rect.height)) {
                     encoded = InvalidArgument("Renderer corner radius exceeds rectangle bounds");
                     break;
                 }
-                const Presentation::Rect clip =
+                const Aero::Rect clip =
                     impl_->clips[impl_->clips.Size() - 1U].bounds;
                 if (IsEmpty(clip) || IsEmpty(command.rect)) {
                     break;
                 }
-                const Presentation::Transform2D& transform =
+                const Media::Transform2D& transform =
                     impl_->transforms[impl_->transforms.Size() - 1U];
                 const double opacity = impl_->opacities[impl_->opacities.Size() - 1U];
                 if (!FitsFloat(command.rect.x) || !FitsFloat(command.rect.y) ||
                     !FitsFloat(command.rect.width) || !FitsFloat(command.rect.height) ||
-                    (command.kind == Presentation::RenderCommandKind::FillRoundedRect &&
+                    (command.kind == Render::RenderCommandKind::FillRoundedRect &&
                      !FitsFloat(command.scalar)) ||
                     !FitsFloat(transform.m11) || !FitsFloat(transform.m12) ||
                     !FitsFloat(transform.m21) || !FitsFloat(transform.m22) ||
@@ -1534,7 +1531,7 @@ Base::Result<CommandList> Renderer::Record(
                          clipIndex < impl_->clips.Size();
                          ++clipIndex) {
                         const ClipState& clipState = impl_->clips[clipIndex];
-                        const Presentation::Transform2D& clipTransform =
+                        const Media::Transform2D& clipTransform =
                             clipState.transform;
                         const double determinant =
                             clipTransform.m11 * clipTransform.m22 -
@@ -1589,7 +1586,7 @@ Base::Result<CommandList> Renderer::Record(
                     }
                     return result;
                 };
-                auto appendRectangle = [&](Presentation::Rect rect, Presentation::Color color,
+                auto appendRectangle = [&](Aero::Rect rect, Render::Color color,
                     std::uint32_t instanceCount = 1U,
                     float strokeThickness = 0.0F,
                     float cornerRadius = 0.0F) noexcept -> Base::Result<void> {
@@ -1612,8 +1609,8 @@ Base::Result<CommandList> Renderer::Record(
                     return appendConstants(constants, instanceCount);
                 };
 
-                if (command.kind == Presentation::RenderCommandKind::FillRect ||
-                    command.kind == Presentation::RenderCommandKind::FillRoundedRect) {
+                if (command.kind == Render::RenderCommandKind::FillRect ||
+                    command.kind == Render::RenderCommandKind::FillRoundedRect) {
                     ShaderRectConstants constants;
                     encoded = configureConstants(constants);
                     if (!encoded) {
@@ -1628,16 +1625,16 @@ Base::Result<CommandList> Renderer::Record(
                                   ? MaxRectangleBatchInstances
                                   : 1U);
                          ++batchIndex) {
-                        const Presentation::RenderCommand& candidate =
+                        const Render::RenderCommand& candidate =
                             commands[node.commandOffset + batchIndex];
-                        if (candidate.kind != Presentation::RenderCommandKind::FillRect &&
-                            candidate.kind != Presentation::RenderCommandKind::FillRoundedRect) {
+                        if (candidate.kind != Render::RenderCommandKind::FillRect &&
+                            candidate.kind != Render::RenderCommandKind::FillRoundedRect) {
                             break;
                         }
                         ++batchCommandCount;
-                        if (!Presentation::IsValidLayoutRect(candidate.rect) ||
-                            !Presentation::IsFinite(candidate.color) ||
-                            (candidate.kind == Presentation::RenderCommandKind::FillRoundedRect &&
+                        if (!Aero::IsValidLayoutRect(candidate.rect) ||
+                            !Render::IsFinite(candidate.color) ||
+                            (candidate.kind == Render::RenderCommandKind::FillRoundedRect &&
                              (!std::isfinite(candidate.scalar) ||
                               candidate.scalar < 0.0 ||
                               candidate.scalar * 2.0 > std::fmin(
@@ -1654,7 +1651,7 @@ Base::Result<CommandList> Renderer::Record(
                             !FitsFloat(candidate.rect.width) ||
                             !FitsFloat(candidate.rect.height) ||
                             (candidate.kind ==
-                                Presentation::RenderCommandKind::FillRoundedRect &&
+                                Render::RenderCommandKind::FillRoundedRect &&
                              !FitsFloat(candidate.scalar))) {
                             encoded = InvalidArgument(
                                 "Renderer values exceed shader precision");
@@ -1674,7 +1671,7 @@ Base::Result<CommandList> Renderer::Record(
                         constants.colors[instanceCount][3] =
                             static_cast<float>(candidate.color.alpha * opacity);
                         constants.cornerRadii[instanceCount][0] =
-                            candidate.kind == Presentation::RenderCommandKind::FillRoundedRect
+                            candidate.kind == Render::RenderCommandKind::FillRoundedRect
                             ? static_cast<float>(candidate.scalar)
                             : 0.0F;
                         ++instanceCount;
@@ -1699,14 +1696,14 @@ Base::Result<CommandList> Renderer::Record(
                 }
                 break;
             }
-            case Presentation::RenderCommandKind::DrawImage: {
-                if (command.image == Presentation::InvalidRenderImageId ||
-                    !Presentation::IsValidLayoutRect(command.rect) ||
-                    !Presentation::IsValidLayoutRect(command.sourceUv) ||
+            case Render::RenderCommandKind::DrawImage: {
+                if (command.image == Render::InvalidRenderImageId ||
+                    !Aero::IsValidLayoutRect(command.rect) ||
+                    !Aero::IsValidLayoutRect(command.sourceUv) ||
                     command.sourceUv.x < 0.0 || command.sourceUv.y < 0.0 ||
                     command.sourceUv.x + command.sourceUv.width > 1.0 ||
                     command.sourceUv.y + command.sourceUv.height > 1.0 ||
-                    !Presentation::IsFinite(command.color)) {
+                    !Render::IsFinite(command.color)) {
                     encoded = InvalidArgument(
                         "Renderer contains invalid image geometry");
                     break;
@@ -1729,13 +1726,13 @@ Base::Result<CommandList> Renderer::Record(
                         "Renderer image resources are no longer alive");
                     break;
                 }
-                const Presentation::Rect clip =
+                const Aero::Rect clip =
                     impl_->clips[impl_->clips.Size() - 1U].bounds;
                 if (IsEmpty(clip) || IsEmpty(command.rect) ||
                     IsEmpty(command.sourceUv)) {
                     break;
                 }
-                const Presentation::Transform2D& transform =
+                const Media::Transform2D& transform =
                     impl_->transforms[impl_->transforms.Size() - 1U];
                 const double opacity =
                     impl_->opacities[impl_->opacities.Size() - 1U];
@@ -1766,7 +1763,7 @@ Base::Result<CommandList> Renderer::Record(
                      clipIndex < impl_->clips.Size();
                      ++clipIndex) {
                     const ClipState& clipState = impl_->clips[clipIndex];
-                    const Presentation::Transform2D& clipTransform = clipState.transform;
+                    const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant =
                         clipTransform.m11 * clipTransform.m22 -
                         clipTransform.m12 * clipTransform.m21;
@@ -1819,19 +1816,19 @@ Base::Result<CommandList> Renderer::Record(
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
-                    const Presentation::RenderCommand& candidate =
+                    const Render::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
-                    if (candidate.kind != Presentation::RenderCommandKind::DrawImage ||
+                    if (candidate.kind != Render::RenderCommandKind::DrawImage ||
                         candidate.image != command.image) {
                         break;
                     }
                     ++batchCommandCount;
-                    if (!Presentation::IsValidLayoutRect(candidate.rect) ||
-                        !Presentation::IsValidLayoutRect(candidate.sourceUv) ||
+                    if (!Aero::IsValidLayoutRect(candidate.rect) ||
+                        !Aero::IsValidLayoutRect(candidate.sourceUv) ||
                         candidate.sourceUv.x < 0.0 || candidate.sourceUv.y < 0.0 ||
                         candidate.sourceUv.x + candidate.sourceUv.width > 1.0 ||
                         candidate.sourceUv.y + candidate.sourceUv.height > 1.0 ||
-                        !Presentation::IsFinite(candidate.color)) {
+                        !Render::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
                             "Renderer contains invalid image geometry");
                         break;
@@ -1899,9 +1896,9 @@ Base::Result<CommandList> Renderer::Record(
                 }
                 break;
             }
-            case Presentation::RenderCommandKind::DrawMesh: {
-                if (command.mesh == Presentation::InvalidRenderMeshId ||
-                    !Presentation::IsFinite(command.color)) {
+            case Render::RenderCommandKind::DrawMesh: {
+                if (command.mesh == Render::InvalidRenderMeshId ||
+                    !Render::IsFinite(command.color)) {
                     encoded = InvalidArgument("Renderer contains invalid mesh draw");
                     break;
                 }
@@ -1918,12 +1915,12 @@ Base::Result<CommandList> Renderer::Record(
                     encoded = InvalidState("Renderer mesh is not registered or alive");
                     break;
                 }
-                const Presentation::Rect clip =
+                const Aero::Rect clip =
                     impl_->clips[impl_->clips.Size() - 1U].bounds;
                 if (IsEmpty(clip)) {
                     break;
                 }
-                const Presentation::Transform2D& transform =
+                const Media::Transform2D& transform =
                     impl_->transforms[impl_->transforms.Size() - 1U];
                 const double opacity =
                     impl_->opacities[impl_->opacities.Size() - 1U];
@@ -1948,7 +1945,7 @@ Base::Result<CommandList> Renderer::Record(
                      clipIndex < impl_->clips.Size();
                      ++clipIndex) {
                     const ClipState& clipState = impl_->clips[clipIndex];
-                    const Presentation::Transform2D& clipTransform = clipState.transform;
+                    const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant = clipTransform.m11 * clipTransform.m22 -
                         clipTransform.m12 * clipTransform.m21;
                     const double inverseM11 = clipTransform.m22 / determinant;
@@ -1986,14 +1983,14 @@ Base::Result<CommandList> Renderer::Record(
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
-                    const Presentation::RenderCommand& candidate =
+                    const Render::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
-                    if (candidate.kind != Presentation::RenderCommandKind::DrawMesh ||
+                    if (candidate.kind != Render::RenderCommandKind::DrawMesh ||
                         candidate.mesh != command.mesh) {
                         break;
                     }
                     ++batchCommandCount;
-                    if (!Presentation::IsFinite(candidate.color)) {
+                    if (!Render::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
                             "Renderer contains invalid mesh tint");
                         break;
@@ -2039,9 +2036,9 @@ Base::Result<CommandList> Renderer::Record(
                 }
                 break;
             }
-            case Presentation::RenderCommandKind::DrawGlyphRun: {
-                if (command.glyphRun == Presentation::InvalidRenderGlyphRunId ||
-                    !Presentation::IsFinite(command.color)) {
+            case Render::RenderCommandKind::DrawGlyphRun: {
+                if (command.glyphRun == Render::InvalidRenderGlyphRunId ||
+                    !Render::IsFinite(command.color)) {
                     encoded = InvalidArgument(
                         "Renderer contains invalid glyph draw");
                     break;
@@ -2062,12 +2059,12 @@ Base::Result<CommandList> Renderer::Record(
                         "Renderer glyph is not registered or alive");
                     break;
                 }
-                const Presentation::Rect clip =
+                const Aero::Rect clip =
                     impl_->clips[impl_->clips.Size() - 1U].bounds;
                 if (IsEmpty(clip)) {
                     break;
                 }
-                const Presentation::Transform2D& transform =
+                const Media::Transform2D& transform =
                     impl_->transforms[impl_->transforms.Size() - 1U];
                 const double opacity =
                     impl_->opacities[impl_->opacities.Size() - 1U];
@@ -2093,7 +2090,7 @@ Base::Result<CommandList> Renderer::Record(
                      clipIndex < impl_->clips.Size();
                      ++clipIndex) {
                     const ClipState& clipState = impl_->clips[clipIndex];
-                    const Presentation::Transform2D& clipTransform = clipState.transform;
+                    const Media::Transform2D& clipTransform = clipState.transform;
                     const double determinant = clipTransform.m11 * clipTransform.m22 -
                         clipTransform.m12 * clipTransform.m21;
                     const double inverseM11 = clipTransform.m22 / determinant;
@@ -2138,14 +2135,14 @@ Base::Result<CommandList> Renderer::Record(
                               ? MaxRectangleBatchInstances
                               : 1U);
                      ++batchIndex) {
-                    const Presentation::RenderCommand& candidate =
+                    const Render::RenderCommand& candidate =
                         commands[node.commandOffset + batchIndex];
-                    if (candidate.kind != Presentation::RenderCommandKind::DrawGlyphRun ||
+                    if (candidate.kind != Render::RenderCommandKind::DrawGlyphRun ||
                         candidate.glyphRun != command.glyphRun) {
                         break;
                     }
                     ++batchCommandCount;
-                    if (!Presentation::IsFinite(candidate.color)) {
+                    if (!Render::IsFinite(candidate.color)) {
                         encoded = InvalidArgument(
                             "Renderer contains invalid glyph tint");
                         break;
@@ -2216,10 +2213,10 @@ Base::Result<CommandList> Renderer::Record(
     };
 
     std::uint32_t surfaceIndex = 0U;
-    for (const Presentation::RenderNodeSnapshot& node :
+    for (const Render::RenderNodeSnapshot& node :
          plan.Nodes()) {
         if (node.effect.kind ==
-            Presentation::RenderEffectKind::None) {
+            Render::RenderEffectKind::None) {
             continue;
         }
         pass.colorAttachments[0].target =
@@ -2245,7 +2242,7 @@ Base::Result<CommandList> Renderer::Record(
     if (encoded) {
         ++submissionStatistics.renderPassCount;
         encoded = recordNodes(
-            Presentation::InvalidRenderNodeId,
+            Render::InvalidRenderNodeId,
             true);
     }
     if (encoded) {

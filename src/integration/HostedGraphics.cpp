@@ -36,7 +36,7 @@ Base::Status HostedStatus(
 }
 
 HostedGraphicsCommand LowerCommand(
-    const Presentation::RenderCommand& source,
+    const Render::RenderCommand& source,
     std::uint32_t resourceGeneration) noexcept {
     HostedGraphicsCommand target;
     target.kind = static_cast<HostedGraphicsCommandKind>(
@@ -70,13 +70,13 @@ HostedGraphicsCommand LowerCommand(
     target.sourceUv[3] =
         static_cast<float>(source.sourceUv.height);
     switch (source.kind) {
-    case Presentation::RenderCommandKind::DrawImage:
+    case Render::RenderCommandKind::DrawImage:
         target.resourceId = source.image;
         break;
-    case Presentation::RenderCommandKind::DrawMesh:
+    case Render::RenderCommandKind::DrawMesh:
         target.resourceId = source.mesh;
         break;
-    case Presentation::RenderCommandKind::DrawGlyphRun:
+    case Render::RenderCommandKind::DrawGlyphRun:
         target.resourceId = source.glyphRun;
         break;
     default:
@@ -104,7 +104,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Presentation::RenderPlan& plan) noexcept override {
+        const Render::RenderPlan& plan) noexcept override {
         if (callbacks_.submit == nullptr ||
             callbacks_.acquireTarget == nullptr) {
             return Base::Status::Failure(
@@ -122,7 +122,7 @@ public:
         Base::Result<void> reserved =
             commands_.TryReserve(plan.Commands().Size());
         if (!reserved) return reserved.GetStatus();
-        for (const Presentation::RenderCommand& command :
+        for (const Render::RenderCommand& command :
              plan.Commands()) {
             Base::Result<void> appended =
                 commands_.TryPushBack(LowerCommand(

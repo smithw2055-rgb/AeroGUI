@@ -4,7 +4,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Style.hpp>
 
 #include <cstdint>
 
@@ -23,7 +23,7 @@ struct DataTemplateTriggerCondition final {
     // resolve ElementName against the document name scope and subscribe to
     // the resulting source property.
     Base::Ref<Base::Object> source;
-    Base::Ref<Presentation::BindingSpec> binding;
+    Base::Ref<Data::Binding> binding;
     Base::Ref<Core::DependencyObject> dependencySource;
     Core::DependencyPropertyHandle property;
     Core::PropertyValue value;
@@ -65,7 +65,7 @@ public:
         return nullptr;
     }
 
-    Presentation::FrameworkElement* root = nullptr;
+    Aero::FrameworkElement* root = nullptr;
     std::uint32_t providerOrigin = 0U;
     Base::Vector<NamedObject> names;
     Base::Vector<DataTemplatePropertyTrigger> triggers;

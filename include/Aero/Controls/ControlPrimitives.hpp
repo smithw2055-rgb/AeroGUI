@@ -4,25 +4,28 @@
 
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Presentation/Brushes.hpp>
-#include <Aero/Presentation/Layout.hpp>
-#include <Aero/Presentation/Rendering.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Rendering.hpp>
+#include <Aero/Style.hpp>
 
 #include <utility>
 
 namespace Aero::Detail {
 class ControlRuntimeAccess;
-class RuntimePresentationServices;
+class RuntimeUiServices;
 }
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Data;
+using namespace Aero::Input;
+using namespace Aero::Media;
+using namespace Aero::Render;
+using namespace Aero::Detail;
 
 enum class FontWeight : std::uint8_t {
     Normal = 0U,
@@ -84,32 +87,32 @@ class DataTemplate;
 class AERO_API Panel : public FrameworkElement {
     AERO_DECLARE_TYPE(Panel, FrameworkElement)
 public:
-    Presentation::Color Background() const noexcept {
-        return Presentation::SampleBrush(
+    Aero::Media::Color Background() const noexcept {
+        return Aero::Media::SampleBrush(
             BackgroundBrush());
     }
-    Base::Ref<Presentation::Brush>
+    Base::Ref<Aero::Media::Brush>
     BackgroundBrush() const noexcept {
         return GetValueOr(
             BackgroundProperty,
-            Base::Ref<Presentation::Brush>{});
+            Base::Ref<Aero::Media::Brush>{});
     }
     Base::Result<void> SetBackground(
-        Presentation::Color value) noexcept {
-        Base::Result<Base::Ref<Presentation::Brush>> brush =
-            Presentation::MakeSolidColorBrush(value);
+        Aero::Media::Color value) noexcept {
+        Base::Result<Base::Ref<Aero::Media::Brush>> brush =
+            Aero::Media::MakeSolidColorBrush(value);
         return brush
             ? SetBackgroundBrush(
                 std::move(brush).Value())
             : brush.GetStatus();
     }
     Base::Result<void> SetBackgroundBrush(
-        Base::Ref<Presentation::Brush> value) noexcept {
+        Base::Ref<Aero::Media::Brush> value) noexcept {
         return SetValue(
             BackgroundProperty, std::move(value));
     }
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BackgroundProperty{"Background"};
     inline static constexpr Members::Property<bool>
         IsItemsHostProperty{"IsItemsHost"};
@@ -244,61 +247,61 @@ private:
 class AERO_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 public:
-    Presentation::Color Background() const noexcept {
-        return Presentation::SampleBrush(
+    Aero::Media::Color Background() const noexcept {
+        return Aero::Media::SampleBrush(
             BackgroundBrush());
     }
-    Base::Ref<Presentation::Brush>
+    Base::Ref<Aero::Media::Brush>
     BackgroundBrush() const noexcept {
         return GetValueOr(
             BackgroundProperty,
-            Base::Ref<Presentation::Brush>{});
+            Base::Ref<Aero::Media::Brush>{});
     }
     Base::Result<void> SetBackground(
-        Presentation::Color value) noexcept {
-        Base::Result<Base::Ref<Presentation::Brush>> brush =
-            Presentation::MakeSolidColorBrush(value);
+        Aero::Media::Color value) noexcept {
+        Base::Result<Base::Ref<Aero::Media::Brush>> brush =
+            Aero::Media::MakeSolidColorBrush(value);
         return brush
             ? SetBackgroundBrush(
                 std::move(brush).Value())
             : brush.GetStatus();
     }
     Base::Result<void> SetBackgroundBrush(
-        Base::Ref<Presentation::Brush> value) noexcept {
+        Base::Ref<Aero::Media::Brush> value) noexcept {
         return SetValue(
             BackgroundProperty, std::move(value));
     }
-    Presentation::Color BorderBrush() const noexcept {
-        return Presentation::SampleBrush(
+    Aero::Media::Color BorderBrush() const noexcept {
+        return Aero::Media::SampleBrush(
             BorderBrushObject());
     }
-    Base::Ref<Presentation::Brush>
+    Base::Ref<Aero::Media::Brush>
     BorderBrushObject() const noexcept {
         return GetValueOr(
             BorderBrushProperty,
-            Base::Ref<Presentation::Brush>{});
+            Base::Ref<Aero::Media::Brush>{});
     }
     Base::Result<void> SetBorderBrush(
-        Presentation::Color value) noexcept {
-        Base::Result<Base::Ref<Presentation::Brush>> brush =
-            Presentation::MakeSolidColorBrush(value);
+        Aero::Media::Color value) noexcept {
+        Base::Result<Base::Ref<Aero::Media::Brush>> brush =
+            Aero::Media::MakeSolidColorBrush(value);
         return brush
             ? SetBorderBrushObject(
                 std::move(brush).Value())
             : brush.GetStatus();
     }
     Base::Result<void> SetBorderBrushObject(
-        Base::Ref<Presentation::Brush> value) noexcept {
+        Base::Ref<Aero::Media::Brush> value) noexcept {
         return SetValue(
             BorderBrushProperty, std::move(value));
     }
-    Presentation::Thickness BorderThickness() const noexcept {
+    Aero::Base::Thickness BorderThickness() const noexcept {
         return GetValueOr(
             BorderThicknessProperty,
-            Presentation::Thickness{});
+            Aero::Base::Thickness{});
     }
     Base::Result<void> SetBorderThickness(
-        Presentation::Thickness value) noexcept {
+        Aero::Base::Thickness value) noexcept {
         return SetValue(BorderThicknessProperty, value);
     }
     Base::Result<void> SetBorderThickness(
@@ -306,61 +309,61 @@ public:
         return SetBorderThickness(
             {value, value, value, value});
     }
-    Presentation::Thickness Padding() const noexcept {
+    Aero::Base::Thickness Padding() const noexcept {
         return GetValueOr(
             PaddingProperty,
-            Presentation::Thickness{});
+            Aero::Base::Thickness{});
     }
     Base::Result<void> SetPadding(
-        Presentation::Thickness value) noexcept {
+        Aero::Base::Thickness value) noexcept {
         return SetValue(PaddingProperty, value);
     }
-    Presentation::HorizontalAlignment
+    Aero::HorizontalAlignment
     GetHorizontalContentAlignment() const noexcept {
         return GetValueOr(
             HorizontalContentAlignmentProperty,
-            Presentation::HorizontalAlignment::Left);
+            Aero::HorizontalAlignment::Left);
     }
-    Presentation::VerticalAlignment
+    Aero::VerticalAlignment
     GetVerticalContentAlignment() const noexcept {
         return GetValueOr(
             VerticalContentAlignmentProperty,
-            Presentation::VerticalAlignment::Top);
+            Aero::VerticalAlignment::Top);
     }
-    Presentation::Color Foreground() const noexcept {
-        return Presentation::SampleBrush(
+    Aero::Media::Color Foreground() const noexcept {
+        return Aero::Media::SampleBrush(
             ForegroundBrush(),
             0.5,
-            Presentation::Color{
+            Aero::Media::Color{
                 0.0F, 0.0F, 0.0F, 1.0F});
     }
-    Base::Ref<Presentation::Brush>
+    Base::Ref<Aero::Media::Brush>
     ForegroundBrush() const noexcept {
-        Base::Ref<Presentation::Brush> brush =
+        Base::Ref<Aero::Media::Brush> brush =
             GetValueOr(
             ForegroundProperty,
-            Base::Ref<Presentation::Brush>{});
+            Base::Ref<Aero::Media::Brush>{});
         const FrameworkElement* parent =
             RenderParent();
         while (!brush && parent != nullptr) {
             brush = parent->GetValueOr(
                 ForegroundProperty,
-                Base::Ref<Presentation::Brush>{});
+                Base::Ref<Aero::Media::Brush>{});
             parent = parent->RenderParent();
         }
         return brush;
     }
     Base::Result<void> SetForeground(
-        Presentation::Color value) noexcept {
-        Base::Result<Base::Ref<Presentation::Brush>> brush =
-            Presentation::MakeSolidColorBrush(value);
+        Aero::Media::Color value) noexcept {
+        Base::Result<Base::Ref<Aero::Media::Brush>> brush =
+            Aero::Media::MakeSolidColorBrush(value);
         return brush
             ? SetForegroundBrush(
                 std::move(brush).Value())
             : brush.GetStatus();
     }
     Base::Result<void> SetForegroundBrush(
-        Base::Ref<Presentation::Brush> value) noexcept {
+        Base::Ref<Aero::Media::Brush> value) noexcept {
         return SetValue(
             ForegroundProperty, std::move(value));
     }
@@ -378,14 +381,14 @@ public:
         FontWeight value) noexcept {
         return SetValue(FontWeightProperty, value);
     }
-    Base::Ref<Presentation::Style>
+    Base::Ref<Aero::Style>
     FocusVisualStyle() const noexcept {
         return GetValueOr(
             FocusVisualStyleProperty,
-            Base::Ref<Presentation::Style>{});
+            Base::Ref<Aero::Style>{});
     }
     Base::Result<void> SetFocusVisualStyle(
-        Base::Ref<Presentation::Style> value) noexcept {
+        Base::Ref<Aero::Style> value) noexcept {
         return SetValue(
             FocusVisualStyleProperty,
             std::move(value));
@@ -398,34 +401,33 @@ public:
         return SetValue(OverridesDefaultStyleProperty, value);
     }
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BackgroundProperty{"Background"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BorderBrushProperty{"BorderBrush"};
     inline static constexpr Members::Property<
-        Presentation::Thickness>
+        Aero::Base::Thickness>
         BorderThicknessProperty{"BorderThickness"};
     inline static constexpr Members::Property<
-        Presentation::Thickness>
+        Aero::Base::Thickness>
         PaddingProperty{"Padding"};
     inline static constexpr Members::Property<
-        Presentation::HorizontalAlignment>
+        Aero::HorizontalAlignment>
         HorizontalContentAlignmentProperty{
             "HorizontalContentAlignment"};
     inline static constexpr Members::Property<
-        Presentation::VerticalAlignment>
+        Aero::VerticalAlignment>
         VerticalContentAlignmentProperty{
             "VerticalContentAlignment"};
     inline static constexpr auto ForegroundProperty =
-        Presentation::
-            FrameworkElementForegroundProperty;
+        Aero::Media::FrameworkElementForegroundProperty;
     inline static constexpr Members::Property<double>
         FontSizeProperty{"FontSize"};
     inline static constexpr Members::Property<FontWeight>
         FontWeightProperty{"FontWeight"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Style>>
+        Base::Ref<Aero::Style>>
         FocusVisualStyleProperty{"FocusVisualStyle"};
     inline static constexpr Members::Property<bool>
         OverridesDefaultStyleProperty{"OverridesDefaultStyle"};
@@ -503,7 +505,7 @@ protected:
         DisplayListBuilder& builder) noexcept override;
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    friend class Aero::Detail::RuntimePresentationServices;
+    friend class Aero::Detail::RuntimeUiServices;
     void AttachTemplateManager(
         TemplateManager& manager) noexcept {
         templateManager_ = &manager;

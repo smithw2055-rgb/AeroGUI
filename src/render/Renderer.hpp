@@ -1,6 +1,6 @@
 #pragma once
 
-#include "presentation/RenderingInternal.hpp"
+#include "render/RenderingInternal.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
@@ -66,22 +66,22 @@ public:
     bool IsInitialized() const noexcept;
 
     Base::Result<void> RegisterImage(
-        Presentation::RenderImageId image,
+        Render::RenderImageId image,
         Rhi::ResourceHandle texture,
         Rhi::ResourceHandle sampler) noexcept;
     Base::Result<void> UnregisterImage(
-        Presentation::RenderImageId image) noexcept;
+        Render::RenderImageId image) noexcept;
     Base::Result<void> RegisterMesh(
-        Presentation::RenderMeshId mesh,
+        Render::RenderMeshId mesh,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
         Rhi::IndexType indexType =
             Rhi::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
-        Presentation::RenderMeshId mesh) noexcept;
+        Render::RenderMeshId mesh) noexcept;
     Base::Result<Rhi::CommandList> Record(
-        const Presentation::RenderPlan& plan,
+        const Render::RenderPlan& plan,
         const RenderTarget& target) noexcept;
     RendererStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
@@ -94,7 +94,7 @@ private:
 
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun,
+        Render::RenderGlyphRunId glyphRun,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
@@ -102,7 +102,7 @@ private:
         Rhi::ResourceHandle sampler,
         Rhi::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept;
+        Render::RenderGlyphRunId glyphRun) noexcept;
 
     Rhi::RhiDevice* device_ = nullptr;
     RendererShaderSet shaders_;

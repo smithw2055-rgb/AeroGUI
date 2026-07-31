@@ -1,6 +1,6 @@
 #include <Aero/Controls/Shapes.hpp>
 
-#include "presentation/ImageBrushAccess.hpp"
+#include "media/ImageBrushAccess.hpp"
 
 #include <algorithm>
 #include <cmath>

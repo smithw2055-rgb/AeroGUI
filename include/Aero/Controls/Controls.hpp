@@ -5,9 +5,9 @@
 #include <Aero/Controls/ControlPrimitives.hpp>
 #include <Aero/Controls/Images.hpp>
 #include <Aero/Controls/Shapes.hpp>
-#include <Aero/Presentation/Commands.hpp>
-#include <Aero/Presentation/Resources.hpp>
-#include <Aero/Presentation/Transforms.hpp>
+#include <Aero/Input/Commands.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Media/Transforms.hpp>
 #include <Aero/Text/TextLayout.hpp>
 
 #include <cstddef>
@@ -28,7 +28,12 @@ class PathServicesAccess;
 }
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Data;
+using namespace Aero::Input;
+using namespace Aero::Media;
+using namespace Aero::Render;
+using namespace Aero::Detail;
 
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
@@ -136,7 +141,12 @@ struct MetaTypeTraits<Controls::PenLineCap> {
 namespace Aero::Controls {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+using namespace Aero;
+using namespace Aero::Data;
+using namespace Aero::Input;
+using namespace Aero::Media;
+using namespace Aero::Render;
+using namespace Aero::Detail;
 
 class AERO_API StackPanel final : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)
@@ -312,9 +322,9 @@ public:
     Base::Result<void> ClearColumnDefinitionObjects() noexcept;
     Base::Result<void> ClearRowDefinitionObjects() noexcept;
     Base::Result<void> AddInputBinding(
-        Base::Ref<Presentation::KeyBinding> binding) noexcept;
+        Base::Ref<Aero::Input::KeyBinding> binding) noexcept;
     void ClearInputBindings() noexcept { inputBindings_.Clear(); }
-    Base::Span<const Base::Ref<Presentation::KeyBinding>>
+    Base::Span<const Base::Ref<Aero::Input::KeyBinding>>
     InputBindings() const noexcept {
         return {inputBindings_.Data(), inputBindings_.Size()};
     }
@@ -352,7 +362,7 @@ private:
         columnDefinitionObjects_;
     Base::Vector<Base::Ref<RowDefinition>>
         rowDefinitionObjects_;
-    Base::Vector<Base::Ref<Presentation::KeyBinding>>
+    Base::Vector<Base::Ref<Aero::Input::KeyBinding>>
         inputBindings_;
     Base::Vector<double> desiredColumns_;
     Base::Vector<double> desiredRows_;
@@ -431,19 +441,19 @@ public:
     CornerRadius GetCornerRadius() const noexcept;
     Thickness Padding() const noexcept;
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BackgroundProperty{"Background"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BorderBrushProperty{"BorderBrush"};
     inline static constexpr Members::Property<
-        Presentation::Thickness>
+        Aero::Base::Thickness>
         BorderThicknessProperty{"BorderThickness"};
     inline static constexpr Members::Property<
-        Presentation::CornerRadius>
+        Aero::Base::CornerRadius>
         CornerRadiusProperty{"CornerRadius"};
     inline static constexpr Members::Property<
-        Presentation::Thickness>
+        Aero::Base::Thickness>
         PaddingProperty{"Padding"};
 protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
@@ -520,10 +530,10 @@ public:
     inline static constexpr auto ForegroundProperty =
         FrameworkElementForegroundProperty;
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         BackgroundProperty{"Background"};
     inline static constexpr Members::Property<
-        Base::Ref<Presentation::Brush>>
+        Base::Ref<Aero::Media::Brush>>
         StrokeProperty{"Stroke"};
     // WPF exposes the same inheritable text formatting property through
     // Control and TextBlock owners. Sharing the handle here gives generated

@@ -4,14 +4,14 @@
 #include <Aero/App/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Presentation/Rendering.hpp>
-#include <Aero/Presentation/Resources.hpp>
+#include <Aero/Rendering.hpp>
+#include <Aero/Resources.hpp>
 
 namespace Aero::Markup {
 namespace {
 
 using namespace Aero::Core;
-using namespace Aero::Presentation;
+
 
 Base::Status InvalidResource(const char* message) noexcept {
     return Base::Status::Failure(

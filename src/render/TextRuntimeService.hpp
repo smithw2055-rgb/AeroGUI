@@ -16,7 +16,7 @@ public:
     virtual ~GlyphRunResourceSink() = default;
 
     virtual Base::Result<void> RegisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun,
+        Render::RenderGlyphRunId glyphRun,
         Rhi::ResourceHandle vertexBuffer,
         Rhi::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
@@ -24,7 +24,7 @@ public:
         Rhi::ResourceHandle sampler,
         Rhi::IndexType indexType) noexcept = 0;
     virtual Base::Result<void> UnregisterGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept = 0;
+        Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
 
 class TextRuntimeService final
@@ -54,7 +54,7 @@ public:
         const Controls::Detail::TextLayoutRequest& request,
         Controls::Detail::TextLayoutResult& output) noexcept override;
     void ReleaseGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept override;
+        Render::RenderGlyphRunId glyphRun) noexcept override;
 
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
 

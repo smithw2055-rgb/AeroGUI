@@ -11,7 +11,7 @@
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include "Loader.hpp"
 #include <Aero/Markup/Resources.hpp>
-#include <Aero/Presentation/VisualTreeMount.hpp>
+#include <Aero/Detail/VisualTreeMount.hpp>
 
 #include <utility>
 
@@ -33,19 +33,19 @@ struct VisualContentEdge final {
 };
 
 // Markup-owned declaration result for visual content. The plan intentionally
-// stores only content ownership and Presentation mount edges; Presentation owns
+// stores only content ownership and UI mount edges; the UI runtime owns
 // the actual attach/detach sequence through VisualTreeMount.
 struct VisualContentPlan final {
     Base::Vector<VisualContentEdge> contentEdges;
-    Base::Vector<Presentation::VisualTreeMountEdge> mountEdges;
-    Base::Vector<Presentation::Visual*> nodes;
+    Base::Vector<Aero::Detail::VisualTreeMountEdge> mountEdges;
+    Base::Vector<Aero::Visual*> nodes;
 
     Base::Result<void> TryReserve(
         std::uint32_t contentEdgeCount,
         std::uint32_t mountEdgeCount,
         std::uint32_t nodeCount) noexcept;
     Base::Result<void> TryAddNode(
-        Presentation::Visual& node) noexcept;
+        Aero::Visual& node) noexcept;
     void ReleaseContent() noexcept;
     void Clear() noexcept;
     std::uint32_t EdgeCount() const noexcept {
@@ -183,8 +183,8 @@ private:
 // visual content plan here instead of reaching back into Markup services.
 struct LoaderResult final {
     Base::Ref<Base::Object> root;
-    Presentation::NameScope names;
-    Presentation::ResourceDictionary resources;
+    Aero::NameScope names;
+    Aero::ResourceDictionary resources;
     VisualContentPlan visualContent;
     CommittedEffectPlan effects;
     Base::ResourceUri canonicalUri;

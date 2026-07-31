@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 
 #include <cstdint>
 
@@ -11,7 +11,7 @@ namespace Aero::Detail {
 struct ImageBackendServices final {
     std::uint64_t generation = 0U;
     void* context = nullptr;
-    Base::Result<Presentation::RenderImageId>
+    Base::Result<Render::RenderImageId>
         (*createImage)(
             void* context,
             std::uint32_t width,
@@ -20,7 +20,7 @@ struct ImageBackendServices final {
                 rgbaPixels) noexcept = nullptr;
     void (*releaseImage)(
         void* context,
-        Presentation::RenderImageId image) noexcept =
+        Render::RenderImageId image) noexcept =
         nullptr;
 };
 

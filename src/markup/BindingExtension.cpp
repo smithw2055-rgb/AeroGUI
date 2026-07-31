@@ -1,5 +1,5 @@
 #include "Extensions.hpp"
-#include "../presentation/RuntimeManagers.hpp"
+#include "../ui/RuntimeManagers.hpp"
 
 // Binding markup-extension implementation.
 #include "DeferredContent.hpp"
@@ -9,8 +9,8 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Controls/Templates.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Presentation/AnimationXaml.hpp>
-#include <Aero/Presentation/Style.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Style.hpp>
 
 #include <new>
 
@@ -69,7 +69,7 @@ Base::Result<void> ParseArguments(
     Base::StringView& fallbackValue,
     Base::StringView& ancestorType,
     RelativeSourceKind& relativeSource,
-    Presentation::BindingMode& mode,
+    Data::BindingMode& mode,
     Core::UpdateSourceTrigger& updateSourceTrigger) noexcept {
     elementName = {};
     sourceResource = {};
@@ -78,7 +78,7 @@ Base::Result<void> ParseArguments(
     fallbackValue = {};
     ancestorType = {};
     relativeSource = RelativeSourceKind::None;
-    mode = Presentation::BindingMode::OneWay;
+    mode = Data::BindingMode::OneWay;
     updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
 
     std::uint32_t begin = 0U;
@@ -280,13 +280,13 @@ Base::Result<void> ParseArguments(
             path = value;
         } else if (key == ModeKey) {
             if (value == OneTimeMode) {
-                mode = Presentation::BindingMode::OneTime;
+                mode = Data::BindingMode::OneTime;
             } else if (value == OneWayMode) {
-                mode = Presentation::BindingMode::OneWay;
+                mode = Data::BindingMode::OneWay;
             } else if (value == TwoWayMode) {
-                mode = Presentation::BindingMode::TwoWay;
+                mode = Data::BindingMode::TwoWay;
             } else if (value == OneWayToSourceMode) {
-                mode = Presentation::BindingMode::OneWayToSource;
+                mode = Data::BindingMode::OneWayToSource;
             } else {
                 return Base::Status::Failure(
                     Base::ErrorCode::Unsupported,
@@ -320,7 +320,7 @@ Base::Result<void> ParseArguments(
 }
 
 struct DeferredBindingState final {
-    Presentation::BindingManager* manager = nullptr;
+    Aero::Detail::BindingManager* manager = nullptr;
     Core::MetadataRuntime* metadata = nullptr;
     Base::Object* source = nullptr;
     Core::DependencyObject* target = nullptr;
@@ -329,7 +329,7 @@ struct DeferredBindingState final {
     Base::String path;
     Base::String stringFormat;
     bool bindsToSource = false;
-    Presentation::BindingMode mode = Presentation::BindingMode::OneWay;
+    Data::BindingMode mode = Data::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
     Base::IAllocator* allocator = nullptr;
@@ -343,7 +343,7 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
             Base::ErrorCode::InvalidState,
             "Deferred Binding state is invalid");
     }
-    Presentation::MetadataBindingDescriptor descriptor;
+    Data::MetadataBindingDescriptor descriptor;
     descriptor.metadata = state->metadata;
     descriptor.source = state->source;
     descriptor.target = state->target;
@@ -355,7 +355,7 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
     descriptor.bindsToSource = state->bindsToSource;
     descriptor.mode = state->mode;
     descriptor.updateSourceTrigger = state->updateSourceTrigger;
-    Base::Result<Presentation::BindingHandle> attached =
+    Base::Result<Data::BindingHandle> attached =
         state->manager->Attach(descriptor);
     return attached
         ? Base::Result<std::uint64_t>(attached.Value().value)
@@ -419,7 +419,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     Base::StringView ancestorType;
     RelativeSourceKind relativeSource =
         RelativeSourceKind::None;
-    Presentation::BindingMode mode = Presentation::BindingMode::OneWay;
+    Data::BindingMode mode = Data::BindingMode::OneWay;
     Core::UpdateSourceTrigger updateSourceTrigger =
         Core::UpdateSourceTrigger::PropertyChanged;
     Base::Result<void> parsed = ParseArguments(
@@ -459,7 +459,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     // when the Style is applied, so preserve the binding specification here.
     const bool authoredSetterValue =
         targetMember != nullptr &&
-        targetMember->OwnerType() == Presentation::Setter::StaticTypeId() &&
+        targetMember->OwnerType() == Aero::Setter::StaticTypeId() &&
         targetMember->Name() == Base::StringView("Value");
     const bool authoredHierarchicalItemsSource =
         targetMember != nullptr &&
@@ -468,22 +468,22 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const bool authoredLaunchPath =
         targetMember != nullptr &&
         services.targetObject->RuntimeType() ==
-            Animation::LaunchUriOrFileAction::StaticTypeId() &&
+            Media::Animation::LaunchUriOrFileAction::StaticTypeId() &&
         targetMember->Name() == Base::StringView("Path");
     if ((targetMember != nullptr &&
          targetMember->ValueType() ==
-             Presentation::BindingSpec::StaticTypeId()) ||
+             Data::Binding::StaticTypeId()) ||
         authoredSetterValue || authoredHierarchicalItemsSource ||
         authoredLaunchPath) {
         if (!sourceResource.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
-                "BindingSpec does not support an explicit Source");
+                "Data::Binding does not support an explicit Source");
         }
         Base::Result<Base::Ref<
-            Presentation::BindingSpec>> binding =
+            Data::Binding>> binding =
                 Base::MakeRef<
-                    Presentation::BindingSpec>();
+                    Data::Binding>();
         if (!binding) {
             return binding.GetStatus();
         }
@@ -495,19 +495,19 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 updateSourceTrigger,
                 stringFormat,
                 relativeSource == RelativeSourceKind::Self
-                    ? Presentation::BindingRelativeSource::Self
+                    ? Data::RelativeSourceMode::Self
                     : relativeSource == RelativeSourceKind::TemplatedParent
-                        ? Presentation::BindingRelativeSource::TemplatedParent
+                        ? Data::RelativeSourceMode::TemplatedParent
                         : relativeSource == RelativeSourceKind::Ancestor
-                            ? Presentation::BindingRelativeSource::Ancestor
-                            : Presentation::BindingRelativeSource::None,
+                            ? Data::RelativeSourceMode::Ancestor
+                            : Data::RelativeSourceMode::None,
                 ancestorType);
         if (!configured) {
             return configured.GetStatus();
         }
         if (authoredLaunchPath) {
             Base::Result<void> assigned =
-                static_cast<Animation::LaunchUriOrFileAction*>(
+                static_cast<Media::Animation::LaunchUriOrFileAction*>(
                     services.targetObject)->SetPathBinding(
                         std::move(binding).Value());
             return assigned
@@ -518,7 +518,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             Core::Value::FromObject(
                 authoredHierarchicalItemsSource
                     ? targetMember->ValueType()
-                    : Presentation::BindingSpec::StaticTypeId(),
+                    : Data::Binding::StaticTypeId(),
                 Base::Ref<Base::Object>(
                     std::move(binding).Value()));
         if (!value) return value.GetStatus();
@@ -592,7 +592,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 Base::ErrorCode::NotInitialized,
                 "Binding Source requires an active resource scope");
         }
-        Base::Result<Presentation::ResourceValue> resource =
+        Base::Result<Aero::ResourceValue> resource =
             services.resources.Lookup(sourceResource);
         if (!resource) return resource.GetStatus();
         if (resource.Value().Kind() != Core::ValueKind::Object ||
@@ -628,7 +628,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
     }
 
-    Presentation::BindingManager* bindings =
+    Aero::Detail::BindingManager* bindings =
         services.bindings != nullptr
         ? services.bindings
         : extension->options_.bindings;

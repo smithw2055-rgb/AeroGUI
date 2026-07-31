@@ -531,7 +531,7 @@ bool OpenGL33RenderPlanBackend::IsInitialized() const noexcept {
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::RegisterImage(
-    Presentation::RenderImageId image,
+    Render::RenderImageId image,
     Rhi::ResourceHandle texture,
     Rhi::ResourceHandle sampler) noexcept {
     return IsInitialized()
@@ -542,7 +542,7 @@ OpenGL33RenderPlanBackend::RegisterImage(
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::UnregisterImage(
-    Presentation::RenderImageId image) noexcept {
+    Render::RenderImageId image) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterImage(image)
         : Base::Result<void>(NotInitialized(
@@ -551,7 +551,7 @@ OpenGL33RenderPlanBackend::UnregisterImage(
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::RegisterMesh(
-    Presentation::RenderMeshId mesh,
+    Render::RenderMeshId mesh,
     Rhi::ResourceHandle vertexBuffer,
     Rhi::ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -569,7 +569,7 @@ OpenGL33RenderPlanBackend::RegisterMesh(
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::UnregisterMesh(
-    Presentation::RenderMeshId mesh) noexcept {
+    Render::RenderMeshId mesh) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterMesh(mesh)
         : Base::Result<void>(NotInitialized(
@@ -578,7 +578,7 @@ OpenGL33RenderPlanBackend::UnregisterMesh(
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::RegisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun,
+    Render::RenderGlyphRunId glyphRun,
     Rhi::ResourceHandle vertexBuffer,
     Rhi::ResourceHandle indexBuffer,
     std::uint32_t indexCount,
@@ -600,7 +600,7 @@ OpenGL33RenderPlanBackend::RegisterGlyphRun(
 
 Base::Result<void>
 OpenGL33RenderPlanBackend::UnregisterGlyphRun(
-    Presentation::RenderGlyphRunId glyphRun) noexcept {
+    Render::RenderGlyphRunId glyphRun) noexcept {
     return IsInitialized()
         ? impl_->renderer.UnregisterGlyphRun(glyphRun)
         : Base::Result<void>(NotInitialized(
@@ -623,7 +623,7 @@ void* OpenGL33RenderPlanBackend::QueryInternalService(
 }
 
 Base::Result<void> OpenGL33RenderPlanBackend::Submit(
-    const Presentation::RenderPlan& plan) noexcept {
+    const Render::RenderPlan& plan) noexcept {
     if (!IsInitialized()) {
         return NotInitialized(
             "OpenGL render adapter is not initialized");

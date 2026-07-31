@@ -3,7 +3,7 @@
 
 #include "../render/TextBackendAccess.hpp"
 
-#include <Aero/Presentation/Rendering.hpp>
+#include <Aero/Rendering.hpp>
 #include <Aero/Text/FontManager.hpp>
 #include <Aero/Text/FreeTypeAdapter.hpp>
 #include <Aero/Text/HarfBuzzAdapter.hpp>
@@ -437,7 +437,7 @@ public:
     }
 
     void ReleaseGlyphRun(
-        Presentation::RenderGlyphRunId glyphRun) noexcept override {
+        Render::RenderGlyphRunId glyphRun) noexcept override {
         if (service_ != nullptr) {
             service_->ReleaseGlyphRun(glyphRun);
         }
@@ -477,7 +477,7 @@ public:
         const Controls::Detail::TextLayoutRequest& request,
         Controls::Detail::TextLayoutResult& output) noexcept override {
         if (fonts_ == nullptr ||
-            !Presentation::IsValidLayoutSize(
+            !Aero::IsValidLayoutSize(
                 request.availableSize) ||
             !std::isfinite(request.dpiScale) ||
             request.dpiScale <= 0.0 ||
@@ -519,7 +519,7 @@ public:
                 layout.NaturalSize().height)};
         if (!layout.Runs().Empty()) {
             if (nextGlyphRun_ ==
-                Presentation::InvalidRenderGlyphRunId) {
+                Render::InvalidRenderGlyphRunId) {
                 return Base::Status::Failure(
                     Base::ErrorCode::OutOfRange,
                     "Headless glyph-run ID space is exhausted");
@@ -533,14 +533,14 @@ public:
     }
 
     void ReleaseGlyphRun(
-        Presentation::RenderGlyphRunId) noexcept override {}
+        Render::RenderGlyphRunId) noexcept override {}
 
 private:
     Text::FontManager* fonts_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     TextRuntimeConfig config_;
     Base::Vector<Text::FontFace> fallbackFaces_;
-    Presentation::RenderGlyphRunId nextGlyphRun_ =
+    Render::RenderGlyphRunId nextGlyphRun_ =
         UINT64_C(1) << 32U;
     bool valid_ = false;
 };
@@ -561,7 +561,7 @@ struct TextRuntime::Impl final {
 
     Impl(
         Base::IAllocator& allocator,
-        Presentation::IRenderBackend& selectedBackend) noexcept
+        Render::IRenderBackend& selectedBackend) noexcept
         : fontProvider(&allocator),
           shaper(fontProvider),
           fonts(&allocator),
@@ -588,7 +588,7 @@ struct TextRuntime::Impl final {
     TextLayoutServiceProxy proxy;
     Controls::Detail::TextLayoutService* service = nullptr;
     HeadlessTextLayoutService* headlessService = nullptr;
-    Presentation::IRenderBackend* backend = nullptr;
+    Render::IRenderBackend* backend = nullptr;
     TextBackendServices* backendServices =
         nullptr;
     std::uint64_t backendGeneration = 0U;
@@ -606,7 +606,7 @@ TextRuntime::~TextRuntime() noexcept {
 }
 
 Base::Result<void> TextRuntime::Initialize(
-    Presentation::IRenderBackend& backend,
+    Render::IRenderBackend& backend,
     const Integration::TextOptions& options) noexcept {
     if (impl_ != nullptr) {
         return Base::Status::Failure(

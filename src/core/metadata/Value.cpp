@@ -23,7 +23,7 @@ public:
     ~CustomValueStorage() override {
         const ValueTypeRegistration& registration = semantics_->Registration();
         if (registration.destroy != nullptr) registration.destroy(value_, registration.context);
-        allocator_->Deallocate(value_, registration.size, registration.alignment, Base::MemoryTag::Presentation);
+        allocator_->Deallocate(value_, registration.size, registration.alignment, Base::MemoryTag::Ui);
     }
     const void* Data() const noexcept { return value_; }
     void* MutableData() noexcept { return value_; }
@@ -72,14 +72,14 @@ Base::Result<Value> Value::TryFromCustom(TypeId type, const void* source, const 
     }
     if (registration.copy == nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Boxed custom Value requires a copy callback");
     Base::IAllocator& selected = Base::GetDefaultAllocator();
-    void* memory = selected.Allocate({registration.size, registration.alignment, Base::MemoryTag::Presentation});
+    void* memory = selected.Allocate({registration.size, registration.alignment, Base::MemoryTag::Ui});
     if (memory == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Unable to allocate custom Value storage");
     Base::Result<void> copied = registration.copy(memory, source, registration.context);
-    if (!copied) { selected.Deallocate(memory, registration.size, registration.alignment, Base::MemoryTag::Presentation); return copied.GetStatus(); }
+    if (!copied) { selected.Deallocate(memory, registration.size, registration.alignment, Base::MemoryTag::Ui); return copied.GetStatus(); }
     Base::Result<Base::Ref<CustomValueStorage>> storage = Base::MakeRefWithAllocator<CustomValueStorage>(selected, memory, selected, semantics);
     if (!storage) {
         if (registration.destroy != nullptr) registration.destroy(memory, registration.context);
-        selected.Deallocate(memory, registration.size, registration.alignment, Base::MemoryTag::Presentation);
+        selected.Deallocate(memory, registration.size, registration.alignment, Base::MemoryTag::Ui);
         return storage.GetStatus();
     }
     result.storage_ = std::move(storage).Value(); return result;

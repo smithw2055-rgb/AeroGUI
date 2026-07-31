@@ -3,8 +3,8 @@
 #include <Aero/Detail/RuntimeManagersFwd.hpp>
 
 #include <Aero/Controls/Selection.hpp>
-#include <Aero/Presentation/Binding.hpp>
-#include <Aero/Presentation/Animation.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Detail/AnimationRuntime.hpp>
 #include <Aero/RuntimeEnvironment.hpp>
 
 #include "ViewRuntime.hpp"
@@ -14,8 +14,6 @@
 namespace Aero::Controls {
 }
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Detail {
 
@@ -23,9 +21,9 @@ namespace Aero::Detail {
 // consumers operate on View and cannot observe the runtime service graph.
 class ViewAccess final {
 public:
-    static Base::Result<Presentation::BindingHandle> AttachBinding(
+    static Base::Result<Data::BindingHandle> AttachBinding(
         View& view,
-        const Presentation::BindingDescriptor& descriptor) noexcept {
+        const Data::BindingDescriptor& descriptor) noexcept {
         return Runtime(view).Bindings()->Attach(descriptor);
     }
 
@@ -45,13 +43,13 @@ public:
             runtime.Renderer());
     }
 
-    static Presentation::Visual* RootVisual(
+    static Aero::Visual* RootVisual(
         View& view) noexcept {
-        Presentation::ObjectTree* tree = Runtime(view).Tree();
+        Aero::ObjectTree* tree = Runtime(view).Tree();
         return tree != nullptr ? tree->Root() : nullptr;
     }
 
-    static Presentation::AnimationManager* Animations(
+    static Aero::Detail::AnimationManager* Animations(
         View& view) noexcept {
         return Runtime(view).Animations();
     }

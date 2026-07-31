@@ -5,7 +5,7 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Integration/ViewHost.hpp>
-#include <Aero/Presentation/Geometry.hpp>
+#include <Aero/Media/Geometry.hpp>
 
 #include <cstdint>
 
@@ -45,7 +45,7 @@ public:
 
     Base::Result<void> Start(
         Base::StringView rootUri,
-        Presentation::Size availableSize,
+        Aero::Base::Size availableSize,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     void Stop() noexcept;
 

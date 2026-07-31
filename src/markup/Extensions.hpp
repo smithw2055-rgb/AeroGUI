@@ -12,15 +12,13 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Core/Diagnostics.hpp>
 #include <Aero/Core/Metadata/Value.hpp>
-#include <Aero/Presentation/Binding.hpp>
+#include <Aero/Data/Binding.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Core/Property/EffectiveValueEngine.hpp>
 #include <Aero/Markup/Resources.hpp>
 
 #include <cstdint>
 
-namespace Aero::Presentation {
-}
 
 namespace Aero::Markup {
 
@@ -122,13 +120,13 @@ struct ExtensionContext final {
     Base::Object* templatedParent = nullptr;
     const Base::ResourceUri* baseUri = nullptr;
     Core::SourceSpan source;
-    const Presentation::NameScope* nameScope = nullptr;
+    const Aero::NameScope* nameScope = nullptr;
     NamespaceScope namespaces;
     ResourceResolver resources;
     Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Presentation::BindingManager* bindings = nullptr;
-    Presentation::ResourceDictionary* fallbackResources = nullptr;
-    Base::Span<const Presentation::ResourceDictionary* const>
+    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::ResourceDictionary* fallbackResources = nullptr;
+    Base::Span<const Aero::ResourceDictionary* const>
         ambientResourceChain;
     VisualContentPlan* visualContent = nullptr;
     Base::Object* deferredContentOwner = nullptr;
@@ -138,12 +136,12 @@ struct ExtensionContext final {
 struct BindingExtensionOptions final {
     BindingExtensionOptions() noexcept = default;
     BindingExtensionOptions(
-        Presentation::BindingManager* bindingManager,
+        Aero::Detail::BindingManager* bindingManager,
         Core::DependencyPropertyHandle dataContext) noexcept
         : bindings(bindingManager),
           dataContextProperty(dataContext) {}
 
-    Presentation::BindingManager* bindings = nullptr;
+    Aero::Detail::BindingManager* bindings = nullptr;
     Core::DependencyPropertyHandle dataContextProperty;
 };
 
@@ -180,23 +178,23 @@ class AERO_API DynamicResource final {
 public:
     static Base::Result<void> Attach(
         Core::EffectiveValueEngine& effectiveValues,
-        Presentation::ResourceDictionary& resources,
+        Aero::ResourceDictionary& resources,
         Core::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
     static Base::Result<void> Attach(
         Core::EffectiveValueEngine& effectiveValues,
         Base::Span<
-            const Presentation::ResourceDictionary* const> resourceChain,
-        Presentation::ResourceDictionary* fallbackResources,
+            const Aero::ResourceDictionary* const> resourceChain,
+        Aero::ResourceDictionary* fallbackResources,
         Core::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
     static Base::Result<Core::PropertyExpression> CreateExpression(
         Core::EffectiveValueEngine& effectiveValues,
         Base::Span<
-            const Presentation::ResourceDictionary* const> resourceChain,
-        Presentation::ResourceDictionary* fallbackResources,
+            const Aero::ResourceDictionary* const> resourceChain,
+        Aero::ResourceDictionary* fallbackResources,
         Core::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
@@ -206,12 +204,12 @@ struct DynamicResourceExtensionOptions final {
     DynamicResourceExtensionOptions() noexcept = default;
     DynamicResourceExtensionOptions(
         Core::EffectiveValueEngine* effectiveValueEngine,
-        Presentation::ResourceDictionary* resourceDictionary) noexcept
+        Aero::ResourceDictionary* resourceDictionary) noexcept
         : effectiveValues(effectiveValueEngine),
           resources(resourceDictionary) {}
 
     Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Presentation::ResourceDictionary* resources = nullptr;
+    Aero::ResourceDictionary* resources = nullptr;
 };
 
 class AERO_API DynamicResourceExtension final {
