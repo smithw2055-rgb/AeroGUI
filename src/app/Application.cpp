@@ -1,4 +1,5 @@
 #include <Aero/Application.hpp>
+#include <Aero/App/Peers.hpp>
 
 namespace Aero {
 namespace {
