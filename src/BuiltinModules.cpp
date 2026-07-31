@@ -15,9 +15,11 @@ Base::Result<void> RegisterBuiltInUiModules(
     if (!registered) return registered.GetStatus();
     registered = Aero::Detail::TryRegisterUiMetadata(domain);
     if (!registered) return registered.GetStatus();
-    registered = App::TryRegisterAppMetadata(domain);
-    if (!registered) return registered.GetStatus();
+    // Window derives from ContentControl, so the control descriptors must be
+    // available before the App module publishes Application and Window.
     registered = Controls::TryRegisterControlsMetadata(domain);
+    if (!registered) return registered.GetStatus();
+    registered = App::TryRegisterAppMetadata(domain);
     if (!registered) return registered.GetStatus();
     return Markup::TryRegisterMarkupMetadata(domain);
 }
