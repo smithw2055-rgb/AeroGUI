@@ -17,37 +17,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Reassemble patch
-        id: assemble
+      - name: Inspect staged patch files
         shell: bash
         run: |
-          set -u
-          cat \
-            .github/refactor-patch/part-00 \
-            .github/refactor-patch/part-01 \
-            .github/refactor-patch/part-02 \
-            .github/refactor-patch/part-03 \
-            | tr -d '\r\n\t ' \
-            > remove-presentation-layer.patch.b64
-          base64 --decode remove-presentation-layer.patch.b64 \
-            > remove-presentation-layer.patch.gz || true
-          gzip --decompress --stdout remove-presentation-layer.patch.gz \
-            > remove-presentation-layer.patch || true
-          wc -c remove-presentation-layer.patch.b64 \
-                remove-presentation-layer.patch.gz \
-                remove-presentation-layer.patch
-          git apply --stat remove-presentation-layer.patch || true
-          sha256sum remove-presentation-layer.patch > remove-presentation-layer.patch.sha256
-          git apply --check remove-presentation-layer.patch
-      - name: Upload patch
-        if: always()
+          set -euo pipefail
+          find .github/refactor-patch -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+      - name: Upload staged patch directory
         uses: actions/upload-artifact@v4
         with:
-          name: remove-presentation-layer-patch
-          path: |
-            remove-presentation-layer.patch
-            remove-presentation-layer.patch.sha256
-            remove-presentation-layer.patch.gz
-            remove-presentation-layer.patch.b64
+          name: presentation-removal-staging
+          path: .github/refactor-patch
           if-no-files-found: error
           retention-days: 1
