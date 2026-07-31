@@ -3,12 +3,17 @@
 #include "DisplayList.hpp"
 
 #include <Aero/DrawingContext.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Detail {
 
 class DrawingContextAccess final {
 public:
+    static DrawingContext Create(
+        Render::DisplayListBuilder& builder) noexcept {
+        return DrawingContext(&builder);
+    }
+
     static Render::DisplayListBuilder& Builder(
         DrawingContext& context) noexcept {
         return *static_cast<Render::DisplayListBuilder*>(

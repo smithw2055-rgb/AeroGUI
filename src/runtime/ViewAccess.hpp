@@ -1,12 +1,13 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "RuntimeFwd.hpp"
 #include "../data/BindingRuntime.hpp"
+#include "../controls/ItemContainerGeneratorAccess.hpp"
 
-#include <Aero/Controls/Selection.hpp>
+#include <Aero/Controls/Items.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Detail/AnimationRuntime.hpp>
+#include <Aero/Data.hpp>
+#include "../media/AnimationRuntimeTypes.hpp"
 #include <Aero/RuntimeEnvironment.hpp>
 
 #include "ViewRuntime.hpp"
@@ -37,12 +38,17 @@ public:
     static std::unique_ptr<Controls::ItemContainerGenerator>
     CreateItemContainerGenerator(View& view) {
         ViewRuntime& runtime = Runtime(view);
-        return std::make_unique<Controls::ItemContainerGenerator>(
-            *runtime.Tree(),
-            *runtime.Layout(),
-            *runtime.EffectiveValues(),
-            nullptr,
-            runtime.Renderer());
+        Base::Result<Controls::ItemContainerGenerator*> created =
+            Controls::Detail::ItemContainerGeneratorAccess::Create(
+                *runtime.Tree(),
+                *runtime.Layout(),
+                *runtime.EffectiveValues(),
+                nullptr,
+                runtime.Renderer());
+        return created
+            ? std::unique_ptr<Controls::ItemContainerGenerator>(
+                  created.Value())
+            : nullptr;
     }
 
     static Aero::Visual* RootVisual(

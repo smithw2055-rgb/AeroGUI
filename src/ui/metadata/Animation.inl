@@ -55,7 +55,7 @@ Base::Result<void> PopulateUiAnimation(
         context, TypeFlags::Abstract);
     easingBase.Property<
         EasingMode,
-        &Media::Animation::EasingFunctionBase::EasingMode,
+        &Media::Animation::EasingFunctionBase::GetEasingMode,
         &Media::Animation::EasingFunctionBase::SetEasingMode>(
             "EasingMode");
     status = easingBase.Result();

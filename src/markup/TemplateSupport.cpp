@@ -1,14 +1,14 @@
 #include "UiObjectModelInternal.hpp"
 
 #include <Aero/Base/String.hpp>
-#include <Aero/Controls/ControlPrimitives.hpp>
+#include <Aero/Controls/Base.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Templates.hpp>
+#include <Aero/Styling.hpp>
 #include "SchemaInternal.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Style.hpp>
 
 #include "TemplateCompiler.hpp"
+#include "../controls/FrameworkTemplateAccess.hpp"
 
 #include <new>
 #include <utility>
@@ -402,7 +402,8 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         if (configured) {
             configured =
-                controlTemplate.Seal(
+                Controls::Detail::FrameworkTemplateAccess::Seal(
+                    controlTemplate,
                     *self->properties);
         }
         if (!configured) {

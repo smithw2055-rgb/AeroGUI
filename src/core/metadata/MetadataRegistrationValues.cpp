@@ -1,6 +1,6 @@
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 
-#include <Aero/Core/Metadata/MetadataValueRegistrationStore.hpp>
+#include "MetadataValueRegistrationStore.hpp"
 
 namespace Aero::Core {
 namespace {

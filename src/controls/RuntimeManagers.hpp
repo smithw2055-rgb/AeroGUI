@@ -1,19 +1,18 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 #include "../core/property/PropertyProviderSession.hpp"
+#include "TemplateRuntime.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
 // of the normal WPF control-authoring surface.
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Documents/Documents.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/Scroll.hpp>
-#include <Aero/Controls/Trees.hpp>
-#include <Aero/Controls/Selection.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Controls/Menus.hpp>
+#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Documents.hpp>
+#include <Aero/Controls/Text.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/Controls/Standard.hpp>
 #include "../ui/RuntimeManagers.hpp"
 
 namespace Aero::Detail {
@@ -521,8 +520,8 @@ private:
         const ControlTemplate* plan = nullptr;
         Visual* rootVisual = nullptr;
         UIElement* rootElement = nullptr;
-        Base::Vector<TemplatePart> parts;
-        Base::Vector<TemplateContentProjection> projections;
+        Base::Vector<Aero::Controls::Detail::TemplatePart> parts;
+        Base::Vector<Aero::Controls::Detail::TemplateContentProjection> projections;
         NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;

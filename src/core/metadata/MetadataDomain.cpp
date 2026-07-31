@@ -3,8 +3,8 @@
 #include "RoutedEventCatalog.hpp"
 #include "MetadataValueFacets.hpp"
 #include "MetadataContextState.hpp"
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
-#include <Aero/Core/Metadata/MetadataValueRegistrationStore.hpp>
+#include "MetadataBehaviorRegistrationStore.hpp"
+#include "MetadataValueRegistrationStore.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/String.hpp>

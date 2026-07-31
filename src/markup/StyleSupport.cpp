@@ -1,12 +1,13 @@
 #include "UiObjectModelInternal.hpp"
+#include "../ui/StyleAccess.hpp"
 
 #include <Aero/Base/String.hpp>
 #include "SchemaInternal.hpp"
-#include <Aero/Controls/Controls.hpp>
-#include <Aero/Controls/Menus.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Standard.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>
@@ -459,7 +460,8 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             std::move(plan));
         if (!added) return added.GetStatus();
     }
-    return style.Seal(*options_.properties);
+    return Aero::Detail::StyleAccess::Seal(
+        style, *options_.properties);
 }
 
 Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(

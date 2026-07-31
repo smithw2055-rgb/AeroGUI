@@ -8,10 +8,9 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Controls/Templates.hpp>
+#include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Animation.hpp>
 
 #include <new>
 

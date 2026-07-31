@@ -5,11 +5,11 @@
 #include "ObjectWriterState.hpp"
 #include "../UiDocumentAccess.hpp"
 
-#include <Aero/Core/ObjectServices.hpp>
+#include "core/ObjectServices.hpp"
 #include <Aero/Base/Hash.hpp>
 #include "ObjectWriter.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
 #include <cstdio>

@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include "MetadataBehaviorRegistrationStore.hpp"
 
 #include <cstdint>
 

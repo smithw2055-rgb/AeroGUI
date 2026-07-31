@@ -2,7 +2,7 @@
 
 #include "UiObjectModel.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Styling.hpp>
 
 namespace Aero::Markup::Detail {
 

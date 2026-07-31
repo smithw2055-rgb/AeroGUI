@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Style.hpp>
+#include <Aero/Styling.hpp>
 
 namespace Aero::Detail {
 

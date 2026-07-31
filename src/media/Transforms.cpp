@@ -1,6 +1,6 @@
 #include <Aero/Media/Transforms.hpp>
 
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>

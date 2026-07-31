@@ -2,8 +2,8 @@
 
 #include "TextLayoutService.hpp"
 
-#include <Aero/Controls/Controls.hpp>
-#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Text.hpp>
 
 namespace Aero::Controls::Detail {
 

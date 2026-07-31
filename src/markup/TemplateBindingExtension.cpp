@@ -2,7 +2,7 @@
 
 #include "SchemaInternal.hpp"
 
-#include <Aero/Controls/Templates.hpp>
+#include <Aero/Styling.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 #include "../ui/RuntimeManagers.hpp"
 

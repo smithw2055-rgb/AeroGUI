@@ -1,6 +1,6 @@
 #include <Aero/Media/Effects.hpp>
 
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Media {
 

@@ -77,6 +77,7 @@ set(AERO_TEXT_TEST_ARABIC_FONT "" CACHE FILEPATH
 
 include(cmake/AeroCompilerOptions.cmake)
 include(cmake/AeroAddXaml.cmake)
+include(cmake/AeroPublicHeaders.cmake)
 
 if(AERO_BUILD_SHARED)
     set(AERO_LIBRARY_TYPE SHARED)
@@ -421,7 +422,9 @@ add_library(Aero::Core ALIAS AeroCore)
 target_include_directories(AeroCore
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_link_libraries(AeroCore
     PUBLIC
@@ -628,7 +631,9 @@ add_library(Aero::Markup ALIAS AeroMarkup)
 target_include_directories(AeroMarkup
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_compile_definitions(
     AeroMarkupKernel
@@ -657,7 +662,9 @@ add_library(Aero::DetailModuleCatalog ALIAS AeroModuleCatalog)
 target_include_directories(AeroModuleCatalog
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroModuleCatalog
     PUBLIC Aero::Markup
     PRIVATE Aero::DetailAppModel)
@@ -1403,7 +1410,9 @@ add_library(Aero::App ALIAS AeroApp)
 target_include_directories(AeroApp
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroApp
     PUBLIC
         Aero::Integration
@@ -1572,9 +1581,24 @@ if(TARGET aero-xamlc)
         EXPORT AeroTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
-install(DIRECTORY include/Aero
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    PATTERN "Version.hpp" EXCLUDE)
+foreach(_aero_public_header IN LISTS AERO_PUBLIC_HEADERS)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_aero_public_header}")
+        message(FATAL_ERROR
+            "Public SDK header is missing: ${_aero_public_header}")
+    endif()
+    get_filename_component(
+        _aero_public_header_directory
+        "${_aero_public_header}" DIRECTORY)
+    string(REGEX REPLACE "^include/" ""
+        _aero_public_install_directory
+        "${_aero_public_header_directory}")
+    install(FILES "${_aero_public_header}"
+        DESTINATION
+            "${CMAKE_INSTALL_INCLUDEDIR}/${_aero_public_install_directory}")
+endforeach()
+unset(_aero_public_header)
+unset(_aero_public_header_directory)
+unset(_aero_public_install_directory)
 install(FILES
     "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Aero)

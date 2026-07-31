@@ -1,6 +1,6 @@
 #include "Inspector.hpp"
 
-#include <Aero/Controls/ControlPrimitives.hpp>
+#include <Aero/Controls/Base.hpp>
 #include "../ui/RuntimeManagers.hpp"
 #include "../controls/RuntimeManagers.hpp"
 

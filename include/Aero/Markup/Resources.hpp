@@ -6,8 +6,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Controls/Templates.hpp>
+#include <Aero/Styling.hpp>
 
 namespace Aero::Markup {
 

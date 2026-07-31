@@ -1,6 +1,6 @@
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
-#include <Aero/Core/ObjectServices.hpp>
+#include "../metadata/MetadataBehaviorRegistrationStore.hpp"
+#include "../ObjectServices.hpp"
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>

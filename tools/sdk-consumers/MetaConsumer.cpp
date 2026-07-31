@@ -69,50 +69,6 @@ constexpr Aero::ModuleRegistration ConsumerModule =
         "Aero.SdkConsumer",
         &RegisterConsumerModule);
 
-constexpr Aero::Core::PropertyProviderToken CanonicalStyleTriggerToken{
-    Aero::Core::PropertyValueRank::StyleTrigger,
-    Aero::Core::FirstCanonicalProviderOrigin,
-    0U};
-constexpr Aero::Core::PropertyProviderToken LaterStyleTriggerToken{
-    Aero::Core::PropertyValueRank::StyleTrigger,
-    Aero::Core::FirstCanonicalProviderOrigin,
-    1U};
-
-[[maybe_unused]] Aero::Core::PropertyProviderSet ProviderSet;
-
-[[maybe_unused]] bool ExerciseCanonicalProviderSet() {
-    Aero::Core::PropertyProviderSet providers;
-    const Aero::Core::PropertyValue first =
-        Aero::Core::PropertyValue::FromBoolean(
-            Aero::Core::TypeOf<bool>(), false);
-    const Aero::Core::PropertyValue second =
-        Aero::Core::PropertyValue::FromBoolean(
-            Aero::Core::TypeOf<bool>(), true);
-    if (!providers.Set(CanonicalStyleTriggerToken, first) ||
-        !providers.Set(LaterStyleTriggerToken, second)) {
-        return false;
-    }
-    const Aero::Core::PropertyProviderContribution* winner =
-        providers.Winner();
-    if (providers.Count() != 2U || winner == nullptr ||
-        winner->token != LaterStyleTriggerToken ||
-        !winner->value.AsBoolean()) {
-        return false;
-    }
-    if (!providers.Set(CanonicalStyleTriggerToken, second) ||
-        providers.Count() != 2U) {
-        return false;
-    }
-    if (!providers.Remove(LaterStyleTriggerToken) ||
-        providers.Count() != 1U) {
-        return false;
-    }
-    winner = providers.Winner();
-    return winner != nullptr &&
-        winner->token == CanonicalStyleTriggerToken &&
-        winner->value.AsBoolean();
-}
-
 static_assert(
     std::is_same<
         decltype(ConsumerModule.registerModule),
@@ -167,12 +123,6 @@ static_assert(
 
 static_assert(
     std::is_same<
-        Aero::Controls::Primitives::ButtonBase,
-        Aero::Controls::ButtonBase>::value,
-    "Controls.Primitives projection must preserve runtime type identity");
-
-static_assert(
-    std::is_same<
         Aero::Data::Binding,
         Aero::Data::Binding>::value,
     "Data binding projection must preserve runtime type identity");
@@ -214,10 +164,10 @@ static_assert(
     "Root Style projection must preserve runtime type identity");
 
 static_assert(
-    std::is_same<
-        Aero::Shapes::Rectangle,
-        Aero::Controls::Rectangle>::value,
-    "Shapes projection must preserve runtime type identity");
+    std::is_base_of<
+        Aero::Shapes::Shape,
+        Aero::Shapes::Rectangle>::value,
+    "Shapes must use the canonical Aero::Shapes hierarchy");
 
 static_assert(
     std::is_same<
@@ -225,27 +175,5 @@ static_assert(
         Aero::Core::Dispatcher>::value,
     "Threading projection must preserve dispatcher identity");
 
-static_assert(
-    CanonicalStyleTriggerToken.IsValid(),
-    "Property provider tokens require a non-default rank and origin");
-
-static_assert(
-    Aero::Core::FirstCanonicalProviderOrigin >
-        Aero::Core::AnimationValueProviderOrigin,
-    "Manager providers must not reuse engine-owned local or animation origins");
-
-static_assert(
-    static_cast<unsigned>(
-        Aero::Core::PropertyValueRank::Local) >
-    static_cast<unsigned>(
-        Aero::Core::PropertyValueRank::StyleTrigger),
-    "Local values must outrank style triggers");
-
-static_assert(
-    static_cast<unsigned>(
-        Aero::Core::PropertyValueRank::StyleTrigger) >
-    static_cast<unsigned>(
-        Aero::Core::PropertyValueRank::TemplateTrigger),
-    "Style triggers must outrank template triggers");
 
 } // namespace

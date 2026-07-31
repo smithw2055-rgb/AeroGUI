@@ -8,10 +8,10 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include "core/property/EffectiveValueEngine.hpp"
 #include "Loader.hpp"
 #include <Aero/Markup/Resources.hpp>
-#include <Aero/Detail/VisualTreeMount.hpp>
+#include "../ui/VisualTreeMount.hpp"
 
 #include <utility>
 

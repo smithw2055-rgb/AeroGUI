@@ -6,11 +6,14 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
-
 #include <utility>
+
+namespace Aero::Detail {
+class StyleAccess;
+}
 
 namespace Aero {
 
@@ -526,9 +529,6 @@ public:
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
-    Base::Result<void> Seal(
-        const DependencyPropertyRegistry& properties) noexcept;
-
     TypeId TargetType() const noexcept {
         return sealed_ ? program_.TargetType() : targetType_;
     }
@@ -550,6 +550,11 @@ public:
         Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
+    friend class ::Aero::Detail::StyleAccess;
+
+    Base::Result<void> SealRuntime(
+        const void* properties) noexcept;
+
     struct Impl final {
         Impl() noexcept = default;
         Impl(Impl&&) noexcept = default;

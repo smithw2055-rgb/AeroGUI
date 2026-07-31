@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Core/Metadata/BindingPath.hpp>
+#include <Aero/Data.hpp>
+#include "../core/metadata/BindingPath.hpp"
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 
 namespace Aero::Data {

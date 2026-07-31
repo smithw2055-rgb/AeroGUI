@@ -3,24 +3,21 @@
 #include "runtime/TextRuntime.hpp"
 #include "SchemaBundle.hpp"
 
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Bars.hpp>
-#include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Controls/Controls.hpp>
-#include <Aero/Documents/Documents.hpp>
+#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls/Standard.hpp>
+#include <Aero/Controls/Base.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Metadata.hpp>
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Selection.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/Trees.hpp>
-#include <Aero/Controls/Virtualization.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Documents.hpp>
+#include "controls/Metadata.hpp"
+#include "controls/ItemContainerGeneratorAccess.hpp"
+#include "controls/VisualStateManagerAccess.hpp"
+#include <Aero/Styling.hpp>
+#include <Aero/Controls/Text.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Core/ObjectServices.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include "core/ObjectServices.hpp"
+#include "core/property/EffectiveValueEngine.hpp"
 #include "core/metadata/MetadataDomainAccess.hpp"
 #include "markup/Loader.hpp"
 #include "markup/LoadOptionsAccess.hpp"
@@ -29,16 +26,16 @@
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Detail/AnimationRuntime.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Input/Commands.hpp>
-#include <Aero/ObjectTree.hpp>
+#include <Aero/Data.hpp>
+#include "media/AnimationRuntimeTypes.hpp"
+#include "media/AnimationAccess.hpp"
+#include <Aero/Animation.hpp>
+#include <Aero/Input.hpp>
+#include "ui/ObjectTree.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include <Aero/Detail/VisualTreeMount.hpp>
+#include "ui/VisualTreeMount.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "runtime/RuntimeUiServices.hpp"
@@ -1498,13 +1495,15 @@ struct ViewRuntime::Impl final {
                 DependencyProperties(*metadata),
             layout, renderer, metadataRuntime, bindings);
         if (!status) return status.GetStatus();
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            visualStates, *values, *templates,
-            *animations,
-            Core::Detail::MetadataDomainAccess::
-                DependencyProperties(*metadata));
-        if (!status) return status.GetStatus();
+        Base::Result<Controls::VisualStateManager*> createdStates =
+            Controls::Detail::VisualStateManagerAccess::Create(
+                *values,
+                *templates,
+                *animations,
+                Core::Detail::MetadataDomainAccess::
+                    DependencyProperties(*metadata));
+        if (!createdStates) return createdStates.GetStatus();
+        visualStates = createdStates.Value();
         status = CreateRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
             styles, *values,
@@ -1650,9 +1649,8 @@ struct ViewRuntime::Impl final {
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
             styles);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            visualStates);
+        delete visualStates;
+        visualStates = nullptr;
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
             templates);
@@ -1818,22 +1816,20 @@ struct ViewRuntime::Impl final {
                     itemsControl.ItemsHost();
                 if (host != nullptr &&
                     itemsControl.RealizedItemCount() == 0U) {
-                    Controls::ItemContainerGenerator*
-                        generator = nullptr;
-                    Base::Result<void> created =
-                        CreateRuntimeObject(
-                            *allocator,
-                            Base::MemoryTag::Ui,
-                            generator,
-                            *tree,
-                            *layout,
-                            *values,
-                            styles,
-                            renderer,
-                            templates,
-                            &Impl::GeneratedItemSubtreeChanged,
-                            this);
+                    Base::Result<Controls::ItemContainerGenerator*>
+                        created = Controls::Detail::
+                            ItemContainerGeneratorAccess::Create(
+                                *tree,
+                                *layout,
+                                *values,
+                                styles,
+                                renderer,
+                                templates,
+                                &Impl::GeneratedItemSubtreeChanged,
+                                this);
                     if (!created) return created.GetStatus();
+                    Controls::ItemContainerGenerator* generator =
+                        created.Value();
                     Base::Result<void> attached;
                     if (metadata->Types().IsDerivedFrom(
                             host->RuntimeType(),
@@ -1851,10 +1847,8 @@ struct ViewRuntime::Impl final {
                             itemsControl, *host);
                     }
                     if (!attached) {
-                        DestroyRuntimeObject(
-                            *allocator,
-                            Base::MemoryTag::Ui,
-                            generator);
+                        delete generator;
+                        generator = nullptr;
                         return attached.GetStatus();
                     }
                     Base::Result<void> generatedUiApplied =
@@ -1865,10 +1859,8 @@ struct ViewRuntime::Impl final {
                             host, {});
                         static_cast<void>(
                             generator->Detach());
-                        DestroyRuntimeObject(
-                            *allocator,
-                            Base::MemoryTag::Ui,
-                            generator);
+                        delete generator;
+                        generator = nullptr;
                         return generatedUiApplied.GetStatus();
                     }
                     Base::Result<void> tracked =
@@ -1877,10 +1869,8 @@ struct ViewRuntime::Impl final {
                     if (!tracked) {
                         static_cast<void>(
                             generator->Detach());
-                        DestroyRuntimeObject(
-                            *allocator,
-                            Base::MemoryTag::Ui,
-                            generator);
+                        delete generator;
+                        generator = nullptr;
                         return tracked.GetStatus();
                     }
                 }
@@ -2482,8 +2472,8 @@ struct ViewRuntime::Impl final {
             inherited != nullptr
             ? *inherited
             : StoryboardTimingContext{};
-        const Aero::Detail::Animation::TimelineTiming& authored =
-            storyboard.Timing();
+        const Aero::Detail::Animation::TimelineTiming authored =
+            Aero::Detail::AnimationAccess::Timing(storyboard);
         if (UINT64_MAX - result.beginTimeMicroseconds <
             authored.beginTimeMicroseconds) {
             result.beginTimeMicroseconds = UINT64_MAX;
@@ -2510,7 +2500,7 @@ struct ViewRuntime::Impl final {
         const Animation::Timeline& timeline,
         const StoryboardTimingContext* inherited) noexcept {
         Aero::Detail::Animation::TimelineTiming result =
-            timeline.Timing();
+            Aero::Detail::AnimationAccess::Timing(timeline);
         if (inherited == nullptr) return result;
         if (UINT64_MAX - inherited->beginTimeMicroseconds <
             result.beginTimeMicroseconds) {
@@ -2641,7 +2631,7 @@ struct ViewRuntime::Impl final {
             auto& animation =
                 static_cast<Animation::DoubleAnimation&>(timeline);
             Aero::Detail::Animation::DoubleAnimation runtime =
-                animation.RuntimeAnimation();
+                Aero::Detail::AnimationAccess::Double(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -2658,7 +2648,7 @@ struct ViewRuntime::Impl final {
             auto& animation =
                 static_cast<Animation::ColorAnimation&>(timeline);
             Aero::Detail::Animation::ColorAnimation runtime =
-                animation.RuntimeAnimation();
+                Aero::Detail::AnimationAccess::Color(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -2679,7 +2669,7 @@ struct ViewRuntime::Impl final {
                     Animation::PointAnimation&>(
                         timeline);
             Aero::Detail::Animation::PointAnimation runtime =
-                animation.RuntimeAnimation();
+                Aero::Detail::AnimationAccess::Point(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -2701,7 +2691,7 @@ struct ViewRuntime::Impl final {
                     Animation::RectAnimation&>(
                         timeline);
             Aero::Detail::Animation::RectAnimation runtime =
-                animation.RuntimeAnimation();
+                Aero::Detail::AnimationAccess::Rect(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -2723,7 +2713,7 @@ struct ViewRuntime::Impl final {
                     Animation::ThicknessAnimation&>(
                         timeline);
             Aero::Detail::Animation::ThicknessAnimation runtime =
-                animation.RuntimeAnimation();
+                Aero::Detail::AnimationAccess::Thickness(animation);
             runtime.timing =
                 EffectiveTimelineTiming(
                     animation, inherited);
@@ -2746,7 +2736,7 @@ struct ViewRuntime::Impl final {
                  animation.KeyFrames()) {
                 if (!frame) continue;
                 Base::Result<void> appended =
-                    frames.TryPushBack(frame->RuntimeFrame());
+                    frames.TryPushBack(Aero::Detail::AnimationAccess::DoubleFrame(*frame));
                 if (!appended) return appended.GetStatus();
             }
             for (std::uint32_t index = 1U;
@@ -2813,7 +2803,7 @@ struct ViewRuntime::Impl final {
                 if (!frame) continue;
                 Base::Result<void> appended =
                     frames.TryPushBack(
-                        frame->RuntimeFrame());
+                        Aero::Detail::AnimationAccess::ColorFrame(*frame));
                 if (!appended) {
                     return appended.GetStatus();
                 }
@@ -3808,10 +3798,8 @@ struct ViewRuntime::Impl final {
             if (generator != nullptr) {
                 static_cast<void>(
                     generator->Detach());
-                DestroyRuntimeObject(
-                    *allocator,
-                    Base::MemoryTag::Ui,
-                    generator);
+                delete generator;
+                generator = nullptr;
             }
         }
         DestroyRuntimeObject(

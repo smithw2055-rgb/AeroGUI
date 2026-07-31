@@ -4,7 +4,7 @@
 #include <Aero/Application.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
 
 namespace Aero::Markup {

@@ -1,5 +1,5 @@
 #include "MetadataValueFacets.hpp"
-#include <Aero/Core/Metadata/MetadataValueRegistrationStore.hpp>
+#include "MetadataValueRegistrationStore.hpp"
 
 #include <utility>
 

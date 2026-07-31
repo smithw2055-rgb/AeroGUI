@@ -1,20 +1,18 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
-
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Rendering.hpp>
-#include <Aero/Style.hpp>
-
+#include <Aero/FrameworkElement.hpp>
 #include <utility>
+#include <Aero/Style.hpp>
 
 namespace Aero::Detail {
 class ControlRuntimeAccess;
 class RuntimeUiServices;
 }
+namespace Aero::Controls::Detail { class ItemContainerGeneratorAccess; }
 
 
 namespace Aero::Controls {
@@ -25,7 +23,6 @@ using namespace Aero::Data;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Render;
-using namespace Aero::Detail;
 
 enum class FontWeight : std::uint8_t {
     Normal = 0U,
@@ -506,9 +503,9 @@ protected:
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
     friend class Aero::Detail::RuntimeUiServices;
-    void AttachTemplateManager(
+    void AttachTemplateRuntime(
         void* manager) noexcept {
-        templateManager_ = manager;
+        templateRuntime_ = manager;
     }
     Base::Result<void> NotifyTemplateApplied(
         std::uint64_t handleValue) noexcept {
@@ -523,8 +520,8 @@ private:
             ++templateGeneration_;
         }
     }
-    void* templateManager_ = nullptr;
-    void* routedEvents_ = nullptr;
+    void* templateRuntime_ = nullptr;
+    void* eventRuntime_ = nullptr;
     UIElement* templateChild_ = nullptr;
     std::uint64_t templateHandleValue_ = 0U;
     std::uint64_t templateGeneration_ = 0U;
@@ -676,7 +673,7 @@ protected:
         return finalSize;
     }
 private:
-    friend class ItemContainerGenerator;
+    friend class Detail::ItemContainerGeneratorAccess;
     UIElement* content_ = nullptr;
     Base::Ref<Base::Object> ownedContent_;
     Base::Ref<Base::Object> contentValue_;

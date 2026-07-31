@@ -13,11 +13,14 @@ AeroGUI exposes a small product surface organized by WPF semantics:
   and module authoring.
 
 Legacy host facades, service locators, render/RHI targets and runtime manager
-classes are implementation details. D3D11 and OpenGL factories remain opt-in
-headers under `Aero/Integration`; third-party graphics backends use the
-versioned C-compatible `Aero/Integration/HostedGraphics.hpp` contract. See
-[`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md) and
-[`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md).
+classes are implementation details. The installed tree is an explicit
+whitelist, has no `Aero/Detail` directory, and groups all standard controls into
+six stable family headers. D3D11 and OpenGL factories remain opt-in headers
+under `Aero/Integration`; third-party graphics backends use the versioned
+C-compatible `Aero/Integration/HostedGraphics.hpp` contract. See
+[`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
+[`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md), and
+[`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md).
 
 > 一个面向 C++17 的、跨平台的 WPF/XAML 语义运行时与原生 GPU UI 引擎。  
 > A clean-room, cross-platform WPF-style XAML runtime and native GPU UI engine for C++17.

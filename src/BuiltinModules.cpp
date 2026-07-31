@@ -1,8 +1,8 @@
 #include "BuiltinModules.hpp"
 
 #include "app/Metadata.hpp"
-#include <Aero/Controls/Metadata.hpp>
-#include <Aero/Core/Metadata/CoreMetadata.hpp>
+#include "controls/Metadata.hpp"
+#include "core/metadata/CoreMetadata.hpp"
 #include <Aero/Markup/Schema.hpp>
 #include "ui/UiMetadata.hpp"
 

@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <new>
 #include <utility>

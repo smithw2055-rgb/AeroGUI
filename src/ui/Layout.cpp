@@ -3,8 +3,8 @@
 #include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Core/ObjectServices.hpp>
-#include <Aero/Rendering.hpp>
+#include "core/ObjectServices.hpp"
+#include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>

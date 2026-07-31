@@ -1,11 +1,11 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
-
-#include <Aero/Controls/Scroll.hpp>
 #include <Aero/Platform/Clipboard.hpp>
 #include <Aero/Platform/Ime.hpp>
 #include <Aero/Text/EditableText.hpp>
+#include <Aero/Controls/Primitives.hpp>
+
+namespace Aero::Detail { class ControlRuntimeAccess; }
 
 namespace Aero::Controls {
 
@@ -334,7 +334,7 @@ private:
     UpdateCandidateWindow() noexcept;
     Base::Result<void>
     CancelCompositionForFocusLoss() noexcept;
-    Base::Result<void> BuildEditorDisplayList(
+    Base::Result<void> RenderEditor(
         DrawingContext& context,
         Size viewport,
         bool drawCaret) noexcept;

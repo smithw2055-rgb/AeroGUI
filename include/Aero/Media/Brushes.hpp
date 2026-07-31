@@ -4,7 +4,7 @@
 #include <Aero/Core/Collections/ItemsSource.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 namespace Aero::Detail {

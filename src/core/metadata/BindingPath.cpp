@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/BindingPath.hpp>
+#include "BindingPath.hpp"
 
 namespace Aero::Core {
 namespace {

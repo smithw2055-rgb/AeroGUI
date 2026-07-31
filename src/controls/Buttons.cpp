@@ -1,4 +1,4 @@
-#include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
 #include "../ui/RuntimeManagers.hpp"
@@ -148,9 +148,9 @@ Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
     Base::Result<void> applied =
         ContentControl::OnApplyTemplate();
     if (!applied) return applied.GetStatus();
-    if (interactionManager_ != nullptr) {
+    if (interactionRuntime_ != nullptr) {
         return static_cast<ControlInteractionManager*>(
-            interactionManager_)->SyncVisualState(*this, false);
+            interactionRuntime_)->SyncVisualState(*this, false);
     }
     return {};
 }
@@ -210,8 +210,8 @@ ControlInteractionManager::~ControlInteractionManager() noexcept {
         const std::uint32_t index = buttons_.Size() - 1U;
         ButtonBase* button = ResolveButton(index);
         if (button != nullptr) {
-            if (button->interactionManager_ == this) {
-                button->interactionManager_ = nullptr;
+            if (button->interactionRuntime_ == this) {
+                button->interactionRuntime_ = nullptr;
             }
             static_cast<void>(button->RemoveHandler(
                 UIElement::MouseDownEvent, mouseDownHandler_));
@@ -342,7 +342,7 @@ Base::Result<void> ControlInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to interaction services");
     }
-    if (button.interactionManager_ != nullptr) {
+    if (button.interactionRuntime_ != nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to another interaction service");
@@ -435,7 +435,7 @@ Base::Result<void> ControlInteractionManager::Attach(
             UncheckRadioPeers(radio);
         }
     }
-    button.interactionManager_ = this;
+    button.interactionRuntime_ = this;
     result = SyncVisualState(button, false);
     if (!result &&
         result.GetStatus().code !=
@@ -511,8 +511,8 @@ Base::Result<bool> ControlInteractionManager::Detach(
     if (states_ != nullptr) {
         static_cast<void>(states_->Clear(button));
     }
-    if (button.interactionManager_ == this) {
-        button.interactionManager_ = nullptr;
+    if (button.interactionRuntime_ == this) {
+        button.interactionRuntime_ = nullptr;
     }
     RemoveAt(index);
     return true;

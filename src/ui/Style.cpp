@@ -1,6 +1,7 @@
 #include "ThemeStyleRegistry.hpp"
-#include <Aero/Style.hpp>
-#include <Aero/Rendering.hpp>
+#include "StyleAccess.hpp"
+#include <Aero/Styling.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
 #include "ResourceAssignment.hpp"
@@ -466,8 +467,13 @@ Base::Result<void> Style::TryAddPropertyTrigger(
         std::move(plan).Value());
 }
 
-Base::Result<void> Style::Seal(
-    const DependencyPropertyRegistry& properties) noexcept {
+Base::Result<void> Style::SealRuntime(
+    const void* propertiesState) noexcept {
+    if (propertiesState == nullptr) {
+        return InvalidStyle("Style has no dependency-property registry");
+    }
+    const auto& properties = *static_cast<
+        const DependencyPropertyRegistry*>(propertiesState);
     if (sealed_) {
         return {};
     }

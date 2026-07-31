@@ -1,5 +1,5 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Shapes.hpp>
+#include <Aero/Shapes.hpp>
 #include "../render/DrawingContextAccess.hpp"
 
 #include "media/ImageBrushAccess.hpp"
@@ -8,7 +8,7 @@
 #include <cmath>
 #include <utility>
 
-namespace Aero::Controls {
+namespace Aero::Shapes {
 namespace {
 
 struct ImageBrushGeometry final {
@@ -482,4 +482,4 @@ Base::Result<void> Ellipse::OnRender(
     return {};
 }
 
-} // namespace Aero::Controls
+} // namespace Aero::Shapes

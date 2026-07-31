@@ -1,5 +1,5 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Scroll.hpp>
+#include <Aero/Controls/Primitives.hpp>
 #include "../render/DrawingContextAccess.hpp"
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
@@ -917,7 +917,7 @@ void ScrollViewer::OnScrollDataChanged(
         args.newData = newData;
         args.inputKind = kind;
         static_cast<void>(
-            static_cast<RoutedEventManager*>(events_)->RaiseEvent(
+            static_cast<Aero::Detail::RoutedEventManager*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
     }
 }

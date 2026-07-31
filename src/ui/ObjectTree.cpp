@@ -1,7 +1,7 @@
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include "ObjectTree.hpp"
+#include "core/metadata/MetadataBehaviorRegistrationStore.hpp"
 #include <Aero/Layout.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include "../core/metadata/RoutedEventCatalog.hpp"
 

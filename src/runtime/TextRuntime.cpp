@@ -4,7 +4,7 @@
 
 #include "../render/TextBackendAccess.hpp"
 
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Text/FontManager.hpp>
 #include <Aero/Text/FreeTypeAdapter.hpp>
 #include <Aero/Text/HarfBuzzAdapter.hpp>

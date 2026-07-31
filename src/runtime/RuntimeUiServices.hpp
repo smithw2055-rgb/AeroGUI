@@ -1,13 +1,13 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "RuntimeFwd.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Core/Metadata/MetadataDomain.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
-#include <Aero/Data/Binding.hpp>
+#include "core/property/EffectiveValueEngine.hpp"
+#include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
 
 namespace Aero::Controls {

@@ -2,20 +2,19 @@
 
 #include "ThemeStyleRegistry.hpp"
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 #include "../core/property/PropertyProviderSession.hpp"
 #include "../data/BindingRuntime.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
 // of the normal WPF control-authoring surface.
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Input/Commands.hpp>
-#include <Aero/Input/Navigation.hpp>
+#include "ObjectTree.hpp"
+#include <Aero/Input.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Detail/AnimationRuntime.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Data.hpp>
+#include "../media/AnimationRuntimeTypes.hpp"
+#include <Aero/Styling.hpp>
 
 namespace Aero::Detail {
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Animation.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
@@ -7,18 +8,14 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Core/Dispatcher.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include "core/property/EffectiveValueEngine.hpp"
 
 #include <cstdint>
 
 namespace Aero::Detail::Animation {
 
-using AnimationTime = std::uint64_t;
-
-enum class FillBehavior : std::uint8_t {
-    HoldEnd = 0U,
-    Stop
-};
+using AnimationTime = Media::Animation::AnimationTime;
+using FillBehavior = Media::Animation::FillBehavior;
 
 enum class AnimationState : std::uint8_t {
     Active = 0U,
@@ -27,11 +24,7 @@ enum class AnimationState : std::uint8_t {
     Stopped
 };
 
-enum class EasingMode : std::uint8_t {
-    EaseOut = 0U,
-    EaseIn,
-    EaseInOut
-};
+using EasingMode = Media::Animation::EasingMode;
 
 enum class EasingFunctionKind : std::uint8_t {
     Linear = 0U,
@@ -202,39 +195,3 @@ struct AnimationDiagnostics final {
 
 
 } // namespace Aero::Detail::Animation
-
-namespace Aero::Core {
-
-template<>
-struct MetaTypeTraits<Aero::Detail::Animation::FillBehavior> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("FillBehavior");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "FillBehavior";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-template<>
-struct MetaTypeTraits<Aero::Detail::Animation::EasingMode> {
-    static constexpr TypeId Id() noexcept {
-        return MakeTypeId("EasingMode");
-    }
-    static constexpr Base::StringView Namespace() noexcept {
-        return AeroNamespaceUri();
-    }
-    static constexpr Base::StringView Name() noexcept {
-        return "EasingMode";
-    }
-    static constexpr TypeId BaseType() noexcept {
-        return InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Core

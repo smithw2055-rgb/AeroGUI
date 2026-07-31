@@ -1,5 +1,5 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include "../render/DrawingContextAccess.hpp"
 
 #include "runtime/MeshResourceContract.hpp"

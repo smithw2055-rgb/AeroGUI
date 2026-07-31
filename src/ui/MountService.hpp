@@ -1,12 +1,12 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/Visual.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Detail {
 

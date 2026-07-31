@@ -1,8 +1,8 @@
-#include <Aero/Core/Metadata/CoreMetadata.hpp>
+#include "CoreMetadata.hpp"
 
 #include <Aero/Core/Metadata/Describe.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include "../property/EffectiveValueEngine.hpp"
 
 namespace Aero::Core {
 Base::Result<void> Detail::PopulateCoreMetadata(

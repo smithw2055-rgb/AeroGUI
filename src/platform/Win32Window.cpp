@@ -1,4 +1,4 @@
-#include <Aero/Platform/Win32Window.hpp>
+#include "Win32Window.hpp"
 
 #include <Aero/Base/Vector.hpp>
 

@@ -1,10 +1,11 @@
 #include "DisplayList.hpp"
+#include "DrawingContextAccess.hpp"
 #include "RenderingInternal.hpp"
 
 #include "../ui/ResourceAssignment.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include "../core/metadata/BuiltinTypeIds.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -329,7 +330,7 @@ FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
     : UIElement(runtimeType) {}
 
 FrameworkElement::~FrameworkElement() {
-    AERO_ASSERT(renderManager_ == nullptr);
+    AERO_ASSERT(renderRuntime_ == nullptr);
     AERO_ASSERT(!renderAttached_);
     Base::Ref<Transform> renderTransform =
         RenderTransform();
@@ -443,11 +444,11 @@ Base::Result<void> FrameworkElement::InvalidateRender() noexcept {
     if (!access) {
         return access;
     }
-    if (renderManager_ == nullptr) {
+    if (renderRuntime_ == nullptr) {
         renderValid_ = false;
         return {};
     }
-    return renderManager_->Invalidate(*this);
+    return static_cast<Render::RenderManager*>(renderRuntime_)->Invalidate(*this);
 }
 
 Base::Result<void> FrameworkElement::OnRender(
@@ -656,7 +657,7 @@ RenderManager::~RenderManager() noexcept {
                 self(self, *child);
             }
             element.renderAttached_ = false;
-            element.renderManager_ = nullptr;
+            element.renderRuntime_ = nullptr;
             element.renderQueued_ = false;
             element.renderValid_ = false;
             element.nodeId_ = InvalidRenderNodeId;
@@ -722,7 +723,7 @@ Base::Result<void> RenderManager::SetRoot(
                 }
                 RemoveQueued(element);
                 element.renderAttached_ = false;
-                element.renderManager_ = nullptr;
+                element.renderRuntime_ = nullptr;
                 element.renderValid_ = false;
                 element.nodeId_ = InvalidRenderNodeId;
             };
@@ -737,7 +738,7 @@ Base::Result<void> RenderManager::SetRoot(
     Base::Result<void> verified = VerifyElement(*root);
     if (!verified) return verified.GetStatus();
     if (root_ == root) return {};
-    if (root_ != nullptr || root->renderManager_ != nullptr ||
+    if (root_ != nullptr || root->renderRuntime_ != nullptr ||
         root->renderAttached_ || root->VisualParent() != nullptr) {
         return InvalidState("Render root must be detached and unique");
     }
@@ -755,7 +756,7 @@ Base::Result<void> RenderManager::SetRoot(
     if (!reserved) return reserved.GetStatus();
 
     root_ = root;
-    root->renderManager_ = this;
+    root->renderRuntime_ = this;
     root->nodeId_ = nextNodeId_++;
     root->renderValid_ = false;
     Base::Result<void> queued =
@@ -773,8 +774,8 @@ Base::Result<void> RenderManager::Attach(
     if (!verified) return verified.GetStatus();
     verified = VerifyElement(child);
     if (!verified) return verified.GetStatus();
-    if (parent.renderManager_ != this ||
-        child.renderManager_ != nullptr || child.renderAttached_ ||
+    if (parent.renderRuntime_ != this ||
+        child.renderRuntime_ != nullptr || child.renderAttached_ ||
         child.RenderParent() != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
@@ -803,7 +804,7 @@ Base::Result<void> RenderManager::Attach(
     if (!invalidated) return invalidated.GetStatus();
 
     child.renderAttached_ = true;
-    child.renderManager_ = this;
+    child.renderRuntime_ = this;
     child.nodeId_ = nextNodeId_++;
     child.renderValid_ = false;
     Base::Result<void> queued = dirty_.TryPushBack(
@@ -819,9 +820,9 @@ Base::Result<void> RenderManager::Detach(
     FrameworkElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
-    if (parent.renderManager_ != this || !child.renderAttached_ ||
+    if (parent.renderRuntime_ != this || !child.renderAttached_ ||
         child.RenderParent() != &parent ||
-        child.renderManager_ != this) {
+        child.renderRuntime_ != this) {
         return NotFound(
             "Render parent-child relationship was not found");
     }
@@ -836,7 +837,7 @@ Base::Result<void> RenderManager::Detach(
         }
         RemoveQueued(element);
         element.renderAttached_ = false;
-        element.renderManager_ = nullptr;
+        element.renderRuntime_ = nullptr;
         element.renderValid_ = false;
         element.nodeId_ = InvalidRenderNodeId;
     };
@@ -886,7 +887,7 @@ Base::Result<void> RenderManager::Invalidate(
     FrameworkElement& element) noexcept {
     Base::Result<void> verified = VerifyElement(element);
     if (!verified) return verified.GetStatus();
-    if (element.renderManager_ != this) {
+    if (element.renderRuntime_ != this) {
         return InvalidState(
             "FrameworkElement is not attached to this RenderManager");
     }
@@ -989,7 +990,7 @@ Base::Result<void> RenderManager::SetOverlays(
         FrameworkElement* overlay =
             overlays[index];
         if (overlay == nullptr ||
-            overlay->renderManager_ != this) {
+            overlay->renderRuntime_ != this) {
             return InvalidState(
                 "Render overlay must belong to this render tree");
         }
@@ -1045,21 +1046,22 @@ Base::Result<void> RenderManager::BuildSubtree(
         element.GetVisibility() ==
         Visibility::Visible;
     if ((visible && !element.IsArrangeValid()) ||
-        element.buildingDisplayList_) {
+        element.rendering_) {
         return InvalidState("FrameworkElement must be arranged and non-reentrant");
     }
-    element.buildingDisplayList_ = true;
+    element.rendering_ = true;
     DisplayListBuilder builder;
-    DrawingContext context(&builder);
+    DrawingContext context =
+        Aero::Detail::DrawingContextAccess::Create(builder);
     Base::Result<void> built = visible
         ? element.OnRender(context)
         : Base::Result<void>();
     if (!built) {
-        element.buildingDisplayList_ = false;
+        element.rendering_ = false;
         return built;
     }
     Base::Result<DisplayList> listResult = builder.Finish();
-    element.buildingDisplayList_ = false;
+    element.rendering_ = false;
     if (!listResult) {
         return listResult.GetStatus();
     }

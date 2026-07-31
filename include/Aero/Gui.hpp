@@ -12,10 +12,10 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Data.hpp>
-#include <Aero/Drawing.hpp>
+#include <Aero/DrawingContext.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Media.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Styling.hpp>
 #include <Aero/Threading.hpp>

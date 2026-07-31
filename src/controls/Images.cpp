@@ -1,7 +1,7 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include "../render/DrawingContextAccess.hpp"
-#include <Aero/Controls/Images.hpp>
+#include <Aero/Controls/Standard.hpp>
 
 #include <algorithm>
 #include <cmath>

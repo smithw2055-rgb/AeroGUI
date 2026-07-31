@@ -2,16 +2,14 @@
 #include "TemplateCompiler.hpp"
 #include "../data/BindingRuntime.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
+#include "../media/AnimationAccess.hpp"
 
-#include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/Scroll.hpp>
-#include <Aero/Controls/Selection.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <utility>
@@ -873,7 +871,7 @@ CompileVisualStates(
                     sourceTransition.GeneratedDuration());
                 if (!assigned) return assigned.GetStatus();
                 transition.generatedDurationMicroseconds =
-                    duration.Timing().durationMicroseconds;
+                    Aero::Detail::AnimationAccess::Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
                 sourceTransition.GeneratedEasingFunction();

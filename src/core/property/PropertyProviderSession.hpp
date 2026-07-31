@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Property/EffectiveValueEngine.hpp>
+#include "EffectiveValueEngine.hpp"
 
 #include <cstdint>
 #include <utility>

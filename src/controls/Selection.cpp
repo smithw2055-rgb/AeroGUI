@@ -1,9 +1,8 @@
-#include <Aero/Controls/Selection.hpp>
-#include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/Controls/Text.hpp>
 
-#include <Aero/Core/Metadata/BuiltinTypeIds.hpp>
+#include "../core/metadata/BuiltinTypeIds.hpp"
 
 #include <algorithm>
 #include <utility>

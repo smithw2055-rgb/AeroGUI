@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "RuntimeFwd.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>

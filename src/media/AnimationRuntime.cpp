@@ -1,11 +1,11 @@
-#include <Aero/Detail/AnimationRuntime.hpp>
+#include "../media/AnimationRuntimeTypes.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Core/Metadata/ValueCodec.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>

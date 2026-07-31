@@ -1,9 +1,8 @@
 #include "RuntimeUiServices.hpp"
 
-#include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Rendering.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Controls/Base.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include "../ui/RuntimeManagers.hpp"
 #include "../controls/RuntimeManagers.hpp"
 #include "UiRuntimeAccess.hpp"
@@ -147,7 +146,7 @@ Base::Result<void> RuntimeUiServices::Apply(
                 node->RuntimeType(),
                 Controls::Control::StaticTypeId())) {
             auto& control = *static_cast<Controls::Control*>(node);
-            control.AttachTemplateManager(templates_);
+            control.AttachTemplateRuntime(templates_);
             Base::Result<const Controls::ControlTemplate*> resolved =
                 ResolveUiValue<Controls::ControlTemplate>(
                     control,

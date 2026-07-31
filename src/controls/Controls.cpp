@@ -1,11 +1,11 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include "../media/BrushRendering.hpp"
 #include "../render/DrawingContextAccess.hpp"
-#include <Aero/Documents/Documents.hpp>
+#include <Aero/Documents.hpp>
 
 #include "TextLayoutService.hpp"
-#include <Aero/Core/ObjectServices.hpp>
+#include "core/ObjectServices.hpp"
 
 #include <algorithm>
 #include <cmath>

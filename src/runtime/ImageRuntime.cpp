@@ -4,12 +4,12 @@
 #include "ImageControlAccess.hpp"
 #include "media/ImageBrushAccess.hpp"
 
-#include <Aero/Controls/Images.hpp>
-#include <Aero/Controls/Shapes.hpp>
+#include <Aero/Controls/Standard.hpp>
+#include <Aero/Shapes.hpp>
 #include "markup/Loader.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/ObjectTree.hpp>
+#include "ui/ObjectTree.hpp"
 
 #include <limits>
 #include <utility>
@@ -120,19 +120,19 @@ Base::Result<bool> ImageRuntime::Synchronize(
                     visual);
             source = imageControl->Source();
         } else {
-            Controls::Shape* shape = nullptr;
+            Shapes::Shape* shape = nullptr;
             if (visual->RuntimeType() ==
-                Controls::Rectangle::StaticTypeId()) {
+                Shapes::Rectangle::StaticTypeId()) {
                 shape =
                     static_cast<
-                        Controls::Rectangle*>(
+                        Shapes::Rectangle*>(
                             visual);
             } else if (
                 visual->RuntimeType() ==
-                Controls::Ellipse::StaticTypeId()) {
+                Shapes::Ellipse::StaticTypeId()) {
                 shape =
                     static_cast<
-                        Controls::Ellipse*>(
+                        Shapes::Ellipse*>(
                             visual);
             }
             if (shape == nullptr) continue;

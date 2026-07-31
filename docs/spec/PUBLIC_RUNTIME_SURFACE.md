@@ -15,10 +15,10 @@ input routing, layout, binding, animation, style, and theme-style coordination.
 Controls runtime services include template application and concrete interaction
 state for buttons, scrolling, selection, menus, trees, and text editing.
 
-The complete manager declarations remain in private source headers:
-
-- `src/ui/RuntimeManagers.hpp`
-- `src/controls/RuntimeManagers.hpp`
+The remaining coordination declarations live in private source headers, chiefly
+`src/ui/RuntimeManagers.hpp` and `src/controls/RuntimeManagers.hpp`. They are
+implementation aggregation points, not product modules, and may be merged
+further without changing the SDK.
 
 Public classes retain only opaque attachment state where the current object
 layout requires a runtime connection. Public `ICommand`, Binding, and custom
@@ -37,9 +37,9 @@ SDK boundary.
 semantics. `FontManager` remains public until the text-provider SDK boundary is
 reviewed.
 
-The text editor still exposes its current platform-neutral composition seam.
-Moving the remaining text-provider policy types behind the Integration boundary
-is follow-on work and is not required to preserve the Stage C ABI cleanup.
+The current text-provider and platform-neutral composition contracts remain
+specialist opt-in SDK surfaces. Native Win32/X11 window implementations and
+per-view runtime wiring are private source headers.
 
 ## Invariants
 
@@ -50,6 +50,8 @@ is follow-on work and is not required to preserve the Stage C ABI cleanup.
 - Public headers do not expose display-list commands or render resource IDs.
 - Runtime implementation files include private manager and render headers
   explicitly.
-- Installed headers and build-tree headers expose the same authoring surface.
+- Installed headers and the physical build-tree public headers are the exact
+  same whitelist.
+- The installed tree contains no `Aero/Detail` directory.
 - Product targets, metadata ownership, TypeIds, and observable behavior remain
   unchanged by private storage consolidation.

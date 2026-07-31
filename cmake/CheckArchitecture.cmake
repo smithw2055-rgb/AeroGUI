@@ -2,6 +2,52 @@ if(NOT DEFINED AERO_SOURCE_DIR)
     message(FATAL_ERROR "AERO_SOURCE_DIR is required")
 endif()
 
+include("${AERO_SOURCE_DIR}/cmake/AeroPublicHeaders.cmake")
+
+# The physical public tree and the installed SDK whitelist are one boundary.
+# Internal headers must move under src/, not merely disappear from packaging.
+file(GLOB_RECURSE aero_actual_public_headers
+    RELATIVE "${AERO_SOURCE_DIR}"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h"
+    "${AERO_SOURCE_DIR}/include/Aero/*.inl")
+set(aero_declared_public_headers ${AERO_PUBLIC_HEADERS})
+list(SORT aero_actual_public_headers)
+list(SORT aero_declared_public_headers)
+if(NOT "${aero_actual_public_headers}" STREQUAL
+       "${aero_declared_public_headers}")
+    message(FATAL_ERROR
+        "Public header tree and install whitelist differ. "
+        "Actual: ${aero_actual_public_headers}; "
+        "Declared: ${aero_declared_public_headers}")
+endif()
+
+file(GLOB_RECURSE aero_public_detail_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Detail/*.hpp")
+if(aero_public_detail_headers)
+    message(FATAL_ERROR
+        "Private implementation headers must not live under include/Aero/Detail: "
+        "${aero_public_detail_headers}")
+endif()
+
+file(GLOB aero_root_public_headers
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
+list(LENGTH aero_root_public_headers aero_root_public_header_count)
+if(aero_root_public_header_count GREATER 32)
+    message(FATAL_ERROR
+        "Top-level Aero public header budget exceeded: "
+        "${aero_root_public_header_count} > 32")
+endif()
+
+file(GLOB aero_control_public_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp")
+list(LENGTH aero_control_public_headers aero_control_public_header_count)
+if(NOT aero_control_public_header_count EQUAL 6)
+    message(FATAL_ERROR
+        "Controls must retain the six canonical family headers; found "
+        "${aero_control_public_header_count}")
+endif()
+
 function(aero_collect_matches output pattern)
     set(matches)
     foreach(path IN LISTS ARGN)
@@ -14,6 +60,34 @@ function(aero_collect_matches output pattern)
     set(${output} "${matches}" PARENT_SCOPE)
 endfunction()
 
+function(aero_collect_duplicate_includes output)
+    set(matches)
+    foreach(relative IN LISTS ARGN)
+        set(path "${AERO_SOURCE_DIR}/${relative}")
+        file(STRINGS "${path}" includes
+            REGEX "^[ \t]*#[ \t]*include[ \t]+")
+        set(seen)
+        foreach(include_line IN LISTS includes)
+            string(STRIP "${include_line}" include_line)
+            list(FIND seen "${include_line}" existing)
+            if(NOT existing EQUAL -1)
+                list(APPEND matches "${relative}: ${include_line}")
+            else()
+                list(APPEND seen "${include_line}")
+            endif()
+        endforeach()
+    endforeach()
+    set(${output} "${matches}" PARENT_SCOPE)
+endfunction()
+
+aero_collect_duplicate_includes(aero_duplicate_public_includes
+    ${AERO_PUBLIC_HEADERS})
+if(aero_duplicate_public_includes)
+    message(FATAL_ERROR
+        "Public headers contain duplicate direct includes: "
+        "${aero_duplicate_public_includes}")
+endif()
+
 file(GLOB_RECURSE core_files
     "${AERO_SOURCE_DIR}/src/core/*.cpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/Metadata/*.hpp"
@@ -22,7 +96,7 @@ list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/Core/RoutedEvent.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/Diagnostics.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Core/Dispatcher.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/ObjectServices.hpp")
+    "${AERO_SOURCE_DIR}/src/core/ObjectServices.hpp")
 aero_collect_matches(core_reverse
     "#[ \t]*include[ \t]*<Aero/Controls/"
     ${core_files})
@@ -127,7 +201,43 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Rhi/OpenGL33State.hpp"
     "include/Aero/Rhi/Rhi.hpp"
     "include/Aero/Rhi/Surface.hpp"
-    "include/Aero/Rhi/WglSurface.hpp")
+    "include/Aero/Rhi/WglSurface.hpp"
+    "include/Aero/Drawing.hpp"
+    "include/Aero/ObjectTree.hpp"
+    "include/Aero/Rendering.hpp"
+    "include/Aero/Data/Binding.hpp"
+    "include/Aero/Documents/Documents.hpp"
+    "include/Aero/Input/Commands.hpp"
+    "include/Aero/Input/Navigation.hpp"
+    "include/Aero/Media/Animation.hpp"
+    "include/Aero/Core/Metadata/BindingPath.hpp"
+    "include/Aero/Core/Metadata/BuiltinTypeIds.hpp"
+    "include/Aero/Core/Metadata/CoreMetadata.hpp"
+    "include/Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp"
+    "include/Aero/Core/Metadata/MetadataValuePath.hpp"
+    "include/Aero/Core/Metadata/MetadataValueRegistrationStore.hpp"
+    "include/Aero/Core/ObjectServices.hpp"
+    "include/Aero/Core/Property/EffectiveValueEngine.hpp"
+    "include/Aero/Platform/Win32Window.hpp"
+    "include/Aero/Platform/X11Window.hpp"
+    "include/Aero/RuntimeSafety.hpp"
+    "include/Aero/Controls/Bars.hpp"
+    "include/Aero/Controls/Buttons.hpp"
+    "include/Aero/Controls/ContentControls.hpp"
+    "include/Aero/Controls/ControlPrimitives.hpp"
+    "include/Aero/Controls/Controls.hpp"
+    "include/Aero/Controls/Images.hpp"
+    "include/Aero/Controls/ListView.hpp"
+    "include/Aero/Controls/Menus.hpp"
+    "include/Aero/Controls/Metadata.hpp"
+    "include/Aero/Controls/Scroll.hpp"
+    "include/Aero/Controls/Selection.hpp"
+    "include/Aero/Controls/Shapes.hpp"
+    "include/Aero/Controls/Templates.hpp"
+    "include/Aero/Controls/TextBox.hpp"
+    "include/Aero/Controls/Trees.hpp"
+    "include/Aero/Controls/Virtualization.hpp"
+    "include/Aero/Controls/VisualStates.hpp")
     if(EXISTS "${AERO_SOURCE_DIR}/${removed_sdk_path}")
         message(FATAL_ERROR
             "Removed SDK entry still exists: ${removed_sdk_path}")
@@ -244,11 +354,13 @@ endif()
 set(wpf_authoring_headers
     "${AERO_SOURCE_DIR}/include/Aero/Application.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Window.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Data/Binding.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Input/Commands.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/DrawingContext.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/Data.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Input.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/DrawingContext.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Style.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp")
 aero_collect_matches(wpf_authoring_leaks
-    "(ApplicationHost|IApplicationPeer|IWindowPeer|CommandManager|BindingDescriptor|MetadataBindingDescriptor|PropertyProviderSession|BuildDisplayList)"
+    "(ApplicationHost|IApplicationPeer|IWindowPeer|CommandManager|BindingDescriptor|MetadataBindingDescriptor|PropertyProviderSession|BuildDisplayList|DependencyPropertyRegistry[ \t]*[&*])"
     ${wpf_authoring_headers})
 if(wpf_authoring_leaks)
     message(FATAL_ERROR
@@ -263,7 +375,7 @@ file(GLOB_RECURSE default_sdk_headers
     "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/*.hpp")
 aero_collect_matches(removed_public_services
-    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty)"
+    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
     ${default_sdk_headers})
 if(removed_public_services)
     message(FATAL_ERROR
@@ -272,12 +384,12 @@ if(removed_public_services)
 endif()
 
 set(control_runtime_attachment_headers
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Buttons.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/ControlPrimitives.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Menus.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Scroll.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Selection.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/Trees.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Base.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Items.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Panels.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Primitives.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Standard.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Text.hpp")
 aero_collect_matches(typed_control_runtime_attachments
     "(ControlInteractionManager|MenuInteractionManager|ScrollInteractionManager|ListBoxInteractionManager|ComboBoxInteractionManager|TreeViewInteractionManager)[ \t]*[*]"
     ${control_runtime_attachment_headers})
@@ -322,8 +434,6 @@ if(removed_cmake_aliases)
         "Removed public RHI, render, or module-catalog CMake aliases remain: "
         "${removed_cmake_aliases}")
 endif()
-
-message(STATUS "Aero architecture dependency checks passed")
 
 file(GLOB_RECURSE retired_surface_files
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp"

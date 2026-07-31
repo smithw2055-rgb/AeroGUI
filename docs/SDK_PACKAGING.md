@@ -16,11 +16,19 @@ target_link_libraries(EngineHost PRIVATE Aero::Integration)
 - `Aero::Meta` — typed metadata and module authoring layered over Gui.
 
 Legacy runtime/module/integration aliases and the low-level host facade are
-retired. Runtime composition, module catalogs,
-renderer/RHI implementations and third-party provider adapters may still be
-exported under `IntegrationDetail*` or `RuntimeDetail*` names when static
-linking requires them, but those names are package implementation details and
-are not supported application APIs.
+retired. Runtime composition, module catalogs, renderer/RHI implementations
+and third-party provider adapters may still be exported under
+`IntegrationDetail*` or `RuntimeDetail*` names when static linking requires
+them, but those names are package implementation details and are not supported
+application APIs.
+
+The installed header set is declared explicitly in
+`cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
+source include directory. The physical public tree and this whitelist must
+match exactly. There is no installed `Aero/Detail` directory, and standard
+controls are published through six canonical family headers beneath
+`Aero/Controls`. See `docs/spec/PUBLIC_HEADER_MODEL.md` for the declaration and
+header-growth rules.
 
 ## GUI and custom controls
 

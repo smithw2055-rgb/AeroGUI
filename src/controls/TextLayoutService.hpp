@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Text/TextLayout.hpp>
 #include <Aero/Text/TextTypes.hpp>
 

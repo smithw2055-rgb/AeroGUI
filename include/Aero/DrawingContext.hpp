@@ -4,9 +4,6 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Render {
-class RenderManager;
-}
 namespace Aero::Detail {
 class DrawingContextAccess;
 }
@@ -42,7 +39,6 @@ public:
         double thickness) noexcept;
 
 private:
-    friend class ::Aero::Render::RenderManager;
     friend class ::Aero::Detail::DrawingContextAccess;
 
     explicit DrawingContext(void* implementation) noexcept

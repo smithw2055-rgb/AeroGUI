@@ -1,16 +1,12 @@
 #pragma once
 
 #include <Aero/Base/String.hpp>
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/ControlPrimitives.hpp>
-#include <Aero/Controls/Images.hpp>
-#include <Aero/Controls/Shapes.hpp>
-#include <Aero/Input/Commands.hpp>
+#include <Aero/Input.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include <Aero/Text/TextLayout.hpp>
-
 #include <cstddef>
+#include <Aero/Controls/Base.hpp>
 
 namespace Aero::Documents {
 class InlineCollection;
@@ -33,7 +29,6 @@ using namespace Aero::Data;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Render;
-using namespace Aero::Detail;
 
 enum class Orientation : std::uint8_t { Horizontal = 0U, Vertical };
 enum class Dock : std::uint8_t { Left = 0U, Top, Right, Bottom };
@@ -146,7 +141,6 @@ using namespace Aero::Data;
 using namespace Aero::Input;
 using namespace Aero::Media;
 using namespace Aero::Render;
-using namespace Aero::Detail;
 
 class AERO_API StackPanel final : public Panel {
     AERO_DECLARE_TYPE(StackPanel, Panel)

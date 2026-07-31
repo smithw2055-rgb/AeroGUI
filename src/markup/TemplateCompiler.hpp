@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 
 // Private template compiler used by ObjectWriter finalization.
 
@@ -13,11 +13,11 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/Controls/Panels.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Media/Animation.hpp>
+#include <Aero/Animation.hpp>
 
 #include <cstdint>
 

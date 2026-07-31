@@ -1,10 +1,10 @@
 #include "../render/DisplayList.hpp"
-#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/Text.hpp>
 #include "../render/DrawingContextAccess.hpp"
 
 #include "TextLayoutService.hpp"
 
-#include <Aero/Core/ObjectServices.hpp>
+#include "core/ObjectServices.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -440,7 +440,7 @@ Base::Result<Size> PasswordBox::ArrangeOverride(
 
 Base::Result<void> PasswordBox::OnRender(
     DrawingContext& context) noexcept {
-    return editor_.BuildEditorDisplayList(
+    return editor_.RenderEditor(
         context,
         RenderSize(),
         IsKeyboardFocused());
@@ -2007,14 +2007,14 @@ Base::Result<void> TextBox::OnRender(
             return chrome;
         }
     }
-    return BuildEditorDisplayList(
+    return RenderEditor(
         context,
         RenderSize(),
         IsKeyboardFocused());
 }
 
 Base::Result<void>
-TextBox::BuildEditorDisplayList(
+TextBox::RenderEditor(
     DrawingContext& context,
     Size viewport,
     bool drawCaret) noexcept {

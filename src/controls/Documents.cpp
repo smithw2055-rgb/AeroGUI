@@ -1,4 +1,4 @@
-#include <Aero/Documents/Documents.hpp>
+#include <Aero/Documents.hpp>
 
 #include <algorithm>
 #include <cmath>

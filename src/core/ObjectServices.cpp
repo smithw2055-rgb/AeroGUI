@@ -1,7 +1,7 @@
-#include <Aero/Core/ObjectServices.hpp>
+#include "ObjectServices.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include "metadata/MetadataBehaviorRegistrationStore.hpp"
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 
 namespace Aero::Core {

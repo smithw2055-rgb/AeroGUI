@@ -1,6 +1,6 @@
 #include "SchemaInternal.hpp"
 
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 // Query surface is public; execution operations are reached by source-side
 // friends and SchemaAccess.

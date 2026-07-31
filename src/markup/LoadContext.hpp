@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 
 #include "Loader.hpp"
 #include "LoaderResult.hpp"

@@ -4,7 +4,7 @@
 // Dynamic-resource markup-extension implementation.
 #include "SchemaInternal.hpp"
 
-#include <Aero/Style.hpp>
+#include <Aero/Styling.hpp>
 
 #include <new>
 #include <utility>

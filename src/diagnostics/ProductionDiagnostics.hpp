@@ -9,11 +9,11 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/Buttons.hpp>
+#include <Aero/Controls/Primitives.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Rendering.hpp>
+#include "ui/ObjectTree.hpp"
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
 #include <utility>

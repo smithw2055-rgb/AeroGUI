@@ -1,14 +1,14 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
-#include <Aero/Controls/ControlPrimitives.hpp>
+#include "RuntimeFwd.hpp"
+#include <Aero/Controls/Base.hpp>
 
 namespace Aero::Detail {
 
 inline void ControlRuntimeAccess::Attach(
     Controls::Control& control,
     Aero::Detail::RoutedEventManager* events) noexcept {
-    control.routedEvents_ = events;
+    control.eventRuntime_ = events;
 }
 
 } // namespace Aero::Detail

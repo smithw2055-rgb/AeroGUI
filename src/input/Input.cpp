@@ -1,7 +1,6 @@
-#include <Aero/Input/Navigation.hpp>
+#include <Aero/Input.hpp>
 
-#include <Aero/Input/Commands.hpp>
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 #include <cmath>

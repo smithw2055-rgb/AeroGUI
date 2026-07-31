@@ -1,6 +1,5 @@
-#include <Aero/Input/Commands.hpp>
+#include <Aero/Input.hpp>
 
-#include <Aero/Input/Navigation.hpp>
 
 #include <cctype>
 #include "../ui/RuntimeManagers.hpp"

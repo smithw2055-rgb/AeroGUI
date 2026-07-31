@@ -1,4 +1,4 @@
-#include <Aero/Media/Animation.hpp>
+#include <Aero/Animation.hpp>
 
 #include <Aero/Core/Metadata/ValueConversion.hpp>
 
@@ -8,7 +8,7 @@
 namespace Aero::Media::Animation {
 namespace {
 
-Base::Result<Aero::Detail::Animation::AnimationTime> ParseClockTime(
+Base::Result<AnimationTime> ParseClockTime(
     Base::StringView input) noexcept {
     const Base::StringView text =
         Core::ValueConversion::Trim(input);
@@ -88,19 +88,17 @@ Base::Result<Aero::Detail::Animation::AnimationTime> ParseClockTime(
             Base::ErrorCode::OutOfRange,
             "Animation clock time is outside the supported range");
     }
-    return static_cast<Aero::Detail::Animation::AnimationTime>(
+    return static_cast<AnimationTime>(
         std::llround(seconds * 1000000.0));
 }
 
-Base::Result<void> SetNonNegative(
+Base::Result<void> ValidateNonNegative(
     double value,
-    double& destination,
     const char* message) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed, message);
     }
-    destination = value;
     return {};
 }
 
@@ -108,23 +106,23 @@ Base::Result<void> SetNonNegative(
 
 Base::Result<void> Timeline::SetBeginTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = beginTimeText_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    timing_.beginTimeMicroseconds = parsed.Value();
+    beginTimeMicroseconds_ = parsed.Value();
     return {};
 }
 
 Base::Result<void> Timeline::SetDuration(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = durationText_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    timing_.durationMicroseconds = parsed.Value();
+    durationMicroseconds_ = parsed.Value();
     return {};
 }
 
@@ -132,10 +130,11 @@ Base::Result<void> Timeline::SetRepeatBehavior(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
         Core::ValueConversion::Trim(value);
-    Aero::Detail::Animation::RepeatBehavior repeat;
+    double repeatCount = 1.0;
+    bool repeatForever = false;
     if (Core::ValueConversion::EqualsAsciiInsensitive(
             trimmed, "Forever")) {
-        repeat = Aero::Detail::Animation::RepeatBehavior::Forever();
+        repeatForever = true;
     } else {
         Base::Result<double> count =
             Core::ValueConversion::ParseDouble(trimmed);
@@ -144,12 +143,13 @@ Base::Result<void> Timeline::SetRepeatBehavior(
                 Base::ErrorCode::ValidationFailed,
                 "RepeatBehavior must be Forever or a positive count");
         }
-        repeat = Aero::Detail::Animation::RepeatBehavior::Count(count.Value());
+        repeatCount = count.Value();
     }
     Base::Result<void> assigned =
         repeatBehaviorText_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    timing_.repeat = repeat;
+    repeatCount_ = repeatCount;
+    repeatForever_ = repeatForever;
     return {};
 }
 
@@ -159,62 +159,76 @@ Base::Result<void> Timeline::SetSpeedRatio(double value) noexcept {
             Base::ErrorCode::ValidationFailed,
             "Timeline SpeedRatio must be positive");
     }
-    timing_.speedRatio = value;
+    speedRatio_ = value;
     return {};
 }
 
 Base::Result<void> Timeline::SetAutoReverse(bool value) noexcept {
-    timing_.autoReverse = value;
+    autoReverse_ = value;
     return {};
 }
 
 Base::Result<void> Timeline::SetFillBehavior(
-    Aero::Detail::Animation::FillBehavior value) noexcept {
-    timing_.fillBehavior = value;
+    FillBehavior value) noexcept {
+    fillBehavior_ = value;
     return {};
 }
 
 Base::Result<void> PowerEase::SetPower(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().power,
-        "PowerEase Power must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "PowerEase Power must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetPowerValue(value);
+    return {};
 }
 
 Base::Result<void> ExponentialEase::SetExponent(
     double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().power,
-        "ExponentialEase Exponent must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "ExponentialEase Exponent must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetPowerValue(value);
+    return {};
 }
 
 Base::Result<void> BackEase::SetAmplitude(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().amplitude,
-        "BackEase Amplitude must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "BackEase Amplitude must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetAmplitudeValue(value);
+    return {};
 }
 
 Base::Result<void> BounceEase::SetBounces(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().oscillations,
-        "BounceEase Bounces must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "BounceEase Bounces must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetOscillationsValue(value);
+    return {};
 }
 
 Base::Result<void> BounceEase::SetBounciness(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().springiness,
-        "BounceEase Bounciness must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "BounceEase Bounciness must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetSpringinessValue(value);
+    return {};
 }
 
 Base::Result<void> ElasticEase::SetOscillations(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().oscillations,
-        "ElasticEase Oscillations must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "ElasticEase Oscillations must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetOscillationsValue(value);
+    return {};
 }
 
 Base::Result<void> ElasticEase::SetSpringiness(double value) noexcept {
-    return SetNonNegative(
-        value, MutableEasing().springiness,
-        "ElasticEase Springiness must be nonnegative");
+    Base::Result<void> valid = ValidateNonNegative(
+        value, "ElasticEase Springiness must be nonnegative");
+    if (!valid) return valid.GetStatus();
+    SetSpringinessValue(value);
+    return {};
 }
 
 Base::Result<void> DoubleAnimation::SetFrom(double value) noexcept {
@@ -267,17 +281,6 @@ Base::Result<void> DoubleAnimation::SetEasingFunction(
     return {};
 }
 
-Aero::Detail::Animation::DoubleAnimation
-DoubleAnimation::RuntimeAnimation() const noexcept {
-    Aero::Detail::Animation::DoubleAnimation result;
-    result.from = from_;
-    result.to = to_;
-    result.accelerationRatio = accelerationRatio_;
-    result.decelerationRatio = decelerationRatio_;
-    result.timing = Timing();
-    if (easing_) result.easing = easing_->RuntimeEasing();
-    return result;
-}
 
 Base::Result<void> ColorAnimation::SetFrom(
     Base::Color value) noexcept {
@@ -307,15 +310,6 @@ Base::Result<void> ColorAnimation::SetEasingFunction(
     return {};
 }
 
-Aero::Detail::Animation::ColorAnimation
-ColorAnimation::RuntimeAnimation() const noexcept {
-    Aero::Detail::Animation::ColorAnimation result;
-    result.from = from_;
-    result.to = to_;
-    result.timing = Timing();
-    if (easing_) result.easing = easing_->RuntimeEasing();
-    return result;
-}
 
 Base::Result<void> PointAnimation::SetFrom(
     Base::Point value) noexcept {
@@ -349,18 +343,6 @@ PointAnimation::SetEasingFunction(
     return {};
 }
 
-Aero::Detail::Animation::PointAnimation
-PointAnimation::RuntimeAnimation() const noexcept {
-    Aero::Detail::Animation::PointAnimation result;
-    result.from = from_;
-    result.to = to_;
-    result.timing = Timing();
-    if (easing_) {
-        result.easing =
-            easing_->RuntimeEasing();
-    }
-    return result;
-}
 
 Base::Result<void> RectAnimation::SetFrom(
     Base::Rect value) noexcept {
@@ -390,17 +372,6 @@ Base::Result<void> RectAnimation::SetEasingFunction(
     return {};
 }
 
-Aero::Detail::Animation::RectAnimation
-RectAnimation::RuntimeAnimation() const noexcept {
-    Aero::Detail::Animation::RectAnimation result;
-    result.from = from_;
-    result.to = to_;
-    result.timing = Timing();
-    if (easing_) {
-        result.easing = easing_->RuntimeEasing();
-    }
-    return result;
-}
 
 namespace {
 
@@ -443,17 +414,6 @@ ThicknessAnimation::SetEasingFunction(
     return {};
 }
 
-Aero::Detail::Animation::ThicknessAnimation
-ThicknessAnimation::RuntimeAnimation() const noexcept {
-    Aero::Detail::Animation::ThicknessAnimation result;
-    result.from = from_;
-    result.to = to_;
-    result.timing = Timing();
-    if (easing_) {
-        result.easing = easing_->RuntimeEasing();
-    }
-    return result;
-}
 
 Base::Result<void> DoubleKeyFrame::SetValue(double value) noexcept {
     if (!std::isfinite(value)) {
@@ -462,25 +422,23 @@ Base::Result<void> DoubleKeyFrame::SetValue(double value) noexcept {
             "Double key-frame value must be finite");
     }
     value_ = value;
-    frame_.value = value;
     return {};
 }
 
 Base::Result<void> DoubleKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    frame_.keyTimeMicroseconds = parsed.Value();
+    keyTimeMicroseconds_ = parsed.Value();
     return {};
 }
 
 Base::Result<void> EasingDoubleKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    if (easing_) MutableFrame().easing = easing_->RuntimeEasing();
     return {};
 }
 
@@ -510,11 +468,8 @@ Base::Result<void> SplineDoubleKeyFrame::SetKeySpline(
     }
     assigned = keySpline_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    Aero::Detail::Animation::DoubleKeyFrame& frame = MutableFrame();
-    frame.controlPoint1X = values[0];
-    frame.controlPoint1Y = values[1];
-    frame.controlPoint2X = values[2];
-    frame.controlPoint2Y = values[3];
+    SetSplineControlPoints(
+        values[0], values[1], values[2], values[3]);
     return {};
 }
 
@@ -548,7 +503,7 @@ Base::Result<void> ThicknessKeyFrame::SetValue(
 
 Base::Result<void> ThicknessKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned =
@@ -591,19 +546,18 @@ Base::Result<void> ColorKeyFrame::SetValue(
             "Color key-frame value must be finite");
     }
     value_ = value;
-    frame_.value = value;
     return {};
 }
 
 Base::Result<void> ColorKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned =
         keyTimeText_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    frame_.keyTimeMicroseconds = parsed.Value();
+    keyTimeMicroseconds_ = parsed.Value();
     return {};
 }
 
@@ -611,10 +565,6 @@ Base::Result<void>
 EasingColorKeyFrame::SetEasingFunction(
     Base::Ref<EasingFunctionBase> value) noexcept {
     easing_ = std::move(value);
-    if (easing_) {
-        MutableFrame().easing =
-            easing_->RuntimeEasing();
-    }
     return {};
 }
 
@@ -653,12 +603,8 @@ SplineColorKeyFrame::SetKeySpline(
     }
     assigned = keySpline_.TryAssign(value);
     if (!assigned) return assigned.GetStatus();
-    Aero::Detail::Animation::ColorKeyFrame& frame =
-        MutableFrame();
-    frame.controlPoint1X = values[0];
-    frame.controlPoint1Y = values[1];
-    frame.controlPoint2X = values[2];
-    frame.controlPoint2Y = values[3];
+    SetSplineControlPoints(
+        values[0], values[1], values[2], values[3]);
     return {};
 }
 
@@ -693,7 +639,7 @@ Base::Result<void> DiscreteObjectKeyFrame::SetValue(
 
 Base::Result<void> DiscreteObjectKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
@@ -721,7 +667,7 @@ ObjectAnimationUsingKeyFrames::ClearKeyFrames() noexcept {
 
 Base::Result<void> DiscreteBooleanKeyFrame::SetKeyTime(
     Base::StringView value) noexcept {
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(value);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned = keyTimeText_.TryAssign(value);
@@ -825,7 +771,7 @@ Base::Result<void> SeekStoryboard::SetOffset(
     Base::StringView value) noexcept {
     const Base::StringView trimmed =
         Core::ValueConversion::Trim(value);
-    Base::Result<Aero::Detail::Animation::AnimationTime> parsed =
+    Base::Result<AnimationTime> parsed =
         ParseClockTime(trimmed);
     if (!parsed) return parsed.GetStatus();
     Base::Result<void> assigned =

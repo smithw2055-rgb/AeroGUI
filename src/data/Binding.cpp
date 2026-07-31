@@ -1,4 +1,4 @@
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Data.hpp>
 #include "BindingRuntime.hpp"
 #include <Aero/Resources.hpp>
 

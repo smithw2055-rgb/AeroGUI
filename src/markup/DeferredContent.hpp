@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Data.hpp>
 
 
 namespace Aero::Markup {

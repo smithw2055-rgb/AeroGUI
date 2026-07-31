@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 #include "../data/BindingRuntime.hpp"
 
 #include "render/RenderingInternal.hpp"
@@ -9,12 +9,11 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Styling.hpp>
+#include <Aero/Data.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Rendering.hpp>
-#include <Aero/Style.hpp>
+#include "ui/ObjectTree.hpp"
+#include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
 

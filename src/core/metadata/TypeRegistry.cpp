@@ -1,5 +1,5 @@
 #include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include "MetadataBehaviorRegistrationStore.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

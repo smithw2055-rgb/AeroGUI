@@ -2,7 +2,7 @@
 
 #include "DisplayList.hpp"
 
-#include <Aero/Rendering.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Render::Detail {
 class RenderBackendAccess;

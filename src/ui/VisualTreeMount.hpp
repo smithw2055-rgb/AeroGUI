@@ -1,11 +1,11 @@
 #pragma once
 
-#include <Aero/Detail/RuntimeManagersFwd.hpp>
+#include "../runtime/RuntimeFwd.hpp"
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Detail/MountService.hpp>
+#include "MountService.hpp"
 
 namespace Aero::Detail {
 

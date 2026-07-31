@@ -1,24 +1,16 @@
-#include <Aero/Controls/Metadata.hpp>
-#include <Aero/Documents/Documents.hpp>
+#include "Metadata.hpp"
+#include <Aero/Documents.hpp>
 
-#include <Aero/Controls/Buttons.hpp>
-#include <Aero/Controls/Bars.hpp>
-#include <Aero/Controls/ContentControls.hpp>
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Primitives.hpp>
+#include <Aero/Controls/Standard.hpp>
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Controls/ListView.hpp>
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Scroll.hpp>
-#include <Aero/Controls/Selection.hpp>
-#include <Aero/Controls/Shapes.hpp>
-#include <Aero/Controls/TextBox.hpp>
-#include <Aero/Controls/Templates.hpp>
-#include <Aero/Controls/Trees.hpp>
-#include <Aero/Controls/Virtualization.hpp>
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Shapes.hpp>
+#include <Aero/Controls/Text.hpp>
+#include <Aero/Styling.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Core/Metadata/Describe.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
-#include <Aero/Style.hpp>
 
 #include "PathServicesAccess.hpp"
 
@@ -28,6 +20,9 @@
 
 namespace Aero::Controls {
     using namespace Aero::Core;
+    using Aero::Shapes::Shape;
+    using Aero::Shapes::Rectangle;
+    using Aero::Shapes::Ellipse;
 namespace {
 #include "metadata/Support.inl"
 #include "metadata/Values.inl"

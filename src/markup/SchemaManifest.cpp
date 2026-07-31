@@ -4,7 +4,6 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Markup/Resources.hpp>
-#include <Aero/Markup/Schema.hpp>
 
 #include <new>
 #include <utility>

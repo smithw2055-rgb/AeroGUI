@@ -2,7 +2,7 @@
 
 #include "runtime/MeshResourceContract.hpp"
 
-#include <Aero/Controls/Controls.hpp>
+#include <Aero/Controls/Panels.hpp>
 
 namespace Aero::Controls::Detail {
 

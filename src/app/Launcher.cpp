@@ -14,9 +14,9 @@
 
 #if defined(_WIN32)
 #include <Aero/Integration/D3D11.hpp>
-#include <Aero/Platform/Win32Window.hpp>
+#include "platform/Win32Window.hpp"
 #else
-#include <Aero/Platform/X11Window.hpp>
+#include "platform/X11Window.hpp"
 #endif
 
 #include <chrono>

@@ -7,10 +7,25 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Detail/AnimationRuntime.hpp>
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Data.hpp>
+#include <cstdint>
+
+namespace Aero::Detail { class AnimationAccess; }
 
 namespace Aero::Media::Animation {
+
+using AnimationTime = std::uint64_t;
+
+enum class FillBehavior : std::uint8_t {
+    HoldEnd = 0U,
+    Stop
+};
+
+enum class EasingMode : std::uint8_t {
+    EaseOut = 0U,
+    EaseIn,
+    EaseInOut
+};
 
 class AERO_API Timeline : public Core::DependencyObject {
     AERO_DECLARE_TYPE(Timeline, Core::DependencyObject)
@@ -24,13 +39,10 @@ public:
     Base::StringView RepeatBehavior() const noexcept {
         return repeatBehaviorText_.View();
     }
-    double SpeedRatio() const noexcept { return timing_.speedRatio; }
-    bool AutoReverse() const noexcept { return timing_.autoReverse; }
-    Aero::Detail::Animation::FillBehavior GetFillBehavior() const noexcept {
-        return timing_.fillBehavior;
-    }
-    const Aero::Detail::Animation::TimelineTiming& Timing() const noexcept {
-        return timing_;
+    double SpeedRatio() const noexcept { return speedRatio_; }
+    bool AutoReverse() const noexcept { return autoReverse_; }
+    FillBehavior GetFillBehavior() const noexcept {
+        return fillBehavior_;
     }
 
     Base::Result<void> SetBeginTime(Base::StringView value) noexcept;
@@ -39,18 +51,25 @@ public:
         Base::StringView value) noexcept;
     Base::Result<void> SetSpeedRatio(double value) noexcept;
     Base::Result<void> SetAutoReverse(bool value) noexcept;
-    Base::Result<void> SetFillBehavior(
-        Aero::Detail::Animation::FillBehavior value) noexcept;
+    Base::Result<void> SetFillBehavior(FillBehavior value) noexcept;
 
 protected:
     explicit Timeline(Core::TypeId runtimeType) noexcept
         : DependencyObject(runtimeType) {}
 
 private:
+    friend class Aero::Detail::AnimationAccess;
+
     Base::String beginTimeText_;
     Base::String durationText_;
     Base::String repeatBehaviorText_;
-    Aero::Detail::Animation::TimelineTiming timing_;
+    AnimationTime beginTimeMicroseconds_ = 0U;
+    AnimationTime durationMicroseconds_ = 0U;
+    double repeatCount_ = 1.0;
+    double speedRatio_ = 1.0;
+    bool repeatForever_ = false;
+    bool autoReverse_ = false;
+    FillBehavior fillBehavior_ = FillBehavior::HoldEnd;
 };
 
 class AERO_API EasingFunctionBase : public Base::Object {
@@ -59,32 +78,54 @@ public:
     Core::TypeId RuntimeType() const noexcept override {
         return runtimeType_;
     }
-    Aero::Detail::Animation::EasingMode EasingMode() const noexcept {
-        return easing_.mode;
+    EasingMode GetEasingMode() const noexcept {
+        return easingMode_;
     }
-    Base::Result<void> SetEasingMode(
-        Aero::Detail::Animation::EasingMode value) noexcept {
-        easing_.mode = value;
+    Base::Result<void> SetEasingMode(EasingMode value) noexcept {
+        easingMode_ = value;
         return {};
-    }
-    const Aero::Detail::Animation::EasingFunction& RuntimeEasing() const noexcept {
-        return easing_;
     }
 
 protected:
+    enum class Kind : std::uint8_t {
+        Linear = 0U,
+        Sine,
+        Quadratic,
+        Cubic,
+        Quartic,
+        Quintic,
+        Circle,
+        Power,
+        Exponential,
+        Back,
+        Bounce,
+        Elastic
+    };
+
     EasingFunctionBase(
         Core::TypeId runtimeType,
-        Aero::Detail::Animation::EasingFunctionKind kind) noexcept
-        : runtimeType_(runtimeType) {
-        easing_.kind = kind;
-    }
-    Aero::Detail::Animation::EasingFunction& MutableEasing() noexcept {
-        return easing_;
-    }
+        Kind kind) noexcept
+        : runtimeType_(runtimeType), kind_(kind) {}
+
+    double PowerValue() const noexcept { return power_; }
+    double AmplitudeValue() const noexcept { return amplitude_; }
+    double OscillationsValue() const noexcept { return oscillations_; }
+    double SpringinessValue() const noexcept { return springiness_; }
+    void SetPowerValue(double value) noexcept { power_ = value; }
+    void SetAmplitudeValue(double value) noexcept { amplitude_ = value; }
+    void SetOscillationsValue(double value) noexcept { oscillations_ = value; }
+    void SetSpringinessValue(double value) noexcept { springiness_ = value; }
 
 private:
+    friend class Aero::Detail::AnimationAccess;
+
     Core::TypeId runtimeType_ = StaticTypeId();
-    Aero::Detail::Animation::EasingFunction easing_;
+    Kind kind_ = Kind::Linear;
+    EasingMode easingMode_ = EasingMode::EaseOut;
+    double power_ = 2.0;
+    double amplitude_ = 1.0;
+    double oscillations_ = 3.0;
+    double springiness_ = 3.0;
 };
 
 #define AERO_DECLARE_SIMPLE_EASING(typeName, kindValue)                    \
@@ -96,17 +137,17 @@ public:                                                                    \
 };
 
 AERO_DECLARE_SIMPLE_EASING(
-    SineEase, Aero::Detail::Animation::EasingFunctionKind::Sine)
+    SineEase, EasingFunctionBase::Kind::Sine)
 AERO_DECLARE_SIMPLE_EASING(
-    QuadraticEase, Aero::Detail::Animation::EasingFunctionKind::Quadratic)
+    QuadraticEase, EasingFunctionBase::Kind::Quadratic)
 AERO_DECLARE_SIMPLE_EASING(
-    CubicEase, Aero::Detail::Animation::EasingFunctionKind::Cubic)
+    CubicEase, EasingFunctionBase::Kind::Cubic)
 AERO_DECLARE_SIMPLE_EASING(
-    QuarticEase, Aero::Detail::Animation::EasingFunctionKind::Quartic)
+    QuarticEase, EasingFunctionBase::Kind::Quartic)
 AERO_DECLARE_SIMPLE_EASING(
-    QuinticEase, Aero::Detail::Animation::EasingFunctionKind::Quintic)
+    QuinticEase, EasingFunctionBase::Kind::Quintic)
 AERO_DECLARE_SIMPLE_EASING(
-    CircleEase, Aero::Detail::Animation::EasingFunctionKind::Circle)
+    CircleEase, EasingFunctionBase::Kind::Circle)
 
 #undef AERO_DECLARE_SIMPLE_EASING
 
@@ -116,9 +157,9 @@ public:
     ExponentialEase() noexcept
         : EasingFunctionBase(
               StaticTypeId(),
-              Aero::Detail::Animation::EasingFunctionKind::Exponential) {}
+              EasingFunctionBase::Kind::Exponential) {}
     double Exponent() const noexcept {
-        return RuntimeEasing().power;
+        return PowerValue();
     }
     Base::Result<void> SetExponent(double value) noexcept;
 };
@@ -129,8 +170,8 @@ public:
     PowerEase() noexcept
         : EasingFunctionBase(
               StaticTypeId(),
-              Aero::Detail::Animation::EasingFunctionKind::Power) {}
-    double Power() const noexcept { return RuntimeEasing().power; }
+              EasingFunctionBase::Kind::Power) {}
+    double Power() const noexcept { return PowerValue(); }
     Base::Result<void> SetPower(double value) noexcept;
 };
 
@@ -140,9 +181,9 @@ public:
     BackEase() noexcept
         : EasingFunctionBase(
               StaticTypeId(),
-              Aero::Detail::Animation::EasingFunctionKind::Back) {}
+              EasingFunctionBase::Kind::Back) {}
     double Amplitude() const noexcept {
-        return RuntimeEasing().amplitude;
+        return AmplitudeValue();
     }
     Base::Result<void> SetAmplitude(double value) noexcept;
 };
@@ -153,12 +194,12 @@ public:
     BounceEase() noexcept
         : EasingFunctionBase(
               StaticTypeId(),
-              Aero::Detail::Animation::EasingFunctionKind::Bounce) {}
+              EasingFunctionBase::Kind::Bounce) {}
     double Bounces() const noexcept {
-        return RuntimeEasing().oscillations;
+        return OscillationsValue();
     }
     double Bounciness() const noexcept {
-        return RuntimeEasing().springiness;
+        return SpringinessValue();
     }
     Base::Result<void> SetBounces(double value) noexcept;
     Base::Result<void> SetBounciness(double value) noexcept;
@@ -170,12 +211,12 @@ public:
     ElasticEase() noexcept
         : EasingFunctionBase(
               StaticTypeId(),
-              Aero::Detail::Animation::EasingFunctionKind::Elastic) {}
+              EasingFunctionBase::Kind::Elastic) {}
     double Oscillations() const noexcept {
-        return RuntimeEasing().oscillations;
+        return OscillationsValue();
     }
     double Springiness() const noexcept {
-        return RuntimeEasing().springiness;
+        return SpringinessValue();
     }
     Base::Result<void> SetOscillations(double value) noexcept;
     Base::Result<void> SetSpringiness(double value) noexcept;
@@ -202,7 +243,6 @@ public:
     Base::Result<void> SetDecelerationRatio(double value) noexcept;
     Base::Result<void> SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-    Aero::Detail::Animation::DoubleAnimation RuntimeAnimation() const noexcept;
 
 private:
     double from_ = 0.0;
@@ -225,7 +265,6 @@ public:
     Base::Result<void> SetTo(Base::Color value) noexcept;
     Base::Result<void> SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-    Aero::Detail::Animation::ColorAnimation RuntimeAnimation() const noexcept;
 
 private:
     Base::Color from_;
@@ -255,8 +294,6 @@ public:
     Base::Result<void> SetEasingFunction(
         Base::Ref<EasingFunctionBase>
             value) noexcept;
-    Aero::Detail::Animation::PointAnimation
-        RuntimeAnimation() const noexcept;
 
 private:
     Base::Point from_;
@@ -277,7 +314,6 @@ public:
     Base::Result<void> SetTo(Base::Rect value) noexcept;
     Base::Result<void> SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-    Aero::Detail::Animation::RectAnimation RuntimeAnimation() const noexcept;
 
 private:
     Base::Rect from_;
@@ -298,7 +334,6 @@ public:
     Base::Result<void> SetTo(Base::Thickness value) noexcept;
     Base::Result<void> SetEasingFunction(
         Base::Ref<EasingFunctionBase> value) noexcept;
-    Aero::Detail::Animation::ThicknessAnimation RuntimeAnimation() const noexcept;
 
 private:
     Base::Thickness from_;
@@ -318,26 +353,43 @@ public:
     }
     Base::Result<void> SetValue(double value) noexcept;
     Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
-    const Aero::Detail::Animation::DoubleKeyFrame& RuntimeFrame() const noexcept {
-        return frame_;
-    }
 
 protected:
+    enum class Interpolation : std::uint8_t {
+        Linear = 0U,
+        Discrete,
+        Easing,
+        Spline
+    };
+
     DoubleKeyFrame(
         Core::TypeId runtimeType,
-        Aero::Detail::Animation::DoubleKeyFrameInterpolation interpolation) noexcept
-        : runtimeType_(runtimeType) {
-        frame_.interpolation = interpolation;
-    }
-    Aero::Detail::Animation::DoubleKeyFrame& MutableFrame() noexcept {
-        return frame_;
+        Interpolation interpolation) noexcept
+        : runtimeType_(runtimeType), interpolation_(interpolation) {}
+
+    void SetSplineControlPoints(
+        double x1,
+        double y1,
+        double x2,
+        double y2) noexcept {
+        controlPoint1X_ = x1;
+        controlPoint1Y_ = y1;
+        controlPoint2X_ = x2;
+        controlPoint2Y_ = y2;
     }
 
 private:
+    friend class Aero::Detail::AnimationAccess;
+
     Core::TypeId runtimeType_ = StaticTypeId();
     double value_ = 0.0;
     Base::String keyTimeText_;
-    Aero::Detail::Animation::DoubleKeyFrame frame_;
+    AnimationTime keyTimeMicroseconds_ = 0U;
+    Interpolation interpolation_ = Interpolation::Linear;
+    double controlPoint1X_ = 0.0;
+    double controlPoint1Y_ = 0.0;
+    double controlPoint2X_ = 1.0;
+    double controlPoint2Y_ = 1.0;
 };
 
 class AERO_API LinearDoubleKeyFrame final : public DoubleKeyFrame {
@@ -346,7 +398,7 @@ public:
     LinearDoubleKeyFrame() noexcept
         : DoubleKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Linear) {}
+              DoubleKeyFrame::Interpolation::Linear) {}
 };
 
 class AERO_API DiscreteDoubleKeyFrame final : public DoubleKeyFrame {
@@ -355,7 +407,7 @@ public:
     DiscreteDoubleKeyFrame() noexcept
         : DoubleKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Discrete) {}
+              DoubleKeyFrame::Interpolation::Discrete) {}
 };
 
 class AERO_API EasingDoubleKeyFrame final : public DoubleKeyFrame {
@@ -364,7 +416,7 @@ public:
     EasingDoubleKeyFrame() noexcept
         : DoubleKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Easing) {}
+              DoubleKeyFrame::Interpolation::Easing) {}
     Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
         return easing_;
     }
@@ -381,7 +433,7 @@ public:
     SplineDoubleKeyFrame() noexcept
         : DoubleKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Spline) {}
+              DoubleKeyFrame::Interpolation::Spline) {}
     Base::StringView KeySpline() const noexcept {
         return keySpline_.View();
     }
@@ -420,7 +472,7 @@ public:
     Base::StringView KeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    Aero::Detail::Animation::AnimationTime
+    AnimationTime
     KeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
@@ -438,7 +490,7 @@ private:
     Core::TypeId runtimeType_ = StaticTypeId();
     Base::Thickness value_;
     Base::String keyTimeText_;
-    Aero::Detail::Animation::AnimationTime
+    AnimationTime
         keyTimeMicroseconds_ = 0U;
 };
 
@@ -536,26 +588,43 @@ public:
     }
     Base::Result<void> SetValue(Base::Color value) noexcept;
     Base::Result<void> SetKeyTime(Base::StringView value) noexcept;
-    const Aero::Detail::Animation::ColorKeyFrame& RuntimeFrame() const noexcept {
-        return frame_;
-    }
 
 protected:
+    enum class Interpolation : std::uint8_t {
+        Linear = 0U,
+        Discrete,
+        Easing,
+        Spline
+    };
+
     ColorKeyFrame(
         Core::TypeId runtimeType,
-        Aero::Detail::Animation::DoubleKeyFrameInterpolation interpolation) noexcept
-        : runtimeType_(runtimeType) {
-        frame_.interpolation = interpolation;
-    }
-    Aero::Detail::Animation::ColorKeyFrame& MutableFrame() noexcept {
-        return frame_;
+        Interpolation interpolation) noexcept
+        : runtimeType_(runtimeType), interpolation_(interpolation) {}
+
+    void SetSplineControlPoints(
+        double x1,
+        double y1,
+        double x2,
+        double y2) noexcept {
+        controlPoint1X_ = x1;
+        controlPoint1Y_ = y1;
+        controlPoint2X_ = x2;
+        controlPoint2Y_ = y2;
     }
 
 private:
+    friend class Aero::Detail::AnimationAccess;
+
     Core::TypeId runtimeType_ = StaticTypeId();
     Base::Color value_;
     Base::String keyTimeText_;
-    Aero::Detail::Animation::ColorKeyFrame frame_;
+    AnimationTime keyTimeMicroseconds_ = 0U;
+    Interpolation interpolation_ = Interpolation::Linear;
+    double controlPoint1X_ = 0.0;
+    double controlPoint1Y_ = 0.0;
+    double controlPoint2X_ = 1.0;
+    double controlPoint2Y_ = 1.0;
 };
 
 class AERO_API LinearColorKeyFrame final : public ColorKeyFrame {
@@ -564,7 +633,7 @@ public:
     LinearColorKeyFrame() noexcept
         : ColorKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Linear) {}
+              ColorKeyFrame::Interpolation::Linear) {}
 };
 
 class AERO_API DiscreteColorKeyFrame final : public ColorKeyFrame {
@@ -573,7 +642,7 @@ public:
     DiscreteColorKeyFrame() noexcept
         : ColorKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Discrete) {}
+              ColorKeyFrame::Interpolation::Discrete) {}
 };
 
 class AERO_API EasingColorKeyFrame final : public ColorKeyFrame {
@@ -582,7 +651,7 @@ public:
     EasingColorKeyFrame() noexcept
         : ColorKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Easing) {}
+              ColorKeyFrame::Interpolation::Easing) {}
     Base::Ref<EasingFunctionBase> EasingFunction() const noexcept {
         return easing_;
     }
@@ -599,7 +668,7 @@ public:
     SplineColorKeyFrame() noexcept
         : ColorKeyFrame(
               StaticTypeId(),
-              Aero::Detail::Animation::DoubleKeyFrameInterpolation::Spline) {}
+              ColorKeyFrame::Interpolation::Spline) {}
     Base::StringView KeySpline() const noexcept {
         return keySpline_.View();
     }
@@ -636,7 +705,7 @@ public:
     Base::StringView KeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    Aero::Detail::Animation::AnimationTime KeyTimeMicroseconds() const noexcept {
+    AnimationTime KeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
     Base::Result<void> SetValue(
@@ -646,7 +715,7 @@ public:
 private:
     Core::PropertyValue value_;
     Base::String keyTimeText_;
-    Aero::Detail::Animation::AnimationTime keyTimeMicroseconds_ = 0U;
+    AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
 class AERO_API ObjectAnimationUsingKeyFrames final : public Timeline {
@@ -676,7 +745,7 @@ public:
     Base::StringView KeyTime() const noexcept {
         return keyTimeText_.View();
     }
-    Aero::Detail::Animation::AnimationTime KeyTimeMicroseconds() const noexcept {
+    AnimationTime KeyTimeMicroseconds() const noexcept {
         return keyTimeMicroseconds_;
     }
     Base::Result<void> SetValue(bool value) noexcept {
@@ -688,7 +757,7 @@ public:
 private:
     bool value_ = false;
     Base::String keyTimeText_;
-    Aero::Detail::Animation::AnimationTime keyTimeMicroseconds_ = 0U;
+    AnimationTime keyTimeMicroseconds_ = 0U;
 };
 
 class AERO_API BooleanAnimationUsingKeyFrames final : public Timeline {
@@ -920,7 +989,7 @@ public:
     Base::StringView Offset() const noexcept {
         return offsetText_.View();
     }
-    Aero::Detail::Animation::AnimationTime
+    AnimationTime
     OffsetMicroseconds() const noexcept {
         return offsetMicroseconds_;
     }
@@ -929,7 +998,7 @@ public:
 
 private:
     Base::String offsetText_;
-    Aero::Detail::Animation::AnimationTime
+    AnimationTime
         offsetMicroseconds_ = 0U;
 };
 
@@ -1113,6 +1182,22 @@ private:
 } // namespace Aero::Media::Animation
 
 namespace Aero::Core {
+
+template<>
+struct MetaTypeTraits<Media::Animation::FillBehavior> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("FillBehavior"); }
+    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
+    static constexpr Base::StringView Name() noexcept { return "FillBehavior"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<>
+struct MetaTypeTraits<Media::Animation::EasingMode> {
+    static constexpr TypeId Id() noexcept { return MakeTypeId("EasingMode"); }
+    static constexpr Base::StringView Namespace() noexcept { return AeroNamespaceUri(); }
+    static constexpr Base::StringView Name() noexcept { return "EasingMode"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
 
 template<>
 struct MetaTypeTraits<Media::Animation::ComparisonCondition::Operator> {

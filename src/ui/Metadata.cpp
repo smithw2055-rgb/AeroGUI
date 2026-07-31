@@ -4,18 +4,17 @@
 #include <Aero/Core/Metadata/MetadataRuntime.hpp>
 #include <Aero/Core/Metadata/Describe.hpp>
 #include <Aero/Core/Metadata/ValueConversion.hpp>
-#include <Aero/Input/Commands.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Data/Binding.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/Animation.hpp>
+#include <Aero/Data.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Images.hpp>
-#include <Aero/Input/Navigation.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/ObjectTree.hpp>
-#include <Aero/Rendering.hpp>
+#include "ObjectTree.hpp"
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
+#include <Aero/Styling.hpp>
 #include <Aero/Media/Transforms.hpp>
 
 #include <cctype>

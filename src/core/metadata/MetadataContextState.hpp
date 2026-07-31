@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RoutedEventCatalog.hpp"
-#include <Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp>
+#include "MetadataBehaviorRegistrationStore.hpp"
 #include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
 #include <Aero/Core/Property/DependencyProperty.hpp>
 
