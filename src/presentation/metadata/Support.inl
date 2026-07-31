@@ -339,10 +339,6 @@ bool EqualCornerRadius(
 bool ValidateLength(const Length& length) noexcept {
     return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
 }
-bool ValidateThicknessValue(const Thickness& t) noexcept {
-    return IsFinite(t) && t.left >= 0.0 && t.top >= 0.0 &&
-        t.right >= 0.0 && t.bottom >= 0.0;
-}
 bool ValidateMarginValue(const Thickness& t) noexcept {
     // WPF permits negative margins for overlap and shared-border layouts.
     return IsFinite(t);

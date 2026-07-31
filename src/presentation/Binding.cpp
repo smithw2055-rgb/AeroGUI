@@ -329,11 +329,12 @@ Base::Result<Base::String> FormatBindingString(
         bool negative = *digits == '-';
         if (negative) ++digits;
         const char* point = std::strchr(digits, '.');
+        const std::size_t integerLengthBytes =
+            point != nullptr
+            ? static_cast<std::size_t>(point - digits)
+            : std::strlen(digits);
         const std::uint32_t integerLength =
-            static_cast<std::uint32_t>(
-                point != nullptr
-                ? point - digits
-                : std::strlen(digits));
+            static_cast<std::uint32_t>(integerLengthBytes);
         std::uint32_t output = 0U;
         if (negative) formatted[output++] = '-';
         for (std::uint32_t index = 0U;
