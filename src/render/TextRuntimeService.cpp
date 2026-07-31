@@ -412,6 +412,69 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     output.desiredSize = {
         static_cast<double>(layout.NaturalSize().width),
         static_cast<double>(layout.NaturalSize().height)};
+    output.hitRegions.Clear();
+    const Base::Span<const Text::TextLine> textLines = layout.Lines();
+    const Base::Span<const Text::GlyphRun> textRuns = layout.Runs();
+    for (const Text::TextLine& line : textLines) {
+        const float lineHeight = std::max(
+            line.ascent + line.descent, request.pixelSize);
+        const std::uint32_t runEnd = std::min(
+            line.firstRun + line.runCount, textRuns.Size());
+        for (std::uint32_t runIndex = line.firstRun;
+             runIndex < runEnd; ++runIndex) {
+            const Text::GlyphRun& run = textRuns[runIndex];
+            for (const Text::PositionedGlyph& glyph : run.glyphs) {
+                Text::TextHitRegion region;
+                region.textOffset = glyph.cluster;
+                region.x = glyph.x;
+                region.y = line.y;
+                region.width = std::max(std::fabs(glyph.advanceX), 1.0F);
+                region.height = lineHeight;
+                bool merged = false;
+                for (Text::TextHitRegion& existing : output.hitRegions) {
+                    if (existing.textOffset != region.textOffset ||
+                        existing.y != region.y) {
+                        continue;
+                    }
+                    const float left = std::min(existing.x, region.x);
+                    const float right = std::max(
+                        existing.x + existing.width,
+                        region.x + region.width);
+                    existing.x = left;
+                    existing.width = std::max(1.0F, right - left);
+                    existing.height = std::max(existing.height, region.height);
+                    merged = true;
+                    break;
+                }
+                if (!merged) {
+                    Base::Result<void> appended =
+                        output.hitRegions.TryPushBack(region);
+                    if (!appended) return appended.GetStatus();
+                }
+            }
+        }
+        Text::TextHitRegion endRegion;
+        endRegion.textOffset = line.textStart + line.textLength;
+        endRegion.x = line.x + line.width;
+        endRegion.y = line.y;
+        endRegion.width = 1.0F;
+        endRegion.height = lineHeight;
+        Base::Result<void> endAdded =
+            output.hitRegions.TryPushBack(endRegion);
+        if (!endAdded) return endAdded.GetStatus();
+    }
+    for (Text::TextHitRegion& region : output.hitRegions) {
+        std::uint32_t nextOffset = request.text.SizeBytes();
+        for (const Text::TextHitRegion& candidate : output.hitRegions) {
+            if (candidate.textOffset > region.textOffset &&
+                candidate.textOffset < nextOffset) {
+                nextOffset = candidate.textOffset;
+            }
+        }
+        region.textLength = nextOffset > region.textOffset
+            ? nextOffset - region.textOffset
+            : 0U;
+    }
     if (layout.Runs().Empty()) return {};
 
     Base::Vector<BatchBuild> batches(allocator_);

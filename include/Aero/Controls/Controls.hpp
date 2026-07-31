@@ -12,6 +12,13 @@
 
 #include <cstddef>
 
+namespace Aero::Documents {
+class InlineCollection;
+class InlineCollectionView;
+class TextPointer;
+}
+namespace Aero::Detail { class DocumentTextAccess; }
+
 namespace Aero::Controls {
 
 namespace Detail {
@@ -475,6 +482,10 @@ public:
     std::uint32_t InlineCount() const noexcept {
         return ownedInlines_.Size();
     }
+    Documents::InlineCollection Inlines() noexcept;
+    Documents::InlineCollectionView Inlines() const noexcept;
+    Documents::TextPointer ContentStart() noexcept;
+    Documents::TextPointer ContentEnd() noexcept;
     Core::Value MetadataInlines() const noexcept;
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
@@ -546,6 +557,7 @@ protected:
     Base::Result<void> BuildDisplayList(DisplayListBuilder& builder) noexcept override;
 private:
     friend class Detail::TextServicesAccess;
+    friend class Aero::Detail::DocumentTextAccess;
 
     Base::Result<void> SynchronizeInlineStyle(UIElement& child) noexcept;
     bool IsLineBreak(const UIElement& child) const noexcept;
@@ -554,6 +566,7 @@ private:
 
     Detail::TextLayoutService* layoutService_ = nullptr;
     Base::Vector<RenderGlyphRunId> glyphRuns_;
+    Base::Vector<Text::TextHitRegion> textHitRegions_;
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;
     Base::Ref<Base::Object> pendingInline_;
     Size glyphRunSize_;

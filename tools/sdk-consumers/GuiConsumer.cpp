@@ -25,6 +25,16 @@ static_assert(
         Aero::Documents::Span,
         Aero::Documents::Hyperlink>::value,
     "Documents Hyperlink must be inline content rather than ButtonBase");
+
+static_assert(std::is_default_constructible<
+    Aero::Documents::TextPointer>::value,
+    "Gui target must expose TextPointer");
+static_assert(std::is_default_constructible<
+    Aero::Documents::TextRange>::value,
+    "Gui target must expose TextRange");
+static_assert(std::is_default_constructible<
+    Aero::Documents::InlineCollectionView>::value,
+    "Gui target must expose InlineCollectionView");
 static_assert(
     !std::is_base_of<
         Aero::Controls::ButtonBase,

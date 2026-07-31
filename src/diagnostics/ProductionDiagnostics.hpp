@@ -9,6 +9,8 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Controls/Buttons.hpp>
+#include <Aero/Documents.hpp>
 #include <Aero/Presentation/Layout.hpp>
 #include <Aero/Presentation/ObjectTree.hpp>
 #include <Aero/Presentation/Rendering.hpp>
@@ -31,6 +33,8 @@ enum class AccessibilityRole : std::uint8_t {
     ListItem,
     ScrollBar,
     Slider,
+    Document,
+    Link,
 };
 
 enum class AccessibilityAction : std::uint32_t {
@@ -40,6 +44,7 @@ enum class AccessibilityAction : std::uint32_t {
     Focus = 1U << 2U,
     SetValue = 1U << 3U,
     Scroll = 1U << 4U,
+    Navigate = 1U << 5U,
 };
 
 using AccessibilityActionFlags = std::uint32_t;
@@ -68,6 +73,13 @@ public:
     explicit AccessibilityTree(
         Base::IAllocator* allocator = nullptr) noexcept
         : nodes_(allocator) {}
+
+    Base::Result<void> Capture(
+        const Presentation::ObjectTree& tree) noexcept {
+        nodes_.Clear();
+        const Presentation::Visual* root = tree.Root();
+        return root != nullptr ? CaptureNode(*root) : Base::Result<void>{};
+    }
 
     Base::Result<void> TryAdd(
         AccessibilityNode node) noexcept {
@@ -110,6 +122,98 @@ public:
 
 private:
     Base::Vector<AccessibilityNode> nodes_;
+
+    static std::uint64_t NodeId(
+        Presentation::VisualHandle handle) noexcept {
+        return handle.IsValid()
+            ? (static_cast<std::uint64_t>(handle.generation) << 32U) |
+                  (static_cast<std::uint64_t>(handle.index) + 1U)
+            : 0U;
+    }
+
+    Base::Result<void> CaptureNode(
+        const Presentation::Visual& visual) noexcept {
+        AccessibilityNode node;
+        node.id = NodeId(visual.Handle());
+        const Presentation::Visual* parent = visual.LogicalParent();
+        if (parent == nullptr) parent = visual.VisualParent();
+        node.parent = parent != nullptr ? NodeId(parent->Handle()) : 0U;
+        const Presentation::UIElement* element = visual.AsUIElement();
+        if (element != nullptr) {
+            node.bounds = element->LayoutSlot();
+            node.enabled = element->IsEnabled();
+            node.focusable = element->Focusable();
+            node.focused = element->IsKeyboardFocused();
+            node.hidden = !element->IsVisible();
+        }
+        const Core::TypeId type = visual.RuntimeType();
+        const bool isHyperlink =
+            type == Documents::Hyperlink::StaticTypeId();
+        const bool isDocumentText = isHyperlink ||
+            type == Documents::TextElement::StaticTypeId() ||
+            type == Documents::Inline::StaticTypeId() ||
+            type == Documents::Run::StaticTypeId() ||
+            type == Documents::Span::StaticTypeId() ||
+            type == Documents::Bold::StaticTypeId() ||
+            type == Documents::Italic::StaticTypeId() ||
+            type == Documents::Underline::StaticTypeId() ||
+            type == Documents::LineBreak::StaticTypeId() ||
+            type == Controls::TextBlock::StaticTypeId();
+        if (isDocumentText && element != nullptr) {
+            const auto& text =
+                static_cast<const Controls::TextBlock&>(*element);
+            node.role = isHyperlink
+                ? AccessibilityRole::Link
+                : (text.InlineCount() != 0U
+                    ? AccessibilityRole::Document
+                    : AccessibilityRole::Text);
+            Base::String flattened;
+            Base::Result<void> copied =
+                Documents::CopyText(text, flattened);
+            if (!copied) return copied.GetStatus();
+            Base::Result<void> named =
+                node.name.TryAssign(flattened.View());
+            if (!named) return named.GetStatus();
+            named = node.value.TryAssign(flattened.View());
+            if (!named) return named.GetStatus();
+        }
+        if (isHyperlink) {
+            const auto& link =
+                static_cast<const Documents::Hyperlink&>(*element);
+            Base::Result<void> value =
+                node.value.TryAssign(link.NavigateUri());
+            if (!value) return value.GetStatus();
+            node.actions = AccessibilityActionBit(
+                AccessibilityAction::Invoke) |
+                AccessibilityActionBit(AccessibilityAction::Focus) |
+                AccessibilityActionBit(AccessibilityAction::Navigate);
+        }
+        if (node.id != 0U) {
+            Base::Result<void> added = TryAdd(std::move(node));
+            if (!added) return added.GetStatus();
+        }
+        const Base::Span<Presentation::Visual* const> logical =
+            visual.LogicalChildren();
+        for (Presentation::Visual* child : logical) {
+            if (child == nullptr) continue;
+            Base::Result<void> captured = CaptureNode(*child);
+            if (!captured) return captured.GetStatus();
+        }
+        for (Presentation::Visual* child : visual.VisualChildren()) {
+            if (child == nullptr) continue;
+            bool alreadyCaptured = false;
+            for (Presentation::Visual* logicalChild : logical) {
+                if (logicalChild == child) {
+                    alreadyCaptured = true;
+                    break;
+                }
+            }
+            if (alreadyCaptured) continue;
+            Base::Result<void> captured = CaptureNode(*child);
+            if (!captured) return captured.GetStatus();
+        }
+        return {};
+    }
 };
 
 using AccessibilityPublishCallback = Base::Result<void> (*)(

@@ -14,6 +14,17 @@ struct PositionedGlyph final {
     float advanceX = 0.0F;
 };
 
+// Stable geometry retained from shaping for document caret and hit testing.
+// textOffset/textLength use UTF-8 byte offsets, matching shaping clusters.
+struct TextHitRegion final {
+    std::uint32_t textOffset = 0U;
+    std::uint32_t textLength = 0U;
+    float x = 0.0F;
+    float y = 0.0F;
+    float width = 0.0F;
+    float height = 0.0F;
+};
+
 struct GlyphRun final {
     explicit GlyphRun(
         Base::IAllocator* allocator = nullptr) noexcept

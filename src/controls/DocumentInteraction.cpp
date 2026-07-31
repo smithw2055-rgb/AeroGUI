@@ -238,24 +238,39 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
     Base::Result<void> raised = events_->RaiseEvent(
         link, Documents::Hyperlink::ClickEvent, &args);
     if (!raised) return raised.GetStatus();
+
     ICommand* command = link.Command();
-    if (command == nullptr) return {};
-    UIElement* target = link.CommandTarget();
-    if (target == nullptr) target = &link;
-    Base::Ref<Base::Object> parameter = link.CommandParameter();
-    const Value value = Value::FromObject(
-        TypeOf<Base::Object>(), std::move(parameter));
-    if (command->RuntimeType() == RoutedCommand::StaticTypeId()) {
-        Base::Result<bool> executed = commands_->Execute(
-            static_cast<RoutedCommand&>(*command), value, *target);
-        return executed ? Base::Result<void>()
-                        : Base::Result<void>(executed.GetStatus());
+    if (command != nullptr) {
+        UIElement* target = link.CommandTarget();
+        if (target == nullptr) target = &link;
+        Base::Ref<Base::Object> parameter = link.CommandParameter();
+        const Value value = Value::FromObject(
+            TypeOf<Base::Object>(), std::move(parameter));
+        if (command->RuntimeType() == RoutedCommand::StaticTypeId()) {
+            Base::Result<bool> executed = commands_->Execute(
+                static_cast<RoutedCommand&>(*command), value, *target);
+            if (!executed) return executed.GetStatus();
+        } else {
+            Base::Result<bool> allowed =
+                command->CanExecute(*commands_, value, *target);
+            if (!allowed) return allowed.GetStatus();
+            if (allowed.Value()) {
+                Base::Result<void> executed =
+                    command->Execute(*commands_, value, *target);
+                if (!executed) return executed.GetStatus();
+            }
+        }
     }
-    Base::Result<bool> allowed =
-        command->CanExecute(*commands_, value, *target);
-    if (!allowed) return allowed.GetStatus();
-    if (!allowed.Value()) return {};
-    return command->Execute(*commands_, value, *target);
+
+    const Base::StringView uri = link.NavigateUri();
+    if (!uri.Empty()) {
+        Documents::RequestNavigateEventArgs navigate(uri, &link);
+        raised = events_->RaiseEvent(
+            link, Documents::Hyperlink::RequestNavigateEvent,
+            &navigate);
+        if (!raised) return raised.GetStatus();
+    }
+    return {};
 }
 
 void HyperlinkInteractionManager::OnMouseDown(
