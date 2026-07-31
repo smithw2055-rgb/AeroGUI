@@ -1,6 +1,6 @@
 #pragma once
 
-// Compatibility include retained while applications migrate to
-// <Aero/Window.hpp> and the canonical Aero::Window type.
+// Legacy include path retained temporarily. The header exposes only the
+// canonical Aero::Window type and defines no Aero::App type alias.
 #include <Aero/App/Fwd.hpp>
 #include <Aero/Window.hpp>
