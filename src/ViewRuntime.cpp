@@ -231,6 +231,8 @@ struct ViewRuntime::Impl final {
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Detail::ControlRuntimeAccess::
         HyperlinkInteractionManager* hyperlinkInteractions = nullptr;
+    Detail::ControlRuntimeAccess::DocumentSelectionManager*
+        documentSelections = nullptr;
     Controls::TextBoxInteractionManager* textBoxInteractions = nullptr;
     struct StoryboardSession final {
         explicit StoryboardSession(
@@ -3890,6 +3892,11 @@ struct ViewRuntime::Impl final {
                 *tree, *events, *pointer, *focus, *commands);
             if (!status) return status.GetStatus();
             status = hyperlinkInteractions->Initialize();
+            if (!status) return status.GetStatus();
+            status = CreateRuntimeObject(
+                *allocator, Base::MemoryTag::Presentation,
+                documentSelections, *tree, *events, *pointer, *focus,
+                options.clipboard);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,

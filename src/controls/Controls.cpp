@@ -1642,8 +1642,44 @@ Text::TextAlignment TextBlock::TextAlignment() const noexcept {
 
 Base::Result<void> TextBlock::SetText(Base::StringView value) noexcept {
     Base::Result<void> changed = SetValue(TextProperty, value);
-    if (changed) textHitRegions_.Clear();
-    return changed;
+    if (!changed) return changed.GetStatus();
+    textHitRegions_.Clear();
+    return CoerceDocumentSelection();
+}
+
+bool TextBlock::IsTextSelectionEnabled() const noexcept {
+    return GetValueOr(IsTextSelectionEnabledProperty, false);
+}
+
+Color TextBlock::SelectionBrush() const noexcept {
+    return GetValueOr(SelectionBrushProperty,
+        Color{46.0F / 255.0F, 174.0F / 255.0F,
+              235.0F / 255.0F, 1.0F});
+}
+
+double TextBlock::SelectionOpacity() const noexcept {
+    return GetValueOr(SelectionOpacityProperty, 0.25);
+}
+
+Color TextBlock::CaretBrush() const noexcept {
+    return GetValueOr(CaretBrushProperty,
+        Color{0.0F, 0.0F, 0.0F, 1.0F});
+}
+
+Base::Result<void> TextBlock::SetTextSelectionEnabled(bool value) noexcept {
+    return SetValue(IsTextSelectionEnabledProperty, value);
+}
+
+Base::Result<void> TextBlock::SetSelectionBrush(Color value) noexcept {
+    return SetValue(SelectionBrushProperty, value);
+}
+
+Base::Result<void> TextBlock::SetSelectionOpacity(double value) noexcept {
+    return SetValue(SelectionOpacityProperty, value);
+}
+
+Base::Result<void> TextBlock::SetCaretBrush(Color value) noexcept {
+    return SetValue(CaretBrushProperty, value);
 }
 
 Base::Result<void> TextBlock::SetForeground(Color value) noexcept {
