@@ -1,6 +1,9 @@
 name: Export Refactor Patch
 
 on:
+  pull_request:
+    branches:
+      - codex/local-no-samples-tests
   push:
     branches:
       - agent/remove-presentation-layer
