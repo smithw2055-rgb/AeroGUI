@@ -175,11 +175,11 @@ struct ViewRuntime::Impl final {
           documentCache(sharedDocumentCache != nullptr
               ? sharedDocumentCache
               : &ownedDocumentCache),
-          fragmentMounts(&value),
           storyboardSessions(&value),
           storyboardCompletionSessions(&value),
           storyboardCompletedSubscriptions(&value),
-          itemGenerators(&value) {}
+          itemGenerators(&value),
+          fragmentMounts(&value) {}
 
     Base::IAllocator* allocator = nullptr;
     Core::Dispatcher dispatcher;
