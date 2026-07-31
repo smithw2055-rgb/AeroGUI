@@ -1,7 +1,6 @@
 #include <Aero/Controls/Metadata.hpp>
 #include <Aero/Documents/Documents.hpp>
 
-#include <Aero/App/Window.hpp>
 #include <Aero/Controls/Buttons.hpp>
 #include <Aero/Controls/Bars.hpp>
 #include <Aero/Controls/ContentControls.hpp>
