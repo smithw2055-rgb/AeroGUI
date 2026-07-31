@@ -16,9 +16,7 @@ namespace Aero::Documents {
 class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
-class TextSelection;
 }
-namespace Aero::Platform { class IClipboard; }
 namespace Aero::Detail { class DocumentTextAccess; }
 
 namespace Aero::Controls {
@@ -488,14 +486,6 @@ public:
     Documents::InlineCollectionView Inlines() const noexcept;
     Documents::TextPointer ContentStart() noexcept;
     Documents::TextPointer ContentEnd() noexcept;
-    bool IsTextSelectionEnabled() const noexcept;
-    Color SelectionBrush() const noexcept;
-    double SelectionOpacity() const noexcept;
-    Color CaretBrush() const noexcept;
-    Documents::TextSelection Selection() const noexcept;
-    Documents::TextPointer SelectionAnchor() const noexcept;
-    Documents::TextPointer CaretPosition() const noexcept;
-    Base::Result<Rect> CaretRectangle() const noexcept;
     Core::Value MetadataInlines() const noexcept;
     Base::Result<void> SetText(Base::StringView value) noexcept;
     Base::Result<void> SetForeground(Color value) noexcept;
@@ -591,8 +581,6 @@ protected:
 private:
     friend class Detail::TextServicesAccess;
     friend class Aero::Detail::DocumentTextAccess;
-    friend class Aero::Detail::ControlRuntimeAccess::
-        DocumentSelectionManager;
 
     Base::Result<void> SynchronizeInlineStyle(UIElement& child) noexcept;
     bool IsLineBreak(const UIElement& child) const noexcept;
