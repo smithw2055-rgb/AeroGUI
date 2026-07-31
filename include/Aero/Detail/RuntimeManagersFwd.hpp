@@ -62,6 +62,7 @@ class ControlRuntimeAccess final {
 public:
     class ControlInteractionManager;
     class HyperlinkInteractionManager;
+    class DocumentSelectionManager;
     class TextBoxInteractionManager;
     class ScrollInteractionManager;
     class SliderInteractionManager;
