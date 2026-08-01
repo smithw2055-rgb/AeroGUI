@@ -11,11 +11,11 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Diagnostics.hpp>
 #include <Aero/Integration/SourceProvider.hpp>
 #include <Aero/Markup/CompiledDocument.hpp>
 #include <Aero/Markup/LoadOptions.hpp>
-#include <Aero/UiDocument.hpp>
+#include <Aero/Markup/XamlDocument.hpp>
 
 #include <atomic>
 #include <cstdint>

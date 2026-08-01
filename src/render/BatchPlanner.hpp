@@ -2,7 +2,7 @@
 
 #include "DisplayList.hpp"
 
-#include "RenderingInternal.hpp"
+#include "RenderTree.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
@@ -76,7 +76,7 @@ public:
               : &Base::GetDefaultAllocator()) {}
 
     Base::Result<BatchPlan> Build(
-        const RenderPlan& plan,
+        const RenderFrame& plan,
         bool batchingEnabled = true,
         std::uint32_t packetCapacity = 64U) const noexcept;
     Base::Result<BatchPlan> BuildCommandsForTesting(

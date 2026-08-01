@@ -6,7 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Text/TextLayout.hpp>
+#include "../text/TextLayout.hpp"
 #include <Aero/Text/TextTypes.hpp>
 
 namespace Aero::Controls::Detail {

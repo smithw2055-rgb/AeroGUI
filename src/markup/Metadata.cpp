@@ -3,7 +3,7 @@
 
 // Markup-specific metadata declarations.
 
-#include <Aero/Core/Metadata/Describe.hpp>
+#include <Aero/Meta/Describe.hpp>
 #include <Aero/Styling.hpp>
 
 #include "TemplateCompiler.hpp"

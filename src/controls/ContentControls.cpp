@@ -1,5 +1,5 @@
 #include <Aero/Controls/Items.hpp>
-#include "ContentControlAccess.hpp"
+#include "ControlInternals.hpp"
 
 #include <algorithm>
 

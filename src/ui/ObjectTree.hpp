@@ -1,7 +1,7 @@
 #pragma once
 
 #include "VisualAccess.hpp"
-#include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Threading.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 
 namespace Aero {

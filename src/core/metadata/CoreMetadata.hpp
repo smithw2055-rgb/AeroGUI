@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 
 namespace Aero::Core {
 

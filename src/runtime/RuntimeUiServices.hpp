@@ -5,7 +5,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
@@ -29,7 +29,7 @@ public:
         Core::EffectiveValueEngine& values,
         Aero::Detail::BindingManager& bindings,
         Aero::Detail::EventRouter& events,
-        Aero::Detail::CommandManager& commands,
+        Aero::Detail::InputService& input,
         Aero::Detail::StyleManager& styles,
         Controls::TemplateManager& templates,
         Controls::VisualStateManager& visualStates,
@@ -52,7 +52,7 @@ private:
     Core::EffectiveValueEngine* values_ = nullptr;
     Aero::Detail::BindingManager* bindings_ = nullptr;
     Aero::Detail::EventRouter* events_ = nullptr;
-    Aero::Detail::CommandManager* commands_ = nullptr;
+    Aero::Detail::InputService* input_ = nullptr;
     Aero::Detail::StyleManager* styles_ = nullptr;
     Controls::TemplateManager* templates_ = nullptr;
     Controls::VisualStateManager* visualStates_ = nullptr;

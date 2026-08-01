@@ -1,4 +1,4 @@
-#include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Diagnostics.hpp>
 
 #include <utility>
 
@@ -64,7 +64,7 @@ Base::StringView DiagnosticPrefix(DiagnosticDomain domain) noexcept {
         return Base::StringView("INPUT");
     case DiagnosticDomain::Render:
         return Base::StringView("RENDER");
-    case DiagnosticDomain::Rhi:
+    case DiagnosticDomain::Graphics:
         return Base::StringView("RHI");
     case DiagnosticDomain::GlContext:
         return Base::StringView("GLCTX");

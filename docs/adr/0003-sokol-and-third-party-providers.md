@@ -28,8 +28,8 @@ AeroGUI 需要字体、文本 shaping、XML tokenization、几何 tessellation�
 6. `Expat` 可作为 Runtime XAML 的 streaming XML tokenizer；XAML schema、object writer 与 WPF 语义仍完全属于 AeroGUI。compiled-XAML-only 或 host-parser profile 可关闭 Expat。
 7. `libtess2` 仅作为 experimental CPU tessellation fallback，默认关闭；必须经过 adapter、allocator integration、fuzz 和许可证审查，并保留替代计划。
 8. `Ryu` 可作为确定性 float-to-string provider，用于 XAML、diagnostics、snapshot 和序列化；允许经过一致性测试的替代实现。
-9. `sokol_gfx` 仅可封装为默认关闭的 `AeroRHI_Sokol` adapter，用于 bring-up、sample、tool、WASM experiment 和额外 backend contract 验证。
-10. `sokol_gfx` 不得定义 `AeroRHI`，不得成为 D3D12/Vulkan/Metal 或 console backend 的共同底层，不得被当作正式游戏主机支持。
+9. `sokol_gfx` 仅可封装为默认关闭的 `AeroGraphics_Sokol` adapter，用于 bring-up、sample、tool、WASM experiment 和额外 backend contract 验证。
+10. `sokol_gfx` 不得定义 `AeroGraphics`，不得成为 D3D12/Vulkan/Metal 或 console backend 的共同底层，不得被当作正式游戏主机支持。
 11. `sokol_app` 只能用于独立 sample/tool，不能接管可嵌入 Runtime 的 window、input、event loop 或 Present。
 12. 每个 release 的 capability manifest 必须记录实际 provider、版本、构建开关和能力差异。
 13. CI 必须包含 all-optional-dependencies-off 配置，证明核心边界可替换。
@@ -52,7 +52,7 @@ IGeometryTessellator
 IFloatFormatter
   -> Ryu adapter | Verified replacement
 
-AeroRHI
+AeroGraphics
   -> D3D12 / Vulkan / Metal / ConsolePrivate
   -> optional sokol adapter
 ```
@@ -64,7 +64,7 @@ AeroRHI
 - 单头文件/小型 C 风格集成；
 - 快速创建 sample 和验证基本 GPU pipeline；
 - 对其公开支持平台提供较低成本 bring-up；
-- 帮助检查 RenderPlan 没有意外绑定某个 native API。
+- 帮助检查 RenderFrame 没有意外绑定某个 native API。
 
 但它不作为核心的原因是：
 
@@ -108,7 +108,7 @@ AeroRHI
 - 依赖不会污染 AeroGUI public API；
 - 主机和平台可替换 provider；
 - 可按 console、mobile、engine 或 compiled-XAML profile 裁剪；
-- sokol 提供开发便利而不限制正式 RHI。
+- sokol 提供开发便利而不限制正式 graphics layer。
 
 ### 代价
 
@@ -122,7 +122,7 @@ AeroRHI
 - **直接把第三方 API 暴露给用户**：形成 ABI、lifetime 和替换锁定。
 - **所有第三方库强制启用**：不适合主机、引擎和裁剪场景。
 - **完全不使用成熟第三方库**：字体、complex text 和安全 XML 的成本与风险过高。
-- **以 sokol 取代 AeroRHI**：目标平台和集成能力不足。
+- **以 sokol 取代 AeroGraphics**：目标平台和集成能力不足。
 - **默认启用 libtess2**：维护状态与许可证需要先完成独立验证。
 
 ## 验证

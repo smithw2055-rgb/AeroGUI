@@ -23,7 +23,7 @@ using Color = Base::Color;
 using Transform2D = Base::Transform2D;
 using Rect = Base::Rect;
 
-class RenderManager;
+class RenderTree;
 
 AERO_API bool IsFinite(Color value) noexcept;
 AERO_API bool IsFinite(Transform2D value) noexcept;
@@ -70,7 +70,7 @@ public:
 
 private:
     friend class DisplayListBuilder;
-    friend class RenderManager;
+    friend class RenderTree;
     Base::Vector<RenderCommand> commands_;
 };
 

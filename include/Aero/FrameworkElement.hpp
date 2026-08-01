@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Dispatcher.hpp>
+#include <Aero/Threading.hpp>
 #include <Aero/DrawingContext.hpp>
 #include <Aero/Input/Values.hpp>
 #include <Aero/UIElement.hpp>
@@ -56,7 +56,7 @@ namespace Aero {
 using namespace Aero::Core;
 
 namespace Render {
-class RenderManager;
+class RenderTree;
 }
 
 class FrameworkElement;
@@ -241,7 +241,7 @@ protected:
         DrawingContext& context) noexcept;
 
 private:
-    friend class Render::RenderManager;
+    friend class Render::RenderTree;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;
     Base::RenderNodeId nodeId_ = Base::InvalidRenderNodeId;

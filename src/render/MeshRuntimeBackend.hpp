@@ -13,7 +13,7 @@ namespace Aero::Render::Detail {
 class MeshRuntimeBackend final {
 public:
     MeshRuntimeBackend(
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         Renderer& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -87,8 +87,8 @@ private:
     struct Resource final {
         Render::RenderMeshId id =
             Render::InvalidRenderMeshId;
-        Rhi::ResourceHandle vertexBuffer;
-        Rhi::ResourceHandle indexBuffer;
+        Graphics::ResourceHandle vertexBuffer;
+        Graphics::ResourceHandle indexBuffer;
     };
 
     template<class T>
@@ -302,26 +302,26 @@ private:
         if (!built) return built.GetStatus();
 
         Resource resource;
-        Rhi::BufferDescriptor vertexDescriptor;
+        Graphics::BufferDescriptor vertexDescriptor;
         vertexDescriptor.sizeBytes =
             static_cast<std::uint64_t>(
                 vertices.Size()) *
             sizeof(Vertex);
         vertexDescriptor.usage =
-            Rhi::BufferUsage::Vertex;
-        Base::Result<Rhi::ResourceHandle> vertex =
+            Graphics::BufferUsage::Vertex;
+        Base::Result<Graphics::ResourceHandle> vertex =
             device_->CreateBuffer(vertexDescriptor);
         if (!vertex) return vertex.GetStatus();
         resource.vertexBuffer = vertex.Value();
 
-        Rhi::BufferDescriptor indexDescriptor;
+        Graphics::BufferDescriptor indexDescriptor;
         indexDescriptor.sizeBytes =
             static_cast<std::uint64_t>(
                 antialiasedIndices.Size()) *
             sizeof(std::uint32_t);
         indexDescriptor.usage =
-            Rhi::BufferUsage::Index;
-        Base::Result<Rhi::ResourceHandle> index =
+            Graphics::BufferUsage::Index;
+        Base::Result<Graphics::ResourceHandle> index =
             device_->CreateBuffer(indexDescriptor);
         if (!index) {
             static_cast<void>(
@@ -332,7 +332,7 @@ private:
         }
         resource.indexBuffer = index.Value();
 
-        Rhi::CommandEncoder encoder(allocator_);
+        Graphics::CommandEncoder encoder(allocator_);
         Base::Result<void> uploaded =
             encoder.UploadBuffer(
                 resource.vertexBuffer, 0U,
@@ -351,13 +351,13 @@ private:
             DestroyBuffers(resource);
             return uploaded.GetStatus();
         }
-        Base::Result<Rhi::CommandList> commands =
+        Base::Result<Graphics::CommandList> commands =
             encoder.Finish();
         if (!commands) {
             DestroyBuffers(resource);
             return commands.GetStatus();
         }
-        Base::Result<Rhi::FenceValue> submitted =
+        Base::Result<Graphics::FenceValue> submitted =
             device_->Submit(commands.Value());
         if (!submitted) {
             DestroyBuffers(resource);
@@ -379,7 +379,7 @@ private:
                 resource.vertexBuffer,
                 resource.indexBuffer,
                 antialiasedIndices.Size(),
-                Rhi::IndexType::UInt32);
+                Graphics::IndexType::UInt32);
         if (!registered) {
             DestroyBuffers(
                 resource, submitted.Value());
@@ -431,7 +431,7 @@ private:
 
     void DestroyBuffers(
         Resource& resource,
-        Rhi::FenceValue fence = 0U) noexcept {
+        Graphics::FenceValue fence = 0U) noexcept {
         if (device_ == nullptr) return;
         if (fence == 0U) {
             fence = device_->LastSubmittedFence();
@@ -454,7 +454,7 @@ private:
         resource.indexBuffer = {};
     }
 
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     Renderer* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;

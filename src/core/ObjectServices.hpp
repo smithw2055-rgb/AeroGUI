@@ -2,8 +2,8 @@
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Dispatcher.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Threading.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Core {
 

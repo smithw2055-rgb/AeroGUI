@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include "metadata/MetadataBehaviorRegistrationStore.hpp"
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
 
 namespace Aero::Core {
 namespace {

@@ -6,7 +6,7 @@ namespace {
 Aero::Base::Result<
     Aero::Base::Ref<Aero::Integration::RenderEndpoint>>
 CreateOpenGL33Endpoint(
-    Aero::Platform::NativeWindowHandle window) noexcept {
+    Aero::Integration::NativeWindowHandle window) noexcept {
     Aero::Integration::OpenGL33WindowEndpointOptions options;
     options.window = window;
     options.width = 640U;

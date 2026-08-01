@@ -2,7 +2,7 @@
 #include "StyleAccess.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 
 #include "ResourceAssignment.hpp"
 #include "RuntimeManagers.hpp"

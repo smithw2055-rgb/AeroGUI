@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 #include "MetadataBehaviorRegistrationStore.hpp"
 
 #include <Aero/Base/Assert.hpp>

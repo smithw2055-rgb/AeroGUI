@@ -3,7 +3,7 @@
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 
 #include <new>
 #include <utility>

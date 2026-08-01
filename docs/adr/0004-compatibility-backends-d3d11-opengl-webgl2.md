@@ -20,28 +20,28 @@ AeroGUI 采用两级正式后端：
 **Strategic native backends**
 
 ```text
-AeroRHI_D3D12
-AeroRHI_Vulkan
-AeroRHI_Metal
-AeroRHI_ConsolePrivate
+AeroGraphics_D3D12
+AeroGraphics_Vulkan
+AeroGraphics_Metal
+AeroGraphics_ConsolePrivate
 ```
 
 **Compatibility backends**
 
 ```text
-AeroRHI_D3D11
-AeroRHI_OpenGL33
-AeroRHI_GLES30
-AeroRHI_WebGL2
+AeroGraphics_D3D11
+AeroGraphics_OpenGL33
+AeroGraphics_GLES30
+AeroGraphics_WebGL2
 ```
 
-`AeroRHI_Null` 是验证后端，不产生产品像素。
+`AeroGraphics_Null` 是验证后端，不产生产品像素。
 
-兼容后端是正式受支持后端，必须通过统一 RenderPlan/RHI conformance suite；但新性能特性优先在 strategic backends 实现，兼容后端允许通过 capability manifest 声明受限路径。
+兼容后端是正式受支持后端，必须通过统一 RenderFrame/graphics layer conformance suite；但新性能特性优先在 strategic backends 实现，兼容后端允许通过 capability manifest 声明受限路径。
 
 ### 2. D3D11
 
-- 提供第一方直接实现 `AeroRHI_D3D11`，不强制经由 sokol。
+- 提供第一方直接实现 `AeroGraphics_D3D11`，不强制经由 sokol。
 - 首个稳定版本要求 Direct3D feature level 10_0 或更高；11_0/11_1 为推荐路径。
 - feature level 9_x 不进入 v1 正式范围。
 - 基础 UI renderer 只要求 vertex/pixel shader；compute、UAV、tiled resources 和高级 optional feature 必须通过能力查询。
@@ -51,7 +51,7 @@ AeroRHI_WebGL2
 
 ### 3. Desktop OpenGL
 
-- 提供第一方 `AeroRHI_OpenGL33`。
+- 提供第一方 `AeroGraphics_OpenGL33`。
 - 最低基线为 OpenGL 3.3 Core Profile 与 GLSL 3.30。
 - 不依赖 compatibility profile、fixed-function pipeline、display list、immediate mode 或已废弃 API。
 - extension 只能作为可选优化，不能改变 baseline 可见语义。
@@ -60,14 +60,14 @@ AeroRHI_WebGL2
 
 ### 4. OpenGL ES
 
-- 提供第一方 `AeroRHI_GLES30`。
+- 提供第一方 `AeroGraphics_GLES30`。
 - 最低基线为 OpenGL ES 3.0 与 GLSL ES 3.00。
 - 主要目标是 Android、Linux/EGL、嵌入式系统和与 WebGL 2 共享的 shader/feature 子集。
 - iOS/macOS 产品路径优先 Metal；Apple 上的 OpenGL/OpenGL ES 只可作为宿主提供的遗留兼容配置，不作为新平台默认后端。
 
 ### 5. GLX、EGL 与 WGL
 
-这些属于 `AeroPlatform` / surface-context adapter，不属于 `AeroRHI` 绘制后端：
+这些属于 `AeroPlatform` / surface-context adapter，不属于 `AeroGraphics` 绘制后端：
 
 ```text
 AeroPlatform_GLX   Linux + X11 + desktop OpenGL
@@ -84,7 +84,7 @@ AeroPlatform_WGL   Windows + desktop OpenGL
 
 ### 6. WebGL 2
 
-- 提供第一方正式 backend `AeroRHI_WebGL2`。
+- 提供第一方正式 backend `AeroGraphics_WebGL2`。
 - v1 基线只支持 WebGL 2；WebGL 1 不作为 fallback 或正式 capability。
 - WebGL 2 路径面向 C++17 → WebAssembly，并通过最小 JS/HTML host bridge 接入 `HTMLCanvasElement` 或 `OffscreenCanvas`。
 - renderer 基线只依赖 WebGL 2 core 与 GLSL ES 3.00；extension 通过显式 capability query 使用。
@@ -104,7 +104,7 @@ AeroPlatform_WGL   Windows + desktop OpenGL
 
 ### 8. sokol 的关系
 
-`sokol_gfx` 公开支持 D3D11、GL 3.3、GLES3/WebGL2、Metal 和 WebGPU，因此 `AeroRHI_Sokol` 对兼容后端 bring-up 很有价值。但：
+`sokol_gfx` 公开支持 D3D11、GL 3.3、GLES3/WebGL2、Metal 和 WebGPU，因此 `AeroGraphics_Sokol` 对兼容后端 bring-up 很有价值。但：
 
 - 它仍然默认关闭；
 - 不能替代第一方 D3D11/OpenGL/GLES/WebGL2 backend 的长期合同；
@@ -116,8 +116,8 @@ AeroPlatform_WGL   Windows + desktop OpenGL
 
 - D3D11 能接入大量已有 Windows 引擎和工具，并可通过 feature level 支持更广硬件。
 - OpenGL 3.3 Core 是 Linux/X11 和遗留桌面环境的实用兼容基线。
-- GLES 3.0 与 WebGL 2 可共享大部分 shader 语义和 RenderPlan lowering 策略。
-- 将 GLX/EGL/WGL 放在 Platform 层可避免把 window-system 生命周期污染 RHI。
+- GLES 3.0 与 WebGL 2 可共享大部分 shader 语义和 RenderFrame lowering 策略。
+- 将 GLX/EGL/WGL 放在 Platform 层可避免把 window-system 生命周期污染 graphics layer。
 - WebGL 2 的浏览器安全和事件循环约束要求独立 backend，而不是简单将 desktop GL function pointer 重用。
 
 ## 后果
@@ -138,7 +138,7 @@ AeroPlatform_WGL   Windows + desktop OpenGL
 
 ## 被否决方案
 
-- **GLX 作为 RHI backend**：GLX 只负责 X11/OpenGL context 和 drawable，不负责 UI 绘制抽象。
+- **GLX 作为 graphics backend**：GLX 只负责 X11/OpenGL context 和 drawable，不负责 UI 绘制抽象。
 - **只支持 WebGL 1**：功能与 shader 模型过弱，会显著增加另一套 renderer 路径；v1 只支持 WebGL 2。
 - **WebGL 2 直接复用 desktop GL backend 而无独立合同**：忽略浏览器对象、context loss、extension 和事件循环语义。
 - **所有兼容后端只通过 sokol 提供**：会使正式支持依赖第三方抽象，并妨碍精确的宿主集成和长期优化。
@@ -149,7 +149,7 @@ AeroPlatform_WGL   Windows + desktop OpenGL
 - D3D11 FL10_0 与 FL11_0 conformance；
 - OpenGL 3.3 Core on GLX 和 WGL；
 - GLES 3.0 on EGL/Android；
-- WebGL 2 浏览器自动化与 pixel/RenderPlan tests；
+- WebGL 2 浏览器自动化与 pixel/RenderFrame tests；
 - `WEBGL_lose_context` loss/restore/rebuild tests；
 - GL state leak/restore tests in embedded mode；
 - GLX owned/borrowed context and resize tests；

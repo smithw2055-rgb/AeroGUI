@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../runtime/RuntimeFwd.hpp"
-#include "../controls/TemplateTypes.hpp"
+#include "../controls/TemplateRuntime.hpp"
 #include "../data/BindingRuntime.hpp"
 
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Ref.hpp>
@@ -81,7 +81,7 @@ public:
         Core::EffectiveValueEngine& values,
         Aero::Detail::BindingManager&
             bindings,
-        Render::RenderManager&
+        Render::RenderTree&
             renderer,
         Aero::Detail::StyleManager*
             styles = nullptr,
@@ -100,9 +100,9 @@ public:
         std::uint32_t maxTreeNodes =
             4096U) const noexcept;
 
-    const Render::RenderPlan&
-    RenderPlan() const noexcept {
-        return renderer_->CurrentPlan();
+    const Render::RenderFrame&
+    RenderFrame() const noexcept {
+        return renderer_->CurrentFrame();
     }
 
 private:
@@ -112,7 +112,7 @@ private:
         nullptr;
     Aero::Detail::BindingManager*
         bindings_ = nullptr;
-    Render::RenderManager*
+    Render::RenderTree*
         renderer_ = nullptr;
     Aero::Detail::StyleManager* styles_ =
         nullptr;

@@ -1,7 +1,7 @@
 #include "../ui/ThemeCompatibilityTypes.hpp"
 #include "TemplateCompiler.hpp"
 #include "../data/BindingRuntime.hpp"
-#include "../controls/FrameworkTemplateAccess.hpp"
+#include "../controls/TemplateRuntime.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
 #include "../media/AnimationAccess.hpp"
 

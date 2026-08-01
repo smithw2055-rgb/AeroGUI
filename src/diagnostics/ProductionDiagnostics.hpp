@@ -1,6 +1,6 @@
 #pragma once
 
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
@@ -267,7 +267,7 @@ public:
 
     Base::Result<void> Capture(
         const Aero::ObjectTree& tree,
-        const Render::RenderPlan* plan = nullptr) noexcept {
+        const Render::RenderFrame* plan = nullptr) noexcept {
         nodes_.Clear();
         const Aero::Visual* root = tree.Root();
         if (root != nullptr) {
@@ -337,7 +337,7 @@ enum class PerformanceMetric : std::uint8_t {
     EmptyFrameMicroseconds = 0U,
     LayoutMicroseconds,
     PropertyUpdateMicroseconds,
-    RenderPlanMicroseconds,
+    RenderFrameMicroseconds,
     VirtualizedScrollMicroseconds,
     AllocationBytes,
     DrawCalls,

@@ -12,7 +12,7 @@ namespace Aero::Render::Detail {
 class ImageRuntimeBackend final {
 public:
     ImageRuntimeBackend(
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         Renderer& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -72,19 +72,19 @@ private:
     struct Resource final {
         Render::RenderImageId id =
             Render::InvalidRenderImageId;
-        Rhi::ResourceHandle texture;
+        Graphics::ResourceHandle texture;
     };
 
     Base::Result<void> EnsureSampler() noexcept {
         if (device_->IsAlive(sampler_)) return {};
-        Rhi::SamplerDescriptor descriptor;
+        Graphics::SamplerDescriptor descriptor;
         descriptor.minFilter =
-            Rhi::FilterMode::Linear;
+            Graphics::FilterMode::Linear;
         descriptor.magFilter =
-            Rhi::FilterMode::Linear;
+            Graphics::FilterMode::Linear;
         descriptor.mipFilter =
-            Rhi::FilterMode::Nearest;
-        Base::Result<Rhi::ResourceHandle> made =
+            Graphics::FilterMode::Nearest;
+        Base::Result<Graphics::ResourceHandle> made =
             device_->CreateSampler(descriptor);
         if (!made) return made.GetStatus();
         sampler_ = made.Value();
@@ -114,22 +114,22 @@ private:
             EnsureSampler();
         if (!sampler) return sampler.GetStatus();
 
-        Rhi::TextureResourceDescriptor descriptor;
+        Graphics::TextureResourceDescriptor descriptor;
         descriptor.width = width;
         descriptor.height = height;
         descriptor.format =
-            Rhi::GraphicsTextureFormat::Rgba8Unorm;
+            Graphics::GraphicsTextureFormat::Rgba8Unorm;
         descriptor.usage =
-            Rhi::TextureUsageBit(
-                Rhi::TextureUsage::Sampled) |
-            Rhi::TextureUsageBit(
-                Rhi::TextureUsage::CopyDestination);
-        Base::Result<Rhi::ResourceHandle> texture =
+            Graphics::TextureUsageBit(
+                Graphics::TextureUsage::Sampled) |
+            Graphics::TextureUsageBit(
+                Graphics::TextureUsage::CopyDestination);
+        Base::Result<Graphics::ResourceHandle> texture =
             device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
 
-        Rhi::CommandEncoder encoder(allocator_);
-        Rhi::TextureRegion region;
+        Graphics::CommandEncoder encoder(allocator_);
+        Graphics::TextureRegion region;
         region.width = width;
         region.height = height;
         region.bytesPerRow = width * 4U;
@@ -142,7 +142,7 @@ private:
                     texture.Value()));
             return uploaded.GetStatus();
         }
-        Base::Result<Rhi::CommandList> commands =
+        Base::Result<Graphics::CommandList> commands =
             encoder.Finish();
         if (!commands) {
             static_cast<void>(
@@ -150,7 +150,7 @@ private:
                     texture.Value()));
             return commands.GetStatus();
         }
-        Base::Result<Rhi::FenceValue> submitted =
+        Base::Result<Graphics::FenceValue> submitted =
             device_->Submit(commands.Value());
         if (!submitted) {
             static_cast<void>(
@@ -235,11 +235,11 @@ private:
         resource = {};
     }
 
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     Renderer* renderer_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Base::Vector<Resource> resources_;
-    Rhi::ResourceHandle sampler_;
+    Graphics::ResourceHandle sampler_;
     Render::RenderImageId nextImage_ =
         UINT64_C(1) << 44U;
     Aero::Detail::ImageBackendServices services_;

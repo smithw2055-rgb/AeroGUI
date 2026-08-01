@@ -1,14 +1,10 @@
 #include <Aero/Styling.hpp>
-#include "TemplateAuthoring.hpp"
 #include "TemplateRuntime.hpp"
-#include "TemplateTypes.hpp"
-#include "FrameworkTemplateAccess.hpp"
 #include "../data/BindingRuntime.hpp"
-#include "ContentControlAccess.hpp"
-#include "ControlAccess.hpp"
-#include "DeferredTemplateAccess.hpp"
+#include "ControlInternals.hpp"
+#include "ControlInternals.hpp"
 
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 
 #include "../ui/ResourceAssignment.hpp"
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <Aero/Core/Metadata/Describe.hpp>
-#include <Aero/Core/Metadata/ValueCodec.hpp>
-#include <Aero/Core/Metadata/ValueConversion.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/RoutedEvent.hpp>
+#include <Aero/Meta/Describe.hpp>
+#include <Aero/Meta/ValueCodec.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/RoutedEvent.hpp>
 #include <Aero/Module.hpp>
 
 #include <utility>
@@ -14,7 +14,7 @@ namespace Aero::Meta {
 using Context = Core::MetadataContext;
 using TypeId = Core::TypeId;
 using MemberId = Core::MemberId;
-using Routing = Core::RoutingStrategy;
+using Routing = Aero::RoutingStrategy;
 using TypeFlags = Core::TypeFlags;
 using PropertyFlags = Core::PropertyFlags;
 using FrameworkPropertyMetadataOptions = Core::FrameworkPropertyMetadataOptions;
@@ -33,7 +33,7 @@ using ReadOnlyProperty =
     Core::ReadOnlyPropertyRef<TOwner, TValue>;
 
 template<class TOwner, class TArgs>
-using RoutedEvent = Core::RoutedEventRef<TOwner, TArgs>;
+using RoutedEvent = Aero::RoutedEventRef<TOwner, TArgs>;
 
 template<class TValue>
 class PropertyOptions final

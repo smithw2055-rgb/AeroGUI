@@ -1,4 +1,4 @@
-#include "VisualStateManagerAccess.hpp"
+#include "TemplateRuntime.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 
@@ -354,11 +354,11 @@ TreeViewInteractionManager::
 TreeViewInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    FocusManager& focus,
+    InputService& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
-      focus_(&focus),
+      input_(&input),
       states_(states),
       mouseDownHandler_(
           this,
@@ -568,7 +568,7 @@ void TreeViewInteractionManager::OnMouseDown(
         return;
     }
     static_cast<void>(
-        focus_->SetFocus(item));
+        input_->Focus().SetFocus(item));
     args.handled = true;
 }
 
@@ -658,7 +658,7 @@ void TreeViewInteractionManager::OnKeyDown(
     static_cast<void>(
         treeView.SelectItem(visible[target]));
     static_cast<void>(
-        focus_->SetFocus(visible[target]));
+        input_->Focus().SetFocus(visible[target]));
     args.handled = true;
 }
 

@@ -1,16 +1,14 @@
 #pragma once
 
 #include <Aero/Integration/RenderEndpoint.hpp>
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 
 namespace Aero::Integration::Detail {
 
-class EndpointDriver {
+class EndpointBackend : public Render::RenderBackend {
 public:
-    virtual ~EndpointDriver() = default;
+    virtual ~EndpointBackend() = default;
 
-    virtual Base::Result<void> Submit(
-        const Render::RenderPlan& plan) noexcept = 0;
     virtual Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept = 0;
@@ -40,7 +38,7 @@ public:
     static Base::Result<Base::Ref<RenderEndpoint>> Create(
         RenderEndpointMode mode,
         RenderSubmissionMode submissionMode,
-        EndpointDriver* driver,
+        EndpointBackend* backend,
         Base::IAllocator* allocator = nullptr) noexcept;
     static Base::Result<Base::Ref<RenderEndpoint>> CreateHeadless(
         RenderSubmissionMode submissionMode =
@@ -55,8 +53,10 @@ public:
         const void* owner) noexcept;
     static Base::Result<void> Submit(
         RenderEndpoint& endpoint,
-        const Render::RenderPlan& plan) noexcept;
+        const Render::RenderFrame& plan) noexcept;
     static Base::Status FrameStatus(
+        RenderEndpoint& endpoint) noexcept;
+    static Render::RenderBackend& Backend(
         RenderEndpoint& endpoint) noexcept;
     static void* QueryInternalService(
         RenderEndpoint& endpoint,

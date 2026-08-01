@@ -21,11 +21,11 @@ AeroGUI 已接受以下方向：
 3. 标准库可用于合适的私有实现和工具，但 STL owning type 不进入稳定公共 ABI；
 4. AeroGUI 是类似 NoesisGUI 产品定位的原生 GPU UI engine，但采用独立 clean-room 实现；
 5. 生产渲染不支持 Skia；
-6. 自有 `AeroRHI` 支持 strategic backends：D3D12、Vulkan、Metal 和 private console backends；
+6. 自有 `AeroGraphics` 支持 strategic backends：D3D12、Vulkan、Metal 和 private console backends；
 7. 正式 compatibility backends：D3D11、OpenGL 3.3 Core、OpenGL ES 3.0、WebGL 2；
-8. GLX、EGL 和 WGL 是 Platform 层的 context/surface adapter，不是 RHI 绘制后端；
+8. GLX、EGL 和 WGL 是 Platform 层的 context/surface adapter，不是 graphics layer 绘制后端；
 9. WebGL 1 不进入 v1，也不作为 fallback；
-10. sokol 只作为可选 adapter、sample 或 bring-up backend，不是核心 RHI；
+10. sokol 只作为可选 adapter、sample 或 bring-up backend，不是核心 graphics layer；
 11. FreeType、HarfBuzz、Expat、libtess2、Ryu 通过可替换 provider 可选集成；
 12. 宿主拥有窗口、线程、event loop、GPU device/context、queue、command submission 和 presentation；
 13. Runtime 公共合同不依赖 exceptions、C++ RTTI 或 C++20 library。
@@ -57,8 +57,8 @@ UTF-8 XAML
  -> Measure/Arrange
  -> Immutable RenderTransaction
  -> Retained Render Tree
- -> Backend-independent RenderPlan
- -> AeroRHI
+ -> Backend-independent RenderFrame
+ -> AeroGraphics
  -> Native GPU / WebGL commands
 ```
 
@@ -75,7 +75,7 @@ AeroGUI MUST：
 5. 使用 retained render tree 与 immutable/incremental scene transaction；
 6. 使用自有原生 GPU render pipeline，不依赖 Skia；
 7. 支持 D3D12、Vulkan、Metal、D3D11、OpenGL、OpenGL ES、WebGL 2 和 console-private backend；
-8. 正确分离 RHI backend 与 GLX/EGL/WGL/HTML Canvas platform surface；
+8. 正确分离 graphics backend 与 GLX/EGL/WGL/HTML Canvas platform surface；
 9. 支持单线程和 UI/render 双线程宿主模型；Web profile 支持浏览器事件循环驱动；
 10. 允许宿主提供 allocator、threading、file、text、image、window、GPU 和 accessibility provider；
 11. 支持 exceptions-off、RTTI-off 构建；
@@ -108,14 +108,14 @@ v1 不承诺：
 | API | AeroGUI C++17 source compatibility | compile tests + semantic versioning |
 | ABI | versioned C function table/opaque handles | struct-size/version compatibility tests |
 | Platform | host/window/context/input/text contracts | adapter conformance suites |
-| RHI | RenderPlan/resource/pass/capability contract | Null + native/compatibility backend suites |
+| graphics layer | RenderFrame/resource/pass/capability contract | Null + native/compatibility backend suites |
 | Web | browser loop、context loss、WASM/JS boundary | WebGL 2 browser automation |
 
 每个 release MUST 发布 capability manifest，列出：
 
 - 支持的 XAML namespace、markup extension 和 controls；
 - features 的 `core` / `partial` / `unsupported` 状态；
-- text、font、XML、geometry 和 RHI provider；
+- text、font、XML、geometry 和 graphics layer provider；
 - GPU backend、tier、API/shader version 与 capability bits；
 - GLX/EGL/WGL/HTML Canvas 等 surface adapter；
 - WebGL extensions 和 context-loss recovery；
@@ -143,14 +143,14 @@ flowchart TB
 
     Core --> Tx[Immutable RenderTransaction]
     Tx --> Render[AeroRender]
-    Render --> RHI[AeroRHI]
+    Render --> graphics layer[AeroGraphics]
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
-    Surface --> RHI
-    Device --> RHI
+    Surface --> graphics layer
+    Device --> graphics layer
 
-    RHI --> Strategic[D3D12 / Vulkan / Metal / Console]
-    RHI --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
-    RHI -. optional .-> Sokol[sokol_gfx adapter]
+    graphics layer --> Strategic[D3D12 / Vulkan / Metal / Console]
+    graphics layer --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
+    graphics layer -. optional .-> Sokol[sokol_gfx adapter]
 ```
 
 ### 6.1 模块职责
@@ -162,8 +162,8 @@ flowchart TB
 | `AeroMarkup` | XML/XAML node stream、schema、object writer、markup extension、compiled XAML IR |
 | `AeroCore` | Visual/UIElement/FrameworkElement、树、layout、Binding、Resource、Style、Template、Input |
 | `AeroControls` | Control、ContentControl、ItemsControl、Panel 和标准控件 |
-| `AeroRender` | render tree、scene transactions、geometry/text/image cache、RenderPlan |
-| `AeroRHI` | GPU resource、pipeline、pass、command、state 与 synchronization contracts |
+| `AeroRender` | render tree、scene transactions、geometry/text/image cache、RenderFrame |
+| `AeroGraphics` | GPU resource、pipeline、pass、command、state 与 synchronization contracts |
 | `AeroPlatform` | window/canvas、GLX/EGL/WGL、input、IME、clipboard、file、time、DPI 和 accessibility bridge |
 | `AeroTestKit` | WPF probes、golden XAML、layout/render snapshots、browser harness、fuzz |
 
@@ -173,7 +173,7 @@ flowchart TB
 - Core 不依赖 UI runtime、Controls、Platform 或 renderer；
 - AeroCore 的 UI/Data/Input/Media 语义不包含 Win32/X11/Cocoa/D3D/Vulkan/Metal/GL/WebGL/sokol 类型；
 - Render 不依赖 control class；
-- RHI 不依赖 XAML、Binding、Visual 或 window-system API；
+- graphics layer 不依赖 XAML、Binding、Visual 或 window-system API；
 - GLX/EGL/WGL/HTML Canvas adapter 不定义 drawing primitive；
 - module graph MUST 保持有向无环；
 - backend/provider 通过显式 factory/function table 注入。
@@ -243,7 +243,7 @@ PumpPlatformOrBrowserEvents
  -> RaiseLifecycleEvents
  -> BuildRenderTransaction
  -> ApplyRenderTransaction
- -> BuildRenderPlan
+ -> BuildRenderFrame
  -> RecordGpuOrWebGLCommands
 ```
 
@@ -256,34 +256,34 @@ AeroGUI 的“GPU UI”定义为：
 ### 10.1 Strategic backends
 
 ```text
-AeroRHI_D3D12
-AeroRHI_Vulkan
-AeroRHI_Metal
-AeroRHI_ConsolePrivate
+AeroGraphics_D3D12
+AeroGraphics_Vulkan
+AeroGraphics_Metal
+AeroGraphics_ConsolePrivate
 ```
 
 ### 10.2 Compatibility backends
 
 ```text
-AeroRHI_D3D11
-AeroRHI_OpenGL33
-AeroRHI_GLES30
-AeroRHI_WebGL2
+AeroGraphics_D3D11
+AeroGraphics_OpenGL33
+AeroGraphics_GLES30
+AeroGraphics_WebGL2
 ```
 
 ### 10.3 Validation
 
 ```text
-AeroRHI_Null
+AeroGraphics_Null
 ```
 
 Skia 不进入依赖图、测试图或 fallback 图。
 
-兼容后端 MUST 使用同一 RenderPlan contract，并通过 capability fallback 实现基础 UI path。Compute、bindless、storage buffer、indirect draw 和 persistent mapping 不作为兼容基线。
+兼容后端 MUST 使用同一 RenderFrame contract，并通过 capability fallback 实现基础 UI path。Compute、bindless、storage buffer、indirect draw 和 persistent mapping 不作为兼容基线。
 
 ## 11. D3D11 决策
 
-`AeroRHI_D3D11` 是第一方正式兼容 backend：
+`AeroGraphics_D3D11` 是第一方正式兼容 backend：
 
 - feature level 10_0 minimum；11_0/11_1 preferred；
 - v1 不支持 9_x baseline；
@@ -324,7 +324,7 @@ GLX baseline 为 1.4；现代 core context 通过运行时查询的 `GLX_ARB_cre
 
 ## 13. WebGL 2 决策
 
-`AeroRHI_WebGL2` 是正式兼容 backend：
+`AeroGraphics_WebGL2` 是正式兼容 backend：
 
 - 面向 C++17 → WebAssembly；
 - WebGL 2 + GLSL ES 3.00；
@@ -341,15 +341,15 @@ GLX baseline 为 1.4；现代 core context 通过运行时查询的 `GLX_ARB_cre
 
 ## 14. sokol 决策
 
-`sokol_gfx` MAY 通过 `AeroRHI_Sokol` 使用，适合其公开支持的 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU 环境。但仅限：
+`sokol_gfx` MAY 通过 `AeroGraphics_Sokol` 使用，适合其公开支持的 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU 环境。但仅限：
 
 - bring-up、sample、tool、WASM experiment；
-- 对 RenderPlan/RHI contract 的额外适配验证；
+- 对 RenderFrame/graphics layer contract 的额外适配验证；
 - 与第一方 backend 的差异测试。
 
 `sokol_gfx` MUST NOT：
 
-- 定义 AeroRHI API；
+- 定义 AeroGraphics API；
 - 成为所有 backend 的 mandatory lower layer；
 - 替代 D3D12/Vulkan/console native backend；
 - 替代第一方 D3D11/GL/GLES/WebGL2 长期合同；
@@ -381,7 +381,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 | Expat | `IXmlTokenizer` | Runtime XAML 推荐默认，可替换/关闭 |
 | libtess2 | `IGeometryTessellator` | experimental，可替换 |
 | Ryu | `IFloatFormatter` | 推荐默认，可替换 |
-| sokol | `AeroRHI` adapter | optional，默认关闭 |
+| sokol | `AeroGraphics` adapter | optional，默认关闭 |
 
 规则：
 
@@ -402,8 +402,8 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 3. **失效驱动**：property metadata 精确标记 Measure/Arrange/Render/Inheritance 影响。
 4. **事务化变更**：property、tree、template 和 render commit 不暴露半更新状态。
 5. **先垂直切片**：禁止先批量创建空 control class。
-6. **RenderPlan contract-first**：正式和兼容 backend 共享同一上层合同。
-7. **Platform/RHI 分层**：GLX/EGL/WGL/Canvas 不进入 drawing model。
+6. **RenderFrame contract-first**：正式和兼容 backend 共享同一上层合同。
+7. **Platform/graphics layer 分层**：GLX/EGL/WGL/Canvas 不进入 drawing model。
 8. **诊断优先**：不支持状态必须可定位。
 9. **测试可重复**：时间、字体、DPI、资源、shader、browser 和 backend fixture 可锁定。
 10. **先 source compatibility**：v1 不承诺 C++ ABI，稳定 binary boundary 使用 C API。
@@ -416,7 +416,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 - [`spec/FOUNDATION_ABI.md`](spec/FOUNDATION_ABI.md)：C++17、allocator、String、containers、Ref/WeakRef 与 ABI；
 - [`spec/CORE_RUNTIME.md`](spec/CORE_RUNTIME.md)：Object、Dispatcher、metadata、Dependency Property 和 tree transaction；
 - [`spec/XAML_UI_MODEL.md`](spec/XAML_UI_MODEL.md)：XAML、Resource、Binding、Layout、Event、Style、Template 和 Controls UI 语义；
-- [`spec/RENDERING_PLATFORM.md`](spec/RENDERING_PLATFORM.md)：RenderTransaction、AeroRHI、native GPU、platform、text 和 image；
+- [`spec/RENDERING_PLATFORM.md`](spec/RENDERING_PLATFORM.md)：RenderTransaction、AeroGraphics、native GPU、platform、text 和 image；
 - [`spec/COMPATIBILITY_BACKENDS.md`](spec/COMPATIBILITY_BACKENDS.md)：D3D11、OpenGL、GLES、GLX/EGL/WGL 和 WebGL 2；
 - [`spec/QUALITY_ROADMAP.md`](spec/QUALITY_ROADMAP.md)：diagnostics、build、test、performance、security、milestone；
 - [`THIRD_PARTY.md`](THIRD_PARTY.md)：optional dependency policy。
@@ -433,7 +433,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 | D-004 | intrusive `Ref<T>` / `WeakRef<T>` | Accepted |
 | D-005 | logical、visual、render tree 分离 | Accepted |
 | D-006 | retained render tree + immutable transactions | Accepted |
-| D-007 | 原生 GPU AeroRHI；不支持 Skia | Accepted |
+| D-007 | 原生 GPU AeroGraphics；不支持 Skia | Accepted |
 | D-008 | Strategic backend 为 D3D12/Vulkan/Metal/console-private | Accepted |
 | D-009 | Compatibility backend 为 D3D11/GL3.3/GLES3/WebGL2 | Accepted |
 | D-010 | GLX/EGL/WGL/Canvas 属于 Platform/surface 层 | Accepted |
@@ -460,7 +460,7 @@ WebGL 2、OpenGL 和 GLES 是“发行版不得运行时 shader JIT”规则的�
 
 ### NoesisGUI
 
-只允许参考公开文档中的架构概念。禁止提交 SDK 私有源码、反编译结果、受 NDA/许可限制材料、私有 shader 或序列化格式。AeroBase、对象模型、RHI 和渲染算法必须独立设计。
+只允许参考公开文档中的架构概念。禁止提交 SDK 私有源码、反编译结果、受 NDA/许可限制材料、私有 shader 或序列化格式。AeroBase、对象模型、graphics layer 和渲染算法必须独立设计。
 
 ### Third-party
 

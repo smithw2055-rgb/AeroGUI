@@ -12,7 +12,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include "RoutedEventCatalog.hpp"
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 
 #include <cstdint>
 

@@ -7,7 +7,7 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 #include "Loader.hpp"
 #include <Aero/Markup/Resources.hpp>

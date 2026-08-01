@@ -7,7 +7,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Meta/Value.hpp>
 #include <Aero/Visual.hpp>
 #include <cstdint>
 #include <utility>

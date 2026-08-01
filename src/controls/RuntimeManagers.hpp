@@ -4,7 +4,6 @@
 #include "../input/RuntimeTypes.hpp"
 #include "../core/property/PropertyProviderSession.hpp"
 #include "TemplateRuntime.hpp"
-#include "TemplateTypes.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
@@ -16,6 +15,7 @@
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Standard.hpp>
 #include "../ui/RuntimeManagers.hpp"
+#include "../input/InputService.hpp"
 
 namespace Aero::Detail {
 
@@ -30,9 +30,7 @@ public:
     ControlInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        PointerInputManager& pointer,
-        FocusManager& focus,
-        CommandManager& commands,
+        InputService& input,
         VisualStateManager* states = nullptr) noexcept;
     ~ControlInteractionManager() noexcept;
 
@@ -63,9 +61,7 @@ private:
 
     ObjectTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
+    InputService* input_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<ButtonRecord> buttons_;
     MouseButtonEventHandler mouseDownHandler_;
@@ -127,9 +123,7 @@ public:
     HyperlinkInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        PointerInputManager& pointer,
-        FocusManager& focus,
-        CommandManager& commands) noexcept;
+        InputService& input) noexcept;
     ~HyperlinkInteractionManager() noexcept;
 
     Base::Result<void> Initialize() noexcept;
@@ -150,9 +144,7 @@ private:
 
     ObjectTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
+    InputService* input_ = nullptr;
     Base::Vector<Record> links_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseButtonEventHandler mouseUpHandler_;
@@ -194,9 +186,8 @@ public:
     TextBoxInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        PointerInputManager& pointer,
-        FocusManager& focus,
-        Platform::IClipboard& clipboard) noexcept;
+        InputService& input,
+        Integration::IClipboard& clipboard) noexcept;
     ~TextBoxInteractionManager() noexcept;
 
     Base::Result<void> Attach(
@@ -219,9 +210,8 @@ private:
 
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]] EventRouter* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    Platform::IClipboard* clipboard_ = nullptr;
+    InputService* input_ = nullptr;
+    Integration::IClipboard* clipboard_ = nullptr;
     Base::Vector<Record> records_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;
@@ -301,8 +291,7 @@ public:
     SliderInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        PointerInputManager& pointer,
-        FocusManager& focus) noexcept;
+        InputService& input) noexcept;
     ~SliderInteractionManager() noexcept;
 
     Base::Result<void> Attach(
@@ -319,8 +308,7 @@ private:
 
     ObjectTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
-    PointerInputManager* pointer_ = nullptr;
-    FocusManager* focus_ = nullptr;
+    InputService* input_ = nullptr;
     Base::Vector<SliderRecord> sliders_;
     MouseButtonEventHandler mouseDownHandler_;
     MouseEventHandler mouseMoveHandler_;
@@ -359,7 +347,7 @@ public:
     TreeViewInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        FocusManager& focus,
+        InputService& input,
         VisualStateManager* states = nullptr)
         noexcept;
     ~TreeViewInteractionManager() noexcept;
@@ -373,7 +361,7 @@ private:
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]]
     EventRouter* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
+    InputService* input_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<VisualHandle> records_;
     MouseButtonEventHandler mouseDownHandler_;
@@ -403,7 +391,7 @@ public:
     ComboBoxInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        FocusManager& focus) noexcept;
+        InputService& input) noexcept;
     ~ComboBoxInteractionManager() noexcept;
 
     Base::Result<void> Attach(
@@ -415,7 +403,7 @@ private:
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]]
     EventRouter* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
+    InputService* input_ = nullptr;
     Base::Vector<VisualHandle> records_;
     MouseButtonEventHandler mouseDownHandler_;
     KeyEventHandler keyDownHandler_;
@@ -436,7 +424,7 @@ public:
     ListBoxInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        FocusManager& focus,
+        InputService& input,
         VisualStateManager* states = nullptr) noexcept;
     ~ListBoxInteractionManager() noexcept;
 
@@ -451,7 +439,7 @@ private:
 
     ObjectTree* tree_ = nullptr;
     [[maybe_unused]] EventRouter* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
+    InputService* input_ = nullptr;
     VisualStateManager* states_ = nullptr;
     Base::Vector<Record> records_;
     MouseButtonEventHandler mouseDownHandler_;
@@ -483,7 +471,7 @@ public:
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties,
         LayoutManager* layout = nullptr,
-        RenderManager* renderer = nullptr,
+        RenderTree* renderer = nullptr,
         Core::MetadataRuntime* metadata = nullptr,
         Aero::Detail::BindingManager* bindings = nullptr) noexcept
         : tree_(&tree),
@@ -536,7 +524,7 @@ private:
     Core::Detail::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutManager* layout_ = nullptr;
-    RenderManager* renderer_ = nullptr;
+    RenderTree* renderer_ = nullptr;
     Core::MetadataRuntime* metadata_ = nullptr;
     Aero::Detail::BindingManager* bindings_ = nullptr;
     MountService mounts_;
@@ -577,8 +565,7 @@ public:
     MenuInteractionManager(
         ObjectTree& tree,
         EventRouter& events,
-        FocusManager& focus,
-        CommandManager& commands) noexcept;
+        InputService& input) noexcept;
     ~MenuInteractionManager() noexcept;
 
     Base::Result<void> Attach(
@@ -589,8 +576,7 @@ public:
 private:
     ObjectTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
-    FocusManager* focus_ = nullptr;
-    CommandManager* commands_ = nullptr;
+    InputService* input_ = nullptr;
     Base::Vector<VisualHandle> records_;
     MouseButtonEventHandler mouseDownHandler_;
     KeyEventHandler keyDownHandler_;

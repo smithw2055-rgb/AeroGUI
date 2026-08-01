@@ -4,7 +4,7 @@
 #include <Aero/Input.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include <Aero/Text/TextLayout.hpp>
+#include <Aero/Text/TextTypes.hpp>
 #include <cstddef>
 #include <Aero/Controls/Base.hpp>
 

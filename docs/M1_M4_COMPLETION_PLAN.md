@@ -9,7 +9,7 @@ This document converts the broad M1-M4 roadmap into mergeable, test-gated slices
 The `codex/m3-interactive-controls-text-opengl` baseline already contains most M1-M3.5 vertical slices:
 
 - C++17 foundation, intrusive ownership, metadata, DependencyProperty and Dispatcher;
-- runtime and compiled XAML, logical/visual trees, layout and immutable RenderPlan;
+- runtime and compiled XAML, logical/visual trees, layout and immutable RenderFrame;
 - Binding/DataContext, Style/Template, commands and routed input;
 - interactive controls, TextBox, IME, scrolling, ItemsControl and recycling virtualization;
 - provider-neutral text, FreeType/HarfBuzz, D3D11/WARP and OpenGL 3.3 through WGL/GLX;
@@ -123,7 +123,7 @@ Delivered on this branch:
 Native deliverables still required:
 
 - EGL owned/borrowed display, context and surface adapter;
-- GLES 3.0 RHI command execution and GLSL ES 300 shader package;
+- GLES 3.0 graphics layer command execution and GLSL ES 300 shader package;
 - Android NativeActivity or game-engine host sample and device/emulator CI.
 
 ### Slice F — Vulkan strategic backend
@@ -173,7 +173,7 @@ Delivered on this branch:
 
 Native/Web deliverables still required:
 
-- WebGL2 RHI function adapter and Emscripten host;
+- WebGL2 graphics layer function adapter and Emscripten host;
 - browser event/input/IME/clipboard integration;
 - repeated `WEBGL_lose_context` recovery in two browser engines.
 

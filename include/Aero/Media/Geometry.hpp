@@ -4,7 +4,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 
 namespace Aero::Media {
 using Point = Base::Point;

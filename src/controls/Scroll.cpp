@@ -1,7 +1,7 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Primitives.hpp>
 #include "../render/DrawingContextAccess.hpp"
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -2324,12 +2324,10 @@ void ScrollInteractionManager::OnMouseWheel(
 SliderInteractionManager::SliderInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    PointerInputManager& pointer,
-    FocusManager& focus) noexcept
+    InputService& input) noexcept
     : tree_(&tree),
       events_(&events),
-      pointer_(&pointer),
-      focus_(&focus),
+      input_(&input),
       mouseDownHandler_(
           this,
           &SliderInteractionManager::OnMouseDown),
@@ -2358,7 +2356,7 @@ SliderInteractionManager::~SliderInteractionManager()
         static_cast<void>(Detach(*slider));
     }
     static_cast<void>(
-        pointer_->RemoveCaptureChanged(
+        input_->Pointer().RemoveCaptureChanged(
             captureChangedHandler_));
 }
 
@@ -2419,7 +2417,7 @@ Base::Result<void> SliderInteractionManager::Attach(
     }
     if (sliders_.Empty()) {
         Base::Result<void> capture =
-            pointer_->TryAddCaptureChanged(
+            input_->Pointer().TryAddCaptureChanged(
                 captureChangedHandler_);
         if (!capture) return capture.GetStatus();
     }
@@ -2457,7 +2455,7 @@ Base::Result<void> SliderInteractionManager::Attach(
             keyDownHandler_));
         if (sliders_.Empty()) {
             static_cast<void>(
-                pointer_->RemoveCaptureChanged(
+                input_->Pointer().RemoveCaptureChanged(
                     captureChangedHandler_));
         }
         return status.GetStatus();
@@ -2480,7 +2478,7 @@ Base::Result<void> SliderInteractionManager::Attach(
             keyDownHandler_));
         if (sliders_.Empty()) {
             static_cast<void>(
-                pointer_->RemoveCaptureChanged(
+                input_->Pointer().RemoveCaptureChanged(
                     captureChangedHandler_));
         }
         return appended.GetStatus();
@@ -2494,7 +2492,7 @@ Base::Result<bool> SliderInteractionManager::Detach(
     if (index == UINT32_MAX) return false;
     if (sliders_[index].dragging) {
         static_cast<void>(
-            pointer_->ReleasePointer(
+            input_->Pointer().ReleasePointer(
                 sliders_[index].pointerId));
     }
     static_cast<void>(slider.RemoveHandler(
@@ -2512,7 +2510,7 @@ Base::Result<bool> SliderInteractionManager::Detach(
     RemoveAt(index);
     if (sliders_.Empty()) {
         static_cast<void>(
-            pointer_->RemoveCaptureChanged(
+            input_->Pointer().RemoveCaptureChanged(
                 captureChangedHandler_));
     }
     return true;
@@ -2557,7 +2555,7 @@ void SliderInteractionManager::OnMouseDown(
         sliders_[index];
     record.pointerId = args.pointerId;
     static_cast<void>(
-        focus_->SetFocus(&slider));
+        input_->Focus().SetFocus(&slider));
     Point local = args.position;
     const bool horizontal =
         slider.GetOrientation() ==
@@ -2587,7 +2585,7 @@ void SliderInteractionManager::OnMouseDown(
             10.0;
     if (record.dragging) {
         static_cast<void>(
-            pointer_->CapturePointer(
+            input_->Pointer().CapturePointer(
                 args.pointerId, slider));
     }
     if (slider.IsMoveToPointEnabled()) {
@@ -2644,7 +2642,7 @@ void SliderInteractionManager::OnMouseUp(
         SetFromPoint(slider, args.position));
     sliders_[index].dragging = false;
     static_cast<void>(
-        pointer_->ReleasePointer(
+        input_->Pointer().ReleasePointer(
             args.pointerId));
     args.handled = true;
 }

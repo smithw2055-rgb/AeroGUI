@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/MetadataContext.hpp>
+#include <Aero/Meta/MetadataContext.hpp>
 
 #include "MetadataContextState.hpp"
 

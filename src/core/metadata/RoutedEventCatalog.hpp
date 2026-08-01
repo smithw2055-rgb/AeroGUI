@@ -6,7 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include "MetadataBehaviorRegistrationStore.hpp"
-#include <Aero/Core/RoutedEvent.hpp>
+#include <Aero/RoutedEvent.hpp>
 
 namespace Aero::Core {
 

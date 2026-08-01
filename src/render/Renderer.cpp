@@ -13,7 +13,7 @@
 #include <utility>
 
 namespace Aero::Render {
-using namespace Aero::Rhi;
+using namespace Aero::Graphics;
 namespace {
 
 Base::Status InvalidArgument(const char* message) noexcept {
@@ -271,7 +271,7 @@ struct EffectSurface final {
 
 struct Renderer::Impl final {
     explicit Impl(
-        RhiDevice& device,
+        GraphicsDevice& device,
         Base::IAllocator* allocator) noexcept
         : device(&device),
           nodes(allocator),
@@ -284,7 +284,7 @@ struct Renderer::Impl final {
           glyphRuns(allocator),
           effectSurfaces(allocator) {}
 
-    RhiDevice* device = nullptr;
+    GraphicsDevice* device = nullptr;
     ResourceHandle vertexBuffer;
     ResourceHandle uniformBuffer;
     std::array<ResourceHandle, 4U>
@@ -314,7 +314,7 @@ struct Renderer::Impl final {
 };
 
 Renderer::Renderer(
-    RhiDevice& device,
+    GraphicsDevice& device,
     const RendererShaderSet& shaders,
     Base::IAllocator* allocator) noexcept
     : device_(&device),
@@ -792,13 +792,13 @@ bool Renderer::IsBatchingEnabled() const noexcept {
 }
 
 Base::Result<CommandList> Renderer::Record(
-    const Render::RenderPlan& plan,
+    const Render::RenderFrame& plan,
     const RenderTarget& target) noexcept {
     if (!IsInitialized()) {
         return NotInitialized("Renderer is not initialized");
     }
     if (device_->Backend().IsDeviceLost()) {
-        return InvalidState("Cannot record a RenderPlan for a lost graphics device");
+        return InvalidState("Cannot record a RenderFrame for a lost graphics device");
     }
     if (!target.color.IsValid() ||
         (target.color.type != ResourceType::RenderTarget &&

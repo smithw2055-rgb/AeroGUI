@@ -1,15 +1,23 @@
 #include "RuntimeUiServices.hpp"
-#include "../controls/VisualStateManagerAccess.hpp"
-#include "../controls/TemplateTypes.hpp"
+#include "../controls/TemplateRuntime.hpp"
 
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include "../ui/RuntimeManagers.hpp"
 #include "../controls/RuntimeManagers.hpp"
-#include "UiRuntimeAccess.hpp"
+#include "../input/InputService.hpp"
 
 namespace Aero::Detail {
+
+void UiRuntimeAccess::SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept {
+    element.eventRouter_ = router;
+}
+
+void UiRuntimeAccess::SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept {
+    element.commandRouter_ = service;
+}
+
 namespace {
 
 template<class T>
@@ -60,7 +68,7 @@ void RuntimeUiServices::Configure(
     Core::EffectiveValueEngine& values,
     Aero::Detail::BindingManager& bindings,
     Aero::Detail::EventRouter& events,
-    Aero::Detail::CommandManager& commands,
+    Aero::Detail::InputService& input,
     Aero::Detail::StyleManager& styles,
     Controls::TemplateManager& templates,
     Controls::VisualStateManager& visualStates,
@@ -70,7 +78,7 @@ void RuntimeUiServices::Configure(
     values_ = &values;
     bindings_ = &bindings;
     events_ = &events;
-    commands_ = &commands;
+    input_ = &input;
     styles_ = &styles;
     templates_ = &templates;
     visualStates_ = &visualStates;
@@ -83,7 +91,7 @@ void RuntimeUiServices::Reset() noexcept {
     values_ = nullptr;
     bindings_ = nullptr;
     events_ = nullptr;
-    commands_ = nullptr;
+    input_ = nullptr;
     styles_ = nullptr;
     templates_ = nullptr;
     visualStates_ = nullptr;
@@ -93,7 +101,7 @@ void RuntimeUiServices::Reset() noexcept {
 Base::Result<void> RuntimeUiServices::Apply(
     Aero::Visual& root) noexcept {
     if (!IsConfigured() || metadata_ == nullptr || values_ == nullptr ||
-        bindings_ == nullptr || events_ == nullptr || commands_ == nullptr ||
+        bindings_ == nullptr || events_ == nullptr || input_ == nullptr ||
         styles_ == nullptr || templates_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -110,7 +118,7 @@ Base::Result<void> RuntimeUiServices::Apply(
 
         if (Aero::UIElement* element = node->AsUIElement()) {
             UiRuntimeAccess::SetEventRouter(*element, events_);
-            UiRuntimeAccess::SetCommandRouter(*element, commands_);
+            UiRuntimeAccess::SetCommandRouter(*element, input_);
         }
 
         auto* dependencyObject =

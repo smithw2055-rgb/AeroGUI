@@ -1,5 +1,5 @@
 #include "LoaderResult.hpp"
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
 
 namespace Aero::Markup {
 

@@ -1,9 +1,9 @@
 #include "UiMetadata.hpp"
 #include "ThemeCompatibilityTypes.hpp"
 
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Core/Metadata/Describe.hpp>
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Describe.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 #include <Aero/Input.hpp>
 #include <Aero/Animation.hpp>
 #include <Aero/Data.hpp>

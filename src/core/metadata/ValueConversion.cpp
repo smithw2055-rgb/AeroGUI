@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 
 #include <cctype>
 

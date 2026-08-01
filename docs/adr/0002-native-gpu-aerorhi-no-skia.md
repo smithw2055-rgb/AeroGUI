@@ -1,4 +1,4 @@
-# ADR-0002：原生 GPU AeroRHI，不支持 Skia
+# ADR-0002：原生 GPU AeroGraphics，不支持 Skia
 
 - **状态**：Accepted
 - **日期**：2026-07-21
@@ -11,23 +11,23 @@ AeroGUI 的目标是面向桌面、移动设备、游戏引擎和游戏主机的
 ## 决策
 
 1. AeroGUI 定位为 clean-room、NoesisGUI 风格产品方向的原生 GPU XAML UI engine，但不复制 NoesisGUI 的代码、私有算法、shader 或数据格式。
-2. 生产级 rasterization 和 composition 通过自有 `AeroRHI` 与 native GPU API 执行。
+2. 生产级 rasterization 和 composition 通过自有 `AeroGraphics` 与 native GPU API 执行。
 3. 第一方公开 backend 为：
-   - `AeroRHI_D3D12`；
-   - `AeroRHI_Vulkan`；
-   - `AeroRHI_Metal`；
-   - `AeroRHI_Null`。
-4. Xbox、PlayStation、Nintendo 和其他受限平台通过访问受控仓库中的 `AeroRHI_ConsolePrivate` adapter 实现。
+   - `AeroGraphics_D3D12`；
+   - `AeroGraphics_Vulkan`；
+   - `AeroGraphics_Metal`；
+   - `AeroGraphics_Null`。
+4. Xbox、PlayStation、Nintendo 和其他受限平台通过访问受控仓库中的 `AeroGraphics_ConsolePrivate` adapter 实现。
 5. Skia 不作为生产 renderer、reference renderer、fallback renderer 或 golden-image oracle，也不进入依赖图。
-6. UI 线程构建不可变 `RenderTransaction`；render domain 维护 retained render tree，并构建短生命周期 `RenderPlan`；backend 不遍历 Visual tree，也不持有 UI `Object*`。
+6. UI 线程构建不可变 `RenderTransaction`；render domain 维护 retained render tree，并构建短生命周期 `RenderFrame`；backend 不遍历 Visual tree，也不持有 UI `Object*`。
 7. 游戏引擎默认使用 embedded mode：宿主拥有 device、queue、command submission、render target 和 Present；AeroGUI 只记录 UI 所需命令并遵守显式同步合同。
 8. Shader 必须支持离线编译和平台 package；发行版不要求 runtime shader JIT。
 9. 初期 geometry 可使用 CPU tessellation + GPU rasterization/cache；后续 analytic/compute path 是 capability-driven 可选优化，而不是基础兼容前提。
-10. Headless/reference 验证通过 `AeroRHI_Null`、结构快照、自有受限 CPU rasterizer和锁定 native GPU golden 分层完成。
+10. Headless/reference 验证通过 `AeroGraphics_Null`、结构快照、自有受限 CPU rasterizer和锁定 native GPU golden 分层完成。
 
-## AeroRHI 范围
+## AeroGraphics 范围
 
-`AeroRHI` 只抽象 UI renderer 所需能力：
+`AeroGraphics` 只抽象 UI renderer 所需能力：
 
 - buffer、texture、sampler、pipeline；
 - render pass、target、viewport、scissor；
@@ -42,7 +42,7 @@ AeroGUI 的目标是面向桌面、移动设备、游戏引擎和游戏主机的
 
 - D3D12、Vulkan、Metal 和主机 API 都强调显式资源、命令与同步；直接 backend 能更好地集成现有游戏引擎。
 - Skia 的抽象、依赖体积和生命周期模型会成为 AeroGUI 自有 retained renderer 的额外中间层。
-- 自有 RenderPlan/RHI 可针对 UI 的 painter order、clip、mask、offscreen、glyph atlas 和 geometry cache 设计。
+- 自有 RenderFrame/graphics layer 可针对 UI 的 painter order、clip、mask、offscreen、glyph atlas 和 geometry cache 设计。
 - 宿主拥有 Present 与 frame scheduling，能避免中间件与游戏引擎争夺主循环和 GPU state。
 
 ## 后果
@@ -53,7 +53,7 @@ AeroGUI 的目标是面向桌面、移动设备、游戏引擎和游戏主机的
 - 可接入桌面、移动和受限主机；
 - 能与宿主共享 device、resource 和 command stream；
 - 渲染架构不受单一第三方 renderer 限制；
-- 可建立统一的 RenderPlan/backend conformance suite。
+- 可建立统一的 RenderFrame/backend conformance suite。
 
 ### 代价
 
@@ -72,8 +72,8 @@ AeroGUI 的目标是面向桌面、移动设备、游戏引擎和游戏主机的
 ## 验证
 
 - RenderTransaction merge/replay；
-- RenderPlan snapshot 和 validator；
-- `AeroRHI_Null` resource/pass/fence tests；
+- RenderFrame snapshot 和 validator；
+- `AeroGraphics_Null` resource/pass/fence tests；
 - D3D12/Vulkan/Metal backend conformance；
 - clip、mask、offscreen、effect、painter order golden；
 - device loss与 mobile surface recreation；

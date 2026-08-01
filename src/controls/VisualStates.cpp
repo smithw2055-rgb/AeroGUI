@@ -1,9 +1,7 @@
 #include <Aero/Styling.hpp>
-#include "VisualStateManagerAccess.hpp"
-#include "FrameworkTemplateAccess.hpp"
-#include "TemplateTypes.hpp"
+#include "TemplateRuntime.hpp"
 
-#include <Aero/Core/Metadata/ValueCodec.hpp>
+#include <Aero/Meta/ValueCodec.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "../media/AnimationAccess.hpp"
 

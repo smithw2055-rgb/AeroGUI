@@ -94,7 +94,7 @@ auto created = Aero::Integration::ViewHost::CreateView(environment, options);
 
 `RuntimeEnvironment` freezes module/schema composition. Each View owns resource,
 interaction, layout, text and frame state. `RenderEndpoint` remains opaque.
-Concrete backends are opt-in and never leak renderer/RHI objects into Gui.
+Concrete backends are opt-in and never leak renderer/graphics layer objects into Gui.
 
 ## XAML load transaction
 

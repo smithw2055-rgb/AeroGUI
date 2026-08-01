@@ -3,7 +3,7 @@
 - **状态**：Architecture Baseline
 - **原则**：optional、replaceable、private、pinned、auditable
 
-AeroGUI 是自有对象/布局/渲染 runtime。第三方库只提供边界清晰的通用能力，不决定公共 API、对象模型、XAML 语义或 `AeroRHI` 架构。
+AeroGUI 是自有对象/布局/渲染 runtime。第三方库只提供边界清晰的通用能力，不决定公共 API、对象模型、XAML 语义或 `AeroGraphics` 架构。
 
 ## 1. 通用规则
 
@@ -30,7 +30,7 @@ AeroGUI 是自有对象/布局/渲染 runtime。第三方库只提供边界清�
 | Expat | `AERO_WITH_EXPAT` | ON | streaming XML tokenization |
 | libtess2 | `AERO_WITH_LIBTESS2` | OFF/experimental | CPU polygon tessellation fallback |
 | Ryu | `AERO_WITH_RYU` | ON | deterministic float formatting |
-| sokol | `AERO_WITH_SOKOL` | OFF | optional RHI/sample adapter |
+| sokol | `AERO_WITH_SOKOL` | OFF | optional graphics layer/sample adapter |
 
 “ON” 表示通用开发 profile 的推荐值，不表示硬依赖。Console、engine integration 或 compiled-XAML-only profile 可以替换或关闭对应 provider。
 
@@ -182,12 +182,12 @@ Ryu 仓库允许 Apache-2.0；`ryu/` 目录还提供 Boost Software License 1.0 
 
 ### 8.1 允许用途
 
-`sokol_gfx` MAY 被封装为 `AeroRHI_Sokol`：
+`sokol_gfx` MAY 被封装为 `AeroGraphics_Sokol`：
 
 - 快速 bring-up；
 - samples、tools、WASM experiment；
 - D3D11、Metal、GL/GLES、WebGPU 等已支持环境的兼容验证；
-- 验证 `RenderPlan` 不依赖具体原生 API。
+- 验证 `RenderFrame` 不依赖具体原生 API。
 
 `sokol_app` 只能用于独立 sample/tool，不进入可嵌入 Runtime。生产宿主仍拥有 window、input、event loop、device 和 presentation。
 
@@ -195,14 +195,14 @@ Ryu 仓库允许 Apache-2.0；`ryu/` 目录还提供 Boost Software License 1.0 
 
 sokol MUST NOT：
 
-- 成为 `AeroRHI` 的公共类型系统；
+- 成为 `AeroGraphics` 的公共类型系统；
 - 成为所有 native backend 必经的转发层；
 - 阻止 D3D12/Vulkan/Metal 使用其原生 command/synchronization 能力；
 - 被视为 Xbox、PlayStation、Nintendo 等专有平台的正式解决方案；
 - 将 `sg_*` handle 存入 serialized scene 或公共 SDK；
 - 让 renderer 依赖 `sokol_app` 的单窗口/主循环模型。
 
-官方公开后端覆盖并不等同 AeroGUI 目标矩阵，尤其不提供通用 D3D12 和公开 console backend。因此 sokol 只能是 optional adapter，而不是核心 RHI。
+官方公开后端覆盖并不等同 AeroGUI 目标矩阵，尤其不提供通用 D3D12 和公开 console backend。因此 sokol 只能是 optional adapter，而不是核心 graphics layer。
 
 ### 8.3 License
 
@@ -218,7 +218,7 @@ AeroText_HarfBuzz
 AeroMarkup_Expat
 AeroGeometry_Libtess2
 AeroFormat_Ryu
-AeroRHI_Sokol
+AeroGraphics_Sokol
 ```
 
 Core targets 不直接 link 第三方库：
@@ -229,7 +229,7 @@ AeroCore       -> AeroBase only
 AeroCore -> AeroCore only
 AeroControls   -> AeroCore only
 AeroMarkup     -> AeroControls + IXmlTokenizer
-AeroRender     -> AeroCore + AeroRHI + text/geometry interfaces
+AeroRender     -> AeroCore + AeroGraphics + text/geometry interfaces
 AeroPlatform   -> host/platform contracts
 ```
 
@@ -243,7 +243,7 @@ option(AERO_WITH_HARFBUZZ "Enable HarfBuzz provider" ON)
 option(AERO_WITH_EXPAT "Enable Expat XML tokenizer" ON)
 option(AERO_WITH_LIBTESS2 "Enable experimental libtess2 provider" OFF)
 option(AERO_WITH_RYU "Enable Ryu formatting" ON)
-option(AERO_WITH_SOKOL "Enable optional sokol RHI adapter" OFF)
+option(AERO_WITH_SOKOL "Enable optional sokol graphics layer adapter" OFF)
 ```
 
 支持三种 source mode：

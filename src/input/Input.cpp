@@ -272,8 +272,8 @@ Base::Result<HitTestResult> HitTestManager::HitTestElement(
 }
 
 PointerInputManager::PointerInputManager(HitTestManager& hitTests,
-    EventRouter& events, Visual& root) noexcept
-    : hitTests_(&hitTests), events_(&events), root_(&root),
+    EventRouter& events) noexcept
+    : hitTests_(&hitTests), events_(&events),
       captures_(&Base::GetDefaultAllocator()),
       states_(&Base::GetDefaultAllocator()) {}
 

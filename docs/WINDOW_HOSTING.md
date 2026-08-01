@@ -6,13 +6,11 @@ private graphics implementation. The only public product frame entry is
 
 ## Ownership boundary
 
-`Aero::Platform::IWindow` owns the native top-level window and event pump:
-
-- create, show and close;
-- client size and DPI scale;
-- expose, resize and close events;
-- normalized pointer, keyboard and UTF-8 text events;
-- an opaque `NativeWindowHandle`.
+The default `Aero::App` implementation privately owns the native top-level
+window and event pump. Engine and editor hosts exchange only
+`Aero::Integration::NativeWindowHandle` plus the narrow clipboard and text-input
+interfaces from `Aero/Integration/HostServices.hpp`. Win32, X11, WGL and GLX
+window classes and event records are implementation details under `src/platform`.
 
 `Aero::Integration::RenderEndpoint` is the only rendering object held by a
 `View`. It is reference counted and opaque: it does not expose a renderer,
@@ -45,7 +43,7 @@ explicit opt-in headers:
 These headers use `std::uintptr_t`, function pointers and versioned POD
 contracts. They do not include Windows, D3D11, OpenGL or X11 system headers.
 `HostedGraphics.hpp` exposes a tagged read-only graphics command ABI, not the
-internal render snapshot or RHI classes.
+internal render snapshot or graphics layer classes.
 
 ## Resize and frame flow
 
@@ -83,9 +81,7 @@ view.RunFrame();
 Reporting loss stops acceptance, discards pending frames and advances the
 endpoint generation. Backend image, mesh and glyph resources are invalidated
 inside the endpoint. A successful `Restore()` rebuilds the native surface or
-device, and the next `RunFrame()` submits a complete snapshot. Hosts do not
-manually shut down or reinitialize renderer, surface, presenter and device
-objects.
+device, and the next `RunFrame()` submits a complete snapshot. Hosts do not manually shut down or reinitialize renderer, surface or graphics-device objects.
 
 ## ControlGallery GUI mode
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Base/Object.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 #include <cstdint>
 

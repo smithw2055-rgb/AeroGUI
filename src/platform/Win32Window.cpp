@@ -749,11 +749,11 @@ double Win32Window::DpiScale() const noexcept {
     return impl_ != nullptr ? impl_->dpiScale : 1.0;
 }
 
-NativeWindowHandle Win32Window::NativeHandle() const noexcept {
-    NativeWindowHandle handle;
+Integration::NativeWindowHandle Win32Window::NativeHandle() const noexcept {
+    Integration::NativeWindowHandle handle;
 #if defined(_WIN32)
     if (impl_ != nullptr) {
-        handle.system = WindowSystem::Win32;
+        handle.system = Integration::WindowSystem::Win32;
         handle.window = reinterpret_cast<std::uintptr_t>(impl_->window);
         handle.instance = reinterpret_cast<std::uintptr_t>(impl_->instance);
     }

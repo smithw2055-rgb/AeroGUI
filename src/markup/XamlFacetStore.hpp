@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 #include "Extensions.hpp"
 #include <Aero/Markup/Schema.hpp>

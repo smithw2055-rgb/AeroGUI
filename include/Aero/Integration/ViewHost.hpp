@@ -6,13 +6,9 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
+#include <Aero/Integration/HostServices.hpp>
 #include <Aero/Integration/RenderEndpoint.hpp>
-#include <Aero/RuntimeEnvironment.hpp>
-
-namespace Aero::Platform {
-class IClipboard;
-class ITextInputMethodHost;
-}
+#include <Aero/Integration/View.hpp>
 
 namespace Aero::Integration {
 
@@ -29,8 +25,8 @@ struct TextOptions final {
 
 struct ViewHostOptions final {
     Base::Ref<RenderEndpoint> renderEndpoint;
-    Platform::IClipboard* clipboard = nullptr;
-    Platform::ITextInputMethodHost* textInputMethodHost = nullptr;
+    IClipboard* clipboard = nullptr;
+    ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;
     bool attachControlInteractions = true;
     bool attachTextEditing = true;

@@ -6,7 +6,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Data.hpp>
 #include <cstdint>
 

@@ -2,13 +2,13 @@
 
 #include "RuntimeFwd.hpp"
 #include "../data/BindingRuntime.hpp"
-#include "../controls/ItemContainerGeneratorAccess.hpp"
+#include "../controls/ControlInternals.hpp"
 
 #include <Aero/Controls/Items.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 #include <Aero/Data.hpp>
 #include "../media/AnimationRuntimeTypes.hpp"
-#include <Aero/RuntimeEnvironment.hpp>
+#include <Aero/Integration/View.hpp>
 
 #include "ViewRuntime.hpp"
 

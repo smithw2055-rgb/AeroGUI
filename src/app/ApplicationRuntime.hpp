@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Platform/Window.hpp>
+#include "../platform/Window.hpp"
 
 namespace Aero { class View; }
 
@@ -17,7 +17,7 @@ struct WindowRuntimeState final {
     Base::Result<void> (*show)(void* context) noexcept = nullptr;
     void (*close)(void* context) noexcept = nullptr;
     bool (*isOpen)(const void* context) noexcept = nullptr;
-    Platform::NativeWindowHandle (*nativeHandle)(
+    Integration::NativeWindowHandle (*nativeHandle)(
         const void* context) noexcept = nullptr;
     View* (*hostedView)(void* context) noexcept = nullptr;
 };

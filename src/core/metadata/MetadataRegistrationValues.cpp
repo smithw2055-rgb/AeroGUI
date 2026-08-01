@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
+#include <Aero/Meta/MetadataRegistrationValues.hpp>
 
 #include "MetadataValueRegistrationStore.hpp"
 

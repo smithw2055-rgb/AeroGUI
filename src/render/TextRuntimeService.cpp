@@ -34,8 +34,8 @@ struct BatchBuild final {
     Base::Vector<GlyphVertex> vertices;
     Base::Vector<std::uint32_t> indices;
     Base::Vector<Text::GlyphAtlasPlacement> placements;
-    Rhi::ResourceHandle vertexBuffer;
-    Rhi::ResourceHandle indexBuffer;
+    Graphics::ResourceHandle vertexBuffer;
+    Graphics::ResourceHandle indexBuffer;
 };
 
 bool IsValidConfig(
@@ -84,16 +84,16 @@ Base::Span<const std::uint8_t> AsBytes(
 
 struct TextRuntimeService::Impl final {
     struct PageResource final {
-        Rhi::ResourceHandle texture;
+        Graphics::ResourceHandle texture;
     };
 
     struct RunResource final {
         Render::RenderGlyphRunId id =
             Render::InvalidRenderGlyphRunId;
-        Rhi::ResourceHandle vertexBuffer;
-        Rhi::ResourceHandle indexBuffer;
+        Graphics::ResourceHandle vertexBuffer;
+        Graphics::ResourceHandle indexBuffer;
         Base::Vector<Text::GlyphAtlasPlacement> placements;
-        Rhi::FenceValue retireFence = 0U;
+        Graphics::FenceValue retireFence = 0U;
         bool released = false;
 
         explicit RunResource(
@@ -113,16 +113,16 @@ struct TextRuntimeService::Impl final {
     Base::Vector<Text::FontFace> fallbackFaces;
     Base::Vector<PageResource> pages;
     Base::Vector<RunResource> runs;
-    Rhi::ResourceHandle sampler;
+    Graphics::ResourceHandle sampler;
     Render::RenderGlyphRunId nextGlyphRun = 1U;
     std::uint64_t useStamp = 1U;
-    Rhi::FenceValue lastUploadFence = 0U;
+    Graphics::FenceValue lastUploadFence = 0U;
     bool initialized = false;
 };
 
 TextRuntimeService::TextRuntimeService(
     Text::FontManager& fonts,
-    Rhi::RhiDevice& device,
+    Graphics::GraphicsDevice& device,
     GlyphRunResourceSink& sink,
     Base::IAllocator* allocator) noexcept
     : fonts_(&fonts),
@@ -181,11 +181,11 @@ Base::Result<void> TextRuntimeService::Initialize(
         return atlasReady.GetStatus();
     }
 
-    Rhi::SamplerDescriptor sampler;
-    sampler.minFilter = Rhi::FilterMode::Linear;
-    sampler.magFilter = Rhi::FilterMode::Linear;
-    sampler.mipFilter = Rhi::FilterMode::Nearest;
-    Base::Result<Rhi::ResourceHandle> createdSampler =
+    Graphics::SamplerDescriptor sampler;
+    sampler.minFilter = Graphics::FilterMode::Linear;
+    sampler.magFilter = Graphics::FilterMode::Linear;
+    sampler.mipFilter = Graphics::FilterMode::Nearest;
+    Base::Result<Graphics::ResourceHandle> createdSampler =
         device_->CreateSampler(sampler);
     if (!createdSampler) {
         Shutdown();
@@ -198,7 +198,7 @@ Base::Result<void> TextRuntimeService::Initialize(
 
 Base::Result<void>
 TextRuntimeService::RecoverDeviceResources(
-    Rhi::RhiDevice& device,
+    Graphics::GraphicsDevice& device,
     GlyphRunResourceSink& sink) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
@@ -240,7 +240,7 @@ TextRuntimeService::RecoverDeviceResources(
 
 void TextRuntimeService::Shutdown() noexcept {
     if (impl_ == nullptr) return;
-    const Rhi::FenceValue retireFence =
+    const Graphics::FenceValue retireFence =
         device_ != nullptr
             ? device_->LastSubmittedFence()
             : 0U;
@@ -291,7 +291,7 @@ TextRuntimeService::CollectGarbage() noexcept {
             Base::ErrorCode::NotInitialized,
             "TextBlock render service is not initialized");
     }
-    const Rhi::FenceValue completed =
+    const Graphics::FenceValue completed =
         device_->Backend().CompletedFence();
     std::uint32_t releasedCount = 0U;
     std::uint32_t index = 0U;
@@ -367,7 +367,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
         CollectGarbage();
     if (!collected) return collected.GetStatus();
 
-    const Rhi::FenceValue lastSubmitted =
+    const Graphics::FenceValue lastSubmitted =
         device_->LastSubmittedFence();
     if (lastSubmitted > 0U) {
         for (Impl::RunResource& run : impl_->runs) {
@@ -488,7 +488,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     }
     const Text::GlyphAtlasConfig atlasConfig =
         impl_->atlas.Config();
-    const Rhi::FenceValue completedFence =
+    const Graphics::FenceValue completedFence =
         device_->Backend().CompletedFence();
 
     auto findBatch = [&](
@@ -616,23 +616,23 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
                 impl_->pages[page].texture)) {
             continue;
         }
-        Rhi::TextureResourceDescriptor descriptor;
+        Graphics::TextureResourceDescriptor descriptor;
         descriptor.width = atlasConfig.pageWidth;
         descriptor.height = atlasConfig.pageHeight;
         descriptor.format =
-            Rhi::GraphicsTextureFormat::R8Unorm;
+            Graphics::GraphicsTextureFormat::R8Unorm;
         descriptor.usage =
-            Rhi::TextureUsageBit(
-                Rhi::TextureUsage::Sampled) |
-            Rhi::TextureUsageBit(
-                Rhi::TextureUsage::CopyDestination);
-        Base::Result<Rhi::ResourceHandle> texture =
+            Graphics::TextureUsageBit(
+                Graphics::TextureUsage::Sampled) |
+            Graphics::TextureUsageBit(
+                Graphics::TextureUsage::CopyDestination);
+        Base::Result<Graphics::ResourceHandle> texture =
             device_->CreateTexture(descriptor);
         if (!texture) return texture.GetStatus();
         impl_->pages[page].texture = texture.Value();
     }
 
-    Rhi::CommandEncoder encoder(allocator_);
+    Graphics::CommandEncoder encoder(allocator_);
     for (const Text::GlyphAtlasUpload& upload :
          impl_->atlas.PendingUploads()) {
         if (upload.page >= impl_->pages.Size()) {
@@ -640,7 +640,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
                 Base::ErrorCode::InternalError,
                 "Glyph atlas upload references a missing page");
         }
-        Rhi::TextureRegion region;
+        Graphics::TextureRegion region;
         region.x = upload.x;
         region.y = upload.y;
         region.width = upload.width;
@@ -654,7 +654,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
     }
 
     auto destroyBatchResources = [&](
-        Rhi::FenceValue retireFence) noexcept {
+        Graphics::FenceValue retireFence) noexcept {
         for (BatchBuild& batch : batches) {
             if (device_->IsAlive(batch.vertexBuffer)) {
                 (void)device_->DestroyResource(
@@ -686,10 +686,10 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
             static_cast<std::uint64_t>(
                 batch.indices.Size()) *
             sizeof(std::uint32_t);
-        Rhi::BufferDescriptor vertexDescriptor;
+        Graphics::BufferDescriptor vertexDescriptor;
         vertexDescriptor.sizeBytes = vertexBytes;
-        vertexDescriptor.usage = Rhi::BufferUsage::Vertex;
-        Base::Result<Rhi::ResourceHandle> vertex =
+        vertexDescriptor.usage = Graphics::BufferUsage::Vertex;
+        Base::Result<Graphics::ResourceHandle> vertex =
             device_->CreateBuffer(
                 vertexDescriptor);
         if (!vertex) {
@@ -699,10 +699,10 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
         }
         batch.vertexBuffer = vertex.Value();
 
-        Rhi::BufferDescriptor indexDescriptor;
+        Graphics::BufferDescriptor indexDescriptor;
         indexDescriptor.sizeBytes = indexBytes;
-        indexDescriptor.usage = Rhi::BufferUsage::Index;
-        Base::Result<Rhi::ResourceHandle> index =
+        indexDescriptor.usage = Graphics::BufferUsage::Index;
+        Base::Result<Graphics::ResourceHandle> index =
             device_->CreateBuffer(
                 indexDescriptor);
         if (!index) {
@@ -731,14 +731,14 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
         }
     }
 
-    Base::Result<Rhi::CommandList> commands =
+    Base::Result<Graphics::CommandList> commands =
         encoder.Finish();
     if (!commands) {
         destroyBatchResources(
             device_->LastSubmittedFence());
         return commands.GetStatus();
     }
-    Base::Result<Rhi::FenceValue> submitted =
+    Base::Result<Graphics::FenceValue> submitted =
         device_->Submit(commands.Value());
     if (!submitted) {
         destroyBatchResources(
@@ -791,7 +791,7 @@ Base::Result<void> TextRuntimeService::ShapeAndPrepare(
                 batch.indices.Size(),
                 impl_->pages[batch.page].texture,
                 impl_->sampler,
-                Rhi::IndexType::UInt32);
+                Graphics::IndexType::UInt32);
         if (!registered) {
             for (std::uint32_t rollback = 0U;
                  rollback < registeredCount; ++rollback) {

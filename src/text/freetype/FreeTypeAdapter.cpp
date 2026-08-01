@@ -1,4 +1,4 @@
-#include <Aero/Text/FreeTypeAdapter.hpp>
+#include "../FreeTypeAdapter.hpp"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H

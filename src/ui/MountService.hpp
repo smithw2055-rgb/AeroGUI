@@ -62,7 +62,7 @@ public:
     MountService(
         ObjectTree& tree,
         LayoutManager* layout = nullptr,
-        Render::RenderManager* renderer = nullptr) noexcept;
+        Render::RenderTree* renderer = nullptr) noexcept;
 
     Base::Result<MountEdgeState> Attach(
         Visual& parent,
@@ -96,12 +96,12 @@ public:
 
     ObjectTree& Tree() const noexcept { return *tree_; }
     LayoutManager* Layout() const noexcept { return layout_; }
-    Render::RenderManager* Renderer() const noexcept { return renderer_; }
+    Render::RenderTree* Renderer() const noexcept { return renderer_; }
 
 private:
     ObjectTree* tree_ = nullptr;
     LayoutManager* layout_ = nullptr;
-    Render::RenderManager* renderer_ = nullptr;
+    Render::RenderTree* renderer_ = nullptr;
 
     static Base::Status InvalidState(const char* message) noexcept;
     Base::Result<void> AttachLayout(

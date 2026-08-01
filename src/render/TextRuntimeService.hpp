@@ -5,7 +5,7 @@
 #include "../controls/TextLayoutService.hpp"
 #include "../runtime/TextResourceContract.hpp"
 
-#include "rhi/Graphics.hpp"
+#include "graphics/Graphics.hpp"
 
 #include <cstdint>
 
@@ -19,12 +19,12 @@ public:
 
     virtual Base::Result<void> RegisterGlyphRun(
         Render::RenderGlyphRunId glyphRun,
-        Rhi::ResourceHandle vertexBuffer,
-        Rhi::ResourceHandle indexBuffer,
+        Graphics::ResourceHandle vertexBuffer,
+        Graphics::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
-        Rhi::ResourceHandle atlasTexture,
-        Rhi::ResourceHandle sampler,
-        Rhi::IndexType indexType) noexcept = 0;
+        Graphics::ResourceHandle atlasTexture,
+        Graphics::ResourceHandle sampler,
+        Graphics::IndexType indexType) noexcept = 0;
     virtual Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept = 0;
 };
@@ -34,7 +34,7 @@ class TextRuntimeService final
 public:
     TextRuntimeService(
         Text::FontManager& fonts,
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         GlyphRunResourceSink& sink,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~TextRuntimeService() override;
@@ -47,7 +47,7 @@ public:
     Base::Result<void> Initialize(
         const TextRuntimeConfig& config) noexcept;
     Base::Result<void> RecoverDeviceResources(
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         GlyphRunResourceSink& sink) noexcept;
     void Shutdown() noexcept;
     bool IsInitialized() const noexcept;
@@ -64,7 +64,7 @@ private:
     struct Impl;
 
     Text::FontManager* fonts_ = nullptr;
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     GlyphRunResourceSink* sink_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

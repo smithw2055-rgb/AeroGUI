@@ -8,8 +8,7 @@
 #include <Aero/Markup/Schema.hpp>
 
 #include "TemplateCompiler.hpp"
-#include "../controls/FrameworkTemplateAccess.hpp"
-#include "../controls/DeferredTemplateAccess.hpp"
+#include "../controls/TemplateRuntime.hpp"
 
 #include <new>
 #include <utility>

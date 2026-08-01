@@ -19,7 +19,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Base/Ref.hpp
     include/Aero/Base/ResourceUri.hpp
     include/Aero/Base/Result.hpp
-    include/Aero/Base/SmallVector.hpp
     include/Aero/Base/Span.hpp
     include/Aero/Base/String.hpp
     include/Aero/Base/StringView.hpp
@@ -33,23 +32,22 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Controls/Primitives.hpp
     include/Aero/Controls/Standard.hpp
     include/Aero/Controls/Text.hpp
-    include/Aero/Core/Collections/ItemsSource.hpp
-    include/Aero/Core/Diagnostics.hpp
-    include/Aero/Core/Dispatcher.hpp
-    include/Aero/Core/Metadata/Describe.hpp
-    include/Aero/Core/Metadata/Describe.inl
-    include/Aero/Core/Metadata/MetadataContext.hpp
-    include/Aero/Core/Metadata/MetadataDomain.hpp
-    include/Aero/Core/Metadata/MetadataId.hpp
-    include/Aero/Core/Metadata/MetadataRegistrationValues.hpp
-    include/Aero/Core/Metadata/MetadataRuntime.hpp
-    include/Aero/Core/Metadata/TypeRegistry.hpp
-    include/Aero/Core/Metadata/Value.hpp
-    include/Aero/Core/Metadata/ValueCodec.hpp
-    include/Aero/Core/Metadata/ValueConversion.hpp
-    include/Aero/Core/Property/DependencyProperty.hpp
-    include/Aero/Core/Property/PropertyValueSource.hpp
-    include/Aero/Core/RoutedEvent.hpp
+    include/Aero/Collections.hpp
+    include/Aero/Diagnostics.hpp
+    include/Aero/Threading.hpp
+    include/Aero/Meta/Describe.hpp
+    include/Aero/Meta/Describe.inl
+    include/Aero/Meta/MetadataContext.hpp
+    include/Aero/Meta/MetadataDomain.hpp
+    include/Aero/Meta/MetadataId.hpp
+    include/Aero/Meta/MetadataRegistrationValues.hpp
+    include/Aero/Meta/MetadataRuntime.hpp
+    include/Aero/Meta/TypeRegistry.hpp
+    include/Aero/Meta/Value.hpp
+    include/Aero/Meta/ValueCodec.hpp
+    include/Aero/Meta/ValueConversion.hpp
+    include/Aero/DependencyProperty.hpp
+    include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Data.hpp
     include/Aero/DependencyObject.hpp
     include/Aero/Diagnostics/DependencyProperty.hpp
@@ -60,6 +58,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Input.hpp
     include/Aero/Input/Values.hpp
     include/Aero/Integration.hpp
+    include/Aero/Integration/HostServices.hpp
+    include/Aero/Integration/NativeWindow.hpp
+    include/Aero/Integration/View.hpp
     include/Aero/Integration/D3D11.hpp
     include/Aero/Integration/HostedGraphics.hpp
     include/Aero/Integration/OpenGL33.hpp
@@ -67,13 +68,14 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Integration/RenderEndpoint.hpp
     include/Aero/Integration/SourceProvider.hpp
     include/Aero/Integration/ViewHost.hpp
-    include/Aero/Integration/WindowInterop.hpp
+    include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Markup.hpp
     include/Aero/Markup/CompiledDocument.hpp
     include/Aero/Markup/LoadOptions.hpp
     include/Aero/Markup/Resources.hpp
     include/Aero/Markup/Schema.hpp
+    include/Aero/Markup/XamlDocument.hpp
     include/Aero/Media.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Effects.hpp
@@ -82,30 +84,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Media/Transforms.hpp
     include/Aero/Meta.hpp
     include/Aero/Module.hpp
-    include/Aero/Platform/Clipboard.hpp
-    include/Aero/Platform/Ime.hpp
-    include/Aero/Platform/Window.hpp
     include/Aero/Resources.hpp
     include/Aero/RoutedEvent.hpp
-    include/Aero/Runtime.hpp
-    include/Aero/RuntimeEnvironment.hpp
-    include/Aero/RuntimeTypes.hpp
     include/Aero/Shapes.hpp
     include/Aero/Style.hpp
     include/Aero/Styling.hpp
     include/Aero/Text/EditableText.hpp
-    include/Aero/Text/FontManager.hpp
-    include/Aero/Text/FreeTypeAdapter.hpp
-    include/Aero/Text/GlyphAtlas.hpp
-    include/Aero/Text/HarfBuzzAdapter.hpp
     include/Aero/Text/Providers.hpp
     include/Aero/Text/Text.hpp
-    include/Aero/Text/TextLayout.hpp
     include/Aero/Text/TextTypes.hpp
-    include/Aero/Text/UnicodeRuntime.hpp
-    include/Aero/Threading.hpp
     include/Aero/UIElement.hpp
-    include/Aero/UiDocument.hpp
     include/Aero/Visual.hpp
     include/Aero/Window.hpp
 )

@@ -4,7 +4,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Integration/RenderEndpoint.hpp>
-#include <Aero/Platform/Window.hpp>
+#include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
 
@@ -53,7 +53,7 @@ struct OpenGL33EmbeddedEndpointOptions final {
 };
 
 struct OpenGL33WindowEndpointOptions final {
-    Platform::NativeWindowHandle window;
+    NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     RenderPresentMode presentMode = RenderPresentMode::Fifo;

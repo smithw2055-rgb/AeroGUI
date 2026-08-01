@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
 
 namespace Aero::Core::BuiltinTypes {
 

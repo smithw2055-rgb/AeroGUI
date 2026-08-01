@@ -3,13 +3,13 @@
 #include "RenderEndpointInternal.hpp"
 #include "render/TextBackendAccess.hpp"
 
-#include "render/opengl33/OpenGL33RendererBackend.hpp"
-#include "rhi/OpenGL33Backend.hpp"
+#include "render/opengl33/OpenGL33Renderer.hpp"
+#include "graphics/OpenGL33Backend.hpp"
 
 #if defined(_WIN32)
-#include "rhi/WglSurface.hpp"
+#include "platform/win32/OpenGLSurface.hpp"
 #elif defined(__linux__)
-#include "rhi/GlxSurface.hpp"
+#include "platform/x11/OpenGLSurface.hpp"
 #endif
 
 #include <functional>
@@ -19,41 +19,41 @@
 namespace Aero::Integration {
 namespace {
 
-Rhi::PresentMode ToRhiPresentMode(
+Graphics::PresentMode ToRhiPresentMode(
     RenderPresentMode value) noexcept {
     switch (value) {
     case RenderPresentMode::Immediate:
-        return Rhi::PresentMode::Immediate;
+        return Graphics::PresentMode::Immediate;
     case RenderPresentMode::Mailbox:
-        return Rhi::PresentMode::Mailbox;
+        return Graphics::PresentMode::Mailbox;
     case RenderPresentMode::Fifo:
-        return Rhi::PresentMode::Fifo;
+        return Graphics::PresentMode::Fifo;
     }
-    return Rhi::PresentMode::Fifo;
+    return Graphics::PresentMode::Fifo;
 }
 
-Rhi::GlThreadToken CurrentThreadToken(
+Graphics::GlThreadToken CurrentThreadToken(
     void*) noexcept {
-    Rhi::GlThreadToken value =
-        static_cast<Rhi::GlThreadToken>(
+    Graphics::GlThreadToken value =
+        static_cast<Graphics::GlThreadToken>(
             std::hash<std::thread::id>{}(
                 std::this_thread::get_id()));
     return value != 0U ? value : 1U;
 }
 
 class OpenGL33EmbeddedSurface final
-    : public Rhi::ISurfaceBackend {
+    : public Graphics::ISurfaceBackend {
 public:
     explicit OpenGL33EmbeddedSurface(
         const OpenGL33EmbeddedEndpointOptions& options) noexcept
         : options_(options) {}
 
-    Rhi::SurfaceCapabilities
+    Graphics::SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept override {
-        Rhi::SurfaceCapabilities result;
+        Graphics::SurfaceCapabilities result;
         result.supportedKinds =
-            Rhi::SurfaceKindBit(
-                Rhi::SurfaceKind::ExternalRenderTarget);
+            Graphics::SurfaceKindBit(
+                Graphics::SurfaceKind::ExternalRenderTarget);
         result.supportsResize = false;
         result.supportsPresent = false;
         result.supportsContextLossRecovery = true;
@@ -62,7 +62,7 @@ public:
     }
 
     Base::Result<void> CreateSurface(
-        const Rhi::NativeSurfaceDescriptor&) noexcept override {
+        const Graphics::NativeSurfaceDescriptor&) noexcept override {
         lost_ = false;
         return {};
     }
@@ -77,7 +77,7 @@ public:
         return {};
     }
 
-    Base::Result<Rhi::ExternalRenderTargetDescriptor>
+    Base::Result<Graphics::ExternalRenderTargetDescriptor>
     AcquireSurfaceTarget(
         std::uint64_t) noexcept override {
         if (lost_ || options_.acquireTarget == nullptr) {
@@ -103,16 +103,16 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "OpenGL embedded target is invalid");
         }
-        Rhi::ExternalRenderTargetDescriptor result;
+        Graphics::ExternalRenderTargetDescriptor result;
         result.colorTarget = native.framebuffer;
         result.depthStencilTarget =
             native.depthStencilTexture;
         result.width = native.width;
         result.height = native.height;
         result.colorFormat =
-            Rhi::GraphicsTextureFormat::Bgra8Unorm;
+            Graphics::GraphicsTextureFormat::Bgra8Unorm;
         result.depthStencilFormat =
-            Rhi::GraphicsTextureFormat::Depth24Stencil8;
+            Graphics::GraphicsTextureFormat::Depth24Stencil8;
         result.sampleCount = 1U;
         result.defaultFramebuffer =
             native.defaultFramebuffer;
@@ -122,7 +122,7 @@ public:
 
     Base::Result<void> PresentSurface(
         std::uint64_t,
-        Rhi::FenceValue) noexcept override {
+        Graphics::FenceValue) noexcept override {
         // Embedded endpoints never own presentation.
         return {};
     }
@@ -135,7 +135,7 @@ public:
     }
 
     Base::Result<void> RestoreSurface(
-        const Rhi::NativeSurfaceDescriptor&) noexcept override {
+        const Graphics::NativeSurfaceDescriptor&) noexcept override {
         lost_ = false;
         return {};
     }
@@ -149,24 +149,24 @@ private:
     bool lost_ = false;
 };
 
-class OpenGL33EndpointDriver final
-    : public Detail::EndpointDriver {
+class OpenGL33EndpointBackend final
+    : public Detail::EndpointBackend {
 public:
-    OpenGL33EndpointDriver(
+    OpenGL33EndpointBackend(
         const OpenGL33WindowEndpointOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           windowOptions_(options),
           embedded_(false) {}
 
-    OpenGL33EndpointDriver(
+    OpenGL33EndpointBackend(
         const OpenGL33EmbeddedEndpointOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           embeddedOptions_(options),
           embedded_(true) {}
 
-    ~OpenGL33EndpointDriver() override {
+    ~OpenGL33EndpointBackend() override {
         Shutdown();
     }
 
@@ -198,7 +198,7 @@ public:
         }
 
         surface_ = new (std::nothrow)
-            Rhi::SurfaceSession(*surfaceBackend_);
+            Graphics::SurfaceSession(*surfaceBackend_);
         if (surface_ == nullptr) {
             Shutdown();
             return OutOfMemory();
@@ -211,30 +211,30 @@ public:
             return status.GetStatus();
         }
 
-        Base::Result<Rhi::GlFunctionTable> functions =
+        Base::Result<Graphics::GlFunctionTable> functions =
             LoadFunctions();
         if (!functions) {
             Shutdown();
             return functions.GetStatus();
         }
-        Base::Result<Rhi::GlContextContract> contract =
+        Base::Result<Graphics::GlContextContract> contract =
             ContextContract();
         if (!contract) {
             Shutdown();
             return contract.GetStatus();
         }
         contextGeneration_ = contract.Value().generation;
-        Rhi::OpenGL33BackendOptions backendOptions;
+        Graphics::OpenGL33BackendOptions backendOptions;
         backendOptions.embeddingMode = embedded_ &&
             embeddedOptions_.statePolicy ==
                 OpenGL33StatePreservationPolicy::
                     PreserveRequiredState
-            ? Rhi::GlEmbeddingMode::PreserveAndRestore
-            : Rhi::GlEmbeddingMode::HostReset;
+            ? Graphics::GlEmbeddingMode::PreserveAndRestore
+            : Graphics::GlEmbeddingMode::HostReset;
         backendOptions.checkErrors =
             !embedded_ && windowOptions_.enableDebugContext;
         graphics_ = new (std::nothrow)
-            Rhi::OpenGL33GraphicsBackend(
+            Graphics::OpenGL33GraphicsBackend(
                 functions.Value(),
                 contract.Value(),
                 backendOptions,
@@ -250,7 +250,7 @@ public:
         }
 
         device_ = new (std::nothrow)
-            Rhi::RhiDevice(*graphics_, allocator_);
+            Graphics::GraphicsDevice(*graphics_, allocator_);
         if (device_ == nullptr) {
             Shutdown();
             return OutOfMemory();
@@ -262,7 +262,7 @@ public:
         }
 
         renderer_ = new (std::nothrow)
-            Render::OpenGL33RenderPlanBackend(
+            Render::OpenGL33Renderer(
                 *device_,
                 *graphics_,
                 *surface_,
@@ -283,7 +283,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Render::RenderPlan& plan) noexcept override {
+        const Render::RenderFrame& plan) noexcept override {
         Base::Result<void> current = MakeContextCurrent();
         if (!current) return current.GetStatus();
         return renderer_ != nullptr
@@ -383,12 +383,12 @@ public:
     }
 
 private:
-    static Rhi::GlProcAddress ResolveEmbedded(
+    static Graphics::GlProcAddress ResolveEmbedded(
         void* context,
         const char* name) noexcept {
         auto* driver =
-            static_cast<OpenGL33EndpointDriver*>(context);
-        return reinterpret_cast<Rhi::GlProcAddress>(
+            static_cast<OpenGL33EndpointBackend*>(context);
+        return reinterpret_cast<Graphics::GlProcAddress>(
             driver->embeddedOptions_.resolve(
                 driver->embeddedOptions_.callbackContext,
                 name));
@@ -398,7 +398,7 @@ private:
         void* context,
         const void*) noexcept {
         auto* driver =
-            static_cast<OpenGL33EndpointDriver*>(context);
+            static_cast<OpenGL33EndpointBackend*>(context);
         return driver->embeddedOptions_.isCurrent(
             driver->embeddedOptions_.callbackContext);
     }
@@ -419,26 +419,26 @@ private:
     Base::Result<void> CreateWindowSurface() noexcept {
 #if defined(_WIN32)
         if (windowOptions_.window.system !=
-            Platform::WindowSystem::Win32) {
+            Integration::WindowSystem::Win32) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "WGL requires a Win32 native window");
         }
         wglSurface_ = new (std::nothrow)
-            Rhi::WglSurfaceBackend(allocator_);
+            Graphics::WglSurfaceBackend(allocator_);
         surfaceBackend_ = wglSurface_;
         return surfaceBackend_ != nullptr
             ? Base::Result<void>()
             : Base::Result<void>(OutOfMemory());
 #elif defined(__linux__)
         if (windowOptions_.window.system !=
-            Platform::WindowSystem::X11) {
+            Integration::WindowSystem::X11) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "GLX requires an X11 native window");
         }
         glxSurface_ = new (std::nothrow)
-            Rhi::GlxSurfaceBackend(allocator_);
+            Graphics::GlxSurfaceBackend(allocator_);
         surfaceBackend_ = glxSurface_;
         return surfaceBackend_ != nullptr
             ? Base::Result<void>()
@@ -450,10 +450,10 @@ private:
 #endif
     }
 
-    Base::Result<Rhi::GlFunctionTable>
+    Base::Result<Graphics::GlFunctionTable>
     LoadFunctions() noexcept {
         if (embedded_) {
-            return Rhi::LoadGlFunctionTable(
+            return Graphics::LoadGlFunctionTable(
                 &ResolveEmbedded, this);
         }
 #if defined(_WIN32)
@@ -467,7 +467,7 @@ private:
 #endif
     }
 
-    Base::Result<Rhi::GlContextContract>
+    Base::Result<Graphics::GlContextContract>
     ContextContract() noexcept {
         if (!embedded_) {
 #if defined(_WIN32)
@@ -480,7 +480,7 @@ private:
                 "No OpenGL window context is available");
 #endif
         }
-        Rhi::GlContextContract result;
+        Graphics::GlContextContract result;
         result.userData = this;
         result.contextHandle = this;
         result.resolve = &ResolveEmbedded;
@@ -495,45 +495,45 @@ private:
             embeddedOptions_.statePolicy ==
                 OpenGL33StatePreservationPolicy::
                     PreserveRequiredState
-            ? Rhi::GlEmbeddingMode::PreserveAndRestore
-            : Rhi::GlEmbeddingMode::HostReset;
+            ? Graphics::GlEmbeddingMode::PreserveAndRestore
+            : Graphics::GlEmbeddingMode::HostReset;
         return result;
     }
 
-    Rhi::NativeSurfaceDescriptor
+    Graphics::NativeSurfaceDescriptor
     MakeDescriptor() const noexcept {
-        Rhi::NativeSurfaceDescriptor descriptor;
+        Graphics::NativeSurfaceDescriptor descriptor;
         descriptor.width = embedded_
             ? 1U : windowOptions_.width;
         descriptor.height = embedded_
             ? 1U : windowOptions_.height;
         descriptor.colorFormat =
-            Rhi::GraphicsTextureFormat::Bgra8Unorm;
+            Graphics::GraphicsTextureFormat::Bgra8Unorm;
         descriptor.depthStencilFormat =
-            Rhi::GraphicsTextureFormat::Depth24Stencil8;
+            Graphics::GraphicsTextureFormat::Depth24Stencil8;
         descriptor.sampleCount = 1U;
         descriptor.stableId =
             UINT64_C(0x4145524F474C3333);
         if (embedded_) {
             descriptor.kind =
-                Rhi::SurfaceKind::ExternalRenderTarget;
+                Graphics::SurfaceKind::ExternalRenderTarget;
             descriptor.ownership =
-                Rhi::SurfaceOwnership::Borrowed;
+                Graphics::SurfaceOwnership::Borrowed;
             descriptor.external.colorTarget = 1U;
         } else {
             descriptor.ownership =
-                Rhi::SurfaceOwnership::Owned;
+                Graphics::SurfaceOwnership::Owned;
             descriptor.presentMode =
                 ToRhiPresentMode(
                     windowOptions_.presentMode);
 #if defined(_WIN32)
             descriptor.kind =
-                Rhi::SurfaceKind::WglWindow;
+                Graphics::SurfaceKind::WglWindow;
             descriptor.wgl.window =
                 windowOptions_.window.window;
 #elif defined(__linux__)
             descriptor.kind =
-                Rhi::SurfaceKind::GlxWindow;
+                Graphics::SurfaceKind::GlxWindow;
             descriptor.glx.display =
                 windowOptions_.window.display;
             descriptor.glx.drawable =
@@ -586,18 +586,18 @@ private:
     bool lost_ = false;
     bool batchingEnabled_ = true;
     std::uint64_t contextGeneration_ = 0U;
-    Rhi::NativeSurfaceDescriptor descriptor_;
+    Graphics::NativeSurfaceDescriptor descriptor_;
     OpenGL33EmbeddedSurface* embeddedSurface_ = nullptr;
 #if defined(_WIN32)
-    Rhi::WglSurfaceBackend* wglSurface_ = nullptr;
+    Graphics::WglSurfaceBackend* wglSurface_ = nullptr;
 #elif defined(__linux__)
-    Rhi::GlxSurfaceBackend* glxSurface_ = nullptr;
+    Graphics::GlxSurfaceBackend* glxSurface_ = nullptr;
 #endif
-    Rhi::ISurfaceBackend* surfaceBackend_ = nullptr;
-    Rhi::SurfaceSession* surface_ = nullptr;
-    Rhi::OpenGL33GraphicsBackend* graphics_ = nullptr;
-    Rhi::RhiDevice* device_ = nullptr;
-    Render::OpenGL33RenderPlanBackend* renderer_ = nullptr;
+    Graphics::ISurfaceBackend* surfaceBackend_ = nullptr;
+    Graphics::SurfaceSession* surface_ = nullptr;
+    Graphics::OpenGL33GraphicsBackend* graphics_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
+    Render::OpenGL33Renderer* renderer_ = nullptr;
 };
 
 template<class TOptions>
@@ -611,7 +611,7 @@ CreateOpenGL33Endpoint(
         ? *allocator
         : Base::GetDefaultAllocator();
     auto* driver = new (std::nothrow)
-        OpenGL33EndpointDriver(options, selected);
+        OpenGL33EndpointBackend(options, selected);
     if (driver == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,

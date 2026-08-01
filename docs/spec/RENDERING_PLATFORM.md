@@ -5,7 +5,7 @@
 - **Renderer**：retained-mode native GPU / WebGL 2
 - **Skia**：不支持
 
-本章定义 UI/render 隔离、场景事务、RenderPlan、`AeroRHI`、原生与兼容 GPU backend、文本/几何资源和宿主接口。D3D11、OpenGL、GLES、GLX/EGL/WGL 与 WebGL 2 的详细合同见 [`COMPATIBILITY_BACKENDS.md`](COMPATIBILITY_BACKENDS.md)。
+本章定义 UI/render 隔离、场景事务、RenderFrame、`AeroGraphics`、原生与兼容 GPU backend、文本/几何资源和宿主接口。D3D11、OpenGL、GLES、GLX/EGL/WGL 与 WebGL 2 的详细合同见 [`COMPATIBILITY_BACKENDS.md`](COMPATIBILITY_BACKENDS.md)。
 
 ## 1. 产品定义
 
@@ -15,7 +15,7 @@ AeroGUI 是原生 GPU UI engine。这里的“GPU UI”表示：
 - XAML、Dependency Property、Binding、layout、text shaping、scene diff 和必要的 CPU tessellation 仍由 CPU/WASM 执行；
 - 不使用 Skia 作为生产、reference 或 fallback renderer；
 - 不要求每一种 path/text 算法从第一版起都用 compute shader；
-- strategic 与 compatibility backend 使用同一 RenderPlan 合同；
+- strategic 与 compatibility backend 使用同一 RenderFrame 合同；
 - 优先保证跨平台一致、可缓存和可验证，再逐步增加 analytic/compute path。
 
 ## 2. Backend 等级
@@ -23,26 +23,26 @@ AeroGUI 是原生 GPU UI engine。这里的“GPU UI”表示：
 ### Strategic native
 
 ```text
-AeroRHI_D3D12
-AeroRHI_Vulkan
-AeroRHI_Metal
-AeroRHI_ConsolePrivate
+AeroGraphics_D3D12
+AeroGraphics_Vulkan
+AeroGraphics_Metal
+AeroGraphics_ConsolePrivate
 ```
 
 ### Compatibility
 
 ```text
-AeroRHI_D3D11
-AeroRHI_OpenGL33
-AeroRHI_GLES30
-AeroRHI_WebGL2
+AeroGraphics_D3D11
+AeroGraphics_OpenGL33
+AeroGraphics_GLES30
+AeroGraphics_WebGL2
 ```
 
 ### Validation / optional
 
 ```text
-AeroRHI_Null
-AeroRHI_Sokol  # optional, default OFF
+AeroGraphics_Null
+AeroGraphics_Sokol  # optional, default OFF
 ```
 
 Compatibility backend 是正式支持路径，不是临时 prototype；但高级优化可通过 capability manifest 降级。WebGL 1、OpenGL fixed-function/compatibility profile 不进入 v1。
@@ -87,7 +87,7 @@ PushTransform / PopTransform
 BeginEffect / EndEffect
 ```
 
-高层 primitive 在 RenderPlan 阶段 lowering 为 backend-independent draw packet、pass 和 resource operation。
+高层 primitive 在 RenderFrame 阶段 lowering 为 backend-independent draw packet、pass 和 resource operation。
 
 ## 5. RenderTransaction
 
@@ -115,7 +115,7 @@ MUST：
 - render thread 不持有 `Object*`；
 - malformed transaction 在 debug/test path 可验证，不破坏 render tree。
 
-## 6. Render tree 与 RenderPlan
+## 6. Render tree 与 RenderFrame
 
 Render node 至少包含：
 
@@ -139,17 +139,17 @@ Apply RenderTransaction
  -> Resolve dirty render nodes
  -> Update glyph/image/geometry caches
  -> Build clip/effect/offscreen graph
- -> Lower drawings to RenderPlan
+ -> Lower drawings to RenderFrame
  -> Batch without violating painter order
  -> Record GPU/WebGL commands
  -> Retire safe resources
 ```
 
-`RenderPlan` 是短生命周期的 backend-independent frame plan，不是长期序列化场景格式。
+`RenderFrame` 是短生命周期的 backend-independent frame plan，不是长期序列化场景格式。
 
 ## 7. Compatibility lowering
 
-RenderPlan 不得假设 compute、storage buffer、bindless、indirect draw 或 persistent mapping。兼容 backend 可执行：
+RenderFrame 不得假设 compute、storage buffer、bindless、indirect draw 或 persistent mapping。兼容 backend 可执行：
 
 - descriptor table → texture unit/resource slot binding；
 - storage data → UBO/constant buffer/texture/expanded vertex data；
@@ -175,12 +175,12 @@ RenderPlan 不得假设 compute、storage buffer、bindless、indirect draw 或 
 
 只允许在不改变可见结果时合并或重排。Clip、effect、opacity group、render target 和 read-after-write 边界必须阻止非法 crossing。
 
-## 9. AeroRHI 边界
+## 9. AeroGraphics 边界
 
-`AeroRHI` 是 AeroGUI 自有的最小 GPU abstraction，不是完整 3D engine。
+`AeroGraphics` 是 AeroGUI 自有的最小 GPU abstraction，不是完整 3D engine。
 
 ```cpp
-class IRhiDevice {
+class IGraphicsDevice {
 public:
     virtual RhiCaps GetCaps() const noexcept = 0;
     virtual Result<BufferHandle> CreateBuffer(const BufferDesc&) = 0;
@@ -257,11 +257,11 @@ standalone sample MAY 使用 AeroGUI platform helper 创建窗口、surface 和 
 
 ### 11.4 Console private
 
-受限 SDK backend 位于访问受控仓库，使用同一 AeroRHI contract、平台离线 shader compiler 和 SDK allocator/thread/filesystem policy。
+受限 SDK backend 位于访问受控仓库，使用同一 AeroGraphics contract、平台离线 shader compiler 和 SDK allocator/thread/filesystem policy。
 
 ## 12. D3D11 backend
 
-`AeroRHI_D3D11`：
+`AeroGraphics_D3D11`：
 
 - feature level 10_0 minimum，11_0/11_1 preferred；
 - v1 不支持 9_x baseline；
@@ -276,7 +276,7 @@ standalone sample MAY 使用 AeroGUI platform helper 创建窗口、surface 和 
 
 ### 13.1 Desktop GL
 
-`AeroRHI_OpenGL33`：
+`AeroGraphics_OpenGL33`：
 
 - OpenGL 3.3 Core + GLSL 3.30；
 - 不使用 fixed-function/compatibility API；
@@ -287,7 +287,7 @@ standalone sample MAY 使用 AeroGUI platform helper 创建窗口、surface 和 
 
 ### 13.2 GLES
 
-`AeroRHI_GLES30`：
+`AeroGraphics_GLES30`：
 
 - OpenGL ES 3.0 + GLSL ES 3.00；
 - 主要用于 Android/EGL、嵌入式和 Linux/EGL；
@@ -312,7 +312,7 @@ AeroPlatform_WGL  Windows + GL3.3
 
 ## 14. WebGL 2 backend
 
-`AeroRHI_WebGL2`：
+`AeroGraphics_WebGL2`：
 
 - C++17 → WebAssembly；
 - WebGL 2 + GLSL ES 3.00；
@@ -330,9 +330,9 @@ AeroPlatform_WGL  Windows + GL3.3
 
 ## 15. Null backend
 
-`AeroRHI_Null` 验证：
+`AeroGraphics_Null` 验证：
 
-- RenderPlan 合法性；
+- RenderFrame 合法性；
 - resource lifetime/fence/generation；
 - pass nesting；
 - pipeline/resource compatibility；
@@ -355,21 +355,21 @@ AeroGUI MUST NOT：
 
 ## 17. sokol adapter
 
-`sokol_gfx` 可通过 `AeroRHI_Sokol` 适配，但默认关闭。其公开覆盖 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU，适合：
+`sokol_gfx` 可通过 `AeroGraphics_Sokol` 适配，但默认关闭。其公开覆盖 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU，适合：
 
 - 早期 bring-up；
 - sample/tool/WASM experiment；
-- 额外 RenderPlan 验证；
+- 额外 RenderFrame 验证；
 - 与第一方兼容 backend 做差异测试。
 
 禁止：
 
-- `sg_*` type 进入 AeroRHI/public API；
+- `sg_*` type 进入 AeroGraphics/public API；
 - sokol 成为 strategic backend 的下层；
 - 用 sokol 替代第一方 D3D11/GL/GLES/WebGL2 长期合同；
 - runtime 使用 `sokol_app` 管理嵌入式主循环；
 - 将 sokol 等同于 console support；
-- 因 sokol 限制删除 AeroRHI capability。
+- 因 sokol 限制删除 AeroGraphics capability。
 
 `AERO_WITH_SOKOL=OFF` 时所有正式 backend 必须独立构建。
 
@@ -524,7 +524,7 @@ M4 至少满足：
 
 - UI 与 render 不共享 user object pointer；
 - transaction drop/merge/replay tests；
-- RenderPlan validator 与 `AeroRHI_Null` tests；
+- RenderFrame validator 与 `AeroGraphics_Null` tests；
 - D3D12、Vulkan、Metal strategic backend conformance；
 - D3D11 FL10_0/11_0 compatibility conformance；
 - GL3.3 on GLX/WGL；

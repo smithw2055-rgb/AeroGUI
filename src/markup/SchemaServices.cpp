@@ -1,6 +1,6 @@
 #include "SchemaInternal.hpp"
 
-#include <Aero/Core/Metadata/ValueCodec.hpp>
+#include <Aero/Meta/ValueCodec.hpp>
 
 #include <cstdint>
 #include <utility>

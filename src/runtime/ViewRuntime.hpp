@@ -13,8 +13,8 @@
 #include <Aero/Integration/ViewHost.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/RuntimeTypes.hpp>
-#include <Aero/UiDocument.hpp>
+#include <Aero/Integration/View.hpp>
+#include <Aero/Markup/XamlDocument.hpp>
 
 #include <cstdint>
 
@@ -40,7 +40,7 @@ class ObjectTree;
 class ResourceDictionary;
 }
 namespace Aero::Render {
-class RenderManager;
+class RenderTree;
 }
 
 namespace Aero::Markup {
@@ -173,9 +173,8 @@ public:
     Aero::Detail::AnimationManager* Animations() noexcept;
     Aero::ObjectTree* Tree() noexcept;
     Aero::Detail::LayoutManager* Layout() noexcept;
-    Render::RenderManager* Renderer() noexcept;
+    Render::RenderTree* Renderer() noexcept;
     Aero::Detail::BindingManager* Bindings() noexcept;
-    Aero::Detail::CommandManager* Commands() noexcept;
     Aero::Detail::EventRouter* RoutedEvents() noexcept;
     Aero::Detail::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;

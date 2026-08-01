@@ -10,10 +10,10 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/Diagnostics.hpp>
-#include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Diagnostics.hpp>
+#include <Aero/Meta/Value.hpp>
 #include <Aero/Data.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 #include <Aero/Markup/Resources.hpp>
 

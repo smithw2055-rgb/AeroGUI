@@ -1,8 +1,8 @@
-#include "VisualStateManagerAccess.hpp"
+#include "TemplateRuntime.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include "ContentControlAccess.hpp"
+#include "ControlInternals.hpp"
 
 #include "../core/metadata/BuiltinTypeIds.hpp"
 
@@ -1441,10 +1441,10 @@ ComboBoxInteractionManager::
 ComboBoxInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    FocusManager& focus) noexcept
+    InputService& input) noexcept
     : tree_(&tree),
       events_(&events),
-      focus_(&focus),
+      input_(&input),
       mouseDownHandler_(
           this,
           &ComboBoxInteractionManager::
@@ -1593,7 +1593,7 @@ void ComboBoxInteractionManager::OnMouseDown(
         if (!toggled) return;
     }
     static_cast<void>(
-        focus_->SetFocus(&comboBox));
+        input_->Focus().SetFocus(&comboBox));
     args.handled = true;
 }
 
@@ -1648,11 +1648,11 @@ void ComboBoxInteractionManager::OnKeyDown(
 ListBoxInteractionManager::ListBoxInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    FocusManager& focus,
+    InputService& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
-      focus_(&focus),
+      input_(&input),
       states_(states),
       mouseDownHandler_(
           this,
@@ -1866,7 +1866,7 @@ void ListBoxInteractionManager::OnMouseDown(
     ItemContainerGenerator* generator =
         listBox.AttachedGenerator();
     if (generator != nullptr) {
-        static_cast<void>(focus_->SetFocus(
+        static_cast<void>(input_->Focus().SetFocus(
             generator->ContainerFromIndex(index)));
     }
     static_cast<void>(
@@ -1934,7 +1934,7 @@ void ListBoxInteractionManager::OnKeyDown(
     ItemContainerGenerator* generator =
         listBox.AttachedGenerator();
     if (generator != nullptr) {
-        static_cast<void>(focus_->SetFocus(
+        static_cast<void>(input_->Focus().SetFocus(
             generator->ContainerFromIndex(target)));
     }
     static_cast<void>(

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Collections/ItemsSource.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include <Aero/Media/Images.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Media/Transforms.hpp>

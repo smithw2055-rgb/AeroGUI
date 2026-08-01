@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Meta/Value.hpp>
 
 #include <Aero/Base/String.hpp>
 

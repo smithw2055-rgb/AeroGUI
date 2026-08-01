@@ -1,5 +1,6 @@
 #include <Aero/Input.hpp>
 #include "RuntimeTypes.hpp"
+#include "InputService.hpp"
 
 
 #include <cctype>
@@ -174,9 +175,9 @@ Base::Result<bool> RoutedCommand::CanExecute(
             Base::ErrorCode::InvalidState,
             "RoutedCommand requires a loaded command target");
     }
-    auto* manager = static_cast<Aero::Detail::CommandManager*>(
+    auto* input = static_cast<Aero::Detail::InputService*>(
         target->commandRouter_);
-    return manager->CanExecute(*this, parameter, *target);
+    return input->CanExecute(*this, parameter, *target);
 }
 
 Base::Result<void> RoutedCommand::Execute(
@@ -187,10 +188,10 @@ Base::Result<void> RoutedCommand::Execute(
             Base::ErrorCode::InvalidState,
             "RoutedCommand requires a loaded command target");
     }
-    auto* manager = static_cast<Aero::Detail::CommandManager*>(
+    auto* input = static_cast<Aero::Detail::InputService*>(
         target->commandRouter_);
     Base::Result<bool> executed =
-        manager->Execute(*this, parameter, *target);
+        input->Execute(*this, parameter, *target);
     if (!executed) return executed.GetStatus();
     return {};
 }

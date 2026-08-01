@@ -158,8 +158,14 @@ private:
 };
 class AERO_API UiRuntimeAccess::PointerInputManager final {
 public:
-    PointerInputManager(HitTestManager& hitTests, EventRouter& events,
-        Visual& root) noexcept;
+    PointerInputManager(HitTestManager& hitTests, EventRouter& events) noexcept;
+
+    void SetRoot(Visual* root) noexcept {
+        if (root_ == root) return;
+        root_ = root;
+        captures_.Clear();
+        states_.Clear();
+    }
 
     Base::Result<PointerDispatchResult> Dispatch(
         const PointerInput& input) noexcept;

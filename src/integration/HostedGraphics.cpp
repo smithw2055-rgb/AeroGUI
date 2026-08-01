@@ -88,10 +88,10 @@ HostedGraphicsCommand LowerCommand(
     return target;
 }
 
-class HostedEndpointDriver final
-    : public Detail::EndpointDriver {
+class HostedEndpointBackend final
+    : public Detail::EndpointBackend {
 public:
-    HostedEndpointDriver(
+    HostedEndpointBackend(
         const HostedGraphicsCallbacks& callbacks,
         bool ownsPresentation,
         Base::IAllocator& allocator) noexcept
@@ -105,7 +105,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Render::RenderPlan& plan) noexcept override {
+        const Render::RenderFrame& plan) noexcept override {
         if (callbacks_.submit == nullptr ||
             callbacks_.acquireTarget == nullptr) {
             return Base::Status::Failure(
@@ -304,7 +304,7 @@ CreateHostedEndpoint(
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
         : Base::GetDefaultAllocator();
-    auto* driver = new (std::nothrow) HostedEndpointDriver(
+    auto* driver = new (std::nothrow) HostedEndpointBackend(
         callbacks,
         mode == RenderEndpointMode::Window,
         selected);

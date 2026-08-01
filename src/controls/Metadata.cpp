@@ -1,8 +1,7 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
-#include "ContentControlAccess.hpp"
-#include "FrameworkTemplateAccess.hpp"
-#include "DeferredTemplateAccess.hpp"
+#include "ControlInternals.hpp"
+#include "TemplateRuntime.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>
@@ -12,11 +11,11 @@
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Core/Metadata/Describe.hpp>
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/Describe.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 
-#include "PathServicesAccess.hpp"
-#include "ControlCollections.hpp"
+#include "TextRuntime.hpp"
+#include "ControlInternals.hpp"
 
 #include <algorithm>
 #include <cmath>

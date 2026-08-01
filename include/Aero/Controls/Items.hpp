@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Core/Collections/ItemsSource.hpp>
+#include <Aero/Collections.hpp>
 #include <Aero/Styling.hpp>
 #include <utility>
 #include <Aero/Input.hpp>

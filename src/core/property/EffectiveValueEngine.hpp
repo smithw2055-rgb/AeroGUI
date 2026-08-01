@@ -4,9 +4,9 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
-#include <Aero/Core/Property/PropertyValueSource.hpp>
-#include <Aero/Core/Dispatcher.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/Diagnostics/PropertyValueSource.hpp>
+#include <Aero/Threading.hpp>
 
 #include <cstdint>
 

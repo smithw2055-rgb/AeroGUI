@@ -95,7 +95,7 @@ public:
 
     template<class TOwner, class TArgs>
     auto GetEvent(
-        const Core::RoutedEventRef<TOwner, TArgs>& event) noexcept {
+        const Aero::RoutedEventRef<TOwner, TArgs>& event) noexcept {
         return Event<TArgs>(*this, event.Handle());
     }
 

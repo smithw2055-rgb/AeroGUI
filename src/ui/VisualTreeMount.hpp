@@ -23,7 +23,7 @@ public:
     VisualTreeMount(
         ObjectTree& tree,
         LayoutManager& layout,
-        Render::RenderManager* renderer = nullptr) noexcept;
+        Render::RenderTree* renderer = nullptr) noexcept;
 
     VisualTreeMount(const VisualTreeMount&) = delete;
     VisualTreeMount& operator=(const VisualTreeMount&) = delete;

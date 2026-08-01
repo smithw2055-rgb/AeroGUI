@@ -17,8 +17,8 @@ The supported product umbrellas are:
 - `<Aero/Integration.hpp>` — embedding and renderer endpoint integration;
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
-`Runtime.hpp`, `Markup.hpp`, concrete Integration backend headers and Text
-provider headers are explicit specialist surfaces. They are not transitively
+`Markup.hpp`, concrete Integration backend headers and Text provider headers
+are explicit specialist surfaces. They are not transitively
 included by ordinary WPF-style application code.
 
 ## Canonical declaration ownership
@@ -110,6 +110,8 @@ is prohibited because moving a private file under `include/` must never
 silently publish it.
 
 The architecture check enforces:
+
+- no installed `Aero/Core`, `Aero/Platform` or `Aero/Detail` tree;
 
 - no public `Aero/Detail` headers;
 - exactly six Controls family headers;

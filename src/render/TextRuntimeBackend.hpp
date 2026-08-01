@@ -18,12 +18,12 @@ public:
 
     Base::Result<void> RegisterGlyphRun(
         Render::RenderGlyphRunId glyphRun,
-        Rhi::ResourceHandle vertexBuffer,
-        Rhi::ResourceHandle indexBuffer,
+        Graphics::ResourceHandle vertexBuffer,
+        Graphics::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
-        Rhi::ResourceHandle atlasTexture,
-        Rhi::ResourceHandle sampler,
-        Rhi::IndexType indexType) noexcept override {
+        Graphics::ResourceHandle atlasTexture,
+        Graphics::ResourceHandle sampler,
+        Graphics::IndexType indexType) noexcept override {
         return renderer_->RegisterGlyphRun(
             glyphRun,
             vertexBuffer,
@@ -46,7 +46,7 @@ private:
 class TextRuntimeBackend final {
 public:
     TextRuntimeBackend(
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         Renderer& renderer,
         std::uint64_t generation,
         Base::IAllocator& allocator) noexcept
@@ -150,7 +150,7 @@ private:
         return service_->CollectGarbage();
     }
 
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     RendererGlyphRunSink sink_;
     Base::IAllocator* allocator_ = nullptr;
     TextRuntimeService* service_ = nullptr;

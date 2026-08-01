@@ -7,8 +7,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Text/GlyphAtlas.hpp>
-#include <Aero/Text/TextLayout.hpp>
+#include "../text/GlyphAtlas.hpp"
+#include "../text/TextLayout.hpp"
 #include <Aero/Text/TextTypes.hpp>
 
 #include <cstdint>

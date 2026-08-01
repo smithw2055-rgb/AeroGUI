@@ -1,7 +1,7 @@
 #include "Metadata.hpp"
 
 #include <Aero/Application.hpp>
-#include <Aero/Core/Metadata/Describe.hpp>
+#include <Aero/Meta/Describe.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Window.hpp>
 
@@ -75,13 +75,13 @@ Base::Result<void> Detail::PopulateAppMetadata(
         .Property(Aero::Window::SizeToContentProperty, Core::PropertyOptions(Aero::SizeToContent::Manual).AffectsMeasure())
         .Property(Aero::Window::ShowInTaskbarProperty, Core::PropertyOptions(true))
         .Property(Aero::Window::TopmostProperty, Core::PropertyOptions(false))
-        .Event(Aero::Window::ClosingEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::ClosedEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::ActivatedEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::DeactivatedEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::ContentRenderedEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::SourceInitializedEvent, Core::RoutingStrategy::Direct)
-        .Event(Aero::Window::StateChangedEvent, Core::RoutingStrategy::Direct)
+        .Event(Aero::Window::ClosingEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::ClosedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::ActivatedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::DeactivatedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::ContentRenderedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::SourceInitializedEvent, Aero::RoutingStrategy::Direct)
+        .Event(Aero::Window::StateChangedEvent, Aero::RoutingStrategy::Direct)
         .Factory();
     return window.Result();
 }

@@ -6,8 +6,8 @@
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include <Aero/Core/Dispatcher.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Threading.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "core/property/EffectiveValueEngine.hpp"
 
 #include <cstdint>

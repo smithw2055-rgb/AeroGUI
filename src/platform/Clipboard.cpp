@@ -1,4 +1,4 @@
-#include <Aero/Platform/Clipboard.hpp>
+#include <Aero/Integration/HostServices.hpp>
 
 #include <Aero/Base/Utf8.hpp>
 
@@ -10,7 +10,7 @@
 #include <windows.h>
 #endif
 
-namespace Aero::Platform {
+namespace Aero::Integration {
 namespace {
 
 Base::Status UnsupportedClipboard() noexcept {
@@ -249,4 +249,4 @@ Base::Result<void> Win32Clipboard::WriteText(
 #endif
 }
 
-} // namespace Aero::Platform
+} // namespace Aero::Integration

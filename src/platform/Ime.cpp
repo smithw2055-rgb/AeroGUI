@@ -1,4 +1,4 @@
-#include <Aero/Platform/Ime.hpp>
+#include <Aero/Integration/HostServices.hpp>
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Utf8.hpp>
@@ -19,7 +19,7 @@
 #include <imm.h>
 #endif
 
-namespace Aero::Platform {
+namespace Aero::Integration {
 namespace {
 
 #if defined(_WIN32)
@@ -595,4 +595,4 @@ Win32ImeAdapter::CancelNativeComposition() noexcept {
 #endif
 }
 
-} // namespace Aero::Platform
+} // namespace Aero::Integration

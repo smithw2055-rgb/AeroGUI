@@ -1,6 +1,6 @@
 #include "VisualTreeMount.hpp"
 
-#include "../render/RenderingInternal.hpp"
+#include "../render/RenderTree.hpp"
 
 #include <cinttypes>
 #include <cstdio>
@@ -11,7 +11,7 @@ namespace Aero::Detail {
 VisualTreeMount::VisualTreeMount(
     ObjectTree& tree,
     LayoutManager& layout,
-    Render::RenderManager* renderer) noexcept
+    Render::RenderTree* renderer) noexcept
     : mounts_(tree, &layout, renderer) {}
 
 Base::Status VisualTreeMount::InvalidState(

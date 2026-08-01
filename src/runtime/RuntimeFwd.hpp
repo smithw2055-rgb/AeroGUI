@@ -13,6 +13,8 @@ class VisualStateManager;
 
 namespace Aero::Detail {
 
+class InputService;
+
 class UiRuntimeAccess final {
 public:
     class EventRouter;
@@ -29,7 +31,7 @@ public:
     class ThemeStyleManager;
 
     static void SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept;
-    static void SetCommandRouter(Aero::UIElement& element, CommandManager* manager) noexcept;
+    static void SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept;
 };
 
 } // namespace Aero::Detail

@@ -4,7 +4,7 @@
 
 namespace Aero {
 namespace App { class Launcher; }
-namespace Integration { class WindowInterop; }
+namespace App { class WindowInterop; }
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
 enum class WindowStyle : std::uint8_t { None = 0U, SingleBorderWindow, ThreeDBorderWindow, ToolWindow };
@@ -82,7 +82,7 @@ protected:
 
 private:
     friend class App::Launcher;
-    friend class Integration::WindowInterop;
+    friend class App::WindowInterop;
 
     void Attach(void* runtimeState) noexcept { runtimeState_ = runtimeState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
     void Detach() noexcept { runtimeState_ = nullptr; }

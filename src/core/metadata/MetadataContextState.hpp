@@ -2,8 +2,8 @@
 
 #include "RoutedEventCatalog.hpp"
 #include "MetadataBehaviorRegistrationStore.hpp"
-#include <Aero/Core/Metadata/MetadataRegistrationValues.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Meta/MetadataRegistrationValues.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Core::Detail {
 

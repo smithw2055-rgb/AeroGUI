@@ -235,4 +235,18 @@ struct GlyphOutline final {
     Base::Vector<OutlineCommand> commands;
 };
 
+enum class TextWrapping : std::uint8_t { NoWrap = 0U, Wrap, WrapWithOverflow };
+enum class TextTrimming : std::uint8_t { None = 0U, CharacterEllipsis, WordEllipsis };
+enum class TextAlignment : std::uint8_t { Start = 0U, Center, End, Justify };
+
+// Stable text geometry used by retained text controls for hit testing.
+struct TextHitRegion final {
+    std::uint32_t textOffset = 0U;
+    std::uint32_t textLength = 0U;
+    float x = 0.0F;
+    float y = 0.0F;
+    float width = 0.0F;
+    float height = 0.0F;
+};
+
 } // namespace Aero::Text

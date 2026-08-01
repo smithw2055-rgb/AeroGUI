@@ -5,8 +5,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup {
 

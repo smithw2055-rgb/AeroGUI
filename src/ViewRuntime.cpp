@@ -2,7 +2,7 @@
 #include "runtime/ImageRuntime.hpp"
 #include "runtime/TextRuntime.hpp"
 #include "SchemaBundle.hpp"
-#include "controls/ContentControlAccess.hpp"
+#include "controls/ControlInternals.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>
@@ -11,12 +11,12 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Documents.hpp>
 #include "controls/Metadata.hpp"
-#include "controls/ItemContainerGeneratorAccess.hpp"
-#include "controls/VisualStateManagerAccess.hpp"
+#include "controls/ControlInternals.hpp"
+#include "controls/TemplateRuntime.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
 #include "core/ObjectServices.hpp"
 #include "core/property/EffectiveValueEngine.hpp"
 #include "core/metadata/MetadataDomainAccess.hpp"
@@ -25,8 +25,7 @@
 #include "markup/LoaderResult.hpp"
 #include "UiDocumentAccess.hpp"
 #include <Aero/Markup/Schema.hpp>
-#include <Aero/Platform/Clipboard.hpp>
-#include <Aero/Platform/Ime.hpp>
+#include <Aero/Integration/HostServices.hpp>
 #include <Aero/Data.hpp>
 #include "media/AnimationRuntimeTypes.hpp"
 #include "media/AnimationAccess.hpp"
@@ -41,11 +40,9 @@
 
 #include "runtime/RuntimeUiServices.hpp"
 #include "runtime/DataTemplateTriggerContext.hpp"
-#include "runtime/ControlRuntimeAccess.hpp"
-#include "controls/TextServicesAccess.hpp"
-#include "controls/PathServicesAccess.hpp"
+#include "controls/TextRuntime.hpp"
 #include "integration/RenderEndpointInternal.hpp"
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 #include "render/TextBackendAccess.hpp"
 
 #include <chrono>
@@ -53,7 +50,14 @@
 #include <new>
 #include <utility>
 #include "ui/RuntimeManagers.hpp"
+#include "input/InputService.hpp"
 #include "controls/RuntimeManagers.hpp"
+
+void Aero::Detail::ControlRuntimeAccess::SetVisualStateManager(
+    Controls::Control& control,
+    Controls::VisualStateManager* visualStates) noexcept {
+    control.visualStateRuntime_ = visualStates;
+}
 
 namespace Aero {
 namespace Animation = Media::Animation;
@@ -116,62 +120,10 @@ void DestroyRuntimeObject(
     object = nullptr;
 }
 
-class EndpointRenderBackend final
-    : public Render::IRenderBackend {
-public:
-    void SetEndpoint(
-        Base::Ref<Integration::RenderEndpoint> endpoint) noexcept {
-        endpoint_ = std::move(endpoint);
-    }
-
-    void Reset() noexcept {
-        endpoint_.Reset();
-    }
-
-    Base::Result<void> Submit(
-        const Render::RenderPlan& plan) noexcept override {
-        if (!endpoint_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "View has no render endpoint");
-        }
-        return Integration::Detail::RenderEndpointAccess::Submit(
-            *endpoint_, plan);
-    }
-
-private:
-    void* QueryInternalService(
-        std::uint64_t service) noexcept override {
-        return endpoint_
-            ? Integration::Detail::RenderEndpointAccess::
-                  QueryInternalService(*endpoint_, service)
-            : nullptr;
-    }
-
-    Base::Ref<Integration::RenderEndpoint> endpoint_;
-};
 
 } // namespace
 
 struct ViewRuntime::Impl final {
-    struct InputService final {
-        InputService(
-            ObjectTree& tree,
-            Aero::Detail::EventRouter& events,
-            Visual& root,
-            Aero::Detail::CommandManager* commands) noexcept
-            : focus(tree, events),
-              pointer(hitTests, events, root),
-              keyboard(focus, events, tree, commands),
-              text(focus, events, tree) {}
-
-        Aero::Detail::HitTestManager hitTests;
-        Aero::Detail::FocusManager focus;
-        Aero::Detail::PointerInputManager pointer;
-        Aero::Detail::KeyboardInputManager keyboard;
-        Aero::Detail::TextInputManager text;
-    };
-
     struct FragmentMount final {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
@@ -209,7 +161,6 @@ struct ViewRuntime::Impl final {
     ModuleCatalog modules;
     ViewRuntimeOptions options;
     Base::Ref<Integration::RenderEndpoint> endpoint;
-    EndpointRenderBackend endpointBackend;
     bool endpointBound = false;
     std::uint64_t endpointGeneration = 0U;
 
@@ -219,12 +170,11 @@ struct ViewRuntime::Impl final {
     Aero::Detail::AnimationManager* animations = nullptr;
     Aero::ObjectTree* tree = nullptr;
     Aero::Detail::LayoutManager* layout = nullptr;
-    Render::RenderManager* renderer = nullptr;
+    Render::RenderTree* renderer = nullptr;
     Aero::Detail::ImageRuntime* imageRuntime = nullptr;
     Aero::Detail::TextRuntime* textRuntime = nullptr;
     Aero::Detail::BindingManager* bindings = nullptr;
     Aero::Detail::EventRouter* events = nullptr;
-    Aero::Detail::CommandManager* commands = nullptr;
     Controls::TemplateManager* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
     Aero::Detail::StyleManager* styles = nullptr;
@@ -240,22 +190,22 @@ struct ViewRuntime::Impl final {
     Aero::ResourceDictionary systemResources;
     Aero::ResourceDictionary dynamicResourceEnvironment;
 
-    InputService* input = nullptr;
+    Aero::Detail::InputService* input = nullptr;
 
     Aero::Detail::HitTestManager* HitTests() noexcept {
-        return input != nullptr ? &input->hitTests : nullptr;
+        return input != nullptr ? &input->HitTests() : nullptr;
     }
     Aero::Detail::FocusManager* InputFocus() noexcept {
-        return input != nullptr ? &input->focus : nullptr;
+        return input != nullptr ? &input->Focus() : nullptr;
     }
     Aero::Detail::PointerInputManager* PointerInput() noexcept {
-        return input != nullptr ? &input->pointer : nullptr;
+        return input != nullptr ? &input->Pointer() : nullptr;
     }
     Aero::Detail::KeyboardInputManager* KeyboardInput() noexcept {
-        return input != nullptr ? &input->keyboard : nullptr;
+        return input != nullptr ? &input->Keyboard() : nullptr;
     }
     Aero::Detail::TextInputManager* TextInput() noexcept {
-        return input != nullptr ? &input->text : nullptr;
+        return input != nullptr ? &input->Text() : nullptr;
     }
     Controls::ControlInteractionManager* controlInteractions = nullptr;
     Aero::Detail::ControlRuntimeAccess::
@@ -527,7 +477,7 @@ struct ViewRuntime::Impl final {
     };
     struct AnimationEventSubscription final {
         Aero::UIElement* owner = nullptr;
-        Core::RoutedEventHandle event;
+        Aero::RoutedEventHandle event;
         Aero::RoutedEventHandler handler;
         AnimationEventContext* context = nullptr;
     };
@@ -596,8 +546,8 @@ struct ViewRuntime::Impl final {
     bool mounted = false;
     bool terminal = false;
 
-    Render::IRenderBackend& SelectedBackend() noexcept {
-        return endpointBackend;
+    Render::RenderBackend& SelectedBackend() noexcept {
+        return Integration::Detail::RenderEndpointAccess::Backend(*endpoint);
     }
 
     Base::Result<void> EnsureDefaultXamlProviders() noexcept {
@@ -1550,7 +1500,7 @@ struct ViewRuntime::Impl final {
             *values,
             *bindings,
             *events,
-            *commands,
+            *input,
             *styles,
             *templates,
             *visualStates,
@@ -3370,7 +3320,7 @@ struct ViewRuntime::Impl final {
         Aero::FrameworkElement* element =
             visual->AsFrameworkElement();
         if (element != nullptr) {
-            if (commands != nullptr &&
+            if (input != nullptr &&
                 metadata->Types().IsDerivedFrom(
                     element->RuntimeType(),
                     Controls::Grid::StaticTypeId())) {
@@ -3379,7 +3329,7 @@ struct ViewRuntime::Impl final {
                      grid.InputBindings()) {
                     if (!binding) continue;
                     Base::Result<Input::InputBindingHandle> added =
-                        commands->TryAddInputBinding(*element, binding);
+                        input->Commands().TryAddInputBinding(*element, binding);
                     if (!added) return added.GetStatus();
                 }
             }
@@ -3480,7 +3430,7 @@ struct ViewRuntime::Impl final {
                             Base::ErrorCode::NotFound,
                             "EventTrigger RoutedEvent was not found on its source");
                     }
-                    const Core::RoutedEventHandle eventHandle{
+                    const Aero::RoutedEventHandle eventHandle{
                         event->Id()};
                     AnimationEventContext* eventContext = nullptr;
                     Base::Result<void> created =
@@ -3828,9 +3778,9 @@ struct ViewRuntime::Impl final {
                 generator = nullptr;
             }
         }
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            input);
+        if (input != nullptr) {
+            input->SetRoot(nullptr);
+        }
     }
 
     void DestroyInteractions() noexcept {
@@ -3845,24 +3795,26 @@ struct ViewRuntime::Impl final {
                 Base::ErrorCode::InvalidArgument,
                 "Runtime root is not a registered Visual");
         }
-        Base::Result<void> status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            input, *tree, *events, *rootVisual, commands);
-        if (!status) return status.GetStatus();
+        if (input == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "InputService is unavailable");
+        }
+        input->SetRoot(rootVisual);
+        Base::Result<void> status;
 
         if (options.attachControlInteractions) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 controlInteractions,
-                *tree, *events, *PointerInput(), *InputFocus(),
-                *commands, visualStates);
+                *tree, *events, *input, visualStates);
             if (!status) return status.GetStatus();
             status = controlInteractions->Initialize();
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 hyperlinkInteractions,
-                *tree, *events, *PointerInput(), *InputFocus(), *commands);
+                *tree, *events, *input);
             if (!status) return status.GetStatus();
             status = hyperlinkInteractions->Initialize();
             if (!status) return status.GetStatus();
@@ -3879,8 +3831,7 @@ struct ViewRuntime::Impl final {
                 sliderInteractions,
                 *tree,
                 *events,
-                *PointerInput(),
-                *InputFocus());
+                *input);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
@@ -3888,7 +3839,7 @@ struct ViewRuntime::Impl final {
                 listBoxInteractions,
                 *tree,
                 *events,
-                *InputFocus(),
+                *input,
                 visualStates);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
@@ -3897,7 +3848,7 @@ struct ViewRuntime::Impl final {
                 comboBoxInteractions,
                 *tree,
                 *events,
-                *InputFocus());
+                *input);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
                 *allocator,
@@ -3905,7 +3856,7 @@ struct ViewRuntime::Impl final {
                 treeViewInteractions,
                 *tree,
                 *events,
-                *InputFocus(),
+                *input,
                 visualStates);
             if (!status) return status.GetStatus();
             status = CreateRuntimeObject(
@@ -3914,8 +3865,7 @@ struct ViewRuntime::Impl final {
                 menuInteractions,
                 *tree,
                 *events,
-                *InputFocus(),
-                *commands);
+                *input);
             if (!status) return status.GetStatus();
         }
         if (options.attachTextEditing &&
@@ -3923,7 +3873,7 @@ struct ViewRuntime::Impl final {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
                 textBoxInteractions,
-                *tree, *events, *PointerInput(), *InputFocus(),
+                *tree, *events, *input,
                 *options.clipboard);
             if (!status) return status.GetStatus();
         }
@@ -3967,7 +3917,7 @@ struct ViewRuntime::Impl final {
 
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
-            commands);
+            input);
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
             events);
@@ -4002,7 +3952,6 @@ struct ViewRuntime::Impl final {
         schema = nullptr;
         metadataRuntime = nullptr;
         metadata = nullptr;
-        endpointBackend.Reset();
         if (endpointBound && endpoint) {
             Integration::Detail::RenderEndpointAccess::Unbind(
                 *endpoint, this);
@@ -4049,7 +3998,6 @@ struct ViewRuntime::Impl final {
         }
         endpointBound = true;
         endpointGeneration = endpoint->Generation();
-        endpointBackend.SetEndpoint(endpoint);
 
         Base::Result<Base::Ref<Markup::EffectLifetime>> lifetime =
             Base::MakeRefWithAllocator<Markup::EffectLifetime>(
@@ -4150,7 +4098,7 @@ struct ViewRuntime::Impl final {
         if (status) {
             status = CreateRuntimeObject(
                 *allocator, Base::MemoryTag::Ui,
-                commands, *tree);
+                input, *tree, *events);
         }
         if (status) status = CreateTemplateServices();
         if (status) {
@@ -6168,7 +6116,6 @@ Base::Result<void> ViewRuntime::SetRenderEndpoint(
     impl_->endpointBound = true;
     impl_->endpointGeneration =
         endpoint->Generation();
-    impl_->endpointBackend.SetEndpoint(endpoint);
     impl_->options.renderEndpoint = endpoint;
     impl_->options.automaticAnimationClock =
         automaticAnimationClock;
@@ -6280,7 +6227,7 @@ Aero::Detail::LayoutManager* ViewRuntime::Layout() noexcept {
     return impl_ != nullptr ? impl_->layout : nullptr;
 }
 
-Render::RenderManager* ViewRuntime::Renderer() noexcept {
+Render::RenderTree* ViewRuntime::Renderer() noexcept {
     return impl_ != nullptr ? impl_->renderer : nullptr;
 }
 
@@ -6288,9 +6235,6 @@ Aero::Detail::BindingManager* ViewRuntime::Bindings() noexcept {
     return impl_ != nullptr ? impl_->bindings : nullptr;
 }
 
-Aero::Detail::CommandManager* ViewRuntime::Commands() noexcept {
-    return impl_ != nullptr ? impl_->commands : nullptr;
-}
 
 Aero::Detail::EventRouter*
 ViewRuntime::RoutedEvents() noexcept {

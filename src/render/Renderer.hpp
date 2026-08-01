@@ -2,35 +2,35 @@
 
 #include "DisplayList.hpp"
 
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
-#include "rhi/Graphics.hpp"
+#include "graphics/Graphics.hpp"
 
 namespace Aero::Render {
 
-class D3D11RenderPlanBackend;
-class OpenGL33RenderPlanBackend;
+class D3D11Renderer;
+class OpenGL33Renderer;
 namespace Detail {
 class RendererGlyphRunSink;
 }
 
 struct RendererShaderSet final {
-    Rhi::ShaderDescriptor rectangleVertex;
-    Rhi::ShaderDescriptor rectangleFragment;
-    Rhi::ShaderDescriptor imageVertex;
-    Rhi::ShaderDescriptor imageFragment;
-    Rhi::ShaderDescriptor meshVertex;
-    Rhi::ShaderDescriptor meshFragment;
-    Rhi::ShaderDescriptor glyphVertex;
-    Rhi::ShaderDescriptor glyphFragment;
-    Rhi::GraphicsTextureFormat colorFormat =
-        Rhi::GraphicsTextureFormat::Bgra8Unorm;
+    Graphics::ShaderDescriptor rectangleVertex;
+    Graphics::ShaderDescriptor rectangleFragment;
+    Graphics::ShaderDescriptor imageVertex;
+    Graphics::ShaderDescriptor imageFragment;
+    Graphics::ShaderDescriptor meshVertex;
+    Graphics::ShaderDescriptor meshFragment;
+    Graphics::ShaderDescriptor glyphVertex;
+    Graphics::ShaderDescriptor glyphFragment;
+    Graphics::GraphicsTextureFormat colorFormat =
+        Graphics::GraphicsTextureFormat::Bgra8Unorm;
 };
 
 struct RenderTarget final {
-    Rhi::ResourceHandle color;
+    Graphics::ResourceHandle color;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
 };
@@ -55,7 +55,7 @@ struct RendererStatistics final {
 class Renderer final {
 public:
     Renderer(
-        Rhi::RhiDevice& device,
+        Graphics::GraphicsDevice& device,
         const RendererShaderSet& shaders,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Renderer() noexcept;
@@ -69,44 +69,44 @@ public:
 
     Base::Result<void> RegisterImage(
         Render::RenderImageId image,
-        Rhi::ResourceHandle texture,
-        Rhi::ResourceHandle sampler) noexcept;
+        Graphics::ResourceHandle texture,
+        Graphics::ResourceHandle sampler) noexcept;
     Base::Result<void> UnregisterImage(
         Render::RenderImageId image) noexcept;
     Base::Result<void> RegisterMesh(
         Render::RenderMeshId mesh,
-        Rhi::ResourceHandle vertexBuffer,
-        Rhi::ResourceHandle indexBuffer,
+        Graphics::ResourceHandle vertexBuffer,
+        Graphics::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
-        Rhi::IndexType indexType =
-            Rhi::IndexType::UInt16) noexcept;
+        Graphics::IndexType indexType =
+            Graphics::IndexType::UInt16) noexcept;
     Base::Result<void> UnregisterMesh(
         Render::RenderMeshId mesh) noexcept;
-    Base::Result<Rhi::CommandList> Record(
-        const Render::RenderPlan& plan,
+    Base::Result<Graphics::CommandList> Record(
+        const Render::RenderFrame& plan,
         const RenderTarget& target) noexcept;
     RendererStatistics LastStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
     bool IsBatchingEnabled() const noexcept;
 
 private:
-    friend class D3D11RenderPlanBackend;
-    friend class OpenGL33RenderPlanBackend;
+    friend class D3D11Renderer;
+    friend class OpenGL33Renderer;
     friend class Detail::RendererGlyphRunSink;
 
     struct Impl;
     Base::Result<void> RegisterGlyphRun(
         Render::RenderGlyphRunId glyphRun,
-        Rhi::ResourceHandle vertexBuffer,
-        Rhi::ResourceHandle indexBuffer,
+        Graphics::ResourceHandle vertexBuffer,
+        Graphics::ResourceHandle indexBuffer,
         std::uint32_t indexCount,
-        Rhi::ResourceHandle atlasTexture,
-        Rhi::ResourceHandle sampler,
-        Rhi::IndexType indexType) noexcept;
+        Graphics::ResourceHandle atlasTexture,
+        Graphics::ResourceHandle sampler,
+        Graphics::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
 
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     RendererShaderSet shaders_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

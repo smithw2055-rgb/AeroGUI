@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 
 namespace Aero::App {
 

@@ -16,11 +16,10 @@ target_link_libraries(EngineHost PRIVATE Aero::Integration)
 - `Aero::Meta` — typed metadata and module authoring layered over Gui.
 
 Legacy runtime/module/integration aliases and the low-level host facade are
-retired. Runtime composition, module catalogs, renderer/RHI implementations
-and third-party provider adapters may still be exported under
-`IntegrationDetail*` or `RuntimeDetail*` names when static linking requires
-them, but those names are package implementation details and are not supported
-application APIs.
+retired. Static packages still install private support archives needed to
+resolve the product link graph; their imported names are uniformly prefixed
+`Aero::_Detail`. Those targets are implementation dependencies, are omitted
+from product documentation, and carry no source-compatibility promise.
 
 The installed header set is declared explicitly in
 `cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
@@ -60,16 +59,15 @@ point:
 #include <Aero/App.hpp>
 
 int main() {
-    Aero::App::Launcher app;
-    auto result = app.Run();
-    return result ? result.Value() : 1;
+    return Aero::App::Run();
 }
 ```
 
 `Aero::Application` and `Aero::Window` are ordinary WPF-facing XAML objects.
-`Launcher` privately owns native windows, event pumping, View composition and
-endpoint selection. Audio and other optional subsystems are separate modules;
-constructing an Application never creates platform devices.
+`Aero::App::Run()` uses the private default desktop lifetime. Applications that
+need explicit backend or allocator selection include `Aero/App/Launcher.hpp`.
+Audio and other optional subsystems are separate modules; constructing an
+Application never creates platform devices.
 
 ## Integration and backend opt-in
 
@@ -98,7 +96,7 @@ Concrete backend factories remain opt-in:
 - `Aero/Integration/HostedGraphics.hpp` for versioned third-party callbacks.
 
 The default integration headers do not expose the internal render snapshot,
-render managers, RHI devices, caches or backend resource handles.
+render managers, graphics layer devices, caches or backend resource handles.
 
 ## XAML tools
 

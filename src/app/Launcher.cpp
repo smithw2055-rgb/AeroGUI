@@ -9,7 +9,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Integration/OpenGL33.hpp>
 #include <Aero/Integration/ViewHost.hpp>
-#include <Aero/RuntimeEnvironment.hpp>
+#include <Aero/Integration/View.hpp>
 #include "../ui/RuntimeManagers.hpp"
 #include "../runtime/ViewAccess.hpp"
 
@@ -580,10 +580,10 @@ struct Launcher::Impl final {
             !exitRequested;
     }
 
-    Platform::NativeWindowHandle NativeHandle() const noexcept {
+    Integration::NativeWindowHandle NativeHandle() const noexcept {
         return nativeWindow
             ? nativeWindow->NativeHandle()
-            : Platform::NativeWindowHandle{};
+            : Integration::NativeWindowHandle{};
     }
 
     View* HostedView() noexcept {
@@ -603,7 +603,7 @@ struct Launcher::Impl final {
     static bool IsOpenThunk(const void* context) noexcept {
         return static_cast<const Impl*>(context)->IsOpen();
     }
-    static Platform::NativeWindowHandle NativeHandleThunk(
+    static Integration::NativeWindowHandle NativeHandleThunk(
         const void* context) noexcept {
         return static_cast<const Impl*>(context)->NativeHandle();
     }

@@ -1,9 +1,9 @@
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
 
 #include <cstdio>
 
 #include "MetadataRuntimeData.hpp"
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 
 #include <utility>
 

@@ -364,11 +364,11 @@ Base::Result<void> PasswordBox::SelectAll() noexcept {
 }
 
 Base::Result<void> PasswordBox::SetInputMethodHost(
-    Platform::ITextInputMethodHost* host) noexcept {
+    Integration::ITextInputMethodHost* host) noexcept {
     return editor_.SetInputMethodHost(host);
 }
 
-Platform::ITextInputMethodHost*
+Integration::ITextInputMethodHost*
 PasswordBox::InputMethodHost() const noexcept {
     return editor_.InputMethodHost();
 }
@@ -892,7 +892,7 @@ Base::Result<void> TextBox::AttachScrollViewer(
 }
 
 Base::Result<void> TextBox::SetInputMethodHost(
-    Platform::ITextInputMethodHost* host) noexcept {
+    Integration::ITextInputMethodHost* host) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return access;
@@ -1375,7 +1375,7 @@ Base::Result<void> TextBox::SelectedText(
 }
 
 Base::Result<void> TextBox::CopySelection(
-    Platform::IClipboard& clipboard) const noexcept {
+    Integration::IClipboard& clipboard) const noexcept {
     if (!displayPolicy_->AllowsCopy()) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
@@ -1395,7 +1395,7 @@ Base::Result<void> TextBox::CopySelection(
 }
 
 Base::Result<void> TextBox::CutSelection(
-    Platform::IClipboard& clipboard) noexcept {
+    Integration::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -1432,7 +1432,7 @@ Base::Result<void> TextBox::CutSelection(
 }
 
 Base::Result<void> TextBox::Paste(
-    Platform::IClipboard& clipboard) noexcept {
+    Integration::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
         Base::Result<void> cancelled =
             CancelCompositionForFocusLoss();
@@ -2300,7 +2300,7 @@ TextBox::UpdateCandidateWindow() noexcept {
         !compositionActive_) {
         return {};
     }
-    Platform::ImeCandidateWindow candidate;
+    Integration::ImeCandidateWindow candidate;
     Rect caret = CaretRectangle();
     caret.x += Padding().left;
     caret.y += Padding().top;
@@ -2326,13 +2326,11 @@ TextBoxInteractionManager::
 TextBoxInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    PointerInputManager& pointer,
-    FocusManager& focus,
-    Platform::IClipboard& clipboard) noexcept
+    InputService& input,
+    Integration::IClipboard& clipboard) noexcept
     : tree_(&tree),
       events_(&events),
-      pointer_(&pointer),
-      focus_(&focus),
+      input_(&input),
       clipboard_(&clipboard),
       mouseDownHandler_(
           this,
@@ -2470,7 +2468,7 @@ TextBoxInteractionManager::Attach(
     }
     if (!captureSubscribed_) {
         Base::Result<void> capture =
-            pointer_->TryAddCaptureChanged(
+            input_->Pointer().TryAddCaptureChanged(
                 captureChangedHandler_);
         if (!capture) {
             records_.PopBack();
@@ -2592,7 +2590,7 @@ TextBoxInteractionManager::Attach(
     if (!appended) return appended.GetStatus();
     if (!captureSubscribed_) {
         Base::Result<void> capture =
-            pointer_->TryAddCaptureChanged(
+            input_->Pointer().TryAddCaptureChanged(
                 captureChangedHandler_);
         if (!capture) {
             records_.PopBack();
@@ -2698,7 +2696,7 @@ TextBoxInteractionManager::Detach(
     Record& record = records_[index];
     if (record.dragging) {
         Base::Result<bool> released =
-            pointer_->ReleasePointer(
+            input_->Pointer().ReleasePointer(
                 record.pointerId);
         if (!released) {
             return released.GetStatus();
@@ -2742,7 +2740,7 @@ TextBoxInteractionManager::Detach(
     if (records_.Empty() &&
         captureSubscribed_) {
         static_cast<void>(
-            pointer_->RemoveCaptureChanged(
+            input_->Pointer().RemoveCaptureChanged(
                 captureChangedHandler_));
         captureSubscribed_ = false;
     }
@@ -2760,7 +2758,7 @@ TextBoxInteractionManager::Detach(
     Record& record = records_[index];
     if (record.dragging) {
         Base::Result<bool> released =
-            pointer_->ReleasePointer(
+            input_->Pointer().ReleasePointer(
                 record.pointerId);
         if (!released) {
             return released.GetStatus();
@@ -2833,7 +2831,7 @@ TextBoxInteractionManager::Detach(
     if (records_.Empty() &&
         captureSubscribed_) {
         static_cast<void>(
-            pointer_->
+            input_->Pointer().
                 RemoveCaptureChanged(
                     captureChangedHandler_));
         captureSubscribed_ = false;
@@ -2868,9 +2866,9 @@ void TextBoxInteractionManager::OnMouseDown(
     static_cast<void>(
         editor->SetSelection(caret, caret));
     static_cast<void>(
-        focus_->SetFocus(&owner));
+        input_->Focus().SetFocus(&owner));
     Base::Result<void> captured =
-        pointer_->CapturePointer(
+        input_->Pointer().CapturePointer(
             args.pointerId, owner);
     if (captured) {
         records_[index].pointerId =
@@ -2934,7 +2932,7 @@ void TextBoxInteractionManager::OnMouseUp(
             editor->HitTestText(local)));
     records_[index].dragging = false;
     static_cast<void>(
-        pointer_->ReleasePointer(
+        input_->Pointer().ReleasePointer(
             args.pointerId));
     args.handled = true;
 }
@@ -3089,7 +3087,7 @@ void TextBoxInteractionManager::OnFocusChanged(
     }
     records_[index].dragging = false;
     static_cast<void>(
-        pointer_->ReleasePointer(
+        input_->Pointer().ReleasePointer(
             records_[index].pointerId));
 }
 

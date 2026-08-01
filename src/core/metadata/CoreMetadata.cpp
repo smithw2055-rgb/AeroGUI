@@ -1,7 +1,7 @@
 #include "CoreMetadata.hpp"
 
-#include <Aero/Core/Metadata/Describe.hpp>
-#include <Aero/Core/Metadata/ValueConversion.hpp>
+#include <Aero/Meta/Describe.hpp>
+#include <Aero/Meta/ValueConversion.hpp>
 #include "../property/EffectiveValueEngine.hpp"
 
 namespace Aero::Core {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Allocator.hpp>
-#include <Aero/Platform/Window.hpp>
+#include "Window.hpp"
 
 namespace Aero::Platform {
 
@@ -34,7 +34,7 @@ public:
     std::uint32_t ClientWidth() const noexcept override;
     std::uint32_t ClientHeight() const noexcept override;
     double DpiScale() const noexcept override;
-    NativeWindowHandle NativeHandle() const noexcept override;
+    Integration::NativeWindowHandle NativeHandle() const noexcept override;
 
 private:
     struct Impl;

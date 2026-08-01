@@ -2,10 +2,10 @@
 
 #include <Aero/Base/Hash.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Diagnostics.hpp>
 #include "markup/Loader.hpp"
-#include <Aero/RuntimeEnvironment.hpp>
-#include <Aero/UiDocument.hpp>
+#include <Aero/Integration/View.hpp>
+#include <Aero/Markup/XamlDocument.hpp>
 
 #include "runtime/ViewRuntime.hpp"
 

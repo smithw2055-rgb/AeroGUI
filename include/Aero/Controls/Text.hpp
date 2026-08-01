@@ -1,7 +1,6 @@
 #pragma once
 
-#include <Aero/Platform/Clipboard.hpp>
-#include <Aero/Platform/Ime.hpp>
+#include <Aero/Integration/HostServices.hpp>
 #include <Aero/Text/EditableText.hpp>
 #include <Aero/Controls/Primitives.hpp>
 
@@ -81,7 +80,7 @@ protected:
 class AERO_API TextBox final
     : public Primitives::TextBoxBase,
       public IScrollInfo,
-      public Platform::ITextCompositionClient {
+      public Integration::ITextCompositionClient {
     AERO_DECLARE_TYPE(TextBox, Primitives::TextBoxBase)
 public:
     TextBox() noexcept;
@@ -165,8 +164,8 @@ public:
     Base::Result<void> AttachScrollViewer(
         ScrollViewer* viewer) noexcept;
     Base::Result<void> SetInputMethodHost(
-        Platform::ITextInputMethodHost* host) noexcept;
-    Platform::ITextInputMethodHost*
+        Integration::ITextInputMethodHost* host) noexcept;
+    Integration::ITextInputMethodHost*
     InputMethodHost() const noexcept {
         return inputMethodHost_;
     }
@@ -261,7 +260,7 @@ private:
     std::uint32_t wrapColumns_ = UINT32_MAX;
     ScrollData scroll_;
     ScrollViewer* scrollViewer_ = nullptr;
-    Platform::ITextInputMethodHost*
+    Integration::ITextInputMethodHost*
         inputMethodHost_ = nullptr;
     Text::TextSelection compositionSelection_;
     bool serviceOwnsGlyphRuns_ = false;
@@ -280,11 +279,11 @@ private:
     Base::Result<void> DeleteBackward() noexcept;
     Base::Result<void> DeleteForward() noexcept;
     Base::Result<void> CopySelection(
-        Platform::IClipboard& clipboard) const noexcept;
+        Integration::IClipboard& clipboard) const noexcept;
     Base::Result<void> CutSelection(
-        Platform::IClipboard& clipboard) noexcept;
+        Integration::IClipboard& clipboard) noexcept;
     Base::Result<void> Paste(
-        Platform::IClipboard& clipboard) noexcept;
+        Integration::IClipboard& clipboard) noexcept;
     Base::Result<void> SelectedText(
         Base::String& output) const noexcept;
     Base::Result<void> MoveCaretHorizontal(
@@ -356,8 +355,8 @@ public:
         std::uint32_t caret) noexcept;
     Base::Result<void> SelectAll() noexcept;
     Base::Result<void> SetInputMethodHost(
-        Platform::ITextInputMethodHost* host) noexcept;
-    Platform::ITextInputMethodHost*
+        Integration::ITextInputMethodHost* host) noexcept;
+    Integration::ITextInputMethodHost*
     InputMethodHost() const noexcept;
     bool IsComposing() const noexcept;
 

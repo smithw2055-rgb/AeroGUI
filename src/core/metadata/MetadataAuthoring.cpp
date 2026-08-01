@@ -1,4 +1,4 @@
-#include <Aero/Core/Metadata/Describe.hpp>
+#include <Aero/Meta/Describe.hpp>
 
 #include "MetadataContextState.hpp"
 #include "RoutedEventCatalog.hpp"

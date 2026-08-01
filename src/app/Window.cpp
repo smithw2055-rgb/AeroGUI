@@ -1,7 +1,7 @@
 #include <Aero/Window.hpp>
 #include <Aero/Application.hpp>
 
-#include <Aero/Integration/WindowInterop.hpp>
+#include <Aero/App/WindowInterop.hpp>
 #include "ApplicationRuntime.hpp"
 
 namespace Aero {
@@ -28,6 +28,11 @@ Base::Result<void> Window::SetWindowState(WindowState value) noexcept {
         OnStateChanged(args);
     }
     return changed;
+}
+
+bool Window::IsOpen() const noexcept {
+    const auto* state = static_cast<const App::Detail::WindowRuntimeState*>(runtimeState_);
+    return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
 }
 
 void Window::Close() noexcept {
@@ -76,11 +81,11 @@ void Window::NotifyClosed() noexcept {
 
 } // namespace Aero
 
-namespace Aero::Integration {
+namespace Aero::App {
 
-Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
+Integration::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
     const auto* state = static_cast<const App::Detail::WindowRuntimeState*>(window.runtimeState_);
-    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
+    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Integration::NativeWindowHandle{};
 }
 
 ::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
@@ -88,4 +93,4 @@ Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& w
     return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::App

@@ -13,7 +13,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Metadata/MetadataRuntime.hpp>
+#include <Aero/Meta/MetadataRuntime.hpp>
 #include <Aero/Markup/CompiledDocument.hpp>
 
 #include <cstdint>

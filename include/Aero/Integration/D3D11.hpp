@@ -4,7 +4,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Integration/RenderEndpoint.hpp>
-#include <Aero/Platform/Window.hpp>
+#include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
 
@@ -40,7 +40,7 @@ struct D3D11EmbeddedEndpointOptions final {
 };
 
 struct D3D11WindowEndpointOptions final {
-    Platform::NativeWindowHandle window;
+    NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     RenderPresentMode presentMode = RenderPresentMode::Fifo;

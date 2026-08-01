@@ -11,7 +11,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Diagnostics.hpp>
+#include <Aero/Diagnostics.hpp>
 #include "LoaderResult.hpp"
 #include <Aero/Markup/Resources.hpp>
 #include <Aero/Markup/Schema.hpp>

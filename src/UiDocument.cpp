@@ -1,4 +1,4 @@
-#include <Aero/UiDocument.hpp>
+#include <Aero/Markup/XamlDocument.hpp>
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Resources.hpp>

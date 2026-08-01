@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/String.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup::Detail {
 

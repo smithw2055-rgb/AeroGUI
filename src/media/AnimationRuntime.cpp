@@ -4,7 +4,7 @@
 #include <Aero/Media/Transforms.hpp>
 
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Core/Metadata/ValueCodec.hpp>
+#include <Aero/Meta/ValueCodec.hpp>
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>

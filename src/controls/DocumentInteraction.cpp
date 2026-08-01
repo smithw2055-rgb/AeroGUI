@@ -14,14 +14,10 @@ using namespace Aero::Core;
 HyperlinkInteractionManager::HyperlinkInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    PointerInputManager& pointer,
-    FocusManager& focus,
-    CommandManager& commands) noexcept
+    InputService& input) noexcept
     : tree_(&tree),
       events_(&events),
-      pointer_(&pointer),
-      focus_(&focus),
-      commands_(&commands),
+      input_(&input),
       links_(&Base::GetDefaultAllocator()),
       mouseDownHandler_(this, &HyperlinkInteractionManager::OnMouseDown),
       mouseUpHandler_(this, &HyperlinkInteractionManager::OnMouseUp),
@@ -34,7 +30,7 @@ HyperlinkInteractionManager::HyperlinkInteractionManager(
 HyperlinkInteractionManager::~HyperlinkInteractionManager() noexcept {
     if (initialized_) {
         static_cast<void>(
-            commands_->RemoveRequerySuggested(requeryHandler_));
+            input_->Commands().RemoveRequerySuggested(requeryHandler_));
     }
     while (!links_.Empty()) {
         const std::uint32_t index = links_.Size() - 1U;
@@ -69,7 +65,7 @@ HyperlinkInteractionManager::~HyperlinkInteractionManager() noexcept {
 Base::Result<void> HyperlinkInteractionManager::Initialize() noexcept {
     if (initialized_) return {};
     Base::Result<void> result =
-        commands_->TryAddRequerySuggested(requeryHandler_);
+        input_->Commands().TryAddRequerySuggested(requeryHandler_);
     if (!result) return result.GetStatus();
     initialized_ = true;
     return {};
@@ -170,7 +166,7 @@ Base::Result<bool> HyperlinkInteractionManager::Detach(
     if (index == UINT32_MAX) return false;
     Record& record = links_[index];
     if (record.pointerDown) {
-        static_cast<void>(pointer_->ReleasePointer(record.pointerId));
+        static_cast<void>(input_->Pointer().ReleasePointer(record.pointerId));
     }
     static_cast<void>(link.RemoveHandler(
         UIElement::MouseDownEvent, mouseDownHandler_));
@@ -215,13 +211,13 @@ Base::Result<void> HyperlinkInteractionManager::RefreshCanExecute(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
-            commands_->CanExecute(*command, value, *target);
+            input_->Commands().CanExecute(*command, value, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
     links_[index].commandEnabled = enabled;
-    if (!enabled && focus_->FocusedNode() == &link) {
-        Base::Result<bool> cleared = focus_->ClearFocus();
+    if (!enabled && input_->Focus().FocusedNode() == &link) {
+        Base::Result<bool> cleared = input_->Focus().ClearFocus();
         if (!cleared) return cleared.GetStatus();
     }
     return {};
@@ -247,7 +243,7 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> executed =
-            commands_->Execute(*command, value, *target);
+            input_->Commands().Execute(*command, value, *target);
         if (!executed) return executed.GetStatus();
     }
 
@@ -274,8 +270,8 @@ void HyperlinkInteractionManager::OnMouseDown(
     Record& record = links_[index];
     record.pointerId = args.pointerId;
     record.pointerDown = true;
-    static_cast<void>(pointer_->CapturePointer(args.pointerId, link));
-    static_cast<void>(focus_->SetFocus(&link));
+    static_cast<void>(input_->Pointer().CapturePointer(args.pointerId, link));
+    static_cast<void>(input_->Focus().SetFocus(&link));
     args.handled = true;
 }
 
@@ -289,7 +285,7 @@ void HyperlinkInteractionManager::OnMouseUp(
     Record& record = links_[index];
     if (!record.pointerDown || record.pointerId != args.pointerId) return;
     record.pointerDown = false;
-    static_cast<void>(pointer_->ReleasePointer(args.pointerId));
+    static_cast<void>(input_->Pointer().ReleasePointer(args.pointerId));
     args.handled = true;
     if (link.GetIsEnabled() && link.GetIsMouseOver()) {
         static_cast<void>(Invoke(link));

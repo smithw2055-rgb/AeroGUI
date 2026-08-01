@@ -5,7 +5,7 @@
 - **覆盖**：D3D11、OpenGL 3.3、OpenGL ES 3.0、GLX/EGL/WGL、WebGL 2
 - **不覆盖**：WebGL 1、OpenGL compatibility/fixed-function pipeline
 
-本章定义 AeroGUI 的正式兼容图形后端。兼容后端与 D3D12/Vulkan/Metal 使用同一 `RenderTransaction`、retained render tree、`RenderPlan` 和 `AeroRHI` 上层合同，但允许根据能力选择更保守的执行策略。
+本章定义 AeroGUI 的正式兼容图形后端。兼容后端与 D3D12/Vulkan/Metal 使用同一 `RenderTransaction`、retained render tree、`RenderFrame` 和 `AeroGraphics` 上层合同，但允许根据能力选择更保守的执行策略。
 
 ## 1. 支持等级
 
@@ -56,9 +56,9 @@
 
 这些能力通过 `RhiCaps` 选择性启用。
 
-## 3. RenderPlan 降级策略
+## 3. RenderFrame 降级策略
 
-RenderPlan 不能假设所有后端具备显式 barrier、descriptor heap 或 compute。Lowering 需要提供：
+RenderFrame 不能假设所有后端具备显式 barrier、descriptor heap 或 compute。Lowering 需要提供：
 
 ```text
 DrawPacket
@@ -84,7 +84,7 @@ DrawPacket
 
 ## 4. D3D11 backend
 
-Target：`AeroRHI_D3D11`
+Target：`AeroGraphics_D3D11`
 
 ### 4.1 最低要求
 
@@ -139,7 +139,7 @@ D3D11 是隐式状态 API。Backend 必须缓存并最小化：
 
 ## 5. Desktop OpenGL 3.3 Core
 
-Target：`AeroRHI_OpenGL33`
+Target：`AeroGraphics_OpenGL33`
 
 ### 5.1 Baseline
 
@@ -163,7 +163,7 @@ Target：`AeroRHI_OpenGL33`
 
 ### 5.2 Function loading
 
-OpenGL function pointer 由 platform/context adapter 或 host loader 提供。`AeroRHI_OpenGL33` 不绑定特定 loader 库的 public API。
+OpenGL function pointer 由 platform/context adapter 或 host loader 提供。`AeroGraphics_OpenGL33` 不绑定特定 loader 库的 public API。
 
 入口初始化时必须：
 
@@ -195,7 +195,7 @@ EmbeddedContext 必须选择：
 
 ## 6. OpenGL ES 3.0
 
-Target：`AeroRHI_GLES30`
+Target：`AeroGraphics_GLES30`
 
 - OpenGL ES 3.0；
 - GLSL ES 3.00；
@@ -248,7 +248,7 @@ Target：`AeroPlatform_EGL`
 - 嵌入式系统；
 - 宿主提供 EGLDisplay/EGLContext/EGLSurface。
 
-EGL adapter 与 `AeroRHI_GLES30` 主要组合，也可在实现支持时承载 desktop OpenGL profile。
+EGL adapter 与 `AeroGraphics_GLES30` 主要组合，也可在实现支持时承载 desktop OpenGL profile。
 
 ### 7.3 WGL
 
@@ -267,7 +267,7 @@ Target：`AeroPlatform_WGL`
 
 ## 8. WebGL 2 backend
 
-Target：`AeroRHI_WebGL2`
+Target：`AeroGraphics_WebGL2`
 
 ### 8.1 Baseline
 
@@ -295,7 +295,7 @@ JavaScript/HTML Host
 AeroPlatform_Web
         |
         v
-AeroRHI_WebGL2 (WASM-facing handle/function layer)
+AeroGraphics_WebGL2 (WASM-facing handle/function layer)
 ```
 
 JS bridge 应最小化，不使用 Embind 作为核心 ABI 前提。资源 ID 在 C++ 和 JS 之间使用受控 handle table，避免直接持有不稳定 JS object pointer。
@@ -379,7 +379,7 @@ WebGL API 接收 GLSL ES source，因此：
 - VAO；
 - sampler；
 - framebuffer/blit where core permits；
-- multiple render target 仅在实际 RenderPlan 需要且 caps 满足时使用。
+- multiple render target 仅在实际 RenderFrame 需要且 caps 满足时使用。
 
 Optional extension 示例：
 
@@ -420,7 +420,7 @@ Optional extension 示例：
 `sokol_gfx` 可帮助快速启动：
 
 ```text
-AeroRHI_Sokol
+AeroGraphics_Sokol
   D3D11
   OpenGL 3.3
   GLES 3 / WebGL 2
@@ -431,7 +431,7 @@ AeroRHI_Sokol
 允许用途：
 
 - 第一个 triangle/batch/offscreen bring-up；
-- RenderPlan adapter 验证；
+- RenderFrame adapter 验证；
 - sample/tool；
 - browser prototype；
 - 与第一方 backend 做差异测试。
@@ -440,16 +440,16 @@ AeroRHI_Sokol
 
 - `AERO_WITH_SOKOL=OFF` 时所有正式 backend 独立构建；
 - 不把 `sg_*` handle 序列化或暴露；
-- 不让 sokol feature set 成为 `AeroRHI` 上限；
+- 不让 sokol feature set 成为 `AeroGraphics` 上限；
 - 第一方 D3D11/GL/GLES/WebGL2 backend 可以阶段性晚于 sokol prototype，但 release status 必须明确。
 
 ## 11. Build options
 
 ```cmake
-option(AERO_RHI_D3D11 "Build Direct3D 11 backend" ON)
-option(AERO_RHI_OPENGL33 "Build desktop OpenGL 3.3 backend" ON)
-option(AERO_RHI_GLES30 "Build OpenGL ES 3.0 backend" ON)
-option(AERO_RHI_WEBGL2 "Build WebGL 2 backend" ON)
+option(AERO_graphics layer_D3D11 "Build Direct3D 11 backend" ON)
+option(AERO_graphics layer_OPENGL33 "Build desktop OpenGL 3.3 backend" ON)
+option(AERO_graphics layer_GLES30 "Build OpenGL ES 3.0 backend" ON)
+option(AERO_graphics layer_WEBGL2 "Build WebGL 2 backend" ON)
 
 option(AERO_PLATFORM_GLX "Build X11/GLX adapter" ON)
 option(AERO_PLATFORM_EGL "Build EGL adapter" ON)
@@ -528,8 +528,8 @@ Platform presets 决定默认值；不应在不相关平台尝试查找所有 SD
 
 兼容后端达到 Production Supported 前必须：
 
-- 通过 common RHI conformance；
-- 通过 core XAML → layout → RenderPlan → image vertical slice；
+- 通过 common graphics layer conformance；
+- 通过 core XAML → layout → RenderFrame → image vertical slice；
 - 不依赖 Skia；
 - sokol 关闭时可构建运行；
 - context/device loss 可恢复或明确报告 terminal 状态；

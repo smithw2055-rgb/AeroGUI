@@ -1,10 +1,9 @@
 #include <Aero/Controls/Items.hpp>
-#include "ContentControlAccess.hpp"
-#include "ControlAccess.hpp"
-#include "DeferredTemplateAccess.hpp"
+#include "ControlInternals.hpp"
+#include "ControlInternals.hpp"
+#include "TemplateRuntime.hpp"
 
-#include "ItemContainerGeneratorAccess.hpp"
-#include "render/RenderingInternal.hpp"
+#include "render/RenderTree.hpp"
 #include "../ui/ResourceAssignment.hpp"
 #include "../ui/MountService.hpp"
 
@@ -16,7 +15,6 @@
 #include <utility>
 #include "../ui/RuntimeManagers.hpp"
 #include "RuntimeManagers.hpp"
-#include "ControlCollections.hpp"
 
 namespace Aero::Controls {
 
@@ -873,7 +871,7 @@ public:
         LayoutManager& layout,
         EffectiveValueEngine& values,
         StyleManager* styles,
-        RenderManager* renderer,
+        RenderTree* renderer,
         TemplateManager* templates,
         ItemSubtreeCallback subtreeCallback,
         void* subtreeContext) noexcept;
@@ -925,7 +923,7 @@ private:
     LayoutManager* layout_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     StyleManager* styles_ = nullptr;
-    RenderManager* renderer_ = nullptr;
+    RenderTree* renderer_ = nullptr;
     TemplateManager* templates_ = nullptr;
     ItemSubtreeCallback subtreeCallback_ = nullptr;
     void* subtreeContext_ = nullptr;
@@ -968,7 +966,7 @@ Detail::ItemContainerGeneratorImpl::ItemContainerGeneratorImpl(
     LayoutManager& layout,
     EffectiveValueEngine& values,
     StyleManager* styles,
-    RenderManager* renderer,
+    RenderTree* renderer,
     TemplateManager* templates,
     ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept
@@ -2025,7 +2023,7 @@ Detail::ItemContainerGeneratorAccess::Create(
     Aero::Detail::LayoutManager& layout,
     Core::EffectiveValueEngine& values,
     Aero::Detail::StyleManager* styles,
-    Render::RenderManager* renderer,
+    Render::RenderTree* renderer,
     TemplateManager* templates,
     ItemSubtreeCallback subtreeCallback,
     void* subtreeContext) noexcept {

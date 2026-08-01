@@ -3,7 +3,7 @@
 // Executable metadata behavior is private to MetadataRuntime.
 #include "MetadataBehaviorRegistrationStore.hpp"
 
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 #include <utility>
 

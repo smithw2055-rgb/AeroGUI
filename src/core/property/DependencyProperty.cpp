@@ -1,4 +1,4 @@
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 #include "../metadata/MetadataBehaviorRegistrationStore.hpp"
 #include "../ObjectServices.hpp"
 

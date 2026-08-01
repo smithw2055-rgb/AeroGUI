@@ -6,8 +6,8 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/Meta/Value.hpp>
 #include <Aero/DependencyObject.hpp>
 
 #include <cstdint>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/UiDocument.hpp>
+#include <Aero/Markup/XamlDocument.hpp>
 
 #include "markup/LoaderResult.hpp"
 

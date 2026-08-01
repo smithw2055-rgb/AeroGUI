@@ -1,4 +1,4 @@
-#include "VisualStateManagerAccess.hpp"
+#include "TemplateRuntime.hpp"
 #include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
@@ -168,15 +168,11 @@ using namespace Aero::Controls;
 ControlInteractionManager::ControlInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    PointerInputManager& pointer,
-    FocusManager& focus,
-    CommandManager& commands,
+    InputService& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
-      pointer_(&pointer),
-      focus_(&focus),
-      commands_(&commands),
+      input_(&input),
       states_(states),
       buttons_(&Base::GetDefaultAllocator()),
       mouseDownHandler_(
@@ -201,13 +197,13 @@ ControlInteractionManager::ControlInteractionManager(
 ControlInteractionManager::~ControlInteractionManager() noexcept {
     if (initialized_) {
         static_cast<void>(
-            pointer_->RemoveStateChanged(
+            input_->Pointer().RemoveStateChanged(
                 pointerStateChangedHandler_));
         static_cast<void>(
-            pointer_->RemoveCaptureChanged(
+            input_->Pointer().RemoveCaptureChanged(
                 captureChangedHandler_));
         static_cast<void>(
-            commands_->RemoveRequerySuggested(requeryHandler_));
+            input_->Commands().RemoveRequerySuggested(requeryHandler_));
     }
     while (!buttons_.Empty()) {
         const std::uint32_t index = buttons_.Size() - 1U;
@@ -267,22 +263,22 @@ ControlInteractionManager::~ControlInteractionManager() noexcept {
 Base::Result<void> ControlInteractionManager::Initialize() noexcept {
     if (initialized_) return {};
     Base::Result<void> state =
-        pointer_->TryAddStateChanged(
+        input_->Pointer().TryAddStateChanged(
             pointerStateChangedHandler_);
     if (!state) return state.GetStatus();
     Base::Result<void> capture =
-        pointer_->TryAddCaptureChanged(captureChangedHandler_);
+        input_->Pointer().TryAddCaptureChanged(captureChangedHandler_);
     if (!capture) {
-        static_cast<void>(pointer_->RemoveStateChanged(
+        static_cast<void>(input_->Pointer().RemoveStateChanged(
             pointerStateChangedHandler_));
         return capture.GetStatus();
     }
     Base::Result<void> requery =
-        commands_->TryAddRequerySuggested(requeryHandler_);
+        input_->Commands().TryAddRequerySuggested(requeryHandler_);
     if (!requery) {
-        static_cast<void>(pointer_->RemoveCaptureChanged(
+        static_cast<void>(input_->Pointer().RemoveCaptureChanged(
             captureChangedHandler_));
-        static_cast<void>(pointer_->RemoveStateChanged(
+        static_cast<void>(input_->Pointer().RemoveStateChanged(
             pointerStateChangedHandler_));
         return requery.GetStatus();
     }
@@ -467,7 +463,7 @@ Base::Result<bool> ControlInteractionManager::Detach(
     ButtonRecord& record = buttons_[index];
     if (record.pointerDown) {
         Base::Result<bool> released =
-            pointer_->ReleasePointer(record.pointerId);
+            input_->Pointer().ReleasePointer(record.pointerId);
         if (!released) return released.GetStatus();
     }
     static_cast<void>(button.RemoveHandler(
@@ -539,7 +535,7 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
-            commands_->CanExecute(*command, value, *target);
+            input_->Commands().CanExecute(*command, value, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
@@ -548,8 +544,8 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
         button.CoerceValue(UIElement::IsEnabledProperty);
     if (!coerced) return coerced.GetStatus();
     if (!button.GetIsEnabled() &&
-        focus_->FocusedNode() == &button) {
-        Base::Result<bool> cleared = focus_->ClearFocus();
+        input_->Focus().FocusedNode() == &button) {
+        Base::Result<bool> cleared = input_->Focus().ClearFocus();
         if (!cleared) return cleared.GetStatus();
     }
     Base::Result<void> synchronized =
@@ -637,7 +633,7 @@ Base::Result<void> ControlInteractionManager::InvokeClick(
     const Value value = Value::FromObject(
         TypeOf<Base::Object>(), std::move(parameter));
     Base::Result<bool> executed =
-        commands_->Execute(*command, value, *target);
+        input_->Commands().Execute(*command, value, *target);
     return executed
         ? Base::Result<void>()
         : Base::Result<void>(executed.GetStatus());
@@ -783,8 +779,8 @@ void ControlInteractionManager::OnMouseDown(
     record.repeatElapsed = 0U;
     record.nextRepeat = 0U;
     static_cast<void>(
-        pointer_->CapturePointer(args.pointerId, button));
-    static_cast<void>(focus_->SetFocus(&button));
+        input_->Pointer().CapturePointer(args.pointerId, button));
+    static_cast<void>(input_->Focus().SetFocus(&button));
     args.handled = true;
     if (button.GetClickMode() == ClickMode::Press) {
         static_cast<void>(InvokeClick(button));

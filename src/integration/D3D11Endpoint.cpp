@@ -3,40 +3,40 @@
 #include "RenderEndpointInternal.hpp"
 #include "render/TextBackendAccess.hpp"
 
-#include "render/d3d11/D3D11RendererBackend.hpp"
-#include "rhi/D3D11Backend.hpp"
+#include "render/d3d11/D3D11Renderer.hpp"
+#include "graphics/D3D11Backend.hpp"
 
 #include <new>
 
 namespace Aero::Integration {
 namespace {
 
-Rhi::PresentMode ToRhiPresentMode(
+Graphics::PresentMode ToRhiPresentMode(
     RenderPresentMode value) noexcept {
     switch (value) {
     case RenderPresentMode::Immediate:
-        return Rhi::PresentMode::Immediate;
+        return Graphics::PresentMode::Immediate;
     case RenderPresentMode::Mailbox:
-        return Rhi::PresentMode::Mailbox;
+        return Graphics::PresentMode::Mailbox;
     case RenderPresentMode::Fifo:
-        return Rhi::PresentMode::Fifo;
+        return Graphics::PresentMode::Fifo;
     }
-    return Rhi::PresentMode::Fifo;
+    return Graphics::PresentMode::Fifo;
 }
 
 class D3D11EmbeddedSurface final
-    : public Rhi::ISurfaceBackend {
+    : public Graphics::ISurfaceBackend {
 public:
     explicit D3D11EmbeddedSurface(
         const D3D11EmbeddedEndpointOptions& options) noexcept
         : options_(options) {}
 
-    Rhi::SurfaceCapabilities
+    Graphics::SurfaceCapabilities
     QuerySurfaceCapabilities() const noexcept override {
-        Rhi::SurfaceCapabilities result;
+        Graphics::SurfaceCapabilities result;
         result.supportedKinds =
-            Rhi::SurfaceKindBit(
-                Rhi::SurfaceKind::ExternalRenderTarget);
+            Graphics::SurfaceKindBit(
+                Graphics::SurfaceKind::ExternalRenderTarget);
         result.supportsResize = false;
         result.supportsPresent = false;
         result.supportsContextLossRecovery = true;
@@ -45,7 +45,7 @@ public:
     }
 
     Base::Result<void> CreateSurface(
-        const Rhi::NativeSurfaceDescriptor&) noexcept override {
+        const Graphics::NativeSurfaceDescriptor&) noexcept override {
         lost_ = false;
         return {};
     }
@@ -60,7 +60,7 @@ public:
         return {};
     }
 
-    Base::Result<Rhi::ExternalRenderTargetDescriptor>
+    Base::Result<Graphics::ExternalRenderTargetDescriptor>
     AcquireSurfaceTarget(
         std::uint64_t) noexcept override {
         if (lost_ || options_.acquireTarget == nullptr) {
@@ -80,16 +80,16 @@ public:
                 Base::ErrorCode::InvalidArgument,
                 "D3D11 embedded target is invalid");
         }
-        Rhi::ExternalRenderTargetDescriptor result;
+        Graphics::ExternalRenderTargetDescriptor result;
         result.colorTarget = native.texture2D;
         result.depthStencilTarget =
             native.depthStencilView;
         result.width = native.width;
         result.height = native.height;
         result.colorFormat =
-            Rhi::GraphicsTextureFormat::Bgra8Unorm;
+            Graphics::GraphicsTextureFormat::Bgra8Unorm;
         result.depthStencilFormat =
-            Rhi::GraphicsTextureFormat::Depth24Stencil8;
+            Graphics::GraphicsTextureFormat::Depth24Stencil8;
         result.sampleCount = 1U;
         result.stableId = native.stableId;
         return result;
@@ -97,7 +97,7 @@ public:
 
     Base::Result<void> PresentSurface(
         std::uint64_t,
-        Rhi::FenceValue) noexcept override {
+        Graphics::FenceValue) noexcept override {
         // Embedded endpoints never own presentation.
         return {};
     }
@@ -110,7 +110,7 @@ public:
     }
 
     Base::Result<void> RestoreSurface(
-        const Rhi::NativeSurfaceDescriptor&) noexcept override {
+        const Graphics::NativeSurfaceDescriptor&) noexcept override {
         lost_ = false;
         return {};
     }
@@ -124,24 +124,24 @@ private:
     bool lost_ = false;
 };
 
-class D3D11EndpointDriver final
-    : public Detail::EndpointDriver {
+class D3D11EndpointBackend final
+    : public Detail::EndpointBackend {
 public:
-    D3D11EndpointDriver(
+    D3D11EndpointBackend(
         const D3D11WindowEndpointOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           windowOptions_(options),
           embedded_(false) {}
 
-    D3D11EndpointDriver(
+    D3D11EndpointBackend(
         const D3D11EmbeddedEndpointOptions& options,
         Base::IAllocator& allocator) noexcept
         : allocator_(&allocator),
           embeddedOptions_(options),
           embedded_(true) {}
 
-    ~D3D11EndpointDriver() override {
+    ~D3D11EndpointBackend() override {
         Shutdown();
     }
 
@@ -153,10 +153,10 @@ public:
     }
 
     Base::Result<void> Initialize() noexcept {
-        Rhi::D3D11BackendOptions graphicsOptions;
+        Graphics::D3D11BackendOptions graphicsOptions;
         if (embedded_) {
             graphicsOptions.deviceMode =
-                Rhi::D3D11DeviceMode::Borrowed;
+                Graphics::D3D11DeviceMode::Borrowed;
             graphicsOptions.borrowedDevice =
                 embeddedOptions_.device;
             graphicsOptions.borrowedImmediateContext =
@@ -165,14 +165,14 @@ public:
                 embeddedOptions_.statePolicy ==
                     D3D11StatePreservationPolicy::
                         PreserveRequiredState
-                ? Rhi::D3D11StatePolicy::
+                ? Graphics::D3D11StatePolicy::
                       PreserveRequiredState
-                : Rhi::D3D11StatePolicy::HostResetsState;
+                : Graphics::D3D11StatePolicy::HostResetsState;
         } else {
             graphicsOptions.deviceMode =
                 windowOptions_.useWarp
-                ? Rhi::D3D11DeviceMode::Warp
-                : Rhi::D3D11DeviceMode::Hardware;
+                ? Graphics::D3D11DeviceMode::Warp
+                : Graphics::D3D11DeviceMode::Hardware;
             graphicsOptions.allowWarpFallback =
                 windowOptions_.allowWarpFallback;
             graphicsOptions.enableDebugLayer =
@@ -180,7 +180,7 @@ public:
         }
 
         graphics_ = new (std::nothrow)
-            Rhi::D3D11GraphicsBackend(
+            Graphics::D3D11GraphicsBackend(
                 graphicsOptions, allocator_);
         if (graphics_ == nullptr) return OutOfMemory();
         Base::Result<void> status = graphics_->Initialize();
@@ -190,7 +190,7 @@ public:
         }
 
         device_ = new (std::nothrow)
-            Rhi::RhiDevice(*graphics_, allocator_);
+            Graphics::GraphicsDevice(*graphics_, allocator_);
         if (device_ == nullptr) {
             Shutdown();
             return OutOfMemory();
@@ -207,7 +207,7 @@ public:
             surfaceBackend_ = embeddedSurface_;
         } else {
             swapChainSurface_ = new (std::nothrow)
-                Rhi::D3D11SwapChainSurface(
+                Graphics::D3D11SwapChainSurface(
                     *graphics_, allocator_);
             surfaceBackend_ = swapChainSurface_;
         }
@@ -217,7 +217,7 @@ public:
         }
 
         surface_ = new (std::nothrow)
-            Rhi::SurfaceSession(*surfaceBackend_);
+            Graphics::SurfaceSession(*surfaceBackend_);
         if (surface_ == nullptr) {
             Shutdown();
             return OutOfMemory();
@@ -230,7 +230,7 @@ public:
         }
 
         presenter_ = new (std::nothrow)
-            Rhi::D3D11SurfacePresenter(
+            Graphics::D3D11SurfacePresenter(
                 *device_, *graphics_, *surface_);
         if (presenter_ == nullptr) {
             Shutdown();
@@ -243,7 +243,7 @@ public:
         }
 
         renderer_ = new (std::nothrow)
-            Render::D3D11RenderPlanBackend(
+            Render::D3D11Renderer(
                 *device_, *presenter_, allocator_);
         if (renderer_ == nullptr) {
             Shutdown();
@@ -261,7 +261,7 @@ public:
     }
 
     Base::Result<void> Submit(
-        const Render::RenderPlan& plan) noexcept override {
+        const Render::RenderFrame& plan) noexcept override {
         return renderer_ != nullptr
             ? renderer_->Submit(plan)
             : Base::Result<void>(
@@ -377,31 +377,31 @@ private:
             "Unable to allocate D3D11 endpoint state");
     }
 
-    Rhi::NativeSurfaceDescriptor
+    Graphics::NativeSurfaceDescriptor
     MakeDescriptor() const noexcept {
-        Rhi::NativeSurfaceDescriptor descriptor;
+        Graphics::NativeSurfaceDescriptor descriptor;
         descriptor.width = embedded_
             ? 1U : windowOptions_.width;
         descriptor.height = embedded_
             ? 1U : windowOptions_.height;
         descriptor.colorFormat =
-            Rhi::GraphicsTextureFormat::Bgra8Unorm;
+            Graphics::GraphicsTextureFormat::Bgra8Unorm;
         descriptor.depthStencilFormat =
-            Rhi::GraphicsTextureFormat::Depth24Stencil8;
+            Graphics::GraphicsTextureFormat::Depth24Stencil8;
         descriptor.sampleCount = 1U;
         descriptor.stableId =
             UINT64_C(0x4145524F44334431);
         if (embedded_) {
             descriptor.kind =
-                Rhi::SurfaceKind::ExternalRenderTarget;
+                Graphics::SurfaceKind::ExternalRenderTarget;
             descriptor.ownership =
-                Rhi::SurfaceOwnership::Borrowed;
+                Graphics::SurfaceOwnership::Borrowed;
             descriptor.external.colorTarget = 1U;
         } else {
             descriptor.kind =
-                Rhi::SurfaceKind::D3D11Window;
+                Graphics::SurfaceKind::D3D11Window;
             descriptor.ownership =
-                Rhi::SurfaceOwnership::Owned;
+                Graphics::SurfaceOwnership::Owned;
             descriptor.presentMode =
                 ToRhiPresentMode(
                     windowOptions_.presentMode);
@@ -454,15 +454,15 @@ private:
     bool surfaceLost_ = false;
     bool deviceLost_ = false;
     bool batchingEnabled_ = true;
-    Rhi::NativeSurfaceDescriptor descriptor_;
-    Rhi::D3D11GraphicsBackend* graphics_ = nullptr;
-    Rhi::RhiDevice* device_ = nullptr;
+    Graphics::NativeSurfaceDescriptor descriptor_;
+    Graphics::D3D11GraphicsBackend* graphics_ = nullptr;
+    Graphics::GraphicsDevice* device_ = nullptr;
     D3D11EmbeddedSurface* embeddedSurface_ = nullptr;
-    Rhi::D3D11SwapChainSurface* swapChainSurface_ = nullptr;
-    Rhi::ISurfaceBackend* surfaceBackend_ = nullptr;
-    Rhi::SurfaceSession* surface_ = nullptr;
-    Rhi::D3D11SurfacePresenter* presenter_ = nullptr;
-    Render::D3D11RenderPlanBackend* renderer_ = nullptr;
+    Graphics::D3D11SwapChainSurface* swapChainSurface_ = nullptr;
+    Graphics::ISurfaceBackend* surfaceBackend_ = nullptr;
+    Graphics::SurfaceSession* surface_ = nullptr;
+    Graphics::D3D11SurfacePresenter* presenter_ = nullptr;
+    Render::D3D11Renderer* renderer_ = nullptr;
 };
 
 template<class TOptions>
@@ -476,7 +476,7 @@ CreateD3D11Endpoint(
         ? *allocator
         : Base::GetDefaultAllocator();
     auto* driver = new (std::nothrow)
-        D3D11EndpointDriver(options, selected);
+        D3D11EndpointBackend(options, selected);
     if (driver == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -517,7 +517,7 @@ CreateD3D11WindowEndpoint(
     Base::IAllocator* allocator) noexcept {
     if (!options.window.IsValid() ||
         options.window.system !=
-            Platform::WindowSystem::Win32 ||
+            Integration::WindowSystem::Win32 ||
         options.width == 0U ||
         options.height == 0U) {
         return Base::Status::Failure(

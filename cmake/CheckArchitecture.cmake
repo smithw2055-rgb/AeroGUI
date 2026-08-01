@@ -30,6 +30,11 @@ if(aero_public_detail_headers)
         "${aero_public_detail_headers}")
 endif()
 
+if(EXISTS "${AERO_SOURCE_DIR}/include/Aero/Core")
+    message(FATAL_ERROR
+        "The installed SDK must not expose the retired include/Aero/Core tree")
+endif()
+
 file(GLOB aero_root_public_headers
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
 list(LENGTH aero_root_public_headers aero_root_public_header_count)
@@ -90,13 +95,14 @@ endif()
 
 file(GLOB_RECURSE core_files
     "${AERO_SOURCE_DIR}/src/core/*.cpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/Metadata/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/Property/*.hpp")
+    "${AERO_SOURCE_DIR}/src/core/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Meta/*.hpp")
 list(APPEND core_files
-    "${AERO_SOURCE_DIR}/include/Aero/Core/RoutedEvent.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/Diagnostics.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/Dispatcher.hpp"
-    "${AERO_SOURCE_DIR}/src/core/ObjectServices.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Diagnostics.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Diagnostics/PropertyValueSource.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/RoutedEvent.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Threading.hpp")
 aero_collect_matches(core_reverse
     "#[ \t]*include[ \t]*<Aero/Controls/"
     ${core_files})
@@ -109,7 +115,7 @@ file(GLOB_RECURSE text_files
     "${AERO_SOURCE_DIR}/src/text/*.cpp"
     "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
 aero_collect_matches(text_reverse
-    "#[ \t]*include[ \t]*<Aero/(Core|Controls|Markup|Render|Rhi)/"
+    "#[ \t]*include[ \t]*<Aero/(Controls|Markup|Integration|DependencyProperty|RoutedEvent|Meta/)/"
     ${text_files})
 if(text_reverse)
     message(FATAL_ERROR
@@ -252,14 +258,7 @@ file(GLOB_RECURSE production_code
     "${AERO_SOURCE_DIR}/src/*.inc"
     "${AERO_SOURCE_DIR}/tools/*.cpp"
     "${AERO_SOURCE_DIR}/tools/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Base/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Markup/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Render/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
 aero_collect_matches(legacy_markup_includes
     "${legacy_markup_header_pattern}" ${production_code})
 if(legacy_markup_includes)
@@ -276,14 +275,7 @@ file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.inc"
     "${AERO_SOURCE_DIR}/tests/*.cpp"
     "${AERO_SOURCE_DIR}/tests/*.inc"
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Base/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Markup/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Render/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Rhi/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Text/*.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
 aero_collect_matches(legacy_includes "${legacy_header_pattern}" ${current_code})
 if(legacy_includes)
     message(FATAL_ERROR
@@ -344,7 +336,7 @@ set(sdk_entry_headers
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/SourceProvider.hpp")
 aero_collect_matches(sdk_entry_leaks
-    "(RuntimeHost|RenderPlan|IRenderBackend|RhiDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Registry|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
+    "(RuntimeHost|RenderPlan|IRenderBackend|GraphicsDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Registry|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
     ${sdk_entry_headers})
 if(sdk_entry_leaks)
     message(FATAL_ERROR
@@ -400,11 +392,7 @@ if(default_property_diagnostics)
 endif()
 
 file(GLOB_RECURSE default_sdk_headers
-    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Core/Metadata/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Controls/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/*.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
 
 set(multiline_static_members)
 foreach(path IN LISTS default_sdk_headers)
@@ -581,6 +569,75 @@ aero_collect_matches(retired_ui
 if(retired_ui)
     message(FATAL_ERROR
         "Retired UI layer remains: ${retired_ui}")
+endif()
+
+
+# G-series product and graphics convergence gates.
+if(EXISTS "${AERO_SOURCE_DIR}/src/rhi")
+    message(FATAL_ERROR
+        "The retired src/rhi layer must not be recreated; use src/graphics")
+endif()
+
+file(GLOB_RECURSE converged_runtime_sources
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+aero_collect_matches(retired_render_graphics_types
+    "(namespace[ \t]+Aero::Rhi|RhiDevice|IGraphicsBackend|IRenderBackend|EndpointDriver|QueuedRenderBackend|RenderPlan|RenderManager|(^|[^A-Za-z0-9_])GraphicsCommand(Buffer|Encoder|Kind)?([^A-Za-z0-9_]|$))"
+    ${converged_runtime_sources})
+if(retired_render_graphics_types)
+    message(FATAL_ERROR
+        "Retired render/RHI layers or aliases remain: "
+        "${retired_render_graphics_types}")
+endif()
+
+file(GLOB aero_target_modules
+    "${AERO_SOURCE_DIR}/CMakeLists.txt"
+    "${AERO_SOURCE_DIR}/cmake/Aero*Targets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
+aero_collect_matches(public_internal_target_aliases
+    "add_library\\([ \t\r\n]*Aero::(Core|Platform|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|Markup|MarkupKernel|Detail[A-Za-z0-9_]*)"
+    ${aero_target_modules})
+if(public_internal_target_aliases)
+    message(FATAL_ERROR
+        "Internal build targets must use Aero::_Detail* aliases: "
+        "${public_internal_target_aliases}")
+endif()
+
+aero_collect_matches(unprefixed_support_exports
+    "EXPORT_NAME[ \t\r\n]+(Core|Platform|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|Markup|MarkupKernel|Runtime|Graphics|Render|IntegrationDetail[A-Za-z0-9_]*|RuntimeDetail[A-Za-z0-9_]*)"
+    "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
+if(unprefixed_support_exports)
+    message(FATAL_ERROR
+        "Static-link support archives must export only as Aero::_Detail*: "
+        "${unprefixed_support_exports}")
+endif()
+
+file(READ "${AERO_SOURCE_DIR}/CMakeLists.txt" root_cmake_content)
+string(REGEX REPLACE "[^\n]" "" root_cmake_newlines "${root_cmake_content}")
+string(LENGTH "${root_cmake_newlines}" root_cmake_line_count)
+math(EXPR root_cmake_line_count "${root_cmake_line_count} + 1")
+if(root_cmake_line_count GREATER 900)
+    message(FATAL_ERROR
+        "Root CMakeLists.txt exceeded the 900-line product composition budget")
+endif()
+
+file(GLOB_RECURSE physical_public_headers
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.h")
+list(LENGTH physical_public_headers physical_public_header_count)
+if(physical_public_header_count GREATER 100)
+    message(FATAL_ERROR
+        "Installed SDK header count exceeded the 100-file convergence budget")
+endif()
+
+file(GLOB_RECURSE private_access_headers
+    "${AERO_SOURCE_DIR}/src/*Access.hpp"
+    "${AERO_SOURCE_DIR}/src/*/*Access.hpp"
+    "${AERO_SOURCE_DIR}/src/*/*/*Access.hpp")
+list(LENGTH private_access_headers private_access_header_count)
+if(private_access_header_count GREATER 12)
+    message(FATAL_ERROR
+        "Private Access header count exceeded the consolidated 12-file budget")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

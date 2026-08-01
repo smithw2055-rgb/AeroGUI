@@ -5,10 +5,10 @@
 #include "../render/TextBackendAccess.hpp"
 
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Text/FontManager.hpp>
-#include <Aero/Text/FreeTypeAdapter.hpp>
-#include <Aero/Text/HarfBuzzAdapter.hpp>
-#include <Aero/Text/TextLayout.hpp>
+#include "../text/FontManager.hpp"
+#include "../text/FreeTypeAdapter.hpp"
+#include "../text/HarfBuzzAdapter.hpp"
+#include "../text/TextLayout.hpp"
 
 #include <cstdio>
 #include <cmath>
@@ -564,7 +564,7 @@ struct TextRuntime::Impl final {
 
     Impl(
         Base::IAllocator& allocator,
-        Render::IRenderBackend& selectedBackend) noexcept
+        Render::RenderBackend& selectedBackend) noexcept
         : fontProvider(&allocator),
           shaper(fontProvider),
           fonts(&allocator),
@@ -591,7 +591,7 @@ struct TextRuntime::Impl final {
     TextLayoutServiceProxy proxy;
     Controls::Detail::TextLayoutService* service = nullptr;
     HeadlessTextLayoutService* headlessService = nullptr;
-    Render::IRenderBackend* backend = nullptr;
+    Render::RenderBackend* backend = nullptr;
     TextBackendServices* backendServices =
         nullptr;
     std::uint64_t backendGeneration = 0U;
@@ -609,7 +609,7 @@ TextRuntime::~TextRuntime() noexcept {
 }
 
 Base::Result<void> TextRuntime::Initialize(
-    Render::IRenderBackend& backend,
+    Render::RenderBackend& backend,
     const Integration::TextOptions& options) noexcept {
     if (impl_ != nullptr) {
         return Base::Status::Failure(

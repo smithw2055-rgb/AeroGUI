@@ -1,6 +1,6 @@
 #include "MountService.hpp"
 
-#include "../render/RenderingInternal.hpp"
+#include "../render/RenderTree.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Detail {
@@ -8,7 +8,7 @@ namespace Aero::Detail {
 MountService::MountService(
     ObjectTree& tree,
     LayoutManager* layout,
-    Render::RenderManager* renderer) noexcept
+    Render::RenderTree* renderer) noexcept
     : tree_(&tree), layout_(layout), renderer_(renderer) {}
 
 Base::Status MountService::InvalidState(const char* message) noexcept {
@@ -72,7 +72,7 @@ Base::Result<void> MountService::DetachRender(
     FrameworkElement* parentElement = parent.AsFrameworkElement();
     FrameworkElement* childElement = child.AsFrameworkElement();
     if (renderer_ == nullptr || parentElement == nullptr || childElement == nullptr) {
-        return InvalidState("Mounted render edge has no RenderManager");
+        return InvalidState("Mounted render edge has no RenderTree");
     }
     Base::Result<void> result =
         renderer_->Detach(*parentElement, *childElement);

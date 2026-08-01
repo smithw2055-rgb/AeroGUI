@@ -11,8 +11,8 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Diagnostics.hpp>
-#include <Aero/Core/Metadata/MetadataDomain.hpp>
+#include <Aero/Diagnostics.hpp>
+#include <Aero/Meta/MetadataDomain.hpp>
 #include <Aero/Version.hpp>
 
 #include <cstdint>

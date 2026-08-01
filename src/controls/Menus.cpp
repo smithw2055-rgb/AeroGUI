@@ -361,12 +361,10 @@ MenuInteractionManager::
 MenuInteractionManager(
     ObjectTree& tree,
     EventRouter& events,
-    FocusManager& focus,
-    CommandManager& commands) noexcept
+    InputService& input) noexcept
     : tree_(&tree),
       events_(&events),
-      focus_(&focus),
-      commands_(&commands),
+      input_(&input),
       mouseDownHandler_(
           this,
           &MenuInteractionManager::
@@ -536,7 +534,7 @@ MenuInteractionManager::Invoke(
             TypeOf<Base::Object>(),
             std::move(parameter));
         Base::Result<bool> executed =
-            commands_->Execute(*command, value, item);
+            input_->Commands().Execute(*command, value, item);
         if (!executed) {
             return executed.GetStatus();
         }
@@ -571,7 +569,7 @@ void MenuInteractionManager::OnMouseDown(
         Invoke(menu, *item);
     if (!invoked) return;
     static_cast<void>(
-        focus_->SetFocus(item));
+        input_->Focus().SetFocus(item));
     args.handled = true;
 }
 

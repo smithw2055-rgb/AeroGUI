@@ -8,10 +8,10 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Core/Diagnostics.hpp>
-#include <Aero/Core/Metadata/MetadataId.hpp>
-#include <Aero/Core/Metadata/TypeRegistry.hpp>
-#include <Aero/Core/Metadata/Value.hpp>
+#include <Aero/Diagnostics.hpp>
+#include <Aero/Meta/MetadataId.hpp>
+#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/Meta/Value.hpp>
 
 #include <cstdint>
 

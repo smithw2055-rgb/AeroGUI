@@ -96,8 +96,8 @@ int main(int argc, char** argv) {
     status = bundle.Finalize({});
     if (!status) return Fail(status.GetStatus());
 
-    Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
-        Aero::Markup::SchemaManifest::Capture(bundle.Schema());
+    Aero::Base::Result<Aero::_DetailMarkup::SchemaManifest> manifest =
+        Aero::_DetailMarkup::SchemaManifest::Capture(bundle.Schema());
     if (!manifest) return Fail(manifest.GetStatus());
     Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =
         manifest.Value().Serialize();
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
         "${_aero_schema_source}")
     target_link_libraries("${_aero_schema_generator}"
         PRIVATE
-            Aero::DetailModuleCatalog
+            Aero::_DetailModuleCatalog
             ${AERO_SCHEMA_LIBRARIES})
     target_include_directories("${_aero_schema_generator}"
         PRIVATE "${PROJECT_SOURCE_DIR}/src")

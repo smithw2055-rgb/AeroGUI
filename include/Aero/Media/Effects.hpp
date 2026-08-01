@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Core/Property/DependencyProperty.hpp>
+#include <Aero/DependencyProperty.hpp>
 
 namespace Aero { class FrameworkElement; }
 

@@ -8,7 +8,7 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "../controls/FrameworkTemplateAccess.hpp"
+#include "../controls/TemplateRuntime.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>

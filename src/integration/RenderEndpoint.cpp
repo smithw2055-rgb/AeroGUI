@@ -23,11 +23,11 @@ Base::Status NotInitialized(const char* message) noexcept {
         Base::ErrorCode::NotInitialized, message);
 }
 
-class HeadlessEndpointDriver final
-    : public Detail::EndpointDriver {
+class HeadlessEndpointBackend final
+    : public Detail::EndpointBackend {
 public:
     Base::Result<void> Submit(
-        const Render::RenderPlan&) noexcept override {
+        const Render::RenderFrame&) noexcept override {
         return {};
     }
 
@@ -48,24 +48,49 @@ public:
 
 } // namespace
 
+namespace Detail {
+
+class EndpointSubmissionBackend final : public Render::RenderBackend {
+public:
+    explicit EndpointSubmissionBackend(RenderEndpoint& endpoint) noexcept
+        : endpoint_(&endpoint) {}
+
+    Base::Result<void> Submit(
+        const Render::RenderFrame& frame) noexcept override {
+        return RenderEndpointAccess::Submit(*endpoint_, frame);
+    }
+
+private:
+    void* QueryInternalService(std::uint64_t service) noexcept override {
+        return RenderEndpointAccess::QueryInternalService(*endpoint_, service);
+    }
+
+    RenderEndpoint* endpoint_ = nullptr;
+};
+
+} // namespace Detail
+
 struct RenderEndpoint::Impl final {
     Impl(
+        RenderEndpoint& owner,
         RenderEndpointMode endpointMode,
         RenderSubmissionMode endpointSubmissionMode,
         Base::IAllocator& value) noexcept
         : allocator(&value),
+          submission(owner),
           mode(endpointMode),
           submissionMode(endpointSubmissionMode),
           pending(&value) {}
 
     Base::IAllocator* allocator = nullptr;
+    Detail::EndpointSubmissionBackend submission;
     RenderEndpointMode mode = RenderEndpointMode::Headless;
     RenderSubmissionMode submissionMode =
         RenderSubmissionMode::Immediate;
     RenderEndpointState state = RenderEndpointState::Ready;
-    Detail::EndpointDriver* driver = nullptr;
+    Detail::EndpointBackend* backend = nullptr;
     const void* boundOwner = nullptr;
-    Base::Vector<Render::RenderPlan> pending;
+    Base::Vector<Render::RenderFrame> pending;
     RenderEndpointStatistics statistics;
     RenderFrameStatistics lastFrameStatistics;
     Base::Status asynchronousFailure;
@@ -84,7 +109,7 @@ struct RenderEndpoint::Impl final {
 
     Base::Result<RenderFrameStatistics>
     PlanFrameStatistics(
-        const Render::RenderPlan& plan) noexcept {
+        const Render::RenderFrame& plan) noexcept {
         Render::Detail::BatchPlanner planner(
             allocator);
         Base::Result<Render::Detail::BatchPlan>
@@ -111,25 +136,25 @@ struct RenderEndpoint::Impl final {
 
     void MergeBackendStatistics(
         RenderFrameStatistics& result) const noexcept {
-        const RenderFrameStatistics backend =
-            driver != nullptr
-            ? driver->LastFrameStatistics()
+        const RenderFrameStatistics backendStatistics =
+            backend != nullptr
+            ? backend->LastFrameStatistics()
             : RenderFrameStatistics{};
         result.drawCallCount =
-            backend.drawCallCount != 0U
-            ? backend.drawCallCount
+            backendStatistics.drawCallCount != 0U
+            ? backendStatistics.drawCallCount
             : result.batchCount;
         result.instanceCount =
-            backend.instanceCount != 0U
-            ? backend.instanceCount
+            backendStatistics.instanceCount != 0U
+            ? backendStatistics.instanceCount
             : result.drawPacketCount;
         result.stateBindingCount =
-            backend.stateBindingCount;
+            backendStatistics.stateBindingCount;
     }
 
     void WorkerMain() noexcept {
         for (;;) {
-            Render::RenderPlan plan;
+            Render::RenderFrame plan;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 wake.wait(lock, [this] {
@@ -146,12 +171,12 @@ struct RenderEndpoint::Impl final {
                 frameStatistics =
                     PlanFrameStatistics(plan);
             Base::Result<void> submitted =
-                frameStatistics && driver != nullptr
-                ? driver->Submit(plan)
+                frameStatistics && backend != nullptr
+                ? backend->Submit(plan)
                 : Base::Result<void>(
                       frameStatistics
                       ? NotInitialized(
-                            "Render endpoint has no backend driver")
+                            "Render endpoint has no backend")
                       : frameStatistics.GetStatus());
             if (submitted) {
                 MergeBackendStatistics(
@@ -190,8 +215,8 @@ struct RenderEndpoint::Impl final {
             RenderSubmissionMode::DedicatedThread) {
             return {};
         }
-        if (driver == nullptr ||
-            !driver->SupportsDedicatedThread()) {
+        if (backend == nullptr ||
+            !backend->SupportsDedicatedThread()) {
             return Base::Status::Failure(
                 Base::ErrorCode::Unsupported,
                 "Render backend does not support dedicated-thread submission");
@@ -231,16 +256,16 @@ RenderEndpoint::RenderEndpoint(
             Base::MemoryTag::Render);
     }
     impl_ = new (memory) Impl(
-        mode, submissionMode, *allocator_);
+        *this, mode, submissionMode, *allocator_);
 }
 
 RenderEndpoint::~RenderEndpoint() noexcept {
     if (impl_ == nullptr) return;
     impl_->StopWorker();
-    if (impl_->driver != nullptr) {
-        static_cast<void>(impl_->driver->WaitIdle(5000U));
-        delete impl_->driver;
-        impl_->driver = nullptr;
+    if (impl_->backend != nullptr) {
+        static_cast<void>(impl_->backend->WaitIdle(5000U));
+        delete impl_->backend;
+        impl_->backend = nullptr;
     }
     impl_->state = RenderEndpointState::Shutdown;
     impl_->~Impl();
@@ -295,7 +320,7 @@ RenderEndpoint::LastFrameStatistics() const noexcept {
 Base::Result<void> RenderEndpoint::Resize(
     std::uint32_t width,
     std::uint32_t height) noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -311,11 +336,11 @@ Base::Result<void> RenderEndpoint::Resize(
         return InvalidState(
             "Render endpoint cannot resize in its current state");
     }
-    return impl_->driver->Resize(width, height);
+    return impl_->backend->Resize(width, height);
 }
 
 Base::Result<void> RenderEndpoint::NotifySurfaceLost() noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -340,12 +365,12 @@ Base::Result<void> RenderEndpoint::NotifySurfaceLost() noexcept {
                 "Timed out stopping surface submissions");
         }
     }
-    impl_->driver->NotifySurfaceLost();
+    impl_->backend->NotifySurfaceLost();
     return {};
 }
 
 Base::Result<void> RenderEndpoint::NotifyDeviceLost() noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -370,12 +395,12 @@ Base::Result<void> RenderEndpoint::NotifyDeviceLost() noexcept {
                 "Timed out stopping device submissions");
         }
     }
-    impl_->driver->NotifyDeviceLost();
+    impl_->backend->NotifyDeviceLost();
     return {};
 }
 
 Base::Result<void> RenderEndpoint::Restore() noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -385,7 +410,7 @@ Base::Result<void> RenderEndpoint::Restore() noexcept {
         return InvalidState(
             "Only a lost render endpoint can be restored");
     }
-    Base::Result<void> restored = impl_->driver->Restore();
+    Base::Result<void> restored = impl_->backend->Restore();
     if (!restored) {
         impl_->state = RenderEndpointState::Failed;
         ++impl_->statistics.failedFrameCount;
@@ -398,7 +423,7 @@ Base::Result<void> RenderEndpoint::Restore() noexcept {
 
 Base::Result<void> RenderEndpoint::WaitIdle(
     std::uint32_t timeoutMilliseconds) noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -417,13 +442,13 @@ Base::Result<void> RenderEndpoint::WaitIdle(
                 "Timed out waiting for the render endpoint");
         }
     }
-    return impl_->driver->WaitIdle(timeoutMilliseconds);
+    return impl_->backend->WaitIdle(timeoutMilliseconds);
 }
 
 Base::Result<void>
 RenderEndpoint::SetBatchingEnabledForTesting(
     bool enabled) noexcept {
-    if (impl_ == nullptr || impl_->driver == nullptr) {
+    if (impl_ == nullptr || impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -436,7 +461,7 @@ RenderEndpoint::SetBatchingEnabledForTesting(
             "Render endpoint cannot change batching in its current state");
     }
     impl_->batchingEnabled = enabled;
-    impl_->driver->SetBatchingEnabled(
+    impl_->backend->SetBatchingEnabled(
         enabled);
     return {};
 }
@@ -447,12 +472,12 @@ Base::Result<Base::Ref<RenderEndpoint>>
 RenderEndpointAccess::Create(
     RenderEndpointMode mode,
     RenderSubmissionMode submissionMode,
-    EndpointDriver* driver,
+    EndpointBackend* backend,
     Base::IAllocator* allocator) noexcept {
-    if (driver == nullptr) {
+    if (backend == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "Render endpoint driver is required");
+            "Render endpoint backend is required");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -465,11 +490,11 @@ RenderEndpointAccess::Create(
             submissionMode,
             &selected);
     if (!made) {
-        delete driver;
+        delete backend;
         return made.GetStatus();
     }
     RenderEndpoint::Impl& impl = *made.Value()->impl_;
-    impl.driver = driver;
+    impl.backend = backend;
     Base::Result<void> started = impl.StartWorker();
     if (!started) return started.GetStatus();
     return std::move(made).Value();
@@ -479,9 +504,9 @@ Base::Result<Base::Ref<RenderEndpoint>>
 RenderEndpointAccess::CreateHeadless(
     RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
-    HeadlessEndpointDriver* driver =
-        new (std::nothrow) HeadlessEndpointDriver();
-    if (driver == nullptr) {
+    HeadlessEndpointBackend* backend =
+        new (std::nothrow) HeadlessEndpointBackend();
+    if (backend == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Unable to allocate the headless render endpoint");
@@ -489,7 +514,7 @@ RenderEndpointAccess::CreateHeadless(
     return Create(
         RenderEndpointMode::Headless,
         submissionMode,
-        driver,
+        backend,
         allocator);
 }
 
@@ -528,9 +553,9 @@ void RenderEndpointAccess::Unbind(
 
 Base::Result<void> RenderEndpointAccess::Submit(
     RenderEndpoint& endpoint,
-    const Render::RenderPlan& plan) noexcept {
+    const Render::RenderFrame& plan) noexcept {
     if (endpoint.impl_ == nullptr ||
-        endpoint.impl_->driver == nullptr) {
+        endpoint.impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -553,7 +578,7 @@ Base::Result<void> RenderEndpointAccess::Submit(
             return frameStatistics.GetStatus();
         }
         Base::Result<void> submitted =
-            impl.driver->Submit(plan);
+            impl.backend->Submit(plan);
         if (submitted) {
             impl.MergeBackendStatistics(
                 frameStatistics.Value());
@@ -605,7 +630,7 @@ Base::Result<void> RenderEndpointAccess::Submit(
 Base::Status RenderEndpointAccess::FrameStatus(
     RenderEndpoint& endpoint) noexcept {
     if (endpoint.impl_ == nullptr ||
-        endpoint.impl_->driver == nullptr) {
+        endpoint.impl_->backend == nullptr) {
         return NotInitialized(
             "Render endpoint is not initialized");
     }
@@ -633,14 +658,19 @@ Base::Status RenderEndpointAccess::FrameStatus(
         "Render endpoint state is invalid");
 }
 
+Render::RenderBackend& RenderEndpointAccess::Backend(
+    RenderEndpoint& endpoint) noexcept {
+    return endpoint.impl_->submission;
+}
+
 void* RenderEndpointAccess::QueryInternalService(
     RenderEndpoint& endpoint,
     std::uint64_t service) noexcept {
     if (endpoint.impl_ == nullptr ||
-        endpoint.impl_->driver == nullptr) {
+        endpoint.impl_->backend == nullptr) {
         return nullptr;
     }
-    return endpoint.impl_->driver->QueryInternalService(service);
+    return endpoint.impl_->backend->QueryInternalService(service);
 }
 
 } // namespace Detail

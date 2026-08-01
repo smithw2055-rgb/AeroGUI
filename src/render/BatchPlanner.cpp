@@ -74,7 +74,7 @@ bool Compatible(
 } // namespace
 
 Base::Result<BatchPlan> BatchPlanner::Build(
-    const RenderPlan& plan,
+    const RenderFrame& plan,
     bool batchingEnabled,
     std::uint32_t packetCapacity) const noexcept {
     if (packetCapacity == 0U) {

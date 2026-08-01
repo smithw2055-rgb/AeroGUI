@@ -1,4 +1,4 @@
-#include <Aero/Text/GlyphAtlas.hpp>
+#include "GlyphAtlas.hpp"
 
 #include <Aero/Base/HashMap.hpp>
 
