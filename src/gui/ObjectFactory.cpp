@@ -1,8 +1,8 @@
 #include "gui/PropertyInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/BehaviorTable.hpp"
-#include <Aero/Meta/Registry.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "gui/MetadataInternal.hpp"
 
 namespace Aero::Core {
 namespace {

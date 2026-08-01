@@ -1,7 +1,8 @@
 #include "gui/StyleInternal.hpp"
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Meta/ValueConversion.hpp>
+#include <Aero/Value.hpp>
 
 
 namespace Aero {

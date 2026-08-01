@@ -5,7 +5,7 @@
 #include "gui/StyleInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/MetaInternals.hpp"
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 

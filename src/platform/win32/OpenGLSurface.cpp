@@ -449,14 +449,14 @@ WglSurfaceBackend::ContextBinding() noexcept {
         return current.GetStatus();
     }
     GlContextBinding contract;
-    binding.userData = impl_;
-    binding.contextHandle = impl_->renderContext;
-    binding.resolve = &Impl::Resolve;
-    binding.isCurrent = &Impl::IsCurrent;
-    binding.currentThreadToken = &Impl::CurrentThread;
-    binding.owningThreadToken =
+    contract.userData = impl_;
+    contract.contextHandle = impl_->renderContext;
+    contract.resolve = &Impl::Resolve;
+    contract.isCurrent = &Impl::IsCurrent;
+    contract.currentThreadToken = &Impl::CurrentThread;
+    contract.owningThreadToken =
         static_cast<GlThreadToken>(impl_->owningThread);
-    binding.generation = impl_->generation;
+    contract.generation = impl_->generation;
     contract.embeddingMode =
         impl_->descriptor.ownership == SurfaceOwnership::Borrowed
         ? GlEmbeddingMode::PreserveAndRestore

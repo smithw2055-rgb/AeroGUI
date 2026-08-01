@@ -1,9 +1,10 @@
+#include "markup/MarkupInternal.hpp"
 #include <Aero/Base/ResourceUri.hpp>
-#include <Aero/Markup/CompiledDocument.hpp>
-#include <Aero/Markup/Schema.hpp>
+#include "markup/MarkupInternal.hpp"
+#include "markup/MarkupInternal.hpp"
 #include <Aero/Module.hpp>
 #include "runtime/modules/ModuleSet.hpp"
-#include "markup/GuiSchema.hpp"
+
 #include <Aero/Version.hpp>
 
 #include <cstdio>

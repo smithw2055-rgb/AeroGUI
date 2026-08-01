@@ -3,7 +3,7 @@
 // Style authoring bridge, compiled state and theme-style lookup.
 
 #include <Aero/Base/Object.hpp>
-#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 #include <cstdint>

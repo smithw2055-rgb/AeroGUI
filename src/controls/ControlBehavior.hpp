@@ -17,7 +17,7 @@
 #include "gui/BindingInternal.hpp"
 #include "gui/RoutedEventInternal.hpp"
 #include <Aero/Integration/Platform.hpp>
-#include <Aero/Meta/Registry.hpp>
+#include "gui/MetadataInternal.hpp"
 #include <cstddef>
 #include <new>
 #include <utility>

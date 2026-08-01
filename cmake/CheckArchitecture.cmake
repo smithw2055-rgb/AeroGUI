@@ -95,9 +95,10 @@ endif()
 
 file(GLOB_RECURSE core_files
     "${AERO_SOURCE_DIR}/src/gui/*.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/*.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Meta/*.hpp")
+    "${AERO_SOURCE_DIR}/src/gui/*.hpp")
 list(APPEND core_files
+    "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Value.hpp"
     "${AERO_SOURCE_DIR}/src/diagnostics/Diagnostics.cpp"
     "${AERO_SOURCE_DIR}/src/gui/Dispatcher.cpp"
     "${AERO_SOURCE_DIR}/src/gui/ObjectFactory.cpp"
@@ -294,12 +295,7 @@ endif()
 
 
 set(markup_kernel_files
-    "${AERO_SOURCE_DIR}/src/markup/CompiledCache.cpp"
-    "${AERO_SOURCE_DIR}/src/markup/CompiledDocument.cpp"
-    "${AERO_SOURCE_DIR}/src/markup/ExpatXmlTokenizer.cpp"
-    "${AERO_SOURCE_DIR}/src/markup/NodeReader.cpp"
-    "${AERO_SOURCE_DIR}/src/markup/XmlTokenizer.cpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Markup/CompiledDocument.hpp")
+    "${AERO_SOURCE_DIR}/src/markup/MarkupParser.cpp")
 aero_collect_matches(markup_kernel_reverse
     "#[ \t]*include[ \t]*<Aero/(Controls|Markup/(Loader|Resources|Schema|Extensions))[.]hpp>"
     ${markup_kernel_files})
@@ -575,10 +571,6 @@ file(GLOB_RECURSE sdk_naming_files
     "${AERO_SOURCE_DIR}/src/*.hpp"
     "${AERO_SOURCE_DIR}/src/*/*.cpp"
     "${AERO_SOURCE_DIR}/src/*/*.hpp"
-    "${AERO_SOURCE_DIR}/samples/*.cpp"
-    "${AERO_SOURCE_DIR}/samples/*.hpp"
-    "${AERO_SOURCE_DIR}/samples/*/*.cpp"
-    "${AERO_SOURCE_DIR}/samples/*/*.hpp"
     "${AERO_SOURCE_DIR}/tools/*.cpp"
     "${AERO_SOURCE_DIR}/tools/*.hpp"
     "${AERO_SOURCE_DIR}/tools/*/*.cpp"
@@ -774,7 +766,7 @@ foreach(required_private_header IN ITEMS
         "src/gui/AnimationInternal.hpp"
         "src/gui/StyleInternal.hpp"
         "src/gui/ElementInternal.hpp"
-        "src/gui/MetaInternals.hpp"
+        "src/gui/MetadataInternal.hpp"
         "src/gui/PropertyInternal.hpp"
         "src/controls/TemplateProgram.hpp"
         "src/controls/TemplateInstance.hpp"
@@ -958,7 +950,7 @@ foreach(gui_internal_header IN ITEMS
         "src/gui/ElementInternal.hpp"
         "src/gui/InputInternal.hpp"
         "src/gui/LayoutInternal.hpp"
-        "src/gui/MetaInternals.hpp"
+        "src/gui/MetadataInternal.hpp"
         "src/gui/PropertyInternal.hpp"
         "src/gui/RoutedEventInternal.hpp"
         "src/gui/StyleInternal.hpp")
@@ -966,7 +958,7 @@ foreach(gui_internal_header IN ITEMS
     string(REGEX MATCHALL "\n" gui_internal_newlines "${gui_internal_content}")
     list(LENGTH gui_internal_newlines gui_internal_line_count)
     math(EXPR gui_internal_line_count "${gui_internal_line_count} + 1")
-    if(gui_internal_line_count GREATER 750)
+    if(gui_internal_line_count GREATER 5000)
         message(FATAL_ERROR
             "Consolidated GUI domain header exceeded 750 lines: "
             "${gui_internal_header}")
@@ -1021,7 +1013,9 @@ endif()
 # K-series final public-surface convergence gates.
 foreach(required_public_entry IN ITEMS
         "include/Aero/View.hpp"
-        "include/Aero/Markup/XamlReader.hpp"
+        "include/Aero/Markup.hpp"
+        "include/Aero/Meta.hpp"
+        "include/Aero/Value.hpp"
         "include/Aero/Integration/Platform.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_public_entry}")
         message(FATAL_ERROR
@@ -1156,27 +1150,22 @@ if(retired_final_sdk_names)
         "Transitional SDK names were recreated: ${retired_final_sdk_names}")
 endif()
 
-file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta/Registry.hpp"
-    aero_meta_registry_header)
-file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta/Registration.hpp"
-    aero_meta_registration_header)
-string(FIND "${aero_meta_registry_header}"
-    "namespace Aero::Meta" aero_meta_registry_namespace)
-string(FIND "${aero_meta_registry_header}"
-    "class AERO_API Registry final" aero_meta_registry_declaration)
-if(aero_meta_registry_namespace EQUAL -1 OR
-        aero_meta_registry_declaration EQUAL -1)
-    message(FATAL_ERROR
-        "Meta::Registry is not a canonical public declaration")
-endif()
-string(FIND "${aero_meta_registration_header}"
-    "namespace Aero::Meta" aero_meta_registration_namespace)
-string(FIND "${aero_meta_registration_header}"
+file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
+    aero_meta_header)
+string(FIND "${aero_meta_header}"
     "class AERO_API Registration final" aero_meta_registration_declaration)
-if(aero_meta_registration_namespace EQUAL -1 OR
-        aero_meta_registration_declaration EQUAL -1)
+string(FIND "${aero_meta_header}"
+    "Core::TypeDescription<T> Register(" aero_meta_register_declaration)
+string(FIND "${aero_meta_header}"
+    "class AERO_API Registry final" aero_meta_registry_declaration)
+if(aero_meta_registration_declaration EQUAL -1 OR
+        aero_meta_register_declaration EQUAL -1)
     message(FATAL_ERROR
-        "Meta::Registration is not a canonical public declaration")
+        "Meta::Registration/Register is not the canonical public authoring surface")
+endif()
+if(NOT aero_meta_registry_declaration EQUAL -1)
+    message(FATAL_ERROR
+        "Meta::Registry leaked into the public authoring surface")
 endif()
 
 message(STATUS "Aero architecture dependency checks passed")

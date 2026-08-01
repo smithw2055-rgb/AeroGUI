@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Controls/Standard.hpp>
 
 #include <utility>

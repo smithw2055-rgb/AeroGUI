@@ -1,10 +1,11 @@
+#include "markup/MarkupInternal.hpp"
 #include <Aero/View.hpp>
 #include <Aero/Base/Hash.hpp>
 #include "runtime/GuiData.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include "runtime/ImageCache.hpp"
 #include "runtime/TextPipeline.hpp"
-#include "markup/GuiSchema.hpp"
+
 #include "controls/ControlInternals.hpp"
 #include "controls/ControlBehavior.hpp"
 
@@ -18,14 +19,14 @@
 #include "controls/TemplateInternals.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
-#include <Aero/Meta/Registry.hpp>
+#include "gui/MetadataInternal.hpp"
 #include "gui/PropertyInternal.hpp"
-#include "gui/MetaInternals.hpp"
-#include "markup/Loader.hpp"
-#include "markup/LoadInternals.hpp"
-#include "markup/LoaderResult.hpp"
-#include "markup/XamlDocumentInternal.hpp"
-#include <Aero/Markup/Schema.hpp>
+#include "gui/MetadataInternal.hpp"
+
+
+
+
+#include "markup/MarkupInternal.hpp"
 #include <Aero/Integration/Platform.hpp>
 #include <Aero/Data.hpp>
 #include "media/AnimationModel.hpp"

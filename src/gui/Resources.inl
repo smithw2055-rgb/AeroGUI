@@ -4,7 +4,7 @@ Base::Result<void> PopulateUiResources(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
     auto resourceDictionary =
-        Meta::Describe<ResourceDictionary>(context);
+        Meta::Register<ResourceDictionary>(context);
     resourceDictionary
         .Property<
             Base::ResourceUri,
@@ -23,7 +23,7 @@ Base::Result<void> PopulateUiResources(
     status = resourceDictionary.Result();
     if (!status) return status.GetStatus();
 
-    auto geometry = Meta::Describe<Media::Geometry>(context);
+    auto geometry = Meta::Register<Media::Geometry>(context);
     geometry
         .Property(
             "Value", &Media::Geometry::Value, &Media::Geometry::SetValue,
@@ -35,7 +35,7 @@ Base::Result<void> PopulateUiResources(
     status = geometry.Result();
     if (!status) return status.GetStatus();
 
-    auto fontFamily = Meta::Describe<Media::FontFamily>(context);
+    auto fontFamily = Meta::Register<Media::FontFamily>(context);
     fontFamily
         .Property(
             "Source", &Media::FontFamily::Source, &Media::FontFamily::SetSource,

@@ -1,3 +1,4 @@
+#include "markup/MarkupInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include "ImageCache.hpp"
 
@@ -5,7 +6,7 @@
 
 #include <Aero/Controls/Standard.hpp>
 #include <Aero/Shapes.hpp>
-#include "markup/Loader.hpp"
+
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
 #include "gui/ElementInternal.hpp"

@@ -3,14 +3,14 @@
 Base::Result<void> PopulateUiAnimation(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto fillBehavior = Meta::Describe<FillBehavior>(context);
+    auto fillBehavior = Meta::Register<FillBehavior>(context);
     fillBehavior
         .Value("HoldEnd", FillBehavior::HoldEnd)
         .Value("Stop", FillBehavior::Stop);
     status = fillBehavior.Result();
     if (!status) return status.GetStatus();
 
-    auto easingMode = Meta::Describe<EasingMode>(context);
+    auto easingMode = Meta::Register<EasingMode>(context);
     easingMode
         .Value("EaseOut", EasingMode::EaseOut)
         .Value("EaseIn", EasingMode::EaseIn)
@@ -18,7 +18,7 @@ Base::Result<void> PopulateUiAnimation(
     status = easingMode.Result();
     if (!status) return status.GetStatus();
 
-    auto timeline = Meta::Describe<Media::Animation::Timeline>(
+    auto timeline = Meta::Register<Media::Animation::Timeline>(
         context, TypeFlags::Abstract);
     timeline
         .Property(
@@ -51,7 +51,7 @@ Base::Result<void> PopulateUiAnimation(
     status = timeline.Result();
     if (!status) return status.GetStatus();
 
-    auto easingBase = Meta::Describe<Media::Animation::EasingFunctionBase>(
+    auto easingBase = Meta::Register<Media::Animation::EasingFunctionBase>(
         context, TypeFlags::Abstract);
     easingBase.Property<
         EasingMode,
@@ -61,20 +61,20 @@ Base::Result<void> PopulateUiAnimation(
     status = easingBase.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::SineEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::SineEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::QuadraticEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::QuadraticEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::CubicEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::CubicEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::QuarticEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::QuarticEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::QuinticEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::QuinticEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::CircleEase>(context).Factory().Result();
+    status = Meta::Register<Media::Animation::CircleEase>(context).Factory().Result();
     if (!status) return status.GetStatus();
     auto exponentialEase =
-        Meta::Describe<Media::Animation::ExponentialEase>(context);
+        Meta::Register<Media::Animation::ExponentialEase>(context);
     exponentialEase
         .Property<
             double,
@@ -84,7 +84,7 @@ Base::Result<void> PopulateUiAnimation(
     status = exponentialEase.Result();
     if (!status) return status.GetStatus();
 
-    auto powerEase = Meta::Describe<Media::Animation::PowerEase>(context);
+    auto powerEase = Meta::Register<Media::Animation::PowerEase>(context);
     powerEase
         .Property<
             double,
@@ -94,7 +94,7 @@ Base::Result<void> PopulateUiAnimation(
     status = powerEase.Result();
     if (!status) return status.GetStatus();
 
-    auto backEase = Meta::Describe<Media::Animation::BackEase>(context);
+    auto backEase = Meta::Register<Media::Animation::BackEase>(context);
     backEase
         .Property<
             double,
@@ -104,7 +104,7 @@ Base::Result<void> PopulateUiAnimation(
     status = backEase.Result();
     if (!status) return status.GetStatus();
 
-    auto bounceEase = Meta::Describe<Media::Animation::BounceEase>(context);
+    auto bounceEase = Meta::Register<Media::Animation::BounceEase>(context);
     bounceEase
         .Property<
             double,
@@ -118,7 +118,7 @@ Base::Result<void> PopulateUiAnimation(
     status = bounceEase.Result();
     if (!status) return status.GetStatus();
 
-    auto elasticEase = Meta::Describe<Media::Animation::ElasticEase>(context);
+    auto elasticEase = Meta::Register<Media::Animation::ElasticEase>(context);
     elasticEase
         .Property<
             double,
@@ -132,7 +132,7 @@ Base::Result<void> PopulateUiAnimation(
     status = elasticEase.Result();
     if (!status) return status.GetStatus();
 
-    auto doubleAnimation = Meta::Describe<Media::Animation::DoubleAnimation>(context);
+    auto doubleAnimation = Meta::Register<Media::Animation::DoubleAnimation>(context);
     doubleAnimation
         .Property<
             double,
@@ -162,7 +162,7 @@ Base::Result<void> PopulateUiAnimation(
     status = doubleAnimation.Result();
     if (!status) return status.GetStatus();
 
-    auto colorAnimation = Meta::Describe<Media::Animation::ColorAnimation>(context);
+    auto colorAnimation = Meta::Register<Media::Animation::ColorAnimation>(context);
     colorAnimation
         .Property<
             Color,
@@ -183,7 +183,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto pointAnimation =
-        Meta::Describe<Media::Animation::PointAnimation>(
+        Meta::Register<Media::Animation::PointAnimation>(
             context);
     pointAnimation
         .Property<
@@ -210,7 +210,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto rectAnimation =
-        Meta::Describe<Media::Animation::RectAnimation>(
+        Meta::Register<Media::Animation::RectAnimation>(
             context);
     rectAnimation
         .Property<
@@ -237,7 +237,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto thicknessAnimation =
-        Meta::Describe<
+        Meta::Register<
             Media::Animation::ThicknessAnimation>(
             context);
     thicknessAnimation
@@ -264,7 +264,7 @@ Base::Result<void> PopulateUiAnimation(
     status = thicknessAnimation.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::DoubleKeyFrame>(
+    status = Meta::Register<Media::Animation::DoubleKeyFrame>(
         context, TypeFlags::Abstract)
         .Property<
             double,
@@ -276,15 +276,15 @@ Base::Result<void> PopulateUiAnimation(
             &Media::Animation::DoubleKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::LinearDoubleKeyFrame>(
+    status = Meta::Register<Media::Animation::LinearDoubleKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::DiscreteDoubleKeyFrame>(
+    status = Meta::Register<Media::Animation::DiscreteDoubleKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto easingFrame =
-        Meta::Describe<Media::Animation::EasingDoubleKeyFrame>(context);
+        Meta::Register<Media::Animation::EasingDoubleKeyFrame>(context);
     easingFrame
         .Property<
             Base::Ref<Media::Animation::EasingFunctionBase>,
@@ -297,7 +297,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto splineFrame =
-        Meta::Describe<Media::Animation::SplineDoubleKeyFrame>(context);
+        Meta::Register<Media::Animation::SplineDoubleKeyFrame>(context);
     splineFrame
         .Property(
             "KeySpline",
@@ -308,7 +308,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto doubleFrames =
-        Meta::Describe<Media::Animation::DoubleAnimationUsingKeyFrames>(context);
+        Meta::Register<Media::Animation::DoubleAnimationUsingKeyFrames>(context);
     doubleFrames
         .Content<Media::Animation::DoubleKeyFrame>(
             "KeyFrames",
@@ -319,7 +319,7 @@ Base::Result<void> PopulateUiAnimation(
     status = doubleFrames.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::ThicknessKeyFrame>(
+    status = Meta::Register<Media::Animation::ThicknessKeyFrame>(
         context, TypeFlags::Abstract)
         .Property<
             Thickness,
@@ -332,16 +332,16 @@ Base::Result<void> PopulateUiAnimation(
             &Media::Animation::ThicknessKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<
+    status = Meta::Register<
         Media::Animation::LinearThicknessKeyFrame>(
             context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<
+    status = Meta::Register<
         Media::Animation::DiscreteThicknessKeyFrame>(
             context).Factory().Result();
     if (!status) return status.GetStatus();
     auto easingThicknessFrame =
-        Meta::Describe<
+        Meta::Register<
             Media::Animation::EasingThicknessKeyFrame>(
                 context);
     easingThicknessFrame
@@ -357,7 +357,7 @@ Base::Result<void> PopulateUiAnimation(
     status = easingThicknessFrame.Result();
     if (!status) return status.GetStatus();
     auto splineThicknessFrame =
-        Meta::Describe<
+        Meta::Register<
             Media::Animation::SplineThicknessKeyFrame>(
                 context);
     splineThicknessFrame
@@ -371,7 +371,7 @@ Base::Result<void> PopulateUiAnimation(
     status = splineThicknessFrame.Result();
     if (!status) return status.GetStatus();
     auto thicknessFrames =
-        Meta::Describe<
+        Meta::Register<
             Media::Animation::ThicknessAnimationUsingKeyFrames>(
                 context);
     thicknessFrames
@@ -384,7 +384,7 @@ Base::Result<void> PopulateUiAnimation(
     status = thicknessFrames.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::ColorKeyFrame>(
+    status = Meta::Register<Media::Animation::ColorKeyFrame>(
         context, TypeFlags::Abstract)
         .Property<
             Base::Color,
@@ -397,15 +397,15 @@ Base::Result<void> PopulateUiAnimation(
             &Media::Animation::ColorKeyFrame::SetKeyTime)
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::LinearColorKeyFrame>(
+    status = Meta::Register<Media::Animation::LinearColorKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::DiscreteColorKeyFrame>(
+    status = Meta::Register<Media::Animation::DiscreteColorKeyFrame>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
 
     auto easingColorFrame =
-        Meta::Describe<Media::Animation::EasingColorKeyFrame>(
+        Meta::Register<Media::Animation::EasingColorKeyFrame>(
             context);
     easingColorFrame
         .Property<
@@ -419,7 +419,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto splineColorFrame =
-        Meta::Describe<Media::Animation::SplineColorKeyFrame>(
+        Meta::Register<Media::Animation::SplineColorKeyFrame>(
             context);
     splineColorFrame
         .Property(
@@ -431,7 +431,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto colorFrames =
-        Meta::Describe<
+        Meta::Register<
             Media::Animation::ColorAnimationUsingKeyFrames>(
             context);
     colorFrames
@@ -445,7 +445,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto objectFrame =
-        Meta::Describe<Media::Animation::DiscreteObjectKeyFrame>(context);
+        Meta::Register<Media::Animation::DiscreteObjectKeyFrame>(context);
     objectFrame
         .Property<
             Value,
@@ -462,7 +462,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto objectFrames =
-        Meta::Describe<Media::Animation::ObjectAnimationUsingKeyFrames>(context);
+        Meta::Register<Media::Animation::ObjectAnimationUsingKeyFrames>(context);
     objectFrames
         .Content<Media::Animation::DiscreteObjectKeyFrame>(
             "KeyFrames",
@@ -474,7 +474,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto booleanFrame =
-        Meta::Describe<Media::Animation::DiscreteBooleanKeyFrame>(context);
+        Meta::Register<Media::Animation::DiscreteBooleanKeyFrame>(context);
     booleanFrame
         .Property<
             bool,
@@ -489,7 +489,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto booleanFrames =
-        Meta::Describe<Media::Animation::BooleanAnimationUsingKeyFrames>(context);
+        Meta::Register<Media::Animation::BooleanAnimationUsingKeyFrames>(context);
     booleanFrames
         .Content<Media::Animation::DiscreteBooleanKeyFrame>(
             "KeyFrames",
@@ -500,7 +500,7 @@ Base::Result<void> PopulateUiAnimation(
     status = booleanFrames.Result();
     if (!status) return status.GetStatus();
 
-    auto storyboard = Meta::Describe<Media::Animation::Storyboard>(context);
+    auto storyboard = Meta::Register<Media::Animation::Storyboard>(context);
     storyboard
         .Property(
             Media::Animation::Storyboard::TargetNameProperty,
@@ -517,11 +517,11 @@ Base::Result<void> PopulateUiAnimation(
     status = storyboard.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::TriggerAction>(
+    status = Meta::Register<Media::Animation::TriggerAction>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto keyBinding = Meta::Describe<KeyBinding>(context);
+    auto keyBinding = Meta::Register<KeyBinding>(context);
     keyBinding
         .Property("Command", &KeyBinding::GetCommandName,
             &KeyBinding::SetCommandName)
@@ -534,7 +534,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto changeProperty =
-        Meta::Describe<Media::Animation::ChangePropertyAction>(
+        Meta::Register<Media::Animation::ChangePropertyAction>(
             context);
     changeProperty
         .Property(
@@ -555,7 +555,7 @@ Base::Result<void> PopulateUiAnimation(
     status = changeProperty.Result();
     if (!status) return status.GetStatus();
 
-    auto setFocus = Meta::Describe<Media::Animation::SetFocusAction>(context);
+    auto setFocus = Meta::Register<Media::Animation::SetFocusAction>(context);
     setFocus
         .Property(
             "Engage",
@@ -566,7 +566,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto launchUriOrFile =
-        Meta::Describe<Media::Animation::LaunchUriOrFileAction>(context);
+        Meta::Register<Media::Animation::LaunchUriOrFileAction>(context);
     launchUriOrFile
         .Property(
             "Path",
@@ -576,7 +576,7 @@ Base::Result<void> PopulateUiAnimation(
     status = launchUriOrFile.Result();
     if (!status) return status.GetStatus();
 
-    auto removeElement = Meta::Describe<Media::Animation::RemoveElementAction>(context);
+    auto removeElement = Meta::Register<Media::Animation::RemoveElementAction>(context);
     removeElement
         .Property<
             Base::Ref<Data::Binding>,
@@ -588,7 +588,7 @@ Base::Result<void> PopulateUiAnimation(
     status = removeElement.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<
+    status = Meta::Register<
         Media::Animation::ControllableStoryboardAction>(
         context, TypeFlags::Abstract)
         .Property(
@@ -601,7 +601,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto beginStoryboard =
-        Meta::Describe<Media::Animation::BeginStoryboard>(context);
+        Meta::Register<Media::Animation::BeginStoryboard>(context);
     beginStoryboard
         .Property(
             "Name",
@@ -616,7 +616,7 @@ Base::Result<void> PopulateUiAnimation(
     status = beginStoryboard.Result();
     if (!status) return status.GetStatus();
 
-    auto controlStoryboardOption = Meta::Describe<Media::Animation::ControlStoryboardAction::Option>(context);
+    auto controlStoryboardOption = Meta::Register<Media::Animation::ControlStoryboardAction::Option>(context);
     controlStoryboardOption
         .Value("Play", Media::Animation::ControlStoryboardAction::Option::Play)
         .Value("Stop", Media::Animation::ControlStoryboardAction::Option::Stop)
@@ -627,7 +627,7 @@ Base::Result<void> PopulateUiAnimation(
     status = controlStoryboardOption.Result();
     if (!status) return status.GetStatus();
 
-    auto controlStoryboard = Meta::Describe<Media::Animation::ControlStoryboardAction>(context);
+    auto controlStoryboard = Meta::Register<Media::Animation::ControlStoryboardAction>(context);
     controlStoryboard
         .Property("Storyboard", &Media::Animation::ControlStoryboardAction::StoryboardValue,
             &Media::Animation::ControlStoryboardAction::SetStoryboard)
@@ -637,20 +637,20 @@ Base::Result<void> PopulateUiAnimation(
     status = controlStoryboard.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Media::Animation::PauseStoryboard>(
+    status = Meta::Register<Media::Animation::PauseStoryboard>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::ResumeStoryboard>(
+    status = Meta::Register<Media::Animation::ResumeStoryboard>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::StopStoryboard>(
+    status = Meta::Register<Media::Animation::StopStoryboard>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<Media::Animation::RemoveStoryboard>(
+    status = Meta::Register<Media::Animation::RemoveStoryboard>(
         context).Factory().Result();
     if (!status) return status.GetStatus();
     auto seekStoryboard =
-        Meta::Describe<Media::Animation::SeekStoryboard>(
+        Meta::Register<Media::Animation::SeekStoryboard>(
             context);
     seekStoryboard
         .Property(
@@ -661,7 +661,7 @@ Base::Result<void> PopulateUiAnimation(
     status = seekStoryboard.Result();
     if (!status) return status.GetStatus();
 
-    auto eventTrigger = Meta::Describe<Media::Animation::EventTrigger>(context);
+    auto eventTrigger = Meta::Register<Media::Animation::EventTrigger>(context);
     eventTrigger
         .Property(
             "RoutedEvent",
@@ -684,7 +684,7 @@ Base::Result<void> PopulateUiAnimation(
     status = eventTrigger.Result();
     if (!status) return status.GetStatus();
 
-    auto timerTrigger = Meta::Describe<Media::Animation::TimerTrigger>(context);
+    auto timerTrigger = Meta::Register<Media::Animation::TimerTrigger>(context);
     timerTrigger
         .Property(
             "TotalTicks",
@@ -701,7 +701,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto comparisonOperator =
-        Meta::Describe<Media::Animation::ComparisonCondition::Operator>(context);
+        Meta::Register<Media::Animation::ComparisonCondition::Operator>(context);
     comparisonOperator
         .Value(
             "Equal",
@@ -724,7 +724,7 @@ Base::Result<void> PopulateUiAnimation(
     status = comparisonOperator.Result();
     if (!status) return status.GetStatus();
 
-    auto comparisonCondition = Meta::Describe<Media::Animation::ComparisonCondition>(context);
+    auto comparisonCondition = Meta::Register<Media::Animation::ComparisonCondition>(context);
     comparisonCondition
         .Property<
             Base::Ref<Data::Binding>,
@@ -744,7 +744,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto conditionChaining =
-        Meta::Describe<Media::Animation::ConditionalExpression::ForwardChaining>(context);
+        Meta::Register<Media::Animation::ConditionalExpression::ForwardChaining>(context);
     conditionChaining
         .Value(
             "And",
@@ -755,7 +755,7 @@ Base::Result<void> PopulateUiAnimation(
     status = conditionChaining.Result();
     if (!status) return status.GetStatus();
 
-    auto conditionalExpression = Meta::Describe<Media::Animation::ConditionalExpression>(context);
+    auto conditionalExpression = Meta::Register<Media::Animation::ConditionalExpression>(context);
     conditionalExpression
         .Property(
             "ForwardChaining",
@@ -768,7 +768,7 @@ Base::Result<void> PopulateUiAnimation(
     status = conditionalExpression.Result();
     if (!status) return status.GetStatus();
 
-    auto conditionBehavior = Meta::Describe<Media::Animation::ConditionBehavior>(context);
+    auto conditionBehavior = Meta::Register<Media::Animation::ConditionBehavior>(context);
     conditionBehavior
         .Content<Media::Animation::ConditionalExpression>(
             "Expression", ContentKind::Single,
@@ -779,7 +779,7 @@ Base::Result<void> PopulateUiAnimation(
     if (!status) return status.GetStatus();
 
     auto storyboardCompleted =
-        Meta::Describe<Media::Animation::StoryboardCompletedTrigger>(
+        Meta::Register<Media::Animation::StoryboardCompletedTrigger>(
             context);
     storyboardCompleted
         .Property(
@@ -797,7 +797,7 @@ Base::Result<void> PopulateUiAnimation(
     status = storyboardCompleted.Result();
     if (!status) return status.GetStatus();
 
-    auto interaction = Meta::Describe<Media::Animation::Interaction>(
+    auto interaction = Meta::Register<Media::Animation::Interaction>(
         context, TypeFlags::Abstract);
     interaction.Collection<Base::Object>(
         "Triggers",

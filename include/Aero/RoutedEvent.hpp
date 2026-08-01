@@ -5,7 +5,7 @@
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input/Values.hpp>
-#include <Aero/Meta/MetadataId.hpp>
+#include <Aero/Value.hpp>
 
 #include <cstdint>
 

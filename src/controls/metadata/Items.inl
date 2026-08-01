@@ -3,18 +3,18 @@
 Base::Result<void> PopulateControlsItems(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Describe<ItemContainer>(context)
+    status = Meta::Register<ItemContainer>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ObjectItemsSource>(context)
+    status = Meta::Register<ObjectItemsSource>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
     auto alternationConverter =
-        Meta::Describe<AlternationConverter>(context);
+        Meta::Register<AlternationConverter>(context);
     alternationConverter
         .Content<Base::Object>(
             "Values", ContentKind::Collection,
@@ -33,11 +33,11 @@ Base::Result<void> PopulateControlsItems(
     status = alternationConverter.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<BoxedItemValue>(context)
+    status = Meta::Register<BoxedItemValue>(context)
         .Result();
     if (!status) return status.GetStatus();
 
-    auto itemsControl = Meta::Describe<ItemsControl>(context);
+    auto itemsControl = Meta::Register<ItemsControl>(context);
     itemsControl
         .Property(
             ItemsControl::ItemCountProperty,
@@ -80,7 +80,7 @@ Base::Result<void> PopulateControlsItems(
     status = itemsControl.Result();
     if (!status) return status.GetStatus();
 
-    auto headeredItemsControl = Meta::Describe<HeaderedItemsControl>(
+    auto headeredItemsControl = Meta::Register<HeaderedItemsControl>(
         context, TypeFlags::Abstract);
     headeredItemsControl
         .Property(
@@ -92,12 +92,12 @@ Base::Result<void> PopulateControlsItems(
     status = headeredItemsControl.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ItemsPresenter>(context)
+    status = Meta::Register<ItemsPresenter>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto selector = Meta::Describe<Selector>(
+    auto selector = Meta::Register<Selector>(
         context, TypeFlags::Abstract);
     selector
         .Event(
@@ -131,12 +131,12 @@ Base::Result<void> PopulateControlsItems(
     status = selector.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ListBox>(context)
+    status = Meta::Register<ListBox>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto listBoxItem = Meta::Describe<ListBoxItem>(context);
+    auto listBoxItem = Meta::Register<ListBoxItem>(context);
     listBoxItem
         .Property(
             ListBoxItem::IsSelectedProperty,
@@ -150,7 +150,7 @@ Base::Result<void> PopulateControlsItems(
     status = listBoxItem.Result();
     if (!status) return status.GetStatus();
 
-    auto comboBox = Meta::Describe<ComboBox>(context);
+    auto comboBox = Meta::Register<ComboBox>(context);
     comboBox
         .Event(ComboBox::DropDownOpenedEvent)
         .Event(ComboBox::DropDownClosedEvent)
@@ -202,7 +202,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto comboBoxItem =
-        Meta::Describe<ComboBoxItem>(context);
+        Meta::Register<ComboBoxItem>(context);
     comboBoxItem
         .Property(
             ComboBoxItem::IsSelectedProperty,
@@ -217,17 +217,17 @@ Base::Result<void> PopulateControlsItems(
     status = comboBoxItem.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<UserControl>(context)
+    status = Meta::Register<UserControl>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Page>(context)
+    status = Meta::Register<Page>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto popup = Meta::Describe<Popup>(context);
+    auto popup = Meta::Register<Popup>(context);
     popup
         .Event(Popup::OpenedEvent)
         .Event(Popup::ClosedEvent)
@@ -280,7 +280,7 @@ Base::Result<void> PopulateControlsItems(
     status = popup.Result();
     if (!status) return status.GetStatus();
 
-    auto treeView = Meta::Describe<TreeView>(context);
+    auto treeView = Meta::Register<TreeView>(context);
     treeView
         .Event(
             TreeView::SelectedItemChangedEvent)
@@ -293,7 +293,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto treeViewItem =
-        Meta::Describe<TreeViewItem>(context);
+        Meta::Register<TreeViewItem>(context);
     treeViewItem
         .Event(TreeViewItem::ExpandedEvent)
         .Event(TreeViewItem::CollapsedEvent)
@@ -342,12 +342,12 @@ Base::Result<void> PopulateControlsItems(
     status = treeViewItem.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Menu>(context)
+    status = Meta::Register<Menu>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto menuItem = Meta::Describe<MenuItem>(context);
+    auto menuItem = Meta::Register<MenuItem>(context);
     menuItem
         .Event(MenuItem::ClickEvent)
         .Property(
@@ -390,7 +390,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto contextMenu =
-        Meta::Describe<ContextMenu>(context);
+        Meta::Register<ContextMenu>(context);
     contextMenu
         .Event(ContextMenu::OpenedEvent)
         .Event(ContextMenu::ClosedEvent)
@@ -409,7 +409,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto contextMenuService =
-        Meta::Describe<ContextMenuService>(
+        Meta::Register<ContextMenuService>(
             context, TypeFlags::Abstract);
     contextMenuService.Property(
         ContextMenuService::
@@ -420,7 +420,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto gridViewColumnHeader =
-        Meta::Describe<GridViewColumnHeader>(context);
+        Meta::Register<GridViewColumnHeader>(context);
     gridViewColumnHeader
         .Property(
             GridViewColumnHeader::RoleProperty,
@@ -431,7 +431,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto gridViewColumn =
-        Meta::Describe<GridViewColumn>(context);
+        Meta::Register<GridViewColumn>(context);
     gridViewColumn
         .Property(
             GridViewColumn::HeaderProperty,
@@ -465,7 +465,7 @@ Base::Result<void> PopulateControlsItems(
     status = gridViewColumn.Result();
     if (!status) return status.GetStatus();
 
-    auto gridView = Meta::Describe<GridView>(context);
+    auto gridView = Meta::Register<GridView>(context);
     gridView
         .Property<
             Base::Ref<Style>,
@@ -483,7 +483,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto gridViewHeaderPresenter =
-        Meta::Describe<GridViewHeaderRowPresenter>(context);
+        Meta::Register<GridViewHeaderRowPresenter>(context);
     gridViewHeaderPresenter
         .Property(
             GridViewHeaderRowPresenter::
@@ -516,7 +516,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto gridViewRowPresenter =
-        Meta::Describe<GridViewRowPresenter>(context);
+        Meta::Register<GridViewRowPresenter>(context);
     gridViewRowPresenter
         .Property(
             GridViewRowPresenter::ColumnsProperty,
@@ -528,7 +528,7 @@ Base::Result<void> PopulateControlsItems(
     status = gridViewRowPresenter.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ListView>(context)
+    status = Meta::Register<ListView>(context)
         .Property(
             ListView::ViewProperty,
             PropertyOptions(
@@ -539,7 +539,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto listViewItem =
-        Meta::Describe<ListViewItem>(context);
+        Meta::Register<ListViewItem>(context);
     listViewItem
         .Override(
             Aero::UIElement::
@@ -549,12 +549,12 @@ Base::Result<void> PopulateControlsItems(
     status = listViewItem.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Separator>(context)
+    status = Meta::Register<Separator>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto toolBar = Meta::Describe<ToolBar>(context);
+    auto toolBar = Meta::Register<ToolBar>(context);
     toolBar
         .Property(
             ToolBar::HeaderProperty,
@@ -592,23 +592,23 @@ Base::Result<void> PopulateControlsItems(
     status = toolBar.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ToolBarPanel>(context)
+    status = Meta::Register<ToolBarPanel>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<ToolBarOverflowPanel>(context)
+    status = Meta::Register<ToolBarOverflowPanel>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto toolBarTray = Meta::Describe<ToolBarTray>(context, TypeFlags::Abstract);
+    auto toolBarTray = Meta::Register<ToolBarTray>(context, TypeFlags::Abstract);
     toolBarTray.Property(
         ToolBarTray::IsLockedProperty,
         PropertyOptions(false));
     status = toolBarTray.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<StatusBar>(context)
+    status = Meta::Register<StatusBar>(context)
         .Property(
             StatusBar::
                 IsSizingGripVisibleProperty,
@@ -617,12 +617,12 @@ Base::Result<void> PopulateControlsItems(
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<StatusBarItem>(context)
+    status = Meta::Register<StatusBarItem>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto toolTip = Meta::Describe<ToolTip>(context);
+    auto toolTip = Meta::Register<ToolTip>(context);
     toolTip
         .Property(
             ToolTip::InitialShowDelayProperty,
@@ -637,7 +637,7 @@ Base::Result<void> PopulateControlsItems(
     if (!status) return status.GetStatus();
 
     auto toolTipService =
-        Meta::Describe<ToolTipService>(
+        Meta::Register<ToolTipService>(
             context, TypeFlags::Abstract);
     toolTipService
         .Property(
@@ -657,7 +657,7 @@ Base::Result<void> PopulateControlsItems(
     status = toolTipService.Result();
     if (!status) return status.GetStatus();
 
-    auto headered = Meta::Describe<HeaderedContentControl>(
+    auto headered = Meta::Register<HeaderedContentControl>(
         context, TypeFlags::Abstract);
     headered
         .Property(
@@ -672,17 +672,17 @@ Base::Result<void> PopulateControlsItems(
     status = headered.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<GroupBox>(context)
+    status = Meta::Register<GroupBox>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Label>(context)
+    status = Meta::Register<Label>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto expander = Meta::Describe<Expander>(context);
+    auto expander = Meta::Register<Expander>(context);
     expander
         .Event(Expander::ExpandedEvent)
         .Event(Expander::CollapsedEvent)
@@ -698,7 +698,7 @@ Base::Result<void> PopulateControlsItems(
     status = expander.Result();
     if (!status) return status.GetStatus();
 
-    auto tabItem = Meta::Describe<TabItem>(context);
+    auto tabItem = Meta::Register<TabItem>(context);
     tabItem
         .Property(
             TabItem::IsSelectedProperty,
@@ -708,7 +708,7 @@ Base::Result<void> PopulateControlsItems(
     status = tabItem.Result();
     if (!status) return status.GetStatus();
 
-    auto tabControl = Meta::Describe<TabControl>(context);
+    auto tabControl = Meta::Register<TabControl>(context);
     tabControl
         .Event(TabControl::SelectionChangedEvent)
         .Property(
@@ -747,7 +747,7 @@ Base::Result<void> PopulateControlsItems(
     status = tabControl.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<TabPanel>(context)
+    status = Meta::Register<TabPanel>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();

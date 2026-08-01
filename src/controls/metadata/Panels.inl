@@ -3,7 +3,7 @@
 Base::Result<void> PopulateControlsPanels(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto stackPanel = Meta::Describe<StackPanel>(context);
+    auto stackPanel = Meta::Register<StackPanel>(context);
     stackPanel
         .Property(
             StackPanel::OrientationProperty,
@@ -13,7 +13,7 @@ Base::Result<void> PopulateControlsPanels(
     status = stackPanel.Result();
     if (!status) return status.GetStatus();
 
-    auto dockPanel = Meta::Describe<DockPanel>(context);
+    auto dockPanel = Meta::Register<DockPanel>(context);
     dockPanel
         .Property(
             DockPanel::LastChildFillProperty,
@@ -27,7 +27,7 @@ Base::Result<void> PopulateControlsPanels(
     status = dockPanel.Result();
     if (!status) return status.GetStatus();
 
-    auto wrapPanel = Meta::Describe<WrapPanel>(context);
+    auto wrapPanel = Meta::Register<WrapPanel>(context);
     wrapPanel
         .Property(
             WrapPanel::OrientationProperty,
@@ -47,7 +47,7 @@ Base::Result<void> PopulateControlsPanels(
     status = wrapPanel.Result();
     if (!status) return status.GetStatus();
 
-    auto uniformGrid = Meta::Describe<UniformGrid>(context);
+    auto uniformGrid = Meta::Register<UniformGrid>(context);
     uniformGrid
         .Property(
             UniformGrid::RowsProperty,
@@ -66,21 +66,21 @@ Base::Result<void> PopulateControlsPanels(
     status = uniformGrid.Result();
     if (!status) return status.GetStatus();
 
-    auto scrollUnit = Meta::Describe<ScrollUnit>(context);
+    auto scrollUnit = Meta::Register<ScrollUnit>(context);
     scrollUnit
         .Value("Item", ScrollUnit::Item)
         .Value("Pixel", ScrollUnit::Pixel);
     status = scrollUnit.Result();
     if (!status) return status.GetStatus();
 
-    auto virtualizationMode = Meta::Describe<VirtualizationMode>(context);
+    auto virtualizationMode = Meta::Register<VirtualizationMode>(context);
     virtualizationMode
         .Value("Standard", VirtualizationMode::Standard)
         .Value("Recycling", VirtualizationMode::Recycling);
     status = virtualizationMode.Result();
     if (!status) return status.GetStatus();
 
-    auto virtualizingPanel = Meta::Describe<VirtualizingPanel>(
+    auto virtualizingPanel = Meta::Register<VirtualizingPanel>(
         context, TypeFlags::Abstract);
     virtualizingPanel.Property(
         VirtualizingPanel::ScrollUnitProperty,
@@ -94,7 +94,7 @@ Base::Result<void> PopulateControlsPanels(
     if (!status) return status.GetStatus();
 
     auto virtualizingStackPanel =
-        Meta::Describe<VirtualizingStackPanel>(context);
+        Meta::Register<VirtualizingStackPanel>(context);
     virtualizingStackPanel
         .Property(
             VirtualizingStackPanel::OrientationProperty,
@@ -114,7 +114,7 @@ Base::Result<void> PopulateControlsPanels(
     status = virtualizingStackPanel.Result();
     if (!status) return status.GetStatus();
 
-    auto canvas = Meta::Describe<Canvas>(context);
+    auto canvas = Meta::Register<Canvas>(context);
     canvas
         .Property(
             Canvas::LeftProperty,
@@ -141,7 +141,7 @@ Base::Result<void> PopulateControlsPanels(
     if (!status) return status.GetStatus();
 
     auto columnDefinition =
-        Meta::Describe<ColumnDefinition>(context);
+        Meta::Register<ColumnDefinition>(context);
     columnDefinition
         .Property<
             GridLength,
@@ -166,7 +166,7 @@ Base::Result<void> PopulateControlsPanels(
     if (!status) return status.GetStatus();
 
     auto rowDefinition =
-        Meta::Describe<RowDefinition>(context);
+        Meta::Register<RowDefinition>(context);
     rowDefinition
         .Property<
             GridLength,
@@ -190,7 +190,7 @@ Base::Result<void> PopulateControlsPanels(
     status = rowDefinition.Result();
     if (!status) return status.GetStatus();
 
-    auto grid = Meta::Describe<Grid>(context);
+    auto grid = Meta::Register<Grid>(context);
     grid
         .Property(
             Grid::IsSharedSizeScopeProperty,
@@ -245,7 +245,7 @@ Base::Result<void> PopulateControlsPanels(
     status = grid.Result();
     if (!status) return status.GetStatus();
 
-    auto border = Meta::Describe<Border>(context);
+    auto border = Meta::Register<Border>(context);
     border
         .Property(
             Border::BackgroundProperty,

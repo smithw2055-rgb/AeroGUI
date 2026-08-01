@@ -5,7 +5,7 @@ Base::Result<void> PopulateControlsTextMedia(
     Base::Result<void> status;
     const Base::Color black{
         0.0F, 0.0F, 0.0F, 1.0F};
-    auto textBlock = Meta::Describe<TextBlock>(context);
+    auto textBlock = Meta::Register<TextBlock>(context);
     textBlock
         .Property(
             TextBlock::TextProperty,
@@ -87,7 +87,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = textBlock.Result();
     if (!status) return status.GetStatus();
 
-    auto textElement = Meta::Describe<Documents::TextElement>(
+    auto textElement = Meta::Register<Documents::TextElement>(
         context, TypeFlags::Abstract);
     textElement
         .Property(
@@ -112,11 +112,11 @@ Base::Result<void> PopulateControlsTextMedia(
     status = textElement.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Documents::Inline>(
+    status = Meta::Register<Documents::Inline>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto run = Meta::Describe<Documents::Run>(context);
+    auto run = Meta::Register<Documents::Run>(context);
     run
         .Property(
             Documents::Run::TextProperty,
@@ -126,7 +126,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = run.Result();
     if (!status) return status.GetStatus();
 
-    auto span = Meta::Describe<Documents::Span>(context);
+    auto span = Meta::Register<Documents::Span>(context);
     span
         .Property<
             Value,
@@ -149,7 +149,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = span.Result();
     if (!status) return status.GetStatus();
 
-    auto bold = Meta::Describe<Documents::Bold>(context);
+    auto bold = Meta::Register<Documents::Bold>(context);
     bold
         .Override(
             Documents::TextElement::FontWeightProperty,
@@ -159,7 +159,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = bold.Result();
     if (!status) return status.GetStatus();
 
-    auto italic = Meta::Describe<Documents::Italic>(context);
+    auto italic = Meta::Register<Documents::Italic>(context);
     italic
         .Override(
             Documents::TextElement::FontStyleProperty,
@@ -169,7 +169,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = italic.Result();
     if (!status) return status.GetStatus();
 
-    auto underline = Meta::Describe<Documents::Underline>(context);
+    auto underline = Meta::Register<Documents::Underline>(context);
     underline
         .Override(
             Documents::TextElement::TextDecorationsProperty,
@@ -179,16 +179,16 @@ Base::Result<void> PopulateControlsTextMedia(
     status = underline.Result();
     if (!status) return status.GetStatus();
 
-    auto lineBreak = Meta::Describe<Documents::LineBreak>(context);
+    auto lineBreak = Meta::Register<Documents::LineBreak>(context);
     lineBreak.Factory();
     status = lineBreak.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Documents::RequestNavigateEventArgs>(context)
+    status = Meta::Register<Documents::RequestNavigateEventArgs>(context)
         .Result();
     if (!status) return status.GetStatus();
 
-    auto hyperlink = Meta::Describe<Documents::Hyperlink>(context);
+    auto hyperlink = Meta::Register<Documents::Hyperlink>(context);
     hyperlink
         .Event(Documents::Hyperlink::ClickEvent)
         .Event(Documents::Hyperlink::RequestNavigateEvent)
@@ -212,7 +212,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = hyperlink.Result();
     if (!status) return status.GetStatus();
 
-    auto image = Meta::Describe<Image>(context);
+    auto image = Meta::Register<Image>(context);
     image
         .Property(
             Image::SourceProperty,
@@ -235,7 +235,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = image.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Shape>(
+    status = Meta::Register<Shape>(
         context, TypeFlags::Abstract)
         .Property(
             Shape::FillProperty,
@@ -256,7 +256,7 @@ Base::Result<void> PopulateControlsTextMedia(
         .Result();
     if (!status) return status.GetStatus();
 
-    auto rectangle = Meta::Describe<Rectangle>(context);
+    auto rectangle = Meta::Register<Rectangle>(context);
     rectangle
         .Property(
             Rectangle::RadiusXProperty,
@@ -272,12 +272,12 @@ Base::Result<void> PopulateControlsTextMedia(
     status = rectangle.Result();
     if (!status) return status.GetStatus();
 
-    auto ellipse = Meta::Describe<Ellipse>(context);
+    auto ellipse = Meta::Register<Ellipse>(context);
     ellipse.Factory();
     status = ellipse.Result();
     if (!status) return status.GetStatus();
 
-    auto path = Meta::Describe<Path>(context);
+    auto path = Meta::Register<Path>(context);
     path
         .Property(
             Path::DataProperty,
@@ -352,12 +352,12 @@ Base::Result<void> PopulateControlsTextMedia(
         128.0F / 255.0F,
         133.0F / 255.0F,
         1.0F};
-    status = Meta::Describe<TextBoxBase>(
+    status = Meta::Register<TextBoxBase>(
         context, TypeFlags::Abstract)
         .Result();
     if (!status) return status.GetStatus();
 
-    auto textBox = Meta::Describe<TextBox>(context);
+    auto textBox = Meta::Register<TextBox>(context);
     textBox
         .Event(TextBox::TextChangedEvent)
         .Property(
@@ -454,7 +454,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = textBox.Result();
     if (!status) return status.GetStatus();
 
-    auto passwordBox = Meta::Describe<PasswordBox>(context);
+    auto passwordBox = Meta::Register<PasswordBox>(context);
     Base::String defaultPasswordChar;
     status = defaultPasswordChar.TryAssign(
         Base::StringView(u8"\u2022"));
@@ -508,7 +508,7 @@ Base::Result<void> PopulateControlsTextMedia(
     status = passwordBox.Result();
     if (!status) return status.GetStatus();
 
-    auto contentPresenter = Meta::Describe<ContentPresenter>(context);
+    auto contentPresenter = Meta::Register<ContentPresenter>(context);
     contentPresenter
         .Property(
             ContentPresenter::ContentProperty,

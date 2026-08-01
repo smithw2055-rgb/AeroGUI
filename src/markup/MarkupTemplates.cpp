@@ -1,5 +1,1148 @@
+#include "gui/MetadataInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
+// Consolidated implementation. Keep sections ordered by dependency.
+
+// ===== StyleSupport =====
+
+
 #include "gui/StyleInternal.hpp"
-#include "TemplateCompiler.hpp"
+
+#include <Aero/Base/String.hpp>
+
+#include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Standard.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/FrameworkElement.hpp>
+
+#include <cstdio>
+#include <new>
+#include <utility>
+
+namespace Aero::Markup {
+using namespace Detail;
+
+namespace {
+
+Base::Status InvalidStyleXaml(const char* message) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
+}
+
+bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+Base::Status MissingStyleProperty(
+    const char* role,
+    Base::StringView property,
+    Core::TypeId targetType,
+    const Core::TypeRegistry& types) noexcept {
+    thread_local char message[384];
+    const Core::TypeInfo* target =
+        types.FindType(targetType);
+    const Base::StringView typeName =
+        target != nullptr
+        ? target->Name()
+        : Base::StringView("<unknown>");
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Style %s '%.*s' was not found on TargetType '%.*s'",
+        role,
+        static_cast<int>(property.SizeBytes()),
+        property.Data(),
+        static_cast<int>(typeName.SizeBytes()),
+        typeName.Data());
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        message);
+}
+
+const Core::DependencyProperty* ResolveStyleProperty(
+    const Core::DependencyPropertyRegistry& properties,
+    Core::TypeId targetType,
+    Base::StringView name) noexcept {
+    const Core::DependencyProperty* property =
+        properties.Find(targetType, name);
+    if (property != nullptr) return property;
+    if (name == Base::StringView("ContextMenu")) {
+        property = properties.Find(
+            Controls::ContextMenuService::
+                ContextMenuProperty.Handle());
+        if (property != nullptr) return property;
+    }
+    std::uint32_t separator = UINT32_MAX;
+    for (std::uint32_t index = 0U;
+         index < name.SizeBytes();
+         ++index) {
+        if (name[index] == '.') separator = index;
+    }
+    if (separator == UINT32_MAX ||
+        separator == 0U ||
+        separator + 1U >= name.SizeBytes()) {
+        return nullptr;
+    }
+    const Core::TypeInfo* owner =
+        properties.Types().FindType(
+            Core::AeroNamespaceUri(),
+            name.Substr(0U, separator));
+    const Base::StringView member = name.Substr(
+        separator + 1U,
+        name.SizeBytes() - separator - 1U);
+    if (owner != nullptr) {
+        property = properties.Find(owner->Id(), member);
+        if (property != nullptr) return property;
+    }
+    // WPF-compatible style markup may qualify a property with a base class
+    // while the concrete runtime registers the same inherited property on a
+    // derived control type.
+    return properties.Find(targetType, member);
+}
+
+Base::Result<Core::PropertyValue> ToPropertyValue(
+    const Core::Value& value,
+    Core::TypeId expectedType) noexcept {
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "XAML style value cannot be represented as a dependency-property value");
+    }
+    if (value.IsNullObject() && value.Type() != expectedType) {
+        return Core::PropertyValue::NullObject(expectedType);
+    }
+    return value;
+}
+
+Aero::ResourceDictionary* ResolveStyleResources(
+    Base::Object& object,
+    void*) noexcept {
+    return object.RuntimeType() ==
+            Aero::Style::StaticTypeId()
+        ? &static_cast<Aero::Style&>(object).GetResources()
+        : nullptr;
+}
+
+Base::Result<Aero::ResourceKey> ResolveStyleImplicitKey(
+    const Base::Object& object,
+    void*) noexcept {
+    if (object.RuntimeType() != Aero::Style::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Implicit Style key requires a Style object");
+    }
+    const Core::TypeId target =
+        static_cast<const Aero::Style&>(object).GetTargetType();
+    if (target == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Implicit Style requires TargetType");
+    }
+    return Aero::ResourceKey::FromType(target);
+}
+
+} // namespace
+
+namespace Detail {
+
+XamlStyleSchemaFacet::XamlStyleSchemaFacet(
+    const UiObjectModelOptions& options) noexcept
+    : options_(options) {}
+
+Base::Result<void> XamlStyleSchemaFacet::Register(
+    Schema& schema,
+    Core::TypeId styleType,
+    Core::TypeId setterType,
+    Core::DependencyPropertyHandle styleProperty,
+    Core::TypeId triggerType) noexcept {
+    if (schema.IsFrozen() ||
+        options_.properties == nullptr || !styleProperty.IsValid() ||
+        !options_.properties->IsFrozen() || !options_.properties->Types().IsFrozen()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML Style extension registries are not ready");
+    }
+    if (schema_ != nullptr ||
+        styleType == Core::InvalidTypeId || setterType == Core::InvalidTypeId) {
+        return InvalidStyleXaml("XAML Style extension registration is invalid");
+    }
+
+    const Core::TypeInfo* styleInfo = schema.Types().FindType(styleType);
+    const Core::TypeInfo* setterInfo = schema.Types().FindType(setterType);
+    const Core::TypeInfo* triggerInfo =
+        triggerType != Core::InvalidTypeId ? schema.Types().FindType(triggerType) : nullptr;
+    if (styleInfo == nullptr || setterInfo == nullptr ||
+        HasTypeFlag(styleInfo->Flags(), Core::TypeFlags::ValueType) ||
+        HasTypeFlag(setterInfo->Flags(), Core::TypeFlags::ValueType) ||
+        (triggerType != Core::InvalidTypeId &&
+         (triggerInfo == nullptr || HasTypeFlag(triggerInfo->Flags(), Core::TypeFlags::ValueType)))) {
+        return InvalidStyleXaml("XAML Style, Setter, and Trigger must be registered object types");
+    }
+
+    const Core::PropertyInfo* targetType =
+        schema.Types().FindProperty(styleType, Base::StringView("TargetType"), false);
+    const Core::PropertyInfo* basedOn =
+        schema.Types().FindProperty(styleType, Base::StringView("BasedOn"), false);
+    const Core::PropertyInfo* setters =
+        schema.Types().FindProperty(styleType, Base::StringView("Setters"), false);
+    const Core::PropertyInfo* property =
+        schema.Types().FindProperty(setterType, Base::StringView("Property"), false);
+    const Core::PropertyInfo* value =
+        schema.Types().FindProperty(setterType, Base::StringView("Value"), false);
+    if (targetType == nullptr || basedOn == nullptr || setters == nullptr ||
+        property == nullptr || value == nullptr ||
+        targetType->ValueType() !=
+            Core::TypeOf<Core::TypeReference>() ||
+        basedOn->ValueType() != styleType || setters->ValueType() != setterType ||
+        property->ValueType() !=
+            Core::TypeOf<Base::String>() ||
+        value->ValueType() !=
+            Core::TypeOf<Core::Value>() ||
+        schema.Types().FindContentMember(styleType) != setters->Id()) {
+        return InvalidStyleXaml("XAML Style metadata members are invalid");
+    }
+
+    const Core::PropertyInfo* triggers = nullptr;
+    const Core::PropertyInfo* triggerProperty = nullptr;
+    const Core::PropertyInfo* triggerValue = nullptr;
+    const Core::PropertyInfo* triggerSetters = nullptr;
+    if (triggerType != Core::InvalidTypeId) {
+        triggers = schema.Types().FindProperty(
+            styleType, Base::StringView("Triggers"), false);
+        triggerProperty = schema.Types().FindProperty(
+            triggerType, Base::StringView("Property"), false);
+        triggerValue = schema.Types().FindProperty(
+            triggerType, Base::StringView("Value"), false);
+        triggerSetters = schema.Types().FindProperty(
+            triggerType, Base::StringView("Setters"), false);
+        if (triggers == nullptr || triggerProperty == nullptr ||
+            triggerValue == nullptr || triggerSetters == nullptr ||
+            triggers->ValueType() != triggerType ||
+            triggerProperty->ValueType() !=
+                Core::TypeOf<Base::String>() ||
+            triggerValue->ValueType() !=
+                Core::TypeOf<Core::Value>() ||
+            triggerSetters->ValueType() != setterType) {
+            return InvalidStyleXaml("XAML Trigger metadata members are invalid");
+        }
+    }
+
+    const Core::DependencyProperty* styleDependency = options_.properties->Find(styleProperty);
+    if (styleDependency == nullptr || styleDependency->ValueType() != styleType) {
+        return InvalidStyleXaml("XAML Style property does not accept the registered Style type");
+    }
+
+    schema_ = &schema;
+    styleType_ = styleType;
+    setterType_ = setterType;
+    triggerType_ = triggerType;
+    Base::Result<void> styleAdapter =
+        Detail::SchemaPrivate::AddType(schema, {
+        styleType_,
+        nullptr,
+        &EndStyleInit,
+        nullptr,
+        this,
+        false,
+        true,
+        nullptr,
+        nullptr,
+        &ResolveStyleResources,
+        nullptr,
+        false,
+        &ResolveStyleImplicitKey});
+    if (!styleAdapter) return styleAdapter.GetStatus();
+    return {};
+}
+
+Base::Result<Core::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
+    const Core::Value& value,
+    Core::TypeId targetType,
+    Base::StringView propertyName) const noexcept {
+    if (schema_ == nullptr || options_.properties == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Style conversion requires an initialized extension");
+    }
+    const Core::DependencyProperty* property =
+        ResolveStyleProperty(
+            *options_.properties,
+            targetType,
+            propertyName);
+    if (property == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Style property was not found on TargetType");
+    }
+    const Core::Value* candidate = &value;
+    Base::Result<Core::Value> converted = Base::Status::Failure(
+        Base::ErrorCode::InvalidState,
+        "Style conversion was not attempted");
+    if (candidate->Kind() == Core::ValueKind::String) {
+        converted = schema_->ConvertText(property->ValueType(), candidate->AsString());
+        if (!converted) return converted.GetStatus();
+        candidate = &converted.Value();
+    }
+    if (property->ValueType() == Aero::Length::StaticTypeId() &&
+        candidate->Type() == Core::TypeOf<double>()) {
+        Base::Result<double> numeric =
+            Core::ValueCodec<double>::Decode(*candidate);
+        if (!numeric) return numeric.GetStatus();
+        converted = Core::ValueCodec<Aero::Length>::Encode(
+            Aero::Length::Pixels(numeric.Value()));
+        if (!converted) return converted.GetStatus();
+        candidate = &converted.Value();
+    }
+    if (property->ValueType() ==
+            Media::Brush::StaticTypeId() &&
+        candidate->Type() ==
+            Core::TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color =
+            Core::ValueCodec<Base::Color>::Decode(
+                *candidate);
+        if (!color) return color.GetStatus();
+        Base::Result<
+            Base::Ref<Media::Brush>>
+            brush =
+                Media::MakeSolidColorBrush(
+                    color.Value());
+        if (!brush) return brush.GetStatus();
+        return Core::Value::FromObject(
+            Media::Brush::StaticTypeId(),
+            Base::Ref<Base::Object>(
+                std::move(brush).Value()));
+    }
+    if (property->ValueType() == Core::TypeOf<Base::Color>() &&
+        candidate->Kind() == Core::ValueKind::Object &&
+        options_.properties->Types().IsDerivedFrom(
+            candidate->Type(), Media::Brush::StaticTypeId())) {
+        Base::Result<Base::Ref<Media::Brush>> brush =
+            Core::ValueCodec<Base::Ref<Media::Brush>>::Decode(
+                *candidate);
+        if (!brush) return brush.GetStatus();
+        Media::Brush* source = brush.Value().Get();
+        if (source == nullptr || source->RuntimeType() !=
+                Media::SolidColorBrush::StaticTypeId()) {
+            return InvalidStyleXaml(
+                "Color-backed text property requires SolidColorBrush");
+        }
+        return Core::ValueCodec<Base::Color>::Encode(
+            static_cast<Media::SolidColorBrush*>(source)->GetColor());
+    }
+    return ToPropertyValue(*candidate, property->ValueType());
+}
+
+Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
+    Aero::Style& style) noexcept {
+    if (schema_ == nullptr || options_.properties == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Style TargetType must be assigned before initialization completes");
+    }
+    if (style.GetTargetType() == Core::InvalidTypeId) {
+        Base::Result<void> defaultTarget = style.TrySetTargetType(
+            Controls::Control::StaticTypeId());
+        if (!defaultTarget) return defaultTarget.GetStatus();
+    }
+    const Core::TypeId targetType = style.GetTargetType();
+    const Core::TypeInfo* targetInfo =
+        options_.properties->Types().FindType(targetType);
+    if (targetInfo == nullptr ||
+        HasTypeFlag(
+            targetInfo->Flags(),
+            Core::TypeFlags::ValueType)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Style TargetType must identify an object type");
+    }
+    for (const Base::Ref<Aero::Setter>& entry :
+         style.GetAuthoredSetters()) {
+        Aero::Setter* setter = entry.Get();
+        if (setter == nullptr || !setter->IsAuthored()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Style Setter requires Property and Value");
+        }
+        const Core::DependencyProperty* property =
+            ResolveStyleProperty(
+                *options_.properties,
+                targetType,
+                setter->GetPropertyName());
+        if (property == nullptr) {
+            return MissingStyleProperty(
+                "Setter property",
+                setter->GetPropertyName(),
+                targetType,
+                options_.properties->Types());
+        }
+        Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
+            setter->GetAuthoredValue(),
+            targetType,
+            setter->GetPropertyName());
+        if (!value) return value.GetStatus();
+        Base::Result<void> resolved = setter->Resolve(
+            property->Handle(), value.Value());
+        if (!resolved) return resolved.GetStatus();
+        Base::Result<void> added =
+            style.TryAddSetter(*setter);
+        if (!added) return added.GetStatus();
+    }
+    for (const Base::Ref<Aero::PropertyTrigger>& entry :
+         style.GetAuthoredTriggers()) {
+        Aero::PropertyTrigger* trigger =
+            entry.Get();
+        if (trigger == nullptr ||
+            !trigger->IsAuthored()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Style Trigger requires Property, Value, and Setters");
+        }
+        const Core::DependencyProperty* condition =
+            ResolveStyleProperty(
+                *options_.properties,
+                targetType,
+                trigger->GetPropertyName());
+        if (condition == nullptr) {
+            return MissingStyleProperty(
+                "Trigger property",
+                trigger->GetPropertyName(),
+                targetType,
+                options_.properties->Types());
+        }
+        Base::Result<Core::PropertyValue> conditionValue = ConvertValueForProperty(
+            trigger->GetAuthoredValue(),
+            targetType,
+            trigger->GetPropertyName());
+        if (!conditionValue) return conditionValue.GetStatus();
+        Aero::StylePropertyTrigger plan;
+        plan.property = condition->Handle();
+        plan.value = conditionValue.Value();
+        Base::Result<void> actions =
+            plan.enterActions.TryAppend(
+                trigger->GetEnterActions());
+        if (!actions) return actions.GetStatus();
+        actions = plan.exitActions.TryAppend(
+            trigger->GetExitActions());
+        if (!actions) return actions.GetStatus();
+        for (const Base::Ref<Aero::Setter>& setterEntry :
+             trigger->GetAuthoredSetters()) {
+            Aero::Setter* setter =
+                setterEntry.Get();
+            if (setter == nullptr ||
+                !setter->IsAuthored()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Style Trigger Setter requires Property and Value");
+            }
+            const Core::DependencyProperty* property =
+                ResolveStyleProperty(
+                    *options_.properties,
+                    targetType,
+                    setter->GetPropertyName());
+            if (property == nullptr) {
+                return MissingStyleProperty(
+                    "Trigger Setter property",
+                    setter->GetPropertyName(),
+                    targetType,
+                    options_.properties->Types());
+            }
+            Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
+                setter->GetAuthoredValue(),
+                targetType,
+                setter->GetPropertyName());
+            if (!value) return value.GetStatus();
+            Base::Result<void> resolved =
+                setter->Resolve(
+                    property->Handle(),
+                    value.Value());
+            if (!resolved) {
+                return resolved.GetStatus();
+            }
+            Base::Result<void> added = plan.setters.TryPushBack({
+                property->Handle(), value.Value()});
+            if (!added) return added.GetStatus();
+        }
+        Base::Result<void> added = style.TryAddPropertyTrigger(
+            std::move(plan));
+        if (!added) return added.GetStatus();
+    }
+    return Aero::Detail::StylePrivate::Seal(
+        style, *options_.properties);
+}
+
+Base::Result<void> XamlStyleSchemaFacet::EndStyleInit(
+    Base::Object& object,
+    void* context) noexcept {
+    XamlStyleSchemaFacet* extension = static_cast<XamlStyleSchemaFacet*>(context);
+    if (extension == nullptr) {
+        return InvalidStyleXaml("Style initialization requires an extension context");
+    }
+    return extension->FinalizeStyle(
+        static_cast<Aero::Style&>(
+            object));
+}
+
+} // namespace Detail
+
+struct UiObjectModel::Impl final {
+    explicit Impl(
+        const UiObjectModelOptions& options) noexcept
+        : style(options),
+          templates(
+              *options.metadata,
+              *options.properties,
+              options.allocator) {}
+
+    Detail::XamlStyleSchemaFacet style;
+    Detail::XamlTemplateSchemaFacet templates;
+    bool registered = false;
+};
+
+UiObjectModel::UiObjectModel(
+    const UiObjectModelOptions& options) noexcept
+    : allocator_(options.allocator != nullptr
+          ? options.allocator
+          : &Base::GetDefaultAllocator()) {
+    if (options.metadata == nullptr ||
+        options.properties == nullptr) {
+        return;
+    }
+    optionsValid_ = true;
+    void* memory = allocator_->Allocate({
+        sizeof(Impl),
+        alignof(Impl),
+        Base::MemoryTag::Markup});
+    if (memory != nullptr) {
+        impl_ = new (memory) Impl(options);
+    }
+}
+
+UiObjectModel::~UiObjectModel() noexcept {
+    if (impl_ == nullptr) return;
+    impl_->~Impl();
+    allocator_->Deallocate(
+        impl_,
+        sizeof(Impl),
+        alignof(Impl),
+        Base::MemoryTag::Markup);
+    impl_ = nullptr;
+}
+
+Base::Result<void> UiObjectModel::Register(
+    Schema& schema) noexcept {
+    UiObjectModelTypes types;
+    types.style = Aero::Style::StaticTypeId();
+    types.setter = Aero::Setter::StaticTypeId();
+    types.trigger = Aero::PropertyTrigger::StaticTypeId();
+    types.styleProperty =
+        Aero::FrameworkElement::StyleProperty;
+    return Register(schema, types);
+}
+
+Base::Result<void> UiObjectModel::Register(
+    Schema& schema,
+    const UiObjectModelTypes& types) noexcept {
+    if (!optionsValid_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML UI object model options are invalid");
+    }
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "XAML UI object model allocation failed");
+    }
+    if (impl_->registered) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML UI object model is already registered");
+    }
+    Base::Result<void> registered =
+        impl_->style.Register(
+            schema,
+            types.style,
+            types.setter,
+            types.styleProperty,
+            types.trigger);
+    if (registered && types.includeTemplates) {
+        registered = impl_->templates.Register(schema);
+    }
+    if (registered) {
+        impl_->registered = true;
+    }
+    return registered;
+}
+
+} // namespace Aero::Markup
+
+
+// ===== TemplateSupport =====
+
+
+
+#include <Aero/Base/String.hpp>
+#include <Aero/Controls/Base.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Styling.hpp>
+
+#include "markup/MarkupInternal.hpp"
+
+
+#include "../controls/TemplateInternals.hpp"
+
+#include <new>
+#include <utility>
+
+
+namespace Aero::Markup {
+namespace {
+
+using namespace Aero::Controls;
+using namespace Aero::Core;
+
+
+class CompiledTemplateProgramOwner final
+    : public Base::Object {
+public:
+    explicit CompiledTemplateProgramOwner(
+        Detail::CompiledTemplateBlueprint blueprint) noexcept
+        : blueprint_(std::move(blueprint)) {}
+    ~CompiledTemplateProgramOwner() noexcept override = default;
+
+    Detail::CompiledTemplateBlueprint& Blueprint() noexcept {
+        return blueprint_;
+    }
+
+private:
+    Detail::CompiledTemplateBlueprint blueprint_;
+};
+
+Base::Status InvalidTemplateXaml(
+    const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::ValidationFailed,
+        message);
+}
+
+bool TemplateHasTypeFlag(
+    TypeFlags value,
+    TypeFlags flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+Aero::ResourceDictionary* ResolveTemplateResources(
+    Base::Object& object,
+    void*) noexcept {
+    if (object.RuntimeType() ==
+            ControlTemplate::StaticTypeId()) {
+        return &static_cast<ControlTemplate&>(
+            object).GetResources();
+    }
+    if (object.RuntimeType() ==
+            DataTemplate::StaticTypeId()) {
+        return &static_cast<DataTemplate&>(
+            object).GetResources();
+    }
+    if (object.RuntimeType() ==
+            ItemsPanelTemplate::StaticTypeId()) {
+        return &static_cast<ItemsPanelTemplate&>(
+            object).GetResources();
+    }
+    return nullptr;
+}
+
+Base::Result<Aero::ResourceKey>
+ResolveTemplateImplicitKey(
+    const Base::Object& object,
+    void*) noexcept {
+    Core::TypeId key = Core::InvalidTypeId;
+    if (object.RuntimeType() == ControlTemplate::StaticTypeId()) {
+        key = static_cast<const ControlTemplate&>(object).GetTargetType();
+    } else if (object.RuntimeType() == DataTemplate::StaticTypeId()) {
+        key = static_cast<const DataTemplate&>(object).GetDataType();
+    }
+    if (key == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Template type has no implicit resource key");
+    }
+    return Aero::ResourceKey::FromType(key);
+}
+
+} // namespace
+
+namespace Detail {
+
+struct XamlTemplateSchemaFacet::Impl final {
+    Impl(
+        Meta::Registry& metadata,
+        DependencyPropertyRegistry& dependencyProperties,
+        Base::IAllocator& programAllocator) noexcept
+        : allocator(&programAllocator),
+          runtime(&metadata),
+          properties(&dependencyProperties) {}
+
+    Base::IAllocator* allocator = nullptr;
+    Meta::Registry* runtime = nullptr;
+    DependencyPropertyRegistry* properties = nullptr;
+    Schema* schema = nullptr;
+
+    static Base::Result<void> EndTemplate(
+        Base::Object& object,
+        const ExtensionServices& services,
+        void* context) noexcept {
+        auto* self = static_cast<Impl*>(context);
+        const TypeId type = object.RuntimeType();
+        if (self == nullptr || self->runtime == nullptr ||
+            self->properties == nullptr ||
+            (type != ControlTemplate::StaticTypeId() &&
+             type != DataTemplate::StaticTypeId() &&
+             type != ItemsPanelTemplate::StaticTypeId()) ||
+            services.deferredContentOwner != &object ||
+            services.deferredContent == nullptr) {
+            return InvalidTemplateXaml(
+                "Template deferred-content scope is invalid");
+        }
+        if (type == ControlTemplate::StaticTypeId() ||
+            type == DataTemplate::StaticTypeId()) {
+            const Core::TypeId targetType =
+                type == ControlTemplate::StaticTypeId()
+                ? static_cast<ControlTemplate&>(object)
+                      .GetTargetType()
+                : static_cast<DataTemplate&>(object)
+                      .GetDataType();
+            // A keyed WPF ControlTemplate may deliberately omit TargetType.
+            // Its target is inferred from the Style/Setter that consumes it,
+            // so only validate an explicitly authored type here. The apply
+            // path still checks that the eventual target is a Control.
+            if (targetType != Core::InvalidTypeId) {
+                const Core::TypeInfo* targetInfo =
+                    self->runtime->Types().FindType(targetType);
+                if (targetInfo == nullptr ||
+                    TemplateHasTypeFlag(
+                        targetInfo->Flags(),
+                        Core::TypeFlags::ValueType)) {
+                    return InvalidTemplateXaml(
+                        "Template type constraint must identify an object type");
+                }
+                if (type == ControlTemplate::StaticTypeId() &&
+                    !self->runtime->Types().IsDerivedFrom(
+                        targetType,
+                        Control::StaticTypeId())) {
+                    return InvalidTemplateXaml(
+                        "ControlTemplate TargetType is not a Control");
+                }
+            }
+        }
+        Base::Vector<DeferredContentEdge> edges(
+            self->allocator);
+        Base::Result<void> copied =
+            services.deferredContent->CopyForOwner(
+                object, edges);
+        if (!copied) return copied.GetStatus();
+        Base::Vector<DeferredBindingEdge> bindings(
+            self->allocator);
+        copied =
+            services.deferredContent->
+                CopyBindingsForOwner(
+                    object, bindings);
+        if (!copied) return copied.GetStatus();
+
+        if (services.baseUri != nullptr) {
+            Base::Result<void> baseUri;
+            if (object.RuntimeType() ==
+                    ControlTemplate::StaticTypeId()) {
+                auto& templateValue = static_cast<ControlTemplate&>(object);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                }
+            } else if (object.RuntimeType() ==
+                       DataTemplate::StaticTypeId()) {
+                auto& templateValue = static_cast<DataTemplate&>(object);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                }
+            } else if (object.RuntimeType() ==
+                       ItemsPanelTemplate::StaticTypeId()) {
+                auto& templateValue = static_cast<ItemsPanelTemplate&>(object);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
+                }
+            }
+            if (!baseUri) return baseUri.GetStatus();
+        }
+        if (object.RuntimeType() ==
+                DataTemplate::StaticTypeId() ||
+            object.RuntimeType() ==
+                ItemsPanelTemplate::StaticTypeId()) {
+            const Base::Ref<Base::Object>* authored = nullptr;
+            if (object.RuntimeType() ==
+                    DataTemplate::StaticTypeId()) {
+                authored =
+                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
+            } else {
+                authored =
+                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
+            }
+            Base::Result<Detail::CompiledTemplateBlueprint>
+                compiled =
+                    Detail::CompileDeferredTemplateBlueprint(
+                        *authored,
+                        object.RuntimeType() ==
+                                DataTemplate::StaticTypeId()
+                            ? &Controls::Detail::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
+                            : nullptr,
+                        {
+                            edges.Data(),
+                            edges.Size()},
+                        {
+                            bindings.Data(),
+                            bindings.Size()},
+                        *self->runtime,
+                        *self->properties);
+            if (!compiled) {
+                return compiled.GetStatus();
+            }
+            if (object.RuntimeType() ==
+                    DataTemplate::StaticTypeId()) {
+                auto& dataTemplate =
+                    static_cast<DataTemplate&>(object);
+                Base::Result<void> reserved =
+                    compiled.Value().
+                        dataTemplateTriggers.TryReserve(
+                            Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
+                if (!reserved) {
+                    return reserved.GetStatus();
+                }
+                for (const Base::Ref<
+                         Aero::TriggerBase>& trigger :
+                     Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate)) {
+                    Base::Result<void> retained =
+                        compiled.Value().
+                            dataTemplateTriggers.
+                                TryPushBack(trigger);
+                    if (!retained) {
+                        return retained.GetStatus();
+                    }
+                }
+            }
+            Base::Result<Base::Ref<CompiledTemplateProgramOwner>>
+                program =
+                    Base::MakeRefWithAllocator<
+                        CompiledTemplateProgramOwner>(
+                        *self->allocator,
+                        std::move(compiled).Value());
+            if (!program) {
+                return program.GetStatus();
+            }
+            Detail::CompiledTemplateBlueprint* programContext =
+                &program.Value()->Blueprint();
+            Base::Ref<Base::Object> programOwner =
+                program.Value();
+            Base::Result<void> configured;
+            if (object.RuntimeType() ==
+                    DataTemplate::StaticTypeId()) {
+                auto& dataTemplate =
+                    static_cast<DataTemplate&>(object);
+                configured = Controls::Detail::TemplatePrivate::Configure(dataTemplate,
+                    &Detail::BuildCompiledDeferredTemplate,
+                    programContext,
+                    std::move(programOwner));
+                if (configured) {
+                    configured = Controls::Detail::TemplatePrivate::Seal(dataTemplate);
+                }
+            } else {
+                auto& itemsPanel =
+                    static_cast<ItemsPanelTemplate&>(object);
+                configured = Controls::Detail::TemplatePrivate::Configure(itemsPanel,
+                    &Detail::BuildCompiledDeferredTemplate,
+                    programContext,
+                    std::move(programOwner));
+                if (configured) {
+                    configured = Controls::Detail::TemplatePrivate::Seal(itemsPanel);
+                }
+            }
+            if (!configured) {
+                return configured.GetStatus();
+            }
+            services.deferredContent->ReleaseOwner(
+                object);
+            if (object.RuntimeType() ==
+                    DataTemplate::StaticTypeId()) {
+                auto& dataTemplate =
+                    static_cast<DataTemplate&>(object);
+                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
+                Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(dataTemplate);
+                Controls::Detail::TemplatePrivate::ClearAuthoredNames(dataTemplate);
+            } else {
+                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(
+                    static_cast<ItemsPanelTemplate&>(object));
+            }
+            return {};
+        }
+        auto& controlTemplate =
+            static_cast<ControlTemplate&>(object);
+        if (controlTemplate.GetTargetType() ==
+            Core::InvalidTypeId) {
+            // WPF permits a keyed ControlTemplate to omit TargetType. The
+            // consuming Style supplies the concrete control at apply time;
+            // compile against the common Control contract so its authored
+            // bindings and triggers remain valid until then.
+            Base::Result<void> inferred =
+                Controls::Detail::TemplatePrivate::TrySetTargetType(controlTemplate,
+                    Control::StaticTypeId());
+            if (!inferred) return inferred.GetStatus();
+        }
+        Base::Result<Detail::CompiledTemplateDefinition>
+            compiled =
+                Detail::CompileControlTemplateDefinition(
+                    controlTemplate,
+                    {
+                        edges.Data(),
+                        edges.Size()},
+                    {
+                        bindings.Data(),
+                        bindings.Size()},
+                    *self->runtime,
+                    *self->properties);
+        if (!compiled) {
+            return compiled.GetStatus();
+        }
+
+        Base::Result<Base::Ref<CompiledTemplateProgramOwner>>
+            program =
+                Base::MakeRefWithAllocator<
+                    CompiledTemplateProgramOwner>(
+                    *self->allocator,
+                    std::move(
+                        compiled.Value().blueprint));
+        if (!program) {
+            return program.GetStatus();
+        }
+        Detail::CompiledTemplateBlueprint* programContext =
+            &program.Value()->Blueprint();
+        Base::Ref<Base::Object> programOwner =
+            program.Value();
+
+        Base::Result<void> configured =
+            Controls::Detail::TemplatePrivate::ConfigureFactory(controlTemplate,
+                &Detail::BuildCompiledTemplate,
+                programContext,
+                std::move(programOwner));
+        if (configured) {
+            for (const TemplateBindingPlan& binding :
+                 compiled.Value().
+                     contentSourceBindings) {
+                configured =
+                    Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+                            binding.targetName.View(),
+                            binding.sourceProperty,
+                            binding.targetProperty);
+                if (!configured) {
+                    break;
+                }
+            }
+        }
+        if (configured) {
+            for (TemplatePropertyTrigger& trigger :
+                 compiled.Value().propertyTriggers) {
+                configured =
+                    Controls::Detail::TemplatePrivate::TryAddPropertyTrigger(controlTemplate,
+                        std::move(trigger));
+                if (!configured) {
+                    break;
+                }
+            }
+        }
+        if (configured) {
+            for (VisualStateGroup& group :
+                 compiled.Value().visualStateGroups) {
+                configured =
+                    Controls::Detail::TemplatePrivate::TryAddVisualStateGroup(controlTemplate,
+                        std::move(group));
+                if (!configured) {
+                    break;
+                }
+            }
+        }
+        if (configured) {
+            configured =
+                Controls::Detail::TemplatePrivate::Seal(
+                    controlTemplate,
+                    *self->properties);
+        }
+        if (!configured) {
+            return configured.GetStatus();
+        }
+
+        services.deferredContent->ReleaseOwner(
+            object);
+        Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredNames(controlTemplate);
+        return {};
+    }
+
+    static Base::Result<void> RegisterTemplateName(
+        Base::Object& scopeOwner,
+        Base::StringView name,
+        Base::Object& object,
+        void* context) noexcept {
+        if (context == nullptr ||
+            (scopeOwner.RuntimeType() !=
+                 ControlTemplate::StaticTypeId() &&
+             scopeOwner.RuntimeType() !=
+                 DataTemplate::StaticTypeId())) {
+            return InvalidTemplateXaml(
+                "Template name scope is invalid");
+        }
+        return scopeOwner.RuntimeType() ==
+                ControlTemplate::StaticTypeId()
+            ? Controls::Detail::TemplatePrivate::RegisterAuthoredName(
+                  static_cast<ControlTemplate&>(scopeOwner), name, object)
+            : Controls::Detail::TemplatePrivate::RegisterAuthoredName(
+                  static_cast<DataTemplate&>(scopeOwner), name, object);
+    }
+};
+
+XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
+    Meta::Registry& runtime,
+    DependencyPropertyRegistry& properties,
+    Base::IAllocator* allocator) noexcept
+    : allocator_(allocator != nullptr
+          ? allocator
+          : &Base::GetDefaultAllocator()) {
+    void* memory = allocator_->Allocate({
+        sizeof(Impl),
+        alignof(Impl),
+        Base::MemoryTag::Markup});
+    if (memory != nullptr) {
+        impl_ = new (memory) Impl(
+            runtime,
+            properties,
+            *allocator_);
+    }
+}
+
+XamlTemplateSchemaFacet::~XamlTemplateSchemaFacet() noexcept {
+    if (impl_ == nullptr) {
+        return;
+    }
+    impl_->~Impl();
+    allocator_->Deallocate(
+        impl_,
+        sizeof(Impl),
+        alignof(Impl),
+        Base::MemoryTag::Markup);
+    impl_ = nullptr;
+}
+
+Base::Result<void> XamlTemplateSchemaFacet::Register(
+    Schema& schema) noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "XAML template extension allocation failed");
+    }
+    if (schema.IsFrozen() ||
+        impl_->schema != nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "XAML template extension registration is invalid");
+    }
+    const PropertyInfo* targetType =
+        schema.Types().FindProperty(
+            ControlTemplate::StaticTypeId(),
+            Base::StringView("TargetType"),
+            false);
+    const PropertyInfo* targetName =
+        schema.Types().FindProperty(
+            Setter::StaticTypeId(),
+            Base::StringView("TargetName"),
+            false);
+    const PropertyInfo* dataType =
+        schema.Types().FindProperty(
+            DataTemplate::StaticTypeId(),
+            Base::StringView("DataType"),
+            false);
+    if (targetType == nullptr ||
+        dataType == nullptr ||
+        targetName == nullptr ||
+        targetType->ValueType() !=
+            TypeOf<TypeReference>() ||
+        dataType->ValueType() !=
+            TypeOf<TypeReference>() ||
+        targetName->ValueType() !=
+            TypeOf<Base::String>()) {
+        return InvalidTemplateXaml(
+            "Template XAML metadata is incomplete");
+    }
+
+    impl_->schema = &schema;
+    Base::Result<void> status =
+        Detail::SchemaPrivate::AddType(schema, {
+            ControlTemplate::StaticTypeId(),
+            nullptr,
+            nullptr,
+            nullptr,
+            impl_,
+            true,
+            true,
+            &Impl::RegisterTemplateName,
+            nullptr,
+            &ResolveTemplateResources,
+            &Impl::EndTemplate,
+            true,
+            &ResolveTemplateImplicitKey});
+    if (status) {
+        status = Detail::SchemaPrivate::AddType(schema, {
+            DataTemplate::StaticTypeId(),
+            nullptr,
+            nullptr,
+            nullptr,
+            impl_,
+            true,
+            true,
+            &Impl::RegisterTemplateName,
+            nullptr,
+            &ResolveTemplateResources,
+            &Impl::EndTemplate,
+            true,
+            &ResolveTemplateImplicitKey});
+    }
+    if (status) {
+        status = Detail::SchemaPrivate::AddType(schema, {
+            ItemsPanelTemplate::StaticTypeId(),
+            nullptr,
+            nullptr,
+            nullptr,
+            impl_,
+            true,
+            true,
+            nullptr,
+            nullptr,
+            &ResolveTemplateResources,
+            &Impl::EndTemplate,
+            true,
+            nullptr});
+    }
+    if (!status) {
+        impl_->schema = nullptr;
+        return status.GetStatus();
+    }
+    return {};
+}
+
+} // namespace Detail
+} // namespace Aero::Markup
+
+
+// ===== TemplateCompiler =====
+
+#include "gui/StyleInternal.hpp"
+
 #include "gui/BindingInternal.hpp"
 #include "../controls/TemplateInternals.hpp"
 #include "../runtime/DataTemplateTriggerState.hpp"

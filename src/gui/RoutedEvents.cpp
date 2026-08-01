@@ -1,4 +1,4 @@
-#include "MetaInternals.hpp"
+#include "MetadataInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

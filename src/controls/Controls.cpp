@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include "../media/BrushRendering.hpp"

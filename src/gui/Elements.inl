@@ -3,15 +3,15 @@
 Base::Result<void> PopulateUiElements(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Describe<Visual>(
+    status = Meta::Register<Visual>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ContentElement>(
+    status = Meta::Register<ContentElement>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto frameworkContentElement = Meta::Describe<FrameworkContentElement>(
+    auto frameworkContentElement = Meta::Register<FrameworkContentElement>(
         context, TypeFlags::Abstract);
     frameworkContentElement
         .Property<
@@ -32,7 +32,7 @@ Base::Result<void> PopulateUiElements(
     status = frameworkContentElement.Result();
     if (!status) return status.GetStatus();
 
-    auto uiElement = Meta::Describe<UIElement>(
+    auto uiElement = Meta::Register<UIElement>(
         context, TypeFlags::Abstract);
     uiElement
         .Event(UIElement::PreviewMouseMoveEvent, RoutingStrategy::Tunnel)
@@ -125,7 +125,7 @@ Base::Result<void> PopulateUiElements(
     status = uiElement.Result();
     if (!status) return status.GetStatus();
 
-    auto inputScope = Meta::Describe<InputScope>(context);
+    auto inputScope = Meta::Register<InputScope>(context);
     inputScope
         .Value("Default", InputScope::Default)
         .Value("Url", InputScope::Url)
@@ -137,7 +137,7 @@ Base::Result<void> PopulateUiElements(
     status = inputScope.Result();
     if (!status) return status.GetStatus();
 
-    auto frameworkElement = Meta::Describe<FrameworkElement>(context);
+    auto frameworkElement = Meta::Register<FrameworkElement>(context);
     frameworkElement
         .Property<
             Base::Ref<ResourceDictionary>,

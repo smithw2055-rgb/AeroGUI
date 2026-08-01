@@ -1,7 +1,1582 @@
-#include "ObjectBuilder.hpp"
+#include "gui/MetadataInternal.hpp"
+#include "markup/MarkupWriterInternal.hpp"
+// Consolidated implementation. Keep sections ordered by dependency.
 
-#include "StaticResourceObject.hpp"
-#include <Aero/Markup/CompiledDocument.hpp>
+// ===== BindingExtension =====
+
+
+#include "gui/BindingInternal.hpp"
+
+// Binding markup-extension implementation.
+
+
+
+#include <Aero/Base/String.hpp>
+#include <Aero/Base/StringView.hpp>
+#include "../controls/TemplateInternals.hpp"
+
+#include <Aero/Styling.hpp>
+#include <Aero/Controls/Items.hpp>
+#include <Aero/Animation.hpp>
+
+#include <new>
+
+namespace Aero::Markup {
+namespace {
+
+constexpr Base::StringView ElementNameKey("ElementName");
+constexpr Base::StringView SourceKey("Source");
+constexpr Base::StringView PathKey("Path");
+constexpr Base::StringView ModeKey("Mode");
+constexpr Base::StringView RelativeSourceKey("RelativeSource");
+constexpr Base::StringView StringFormatKey("StringFormat");
+constexpr Base::StringView FallbackValueKey("FallbackValue");
+constexpr Base::StringView UpdateSourceTriggerKey("UpdateSourceTrigger");
+constexpr Base::StringView OneTimeMode("OneTime");
+constexpr Base::StringView OneWayMode("OneWay");
+constexpr Base::StringView TwoWayMode("TwoWay");
+constexpr Base::StringView OneWayToSourceMode("OneWayToSource");
+constexpr Base::StringView PropertyChangedTrigger("PropertyChanged");
+constexpr Base::StringView ExplicitTrigger("Explicit");
+constexpr Base::StringView SelfValue("Self");
+constexpr Base::StringView TemplatedParentValue("TemplatedParent");
+constexpr Base::StringView RelativeSourcePrefix("{RelativeSource");
+constexpr Base::StringView StaticResourcePrefix("{StaticResource");
+
+enum class RelativeSourceKind : std::uint8_t {
+    None = 0U,
+    Self,
+    TemplatedParent,
+    Ancestor
+};
+
+Base::StringView TrimAscii(Base::StringView value) noexcept {
+    std::uint32_t first = 0U;
+    std::uint32_t last = value.SizeBytes();
+    while (first < last &&
+           (value[first] == ' ' || value[first] == '\t' ||
+            value[first] == '\r' || value[first] == '\n')) {
+        ++first;
+    }
+    while (last > first &&
+           (value[last - 1U] == ' ' || value[last - 1U] == '\t' ||
+            value[last - 1U] == '\r' || value[last - 1U] == '\n')) {
+        --last;
+    }
+    return value.Substr(first, last - first);
+}
+
+
+Base::Result<void> ParseArguments(
+    Base::StringView arguments,
+    Base::StringView& elementName,
+    Base::StringView& sourceResource,
+    Base::StringView& path,
+    Base::StringView& stringFormat,
+    Base::StringView& fallbackValue,
+    Base::StringView& ancestorType,
+    RelativeSourceKind& relativeSource,
+    Data::BindingMode& mode,
+    Core::UpdateSourceTrigger& updateSourceTrigger) noexcept {
+    elementName = {};
+    sourceResource = {};
+    path = {};
+    stringFormat = {};
+    fallbackValue = {};
+    ancestorType = {};
+    relativeSource = RelativeSourceKind::None;
+    mode = Data::BindingMode::OneWay;
+    updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
+
+    std::uint32_t begin = 0U;
+    while (begin < arguments.SizeBytes()) {
+        std::uint32_t end = begin;
+        std::uint32_t depth = 0U;
+        char quote = '\0';
+        while (end < arguments.SizeBytes()) {
+            const char character = arguments[end];
+            if (quote != '\0') {
+                if (character == quote) quote = '\0';
+            } else if (character == '\'' || character == '"') {
+                quote = character;
+            } else if (character == '{') {
+                ++depth;
+            } else if (character == '}') {
+                if (depth == 0U) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        "Binding contains an unmatched closing brace");
+                }
+                --depth;
+            } else if (character == ',' && depth == 0U) {
+                break;
+            }
+            ++end;
+        }
+        if (depth != 0U || quote != '\0') {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Binding contains an incomplete nested markup extension");
+        }
+        const Base::StringView item = TrimAscii(arguments.Substr(begin, end - begin));
+        const std::uint32_t equals = [&item]() noexcept {
+            std::uint32_t depth = 0U;
+            char quote = '\0';
+            for (std::uint32_t index = 0U; index < item.SizeBytes(); ++index) {
+                const char character = item[index];
+                if (quote != '\0') {
+                    if (character == quote) quote = '\0';
+                } else if (character == '\'' || character == '"') {
+                    quote = character;
+                } else if (character == '{') {
+                    ++depth;
+                } else if (character == '}') {
+                    if (depth > 0U) --depth;
+                } else if (character == '=' && depth == 0U) {
+                    return index;
+                }
+            }
+            return item.SizeBytes();
+        }();
+        if (item.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Binding argument is empty");
+        }
+        if (equals == item.SizeBytes()) {
+            if (!path.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding positional Path is specified more than once");
+            }
+            path = item;
+            begin = end + 1U;
+            continue;
+        }
+        const Base::StringView key = TrimAscii(item.Substr(0U, equals));
+        const Base::StringView value = TrimAscii(item.Substr(
+            equals + 1U,
+            item.SizeBytes() - equals - 1U));
+        if (value.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Binding argument value is empty");
+        }
+        if (key == ElementNameKey) {
+            if (!elementName.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding ElementName is specified more than once");
+            }
+            elementName = value;
+        } else if (key == SourceKey) {
+            if (!sourceResource.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding Source is specified more than once");
+            }
+            if (value.SizeBytes() <=
+                    StaticResourcePrefix.SizeBytes() + 1U ||
+                value.Substr(0U, StaticResourcePrefix.SizeBytes()) !=
+                    StaticResourcePrefix ||
+                value[value.SizeBytes() - 1U] != '}') {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding Source currently requires a StaticResource");
+            }
+            sourceResource = TrimAscii(value.Substr(
+                StaticResourcePrefix.SizeBytes(),
+                value.SizeBytes() - StaticResourcePrefix.SizeBytes() - 1U));
+            if (sourceResource.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding StaticResource key is empty");
+            }
+        } else if (key == RelativeSourceKey) {
+            if (relativeSource != RelativeSourceKind::None) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding RelativeSource is specified more than once");
+            }
+            Base::StringView relative = TrimAscii(value);
+            if (relative == TemplatedParentValue) {
+                relativeSource =
+                    RelativeSourceKind::TemplatedParent;
+            } else if (
+                relative.SizeBytes() >
+                    RelativeSourcePrefix.SizeBytes() + 1U &&
+                relative.Substr(
+                    0U,
+                    RelativeSourcePrefix.SizeBytes()) ==
+                    RelativeSourcePrefix &&
+                relative[relative.SizeBytes() - 1U] == '}') {
+                Base::StringView relativeMode = TrimAscii(
+                    relative.Substr(
+                        RelativeSourcePrefix.SizeBytes(),
+                        relative.SizeBytes() -
+                            RelativeSourcePrefix.SizeBytes() - 1U));
+                constexpr Base::StringView ModePrefix("Mode=");
+                if (relativeMode.SizeBytes() >= ModePrefix.SizeBytes() &&
+                    relativeMode.Substr(0U, ModePrefix.SizeBytes()) ==
+                        ModePrefix) {
+                    relativeMode = TrimAscii(relativeMode.Substr(
+                        ModePrefix.SizeBytes(),
+                        relativeMode.SizeBytes() - ModePrefix.SizeBytes()));
+                }
+                constexpr Base::StringView AncestorPrefix("AncestorType=");
+                if (relativeMode == SelfValue) {
+                    relativeSource = RelativeSourceKind::Self;
+                } else if (relativeMode == TemplatedParentValue) {
+                    relativeSource = RelativeSourceKind::TemplatedParent;
+                } else if (relativeMode.SizeBytes() >=
+                           AncestorPrefix.SizeBytes() &&
+                    relativeMode.Substr(0U, AncestorPrefix.SizeBytes()) ==
+                        AncestorPrefix) {
+                    Base::StringView typeName = TrimAscii(relativeMode.Substr(
+                        AncestorPrefix.SizeBytes(),
+                        relativeMode.SizeBytes() - AncestorPrefix.SizeBytes()));
+                    constexpr Base::StringView TypePrefix("{x:Type");
+                    if (typeName.SizeBytes() > TypePrefix.SizeBytes() + 1U &&
+                        typeName.Substr(0U, TypePrefix.SizeBytes()) == TypePrefix &&
+                        typeName[typeName.SizeBytes() - 1U] == '}') {
+                        typeName = TrimAscii(typeName.Substr(
+                            TypePrefix.SizeBytes(),
+                            typeName.SizeBytes() - TypePrefix.SizeBytes() - 1U));
+                    }
+                    if (typeName.Empty()) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::ValidationFailed,
+                            "Binding RelativeSource AncestorType is empty");
+                    }
+                    ancestorType = typeName;
+                    relativeSource = RelativeSourceKind::Ancestor;
+                } else {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "Binding RelativeSource mode is not supported");
+                }
+            } else {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding RelativeSource mode is not supported");
+            }
+        } else if (key == StringFormatKey) {
+            if (!stringFormat.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding StringFormat is specified more than once");
+            }
+            stringFormat = value;
+        } else if (key == FallbackValueKey) {
+            if (!fallbackValue.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding FallbackValue is specified more than once");
+            }
+            // The metadata binding engine does not yet need the fallback for
+            // a resolvable path, but WPF permits it on every Binding. Parse
+            // it here so the declaration remains valid while the fallback is
+            // carried by the higher-level binding semantics incrementally.
+            fallbackValue = value;
+        } else if (key == PathKey) {
+            if (!path.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding Path is specified more than once");
+            }
+            path = value;
+        } else if (key == ModeKey) {
+            if (value == OneTimeMode) {
+                mode = Data::BindingMode::OneTime;
+            } else if (value == OneWayMode) {
+                mode = Data::BindingMode::OneWay;
+            } else if (value == TwoWayMode) {
+                mode = Data::BindingMode::TwoWay;
+            } else if (value == OneWayToSourceMode) {
+                mode = Data::BindingMode::OneWayToSource;
+            } else {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding mode is not supported");
+            }
+        } else if (key == UpdateSourceTriggerKey) {
+            if (value == PropertyChangedTrigger) {
+                updateSourceTrigger = Core::UpdateSourceTrigger::PropertyChanged;
+            } else if (value == ExplicitTrigger) {
+                updateSourceTrigger = Core::UpdateSourceTrigger::Explicit;
+            } else {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding update trigger is not supported");
+            }
+        } else {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Binding argument is not supported");
+        }
+        begin = end + 1U;
+    }
+    if (path.Empty() && elementName.Empty() &&
+        sourceResource.Empty() &&
+        relativeSource == RelativeSourceKind::None) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Binding requires Path, Source, ElementName, or RelativeSource");
+    }
+    return {};
+}
+
+struct DeferredBindingState final {
+    Aero::Detail::BindingEngine* manager = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
+    Base::Object* source = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle targetProperty;
+    Core::DependencyPropertyHandle dataContextProperty;
+    Base::String path;
+    Base::String stringFormat;
+    bool bindsToSource = false;
+    Data::BindingMode mode = Data::BindingMode::OneWay;
+    Core::UpdateSourceTrigger updateSourceTrigger =
+        Core::UpdateSourceTrigger::PropertyChanged;
+    Base::IAllocator* allocator = nullptr;
+};
+
+Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr || state->manager == nullptr ||
+        state->metadata == nullptr || state->target == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred Binding state is invalid");
+    }
+    Data::MetadataBindingDescriptor descriptor;
+    descriptor.metadata = state->metadata;
+    descriptor.source = state->source;
+    descriptor.target = state->target;
+    descriptor.targetProperty = state->targetProperty;
+    descriptor.dataContextProperty = state->dataContextProperty;
+    descriptor.path = state->path.View();
+    descriptor.stringFormat =
+        state->stringFormat.View();
+    descriptor.bindsToSource = state->bindsToSource;
+    descriptor.mode = state->mode;
+    descriptor.updateSourceTrigger = state->updateSourceTrigger;
+    Base::Result<Data::BindingHandle> attached =
+        state->manager->Attach(descriptor);
+    return attached
+        ? Base::Result<std::uint64_t>(attached.Value().value)
+        : Base::Result<std::uint64_t>(attached.GetStatus());
+}
+
+void RollbackBinding(
+    void* context,
+    std::uint64_t token) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state != nullptr && state->manager != nullptr && token != 0U) {
+        static_cast<void>(state->manager->Detach({token}));
+    }
+}
+
+void CleanupBinding(void* context) noexcept {
+    auto* state = static_cast<DeferredBindingState*>(context);
+    if (state == nullptr) return;
+    Base::IAllocator* allocator = state->allocator;
+    state->~DeferredBindingState();
+    allocator->Deallocate(
+        state, sizeof(DeferredBindingState),
+        alignof(DeferredBindingState), Base::MemoryTag::Markup);
+}
+
+} // namespace
+
+BindingExtension::BindingExtension(
+    const BindingExtensionOptions& options) noexcept
+    : options_(options) {}
+
+Base::Result<void> BindingExtension::Register(
+    Schema& schema,
+    Core::TypeId bindingExtensionType) noexcept {
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+        bindingExtensionType,
+        &BindingExtension::ProvideValue,
+        this});
+}
+
+Base::Result<ProvidedValue> BindingExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    BindingExtension* extension =
+        static_cast<BindingExtension*>(context);
+    if (extension == nullptr ||
+        services.schema == nullptr || services.targetObject == nullptr ||
+        services.nameScope == nullptr ||
+        services.targetMember == Core::InvalidMemberId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding markup extension has no target service context");
+    }
+
+    Base::StringView elementName;
+    Base::StringView sourceResource;
+    Base::StringView path;
+    Base::StringView stringFormat;
+    Base::StringView fallbackValue;
+    Base::StringView ancestorType;
+    RelativeSourceKind relativeSource =
+        RelativeSourceKind::None;
+    Data::BindingMode mode = Data::BindingMode::OneWay;
+    Core::UpdateSourceTrigger updateSourceTrigger =
+        Core::UpdateSourceTrigger::PropertyChanged;
+    Base::Result<void> parsed = ParseArguments(
+        arguments,
+        elementName,
+        sourceResource,
+        path,
+        stringFormat,
+        fallbackValue,
+        ancestorType,
+        relativeSource,
+        mode,
+        updateSourceTrigger);
+    if (!parsed) {
+        return parsed.GetStatus();
+    }
+    (void)fallbackValue;
+    if ((!elementName.Empty() &&
+         relativeSource != RelativeSourceKind::None) ||
+        (!sourceResource.Empty() &&
+         (!elementName.Empty() ||
+          relativeSource != RelativeSourceKind::None))) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Binding Source, ElementName, and RelativeSource are mutually exclusive");
+    }
+
+    ::Aero::Meta::Registry* metadata =
+        Detail::SchemaPrivate::Metadata(
+            *services.schema);
+    const Core::PropertyInfo* targetMember =
+        metadata != nullptr
+        ? metadata->Types().FindProperty(
+            services.targetMember)
+        : nullptr;
+    // Setter is only an authored declaration. Its target object is created
+    // when the Style is applied, so preserve the binding specification here.
+    const bool authoredSetterValue =
+        targetMember != nullptr &&
+        targetMember->OwnerType() == Aero::Setter::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("Value");
+    const bool authoredHierarchicalItemsSource =
+        targetMember != nullptr &&
+        targetMember->OwnerType() == Controls::DataTemplate::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("ItemsSource");
+    const bool authoredLaunchPath =
+        targetMember != nullptr &&
+        services.targetObject->RuntimeType() ==
+            Media::Animation::LaunchUriOrFileAction::StaticTypeId() &&
+        targetMember->Name() == Base::StringView("Path");
+    if ((targetMember != nullptr &&
+         targetMember->ValueType() ==
+             Data::Binding::StaticTypeId()) ||
+        authoredSetterValue || authoredHierarchicalItemsSource ||
+        authoredLaunchPath) {
+        if (!sourceResource.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Data::Binding does not support an explicit Source");
+        }
+        Base::Result<Base::Ref<
+            Data::Binding>> binding =
+                Base::MakeRef<
+                    Data::Binding>();
+        if (!binding) {
+            return binding.GetStatus();
+        }
+        Base::Result<void> configured = binding.Value()->SetPath(path);
+        if (configured) configured = binding.Value()->SetElementName(elementName);
+        if (configured) configured = binding.Value()->SetStringFormat(stringFormat);
+        if (!configured) return configured.GetStatus();
+        binding.Value()->SetMode(mode);
+        binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
+        if (relativeSource != RelativeSourceKind::None) {
+            const Data::RelativeSourceMode sourceMode =
+                relativeSource == RelativeSourceKind::Self
+                    ? Data::RelativeSourceMode::Self
+                    : relativeSource == RelativeSourceKind::TemplatedParent
+                        ? Data::RelativeSourceMode::TemplatedParent
+                        : Data::RelativeSourceMode::FindAncestor;
+            Base::Result<Base::Ref<Data::RelativeSource>> source =
+                Base::MakeRef<Data::RelativeSource>(sourceMode);
+            if (!source) return source.GetStatus();
+            if (sourceMode == Data::RelativeSourceMode::FindAncestor) {
+                configured = source.Value()->SetAncestorType(ancestorType);
+                if (!configured) return configured.GetStatus();
+            }
+            binding.Value()->SetRelativeSource(std::move(source).Value());
+        }
+        if (authoredLaunchPath) {
+            Base::Result<void> assigned =
+                static_cast<Media::Animation::LaunchUriOrFileAction*>(
+                    services.targetObject)->SetPathBinding(
+                        std::move(binding).Value());
+            return assigned
+                ? Base::Result<ProvidedValue>(ProvidedValue::Handled())
+                : Base::Result<ProvidedValue>(assigned.GetStatus());
+        }
+        Base::Result<Core::Value> value =
+            Core::Value::FromObject(
+                authoredHierarchicalItemsSource
+                    ? targetMember->ValueType()
+                    : Data::Binding::StaticTypeId(),
+                Base::Ref<Base::Object>(
+                    std::move(binding).Value()));
+        if (!value) return value.GetStatus();
+        return ProvidedValue::FromValue(
+            std::move(value).Value());
+    }
+
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
+            *services.schema,
+            *services.targetObject);
+    if (!targetResult) {
+        return targetResult.GetStatus();
+    }
+    ::Aero::DependencyObject* target = targetResult.Value();
+
+    const Core::DependencyPropertyHandle targetHandle{
+        services.targetMember};
+    const Core::DependencyProperty* targetProperty =
+        target->PropertyRegistry().Find(targetHandle);
+    if (targetProperty == nullptr ||
+        Detail::SchemaPrivate::Metadata(
+            *services.schema) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Binding target property or metadata program was not found");
+    }
+
+    if (relativeSource ==
+            RelativeSourceKind::TemplatedParent &&
+        services.deferredContentOwner != nullptr &&
+        services.deferredContentOwner->RuntimeType() ==
+            Controls::ControlTemplate::StaticTypeId()) {
+        auto& controlTemplate =
+            static_cast<Controls::ControlTemplate&>(
+                *services.deferredContentOwner);
+        Base::String targetName;
+        Base::StringView authoredName =
+            services.nameScope->NameOf(
+                *services.targetObject);
+        if (authoredName.Empty()) {
+            Base::Result<Base::String> generated =
+                Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+                    *services.targetObject);
+            if (!generated) {
+                return generated.GetStatus();
+            }
+            targetName =
+                std::move(generated).Value();
+            authoredName = targetName.View();
+        }
+        Base::Result<void> added =
+            Controls::Detail::TemplatePrivate::TryAddTemplatedParentBinding(controlTemplate,
+                authoredName,
+                path,
+                stringFormat,
+                targetHandle,
+                mode,
+                updateSourceTrigger);
+        return added
+            ? Base::Result<ProvidedValue>(
+                  ProvidedValue::Handled())
+            : Base::Result<ProvidedValue>(
+                  added.GetStatus());
+    }
+
+    Base::Object* source = nullptr;
+    if (!sourceResource.Empty()) {
+        if (!services.resources.IsAvailable()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Binding Source requires an active resource scope");
+        }
+        Base::Result<Aero::ResourceValue> resource =
+            services.resources.Lookup(sourceResource);
+        if (!resource) return resource.GetStatus();
+        if (resource.Value().Kind() != Core::ValueKind::Object ||
+            resource.Value().IsNullObject() ||
+            !resource.Value().AsObject()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding Source StaticResource must be an object");
+        }
+        source = resource.Value().AsObject().Get();
+    } else if (!elementName.Empty()) {
+        source = services.nameScope->Find(elementName);
+        if (source == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding ElementName was not found in the active NameScope");
+        }
+    } else if (relativeSource == RelativeSourceKind::Self) {
+        source = services.targetObject;
+    } else if (relativeSource ==
+               RelativeSourceKind::TemplatedParent) {
+        source = services.templatedParent;
+        if (source == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding TemplatedParent is unavailable");
+        }
+    } else {
+        if (!extension->options_.dataContextProperty.IsValid()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::Unsupported,
+                "Binding without ElementName requires a DataContext property");
+        }
+    }
+
+    Aero::Detail::BindingEngine* bindings =
+        services.bindings != nullptr
+        ? services.bindings
+        : extension->options_.bindings;
+    if (bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding requires a load-scoped BindingEngine");
+    }
+
+    if (services.deferredContentOwner != nullptr &&
+        services.deferredContent != nullptr) {
+        Base::Result<void> staged =
+            services.deferredContent->StageBinding(
+                *services.deferredContentOwner,
+                source,
+                *target,
+                *bindings,
+                *Detail::SchemaPrivate::Metadata(
+                    *services.schema),
+                targetHandle,
+                extension->options_.dataContextProperty,
+                path,
+                stringFormat,
+                mode,
+                updateSourceTrigger,
+                path.Empty());
+        return staged
+            ? Base::Result<ProvidedValue>(
+                  ProvidedValue::Handled())
+            : Base::Result<ProvidedValue>(
+                  staged.GetStatus());
+    }
+
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(DeferredBindingState),
+        alignof(DeferredBindingState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Deferred Binding allocation failed");
+    }
+    auto* state = new (memory) DeferredBindingState();
+    state->manager = bindings;
+    state->metadata = Detail::SchemaPrivate::Metadata(
+        *services.schema);
+    state->source = source;
+    state->target = target;
+    state->targetProperty = targetHandle;
+    state->dataContextProperty = extension->options_.dataContextProperty;
+    state->mode = mode;
+    state->bindsToSource = path.Empty();
+    state->updateSourceTrigger = updateSourceTrigger;
+    state->allocator = &allocator;
+    Base::Result<void> assigned = state->path.TryAssign(path);
+    if (!assigned) {
+        CleanupBinding(state);
+        return assigned.GetStatus();
+    }
+    assigned = state->stringFormat.TryAssign(
+        stringFormat);
+    if (!assigned) {
+        CleanupBinding(state);
+        return assigned.GetStatus();
+    }
+    return ProvidedValue::Deferred(
+        state, &CommitBinding, &RollbackBinding, &CleanupBinding);
+}
+
+} // namespace Aero::Markup
+
+
+// ===== DynamicResourceExtension =====
+
+
+
+
+// Dynamic-resource markup-extension implementation.
+
+
+#include <Aero/Styling.hpp>
+
+#include <new>
+#include <utility>
+
+namespace Aero::Markup {
+using Aero::ResourceChangeSubscription;
+using Aero::ResourceDictionary;
+
+namespace {
+
+struct DynamicResourceState final {
+    DynamicResourceState(
+        Core::EffectiveValueEngine& effectiveValues,
+        ::Aero::DependencyObject& dependencyObject,
+        Core::DependencyPropertyHandle dependencyProperty) noexcept
+        : engine(&effectiveValues),
+          target(&dependencyObject),
+          property(dependencyProperty),
+          key(),
+          sources(),
+          allocator(&Base::GetDefaultAllocator()) {}
+
+    struct Source final {
+        ResourceDictionary* resources = nullptr;
+        ResourceChangeSubscription subscription;
+    };
+
+    Core::EffectiveValueEngine* engine = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle property;
+    Base::String key;
+    Base::Vector<Source> sources;
+    Base::IAllocator* allocator = nullptr;
+};
+
+Base::StringView TrimDynamicResourceText(Base::StringView value) noexcept {
+    std::uint32_t first = 0U;
+    std::uint32_t last = value.SizeBytes();
+    while (first < last &&
+           (value[first] == ' ' || value[first] == '\t' ||
+            value[first] == '\r' || value[first] == '\n')) {
+        ++first;
+    }
+    while (last > first &&
+           (value[last - 1U] == ' ' || value[last - 1U] == '\t' ||
+            value[last - 1U] == '\r' || value[last - 1U] == '\n')) {
+        --last;
+    }
+    return value.Substr(first, last - first);
+}
+
+Base::Result<Core::PropertyValue> EvaluateDynamicResource(
+    void* context,
+    ::Aero::DependencyObject& object,
+    Core::DependencyPropertyHandle property) noexcept {
+    DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
+    if (state == nullptr || state->sources.Empty() ||
+        state->target != &object || state->property != property) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource expression state is invalid");
+    }
+    for (const DynamicResourceState::Source& source :
+         state->sources) {
+        if (source.resources == nullptr) {
+            continue;
+        }
+        Base::Result<Aero::ResourceValue> resource =
+            source.resources->Lookup(state->key.View());
+        if (resource) {
+            return resource.Value();
+        }
+        if (resource.GetStatus().code !=
+            Base::ErrorCode::NotFound) {
+            return resource.GetStatus();
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::NotFound,
+        "DynamicResource key is not available in the active resource chain");
+}
+
+void ResourceChanged(
+    void* context,
+    Base::StringView key,
+    Aero::ResourceChangeKind,
+    std::uint64_t) noexcept {
+    DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
+    if (state == nullptr || state->engine == nullptr || state->target == nullptr) {
+        return;
+    }
+    if (!key.Empty() && key != state->key.View()) {
+        return;
+    }
+    static_cast<void>(state->engine->Invalidate(*state->target, state->property));
+}
+
+void CleanupDynamicResource(void* context) noexcept {
+    DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
+    if (state == nullptr) {
+        return;
+    }
+    Base::IAllocator* allocator = state->allocator;
+    for (DynamicResourceState::Source& source :
+         state->sources) {
+        if (source.resources != nullptr) {
+            static_cast<void>(
+                source.resources->Unsubscribe(
+                    source.subscription));
+        }
+    }
+    state->~DynamicResourceState();
+    allocator->Deallocate(
+        state,
+        sizeof(DynamicResourceState),
+        alignof(DynamicResourceState),
+        Base::MemoryTag::Markup);
+}
+
+
+struct DeferredDynamicResourceState final {
+    Core::EffectiveValueEngine* engine = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
+    Core::DependencyPropertyHandle property;
+    Base::Vector<const ResourceDictionary*> resources;
+    ResourceDictionary* fallbackResources = nullptr;
+    Base::String key;
+    Base::IAllocator* allocator = nullptr;
+};
+
+Base::Result<std::uint64_t> CommitDynamicResource(void* context) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state == nullptr || state->engine == nullptr ||
+        state->target == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Deferred DynamicResource state is invalid");
+    }
+    Base::Result<void> attached = DynamicResource::Attach(
+        *state->engine,
+        {state->resources.Data(), state->resources.Size()},
+        state->fallbackResources,
+        *state->target, state->property, state->key.View());
+    return attached
+        ? Base::Result<std::uint64_t>(1U)
+        : Base::Result<std::uint64_t>(attached.GetStatus());
+}
+
+void RollbackDynamicResource(
+    void* context, std::uint64_t token) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state != nullptr && token != 0U && state->engine != nullptr &&
+        state->target != nullptr) {
+        static_cast<void>(state->engine->ClearLocalExpression(
+            *state->target, state->property));
+    }
+}
+
+void CleanupDeferredDynamicResource(void* context) noexcept {
+    auto* state = static_cast<DeferredDynamicResourceState*>(context);
+    if (state == nullptr) return;
+    Base::IAllocator* allocator = state->allocator;
+    state->~DeferredDynamicResourceState();
+    allocator->Deallocate(
+        state, sizeof(DeferredDynamicResourceState),
+        alignof(DeferredDynamicResourceState), Base::MemoryTag::Markup);
+}
+
+} // namespace
+
+Base::Result<void> DynamicResource::Attach(
+    Core::EffectiveValueEngine& effectiveValues,
+    ResourceDictionary& resources,
+    ::Aero::DependencyObject& target,
+    Core::DependencyPropertyHandle property,
+    Base::StringView key) noexcept {
+    const ResourceDictionary* chain[] = {&resources};
+    return Attach(
+        effectiveValues,
+        {chain, 1U},
+        nullptr,
+        target,
+        property,
+        key);
+}
+
+Base::Result<Core::PropertyExpression> DynamicResource::CreateExpression(
+    Core::EffectiveValueEngine& effectiveValues,
+    Base::Span<const ResourceDictionary* const> resourceChain,
+    ResourceDictionary* fallbackResources,
+    ::Aero::DependencyObject& target,
+    Core::DependencyPropertyHandle property,
+    Base::StringView key) noexcept {
+    const Base::StringView normalizedKey = TrimDynamicResourceText(key);
+    if (!property.IsValid() || normalizedKey.Empty() ||
+        (resourceChain.Empty() &&
+         fallbackResources == nullptr)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "DynamicResource requires resources, a target property, and a non-empty key");
+    }
+    Base::Result<Aero::ResourceValue> existing =
+        Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "DynamicResource key is not available");
+    for (const ResourceDictionary* resources :
+         resourceChain) {
+        if (resources == nullptr) continue;
+        existing = resources->Lookup(normalizedKey);
+        if (existing ||
+            existing.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+            break;
+        }
+    }
+    if (!existing && fallbackResources != nullptr) {
+        existing = fallbackResources->Lookup(normalizedKey);
+    }
+    if (!existing) return existing.GetStatus();
+
+    Base::IAllocator* stateAllocator = &Base::GetDefaultAllocator();
+    void* memory = stateAllocator->Allocate({
+        sizeof(DynamicResourceState),
+        alignof(DynamicResourceState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "DynamicResource expression allocation failed");
+    }
+    DynamicResourceState* state = new (memory) DynamicResourceState(
+        effectiveValues, target, property);
+    Base::Result<void> assigned = state->key.TryAssign(normalizedKey);
+    if (!assigned) {
+        state->~DynamicResourceState();
+        stateAllocator->Deallocate(
+            memory, sizeof(DynamicResourceState), alignof(DynamicResourceState),
+            Base::MemoryTag::Markup);
+        return assigned.GetStatus();
+    }
+    auto subscribe =
+        [state](ResourceDictionary* resources) noexcept
+            -> Base::Result<void> {
+        if (resources == nullptr) return {};
+        for (const DynamicResourceState::Source& source :
+             state->sources) {
+            if (source.resources == resources) return {};
+        }
+        Base::Result<ResourceChangeSubscription> subscription =
+            resources->SubscribeChanged(
+                &ResourceChanged, state);
+        if (!subscription) {
+            return subscription.GetStatus();
+        }
+        Base::Result<void> added =
+            state->sources.TryPushBack({
+                resources, subscription.Value()});
+        if (!added) {
+            static_cast<void>(
+                resources->Unsubscribe(
+                    subscription.Value()));
+            return added.GetStatus();
+        }
+        return {};
+    };
+    for (const ResourceDictionary* resources :
+         resourceChain) {
+        assigned = subscribe(
+            const_cast<ResourceDictionary*>(resources));
+        if (!assigned) {
+            CleanupDynamicResource(state);
+            return assigned.GetStatus();
+        }
+    }
+    assigned = subscribe(fallbackResources);
+    if (!assigned) {
+        CleanupDynamicResource(state);
+        return assigned.GetStatus();
+    }
+
+    return Core::PropertyExpression{
+        state,
+        &EvaluateDynamicResource,
+        &CleanupDynamicResource,
+        Core::PropertyExpressionKind::DynamicResource};
+}
+
+Base::Result<void> DynamicResource::Attach(
+    Core::EffectiveValueEngine& effectiveValues,
+    Base::Span<const ResourceDictionary* const> resourceChain,
+    ResourceDictionary* fallbackResources,
+    ::Aero::DependencyObject& target,
+    Core::DependencyPropertyHandle property,
+    Base::StringView key) noexcept {
+    Base::Result<Core::PropertyExpression> expression = CreateExpression(
+        effectiveValues,
+        resourceChain,
+        fallbackResources,
+        target,
+        property,
+        key);
+    if (!expression) return expression.GetStatus();
+    Base::Result<void> installed = effectiveValues.SetLocalExpression(
+        target, property, expression.Value());
+    if (!installed && expression.Value().cleanup != nullptr) {
+        expression.Value().cleanup(expression.Value().context);
+    }
+    return installed;
+}
+
+DynamicResourceExtension::DynamicResourceExtension(
+    const DynamicResourceExtensionOptions& options) noexcept
+    : options_(options) {}
+
+Base::Result<void> DynamicResourceExtension::Register(
+    Schema& schema,
+    Core::TypeId dynamicResourceExtensionType) noexcept {
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+        dynamicResourceExtensionType,
+        &DynamicResourceExtension::ProvideValue,
+        this});
+}
+
+Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    DynamicResourceExtension* extension =
+        static_cast<DynamicResourceExtension*>(context);
+    if (extension == nullptr ||
+        services.schema == nullptr || services.targetObject == nullptr ||
+        services.targetMember == Core::InvalidMemberId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource markup extension has no target service context");
+    }
+    const Base::StringView key = TrimDynamicResourceText(arguments);
+    if (key.Empty() || key.Data() == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "DynamicResource requires a resource key");
+    }
+    // A Setter is an authored style record rather than a DependencyObject.
+    // Resolve its current resource value while the style dictionary is being
+    // built; the style finalizer subsequently converts that value for the
+    // target dependency property.
+    if (services.targetObject->RuntimeType() ==
+        Aero::Setter::StaticTypeId()) {
+        // Template/style setters are authored before their eventual target
+        // exists. Resolve from the complete parse-time resource scope, not
+        // only the immediate fallback dictionary: a theme's brushes commonly
+        // live in an earlier merged sibling dictionary.
+        for (const ResourceDictionary* resources :
+             services.ambientResourceChain) {
+            if (resources == nullptr) continue;
+            Base::Result<Aero::ResourceValue> resource =
+                resources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        if (services.fallbackResources != nullptr) {
+            Base::Result<Aero::ResourceValue> resource =
+                services.fallbackResources->Lookup(key);
+            if (resource) {
+                return ProvidedValue::FromValue(
+                    std::move(resource).Value());
+            }
+            if (resource.GetStatus().code !=
+                Base::ErrorCode::NotFound) {
+                return resource.GetStatus();
+            }
+        }
+        // WPF does not fail dictionary construction for a DynamicResource
+        // whose key is currently absent. Preserve an unset object value until
+        // the eventual style-instance resource expression can evaluate it.
+        return ProvidedValue::FromValue(
+            Core::Value::NullObject(
+                Core::TypeOf<Base::Object>()));
+    }
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
+            *services.schema,
+            *services.targetObject);
+    if (!targetResult) {
+        return targetResult.GetStatus();
+    }
+    ::Aero::DependencyObject* target = targetResult.Value();
+    const Core::DependencyPropertyHandle property{services.targetMember};
+    Core::EffectiveValueEngine* effectiveValues =
+        services.effectiveValues != nullptr
+        ? services.effectiveValues
+        : extension->options_.effectiveValues;
+    ResourceDictionary* fallbackResources =
+        services.fallbackResources != nullptr
+        ? services.fallbackResources
+        : extension->options_.resources;
+    if (effectiveValues == nullptr || fallbackResources == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "DynamicResource requires load-scoped effective-value and resource services");
+    }
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(DeferredDynamicResourceState),
+        alignof(DeferredDynamicResourceState),
+        Base::MemoryTag::Markup});
+    if (memory == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Deferred DynamicResource allocation failed");
+    }
+    auto* state = new (memory) DeferredDynamicResourceState();
+    state->engine = effectiveValues;
+    state->target = target;
+    state->property = property;
+    state->fallbackResources = fallbackResources;
+    state->allocator = &allocator;
+    Base::Result<void> reserved = state->resources.TryReserve(
+        services.ambientResourceChain.Size());
+    if (reserved) {
+        for (const ResourceDictionary* resource :
+             services.ambientResourceChain) {
+            reserved = state->resources.TryPushBack(resource);
+            if (!reserved) break;
+        }
+    }
+    if (reserved) reserved = state->key.TryAssign(key);
+    if (!reserved) {
+        CleanupDeferredDynamicResource(state);
+        return reserved.GetStatus();
+    }
+    return ProvidedValue::Deferred(
+        state,
+        &CommitDynamicResource,
+        &RollbackDynamicResource,
+        &CleanupDeferredDynamicResource);
+}
+
+} // namespace Aero::Markup
+
+
+// ===== TemplateBindingExtension =====
+
+
+
+
+
+#include "../controls/TemplateInternals.hpp"
+
+#include <Aero/Styling.hpp>
+#include <Aero/Value.hpp>
+
+
+namespace Aero::Markup {
+namespace {
+
+Base::StringView PropertyLocalName(
+    Base::StringView value) noexcept {
+    value = Core::ValueConversion::Trim(value);
+    std::uint32_t separator = UINT32_MAX;
+    for (std::uint32_t index = 0U;
+         index < value.SizeBytes();
+         ++index) {
+        if (value[index] == '.') {
+            separator = index;
+        }
+    }
+    return separator == UINT32_MAX
+        ? value
+        : value.Substr(
+              separator + 1U,
+              value.SizeBytes() - separator - 1U);
+}
+
+const char* MissingPropertyMessage(
+    Base::StringView propertyName,
+    bool source) noexcept {
+    if (propertyName == Base::StringView("Content")) {
+        return source
+            ? "TemplateBinding source property Content was not found"
+            : "TemplateBinding target property for Content was not found";
+    }
+    if (propertyName == Base::StringView("ContentTemplate")) {
+        return source
+            ? "TemplateBinding source property ContentTemplate was not found"
+            : "TemplateBinding target property for ContentTemplate was not found";
+    }
+    if (propertyName == Base::StringView("ContentTemplateSelector")) {
+        return source
+            ? "TemplateBinding source property ContentTemplateSelector was not found"
+            : "TemplateBinding target property for ContentTemplateSelector was not found";
+    }
+    if (propertyName == Base::StringView("CanContentScroll")) {
+        return source
+            ? "TemplateBinding source property CanContentScroll was not found"
+            : "TemplateBinding target property for CanContentScroll was not found";
+    }
+    if (propertyName == Base::StringView("Padding")) {
+        return source
+            ? "TemplateBinding source property Padding was not found"
+            : "TemplateBinding target property for Padding was not found";
+    }
+    return source
+        ? "TemplateBinding source property was not found"
+        : "TemplateBinding target property was not found";
+}
+
+} // namespace
+
+Base::Result<void> TemplateBindingExtension::Register(
+    Schema& schema,
+    Core::TypeId markupExtensionType) noexcept {
+    if (schema.IsFrozen() ||
+        markupExtensionType == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "TemplateBinding extension registration is invalid");
+    }
+    return Detail::SchemaPrivate::AddMarkupExtension(
+        schema,
+        {markupExtensionType, &ProvideValue, nullptr});
+}
+
+Base::Result<ProvidedValue>
+TemplateBindingExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    if (context != nullptr ||
+        services.schema == nullptr ||
+        services.targetObject == nullptr ||
+        services.deferredContentOwner == nullptr ||
+        services.nameScope == nullptr ||
+        services.targetMember ==
+            Core::InvalidMemberId ||
+        services.deferredContentOwner->RuntimeType() !=
+            Controls::ControlTemplate::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "TemplateBinding requires an active ControlTemplate target");
+    }
+
+    const Base::StringView propertyName =
+        PropertyLocalName(arguments);
+    if (propertyName.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "TemplateBinding requires a source property");
+    }
+
+    auto& controlTemplate =
+        static_cast<Controls::ControlTemplate&>(
+            *services.deferredContentOwner);
+    Base::Result<::Aero::DependencyObject*> target =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
+            *services.schema,
+            *services.targetObject);
+    if (!target) return target.GetStatus();
+
+    const Core::DependencyProperty* source =
+        target.Value()->PropertyRegistry().Find(
+            controlTemplate.GetTargetType(),
+            propertyName);
+    const Core::DependencyProperty* destination =
+        target.Value()->PropertyRegistry().Find(
+            Core::DependencyPropertyHandle{
+                services.targetMember});
+    if (source == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            MissingPropertyMessage(propertyName, true));
+    }
+    if (destination == nullptr ||
+        destination->MetadataFor(
+            target.Value()->RuntimeType()) == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            MissingPropertyMessage(propertyName, false));
+    }
+    Base::String targetName;
+    Base::StringView authoredName =
+        services.nameScope->NameOf(
+            *services.targetObject);
+    if (authoredName.Empty()) {
+        Base::Result<Base::String> generated =
+            Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
+                *services.targetObject);
+        if (!generated) {
+            return generated.GetStatus();
+        }
+        targetName =
+            std::move(generated).Value();
+        authoredName = targetName.View();
+    }
+    Base::Result<void> added =
+        Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
+            authoredName,
+            source->Handle(),
+            destination->Handle());
+    return added
+        ? Base::Result<ProvidedValue>(
+              ProvidedValue::Handled())
+        : Base::Result<ProvidedValue>(
+              added.GetStatus());
+}
+
+} // namespace Aero::Markup
+
+
+// ===== TypeExtension =====
+
+
+
+#include <utility>
+
+
+
+namespace Aero::Markup {
+Base::Result<void> TypeExtension::Register(
+    Schema& schema,
+    Core::TypeId markupExtensionType) noexcept {
+    if (schema.IsFrozen() ||
+        markupExtensionType == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "x:Type extension registration is invalid");
+    }
+    const Core::TypeInfo* token =
+        schema.Types().FindType(
+            Core::TypeOf<Core::TypeReference>());
+    if (token == nullptr ||
+        (static_cast<std::uint32_t>(token->Flags()) &
+            static_cast<std::uint32_t>(Core::TypeFlags::ValueType)) == 0U) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "x:Type reference token must be a value type");
+    }
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+        markupExtensionType, &ProvideValue, nullptr});
+}
+
+Base::Result<ProvidedValue> TypeExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    if (context != nullptr || services.schema == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "x:Type extension context is invalid");
+    }
+    Base::Result<Core::Value> value =
+        Detail::SchemaPrivate::ConvertText(
+            *services.schema,
+            Core::TypeOf<Core::TypeReference>(),
+            arguments,
+            &services);
+    return value
+        ? ProvidedValue::FromValue(
+              std::move(value).Value())
+        : Base::Result<ProvidedValue>(
+              value.GetStatus());
+}
+
+} // namespace Aero::Markup
+
+
+// ===== StaticExtension =====
+
+
+
+
+
+
+namespace Aero::Markup {
+namespace {
+
+Base::StringView TrimStaticText(Base::StringView value) noexcept {
+    std::uint32_t begin = 0U;
+    std::uint32_t end = value.SizeBytes();
+    while (begin < end &&
+           (value[begin] == ' ' || value[begin] == '\t' ||
+            value[begin] == '\r' || value[begin] == '\n')) {
+        ++begin;
+    }
+    while (end > begin &&
+           (value[end - 1U] == ' ' || value[end - 1U] == '\t' ||
+            value[end - 1U] == '\r' || value[end - 1U] == '\n')) {
+        --end;
+    }
+    return value.Substr(begin, end - begin);
+}
+
+} // namespace
+
+Base::Result<void> StaticExtension::Register(
+    Schema& schema,
+    Core::TypeId markupExtensionType) noexcept {
+    if (schema.IsFrozen() ||
+        markupExtensionType == Core::InvalidTypeId) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "x:Static extension registration is invalid");
+    }
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
+        markupExtensionType, &ProvideValue, nullptr});
+}
+
+Base::Result<ProvidedValue> StaticExtension::ProvideValue(
+    Base::StringView arguments,
+    const ExtensionServices& services,
+    void* context) noexcept {
+    if (context != nullptr ||
+        services.schema == nullptr ||
+        !services.namespaces.IsAvailable()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "x:Static extension context is invalid");
+    }
+
+    const Base::StringView expression = TrimStaticText(arguments);
+    std::uint32_t memberSeparator = expression.SizeBytes();
+    for (std::uint32_t index = 0U;
+         index < expression.SizeBytes(); ++index) {
+        if (expression[index] == '.') memberSeparator = index;
+    }
+    if (memberSeparator == 0U ||
+        memberSeparator + 1U >= expression.SizeBytes()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "x:Static requires Type.Member");
+    }
+
+    const Base::StringView qualifiedType =
+        expression.Substr(0U, memberSeparator);
+    const Base::StringView memberName =
+        expression.Substr(
+            memberSeparator + 1U,
+            expression.SizeBytes() - memberSeparator - 1U);
+    std::uint32_t prefixSeparator = qualifiedType.SizeBytes();
+    for (std::uint32_t index = 0U;
+         index < qualifiedType.SizeBytes(); ++index) {
+        if (qualifiedType[index] == ':') {
+            if (prefixSeparator != qualifiedType.SizeBytes()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "x:Static type has multiple namespace separators");
+            }
+            prefixSeparator = index;
+        }
+    }
+    Base::StringView prefix;
+    Base::StringView typeName = qualifiedType;
+    if (prefixSeparator != qualifiedType.SizeBytes()) {
+        if (prefixSeparator == 0U ||
+            prefixSeparator + 1U >= qualifiedType.SizeBytes()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "x:Static type name is invalid");
+        }
+        prefix = qualifiedType.Substr(0U, prefixSeparator);
+        typeName = qualifiedType.Substr(
+            prefixSeparator + 1U,
+            qualifiedType.SizeBytes() - prefixSeparator - 1U);
+    }
+
+    Base::Result<Base::StringView> xamlNamespace =
+        services.namespaces.Lookup(prefix);
+    if (!xamlNamespace) return xamlNamespace.GetStatus();
+    Base::Result<const Core::TypeInfo*> type =
+        Detail::SchemaPrivate::ResolveType(
+            *services.schema,
+            xamlNamespace.Value(),
+            typeName);
+    if (!type) return type.GetStatus();
+    if (type.Value()->Kind() != Core::MetadataTypeKind::Enum) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "x:Static currently supports registered enum members");
+    }
+    const Core::EnumValueInfo* value =
+        services.schema->Types().FindEnumValue(
+            type.Value()->Id(), memberName);
+    if (value == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "x:Static enum member was not found");
+    }
+
+    const bool signedEnum =
+        (static_cast<std::uint32_t>(type.Value()->Flags()) &
+         static_cast<std::uint32_t>(Core::TypeFlags::SignedEnum)) != 0U;
+    Core::Value result = signedEnum
+        ? Core::Value::FromSignedInteger(
+              type.Value()->Id(),
+              static_cast<std::int64_t>(value->RawValue()))
+        : Core::Value::FromUnsignedInteger(
+              type.Value()->Id(),
+              value->RawValue());
+    return ProvidedValue::FromValue(std::move(result));
+}
+
+} // namespace Aero::Markup
+
+
+// ===== Scopes =====
+
+#include <Aero/Markup.hpp>
+
+// Name and resource scope implementation.
+
+namespace Aero::Markup {
+namespace {
+
+constexpr const char* MessageNamespaceUnavailable =
+    "XAML namespace scope is not available";
+constexpr const char* MessageResourceResolverUnavailable =
+    "XAML resource resolver is not available";
+
+} // namespace
+
+Base::Result<Base::StringView> NamespaceScope::Lookup(
+    Base::StringView prefix) const noexcept {
+    if (lookup_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            MessageNamespaceUnavailable);
+    }
+    return lookup_(context_, prefix);
+}
+
+Base::Result<Aero::ResourceValue> ResourceResolver::Lookup(
+    Base::StringView key) const noexcept {
+    if (lookup_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            MessageResourceResolverUnavailable);
+    }
+    return lookup_(context_, key);
+}
+
+} // namespace Aero::Markup
+
+
+// ===== ObjectBuilder =====
+
+
+
+
+#include "markup/MarkupInternal.hpp"
 #include <Aero/Media/Brushes.hpp>
 
 #include <utility>
@@ -173,7 +1748,7 @@ bool IsAsciiWhitespace(char value) noexcept {
     return value == ' ' || value == '\t' || value == '\r' || value == '\n';
 }
 
-Base::StringView TrimAscii(Base::StringView value) noexcept {
+Base::StringView TrimBuilderText(Base::StringView value) noexcept {
     std::uint32_t begin = 0U;
     while (begin < value.SizeBytes() && IsAsciiWhitespace(value[begin])) {
         ++begin;
@@ -276,6 +1851,7 @@ Base::Result<LoaderResult> ObjectBuilder::CompleteLoad(
     if (!loaded) return loaded.GetStatus();
     LoaderResult result;
     result.root = std::move(loaded).Value();
+    result.metadata = schema_->Metadata();
     result.names = std::move(committedNames_);
     result.resources = std::move(committedResources_);
     result.visualContent = std::move(resultVisualContent_);
@@ -2661,7 +4237,7 @@ ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
     Base::StringView& argument) const noexcept {
     extensionName = {};
     argument = {};
-    const Base::StringView value = TrimAscii(text);
+    const Base::StringView value = TrimBuilderText(text);
     if (value.Empty() || value[0] != '{') {
         return MarkupValueKind::Literal;
     }
@@ -2674,7 +4250,7 @@ ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
         return MarkupValueKind::Invalid;
     }
 
-    const Base::StringView inner = TrimAscii(value.Substr(
+    const Base::StringView inner = TrimBuilderText(value.Substr(
         1U,
         value.SizeBytes() - 2U));
     if (inner == NullMarkup) {
@@ -2713,9 +4289,9 @@ ObjectBuilder::MarkupValueKind ObjectBuilder::ParseMarkupValue(
     }
     extensionName = inner.Substr(0U, nameEnd);
 
-    argument = TrimAscii(inner.Substr(nameEnd, inner.SizeBytes() - nameEnd));
+    argument = TrimBuilderText(inner.Substr(nameEnd, inner.SizeBytes() - nameEnd));
     if (!argument.Empty() && argument[0] == ',') {
-        argument = TrimAscii(argument.Substr(1U, argument.SizeBytes() - 1U));
+        argument = TrimBuilderText(argument.Substr(1U, argument.SizeBytes() - 1U));
     }
     if (extensionName == StaticResourceMarkup) {
         if (argument.Empty()) {
@@ -2955,6 +4531,453 @@ Base::Result<Aero::ResourceValue> ObjectBuilder::ResourceLookupCallback(
             MessageStaticResourceNotFound.Data());
     }
     return static_cast<ObjectBuilder*>(context)->LookupResource(key);
+}
+
+} // namespace Aero::Markup
+
+
+// ===== ObjectWriter =====
+
+
+
+#include <utility>
+#include "gui/BindingInternal.hpp"
+
+namespace Aero::Markup {
+namespace {
+
+Base::Status InvalidContent(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument, message);
+}
+
+Base::Status InvalidContentState(const char* message) noexcept {
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState, message);
+}
+
+} // namespace
+
+Base::Result<void> DeferredContentPlan::Stage(
+    Base::Object& owner,
+    Base::Object& parent,
+    const Base::Ref<Base::Object>& child,
+    ::Aero::Meta::Registry& metadata,
+    Core::MemberId member) noexcept {
+    if (!child || member == Core::InvalidMemberId ||
+        !metadata.IsReady()) {
+        return InvalidContentState(
+            "Deferred XAML content edge is invalid");
+    }
+    Base::Result<void> retained =
+        edges_.TryPushBack({
+            &owner,
+            &parent,
+            child,
+            &metadata,
+            member,
+            false});
+    if (!retained) return retained.GetStatus();
+    Base::Result<void> written =
+        metadata.WriteContent(parent, member, child);
+    if (!written) {
+        edges_.PopBack();
+        return written.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> DeferredContentPlan::StageProperty(
+    Base::Object& owner,
+    Base::Object& parent,
+    const Base::Ref<Base::Object>& child,
+    ::Aero::Meta::Registry& metadata,
+    Core::MemberId member) noexcept {
+    if (!child ||
+        member == Core::InvalidMemberId) {
+        return InvalidContentState(
+            "Deferred XAML structural property edge is invalid");
+    }
+    const Core::PropertyInfo* property =
+        metadata.Types().FindProperty(member);
+    if (property == nullptr) {
+        return InvalidContent(
+            "Deferred XAML structural property was not found");
+    }
+    Base::Result<void> retained =
+        edges_.TryPushBack({
+            &owner,
+            &parent,
+            child,
+            &metadata,
+            member,
+            true});
+    if (!retained) return retained.GetStatus();
+    const Core::Value value =
+        Core::Value::FromObject(
+            property->ValueType(), child);
+    Base::Result<void> written =
+        metadata.SetProperty(
+            parent, member, value);
+    if (!written) {
+        edges_.PopBack();
+        return written.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> DeferredContentPlan::CopyForOwner(
+    const Base::Object& owner,
+    Base::Vector<DeferredContentEdge>& output) const noexcept {
+    output.Clear();
+    for (const DeferredContentEdge& edge : edges_) {
+        if (edge.owner != &owner) continue;
+        Base::Result<void> copied =
+            output.TryPushBack(edge);
+        if (!copied) {
+            output.Clear();
+            return copied.GetStatus();
+        }
+    }
+    return {};
+}
+
+Base::Result<void> DeferredContentPlan::StageBinding(
+    Base::Object& owner,
+    Base::Object* source,
+    ::Aero::DependencyObject& target,
+    Aero::Detail::BindingEngine& manager,
+    ::Aero::Meta::Registry& metadata,
+    Core::DependencyPropertyHandle targetProperty,
+    Core::DependencyPropertyHandle dataContextProperty,
+    Base::StringView path,
+    Base::StringView stringFormat,
+    Data::BindingMode mode,
+    Core::UpdateSourceTrigger updateSourceTrigger,
+    bool bindsToSource) noexcept {
+    if (!targetProperty.IsValid() ||
+        (path.Empty() && !bindsToSource) ||
+        !metadata.IsReady()) {
+        return InvalidContentState(
+            "Deferred XAML Binding declaration is invalid");
+    }
+    DeferredBindingEdge edge;
+    edge.owner = &owner;
+    edge.source = source;
+    edge.target = &target;
+    edge.manager = &manager;
+    edge.metadata = &metadata;
+    edge.targetProperty = targetProperty;
+    edge.dataContextProperty = dataContextProperty;
+    edge.mode = mode;
+    edge.bindsToSource = bindsToSource;
+    edge.updateSourceTrigger = updateSourceTrigger;
+    Base::Result<void> assigned =
+        edge.path.TryAssign(path);
+    if (!assigned) return assigned.GetStatus();
+    assigned = edge.stringFormat.TryAssign(
+        stringFormat);
+    if (!assigned) return assigned.GetStatus();
+    return bindings_.TryPushBack(std::move(edge));
+}
+
+Base::Result<void>
+DeferredContentPlan::CopyBindingsForOwner(
+    const Base::Object& owner,
+    Base::Vector<DeferredBindingEdge>& output) const noexcept {
+    output.Clear();
+    for (const DeferredBindingEdge& edge : bindings_) {
+        if (edge.owner != &owner) continue;
+        Base::Result<void> copied =
+            output.TryPushBack(edge);
+        if (!copied) {
+            output.Clear();
+            return copied.GetStatus();
+        }
+    }
+    return {};
+}
+
+void DeferredContentPlan::ReleaseOwner(
+    Base::Object& owner) noexcept {
+    for (std::uint32_t index = 0U;
+         index < edges_.Size();
+         ++index) {
+        DeferredContentEdge& edge = edges_[index];
+        if (edge.owner != &owner) continue;
+        bool firstForParent = true;
+        for (std::uint32_t earlier = 0U;
+             earlier < index;
+             ++earlier) {
+            firstForParent =
+                firstForParent &&
+                (edges_[earlier].owner != &owner ||
+                 edges_[earlier].parent !=
+                     edge.parent ||
+                 (edge.property &&
+                  edges_[earlier].member !=
+                      edge.member));
+        }
+        if (firstForParent &&
+            edge.parent != nullptr &&
+            edge.metadata != nullptr) {
+            if (edge.property) {
+                const Core::PropertyInfo* property =
+                    edge.metadata->Types().
+                        FindProperty(edge.member);
+                if (property != nullptr) {
+                    (void)edge.metadata->SetProperty(
+                        *edge.parent,
+                        edge.member,
+                        Core::Value::NullObject(
+                            property->ValueType()));
+                }
+            } else {
+                (void)edge.metadata->ClearContent(
+                    *edge.parent,
+                    edge.member);
+            }
+        }
+    }
+
+    std::uint32_t output = 0U;
+    for (std::uint32_t index = 0U;
+         index < edges_.Size();
+         ++index) {
+        DeferredContentEdge& edge = edges_[index];
+        if (edge.owner == &owner) continue;
+        if (output != index) {
+            edges_[output] = std::move(edge);
+        }
+        ++output;
+    }
+    (void)edges_.TryResize(output);
+
+    output = 0U;
+    for (std::uint32_t index = 0U;
+         index < bindings_.Size();
+         ++index) {
+        DeferredBindingEdge& edge = bindings_[index];
+        if (edge.owner == &owner) continue;
+        if (output != index) {
+            bindings_[output] = std::move(edge);
+        }
+        ++output;
+    }
+    (void)bindings_.TryResize(output);
+}
+
+void DeferredContentPlan::ReleaseAll() noexcept {
+    while (!edges_.Empty() || !bindings_.Empty()) {
+        Base::Object* owner = !edges_.Empty()
+            ? edges_.Front().owner
+            : bindings_.Front().owner;
+        if (owner == nullptr) {
+            edges_.Clear();
+            return;
+        }
+        ReleaseOwner(*owner);
+    }
+}
+
+ObjectWriter::ObjectWriter(
+    ::Aero::Markup::Schema& schema,
+    Core::IDiagnosticSink* diagnostics) noexcept
+    : schema_(&schema),
+      diagnostics_(diagnostics) {}
+
+Base::Result<LoaderResult> ObjectWriter::LoadDocument(
+    NodeReader& reader) noexcept {
+    ObjectBuilder state(*this);
+    return state.Load(reader);
+}
+
+Base::Result<LoaderResult> ObjectWriter::LoadDocument(
+    const CompiledDocument& document) noexcept {
+    ObjectBuilder state(*this);
+    return state.Load(document);
+}
+
+Base::Result<Aero::Visual*> ObjectWriter::ResolveVisual(
+    ::Aero::Markup::Schema& schema,
+    Base::Object& object,
+    Core::TypeId type) noexcept {
+    if (object.RuntimeType() != type ||
+        !schema.Types().IsDerivedFrom(
+            type, Aero::Visual::StaticTypeId())) {
+        return InvalidContent(
+            "XAML object metadata is not compatible with Visual");
+    }
+    return static_cast<Aero::Visual*>(&object);
+}
+
+Base::Result<Aero::UIElement*> ObjectWriter::ResolveUIElement(
+    ::Aero::Markup::Schema& schema,
+    Base::Object& object,
+    Core::TypeId type) noexcept {
+    Base::Result<Aero::Visual*> visual =
+        ResolveVisual(schema, object, type);
+    if (!visual) return visual.GetStatus();
+    Aero::UIElement* element =
+        visual.Value()->AsUIElement();
+    if (element == nullptr) {
+        return InvalidContent("XAML object is not a UIElement");
+    }
+    return element;
+}
+
+Base::Result<void> ObjectWriter::StageContent(
+    ::Aero::Markup::Schema& schema,
+    Base::Object& object,
+    const Core::Value& value,
+    const ExtensionServices& services) noexcept {
+    VisualContentPlan* plan = services.visualContent;
+    if (plan == nullptr || services.targetObject != &object ||
+        value.Kind() != Core::ValueKind::Object ||
+        value.IsNullObject() || !value.AsObject()) {
+        return InvalidContentState(
+            "XAML visual content requires a non-null object");
+    }
+
+    ::Aero::Meta::Registry* metadata = schema.Metadata();
+    if (metadata == nullptr) {
+        return InvalidContentState(
+            "XAML content metadata is unavailable");
+    }
+    Base::Result<Core::ContentInfo> contentResult =
+        metadata->GetContentInfo(services.targetMember);
+    const Core::PropertyInfo* property =
+        schema.Types().FindProperty(
+            services.targetMember);
+    const bool structuralProperty =
+        property != nullptr &&
+        (static_cast<std::uint32_t>(
+             property->Flags()) &
+         static_cast<std::uint32_t>(
+             Core::PropertyFlags::Structural)) !=
+            0U &&
+        metadata->CanWriteProperty(
+            services.targetMember);
+    if (!contentResult && !structuralProperty) {
+        return InvalidContent(
+            "XAML content target has no content metadata");
+    }
+    if (!structuralProperty) {
+        const Core::ContentInfo& content =
+            contentResult.Value();
+        if (!content.writable ||
+            !content.clearable ||
+            !content.IsVisual() ||
+            !schema.Types().IsDerivedFrom(
+                services.targetObjectType,
+                content.ownerType)) {
+            return InvalidContent(
+                "XAML content target has no visual content facet");
+        }
+    }
+
+    Base::Object* childObject = value.AsObject().Get();
+    Base::Result<Aero::UIElement*> childResult =
+        ResolveUIElement(schema, *childObject, value.Type());
+    if (!childResult) return childResult.GetStatus();
+
+    // A deferred template owns a visual root without itself being a Visual.
+    // Commit that root through the template's content accessor; descendant
+    // visual edges are staged below once their actual visual parent exists.
+    if (services.deferredContentOwner == &object &&
+        !schema.Types().IsDerivedFrom(
+            services.targetObjectType,
+            Aero::Visual::StaticTypeId())) {
+        if (structuralProperty) {
+            return InvalidContent(
+                "A non-visual template root cannot use a visual structural property");
+        }
+        return metadata->WriteContent(
+            object,
+            services.targetMember,
+            value.AsObject());
+    }
+
+    Base::Result<Aero::UIElement*> parentResult =
+        ResolveUIElement(
+            schema, object, services.targetObjectType);
+    if (!parentResult) return parentResult.GetStatus();
+
+    if (services.deferredContentOwner != nullptr) {
+        if (services.deferredContent == nullptr) {
+            return InvalidContentState(
+                "Deferred XAML content plan is unavailable");
+        }
+        return structuralProperty
+            ? services.deferredContent->
+                  StageProperty(
+                      *services.
+                           deferredContentOwner,
+                      object,
+                      value.AsObject(),
+                      *metadata,
+                      services.targetMember)
+            : services.deferredContent->Stage(
+                  *services.deferredContentOwner,
+                  object,
+                  value.AsObject(),
+                  *metadata,
+                  services.targetMember);
+    }
+
+    Base::Result<void> reserved = plan->TryReserve(
+        plan->contentEdges.Size() + 1U,
+        plan->mountEdges.Size() + 1U,
+        plan->nodes.Size() + 2U);
+    if (!reserved) return reserved.GetStatus();
+
+    Base::Result<Aero::Visual*> parentNode =
+        ResolveVisual(
+            schema, object, services.targetObjectType);
+    if (!parentNode) return parentNode.GetStatus();
+    Base::Result<Aero::Visual*> childNode =
+        ResolveVisual(schema, *childObject, value.Type());
+    if (!childNode) return childNode.GetStatus();
+
+    Base::Result<void> parentAdded =
+        plan->TryAddNode(*parentNode.Value());
+    if (!parentAdded) return parentAdded.GetStatus();
+    Base::Result<void> childAdded =
+        plan->TryAddNode(*childNode.Value());
+    if (!childAdded) return childAdded.GetStatus();
+
+    Base::Ref<Base::Object> parentOwner =
+        Base::Ref<Base::Object>::FromBorrowed(object);
+    Base::Result<void> tracked =
+        plan->contentEdges.TryPushBack({
+            std::move(parentOwner), value.AsObject(),
+            metadata, services.targetMember,
+            structuralProperty});
+    if (!tracked) return tracked.GetStatus();
+
+    tracked = plan->mountEdges.TryPushBack({
+        parentResult.Value(), childResult.Value(), {}});
+    if (!tracked) {
+        plan->contentEdges.PopBack();
+        return tracked.GetStatus();
+    }
+
+    Base::Result<void> written =
+        structuralProperty
+        ? metadata->SetProperty(
+              object,
+              services.targetMember,
+              value)
+        : metadata->WriteContent(
+              object,
+              services.targetMember,
+              value.AsObject());
+    if (!written) {
+        plan->mountEdges.PopBack();
+        plan->contentEdges.PopBack();
+        return written.GetStatus();
+    }
+    return {};
 }
 
 } // namespace Aero::Markup

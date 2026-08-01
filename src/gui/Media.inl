@@ -3,7 +3,7 @@
 Base::Result<void> PopulateUiMedia(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto length = Meta::Describe<Length>(context);
+    auto length = Meta::Register<Length>(context);
     length
         .ValueSemantics({sizeof(Length), alignof(Length), nullptr, nullptr,
             &EqualLength, nullptr, true})
@@ -11,7 +11,7 @@ Base::Result<void> PopulateUiMedia(
     status = length.Result();
     if (!status) return status.GetStatus();
 
-    auto thickness = Meta::Describe<Thickness>(context);
+    auto thickness = Meta::Register<Thickness>(context);
     thickness
         .Field<&Thickness::left>("Left")
         .Field<&Thickness::top>("Top")
@@ -23,7 +23,7 @@ Base::Result<void> PopulateUiMedia(
     status = thickness.Result();
     if (!status) return status.GetStatus();
 
-    auto cornerRadius = Meta::Describe<CornerRadius>(context);
+    auto cornerRadius = Meta::Register<CornerRadius>(context);
     cornerRadius
         .Field<&CornerRadius::topLeft>("TopLeft")
         .Field<&CornerRadius::topRight>("TopRight")
@@ -41,7 +41,7 @@ Base::Result<void> PopulateUiMedia(
     status = cornerRadius.Result();
     if (!status) return status.GetStatus();
 
-    auto color = Meta::Describe<Color>(context);
+    auto color = Meta::Register<Color>(context);
     color
         .Field<&Color::red>("Red")
         .Field<&Color::green>("Green")
@@ -53,7 +53,7 @@ Base::Result<void> PopulateUiMedia(
     status = color.Result();
     if (!status) return status.GetStatus();
 
-    auto point = Meta::Describe<Point>(context);
+    auto point = Meta::Register<Point>(context);
     point
         .Field<&Point::x>("X")
         .Field<&Point::y>("Y")
@@ -62,7 +62,7 @@ Base::Result<void> PopulateUiMedia(
     status = point.Result();
     if (!status) return status.GetStatus();
 
-    auto rect = Meta::Describe<Rect>(context);
+    auto rect = Meta::Register<Rect>(context);
     rect
         .Field<&Rect::x>("X")
         .Field<&Rect::y>("Y")
@@ -73,7 +73,7 @@ Base::Result<void> PopulateUiMedia(
     status = rect.Result();
     if (!status) return status.GetStatus();
 
-    auto stretch = Meta::Describe<Stretch>(context);
+    auto stretch = Meta::Register<Stretch>(context);
     stretch
         .Value("None", Stretch::None)
         .Value("Fill", Stretch::Fill)
@@ -85,7 +85,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto stretchDirection =
-        Meta::Describe<StretchDirection>(context);
+        Meta::Register<StretchDirection>(context);
     stretchDirection
         .Value(
             "UpOnly",
@@ -99,7 +99,7 @@ Base::Result<void> PopulateUiMedia(
     status = stretchDirection.Result();
     if (!status) return status.GetStatus();
 
-    auto tileMode = Meta::Describe<TileMode>(context);
+    auto tileMode = Meta::Register<TileMode>(context);
     tileMode
         .Value("None", TileMode::None)
         .Value("Tile", TileMode::Tile)
@@ -109,7 +109,7 @@ Base::Result<void> PopulateUiMedia(
     status = tileMode.Result();
     if (!status) return status.GetStatus();
 
-    auto brushMappingMode = Meta::Describe<BrushMappingMode>(context);
+    auto brushMappingMode = Meta::Register<BrushMappingMode>(context);
     brushMappingMode
         .Value(
             "RelativeToBoundingBox",
@@ -120,11 +120,11 @@ Base::Result<void> PopulateUiMedia(
 
     // Brush.RelativeTransform is a Transform-valued dependency property, so
     // the abstract value type must exist before Brush metadata is authored.
-    status = Meta::Describe<Transform>(
+    status = Meta::Register<Transform>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto brush = Meta::Describe<Brush>(
+    auto brush = Meta::Register<Brush>(
         context, TypeFlags::Abstract);
     brush
         .Property(
@@ -142,7 +142,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto solidBrush =
-        Meta::Describe<SolidColorBrush>(context);
+        Meta::Register<SolidColorBrush>(context);
     solidBrush
         .Property(
             SolidColorBrush::ColorProperty,
@@ -152,7 +152,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto gradientStop =
-        Meta::Describe<GradientStop>(context);
+        Meta::Register<GradientStop>(context);
     gradientStop
         .Property(
             GradientStop::OffsetProperty,
@@ -166,7 +166,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto gradientStopCollection =
-        Meta::Describe<GradientStopCollection>(context);
+        Meta::Register<GradientStopCollection>(context);
     gradientStopCollection
         .Content<GradientStop>(
             "Items", ContentKind::Collection,
@@ -176,7 +176,7 @@ Base::Result<void> PopulateUiMedia(
     status = gradientStopCollection.Result();
     if (!status) return status.GetStatus();
 
-    auto monochromeBrush = Meta::Describe<MonochromeBrush>(context);
+    auto monochromeBrush = Meta::Register<MonochromeBrush>(context);
     monochromeBrush
         .Property<Color, &MonochromeBrush::ColorValue,
             &MonochromeBrush::SetColor>("Color")
@@ -184,7 +184,7 @@ Base::Result<void> PopulateUiMedia(
     status = monochromeBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto conicGradientBrush = Meta::Describe<ConicGradientBrush>(context);
+    auto conicGradientBrush = Meta::Register<ConicGradientBrush>(context);
     conicGradientBrush
         .Content<GradientStop>(
             "GradientStops", ContentKind::Collection,
@@ -200,14 +200,14 @@ Base::Result<void> PopulateUiMedia(
     status = conicGradientBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto wavesBrush = Meta::Describe<WavesBrush>(context);
+    auto wavesBrush = Meta::Register<WavesBrush>(context);
     wavesBrush
         .Property<double, &WavesBrush::Time, &WavesBrush::SetTime>("Time")
         .Factory();
     status = wavesBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto gradientBrush = Meta::Describe<GradientBrush>(
+    auto gradientBrush = Meta::Register<GradientBrush>(
         context, TypeFlags::Abstract);
     gradientBrush
         .Property(
@@ -223,7 +223,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto linearBrush =
-        Meta::Describe<LinearGradientBrush>(context);
+        Meta::Register<LinearGradientBrush>(context);
     linearBrush
         .Property(
             LinearGradientBrush::StartPointProperty,
@@ -236,7 +236,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto radialBrush =
-        Meta::Describe<RadialGradientBrush>(context);
+        Meta::Register<RadialGradientBrush>(context);
     radialBrush
         .Property(
             RadialGradientBrush::CenterProperty,
@@ -256,7 +256,7 @@ Base::Result<void> PopulateUiMedia(
     status = radialBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto imageSource = Meta::Describe<ImageSource>(
+    auto imageSource = Meta::Register<ImageSource>(
         context, TypeFlags::Abstract);
     imageSource.TextConverter(
         &ConvertImageSourceText);
@@ -264,7 +264,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto bitmapImage =
-        Meta::Describe<BitmapImage>(context);
+        Meta::Register<BitmapImage>(context);
     bitmapImage
         .Property(
             BitmapImage::UriSourceProperty,
@@ -275,7 +275,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto imageBrush =
-        Meta::Describe<ImageBrush>(context);
+        Meta::Register<ImageBrush>(context);
     imageBrush
         .Property(
             ImageBrush::ImageSourceProperty,
@@ -299,7 +299,7 @@ Base::Result<void> PopulateUiMedia(
     status = imageBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto matrix = Meta::Describe<Base::Transform2D>(context);
+    auto matrix = Meta::Register<Base::Transform2D>(context);
     matrix
         .Field<&Base::Transform2D::m11>("M11")
         .Field<&Base::Transform2D::m12>("M12")
@@ -312,7 +312,7 @@ Base::Result<void> PopulateUiMedia(
     status = matrix.Result();
     if (!status) return status.GetStatus();
 
-    auto translate = Meta::Describe<TranslateTransform>(context);
+    auto translate = Meta::Register<TranslateTransform>(context);
     translate
         .Property(
             TranslateTransform::XProperty,
@@ -324,7 +324,7 @@ Base::Result<void> PopulateUiMedia(
     status = translate.Result();
     if (!status) return status.GetStatus();
 
-    auto scale = Meta::Describe<ScaleTransform>(context);
+    auto scale = Meta::Register<ScaleTransform>(context);
     scale
         .Property(
             ScaleTransform::ScaleXProperty,
@@ -342,7 +342,7 @@ Base::Result<void> PopulateUiMedia(
     status = scale.Result();
     if (!status) return status.GetStatus();
 
-    auto rotate = Meta::Describe<RotateTransform>(context);
+    auto rotate = Meta::Register<RotateTransform>(context);
     rotate
         .Property(
             RotateTransform::AngleProperty,
@@ -357,7 +357,7 @@ Base::Result<void> PopulateUiMedia(
     status = rotate.Result();
     if (!status) return status.GetStatus();
 
-    auto skew = Meta::Describe<SkewTransform>(context);
+    auto skew = Meta::Register<SkewTransform>(context);
     skew
         .Property(
             SkewTransform::AngleXProperty,
@@ -375,7 +375,7 @@ Base::Result<void> PopulateUiMedia(
     status = skew.Result();
     if (!status) return status.GetStatus();
 
-    auto matrixTransform = Meta::Describe<MatrixTransform>(context);
+    auto matrixTransform = Meta::Register<MatrixTransform>(context);
     matrixTransform
         .Property(
             MatrixTransform::MatrixProperty,
@@ -384,7 +384,7 @@ Base::Result<void> PopulateUiMedia(
     status = matrixTransform.Result();
     if (!status) return status.GetStatus();
 
-    auto transformGroup = Meta::Describe<TransformGroup>(context);
+    auto transformGroup = Meta::Register<TransformGroup>(context);
     transformGroup
         .Content<Transform>(
             "Children",
@@ -395,11 +395,11 @@ Base::Result<void> PopulateUiMedia(
     status = transformGroup.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Effect>(
+    status = Meta::Register<Effect>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto blurEffect = Meta::Describe<BlurEffect>(context);
+    auto blurEffect = Meta::Register<BlurEffect>(context);
     blurEffect
         .Property(
             BlurEffect::RadiusProperty,
@@ -411,7 +411,7 @@ Base::Result<void> PopulateUiMedia(
     if (!status) return status.GetStatus();
 
     auto dropShadowEffect =
-        Meta::Describe<DropShadowEffect>(context);
+        Meta::Register<DropShadowEffect>(context);
     dropShadowEffect
         .Property(
             DropShadowEffect::BlurRadiusProperty,
@@ -442,7 +442,7 @@ Base::Result<void> PopulateUiMedia(
     status = dropShadowEffect.Result();
     if (!status) return status.GetStatus();
 
-    auto pixelateEffect = Meta::Describe<PixelateEffect>(context);
+    auto pixelateEffect = Meta::Register<PixelateEffect>(context);
     pixelateEffect
         .Property(
             PixelateEffect::SizeProperty,
@@ -453,7 +453,7 @@ Base::Result<void> PopulateUiMedia(
     status = pixelateEffect.Result();
     if (!status) return status.GetStatus();
 
-    auto horizontal = Meta::Describe<HorizontalAlignment>(context);
+    auto horizontal = Meta::Register<HorizontalAlignment>(context);
     horizontal
         .Value("Stretch", HorizontalAlignment::Stretch)
         .Value("Left", HorizontalAlignment::Left)
@@ -462,7 +462,7 @@ Base::Result<void> PopulateUiMedia(
     status = horizontal.Result();
     if (!status) return status.GetStatus();
 
-    auto vertical = Meta::Describe<VerticalAlignment>(context);
+    auto vertical = Meta::Register<VerticalAlignment>(context);
     vertical
         .Value("Stretch", VerticalAlignment::Stretch)
         .Value("Top", VerticalAlignment::Top)
@@ -471,7 +471,7 @@ Base::Result<void> PopulateUiMedia(
     status = vertical.Result();
     if (!status) return status.GetStatus();
 
-    auto visualBrush = Meta::Describe<VisualBrush>(context);
+    auto visualBrush = Meta::Register<VisualBrush>(context);
     visualBrush
         .Property(
             VisualBrush::VisualProperty,
@@ -489,7 +489,7 @@ Base::Result<void> PopulateUiMedia(
     status = visualBrush.Result();
     if (!status) return status.GetStatus();
 
-    auto visibility = Meta::Describe<Visibility>(context);
+    auto visibility = Meta::Register<Visibility>(context);
     visibility
         .Value("Visible", Visibility::Visible)
         .Value("Hidden", Visibility::Hidden)
@@ -497,7 +497,7 @@ Base::Result<void> PopulateUiMedia(
     status = visibility.Result();
     if (!status) return status.GetStatus();
 
-    auto blendMode = Meta::Describe<BlendMode>(context);
+    auto blendMode = Meta::Register<BlendMode>(context);
     blendMode
         .Value("Normal", BlendMode::Normal)
         .Value("Multiply", BlendMode::Multiply)
@@ -506,18 +506,18 @@ Base::Result<void> PopulateUiMedia(
     status = blendMode.Result();
     if (!status) return status.GetStatus();
 
-    auto command = Meta::Describe<ICommand>(
+    auto command = Meta::Register<ICommand>(
         context, TypeFlags::Abstract);
     command.TextConverter(
         &ConvertRoutedCommandReference);
     status = command.Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<InputGesture>(
+    status = Meta::Register<InputGesture>(
         context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<KeyGesture>(context).Result();
+    status = Meta::Register<KeyGesture>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<RoutedCommand>(context).Result();
+    status = Meta::Register<RoutedCommand>(context).Result();
     if (!status) return status.GetStatus();
     return {};
 }

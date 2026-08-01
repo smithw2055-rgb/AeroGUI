@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Data.hpp>
 #include "BindingInternal.hpp"
 #include <Aero/Resources.hpp>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Meta/Registry.hpp>
+#include "gui/MetadataInternal.hpp"
 
 namespace Aero::App {
 

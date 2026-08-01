@@ -1,7 +1,7 @@
 #include <Aero/Styling.hpp>
 #include "TemplateInternals.hpp"
 
-#include <Aero/Meta/ValueCodec.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/Media/Transforms.hpp>
 #include "../media/AnimationInternals.hpp"
 

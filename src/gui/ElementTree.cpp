@@ -1,11 +1,11 @@
 #include "gui/ElementInternal.hpp"
 #include "gui/RoutedEventInternal.hpp"
-#include "gui/BehaviorTable.hpp"
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Layout.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/ContentElement.hpp>
 
-#include "gui/MetaInternals.hpp"
+#include "gui/MetadataInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
 

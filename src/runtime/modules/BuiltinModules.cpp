@@ -2,8 +2,8 @@
 
 #include "app/Metadata.hpp"
 #include "controls/Metadata.hpp"
-#include "gui/MetaInternals.hpp"
-#include <Aero/Markup/Schema.hpp>
+#include "gui/MetadataInternal.hpp"
+#include "markup/MarkupInternal.hpp"
 
 namespace Aero {
 

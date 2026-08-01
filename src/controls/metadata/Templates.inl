@@ -3,7 +3,7 @@
 Base::Result<void> PopulateControlsTemplates(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto frameworkTemplate = Meta::Describe<FrameworkTemplate>(
+    auto frameworkTemplate = Meta::Register<FrameworkTemplate>(
         context, TypeFlags::Abstract);
     frameworkTemplate
         .Property<
@@ -18,7 +18,7 @@ Base::Result<void> PopulateControlsTemplates(
     status = frameworkTemplate.Result();
     if (!status) return status.GetStatus();
 
-    auto controlTemplate = Meta::Describe<ControlTemplate>(context);
+    auto controlTemplate = Meta::Register<ControlTemplate>(context);
     controlTemplate
         .Property<
             Core::TypeReference,
@@ -42,7 +42,7 @@ Base::Result<void> PopulateControlsTemplates(
     status = controlTemplate.Result();
     if (!status) return status.GetStatus();
 
-    auto dataTemplate = Meta::Describe<DataTemplate>(context);
+    auto dataTemplate = Meta::Register<DataTemplate>(context);
     dataTemplate
         .Property<
             Core::TypeReference,
@@ -80,7 +80,7 @@ Base::Result<void> PopulateControlsTemplates(
     if (!status) return status.GetStatus();
 
     auto itemsPanelTemplate =
-        Meta::Describe<ItemsPanelTemplate>(context);
+        Meta::Register<ItemsPanelTemplate>(context);
     itemsPanelTemplate
         .Property<
             Base::Ref<Aero::ResourceDictionary>,

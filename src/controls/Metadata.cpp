@@ -11,8 +11,8 @@
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Media/Brushes.hpp>
-#include <Aero/Meta/Describe.hpp>
-#include <Aero/Meta/ValueConversion.hpp>
+#include <Aero/Meta.hpp>
+#include <Aero/Value.hpp>
 
 
 #include <algorithm>

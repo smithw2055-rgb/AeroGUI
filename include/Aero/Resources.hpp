@@ -9,9 +9,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Meta/MetadataId.hpp>
-#include <Aero/Meta/TypeRegistry.hpp>
-#include <Aero/Meta/Value.hpp>
+#include <Aero/Value.hpp>
 
 #include <cstdint>
 

@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Input.hpp>
 #include "InputInternal.hpp"
 

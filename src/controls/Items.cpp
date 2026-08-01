@@ -6,7 +6,7 @@
 #include "gui/StyleInternal.hpp"
 #include "gui/ElementInternal.hpp"
 
-#include "gui/MetaInternals.hpp"
+#include "gui/MetadataInternal.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
@@ -17,6 +17,15 @@
 
 namespace Aero::Controls {
 using Aero::Detail::TemplateEngine;
+
+Panel* ItemsPresenter::ItemsHost() const noexcept {
+    UIElement* child = GetChild();
+    return child != nullptr &&
+        PropertyRegistry().Types().IsDerivedFrom(
+            child->RuntimeType(), Panel::StaticTypeId())
+        ? static_cast<Panel*>(child)
+        : nullptr;
+}
 
 Base::Result<void> ItemsPresenter::SetItemsHost(
     const Base::Ref<Base::Object>& owner,

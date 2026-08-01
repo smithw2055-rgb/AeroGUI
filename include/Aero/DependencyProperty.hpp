@@ -11,9 +11,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Threading.hpp>
-#include <Aero/Meta/TypeRegistry.hpp>
-#include <Aero/Meta/ValueCodec.hpp>
-#include <Aero/Meta/Value.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/Diagnostics/PropertyValueSource.hpp>
 
 #include <cstdint>
@@ -352,6 +350,7 @@ public:
     }
 
 private:
+    friend class ::Aero::Meta::Registry;
     friend class DependencyPropertyRegistry;
     friend class ::Aero::DependencyObject;
 
@@ -412,6 +411,7 @@ public:
         TypeId forType) const noexcept;
 
 private:
+    friend class ::Aero::Meta::Registry;
     friend class DependencyPropertyRegistry;
     friend class ::Aero::DependencyObject;
 
@@ -494,6 +494,7 @@ public:
         const PropertyValue& value) const noexcept;
 
 private:
+    friend class ::Aero::Meta::Registry;
     friend class ::Aero::DependencyObject;
 
     TypeRegistry* typeRegistry_ = nullptr;

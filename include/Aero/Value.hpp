@@ -1,14 +1,370 @@
 #pragma once
 
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Assert.hpp>
+#include <Aero/Base/Config.hpp>
+#include <Aero/Base/Hash.hpp>
+#include <Aero/Base/MetadataId.hpp>
+#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Base/Vector.hpp>
 
+#include <cerrno>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <type_traits>
 #include <utility>
+
+namespace Aero::Core {
+
+using TypeId = Base::MetaTypeId;
+using MemberId = Base::MetaMemberId;
+
+inline constexpr TypeId InvalidTypeId = Base::InvalidMetaTypeId;
+inline constexpr MemberId InvalidMemberId = Base::InvalidMetaMemberId;
+
+} // namespace Aero::Core
+
+namespace Aero::Core {
+
+enum class ValueKind : std::uint8_t {
+    Unset = 0U,
+    None = Unset,
+    Boolean,
+    SignedInteger,
+    UnsignedInteger,
+    Double,
+    String,
+    Object,
+    Custom
+};
+
+using ValueCopyCallback = Base::Result<void> (*)(void* destination, const void* source, void* context) noexcept;
+using ValueDestroyCallback = void (*)(void* value, void* context) noexcept;
+using ValueEqualsCallback = bool (*)(const void* left, const void* right, void* context) noexcept;
+
+struct ValueTypeRegistration final {
+    std::uint32_t size = 0U;
+    std::uint32_t alignment = 0U;
+    ValueCopyCallback copy = nullptr;
+    ValueDestroyCallback destroy = nullptr;
+    ValueEqualsCallback equals = nullptr;
+    void* context = nullptr;
+    bool inlineSafe = false;
+};
+
+class AERO_API ValueTypeSemantics final : public Base::Object {
+public:
+    explicit ValueTypeSemantics(const ValueTypeRegistration& registration) noexcept : registration_(registration) {}
+    const ValueTypeRegistration& Registration() const noexcept { return registration_; }
+private:
+    ValueTypeRegistration registration_;
+};
+
+class AERO_API Value final {
+public:
+    static constexpr std::uint32_t InlineCapacity = 32U;
+    Value() noexcept = default;
+    Value(const Value&) noexcept = default;
+    Value(Value&&) noexcept = default;
+    Value& operator=(const Value&) noexcept = default;
+    Value& operator=(Value&&) noexcept = default;
+    ~Value() = default;
+    static Value Unset() noexcept;
+    static Value FromBoolean(TypeId type, bool value) noexcept;
+    static Value FromSignedInteger(TypeId type, std::int64_t value) noexcept;
+    static Value FromUnsignedInteger(TypeId type, std::uint64_t value) noexcept;
+    static Value FromDouble(TypeId type, double value) noexcept;
+    static Base::Result<Value> TryFromString(TypeId type, Base::StringView value) noexcept;
+    static Value FromObject(TypeId type, Base::Ref<Base::Object> value) noexcept;
+    static Value NullObject(TypeId type) noexcept;
+    static Base::Result<Value> TryFromCustom(TypeId type, const void* source, const Base::Ref<ValueTypeSemantics>& semantics) noexcept;
+    TypeId Type() const noexcept { return type_; }
+    ValueKind Kind() const noexcept { return kind_; }
+    bool IsUnset() const noexcept { return kind_ == ValueKind::Unset; }
+    bool IsNullObject() const noexcept { return kind_ == ValueKind::Object && !storage_; }
+    bool IsInlineCustom() const noexcept { return kind_ == ValueKind::Custom && inlineCustom_; }
+    bool AsBoolean() const noexcept;
+    std::int64_t AsSignedInteger() const noexcept;
+    std::uint64_t AsUnsignedInteger() const noexcept;
+    double AsDouble() const noexcept;
+    Base::StringView AsString() const noexcept;
+    const Base::Ref<Base::Object>& AsObject() const noexcept;
+    const void* AsCustom() const noexcept;
+    void* MutableCustom() noexcept;
+    bool Equals(const Value& other) const noexcept;
+private:
+    alignas(std::max_align_t) unsigned char inlineData_[InlineCapacity]{};
+    TypeId type_ = InvalidTypeId;
+    ValueKind kind_ = ValueKind::Unset;
+    bool inlineCustom_ = false;
+    Base::Ref<Base::Object> storage_;
+    Base::Ref<ValueTypeSemantics> semantics_;
+};
+
+inline bool operator==(const Value& left, const Value& right) noexcept { return left.Equals(right); }
+inline bool operator!=(const Value& left, const Value& right) noexcept { return !(left == right); }
+
+using TextValueConverterCallback = Base::Result<Value> (*)(TypeId targetType, Base::StringView text, void* context) noexcept;
+struct TextValueConverterRegistration final {
+    TypeId type = InvalidTypeId;
+    TextValueConverterCallback convert = nullptr;
+    void* context = nullptr;
+};
+
+} // namespace Aero::Core
+
+namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
+namespace Aero::Meta { class Registry; class Registration; }
+namespace Aero::Core {
+class BehaviorTable;
+class RegistrationTypes;
+class TypeRegistry;
+template<class TOwner, class TValue> class DependencyPropertyRef;
+template<class TOwner, class TValue> class AttachedPropertyRef;
+template<class TOwner, class TValue> class ReadOnlyPropertyRef;
+inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
+inline constexpr std::uint32_t MetadataSchemaFormatVersion = 2U;
+inline constexpr std::uint32_t MetadataProgramFormatVersion = 8U;
+
+enum class MetadataTypeKind : std::uint8_t {
+    Object = 0U,
+    Interface,
+    Struct,
+    Enum,
+    Primitive
+};
+
+enum class MemberKind : std::uint8_t {
+    Property = 1U,
+    Event = 2U,
+    Method = 3U,
+    Field = 4U,
+    EnumValue = 5U
+};
+
+enum class TypeFlags : std::uint32_t {
+    None = 0U,
+    Abstract = 1U << 0U,
+    Sealed = 1U << 1U,
+    ValueType = 1U << 2U,
+    Collection = 1U << 3U,
+    MarkupExtension = 1U << 4U,
+    FlagsEnum = 1U << 5U,
+    TriviallyCopyable = 1U << 6U,
+    SignedEnum = 1U << 7U
+};
+
+enum class PropertyFlags : std::uint32_t {
+    None = 0U,
+    Attached = 1U << 0U,
+    ReadOnly = 1U << 1U,
+    Inherits = 1U << 2U,
+    AffectsMeasure = 1U << 3U,
+    AffectsArrange = 1U << 4U,
+    AffectsRender = 1U << 5U,
+    AffectsParentMeasure = 1U << 6U,
+    AffectsParentArrange = 1U << 7U,
+    Structural = 1U << 8U,
+    Collection = 1U << 9U,
+    WriteOnly = 1U << 10U,
+    AnyValue = 1U << 11U
+};
+
+enum class FieldFlags : std::uint32_t {
+    None = 0U,
+    ReadOnly = 1U << 0U,
+    Transient = 1U << 1U
+};
+
+enum class PropertyAccessKind : std::uint8_t {
+    External = 0U,
+    Ordinary = 1U,
+    Provider = 2U
+};
+
+using PropertyProviderId = std::uint64_t;
+inline constexpr PropertyProviderId InvalidPropertyProviderId = 0U;
+inline constexpr PropertyProviderId DependencyPropertyProviderId =
+    UINT64_C(0x445050524F564944);
+
+enum class MethodFlags : std::uint32_t {
+    None = 0U,
+    Const = 1U << 0U
+};
+
+enum class EventFlags : std::uint32_t {
+    None = 0U,
+    Attached = 1U << 0U,
+    Routed = 1U << 1U
+};
+
+constexpr TypeFlags operator|(
+    TypeFlags left, TypeFlags right) noexcept {
+    return static_cast<TypeFlags>(
+        static_cast<std::uint32_t>(left) |
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr TypeFlags operator&(
+    TypeFlags left, TypeFlags right) noexcept {
+    return static_cast<TypeFlags>(
+        static_cast<std::uint32_t>(left) &
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr PropertyFlags operator|(
+    PropertyFlags left, PropertyFlags right) noexcept {
+    return static_cast<PropertyFlags>(
+        static_cast<std::uint32_t>(left) |
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr FieldFlags operator|(
+    FieldFlags left, FieldFlags right) noexcept {
+    return static_cast<FieldFlags>(
+        static_cast<std::uint32_t>(left) |
+        static_cast<std::uint32_t>(right));
+}
+
+constexpr EventFlags operator|(
+    EventFlags left, EventFlags right) noexcept {
+    return static_cast<EventFlags>(
+        static_cast<std::uint32_t>(left) |
+        static_cast<std::uint32_t>(right));
+}
+
+struct TypeFlagPredicate final {
+    constexpr bool operator()(
+        TypeFlags value,
+        TypeFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) &
+            static_cast<std::uint32_t>(flag)) != 0U;
+    }
+};
+
+inline constexpr TypeFlagPredicate HasTypeFlag{};
+
+struct FieldFlagPredicate final {
+    constexpr bool operator()(
+        FieldFlags value,
+        FieldFlags flag) const noexcept {
+        return (static_cast<std::uint32_t>(value) &
+            static_cast<std::uint32_t>(flag)) != 0U;
+    }
+};
+
+inline constexpr FieldFlagPredicate HasFieldFlag{};
+
+
+constexpr TypeId MakeTypeId(Base::StringView xamlNamespace, Base::StringView name) noexcept { return Base::MakeMetaTypeId(xamlNamespace, name); }
+constexpr Base::StringView AeroNamespaceUri() noexcept { return Base::DefaultMetadataNamespaceUri(); }
+constexpr TypeId MakeTypeId(Base::StringView name) noexcept { return Base::MakeMetaTypeId(name); }
+
+struct NoMetadataBase final {};
+
+template<class T>
+struct MetaTypeTraits {
+    static constexpr TypeId Id() noexcept { return T::StaticTypeId(); }
+    static constexpr Base::StringView Namespace() noexcept {
+        return T::StaticMetadataNamespace();
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return T::StaticMetadataName();
+    }
+    static constexpr TypeId BaseType() noexcept {
+        if constexpr (std::is_same_v<typename T::BaseType,
+            NoMetadataBase>) {
+            return InvalidTypeId;
+        } else {
+            return MetaTypeTraits<typename T::BaseType>::Id();
+        }
+    }
+};
+
+template<>
+struct MetaTypeTraits<Base::Object> {
+    static constexpr TypeId Id() noexcept {
+        return Base::Object::StaticTypeId();
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return AeroNamespaceUri();
+    }
+    static constexpr Base::StringView Name() noexcept { return "Object"; }
+    static constexpr TypeId BaseType() noexcept { return InvalidTypeId; }
+};
+
+template<class T>
+constexpr TypeId TypeOf() noexcept { return MetaTypeTraits<T>::Id(); }
+
+constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, Base::StringView name) noexcept {
+    constexpr char domain[] = "AERO.MEMBER.V1";
+    Base::Detail::StableMetadataIdBuilder builder;
+    builder.AddText(domain, static_cast<std::uint32_t>(sizeof(domain) - 1U));
+    builder.AddU64(ownerType);
+    builder.AddByte(static_cast<std::uint8_t>(kind));
+    builder.AddString(name);
+    return builder.Finish();
+}
+AERO_API MemberId MakeMethodId(TypeId ownerType, Base::StringView name, Base::Span<const TypeId> parameterTypes) noexcept;
+
+
+} // namespace Aero::Core
+
+#define AERO_DECLARE_TYPE_NAMED( \
+    typeName, metadataBaseType, metadataNamespace, metadataName) \
+public: \
+    using Self = typeName; \
+    using BaseType = metadataBaseType; \
+    struct Members final { \
+        template<class TValue> \
+        using Property = Aero::Core::DependencyPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using AttachedProperty = Aero::Core::AttachedPropertyRef<Self, TValue>; \
+        template<class TValue> \
+        using ReadOnlyProperty = Aero::Core::ReadOnlyPropertyRef<Self, TValue>; \
+        template<class TArgs> \
+        using RoutedEvent = Aero::RoutedEventRef<Self, TArgs>; \
+    }; \
+    static constexpr Aero::Base::StringView \
+    StaticMetadataNamespace() noexcept { \
+        return Aero::Base::StringView(metadataNamespace); \
+    } \
+    static constexpr Aero::Base::StringView \
+    StaticMetadataName() noexcept { \
+        return Aero::Base::StringView(metadataName); \
+    } \
+    inline static constexpr Aero::Core::TypeId StaticTypeIdValue_ = \
+        Aero::Core::MakeTypeId( \
+            Aero::Base::StringView(metadataNamespace), \
+            Aero::Base::StringView(metadataName)); \
+    static constexpr Aero::Core::TypeId StaticTypeId() noexcept { \
+        return StaticTypeIdValue_; \
+    }
+
+#define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
+    AERO_DECLARE_TYPE_NAMED( \
+        typeName, metadataBaseType, \
+        Aero::Core::AeroNamespaceUri(), #typeName)
+
+namespace Aero::Meta {
+
+// Metadata traits for ordinary C++ types. Framework objects normally use
+// AERO_DECLARE_TYPE; ViewModels may specialize this trait without deriving
+// from DependencyObject.
+template<class T>
+struct TypeTraits : Core::MetaTypeTraits<T> {};
+
+} // namespace Aero::Meta
+
 
 namespace Aero::Core {
 
@@ -512,5 +868,94 @@ struct ValueCodec<Base::Ref<T>, void> {
             *static_cast<T*>(value.AsObject().Get()));
     }
 };
+
+} // namespace Aero::Core
+
+namespace Aero::Core {
+
+namespace ValueConversion {
+
+AERO_API Base::StringView Trim(Base::StringView value) noexcept;
+AERO_API bool EqualsAsciiInsensitive(
+    Base::StringView left,
+    Base::StringView right) noexcept;
+AERO_API Base::Result<double> ParseDouble(
+    Base::StringView text) noexcept;
+
+AERO_API Base::Result<bool> ConvertBoolean(
+    Base::StringView text) noexcept;
+AERO_API Base::Result<double> ConvertDouble(
+    Base::StringView text) noexcept;
+AERO_API Base::Result<Base::String> ConvertString(
+    Base::StringView text) noexcept;
+AERO_API Base::Result<Base::ResourceUri> ConvertResourceUri(
+    Base::StringView text) noexcept;
+
+template<class T>
+Base::Result<T> ConvertInteger(
+    Base::StringView text) noexcept {
+    static_assert(
+        std::is_integral_v<T> &&
+        !std::is_same_v<T, bool>);
+    Base::String buffer;
+    Base::Result<void> assigned =
+        buffer.TryAssign(Trim(text));
+    if (!assigned) return assigned.GetStatus();
+    char* end = nullptr;
+    errno = 0;
+    if constexpr (std::is_signed_v<T>) {
+        const long long value =
+            std::strtoll(buffer.CStr(), &end, 10);
+        if (end == buffer.CStr() || *end != '\0' ||
+            errno == ERANGE ||
+            value < static_cast<long long>(
+                std::numeric_limits<T>::min()) ||
+            value > static_cast<long long>(
+                std::numeric_limits<T>::max())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Text is not a compatible signed integer");
+        }
+        return static_cast<T>(value);
+    } else {
+        const unsigned long long value =
+            std::strtoull(buffer.CStr(), &end, 10);
+        if (end == buffer.CStr() || *end != '\0' ||
+            errno == ERANGE ||
+            value > static_cast<unsigned long long>(
+                std::numeric_limits<T>::max()) ||
+            (!buffer.Empty() && buffer.View()[0] == '-')) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "Text is not a compatible unsigned integer");
+        }
+        return static_cast<T>(value);
+    }
+}
+
+} // namespace ValueConversion
+
+namespace Validate {
+
+template<class T>
+bool Finite(const T& value) noexcept {
+    if constexpr (std::is_floating_point_v<T>) {
+        return std::isfinite(value);
+    } else {
+        return true;
+    }
+}
+
+template<class T>
+bool NonNegative(const T& value) noexcept {
+    return Finite(value) && value >= T{0};
+}
+
+template<class T>
+bool Positive(const T& value) noexcept {
+    return Finite(value) && value > T{0};
+}
+
+} // namespace Validate
 
 } // namespace Aero::Core

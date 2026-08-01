@@ -9,7 +9,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Input/Values.hpp>
 #include <Aero/Layout.hpp>
-#include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Markup.hpp>
 #include <Aero/Media/Geometry.hpp>
 #include <Aero/Module.hpp>
 
@@ -199,7 +199,7 @@ private:
 
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> gui_;
-    Detail::ViewData* state_ = nullptr;
+    Aero::Detail::ViewData* state_ = nullptr;
 };
 
 } // namespace Aero

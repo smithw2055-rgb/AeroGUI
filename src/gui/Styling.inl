@@ -3,7 +3,7 @@
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto element = Meta::Describe<Element>(context, TypeFlags::Abstract);
+    auto element = Meta::Register<Element>(context, TypeFlags::Abstract);
     element
         .Property(
             Element::PPAAOutProperty,
@@ -14,17 +14,17 @@ Base::Result<void> PopulateUiStyling(
     status = element.Result();
     if (!status) return status.GetStatus();
 
-    auto text = Meta::Describe<TextProperties>(context, TypeFlags::Abstract);
+    auto text = Meta::Register<TextProperties>(context, TypeFlags::Abstract);
     text.Property(
         TextProperties::PasswordLengthProperty,
         PropertyOptions(std::uint32_t{0}).AffectsRender());
     status = text.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<SetterBase>(context, TypeFlags::Abstract).Result();
+    status = Meta::Register<SetterBase>(context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    auto setter = Meta::Describe<Setter>(context);
+    auto setter = Meta::Register<Setter>(context);
     setter
         .Property(
             "TargetName",
@@ -44,19 +44,19 @@ Base::Result<void> PopulateUiStyling(
     status = setter.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
+    status = Meta::Register<Data::IValueConverter>(context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Data::BindingBase>(context, TypeFlags::Abstract).Result();
+    status = Meta::Register<Data::BindingBase>(context, TypeFlags::Abstract).Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Data::RelativeSource>(context).Factory().Result();
+    status = Meta::Register<Data::RelativeSource>(context).Factory().Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Data::Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed).Factory().Result();
+    status = Meta::Register<Data::Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed).Factory().Result();
     if (!status) return status.GetStatus();
 
-    auto triggerBase = Meta::Describe<TriggerBase>(
+    auto triggerBase = Meta::Register<TriggerBase>(
         context, TypeFlags::Abstract);
     triggerBase
         .Collection<Media::Animation::TriggerAction>(
@@ -70,7 +70,7 @@ Base::Result<void> PopulateUiStyling(
     status = triggerBase.Result();
     if (!status) return status.GetStatus();
 
-    auto trigger = Meta::Describe<PropertyTrigger>(context);
+    auto trigger = Meta::Register<PropertyTrigger>(context);
     trigger
         .Property(
             "Property",
@@ -95,7 +95,7 @@ Base::Result<void> PopulateUiStyling(
     status = trigger.Result();
     if (!status) return status.GetStatus();
 
-    auto dataTrigger = Meta::Describe<DataTrigger>(context);
+    auto dataTrigger = Meta::Register<DataTrigger>(context);
     dataTrigger
         .Property<
             Base::Ref<Data::Binding>,
@@ -121,7 +121,7 @@ Base::Result<void> PopulateUiStyling(
     status = dataTrigger.Result();
     if (!status) return status.GetStatus();
 
-    auto condition = Meta::Describe<Condition>(context);
+    auto condition = Meta::Register<Condition>(context);
     condition
         .Property<
             Base::Ref<Data::Binding>,
@@ -147,7 +147,7 @@ Base::Result<void> PopulateUiStyling(
     if (!status) return status.GetStatus();
 
     auto multiDataTrigger =
-        Meta::Describe<MultiDataTrigger>(context);
+        Meta::Register<MultiDataTrigger>(context);
     multiDataTrigger
         .Collection<Condition>(
             "Conditions",
@@ -162,7 +162,7 @@ Base::Result<void> PopulateUiStyling(
     status = multiDataTrigger.Result();
     if (!status) return status.GetStatus();
 
-    auto multiTrigger = Meta::Describe<MultiTrigger>(context);
+    auto multiTrigger = Meta::Register<MultiTrigger>(context);
     multiTrigger
         .Collection<Condition>(
             "Conditions",
@@ -177,7 +177,7 @@ Base::Result<void> PopulateUiStyling(
     status = multiTrigger.Result();
     if (!status) return status.GetStatus();
 
-    auto style = Meta::Describe<Style>(context);
+    auto style = Meta::Register<Style>(context);
     style
         .Property<
             TypeReference,

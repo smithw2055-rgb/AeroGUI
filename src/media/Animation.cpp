@@ -1,6 +1,6 @@
 #include <Aero/Animation.hpp>
 
-#include <Aero/Meta/ValueConversion.hpp>
+#include <Aero/Value.hpp>
 
 #include <cmath>
 #include <cstdlib>

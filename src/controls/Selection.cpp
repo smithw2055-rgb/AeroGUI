@@ -4,7 +4,7 @@
 #include <Aero/Controls/Text.hpp>
 #include "ControlInternals.hpp"
 
-#include "gui/MetaInternals.hpp"
+#include "gui/MetadataInternal.hpp"
 
 #include <algorithm>
 #include <utility>

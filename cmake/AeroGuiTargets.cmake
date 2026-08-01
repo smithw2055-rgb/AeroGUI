@@ -18,23 +18,13 @@ endfunction()
 
 add_library(AeroGuiKernelObjects OBJECT
     src/gui/BindingPath.cpp
-    src/gui/DependencyProperty.cpp
+    src/gui/PropertySystem.cpp
     src/diagnostics/Diagnostics.cpp
     src/gui/Dispatcher.cpp
-    src/gui/EffectiveValueEngine.cpp
     src/gui/RoutedEvents.cpp
-    src/gui/CoreMetadata.cpp
-    src/gui/MetadataAuthoring.cpp
-    src/gui/Registration.cpp
-    src/gui/MetaTable.cpp
-    src/gui/BehaviorTable.cpp
-    src/gui/Registry.cpp
-    src/gui/RegistrationValues.cpp
-    src/gui/MetadataValueFacets.cpp
-    src/gui/ValueTable.cpp
-    src/gui/ValueConversion.cpp
+    src/gui/Metadata.cpp
+    src/gui/BuiltinMetadata.cpp
     src/gui/ObjectFactory.cpp
-    src/gui/TypeRegistry.cpp
     src/gui/Value.cpp
     src/media/AnimationEngine.cpp
     src/media/Animation.cpp
@@ -48,7 +38,6 @@ add_library(AeroGuiKernelObjects OBJECT
     src/gui/Input.cpp
     src/media/Images.cpp
     src/gui/Layout.cpp
-    src/gui/UiMetadata.cpp
     src/gui/ContentElement.cpp
     src/gui/ElementTree.cpp
     src/gui/Resources.cpp
@@ -103,10 +92,7 @@ aero_configure_internal_objects(AeroInspectorObjects)
 target_link_libraries(AeroInspectorObjects PUBLIC AeroControlsObjects)
 
 add_library(AeroMarkupKernelObjects OBJECT
-    src/markup/CompiledCache.cpp
-    src/markup/CompiledDocument.cpp
-    src/markup/XmlTokenizer.cpp
-    src/markup/NodeReader.cpp)
+    src/markup/MarkupParser.cpp)
 aero_configure_internal_objects(AeroMarkupKernelObjects)
 target_link_libraries(AeroMarkupKernelObjects PUBLIC AeroGuiKernelObjects)
 
@@ -147,8 +133,6 @@ if(AERO_WITH_EXPAT)
                 "AERO_WITH_EXPAT requires Expat or ${_aero_expat_source}")
         endif()
     endif()
-    target_sources(AeroMarkupKernelObjects PRIVATE
-        src/markup/ExpatXmlTokenizer.cpp)
     target_link_libraries(AeroMarkupKernelObjects PRIVATE
         ${_aero_expat_target})
 endif()
@@ -156,27 +140,10 @@ target_compile_definitions(AeroMarkupKernelObjects PRIVATE
     AERO_WITH_EXPAT=$<BOOL:${AERO_WITH_EXPAT}>)
 
 add_library(AeroMarkupObjects OBJECT
-    src/markup/BindingExtension.cpp
-    src/markup/CompiledSchema.cpp
-    src/markup/Metadata.cpp
-    src/markup/FacetStore.cpp
-    src/markup/SchemaManifest.cpp
-    src/markup/DynamicResourceExtension.cpp
-    src/markup/StyleSupport.cpp
-    src/markup/TemplateSupport.cpp
-    src/markup/TemplateBindingExtension.cpp
-    src/markup/TemplateCompiler.cpp
-    src/markup/TypeExtension.cpp
-    src/markup/StaticExtension.cpp
-    src/markup/Scopes.cpp
-    src/markup/LoaderResult.cpp
-    src/markup/ObjectBuilder.cpp
-    src/markup/DocumentCache.cpp
-    src/markup/Loader.cpp
-    src/markup/Resources.cpp
-    src/markup/Schema.cpp
-    src/markup/ObjectWriter.cpp
-    src/markup/XamlDocument.cpp)
+    src/markup/MarkupSchema.cpp
+    src/markup/MarkupWriter.cpp
+    src/markup/MarkupTemplates.cpp
+    src/markup/MarkupLoader.cpp)
 aero_configure_internal_objects(AeroMarkupObjects)
 target_link_libraries(AeroMarkupObjects PUBLIC
     AeroMarkupKernelObjects AeroControlsObjects)
@@ -187,8 +154,10 @@ target_compile_definitions(AeroMarkupObjects PRIVATE
 add_library(AeroModuleSetObjects OBJECT
     src/runtime/modules/Module.cpp
     src/runtime/modules/BuiltinModules.cpp
-    src/markup/GuiSchema.cpp)
+    src/markup/MarkupSchema.cpp)
 aero_configure_internal_objects(AeroModuleSetObjects)
+target_compile_definitions(AeroModuleSetObjects PRIVATE
+    AERO_MARKUP_GUI_SCHEMA_ONLY=1)
 target_link_libraries(AeroModuleSetObjects PUBLIC
     AeroMarkupObjects AeroAppModelObjects)
 

@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Meta/Value.hpp>
+#include <Aero/Value.hpp>
 
 #include <cstdint>
 #include <utility>

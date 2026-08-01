@@ -5,7 +5,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Meta/TypeRegistry.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Window.hpp>

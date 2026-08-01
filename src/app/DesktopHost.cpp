@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Integration/OpenGL33.hpp>
-#include <Aero/Markup/XamlReader.hpp>
+#include <Aero/Markup.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
 #include <Aero/View.hpp>
 

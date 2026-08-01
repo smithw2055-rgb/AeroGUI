@@ -5,6 +5,7 @@
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Delegate.hpp>
 #include <Aero/RoutedEvent.hpp>
+#include "gui/MetadataInternal.hpp"
 
 #include <cstddef>
 #include <new>

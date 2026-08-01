@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include <Aero/Layout.hpp>
 #include "gui/RoutedEventInternal.hpp"
 #include <Aero/Media/Effects.hpp>

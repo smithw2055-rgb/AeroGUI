@@ -253,14 +253,7 @@ public:
     ItemsPresenter() noexcept
         : Decorator(StaticTypeId()) {}
     ~ItemsPresenter() override = default;
-    Panel* ItemsHost() const noexcept {
-        UIElement* child = GetChild();
-        return child != nullptr &&
-            PropertyRegistry().Types().IsDerivedFrom(
-                child->RuntimeType(), Panel::StaticTypeId())
-            ? static_cast<Panel*>(child)
-            : nullptr;
-    }
+    Panel* ItemsHost() const noexcept;
     Base::Result<void> SetItemsHost(
         const Base::Ref<Base::Object>& owner,
         Panel& panel) noexcept;

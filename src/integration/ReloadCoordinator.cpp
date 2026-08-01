@@ -3,7 +3,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/View.hpp>
-#include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Markup.hpp>
 
 
 #include <new>

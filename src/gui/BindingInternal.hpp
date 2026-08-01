@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Meta/Registry.hpp>
+#include "gui/MetadataInternal.hpp"
 
 #include <cstdint>
 

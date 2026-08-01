@@ -1,7 +1,8 @@
+#include "gui/MetadataInternal.hpp"
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Primitives.hpp>
 #include "../render/DrawingInternals.hpp"
-#include <Aero/Meta/ValueConversion.hpp>
+#include <Aero/Value.hpp>
 
 #include <algorithm>
 #include <cmath>

@@ -3,7 +3,7 @@
 Base::Result<void> PopulateControlsPrimitives(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto panel = Meta::Describe<Panel>(
+    auto panel = Meta::Register<Panel>(
         context, TypeFlags::Abstract);
     panel
         .Property(
@@ -25,7 +25,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = panel.Result();
     if (!status) return status.GetStatus();
 
-    auto decorator = Meta::Describe<Decorator>(context);
+    auto decorator = Meta::Register<Decorator>(context);
     decorator.Content<Aero::UIElement>(
         "Content", ContentKind::Single,
         &SetDecoratorContent, &ClearDecoratorContent,
@@ -34,7 +34,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = decorator.Result();
     if (!status) return status.GetStatus();
 
-    auto viewbox = Meta::Describe<Viewbox>(context);
+    auto viewbox = Meta::Register<Viewbox>(context);
     viewbox
         .Property(
             Viewbox::StretchProperty,
@@ -48,7 +48,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = viewbox.Result();
     if (!status) return status.GetStatus();
 
-    auto control = Meta::Describe<Control>(context);
+    auto control = Meta::Register<Control>(context);
     control
         .Override(
             UIElement::FocusableProperty,
@@ -110,7 +110,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = control.Result();
     if (!status) return status.GetStatus();
 
-    auto contentControl = Meta::Describe<ContentControl>(
+    auto contentControl = Meta::Register<ContentControl>(
         context, TypeFlags::Abstract);
     contentControl
         .Property(
@@ -145,7 +145,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = contentControl.Result();
     if (!status) return status.GetStatus();
 
-    auto buttonBase = Meta::Describe<ButtonBase>(
+    auto buttonBase = Meta::Register<ButtonBase>(
         context, TypeFlags::Abstract);
     buttonBase
         .Event(ButtonBase::ClickEvent)
@@ -173,12 +173,12 @@ Base::Result<void> PopulateControlsPrimitives(
     status = buttonBase.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Button>(context)
+    status = Meta::Register<Button>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto repeatButton = Meta::Describe<RepeatButton>(context);
+    auto repeatButton = Meta::Register<RepeatButton>(context);
     repeatButton
         .Property(
             RepeatButton::DelayProperty,
@@ -194,7 +194,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = repeatButton.Result();
     if (!status) return status.GetStatus();
 
-    auto toggleButton = Meta::Describe<ToggleButton>(context);
+    auto toggleButton = Meta::Register<ToggleButton>(context);
     toggleButton
         .Event(ToggleButton::CheckedEvent)
         .Event(ToggleButton::UncheckedEvent)
@@ -216,12 +216,12 @@ Base::Result<void> PopulateControlsPrimitives(
     status = toggleButton.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<CheckBox>(context)
+    status = Meta::Register<CheckBox>(context)
         .Factory()
         .Result();
     if (!status) return status.GetStatus();
 
-    auto radioButton = Meta::Describe<RadioButton>(context);
+    auto radioButton = Meta::Register<RadioButton>(context);
     radioButton
         .Property(
             RadioButton::GroupNameProperty,
@@ -230,7 +230,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = radioButton.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ScrollContentPresenter>(context)
+    status = Meta::Register<ScrollContentPresenter>(context)
         .Property(
             ScrollContentPresenter::
                 CanContentScrollProperty,
@@ -240,7 +240,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Result();
     if (!status) return status.GetStatus();
 
-    auto scrollViewer = Meta::Describe<ScrollViewer>(context);
+    auto scrollViewer = Meta::Register<ScrollViewer>(context);
     scrollViewer
         .Event(ScrollViewer::ScrollChangedEvent)
         .Property(
@@ -324,7 +324,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = scrollViewer.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<Thumb>(context)
+    status = Meta::Register<Thumb>(context)
         .Property(
             Thumb::IsDraggingProperty,
             PropertyOptions(false)
@@ -333,7 +333,7 @@ Base::Result<void> PopulateControlsPrimitives(
         .Result();
     if (!status) return status.GetStatus();
 
-    auto track = Meta::Describe<Track>(context);
+    auto track = Meta::Register<Track>(context);
     track
         .Property(
             Track::OrientationProperty,
@@ -383,7 +383,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = track.Result();
     if (!status) return status.GetStatus();
 
-    auto gridSplitter = Meta::Describe<GridSplitter>(context);
+    auto gridSplitter = Meta::Register<GridSplitter>(context);
     gridSplitter
         .Property(
             GridSplitter::DragIncrementProperty,
@@ -409,7 +409,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = gridSplitter.Result();
     if (!status) return status.GetStatus();
 
-    auto rangeBase = Meta::Describe<RangeBase>(
+    auto rangeBase = Meta::Register<RangeBase>(
         context, TypeFlags::Abstract);
     rangeBase
         .Event(RangeBase::ValueChangedEvent)
@@ -435,7 +435,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = rangeBase.Result();
     if (!status) return status.GetStatus();
 
-    auto scrollBar = Meta::Describe<ScrollBar>(context);
+    auto scrollBar = Meta::Register<ScrollBar>(context);
     scrollBar
         .Property(
             ScrollBar::OrientationProperty,
@@ -458,7 +458,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = scrollBar.Result();
     if (!status) return status.GetStatus();
 
-    auto slider = Meta::Describe<Slider>(context);
+    auto slider = Meta::Register<Slider>(context);
     slider
         .Property(
             Slider::OrientationProperty,
@@ -504,7 +504,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = slider.Result();
     if (!status) return status.GetStatus();
 
-    auto tickBar = Meta::Describe<TickBar>(context);
+    auto tickBar = Meta::Register<TickBar>(context);
     tickBar
         .Property(
             TickBar::FillProperty,
@@ -518,7 +518,7 @@ Base::Result<void> PopulateControlsPrimitives(
     status = tickBar.Result();
     if (!status) return status.GetStatus();
 
-    auto progressBar = Meta::Describe<ProgressBar>(context);
+    auto progressBar = Meta::Register<ProgressBar>(context);
     progressBar
         .Property(
             ProgressBar::IsIndeterminateProperty,

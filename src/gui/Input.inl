@@ -3,27 +3,27 @@
 Base::Result<void> PopulateUiInput(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    status = Meta::Describe<EventArgs>(context).Result();
+    status = Meta::Register<EventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<RoutedEventArgs>(context).Result();
+    status = Meta::Register<RoutedEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<InputEventArgs>(context).Result();
+    status = Meta::Register<InputEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<MouseEventArgs>(context).Result();
+    status = Meta::Register<MouseEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<MouseButtonEventArgs>(context).Result();
+    status = Meta::Register<MouseButtonEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<MouseWheelEventArgs>(context).Result();
+    status = Meta::Register<MouseWheelEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<KeyEventArgs>(context).Result();
+    status = Meta::Register<KeyEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<TextCompositionEventArgs>(context).Result();
+    status = Meta::Register<TextCompositionEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<KeyboardFocusChangedEventArgs>(
+    status = Meta::Register<KeyboardFocusChangedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
     auto keyboardNavigationMode =
-        Meta::Describe<KeyboardNavigationMode>(context);
+        Meta::Register<KeyboardNavigationMode>(context);
     keyboardNavigationMode
         .Value(
             "Continue",
@@ -46,7 +46,7 @@ Base::Result<void> PopulateUiInput(
     status = keyboardNavigationMode.Result();
     if (!status) return status.GetStatus();
     auto keyboardNavigation =
-        Meta::Describe<KeyboardNavigation>(
+        Meta::Register<KeyboardNavigation>(
             context, TypeFlags::Abstract);
     keyboardNavigation.Property(
         KeyboardNavigation::
@@ -62,10 +62,10 @@ Base::Result<void> PopulateUiInput(
         PropertyOptions(std::uint32_t{0}));
     status = keyboardNavigation.Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<CanExecuteRoutedEventArgs>(
+    status = Meta::Register<CanExecuteRoutedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<ExecutedRoutedEventArgs>(
+    status = Meta::Register<ExecutedRoutedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
     return {};

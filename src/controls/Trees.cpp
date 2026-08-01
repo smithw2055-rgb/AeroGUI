@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include "TemplateInternals.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>

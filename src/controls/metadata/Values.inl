@@ -3,14 +3,14 @@
 Base::Result<void> PopulateControlsValues(
     ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
-    auto orientation = Meta::Describe<Orientation>(context);
+    auto orientation = Meta::Register<Orientation>(context);
     orientation
         .Value("Horizontal", Orientation::Horizontal)
         .Value("Vertical", Orientation::Vertical);
     status = orientation.Result();
     if (!status) return status.GetStatus();
 
-    auto menuItemRole = Meta::Describe<MenuItemRole>(context);
+    auto menuItemRole = Meta::Register<MenuItemRole>(context);
     menuItemRole
         .Value("TopLevelItem", MenuItemRole::TopLevelItem)
         .Value("TopLevelHeader", MenuItemRole::TopLevelHeader)
@@ -20,7 +20,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto gridViewColumnHeaderRole =
-        Meta::Describe<GridViewColumnHeaderRole>(context);
+        Meta::Register<GridViewColumnHeaderRole>(context);
     gridViewColumnHeaderRole
         .Value("Normal", GridViewColumnHeaderRole::Normal)
         .Value("Floating", GridViewColumnHeaderRole::Floating)
@@ -29,7 +29,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto penLineJoin =
-        Meta::Describe<PenLineJoin>(context);
+        Meta::Register<PenLineJoin>(context);
     penLineJoin
         .Value("Miter", PenLineJoin::Miter)
         .Value("Bevel", PenLineJoin::Bevel)
@@ -37,7 +37,7 @@ Base::Result<void> PopulateControlsValues(
     status = penLineJoin.Result();
     if (!status) return status.GetStatus();
 
-    auto penLineCap = Meta::Describe<PenLineCap>(context);
+    auto penLineCap = Meta::Register<PenLineCap>(context);
     penLineCap
         .Value("Flat", PenLineCap::Flat)
         .Value("Square", PenLineCap::Square)
@@ -47,7 +47,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto tickPlacement =
-        Meta::Describe<TickPlacement>(context);
+        Meta::Register<TickPlacement>(context);
     tickPlacement
         .Value("None", TickPlacement::None)
         .Value("TopLeft", TickPlacement::TopLeft)
@@ -59,7 +59,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto tickBarPlacement =
-        Meta::Describe<TickBarPlacement>(context);
+        Meta::Register<TickBarPlacement>(context);
     tickBarPlacement
         .Value("Top", TickBarPlacement::Top)
         .Value("Bottom", TickBarPlacement::Bottom)
@@ -69,7 +69,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto scrollBarVisibility =
-        Meta::Describe<ScrollBarVisibility>(context);
+        Meta::Register<ScrollBarVisibility>(context);
     scrollBarVisibility
         .Value(
             "Disabled",
@@ -80,7 +80,7 @@ Base::Result<void> PopulateControlsValues(
     status = scrollBarVisibility.Result();
     if (!status) return status.GetStatus();
 
-    auto panningMode = Meta::Describe<PanningMode>(context);
+    auto panningMode = Meta::Register<PanningMode>(context);
     panningMode
         .Value("None", PanningMode::None)
         .Value("HorizontalOnly", PanningMode::HorizontalOnly)
@@ -91,7 +91,7 @@ Base::Result<void> PopulateControlsValues(
     status = panningMode.Result();
     if (!status) return status.GetStatus();
 
-    auto gridResizeDirection = Meta::Describe<GridResizeDirection>(context);
+    auto gridResizeDirection = Meta::Register<GridResizeDirection>(context);
     gridResizeDirection
         .Value("Auto", GridResizeDirection::Auto)
         .Value("Columns", GridResizeDirection::Columns)
@@ -99,7 +99,7 @@ Base::Result<void> PopulateControlsValues(
     status = gridResizeDirection.Result();
     if (!status) return status.GetStatus();
 
-    auto gridResizeBehavior = Meta::Describe<GridResizeBehavior>(context);
+    auto gridResizeBehavior = Meta::Register<GridResizeBehavior>(context);
     gridResizeBehavior
         .Value(
             "BasedOnAlignment",
@@ -112,7 +112,7 @@ Base::Result<void> PopulateControlsValues(
     status = gridResizeBehavior.Result();
     if (!status) return status.GetStatus();
 
-    auto dock = Meta::Describe<Dock>(context);
+    auto dock = Meta::Register<Dock>(context);
     dock
         .Value("Left", Dock::Left)
         .Value("Top", Dock::Top)
@@ -121,7 +121,7 @@ Base::Result<void> PopulateControlsValues(
     status = dock.Result();
     if (!status) return status.GetStatus();
 
-    auto textWrapping = Meta::Describe<Text::TextWrapping>(context);
+    auto textWrapping = Meta::Register<Text::TextWrapping>(context);
     textWrapping
         .Value("NoWrap", Text::TextWrapping::NoWrap)
         .Value("Wrap", Text::TextWrapping::Wrap)
@@ -131,7 +131,7 @@ Base::Result<void> PopulateControlsValues(
     status = textWrapping.Result();
     if (!status) return status.GetStatus();
 
-    auto textTrimming = Meta::Describe<Text::TextTrimming>(context);
+    auto textTrimming = Meta::Register<Text::TextTrimming>(context);
     textTrimming
         .Value("None", Text::TextTrimming::None)
         .Value(
@@ -143,7 +143,7 @@ Base::Result<void> PopulateControlsValues(
     status = textTrimming.Result();
     if (!status) return status.GetStatus();
 
-    auto textAlignment = Meta::Describe<Text::TextAlignment>(context);
+    auto textAlignment = Meta::Register<Text::TextAlignment>(context);
     textAlignment
         .Value("Left", Text::TextAlignment::Start)
         .Value("Center", Text::TextAlignment::Center)
@@ -152,7 +152,7 @@ Base::Result<void> PopulateControlsValues(
     status = textAlignment.Result();
     if (!status) return status.GetStatus();
 
-    auto fontWeight = Meta::Describe<FontWeight>(context);
+    auto fontWeight = Meta::Register<FontWeight>(context);
     fontWeight
         .Value("Normal", FontWeight::Normal)
         .Value("SemiBold", FontWeight::SemiBold)
@@ -160,7 +160,7 @@ Base::Result<void> PopulateControlsValues(
     status = fontWeight.Result();
     if (!status) return status.GetStatus();
 
-    auto fontStyle = Meta::Describe<Text::FontStyle>(context);
+    auto fontStyle = Meta::Register<Text::FontStyle>(context);
     fontStyle
         .Value("Normal", Text::FontStyle::Normal)
         .Value("Italic", Text::FontStyle::Italic)
@@ -169,7 +169,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto textDecorations =
-        Meta::Describe<TextDecorations>(context);
+        Meta::Register<TextDecorations>(context);
     textDecorations
         .Value("None", TextDecorations::None)
         .Value(
@@ -178,7 +178,7 @@ Base::Result<void> PopulateControlsValues(
     status = textDecorations.Result();
     if (!status) return status.GetStatus();
 
-    auto gridLength = Meta::Describe<GridLength>(context);
+    auto gridLength = Meta::Register<GridLength>(context);
     gridLength
         .ValueSemantics({
             sizeof(GridLength),
@@ -192,7 +192,7 @@ Base::Result<void> PopulateControlsValues(
     status = gridLength.Result();
     if (!status) return status.GetStatus();
 
-    auto clickMode = Meta::Describe<ClickMode>(context);
+    auto clickMode = Meta::Register<ClickMode>(context);
     clickMode
         .Value("Release", ClickMode::Release)
         .Value("Press", ClickMode::Press)
@@ -200,7 +200,7 @@ Base::Result<void> PopulateControlsValues(
     status = clickMode.Result();
     if (!status) return status.GetStatus();
 
-    auto selectionMode = Meta::Describe<SelectionMode>(context);
+    auto selectionMode = Meta::Register<SelectionMode>(context);
     selectionMode
         .Value("Single", SelectionMode::Single)
         .Value("Multiple", SelectionMode::Multiple)
@@ -209,7 +209,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto expandDirection =
-        Meta::Describe<ExpandDirection>(context);
+        Meta::Register<ExpandDirection>(context);
     expandDirection
         .Value("Down", ExpandDirection::Down)
         .Value("Up", ExpandDirection::Up)
@@ -219,7 +219,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto placementMode =
-        Meta::Describe<PlacementMode>(context);
+        Meta::Register<PlacementMode>(context);
     placementMode
         .Value("Bottom", PlacementMode::Bottom)
         .Value("Top", PlacementMode::Top)
@@ -231,7 +231,7 @@ Base::Result<void> PopulateControlsValues(
     if (!status) return status.GetStatus();
 
     auto popupAnimation =
-        Meta::Describe<PopupAnimation>(context);
+        Meta::Register<PopupAnimation>(context);
     popupAnimation
         .Value("None", PopupAnimation::None)
         .Value("Fade", PopupAnimation::Fade)
@@ -240,9 +240,9 @@ Base::Result<void> PopulateControlsValues(
     status = popupAnimation.Result();
     if (!status) return status.GetStatus();
 
-    status = Meta::Describe<ScrollChangedEventArgs>(context).Result();
+    status = Meta::Register<ScrollChangedEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Meta::Describe<RangeValueChangedEventArgs>(
+    status = Meta::Register<RangeValueChangedEventArgs>(
         context).Result();
     if (!status) return status.GetStatus();
     return {};

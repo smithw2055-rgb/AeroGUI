@@ -4,6 +4,35 @@
 
 #include <type_traits>
 
+namespace SdkConsumer {
+
+struct ViewModel final {
+    bool active = false;
+};
+
+} // namespace SdkConsumer
+
+namespace Aero::Meta {
+
+template<>
+struct TypeTraits<SdkConsumer::ViewModel> {
+    static constexpr Core::TypeId Id() noexcept {
+        return Core::MakeTypeId(
+            "urn:aero-sdk-consumer", "ViewModel");
+    }
+    static constexpr Base::StringView Namespace() noexcept {
+        return "urn:aero-sdk-consumer";
+    }
+    static constexpr Base::StringView Name() noexcept {
+        return "ViewModel";
+    }
+    static constexpr Core::TypeId BaseType() noexcept {
+        return Core::InvalidTypeId;
+    }
+};
+
+} // namespace Aero::Meta
+
 namespace {
 
 class ConsumerControl final : public Aero::Controls::Control {
@@ -44,7 +73,12 @@ public:
 Aero::Base::Result<void> RegisterConsumerModule(
     Aero::Meta::Registration& context) noexcept {
     Aero::Base::Result<void> status =
-        Aero::Meta::Describe<ConsumerControl>(context)
+        Aero::Meta::Register<SdkConsumer::ViewModel>(context)
+            .Result();
+    if (!status) return status.GetStatus();
+
+    status =
+        Aero::Meta::Register<ConsumerControl>(context)
             .Property(
                 ConsumerControl::ActiveProperty,
                 Aero::Meta::FrameworkPropertyMetadata(
@@ -57,7 +91,7 @@ Aero::Base::Result<void> RegisterConsumerModule(
             .Result();
     if (!status) return status.GetStatus();
 
-    return Aero::Meta::Describe<ConsumerButton>(context)
+    return Aero::Meta::Register<ConsumerButton>(context)
         .Factory()
         .Result();
 }
@@ -72,10 +106,6 @@ static_assert(
         decltype(ConsumerModule.registerModule),
         Aero::ModuleRegisterCallback>::value,
     "Module SDK must expose the typed registration callback");
-
-static_assert(
-    !std::is_copy_constructible<Aero::Meta::Registry>::value,
-    "Meta::Registry must remain the canonical non-copyable registry");
 
 static_assert(
     std::is_class<Aero::Meta::Registration>::value,

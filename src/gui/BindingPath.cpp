@@ -1,3 +1,4 @@
+#include "gui/MetadataInternal.hpp"
 #include "BindingInternal.hpp"
 
 namespace Aero::Core {

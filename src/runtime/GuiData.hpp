@@ -1,8 +1,9 @@
+#include "markup/MarkupInternal.hpp"
 #pragma once
 
 #include <Aero/View.hpp>
-#include "markup/Loader.hpp"
-#include "markup/GuiSchema.hpp"
+
+
 
 namespace Aero {
 

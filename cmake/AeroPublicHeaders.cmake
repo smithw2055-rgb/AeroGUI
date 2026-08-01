@@ -35,16 +35,8 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Collections.hpp
     include/Aero/Diagnostics.hpp
     include/Aero/Threading.hpp
-    include/Aero/Meta/Describe.hpp
-    include/Aero/Meta/Describe.inl
-    include/Aero/Meta/Registration.hpp
-    include/Aero/Meta/Registry.hpp
-    include/Aero/Meta/MetadataId.hpp
-    include/Aero/Meta/RegistrationValues.hpp
-    include/Aero/Meta/TypeRegistry.hpp
-    include/Aero/Meta/Value.hpp
-    include/Aero/Meta/ValueCodec.hpp
-    include/Aero/Meta/ValueConversion.hpp
+    include/Aero/Meta.hpp
+    include/Aero/Value.hpp
     include/Aero/DependencyProperty.hpp
     include/Aero/Diagnostics/PropertyValueSource.hpp
     include/Aero/Data.hpp
@@ -69,19 +61,12 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Markup.hpp
-    include/Aero/Markup/CompiledDocument.hpp
-    include/Aero/Markup/LoadOptions.hpp
-    include/Aero/Markup/Resources.hpp
-    include/Aero/Markup/Schema.hpp
-    include/Aero/Markup/XamlDocument.hpp
-    include/Aero/Markup/XamlReader.hpp
     include/Aero/Media.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Effects.hpp
     include/Aero/Media/Geometry.hpp
     include/Aero/Media/Images.hpp
     include/Aero/Media/Transforms.hpp
-    include/Aero/Meta.hpp
     include/Aero/Module.hpp
     include/Aero/Resources.hpp
     include/Aero/RoutedEvent.hpp
