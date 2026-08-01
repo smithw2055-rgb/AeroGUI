@@ -1,7 +1,7 @@
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include "ModuleCatalog.hpp"
-#include "SchemaBundle.hpp"
+#include "runtime/modules/ModuleCatalog.hpp"
+#include "markup/SchemaBundle.hpp"
 
 #include <cstdio>
 #include <cstdint>

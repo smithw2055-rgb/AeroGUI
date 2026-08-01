@@ -120,9 +120,9 @@ public:
     Core::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::StringView CommandName() const noexcept { return commandName_.View(); }
-    Base::StringView KeyName() const noexcept { return keyName_.View(); }
-    Base::StringView ModifiersName() const noexcept { return modifiersName_.View(); }
+    Base::StringView GetCommandName() const noexcept { return commandName_.View(); }
+    Base::StringView GetKeyName() const noexcept { return keyName_.View(); }
+    Base::StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
     Base::Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
     Base::Result<void> SetCommandName(Base::StringView value) noexcept;
     Base::Result<void> SetKeyName(Base::StringView value) noexcept;

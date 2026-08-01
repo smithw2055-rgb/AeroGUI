@@ -3,9 +3,9 @@
 #include "LoadContext.hpp"
 #include "LoadOptionsAccess.hpp"
 #include "ObjectWriterState.hpp"
-#include "../UiDocumentAccess.hpp"
+#include "XamlDocumentAccess.hpp"
 
-#include "core/ObjectServices.hpp"
+#include "gui/property/ObjectServices.hpp"
 #include <Aero/Base/Hash.hpp>
 #include "ObjectWriter.hpp"
 #include <Aero/Markup/Schema.hpp>
@@ -16,7 +16,7 @@
 #include <filesystem>
 #include <new>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+
 
 namespace Aero::Markup {
 namespace LoaderDiagnosticCodes {

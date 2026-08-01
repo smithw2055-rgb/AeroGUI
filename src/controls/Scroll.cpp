@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -2356,7 +2356,7 @@ SliderInteractionManager::~SliderInteractionManager()
         static_cast<void>(Detach(*slider));
     }
     static_cast<void>(
-        input_->Pointer().RemoveCaptureChanged(
+        input_->RemovePointerCaptureChanged(
             captureChangedHandler_));
 }
 
@@ -2417,7 +2417,7 @@ Base::Result<void> SliderInteractionManager::Attach(
     }
     if (sliders_.Empty()) {
         Base::Result<void> capture =
-            input_->Pointer().TryAddCaptureChanged(
+            input_->TryAddPointerCaptureChanged(
                 captureChangedHandler_);
         if (!capture) return capture.GetStatus();
     }
@@ -2455,7 +2455,7 @@ Base::Result<void> SliderInteractionManager::Attach(
             keyDownHandler_));
         if (sliders_.Empty()) {
             static_cast<void>(
-                input_->Pointer().RemoveCaptureChanged(
+                input_->RemovePointerCaptureChanged(
                     captureChangedHandler_));
         }
         return status.GetStatus();
@@ -2478,7 +2478,7 @@ Base::Result<void> SliderInteractionManager::Attach(
             keyDownHandler_));
         if (sliders_.Empty()) {
             static_cast<void>(
-                input_->Pointer().RemoveCaptureChanged(
+                input_->RemovePointerCaptureChanged(
                     captureChangedHandler_));
         }
         return appended.GetStatus();
@@ -2492,7 +2492,7 @@ Base::Result<bool> SliderInteractionManager::Detach(
     if (index == UINT32_MAX) return false;
     if (sliders_[index].dragging) {
         static_cast<void>(
-            input_->Pointer().ReleasePointer(
+            input_->ReleasePointer(
                 sliders_[index].pointerId));
     }
     static_cast<void>(slider.RemoveHandler(
@@ -2510,7 +2510,7 @@ Base::Result<bool> SliderInteractionManager::Detach(
     RemoveAt(index);
     if (sliders_.Empty()) {
         static_cast<void>(
-            input_->Pointer().RemoveCaptureChanged(
+            input_->RemovePointerCaptureChanged(
                 captureChangedHandler_));
     }
     return true;
@@ -2555,7 +2555,7 @@ void SliderInteractionManager::OnMouseDown(
         sliders_[index];
     record.pointerId = args.pointerId;
     static_cast<void>(
-        input_->Focus().SetFocus(&slider));
+        input_->SetFocus(&slider));
     Point local = args.position;
     const bool horizontal =
         slider.GetOrientation() ==
@@ -2585,7 +2585,7 @@ void SliderInteractionManager::OnMouseDown(
             10.0;
     if (record.dragging) {
         static_cast<void>(
-            input_->Pointer().CapturePointer(
+            input_->CapturePointer(
                 args.pointerId, slider));
     }
     if (slider.IsMoveToPointEnabled()) {
@@ -2642,7 +2642,7 @@ void SliderInteractionManager::OnMouseUp(
         SetFromPoint(slider, args.position));
     sliders_[index].dragging = false;
     static_cast<void>(
-        input_->Pointer().ReleasePointer(
+        input_->ReleasePointer(
             args.pointerId));
     args.handled = true;
 }

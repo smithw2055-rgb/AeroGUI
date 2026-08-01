@@ -1,7 +1,7 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
 #include "ControlInternals.hpp"
-#include "TemplateRuntime.hpp"
+#include "TemplateAccess.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>

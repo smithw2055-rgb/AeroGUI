@@ -6,20 +6,21 @@
 
 #include "graphics/D3D11Backend.hpp"
 
+namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
+
 namespace Aero::Render {
 
 using D3D11RendererStatistics = RendererStatistics;
 
 RendererShaderSet MakeD3D11RendererShaderSet() noexcept;
 
-class D3D11Renderer final
-    : public Render::RenderBackend {
+class D3D11Renderer final {
 public:
     D3D11Renderer(
         Graphics::GraphicsDevice& device,
         Graphics::D3D11SurfacePresenter& presenter,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~D3D11Renderer() noexcept override;
+    ~D3D11Renderer() noexcept;
 
     D3D11Renderer(
         const D3D11Renderer&) = delete;
@@ -44,12 +45,15 @@ public:
     Base::Result<void> UnregisterMesh(
         Render::RenderMeshId mesh) noexcept;
     Base::Result<void> Submit(
-        const Render::RenderFrame& plan) noexcept override;
+        const Render::RenderFrame& plan) noexcept;
     bool IsInitialized() const noexcept;
     Graphics::FenceValue LastSubmittedFence() const noexcept;
     D3D11RendererStatistics
     LastSubmitStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
+    Aero::Detail::TextBackendServices* TextServices() noexcept;
+    Aero::Detail::MeshBackendServices* MeshServices() noexcept;
+    Aero::Detail::ImageBackendServices* ImageServices() noexcept;
 
 private:
     struct Impl;
@@ -63,8 +67,6 @@ private:
         Graphics::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
-    void* QueryInternalService(
-        std::uint64_t service) noexcept override;
 
     Graphics::GraphicsDevice* device_ = nullptr;
     Graphics::D3D11SurfacePresenter* presenter_ = nullptr;

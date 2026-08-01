@@ -1,7 +1,8 @@
 #include "Inspector.hpp"
+#include "gui/styling/StyleRuntime.hpp"
 
 #include <Aero/Controls/Base.hpp>
-#include "../ui/RuntimeManagers.hpp"
+
 #include "../controls/RuntimeManagers.hpp"
 
 namespace Aero::Diagnostics {

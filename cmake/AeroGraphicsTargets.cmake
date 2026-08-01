@@ -1,7 +1,7 @@
 # Private renderer, graphics device, backend and native-surface targets.
 add_library(AeroGraphics ${AERO_LIBRARY_TYPE}
     src/graphics/Graphics.cpp
-    src/graphics/Device.cpp
+    src/graphics/GraphicsDevice.cpp
     src/platform/Surface.cpp)
 
 add_library(Aero::_DetailGraphics ALIAS AeroGraphics)

@@ -94,9 +94,16 @@ if(aero_duplicate_public_includes)
 endif()
 
 file(GLOB_RECURSE core_files
-    "${AERO_SOURCE_DIR}/src/core/*.cpp"
-    "${AERO_SOURCE_DIR}/src/core/*.hpp"
+    "${AERO_SOURCE_DIR}/src/gui/metadata/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/metadata/*.hpp"
+    "${AERO_SOURCE_DIR}/src/gui/property/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/property/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Meta/*.hpp")
+list(APPEND core_files
+    "${AERO_SOURCE_DIR}/src/diagnostics/Diagnostics.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/threading/Dispatcher.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/property/ObjectServices.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/property/ObjectServices.hpp")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Diagnostics.hpp"
@@ -152,8 +159,8 @@ foreach(removed_path IN ITEMS
     "include/Aero/Core/Metadata/MetadataDsl.hpp"
     "include/Aero/Core/Metadata/MetaRegistrationContext.hpp"
     "include/Aero/Core/Metadata/MetadataValueFacets.hpp"
-    "src/core/metadata/LegacyActivation.hpp"
-    "src/core/metadata/MetadataDescriptors.cpp"
+    "src/gui/metadata/LegacyActivation.hpp"
+    "src/gui/metadata/MetadataDescriptors.cpp"
     "src/markup/LoaderEngine.hpp"
     "src/markup/LoaderEngine.cpp"
     "include/Aero/Markup/RuntimeHost.hpp"
@@ -449,7 +456,7 @@ endif()
 
 aero_collect_matches(split_view_input_services
     "Aero::Detail::(FocusManager|PointerInputManager|KeyboardInputManager|TextInputManager)[*][ \t]+(focus|pointer|keyboard|textInput)"
-    "${AERO_SOURCE_DIR}/src/ViewRuntime.cpp")
+    "${AERO_SOURCE_DIR}/src/runtime/ViewRuntime.cpp")
 if(split_view_input_services)
     message(FATAL_ERROR
         "ViewRuntime must own input through its private InputService aggregate: "
@@ -458,7 +465,7 @@ endif()
 
 aero_collect_matches(command_parent_walk
     "Get(Visual|Logical)Parent[ \t]*[(]"
-    "${AERO_SOURCE_DIR}/src/input/Commands.cpp")
+    "${AERO_SOURCE_DIR}/src/gui/input/Commands.cpp")
 if(command_parent_walk)
     message(FATAL_ERROR
         "Command routing must consume the canonical EventRoute instead of walking parents: "
@@ -613,21 +620,21 @@ if(unprefixed_support_exports)
 endif()
 
 file(READ "${AERO_SOURCE_DIR}/CMakeLists.txt" root_cmake_content)
-string(REGEX REPLACE "[^\n]" "" root_cmake_newlines "${root_cmake_content}")
-string(LENGTH "${root_cmake_newlines}" root_cmake_line_count)
+string(REGEX MATCHALL "\n" root_cmake_newlines "${root_cmake_content}")
+list(LENGTH root_cmake_newlines root_cmake_line_count)
 math(EXPR root_cmake_line_count "${root_cmake_line_count} + 1")
-if(root_cmake_line_count GREATER 900)
+if(root_cmake_line_count GREATER 600)
     message(FATAL_ERROR
-        "Root CMakeLists.txt exceeded the 900-line product composition budget")
+        "Root CMakeLists.txt exceeded the 600-line product composition budget")
 endif()
 
 file(GLOB_RECURSE physical_public_headers
     "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/*.h")
 list(LENGTH physical_public_headers physical_public_header_count)
-if(physical_public_header_count GREATER 100)
+if(physical_public_header_count GREATER 96)
     message(FATAL_ERROR
-        "Installed SDK header count exceeded the 100-file convergence budget")
+        "Installed SDK header count exceeded the 96-file convergence budget")
 endif()
 
 file(GLOB_RECURSE private_access_headers
@@ -635,9 +642,111 @@ file(GLOB_RECURSE private_access_headers
     "${AERO_SOURCE_DIR}/src/*/*Access.hpp"
     "${AERO_SOURCE_DIR}/src/*/*/*Access.hpp")
 list(LENGTH private_access_headers private_access_header_count)
-if(private_access_header_count GREATER 12)
+if(private_access_header_count GREATER 10)
     message(FATAL_ERROR
-        "Private Access header count exceeded the consolidated 12-file budget")
+        "Private Access header count exceeded the consolidated 10-file budget")
 endif()
+
+
+# H-series source ownership and runtime convergence gates.
+file(GLOB aero_root_source_files
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+if(aero_root_source_files)
+    message(FATAL_ERROR
+        "Source files must belong to a domain directory under src/: "
+        "${aero_root_source_files}")
+endif()
+
+foreach(required_private_header IN ITEMS
+        "src/gui/events/EventRouter.hpp"
+        "src/gui/input/InputState.hpp"
+        "src/gui/layout/LayoutRuntime.hpp"
+        "src/gui/binding/BindingService.hpp"
+        "src/gui/animation/AnimationRuntime.hpp"
+        "src/gui/styling/StyleRuntime.hpp"
+        "src/controls/TemplateProgram.hpp"
+        "src/controls/TemplateInstance.hpp"
+        "src/controls/TemplateAccess.hpp"
+        "src/controls/VisualStateRuntime.hpp")
+    if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_private_header}")
+        message(FATAL_ERROR
+            "Required converged private header is missing: ${required_private_header}")
+    endif()
+endforeach()
+
+foreach(retired_private_file IN ITEMS
+        "src/gui/RuntimeManagers.hpp"
+        "src/gui/RuntimeServices.hpp"
+        "src/controls/TemplateRuntime.hpp"
+        "src/render/TextBackendAccess.hpp"
+        "src/graphics/Device.hpp"
+        "src/runtime/PresentationRuntime.cpp")
+    if(EXISTS "${AERO_SOURCE_DIR}/${retired_private_file}")
+        message(FATAL_ERROR
+            "Retired private aggregation file was recreated: ${retired_private_file}")
+    endif()
+endforeach()
+
+file(GLOB_RECURSE input_runtime_files
+    "${AERO_SOURCE_DIR}/src/gui/input/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/input/*.hpp"
+    "${AERO_SOURCE_DIR}/src/runtime/RuntimeFwd.hpp")
+aero_collect_matches(retired_input_managers
+    "(CommandManager|HitTestManager|PointerInputManager|FocusManager|KeyboardInputManager|TextInputManager)"
+    ${input_runtime_files})
+if(retired_input_managers)
+    message(FATAL_ERROR
+        "Input internals must use the single InputService and private state types: "
+        "${retired_input_managers}")
+endif()
+
+aero_collect_matches(command_route_bypass
+    "EventRoute[ \t]+[A-Za-z_]|[.]Build\\([A-Za-z_]+,[ \t]*RoutingStrategy"
+    "${AERO_SOURCE_DIR}/src/gui/input/Commands.cpp")
+if(command_route_bypass)
+    message(FATAL_ERROR
+        "Commands must traverse routes through EventRouter: ${command_route_bypass}")
+endif()
+
+file(GLOB_RECURSE render_runtime_files
+    "${AERO_SOURCE_DIR}/src/render/*.cpp"
+    "${AERO_SOURCE_DIR}/src/render/*.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/*.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/*.hpp"
+    "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
+    "${AERO_SOURCE_DIR}/src/runtime/*.hpp")
+aero_collect_matches(retired_render_submission_layers
+    "(RenderBackend|EndpointSubmissionBackend|QueryInternalService|TextBackendServiceId|MeshBackendServiceId|ImageBackendServiceId)"
+    ${render_runtime_files})
+if(retired_render_submission_layers)
+    message(FATAL_ERROR
+        "Retired render submission layers or service locators remain: "
+        "${retired_render_submission_layers}")
+endif()
+
+aero_collect_matches(render_tree_submission_leak
+    "RenderEndpoint|Submit[ \t]*\\("
+    "${AERO_SOURCE_DIR}/src/render/RenderTree.hpp")
+if(render_tree_submission_leak)
+    message(FATAL_ERROR
+        "RenderTree must build immutable frames without owning submission: "
+        "${render_tree_submission_leak}")
+endif()
+
+foreach(gui_runtime_header IN ITEMS
+        "src/gui/layout/LayoutRuntime.hpp"
+        "src/gui/binding/BindingService.hpp"
+        "src/gui/animation/AnimationRuntime.hpp"
+        "src/gui/styling/StyleRuntime.hpp")
+    file(READ "${AERO_SOURCE_DIR}/${gui_runtime_header}" gui_runtime_content)
+    string(REGEX MATCHALL "\n" gui_runtime_newlines "${gui_runtime_content}")
+    list(LENGTH gui_runtime_newlines gui_runtime_line_count)
+    math(EXPR gui_runtime_line_count "${gui_runtime_line_count} + 1")
+    if(gui_runtime_line_count GREATER 260)
+        message(FATAL_ERROR
+            "GUI runtime domain header exceeded 260 lines: ${gui_runtime_header}")
+    endif()
+endforeach()
 
 message(STATUS "Aero architecture dependency checks passed")

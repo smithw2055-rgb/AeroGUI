@@ -58,11 +58,7 @@ public:
         : SetterBase(runtimeType) {}
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
-    DependencyPropertyHandle Property() const noexcept {
-        return property_;
-    }
     const PropertyValue& GetValue() const noexcept { return value_; }
-    const PropertyValue& Value() const noexcept { return value_; }
     Base::Result<void> SetProperty(
         DependencyPropertyHandle value) noexcept {
         if (!value.IsValid()) {
@@ -103,10 +99,8 @@ public:
     Base::Result<void> SetAuthoredValue(
         const PropertyValue& value) noexcept;
     Base::StringView GetPropertyName() const noexcept { return propertyName_.View(); }
-    Base::StringView PropertyName() const noexcept { return propertyName_.View(); }
     Base::StringView GetTargetName() const noexcept { return targetName_.View(); }
-    Base::StringView TargetName() const noexcept { return targetName_.View(); }
-    const PropertyValue& AuthoredValue() const noexcept {
+    const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
     bool IsAuthored() const noexcept {
@@ -142,13 +136,13 @@ public:
         exitActions_.Clear();
     }
     Base::Span<const Base::Ref<Base::Object>>
-    EnterActions() const noexcept {
+    GetEnterActions() const noexcept {
         return {
             enterActions_.Data(),
             enterActions_.Size()};
     }
     Base::Span<const Base::Ref<Base::Object>>
-    ExitActions() const noexcept {
+    GetExitActions() const noexcept {
         return {
             exitActions_.Data(),
             exitActions_.Size()};
@@ -178,10 +172,8 @@ public:
     explicit PropertyTrigger(
         TypeId runtimeType = StaticTypeId()) noexcept
         : TriggerBase(runtimeType) {}
-    DependencyPropertyHandle Property() const noexcept {
-        return property_;
-    }
-    const PropertyValue& Value() const noexcept {
+    DependencyPropertyHandle GetProperty() const noexcept { return property_; }
+    const PropertyValue& GetValue() const noexcept {
         return value_;
     }
     Base::Result<void> SetProperty(
@@ -192,7 +184,7 @@ public:
         const Setter& setter) noexcept;
     Base::Result<void> SetPropertyName(
         Base::StringView value) noexcept;
-    Base::StringView SourceName() const noexcept {
+    Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
     Base::Result<void> SetSourceName(
@@ -202,14 +194,14 @@ public:
     Base::Result<void> TryAddAuthoredSetter(
         Base::Ref<Setter> setter) noexcept;
     Base::Result<void> ClearAuthoredSetters() noexcept;
-    Base::StringView PropertyName() const noexcept {
+    Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
-    const PropertyValue& AuthoredValue() const noexcept {
+    const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
     Base::Span<const Base::Ref<Setter>>
-    AuthoredSetters() const noexcept {
+    GetAuthoredSetters() const noexcept {
         return {
             authoredSetters_.Data(),
             authoredSetters_.Size()};
@@ -241,7 +233,7 @@ public:
         static_cast<void>(
             comparison_.TryAssign("Equal"));
     }
-    Base::Ref<Data::Binding> Binding() const noexcept {
+    Base::Ref<Data::Binding> GetBinding() const noexcept {
         return binding_;
     }
     Base::Result<void> SetBinding(
@@ -249,17 +241,17 @@ public:
         binding_ = std::move(value);
         return {};
     }
-    Base::StringView PropertyName() const noexcept {
+    Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
     Base::Result<void> SetPropertyName(
         Base::StringView value) noexcept;
-    Base::StringView SourceName() const noexcept {
+    Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
     Base::Result<void> SetSourceName(
         Base::StringView value) noexcept;
-    const PropertyValue& AuthoredValue() const noexcept {
+    const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
     Base::Result<void> SetAuthoredValue(
@@ -272,7 +264,7 @@ public:
         authoredValue_ = value;
         return {};
     }
-    Base::StringView Comparison() const noexcept { return comparison_.View(); }
+    Base::StringView GetComparison() const noexcept { return comparison_.View(); }
     Base::Result<void> SetComparison(Base::StringView value) noexcept {
         return comparison_.TryAssign(value);
     }
@@ -282,7 +274,7 @@ public:
         authoredSetters_.Clear();
     }
     Base::Span<const Base::Ref<Setter>>
-    AuthoredSetters() const noexcept {
+    GetAuthoredSetters() const noexcept {
         return {
             authoredSetters_.Data(),
             authoredSetters_.Size()};
@@ -304,7 +296,7 @@ public:
     TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Base::Ref<Data::Binding> Binding() const noexcept {
+    Base::Ref<Data::Binding> GetBinding() const noexcept {
         return binding_;
     }
     Base::Result<void> SetBinding(
@@ -312,17 +304,17 @@ public:
         binding_ = std::move(value);
         return {};
     }
-    Base::StringView PropertyName() const noexcept {
+    Base::StringView GetPropertyName() const noexcept {
         return propertyName_.View();
     }
     Base::Result<void> SetPropertyName(
         Base::StringView value) noexcept;
-    Base::StringView SourceName() const noexcept {
+    Base::StringView GetSourceName() const noexcept {
         return sourceName_.View();
     }
     Base::Result<void> SetSourceName(
         Base::StringView value) noexcept;
-    const PropertyValue& AuthoredValue() const noexcept {
+    const PropertyValue& GetAuthoredValue() const noexcept {
         return authoredValue_;
     }
     Base::Result<void> SetAuthoredValue(
@@ -349,12 +341,12 @@ public:
     MultiTrigger() noexcept : TriggerBase(StaticTypeId()) {}
     Base::Result<void> TryAddCondition(Base::Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
-    Base::Span<const Base::Ref<Condition>> Conditions() const noexcept {
+    Base::Span<const Base::Ref<Condition>> GetConditions() const noexcept {
         return {conditions_.Data(), conditions_.Size()};
     }
     Base::Result<void> TryAddAuthoredSetter(Base::Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
-    Base::Span<const Base::Ref<Setter>> AuthoredSetters() const noexcept {
+    Base::Span<const Base::Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
 private:
@@ -374,7 +366,7 @@ public:
         conditions_.Clear();
     }
     Base::Span<const Base::Ref<Condition>>
-    Conditions() const noexcept {
+    GetConditions() const noexcept {
         return {
             conditions_.Data(),
             conditions_.Size()};
@@ -385,7 +377,7 @@ public:
         authoredSetters_.Clear();
     }
     Base::Span<const Base::Ref<Setter>>
-    AuthoredSetters() const noexcept {
+    GetAuthoredSetters() const noexcept {
         return {
             authoredSetters_.Data(),
             authoredSetters_.Size()};
@@ -551,21 +543,19 @@ public:
     Base::Result<void> ClearAuthoredSetters() noexcept;
     Base::Result<void> ClearAuthoredTriggers() noexcept;
     Base::Span<const Base::Ref<Setter>>
-    AuthoredSetters() const noexcept {
+    GetAuthoredSetters() const noexcept {
         return {
             authoredSetterObjects_.Data(),
             authoredSetterObjects_.Size()};
     }
     Base::Span<const Base::Ref<PropertyTrigger>>
-    AuthoredTriggers() const noexcept {
+    GetAuthoredTriggers() const noexcept {
         return {
             authoredTriggerObjects_.Data(),
             authoredTriggerObjects_.Size()};
     }
     TypeId GetTargetType() const noexcept { return sealed_ ? program_.TargetType() : targetType_; }
-    TypeId TargetType() const noexcept { return GetTargetType(); }
     const Style* GetBasedOn() const noexcept { return basedOn_; }
-    const Style* BasedOn() const noexcept { return GetBasedOn(); }
     SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
     TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
     bool IsSealed() const noexcept { return sealed_; }
@@ -577,10 +567,6 @@ public:
     }
     ResourceDictionary& GetResources() noexcept { return resources_; }
     const ResourceDictionary& GetResources() const noexcept { return resources_; }
-    ResourceDictionary& Resources() noexcept { return resources_; }
-    const ResourceDictionary& Resources() const noexcept {
-        return resources_;
-    }
     Base::Result<void> SetResources(
         Base::Ref<ResourceDictionary> value) noexcept;
 

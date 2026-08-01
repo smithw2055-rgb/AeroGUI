@@ -2,7 +2,6 @@
 
 #include <new>
 
-#include "../TextBackendAccess.hpp"
 #include "../MeshRuntimeBackend.hpp"
 #include "../ImageRuntimeBackend.hpp"
 #include "../TextRuntimeBackend.hpp"
@@ -607,19 +606,16 @@ OpenGL33Renderer::UnregisterGlyphRun(
             "OpenGL render adapter is not initialized"));
 }
 
-void* OpenGL33Renderer::QueryInternalService(
-    std::uint64_t service) noexcept {
-    if (!IsInitialized()) return nullptr;
-    if (service == Detail::TextBackendServiceId) {
-        return &impl_->textRuntime.Services();
-    }
-    if (service == Detail::MeshBackendServiceId) {
-        return &impl_->meshRuntime.Services();
-    }
-    if (service == Detail::ImageBackendServiceId) {
-        return &impl_->imageRuntime.Services();
-    }
-    return nullptr;
+Aero::Detail::TextBackendServices* OpenGL33Renderer::TextServices() noexcept {
+    return IsInitialized() ? &impl_->textRuntime.Services() : nullptr;
+}
+
+Aero::Detail::MeshBackendServices* OpenGL33Renderer::MeshServices() noexcept {
+    return IsInitialized() ? &impl_->meshRuntime.Services() : nullptr;
+}
+
+Aero::Detail::ImageBackendServices* OpenGL33Renderer::ImageServices() noexcept {
+    return IsInitialized() ? &impl_->imageRuntime.Services() : nullptr;
 }
 
 Base::Result<void> OpenGL33Renderer::Submit(

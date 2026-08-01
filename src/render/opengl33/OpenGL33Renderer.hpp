@@ -7,14 +7,15 @@
 #include "graphics/OpenGL33Backend.hpp"
 #include "platform/Surface.hpp"
 
+namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
+
 namespace Aero::Render {
 
 using OpenGL33RendererStatistics = RendererStatistics;
 
 RendererShaderSet MakeOpenGL33RendererShaderSet() noexcept;
 
-class OpenGL33Renderer final
-    : public Render::RenderBackend {
+class OpenGL33Renderer final {
 public:
     OpenGL33Renderer(
         Graphics::GraphicsDevice& device,
@@ -22,7 +23,7 @@ public:
         Graphics::SurfaceSession& surface,
         Graphics::GlContextGeneration contextGeneration,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~OpenGL33Renderer() noexcept override;
+    ~OpenGL33Renderer() noexcept;
 
     OpenGL33Renderer(
         const OpenGL33Renderer&) = delete;
@@ -47,12 +48,15 @@ public:
     Base::Result<void> UnregisterMesh(
         Render::RenderMeshId mesh) noexcept;
     Base::Result<void> Submit(
-        const Render::RenderFrame& plan) noexcept override;
+        const Render::RenderFrame& plan) noexcept;
     bool IsInitialized() const noexcept;
     Graphics::FenceValue LastSubmittedFence() const noexcept;
     OpenGL33RendererStatistics
     LastSubmitStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
+    Aero::Detail::TextBackendServices* TextServices() noexcept;
+    Aero::Detail::MeshBackendServices* MeshServices() noexcept;
+    Aero::Detail::ImageBackendServices* ImageServices() noexcept;
 
 private:
     struct Impl;
@@ -66,8 +70,6 @@ private:
         Graphics::IndexType indexType) noexcept;
     Base::Result<void> UnregisterGlyphRun(
         Render::RenderGlyphRunId glyphRun) noexcept;
-    void* QueryInternalService(
-        std::uint64_t service) noexcept override;
 
     Graphics::GraphicsDevice* device_ = nullptr;
     Graphics::OpenGL33GraphicsBackend* graphicsBackend_ = nullptr;

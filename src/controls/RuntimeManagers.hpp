@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../runtime/RuntimeFwd.hpp"
-#include "../input/RuntimeTypes.hpp"
-#include "../core/property/PropertyProviderSession.hpp"
-#include "TemplateRuntime.hpp"
+#include "gui/input/RuntimeTypes.hpp"
+#include "gui/property/PropertyProviderSession.hpp"
+#include "TemplateInstance.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
 // These services are owned by View/runtime composition and are not part
@@ -14,8 +14,10 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Standard.hpp>
-#include "../ui/RuntimeManagers.hpp"
-#include "../input/InputService.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/binding/BindingService.hpp"
+#include "gui/events/EventRouter.hpp"
+#include "gui/input/InputService.hpp"
 
 namespace Aero::Detail {
 

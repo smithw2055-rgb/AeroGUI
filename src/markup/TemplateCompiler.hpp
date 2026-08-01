@@ -14,7 +14,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Styling.hpp>
-#include "../controls/TemplateRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Meta/MetadataRuntime.hpp>
 #include <Aero/Markup/Schema.hpp>

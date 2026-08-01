@@ -1,7 +1,7 @@
-#include "../ui/ThemeCompatibilityTypes.hpp"
+#include "gui/styling/ThemeCompatibilityTypes.hpp"
 #include "TemplateCompiler.hpp"
-#include "../data/BindingRuntime.hpp"
-#include "../controls/TemplateRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
 #include "../media/AnimationAccess.hpp"
 
@@ -15,7 +15,7 @@
 #include <cstdio>
 #include <utility>
 #include "../controls/RuntimeManagers.hpp"
-#include "../ui/RuntimeManagers.hpp"
+
 
 namespace Aero::Markup::Detail {
 namespace {
@@ -333,7 +333,7 @@ Base::Result<Value> ConvertSetterValue(
     const DependencyProperty& property,
     MetadataRuntime& runtime,
     DependencyPropertyRegistry& properties) noexcept {
-    Value value = setter.AuthoredValue();
+    Value value = setter.GetAuthoredValue();
     if (value.IsUnset()) {
         return InvalidTemplateCompiler(
             "Visual state Setter requires Value");
@@ -603,11 +603,11 @@ CompilePropertyTriggers(
         Base::Span<const Base::Ref<Setter>> setters,
         TemplatePropertyTrigger& trigger) -> Base::Result<void> {
         for (const Base::Ref<Setter>& setterObject : setters) {
-            if (!setterObject || setterObject->PropertyName().Empty()) {
+            if (!setterObject || setterObject->GetPropertyName().Empty()) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate Trigger Setter requires Property");
             }
-            const Base::StringView targetName = setterObject->TargetName();
+            const Base::StringView targetName = setterObject->GetTargetName();
             TypeId targetType = controlTemplate.GetTargetType();
             const TemplatePrototypeNode* target = nullptr;
             if (!targetName.Empty()) {
@@ -629,7 +629,7 @@ CompilePropertyTriggers(
                 targetType = target->type;
             }
             const DependencyProperty* property = ResolveTemplateProperty(
-                properties, targetType, setterObject->PropertyName());
+                properties, targetType, setterObject->GetPropertyName());
             if (property == nullptr) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate Trigger Setter property was not found");
@@ -657,19 +657,19 @@ CompilePropertyTriggers(
         Base::Result<void> configured;
         if (object && object->RuntimeType() == PropertyTrigger::StaticTypeId()) {
             const auto& source = static_cast<const PropertyTrigger&>(*object);
-            configured = addCondition(source.PropertyName(), source.SourceName(),
-                source.AuthoredValue(), trigger);
-            if (configured) configured = appendSetters(source.AuthoredSetters(), trigger);
+            configured = addCondition(source.GetPropertyName(), source.GetSourceName(),
+                source.GetAuthoredValue(), trigger);
+            if (configured) configured = appendSetters(source.GetAuthoredSetters(), trigger);
         } else if (object && object->RuntimeType() == MultiTrigger::StaticTypeId()) {
             const auto& source = static_cast<const MultiTrigger&>(*object);
-            for (const Base::Ref<Condition>& condition : source.Conditions()) {
+            for (const Base::Ref<Condition>& condition : source.GetConditions()) {
                 if (!condition) return InvalidTemplateCompiler(
                     "MultiTrigger contains a null Condition");
-                configured = addCondition(condition->PropertyName(), condition->SourceName(),
-                    condition->AuthoredValue(), trigger);
+                configured = addCondition(condition->GetPropertyName(), condition->GetSourceName(),
+                    condition->GetAuthoredValue(), trigger);
                 if (!configured) return configured.GetStatus();
             }
-            configured = appendSetters(source.AuthoredSetters(), trigger);
+            configured = appendSetters(source.GetAuthoredSetters(), trigger);
         } else {
             // Data and event triggers are compiled into the instance runtime
             // plan below. They cannot be represented by the dependency-
@@ -754,15 +754,15 @@ CompileVisualStates(
                 const auto& sourceSetter =
                     static_cast<const Setter&>(
                         *setterObject);
-                if (sourceSetter.TargetName().Empty() ||
-                    sourceSetter.PropertyName().Empty()) {
+                if (sourceSetter.GetTargetName().Empty() ||
+                    sourceSetter.GetPropertyName().Empty()) {
                     return InvalidTemplateCompiler(
                         "Visual state Setter requires TargetName and Property");
                 }
                 const TemplatePrototypeNode* target =
                     FindNode(
                         blueprint,
-                        sourceSetter.TargetName());
+                        sourceSetter.GetTargetName());
                 if (target == nullptr) {
                     return InvalidTemplateCompiler(
                         "Visual state Setter target was not found");
@@ -770,7 +770,7 @@ CompileVisualStates(
                 const DependencyProperty* property =
                     ResolveTemplateProperty(
                         properties, target->type,
-                        sourceSetter.PropertyName());
+                        sourceSetter.GetPropertyName());
                 if (property == nullptr) {
                     return InvalidTemplateCompiler(
                         "Visual state Setter property was not found");
@@ -789,7 +789,7 @@ CompileVisualStates(
                 VisualStateSetter setter;
                 assigned =
                     setter.targetName.TryAssign(
-                        sourceSetter.TargetName());
+                        sourceSetter.GetTargetName());
                 if (!assigned) {
                     return assigned.GetStatus();
                 }
@@ -958,9 +958,9 @@ CompileControlTemplateDefinition(
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
             (authored->RuntimeType() == PropertyTrigger::StaticTypeId() &&
              (!static_cast<const PropertyTrigger&>(*authored).
-                    EnterActions().Empty() ||
+                    GetEnterActions().Empty() ||
               !static_cast<const PropertyTrigger&>(*authored).
-                    ExitActions().Empty()))) {
+                    GetExitActions().Empty()))) {
             Base::Ref<TriggerBase> retained =
                 Base::Ref<TriggerBase>::TryFromBorrowed(
                     static_cast<TriggerBase&>(*authored));
@@ -1179,11 +1179,11 @@ Base::Result<void> ApplyDeferredTriggerSetters(
                 "DataTemplate trigger Setter is incomplete");
         }
         const std::uint32_t target =
-            setter->TargetName().Empty()
+            setter->GetTargetName().Empty()
             ? 0U
             : FindNodeIndex(
                   blueprint,
-                  setter->TargetName());
+                  setter->GetTargetName());
         if (target >= objects.Size()) {
             return InvalidTemplateCompiler(
                 "DataTemplate trigger Setter target was not found");
@@ -1194,7 +1194,7 @@ Base::Result<void> ApplyDeferredTriggerSetters(
         const DependencyProperty* property =
             blueprint.properties->Find(
                 objects[target]->RuntimeType(),
-                setter->PropertyName());
+                setter->GetPropertyName());
         if (property == nullptr) {
             return InvalidTemplateCompiler(
                 "DataTemplate trigger Setter property was not found");
@@ -1235,13 +1235,13 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
             const auto& dataTrigger =
                 static_cast<const DataTrigger&>(
                     *trigger);
-            if (!dataTrigger.Binding()) {
+            if (!dataTrigger.GetBinding()) {
                 return InvalidTemplateCompiler(
                     "DataTrigger requires Binding");
             }
             Base::Result<Value> current =
                 ReadDeferredTriggerBinding(
-                    *dataTrigger.Binding(),
+                    *dataTrigger.GetBinding(),
                     payload,
                     *blueprint.runtime);
             if (!current) {
@@ -1254,14 +1254,14 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
             Base::Result<bool> matches =
                 DeferredTriggerValuesMatch(
                     current.Value(),
-                    dataTrigger.AuthoredValue(),
+                    dataTrigger.GetAuthoredValue(),
                     *blueprint.runtime);
             if (!matches) return matches.GetStatus();
             if (matches.Value()) {
                 Base::Result<void> applied =
                     ApplyDeferredTriggerSetters(
                         blueprint,
-                        dataTrigger.AuthoredSetters(),
+                        dataTrigger.GetAuthoredSetters(),
                         objects);
                 if (!applied) return applied.GetStatus();
             }
@@ -1272,15 +1272,15 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
                     *trigger);
             bool active = true;
             for (const Base::Ref<Condition>& condition :
-                 multi.Conditions()) {
+                 multi.GetConditions()) {
                 if (!condition ||
-                    !condition->Binding()) {
+                    !condition->GetBinding()) {
                     return InvalidTemplateCompiler(
                         "MultiDataTrigger requires complete Conditions");
                 }
                 Base::Result<Value> current =
                     ReadDeferredTriggerBinding(
-                        *condition->Binding(),
+                        *condition->GetBinding(),
                         payload,
                         *blueprint.runtime);
                 if (!current &&
@@ -1295,7 +1295,7 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
                 Base::Result<bool> matches =
                     DeferredTriggerValuesMatch(
                         current.Value(),
-                        condition->AuthoredValue(),
+                        condition->GetAuthoredValue(),
                         *blueprint.runtime);
                 if (!matches) {
                     return matches.GetStatus();
@@ -1309,7 +1309,7 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
                 Base::Result<void> applied =
                     ApplyDeferredTriggerSetters(
                         blueprint,
-                        multi.AuthoredSetters(),
+                        multi.GetAuthoredSetters(),
                         objects);
                 if (!applied) return applied.GetStatus();
             }
@@ -1529,15 +1529,15 @@ Base::Result<void> BuildCompiledTemplate(
                 noexcept -> Base::Result<void> {
             for (const Base::Ref<Setter>& setter : setters) {
                 if (!setter) continue;
-                const std::uint32_t target = setter->TargetName().Empty()
-                    ? 0U : FindNodeIndex(*blueprint, setter->TargetName());
+                const std::uint32_t target = setter->GetTargetName().Empty()
+                    ? 0U : FindNodeIndex(*blueprint, setter->GetTargetName());
                 if (target >= visuals.Size()) {
                     return InvalidTemplateCompiler(
                         "ControlTemplate data trigger Setter target was not found");
                 }
                 const DependencyProperty* property = ResolveTemplateProperty(
                     *blueprint->properties, visuals[target]->RuntimeType(),
-                    setter->PropertyName());
+                    setter->GetPropertyName());
                 if (property == nullptr) {
                     return InvalidTemplateCompiler(
                         "ControlTemplate data trigger Setter property was not found");
@@ -1576,9 +1576,9 @@ Base::Result<void> BuildCompiledTemplate(
             if (authored->RuntimeType() == PropertyTrigger::StaticTypeId()) {
                 const auto& property =
                     static_cast<const PropertyTrigger&>(*authored);
-                Base::Object* source = property.SourceName().Empty()
+                Base::Object* source = property.GetSourceName().Empty()
                     ? static_cast<Base::Object*>(&context.TemplatedParent())
-                    : triggerContext->FindName(property.SourceName());
+                    : triggerContext->FindName(property.GetSourceName());
                 if (source == nullptr ||
                     !blueprint->runtime->Types().IsDerivedFrom(
                         source->RuntimeType(),
@@ -1588,17 +1588,17 @@ Base::Result<void> BuildCompiledTemplate(
                 }
                 const TypeId sourceType = source->RuntimeType();
                 const DependencyProperty* sourceProperty =
-                    property.PropertyName() == Base::StringView(
+                    property.GetPropertyName() == Base::StringView(
                         "local:Element.IsFocusEngaged")
                     ? blueprint->properties->Find(
                         Aero::Element::
                             IsFocusEngagedProperty.Handle())
                     : blueprint->properties->Find(
-                        sourceType, property.PropertyName());
+                        sourceType, property.GetPropertyName());
                 if (sourceProperty == nullptr) {
                     return MissingTemplateProperty(
                         "ControlTemplate action trigger property",
-                        property.PropertyName(), sourceType,
+                        property.GetPropertyName(), sourceType,
                         blueprint->runtime->Types());
                 }
                 Aero::Detail::DataTemplateTriggerCondition condition;
@@ -1609,7 +1609,7 @@ Base::Result<void> BuildCompiledTemplate(
                         *static_cast<DependencyObject*>(source));
                 condition.property = sourceProperty->Handle();
                 Base::Result<Value> converted = ConvertTriggerValue(
-                    property.AuthoredValue(), sourceType, *sourceProperty,
+                    property.GetAuthoredValue(), sourceType, *sourceProperty,
                     *blueprint->runtime, *blueprint->properties);
                 if (!converted) return converted.GetStatus();
                 condition.value = std::move(converted).Value();
@@ -1621,53 +1621,53 @@ Base::Result<void> BuildCompiledTemplate(
                 // This per-instance plan supplies only the action lifecycle.
             } else if (authored->RuntimeType() == DataTrigger::StaticTypeId()) {
                 const auto& data = static_cast<const DataTrigger&>(*authored);
-                if (!data.Binding()) return InvalidTemplateCompiler(
+                if (!data.GetBinding()) return InvalidTemplateCompiler(
                     "ControlTemplate DataTrigger requires Binding");
                 Aero::Detail::DataTemplateTriggerCondition condition;
-                Base::Object* source = sourceFor(*data.Binding());
+                Base::Object* source = sourceFor(*data.GetBinding());
                 if (source != nullptr) {
                     condition.source =
                         Base::Ref<Base::Object>::FromBorrowed(*source);
                 }
-                condition.binding = data.Binding();
-                condition.value = data.AuthoredValue();
+                condition.binding = data.GetBinding();
+                condition.value = data.GetAuthoredValue();
                 Base::Result<void> added = runtimeTrigger.conditions.TryPushBack(
                     std::move(condition));
                 if (!added) return added.GetStatus();
-                setters = data.AuthoredSetters();
+                setters = data.GetAuthoredSetters();
             } else if (authored->RuntimeType() ==
                        MultiDataTrigger::StaticTypeId()) {
                 const auto& multi = static_cast<const MultiDataTrigger&>(*authored);
                 for (const Base::Ref<Condition>& authoredCondition :
-                     multi.Conditions()) {
-                    if (!authoredCondition || !authoredCondition->Binding()) {
+                     multi.GetConditions()) {
+                    if (!authoredCondition || !authoredCondition->GetBinding()) {
                         return InvalidTemplateCompiler(
                             "ControlTemplate MultiDataTrigger requires complete Conditions");
                     }
                     Aero::Detail::DataTemplateTriggerCondition condition;
-                    Base::Object* source = sourceFor(*authoredCondition->Binding());
+                    Base::Object* source = sourceFor(*authoredCondition->GetBinding());
                     if (source != nullptr) {
                         condition.source =
                             Base::Ref<Base::Object>::FromBorrowed(*source);
                     }
-                    condition.binding = authoredCondition->Binding();
-                    condition.value = authoredCondition->AuthoredValue();
+                    condition.binding = authoredCondition->GetBinding();
+                    condition.value = authoredCondition->GetAuthoredValue();
                     Base::Result<void> added =
                         runtimeTrigger.conditions.TryPushBack(std::move(condition));
                     if (!added) return added.GetStatus();
                 }
-                setters = multi.AuthoredSetters();
+                setters = multi.GetAuthoredSetters();
             } else {
                 continue;
             }
             Base::Result<void> configured = appendSetters(setters, runtimeTrigger);
             if (configured) {
                 configured = runtimeTrigger.enterActions.TryAppend(
-                    authored->EnterActions());
+                    authored->GetEnterActions());
             }
             if (configured) {
                 configured = runtimeTrigger.exitActions.TryAppend(
-                    authored->ExitActions());
+                    authored->GetExitActions());
             }
             if (configured) {
                 configured = triggerContext->triggers.TryPushBack(
@@ -1865,11 +1865,11 @@ BuildCompiledDeferredTemplate(
         for (const Base::Ref<Setter>& setter : setters) {
             if (!setter) continue;
             const std::uint32_t targetIndex =
-                setter->TargetName().Empty()
+                setter->GetTargetName().Empty()
                 ? 0U
                 : FindNodeIndex(
                       *blueprint,
-                      setter->TargetName());
+                      setter->GetTargetName());
             if (targetIndex >= objects.Size()) {
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger Setter target was not found");
@@ -1877,7 +1877,7 @@ BuildCompiledDeferredTemplate(
             const DependencyProperty* targetProperty =
                 blueprint->properties->Find(
                     objects[targetIndex]->RuntimeType(),
-                    setter->PropertyName());
+                    setter->GetPropertyName());
             if (targetProperty == nullptr) {
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger Setter property was not found");
@@ -1937,7 +1937,7 @@ BuildCompiledDeferredTemplate(
             const DependencyProperty* sourceProperty =
                 blueprint->properties->Find(
                     root->RuntimeType(),
-                    propertyTrigger.PropertyName());
+                    propertyTrigger.GetPropertyName());
             if (sourceProperty == nullptr) {
                 return InvalidTemplateCompiler(
                     "DataTemplate Trigger source property was not found");
@@ -1952,7 +1952,7 @@ BuildCompiledDeferredTemplate(
             condition.property =
                 sourceProperty->Handle();
             condition.value =
-                propertyTrigger.AuthoredValue();
+                propertyTrigger.GetAuthoredValue();
             if (condition.value.Kind() ==
                     ValueKind::String &&
                 condition.value.Type() !=
@@ -1973,13 +1973,13 @@ BuildCompiledDeferredTemplate(
                     std::move(condition));
             if (!added) return added.GetStatus();
             authoredSetters =
-                propertyTrigger.AuthoredSetters();
+                propertyTrigger.GetAuthoredSetters();
         } else if (triggerType ==
                    DataTrigger::StaticTypeId()) {
             const auto& dataTrigger =
                 static_cast<const DataTrigger&>(
                     *authored);
-            if (!dataTrigger.Binding()) {
+            if (!dataTrigger.GetBinding()) {
                 return InvalidTemplateCompiler(
                     "DataTemplate DataTrigger requires Binding");
             }
@@ -1987,23 +1987,23 @@ BuildCompiledDeferredTemplate(
                 condition;
             condition.source = payload;
             condition.binding =
-                dataTrigger.Binding();
+                dataTrigger.GetBinding();
             condition.value =
-                dataTrigger.AuthoredValue();
+                dataTrigger.GetAuthoredValue();
             Base::Result<void> added =
                 runtimeTrigger.conditions.TryPushBack(
                     std::move(condition));
             if (!added) return added.GetStatus();
             authoredSetters =
-                dataTrigger.AuthoredSetters();
+                dataTrigger.GetAuthoredSetters();
         } else {
             const auto& multi =
                 static_cast<const MultiDataTrigger&>(
                     *authored);
             for (const Base::Ref<Condition>& authoredCondition :
-                 multi.Conditions()) {
+                 multi.GetConditions()) {
                 if (!authoredCondition ||
-                    !authoredCondition->Binding()) {
+                    !authoredCondition->GetBinding()) {
                     return InvalidTemplateCompiler(
                         "DataTemplate MultiDataTrigger requires complete Conditions");
                 }
@@ -2011,27 +2011,27 @@ BuildCompiledDeferredTemplate(
                     condition;
                 condition.source = payload;
                 condition.binding =
-                    authoredCondition->Binding();
+                    authoredCondition->GetBinding();
                 condition.value =
-                    authoredCondition->AuthoredValue();
+                    authoredCondition->GetAuthoredValue();
                 Base::Result<void> added =
                     runtimeTrigger.conditions.TryPushBack(
                         std::move(condition));
                 if (!added) return added.GetStatus();
             }
             authoredSetters =
-                multi.AuthoredSetters();
+                multi.GetAuthoredSetters();
         }
         Base::Result<void> retained =
             appendRuntimeSetters(
                 authoredSetters, runtimeTrigger);
         if (!retained) return retained.GetStatus();
         retained = runtimeTrigger.enterActions.TryAppend(
-                authored->EnterActions());
+                authored->GetEnterActions());
         if (retained) {
             retained =
                 runtimeTrigger.exitActions.TryAppend(
-                    authored->ExitActions());
+                    authored->GetExitActions());
         }
         if (retained) {
             retained =

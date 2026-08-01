@@ -14,7 +14,7 @@
 #include <Aero/Meta/Value.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "core/property/EffectiveValueEngine.hpp"
+#include "gui/property/EffectiveValueEngine.hpp"
 #include <Aero/Markup/Resources.hpp>
 
 #include <cstdint>

@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace Aero::Core {
+namespace Aero::Collections {
 
 // The collection contract deliberately lives below Controls: authored
 // resources and view-model objects can be an ItemsSource without depending on
@@ -43,4 +43,4 @@ public:
         const ItemsChangedHandler& handler) noexcept = 0;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Collections

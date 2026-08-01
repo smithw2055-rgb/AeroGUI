@@ -134,7 +134,7 @@ private:
 // (for example, as an ItemsSource in the Gallery samples).
 class AERO_API GradientStopCollection final :
     public Base::Object,
-    public Core::IItemsSource {
+    public Collections::IItemsSource {
     AERO_DECLARE_TYPE(GradientStopCollection, Base::Object)
 public:
     GradientStopCollection() noexcept
@@ -156,11 +156,11 @@ public:
             : Base::Ref<Base::Object>{};
     }
     Base::Result<void> TryAddItemsChanged(
-        const Core::ItemsChangedHandler& handler) noexcept override {
+        const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.TryAdd(handler);
     }
     bool RemoveItemsChanged(
-        const Core::ItemsChangedHandler& handler) noexcept override {
+        const Collections::ItemsChangedHandler& handler) noexcept override {
         return changed_.Remove(handler);
     }
     Base::Result<void> Add(
@@ -170,13 +170,13 @@ public:
         stops_.Clear();
         if (!changed_.Empty()) {
             changed_.Invoke({
-                Core::ItemsChangeAction::Reset,
+                Collections::ItemsChangeAction::Reset,
                 0U, 0U, count, 0U});
         }
     }
 private:
     Base::Vector<Base::Ref<GradientStop>> stops_;
-    Core::ItemsChangedHandler changed_;
+    Collections::ItemsChangedHandler changed_;
 };
 
 class AERO_API MonochromeBrush final : public Base::Object {

@@ -1,9 +1,9 @@
-#include "TemplateRuntime.hpp"
+#include "VisualStateRuntime.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -568,7 +568,7 @@ void TreeViewInteractionManager::OnMouseDown(
         return;
     }
     static_cast<void>(
-        input_->Focus().SetFocus(item));
+        input_->SetFocus(item));
     args.handled = true;
 }
 
@@ -658,7 +658,7 @@ void TreeViewInteractionManager::OnKeyDown(
     static_cast<void>(
         treeView.SelectItem(visible[target]));
     static_cast<void>(
-        input_->Focus().SetFocus(visible[target]));
+        input_->SetFocus(visible[target]));
     args.handled = true;
 }
 

@@ -10,7 +10,6 @@
 
 #include <new>
 
-#include "../TextBackendAccess.hpp"
 #include "../MeshRuntimeBackend.hpp"
 #include "../ImageRuntimeBackend.hpp"
 #include "../TextRuntimeBackend.hpp"
@@ -257,19 +256,16 @@ Base::Result<void> D3D11Renderer::UnregisterGlyphRun(
             "D3D11 render adapter is not initialized"));
 }
 
-void* D3D11Renderer::QueryInternalService(
-    std::uint64_t service) noexcept {
-    if (!IsInitialized()) return nullptr;
-    if (service == Detail::TextBackendServiceId) {
-        return &impl_->textRuntime.Services();
-    }
-    if (service == Detail::MeshBackendServiceId) {
-        return &impl_->meshRuntime.Services();
-    }
-    if (service == Detail::ImageBackendServiceId) {
-        return &impl_->imageRuntime.Services();
-    }
-    return nullptr;
+Aero::Detail::TextBackendServices* D3D11Renderer::TextServices() noexcept {
+    return IsInitialized() ? &impl_->textRuntime.Services() : nullptr;
+}
+
+Aero::Detail::MeshBackendServices* D3D11Renderer::MeshServices() noexcept {
+    return IsInitialized() ? &impl_->meshRuntime.Services() : nullptr;
+}
+
+Aero::Detail::ImageBackendServices* D3D11Renderer::ImageServices() noexcept {
+    return IsInitialized() ? &impl_->imageRuntime.Services() : nullptr;
 }
 
 Base::Result<void> D3D11Renderer::Submit(

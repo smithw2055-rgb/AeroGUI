@@ -1,14 +1,14 @@
-#include "TemplateRuntime.hpp"
+#include "VisualStateRuntime.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
 #include "ControlInternals.hpp"
 
-#include "../core/metadata/BuiltinTypeIds.hpp"
+#include "gui/metadata/BuiltinTypeIds.hpp"
 
 #include <algorithm>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -1593,7 +1593,7 @@ void ComboBoxInteractionManager::OnMouseDown(
         if (!toggled) return;
     }
     static_cast<void>(
-        input_->Focus().SetFocus(&comboBox));
+        input_->SetFocus(&comboBox));
     args.handled = true;
 }
 
@@ -1866,7 +1866,7 @@ void ListBoxInteractionManager::OnMouseDown(
     ItemContainerGenerator* generator =
         listBox.AttachedGenerator();
     if (generator != nullptr) {
-        static_cast<void>(input_->Focus().SetFocus(
+        static_cast<void>(input_->SetFocus(
             generator->ContainerFromIndex(index)));
     }
     static_cast<void>(
@@ -1934,7 +1934,7 @@ void ListBoxInteractionManager::OnKeyDown(
     ItemContainerGenerator* generator =
         listBox.AttachedGenerator();
     if (generator != nullptr) {
-        static_cast<void>(input_->Focus().SetFocus(
+        static_cast<void>(input_->SetFocus(
             generator->ContainerFromIndex(target)));
     }
     static_cast<void>(

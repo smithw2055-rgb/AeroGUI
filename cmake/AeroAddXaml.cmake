@@ -52,8 +52,8 @@ function(aero_add_schema_manifest target)
     set(_aero_schema_template [=[
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include "ModuleCatalog.hpp"
-#include "SchemaBundle.hpp"
+#include "runtime/modules/ModuleCatalog.hpp"
+#include "markup/SchemaBundle.hpp"
 #include <@AERO_SCHEMA_GENERATED_HEADER@>
 
 #include <cstdio>

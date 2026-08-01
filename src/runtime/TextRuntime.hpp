@@ -8,9 +8,7 @@ namespace Aero::Controls::Detail {
 class TextLayoutService;
 }
 
-namespace Aero::Render {
-class RenderBackend;
-}
+namespace Aero::Integration { class RenderEndpoint; }
 
 namespace Aero::Detail {
 
@@ -24,9 +22,10 @@ public:
     TextRuntime& operator=(const TextRuntime&) = delete;
 
     Base::Result<void> Initialize(
-        Render::RenderBackend& backend,
+        Integration::RenderEndpoint& endpoint,
         const Integration::TextOptions& options) noexcept;
     Base::Result<bool> SynchronizeBackend(
+        Integration::RenderEndpoint& endpoint,
         bool force = false) noexcept;
     Base::Result<std::uint32_t> CollectGarbage() noexcept;
     void Shutdown() noexcept;

@@ -1,5 +1,5 @@
 #include "UiObjectModelInternal.hpp"
-#include "../ui/StyleAccess.hpp"
+#include "gui/styling/StyleAccess.hpp"
 
 #include <Aero/Base/String.hpp>
 #include "SchemaInternal.hpp"
@@ -113,7 +113,7 @@ Aero::ResourceDictionary* ResolveStyleResources(
     void*) noexcept {
     return object.RuntimeType() ==
             Aero::Style::StaticTypeId()
-        ? &static_cast<Aero::Style&>(object).Resources()
+        ? &static_cast<Aero::Style&>(object).GetResources()
         : nullptr;
 }
 
@@ -126,7 +126,7 @@ Base::Result<Aero::ResourceKey> ResolveStyleImplicitKey(
             "Implicit Style key requires a Style object");
     }
     const Core::TypeId target =
-        static_cast<const Aero::Style&>(object).TargetType();
+        static_cast<const Aero::Style&>(object).GetTargetType();
     if (target == Core::InvalidTypeId) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -333,12 +333,12 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::ErrorCode::InvalidState,
             "Style TargetType must be assigned before initialization completes");
     }
-    if (style.TargetType() == Core::InvalidTypeId) {
+    if (style.GetTargetType() == Core::InvalidTypeId) {
         Base::Result<void> defaultTarget = style.TrySetTargetType(
             Controls::Control::StaticTypeId());
         if (!defaultTarget) return defaultTarget.GetStatus();
     }
-    const Core::TypeId targetType = style.TargetType();
+    const Core::TypeId targetType = style.GetTargetType();
     const Core::TypeInfo* targetInfo =
         options_.properties->Types().FindType(targetType);
     if (targetInfo == nullptr ||
@@ -350,7 +350,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             "Style TargetType must identify an object type");
     }
     for (const Base::Ref<Aero::Setter>& entry :
-         style.AuthoredSetters()) {
+         style.GetAuthoredSetters()) {
         Aero::Setter* setter = entry.Get();
         if (setter == nullptr || !setter->IsAuthored()) {
             return Base::Status::Failure(
@@ -361,18 +361,18 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             ResolveStyleProperty(
                 *options_.properties,
                 targetType,
-                setter->PropertyName());
+                setter->GetPropertyName());
         if (property == nullptr) {
             return MissingStyleProperty(
                 "Setter property",
-                setter->PropertyName(),
+                setter->GetPropertyName(),
                 targetType,
                 options_.properties->Types());
         }
         Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
-            setter->AuthoredValue(),
+            setter->GetAuthoredValue(),
             targetType,
-            setter->PropertyName());
+            setter->GetPropertyName());
         if (!value) return value.GetStatus();
         Base::Result<void> resolved = setter->Resolve(
             property->Handle(), value.Value());
@@ -382,7 +382,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
         if (!added) return added.GetStatus();
     }
     for (const Base::Ref<Aero::PropertyTrigger>& entry :
-         style.AuthoredTriggers()) {
+         style.GetAuthoredTriggers()) {
         Aero::PropertyTrigger* trigger =
             entry.Get();
         if (trigger == nullptr ||
@@ -395,31 +395,31 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             ResolveStyleProperty(
                 *options_.properties,
                 targetType,
-                trigger->PropertyName());
+                trigger->GetPropertyName());
         if (condition == nullptr) {
             return MissingStyleProperty(
                 "Trigger property",
-                trigger->PropertyName(),
+                trigger->GetPropertyName(),
                 targetType,
                 options_.properties->Types());
         }
         Base::Result<Core::PropertyValue> conditionValue = ConvertValueForProperty(
-            trigger->AuthoredValue(),
+            trigger->GetAuthoredValue(),
             targetType,
-            trigger->PropertyName());
+            trigger->GetPropertyName());
         if (!conditionValue) return conditionValue.GetStatus();
         Aero::StylePropertyTrigger plan;
         plan.property = condition->Handle();
         plan.value = conditionValue.Value();
         Base::Result<void> actions =
             plan.enterActions.TryAppend(
-                trigger->EnterActions());
+                trigger->GetEnterActions());
         if (!actions) return actions.GetStatus();
         actions = plan.exitActions.TryAppend(
-            trigger->ExitActions());
+            trigger->GetExitActions());
         if (!actions) return actions.GetStatus();
         for (const Base::Ref<Aero::Setter>& setterEntry :
-             trigger->AuthoredSetters()) {
+             trigger->GetAuthoredSetters()) {
             Aero::Setter* setter =
                 setterEntry.Get();
             if (setter == nullptr ||
@@ -432,18 +432,18 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 ResolveStyleProperty(
                     *options_.properties,
                     targetType,
-                    setter->PropertyName());
+                    setter->GetPropertyName());
             if (property == nullptr) {
                 return MissingStyleProperty(
                     "Trigger Setter property",
-                    setter->PropertyName(),
+                    setter->GetPropertyName(),
                     targetType,
                     options_.properties->Types());
             }
             Base::Result<Core::PropertyValue> value = ConvertValueForProperty(
-                setter->AuthoredValue(),
+                setter->GetAuthoredValue(),
                 targetType,
-                setter->PropertyName());
+                setter->GetPropertyName());
             if (!value) return value.GetStatus();
             Base::Result<void> resolved =
                 setter->Resolve(

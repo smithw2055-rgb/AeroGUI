@@ -12,7 +12,7 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "ui/ObjectTree.hpp"
+#include "gui/tree/ObjectTree.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>

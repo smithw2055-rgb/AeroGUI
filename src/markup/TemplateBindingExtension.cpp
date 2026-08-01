@@ -2,11 +2,11 @@
 
 #include "SchemaInternal.hpp"
 
-#include "../controls/TemplateRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
-#include "../ui/RuntimeManagers.hpp"
+
 
 namespace Aero::Markup {
 namespace {

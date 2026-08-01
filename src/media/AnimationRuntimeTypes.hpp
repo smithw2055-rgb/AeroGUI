@@ -8,7 +8,7 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "core/property/EffectiveValueEngine.hpp"
+#include "gui/property/EffectiveValueEngine.hpp"
 
 #include <cstdint>
 

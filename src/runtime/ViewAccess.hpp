@@ -1,7 +1,9 @@
 #pragma once
 
 #include "RuntimeFwd.hpp"
-#include "../data/BindingRuntime.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/binding/BindingService.hpp"
+#include "gui/tree/ObjectTree.hpp"
 #include "../controls/ControlInternals.hpp"
 
 #include <Aero/Controls/Items.hpp>

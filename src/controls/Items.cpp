@@ -1,19 +1,20 @@
 #include <Aero/Controls/Items.hpp>
 #include "ControlInternals.hpp"
 #include "ControlInternals.hpp"
-#include "TemplateRuntime.hpp"
+#include "TemplateAccess.hpp"
 
 #include "render/RenderTree.hpp"
-#include "../ui/ResourceAssignment.hpp"
-#include "../ui/MountService.hpp"
+#include "gui/resources/ResourceAssignment.hpp"
+#include "gui/tree/MountService.hpp"
 
-#include "../core/metadata/BuiltinTypeIds.hpp"
+#include "gui/metadata/BuiltinTypeIds.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <new>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/layout/LayoutRuntime.hpp"
+#include "gui/styling/StyleRuntime.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {

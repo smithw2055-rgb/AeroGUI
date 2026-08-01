@@ -48,42 +48,18 @@ public:
 
 } // namespace
 
-namespace Detail {
-
-class EndpointSubmissionBackend final : public Render::RenderBackend {
-public:
-    explicit EndpointSubmissionBackend(RenderEndpoint& endpoint) noexcept
-        : endpoint_(&endpoint) {}
-
-    Base::Result<void> Submit(
-        const Render::RenderFrame& frame) noexcept override {
-        return RenderEndpointAccess::Submit(*endpoint_, frame);
-    }
-
-private:
-    void* QueryInternalService(std::uint64_t service) noexcept override {
-        return RenderEndpointAccess::QueryInternalService(*endpoint_, service);
-    }
-
-    RenderEndpoint* endpoint_ = nullptr;
-};
-
-} // namespace Detail
-
 struct RenderEndpoint::Impl final {
     Impl(
-        RenderEndpoint& owner,
+        RenderEndpoint&,
         RenderEndpointMode endpointMode,
         RenderSubmissionMode endpointSubmissionMode,
         Base::IAllocator& value) noexcept
         : allocator(&value),
-          submission(owner),
           mode(endpointMode),
           submissionMode(endpointSubmissionMode),
           pending(&value) {}
 
     Base::IAllocator* allocator = nullptr;
-    Detail::EndpointSubmissionBackend submission;
     RenderEndpointMode mode = RenderEndpointMode::Headless;
     RenderSubmissionMode submissionMode =
         RenderSubmissionMode::Immediate;
@@ -108,8 +84,10 @@ struct RenderEndpoint::Impl final {
     }
 
     Base::Result<RenderFrameStatistics>
-    PlanFrameStatistics(
+    AnalyzeFrameStatistics(
         const Render::RenderFrame& plan) noexcept {
+        Base::Result<void> valid = Render::ValidateRenderFrame(plan);
+        if (!valid) return valid.GetStatus();
         Render::Detail::BatchPlanner planner(
             allocator);
         Base::Result<Render::Detail::BatchPlan>
@@ -169,7 +147,7 @@ struct RenderEndpoint::Impl final {
 
             Base::Result<RenderFrameStatistics>
                 frameStatistics =
-                    PlanFrameStatistics(plan);
+                    AnalyzeFrameStatistics(plan);
             Base::Result<void> submitted =
                 frameStatistics && backend != nullptr
                 ? backend->Submit(plan)
@@ -445,26 +423,6 @@ Base::Result<void> RenderEndpoint::WaitIdle(
     return impl_->backend->WaitIdle(timeoutMilliseconds);
 }
 
-Base::Result<void>
-RenderEndpoint::SetBatchingEnabledForTesting(
-    bool enabled) noexcept {
-    if (impl_ == nullptr || impl_->backend == nullptr) {
-        return NotInitialized(
-            "Render endpoint is not initialized");
-    }
-    Base::Result<void> idle = WaitIdle();
-    if (!idle) return idle.GetStatus();
-    std::lock_guard<std::mutex> lock(
-        impl_->mutex);
-    if (!impl_->AcceptingFrames()) {
-        return InvalidState(
-            "Render endpoint cannot change batching in its current state");
-    }
-    impl_->batchingEnabled = enabled;
-    impl_->backend->SetBatchingEnabled(
-        enabled);
-    return {};
-}
 
 namespace Detail {
 
@@ -573,7 +531,7 @@ Base::Result<void> RenderEndpointAccess::Submit(
         }
         Base::Result<RenderFrameStatistics>
             frameStatistics =
-                impl.PlanFrameStatistics(plan);
+                impl.AnalyzeFrameStatistics(plan);
         if (!frameStatistics) {
             return frameStatistics.GetStatus();
         }
@@ -658,19 +616,22 @@ Base::Status RenderEndpointAccess::FrameStatus(
         "Render endpoint state is invalid");
 }
 
-Render::RenderBackend& RenderEndpointAccess::Backend(
+Aero::Detail::TextBackendServices* RenderEndpointAccess::TextServices(
     RenderEndpoint& endpoint) noexcept {
-    return endpoint.impl_->submission;
+    return endpoint.impl_ != nullptr && endpoint.impl_->backend != nullptr
+        ? endpoint.impl_->backend->TextServices() : nullptr;
 }
 
-void* RenderEndpointAccess::QueryInternalService(
-    RenderEndpoint& endpoint,
-    std::uint64_t service) noexcept {
-    if (endpoint.impl_ == nullptr ||
-        endpoint.impl_->backend == nullptr) {
-        return nullptr;
-    }
-    return endpoint.impl_->backend->QueryInternalService(service);
+Aero::Detail::MeshBackendServices* RenderEndpointAccess::MeshServices(
+    RenderEndpoint& endpoint) noexcept {
+    return endpoint.impl_ != nullptr && endpoint.impl_->backend != nullptr
+        ? endpoint.impl_->backend->MeshServices() : nullptr;
+}
+
+Aero::Detail::ImageBackendServices* RenderEndpointAccess::ImageServices(
+    RenderEndpoint& endpoint) noexcept {
+    return endpoint.impl_ != nullptr && endpoint.impl_->backend != nullptr
+        ? endpoint.impl_->backend->ImageServices() : nullptr;
 }
 
 } // namespace Detail

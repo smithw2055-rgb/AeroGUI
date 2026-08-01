@@ -693,7 +693,7 @@ void OnItemsSourceChanged(
     Core::DependencyObject& object,
     const Base::Ref<Base::Object>&,
     const Base::Ref<Base::Object>& value) noexcept {
-    Core::IItemsSource* source = nullptr;
+    Collections::IItemsSource* source = nullptr;
     if (value) {
         if (value->RuntimeType() ==
             ObjectItemsSource::StaticTypeId()) {

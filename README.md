@@ -350,29 +350,32 @@ out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=openg
 
 Linux 使用同一 `--backend=opengl` 命令并通过 GLX 呈现。`--xaml=both --theme=both --simulate-context-loss` 会同时验证 runtime/compiled 等价性、两套默认主题和后端恢复路径。
 
-## 计划目录
+## Source layout
 
 ```text
 AeroGUI/
-├── include/Aero/{Base,Core,Markup,Controls,Data,Input,Media,Detail,Render,Platform}
-├── src/{base,core,markup,ui,data,input,media,controls,render,runtime,platform}
-├── backends/
-│   ├── rhi_d3d12/
-│   ├── rhi_d3d11/
-│   ├── rhi_vulkan/
-│   ├── rhi_metal/
-│   ├── rhi_opengl33/
-│   ├── rhi_gles30/
-│   ├── rhi_webgl2/
-│   ├── rhi_null/
-│   ├── rhi_sokol/          # optional
-│   ├── console_private/    # restricted SDK repositories
-│   └── platform_{win32,glx,egl,wgl,android,apple,web}/
+├── include/Aero/           # explicit product SDK headers
+├── src/base/               # foundation implementation
+├── src/gui/                # WPF semantic kernel by domain
+├── src/controls/           # standard controls and control behavior
+├── src/markup/             # XAML schema, object writer and compiled XAML
+├── src/text/               # shaping, fonts and glyph runtime
+├── src/media/              # brushes, images, transforms and effects
+├── src/runtime/            # View composition and frame lifecycle
+├── src/render/             # RenderTree, RenderFrame and Renderer
+├── src/graphics/           # GraphicsDevice and GPU API backends
+├── src/platform/           # native window, IME, clipboard and surfaces
+├── src/integration/        # host factories and RenderEndpoint implementations
+├── src/app/                # default desktop Application framework
 ├── third_party/
-├── tools/{xamlc,shaderpack,inspector}/
-├── tests/{unit,conformance,golden,layout,render,rhi,web,fuzz,perf}/
+├── tools/{xamlc,schema-gen}/
+├── tests/
 ├── samples/
-├── docs/{adr,spec}/
+└── docs/
+```
+
+The implementation ownership and dependency rules are documented in
+[`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md).
 └── LICENSE
 ```
 

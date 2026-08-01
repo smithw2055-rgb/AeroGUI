@@ -16,7 +16,7 @@ Controls runtime services include template application and concrete interaction
 state for buttons, scrolling, selection, menus, trees, and text editing.
 
 The remaining coordination declarations live in private source headers, chiefly
-`src/ui/RuntimeManagers.hpp` and `src/controls/RuntimeManagers.hpp`. They are
+`src/gui/RuntimeServices.hpp` and `src/controls/RuntimeManagers.hpp`. They are
 implementation aggregation points, not product modules, and may be merged
 further without changing the SDK.
 

@@ -1,14 +1,10 @@
 #pragma once
 
-#include "../ui/VisualAccess.hpp"
+#include "gui/tree/VisualAccess.hpp"
 
 #include "DisplayList.hpp"
 
 #include <Aero/FrameworkElement.hpp>
-
-namespace Aero::Render::Detail {
-class RenderBackendAccess;
-}
 
 namespace Aero::Render {
 
@@ -65,39 +61,7 @@ private:
     std::uint64_t version_ = 0U;
 };
 
-class RenderBackend {
-public:
-    virtual ~RenderBackend() = default;
-    virtual Base::Result<void> Submit(
-        const RenderFrame& plan) noexcept = 0;
-
-private:
-    friend class Aero::Render::Detail::RenderBackendAccess;
-
-    virtual void* QueryInternalService(
-        std::uint64_t) noexcept {
-        return nullptr;
-    }
-};
-
-class NullRenderBackend final : public RenderBackend {
-public:
-    Base::Result<void> Submit(
-        const RenderFrame& plan) noexcept override;
-
-    std::uint64_t LastVersion() const noexcept {
-        return lastVersion_;
-    }
-    std::uint64_t LastHash() const noexcept { return lastHash_; }
-    std::uint32_t SubmissionCount() const noexcept {
-        return submissionCount_;
-    }
-
-private:
-    std::uint64_t lastVersion_ = 0U;
-    std::uint64_t lastHash_ = 0U;
-    std::uint32_t submissionCount_ = 0U;
-};
+Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept;
 
 struct RenderDiagnostics final {
     std::uint64_t commitVersion = 0U;
@@ -105,14 +69,12 @@ struct RenderDiagnostics final {
     std::uint32_t commandCount = 0U;
     std::uint32_t glyphCommandCount = 0U;
     std::uint32_t dirtyCount = 0U;
-    std::uint64_t planHash = 0U;
+    std::uint64_t frameHash = 0U;
 };
 
 class RenderTree final {
 public:
-    RenderTree(
-        Dispatcher& dispatcher,
-        RenderBackend& backend) noexcept;
+    explicit RenderTree(Dispatcher& dispatcher) noexcept;
     ~RenderTree() noexcept;
 
     RenderTree(const RenderTree&) = delete;
@@ -134,7 +96,7 @@ public:
     Base::Result<std::uint32_t> Commit() noexcept;
 
     const RenderFrame& CurrentFrame() const noexcept {
-        return currentPlan_;
+        return currentFrame_;
     }
     RenderDiagnostics Diagnostics() const noexcept;
     Base::Status LastCommitStatus() const noexcept {
@@ -143,7 +105,6 @@ public:
 
 private:
     Dispatcher* dispatcher_ = nullptr;
-    RenderBackend* backend_ = nullptr;
     FrameworkElement* root_ = nullptr;
     Base::Vector<Aero::Detail::VisualLease> dirty_;
     struct OverlayRecord final {
@@ -151,7 +112,7 @@ private:
         Point origin;
     };
     Base::Vector<OverlayRecord> overlays_;
-    RenderFrame currentPlan_;
+    RenderFrame currentFrame_;
     DispatcherFrameHookHandle phaseHook_;
     RenderNodeId nextNodeId_ = 1U;
     std::uint64_t commitVersion_ = 0U;

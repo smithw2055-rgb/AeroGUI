@@ -1,7 +1,7 @@
 #include <Aero/Controls/Standard.hpp>
 
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -534,7 +534,7 @@ MenuInteractionManager::Invoke(
             TypeOf<Base::Object>(),
             std::move(parameter));
         Base::Result<bool> executed =
-            input_->Commands().Execute(*command, value, item);
+            input_->Execute(*command, value, item);
         if (!executed) {
             return executed.GetStatus();
         }
@@ -569,7 +569,7 @@ void MenuInteractionManager::OnMouseDown(
         Invoke(menu, *item);
     if (!invoked) return;
     static_cast<void>(
-        input_->Focus().SetFocus(item));
+        input_->SetFocus(item));
     args.handled = true;
 }
 

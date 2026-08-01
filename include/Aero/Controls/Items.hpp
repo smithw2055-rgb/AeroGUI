@@ -17,9 +17,9 @@ class ItemContainerGeneratorAccess;
 
 namespace Aero::Controls {
 
-using ItemsChangeAction = Core::ItemsChangeAction;
-using ItemsChangedEvent = Core::ItemsChangedEvent;
-using ItemsChangedHandler = Core::ItemsChangedHandler;
+using ItemsChangeAction = Collections::ItemsChangeAction;
+using ItemsChangedEvent = Collections::ItemsChangedEvent;
+using ItemsChangedHandler = Collections::ItemsChangedHandler;
 
 enum class ItemSubtreeChange : std::uint8_t {
     Mounted = 0U,
@@ -31,7 +31,7 @@ using ItemSubtreeCallback = Base::Result<void> (*)(
     ItemSubtreeChange change,
     void* context) noexcept;
 
-using IItemsSource = Core::IItemsSource;
+using IItemsSource = Collections::IItemsSource;
 
 class AERO_API ItemsCollection final : public IItemsSource {
 public:

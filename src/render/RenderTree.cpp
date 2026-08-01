@@ -2,10 +2,10 @@
 #include "DrawingContextAccess.hpp"
 #include "RenderTree.hpp"
 
-#include "../ui/ResourceAssignment.hpp"
+#include "gui/resources/ResourceAssignment.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "../core/metadata/BuiltinTypeIds.hpp"
+#include "gui/metadata/BuiltinTypeIds.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -501,41 +501,31 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
     return hash;
 }
 
-Base::Result<void> NullRenderBackend::Submit(
-    const RenderFrame& plan) noexcept {
+
+Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
     std::uint32_t clipDepth = 0U;
     std::uint32_t opacityDepth = 0U;
     std::uint32_t transformDepth = 0U;
-    const Base::Span<const RenderCommand> commands = plan.Commands();
-    const Base::Span<const RenderNodeSnapshot> nodes =
-        plan.Nodes();
-    for (std::uint32_t nodeIndex = 0U;
-        nodeIndex < nodes.Size(); ++nodeIndex) {
-        const RenderNodeSnapshot& node =
-            nodes[nodeIndex];
+    const Base::Span<const RenderCommand> commands = frame.Commands();
+    const Base::Span<const RenderNodeSnapshot> nodes = frame.Nodes();
+
+    for (std::uint32_t nodeIndex = 0U; nodeIndex < nodes.Size(); ++nodeIndex) {
+        const RenderNodeSnapshot& node = nodes[nodeIndex];
         if (node.id == InvalidRenderNodeId) {
-            return InvalidState(
-                "RenderFrame node IDs must be nonzero");
+            return InvalidState("RenderFrame node IDs must be nonzero");
         }
-        for (std::uint32_t previous = 0U;
-            previous < nodeIndex; ++previous) {
+        for (std::uint32_t previous = 0U; previous < nodeIndex; ++previous) {
             if (nodes[previous].id == node.id) {
-                return InvalidState(
-                    "RenderFrame node IDs must be unique");
+                return InvalidState("RenderFrame node IDs must be unique");
             }
         }
         if (node.parentId != InvalidRenderNodeId) {
             bool parentPrecedesChild = false;
-            for (std::uint32_t previous = 0U;
-                previous < nodeIndex; ++previous) {
-                parentPrecedesChild =
-                    parentPrecedesChild ||
-                    nodes[previous].id ==
-                        node.parentId;
+            for (std::uint32_t previous = 0U; previous < nodeIndex; ++previous) {
+                parentPrecedesChild = parentPrecedesChild || nodes[previous].id == node.parentId;
             }
             if (!parentPrecedesChild) {
-                return InvalidState(
-                    "RenderFrame parent must precede its child");
+                return InvalidState("RenderFrame parent must precede its child");
             }
         }
         if (!IsValidLayoutRect(node.layoutSlot) ||
@@ -594,8 +584,7 @@ Base::Result<void> NullRenderBackend::Submit(
         case RenderCommandKind::FillRoundedRect:
             if (!IsValidLayoutRect(command.rect) || !IsFinite(command.color) ||
                 !std::isfinite(command.scalar) || command.scalar < 0.0 ||
-                command.scalar * 2.0 >
-                    std::fmin(command.rect.width, command.rect.height)) {
+                command.scalar * 2.0 > std::fmin(command.rect.width, command.rect.height)) {
                 return InvalidArgument("RenderFrame contains invalid FillRoundedRect");
             }
             break;
@@ -622,30 +611,21 @@ Base::Result<void> NullRenderBackend::Submit(
             }
             break;
         case RenderCommandKind::DrawGlyphRun:
-            if (command.glyphRun == InvalidRenderGlyphRunId ||
-                !IsFinite(command.color)) {
+            if (command.glyphRun == InvalidRenderGlyphRunId || !IsFinite(command.color)) {
                 return InvalidArgument("RenderFrame contains invalid DrawGlyphRun");
             }
             break;
         }
     }
+
     if (clipDepth != 0U || opacityDepth != 0U || transformDepth != 0U) {
         return InvalidState("RenderFrame contains unbalanced state stacks");
     }
-
-    lastVersion_ = plan.Version();
-    lastHash_ = plan.StableHash();
-    ++submissionCount_;
     return {};
 }
 
-RenderTree::RenderTree(
-    Dispatcher& dispatcher,
-    RenderBackend& backend) noexcept
-    : dispatcher_(&dispatcher),
-      backend_(&backend),
-      dirty_(),
-      currentPlan_() {}
+RenderTree::RenderTree(Dispatcher& dispatcher) noexcept
+    : dispatcher_(&dispatcher), dirty_(), currentFrame_() {}
 
 RenderTree::~RenderTree() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
@@ -1178,7 +1158,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         dirty_.Clear();
         return 0U;
     }
-    if (dirty_.Empty() && currentPlan_.Version() != 0U) return 0U;
+    if (dirty_.Empty() && currentFrame_.Version() != 0U) return 0U;
 
     committing_ = true;
     RenderFrame next;
@@ -1207,15 +1187,9 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
             return built.GetStatus();
         }
     }
-    Base::Result<void> submitted = backend_->Submit(next);
-    if (!submitted) {
-        committing_ = false;
-        return submitted.GetStatus();
-    }
-
     const std::uint32_t committedNodes = next.nodes_.Size();
-    currentPlan_ = std::move(next);
-    commitVersion_ = currentPlan_.Version();
+    currentFrame_ = std::move(next);
+    commitVersion_ = currentFrame_.Version();
     MarkCommittedSubtree(*root_);
     dirty_.Clear();
     committing_ = false;
@@ -1225,15 +1199,15 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
 RenderDiagnostics RenderTree::Diagnostics() const noexcept {
     RenderDiagnostics diagnostics;
     diagnostics.commitVersion = commitVersion_;
-    diagnostics.nodeCount = currentPlan_.Nodes().Size();
-    diagnostics.commandCount = currentPlan_.Commands().Size();
-    for (const RenderCommand& command : currentPlan_.Commands()) {
+    diagnostics.nodeCount = currentFrame_.Nodes().Size();
+    diagnostics.commandCount = currentFrame_.Commands().Size();
+    for (const RenderCommand& command : currentFrame_.Commands()) {
         if (command.kind == RenderCommandKind::DrawGlyphRun) {
             ++diagnostics.glyphCommandCount;
         }
     }
     diagnostics.dirtyCount = dirty_.Size();
-    diagnostics.planHash = currentPlan_.StableHash();
+    diagnostics.frameHash = currentFrame_.StableHash();
     return diagnostics;
 }
 

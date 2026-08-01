@@ -1,7 +1,6 @@
 #include <Aero/Integration/D3D11.hpp>
 
 #include "RenderEndpointInternal.hpp"
-#include "render/TextBackendAccess.hpp"
 
 #include "render/d3d11/D3D11Renderer.hpp"
 #include "graphics/D3D11Backend.hpp"
@@ -361,13 +360,16 @@ public:
         }
     }
 
-    void* QueryInternalService(
-        std::uint64_t service) noexcept override {
-        return renderer_ != nullptr
-            ? Render::Detail::RenderBackendAccess::
-                  InternalService(
-                      *renderer_, service)
-            : nullptr;
+    Aero::Detail::TextBackendServices* TextServices() noexcept override {
+        return renderer_ != nullptr ? renderer_->TextServices() : nullptr;
+    }
+
+    Aero::Detail::MeshBackendServices* MeshServices() noexcept override {
+        return renderer_ != nullptr ? renderer_->MeshServices() : nullptr;
+    }
+
+    Aero::Detail::ImageBackendServices* ImageServices() noexcept override {
+        return renderer_ != nullptr ? renderer_->ImageServices() : nullptr;
     }
 
 private:

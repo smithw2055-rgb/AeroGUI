@@ -1,6 +1,6 @@
 #include "Extensions.hpp"
-#include "../data/BindingRuntime.hpp"
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/binding/BindingRuntime.hpp"
+#include "gui/binding/BindingService.hpp"
 
 // Binding markup-extension implementation.
 #include "DeferredContent.hpp"
@@ -8,7 +8,7 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "../controls/TemplateRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>

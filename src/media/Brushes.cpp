@@ -97,7 +97,7 @@ Base::Result<void> GradientStopCollection::Add(
     if (!added) return added.GetStatus();
     if (!changed_.Empty()) {
         changed_.Invoke({
-            Core::ItemsChangeAction::Add,
+            Collections::ItemsChangeAction::Add,
             UINT32_MAX,
             stops_.Size() - 1U,
             0U,

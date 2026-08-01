@@ -4,13 +4,13 @@
 
 #include "TextLayoutService.hpp"
 
-#include "core/ObjectServices.hpp"
+#include "gui/property/ObjectServices.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -2468,7 +2468,7 @@ TextBoxInteractionManager::Attach(
     }
     if (!captureSubscribed_) {
         Base::Result<void> capture =
-            input_->Pointer().TryAddCaptureChanged(
+            input_->TryAddPointerCaptureChanged(
                 captureChangedHandler_);
         if (!capture) {
             records_.PopBack();
@@ -2590,7 +2590,7 @@ TextBoxInteractionManager::Attach(
     if (!appended) return appended.GetStatus();
     if (!captureSubscribed_) {
         Base::Result<void> capture =
-            input_->Pointer().TryAddCaptureChanged(
+            input_->TryAddPointerCaptureChanged(
                 captureChangedHandler_);
         if (!capture) {
             records_.PopBack();
@@ -2696,7 +2696,7 @@ TextBoxInteractionManager::Detach(
     Record& record = records_[index];
     if (record.dragging) {
         Base::Result<bool> released =
-            input_->Pointer().ReleasePointer(
+            input_->ReleasePointer(
                 record.pointerId);
         if (!released) {
             return released.GetStatus();
@@ -2740,7 +2740,7 @@ TextBoxInteractionManager::Detach(
     if (records_.Empty() &&
         captureSubscribed_) {
         static_cast<void>(
-            input_->Pointer().RemoveCaptureChanged(
+            input_->RemovePointerCaptureChanged(
                 captureChangedHandler_));
         captureSubscribed_ = false;
     }
@@ -2758,7 +2758,7 @@ TextBoxInteractionManager::Detach(
     Record& record = records_[index];
     if (record.dragging) {
         Base::Result<bool> released =
-            input_->Pointer().ReleasePointer(
+            input_->ReleasePointer(
                 record.pointerId);
         if (!released) {
             return released.GetStatus();
@@ -2831,8 +2831,7 @@ TextBoxInteractionManager::Detach(
     if (records_.Empty() &&
         captureSubscribed_) {
         static_cast<void>(
-            input_->Pointer().
-                RemoveCaptureChanged(
+            input_->RemovePointerCaptureChanged(
                     captureChangedHandler_));
         captureSubscribed_ = false;
     }
@@ -2866,9 +2865,9 @@ void TextBoxInteractionManager::OnMouseDown(
     static_cast<void>(
         editor->SetSelection(caret, caret));
     static_cast<void>(
-        input_->Focus().SetFocus(&owner));
+        input_->SetFocus(&owner));
     Base::Result<void> captured =
-        input_->Pointer().CapturePointer(
+        input_->CapturePointer(
             args.pointerId, owner);
     if (captured) {
         records_[index].pointerId =
@@ -2932,7 +2931,7 @@ void TextBoxInteractionManager::OnMouseUp(
             editor->HitTestText(local)));
     records_[index].dragging = false;
     static_cast<void>(
-        input_->Pointer().ReleasePointer(
+        input_->ReleasePointer(
             args.pointerId));
     args.handled = true;
 }
@@ -3087,7 +3086,7 @@ void TextBoxInteractionManager::OnFocusChanged(
     }
     records_[index].dragging = false;
     static_cast<void>(
-        input_->Pointer().ReleasePointer(
+        input_->ReleasePointer(
             records_[index].pointerId));
 }
 

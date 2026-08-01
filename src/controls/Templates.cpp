@@ -1,24 +1,24 @@
 #include <Aero/Styling.hpp>
-#include "TemplateRuntime.hpp"
-#include "../data/BindingRuntime.hpp"
+#include "TemplateAccess.hpp"
+#include "gui/binding/BindingRuntime.hpp"
 #include "ControlInternals.hpp"
 #include "ControlInternals.hpp"
 
 #include "render/RenderTree.hpp"
 
-#include "../ui/ResourceAssignment.hpp"
+#include "gui/resources/ResourceAssignment.hpp"
 
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Layout.hpp>
-#include "ui/ObjectTree.hpp"
+#include "gui/tree/ObjectTree.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
 #include <new>
 #include <utility>
 #include "RuntimeManagers.hpp"
-#include "../ui/RuntimeManagers.hpp"
+
 
 namespace Aero::Controls {
 using Aero::Controls::Detail::TemplateHandle;

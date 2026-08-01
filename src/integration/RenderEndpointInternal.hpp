@@ -2,13 +2,17 @@
 
 #include <Aero/Integration/RenderEndpoint.hpp>
 #include "render/RenderTree.hpp"
+#include "runtime/ImageResourceContract.hpp"
+#include "runtime/MeshResourceContract.hpp"
+#include "runtime/TextResourceContract.hpp"
 
 namespace Aero::Integration::Detail {
 
-class EndpointBackend : public Render::RenderBackend {
+class EndpointBackend {
 public:
     virtual ~EndpointBackend() = default;
 
+    virtual Base::Result<void> Submit(const Render::RenderFrame& frame) noexcept = 0;
     virtual Base::Result<void> Resize(
         std::uint32_t width,
         std::uint32_t height) noexcept = 0;
@@ -23,11 +27,9 @@ public:
     }
     virtual void SetBatchingEnabled(
         bool) noexcept {}
-    virtual void* QueryInternalService(
-        std::uint64_t service) noexcept {
-        (void)service;
-        return nullptr;
-    }
+    virtual Aero::Detail::TextBackendServices* TextServices() noexcept { return nullptr; }
+    virtual Aero::Detail::MeshBackendServices* MeshServices() noexcept { return nullptr; }
+    virtual Aero::Detail::ImageBackendServices* ImageServices() noexcept { return nullptr; }
     virtual bool SupportsDedicatedThread() const noexcept {
         return true;
     }
@@ -56,11 +58,9 @@ public:
         const Render::RenderFrame& plan) noexcept;
     static Base::Status FrameStatus(
         RenderEndpoint& endpoint) noexcept;
-    static Render::RenderBackend& Backend(
-        RenderEndpoint& endpoint) noexcept;
-    static void* QueryInternalService(
-        RenderEndpoint& endpoint,
-        std::uint64_t service) noexcept;
+    static Aero::Detail::TextBackendServices* TextServices(RenderEndpoint& endpoint) noexcept;
+    static Aero::Detail::MeshBackendServices* MeshServices(RenderEndpoint& endpoint) noexcept;
+    static Aero::Detail::ImageBackendServices* ImageServices(RenderEndpoint& endpoint) noexcept;
 };
 
 } // namespace Aero::Integration::Detail

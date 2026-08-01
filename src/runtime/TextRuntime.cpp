@@ -2,7 +2,7 @@
 #include "TextRuntime.hpp"
 #include "TextResourceContract.hpp"
 
-#include "../render/TextBackendAccess.hpp"
+#include "integration/RenderEndpointInternal.hpp"
 
 #include <Aero/FrameworkElement.hpp>
 #include "../text/FontManager.hpp"
@@ -564,7 +564,7 @@ struct TextRuntime::Impl final {
 
     Impl(
         Base::IAllocator& allocator,
-        Render::RenderBackend& selectedBackend) noexcept
+        Integration::RenderEndpoint& selectedEndpoint) noexcept
         : fontProvider(&allocator),
           shaper(fontProvider),
           fonts(&allocator),
@@ -574,7 +574,7 @@ struct TextRuntime::Impl final {
           primaryFamily(&allocator),
           language(&allocator),
           fontSearchRoot(&allocator),
-          backend(&selectedBackend),
+          endpoint(&selectedEndpoint),
           allocator(&allocator) {}
 
     Text::FreeTypeAdapter fontProvider;
@@ -591,7 +591,7 @@ struct TextRuntime::Impl final {
     TextLayoutServiceProxy proxy;
     Controls::Detail::TextLayoutService* service = nullptr;
     HeadlessTextLayoutService* headlessService = nullptr;
-    Render::RenderBackend* backend = nullptr;
+    Integration::RenderEndpoint* endpoint = nullptr;
     TextBackendServices* backendServices =
         nullptr;
     std::uint64_t backendGeneration = 0U;
@@ -609,7 +609,7 @@ TextRuntime::~TextRuntime() noexcept {
 }
 
 Base::Result<void> TextRuntime::Initialize(
-    Render::RenderBackend& backend,
+    Integration::RenderEndpoint& endpoint,
     const Integration::TextOptions& options) noexcept {
     if (impl_ != nullptr) {
         return Base::Status::Failure(
@@ -632,9 +632,9 @@ Base::Result<void> TextRuntime::Initialize(
             Base::ErrorCode::OutOfMemory,
             "View text runtime allocation failed");
     }
-    impl_ = new (memory) Impl(*allocator_, backend);
+    impl_ = new (memory) Impl(*allocator_, endpoint);
     impl_->allocator = allocator_;
-    impl_->backend = &backend;
+    impl_->endpoint = &endpoint;
     impl_->proxy.SetFaceResolver(
         impl_,
         [](void* context,
@@ -808,8 +808,7 @@ Base::Result<void> TextRuntime::Initialize(
         impl_->config.atlas.pageHeight = 1024U;
         impl_->config.atlas.maxPages = 4U;
         impl_->backendServices =
-            Render::Detail::RenderBackendAccess::
-                TextServices(backend);
+            Integration::Detail::RenderEndpointAccess::TextServices(endpoint);
         if (impl_->backendServices != nullptr) {
             impl_->backendGeneration =
                 impl_->backendServices->generation;
@@ -873,15 +872,16 @@ Base::Result<void> TextRuntime::Initialize(
 
 Base::Result<bool>
 TextRuntime::SynchronizeBackend(
+    Integration::RenderEndpoint& endpoint,
     bool force) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "View text runtime is not initialized");
     }
+    impl_->endpoint = &endpoint;
     TextBackendServices* current =
-        Render::Detail::RenderBackendAccess::
-            TextServices(*impl_->backend);
+        Integration::Detail::RenderEndpointAccess::TextServices(endpoint);
     const std::uint64_t generation =
         current != nullptr
         ? current->generation
@@ -1006,9 +1006,9 @@ void TextRuntime::Shutdown() noexcept {
     } else if (
         impl_->service != nullptr &&
         impl_->backendServices != nullptr) {
-        TextBackendServices* current =
-            Render::Detail::RenderBackendAccess::
-                TextServices(*impl_->backend);
+        TextBackendServices* current = impl_->endpoint != nullptr
+            ? Integration::Detail::RenderEndpointAccess::TextServices(*impl_->endpoint)
+            : nullptr;
         if (current == impl_->backendServices &&
             current->generation ==
                 impl_->backendGeneration &&

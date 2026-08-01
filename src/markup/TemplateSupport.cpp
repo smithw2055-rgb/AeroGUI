@@ -8,11 +8,11 @@
 #include <Aero/Markup/Schema.hpp>
 
 #include "TemplateCompiler.hpp"
-#include "../controls/TemplateRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
 
 #include <new>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+
 
 namespace Aero::Markup {
 namespace {

@@ -1,12 +1,14 @@
 #include "RuntimeUiServices.hpp"
-#include "../controls/TemplateRuntime.hpp"
+#include "../controls/VisualStateRuntime.hpp"
 
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/binding/BindingService.hpp"
+#include "gui/styling/StyleRuntime.hpp"
+#include "gui/events/EventRouter.hpp"
 #include "../controls/RuntimeManagers.hpp"
-#include "../input/InputService.hpp"
+#include "gui/input/InputService.hpp"
 
 namespace Aero::Detail {
 
@@ -17,6 +19,7 @@ void UiRuntimeAccess::SetEventRouter(Aero::UIElement& element, EventRouter* rout
 void UiRuntimeAccess::SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept {
     element.commandRouter_ = service;
 }
+
 
 namespace {
 

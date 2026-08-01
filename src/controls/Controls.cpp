@@ -5,7 +5,7 @@
 #include <Aero/Documents.hpp>
 
 #include "TextLayoutService.hpp"
-#include "core/ObjectServices.hpp"
+#include "gui/property/ObjectServices.hpp"
 
 #include <algorithm>
 #include <cmath>

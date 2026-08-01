@@ -148,9 +148,6 @@ public:
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<std::uint32_t> AdvanceAnimationTime(
         std::uint32_t elapsedMilliseconds) noexcept;
-    Base::Result<void>
-        SetRenderBatchingEnabledForTesting(
-            bool enabled) noexcept;
     Base::Result<void> SetRenderEndpoint(
         Base::Ref<Integration::RenderEndpoint> endpoint,
         bool automaticAnimationClock) noexcept;
@@ -176,7 +173,6 @@ public:
     Render::RenderTree* Renderer() noexcept;
     Aero::Detail::BindingManager* Bindings() noexcept;
     Aero::Detail::EventRouter* RoutedEvents() noexcept;
-    Aero::Detail::FocusManager* Focus() noexcept;
     Controls::TemplateManager* Templates() noexcept;
     Controls::VisualStateManager* VisualStates() noexcept;
     Markup::Schema* Schema() noexcept;

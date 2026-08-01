@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../runtime/RuntimeFwd.hpp"
-#include "../controls/TemplateRuntime.hpp"
-#include "../data/BindingRuntime.hpp"
+#include "../controls/TemplateAccess.hpp"
+#include "gui/binding/BindingRuntime.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -13,7 +13,7 @@
 #include <Aero/Styling.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/Layout.hpp>
-#include "ui/ObjectTree.hpp"
+#include "gui/tree/ObjectTree.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>

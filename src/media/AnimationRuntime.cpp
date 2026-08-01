@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <new>
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/animation/AnimationRuntime.hpp"
 
 namespace Aero::Detail::Animation {
 namespace {

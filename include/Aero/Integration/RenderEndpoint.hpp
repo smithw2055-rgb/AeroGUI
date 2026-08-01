@@ -98,9 +98,6 @@ public:
     Base::Result<void> Restore() noexcept;
     Base::Result<void> WaitIdle(
         std::uint32_t timeoutMilliseconds = 5000U) noexcept;
-    // Test-only A/B gate. Production endpoints start with batching enabled.
-    Base::Result<void> SetBatchingEnabledForTesting(
-        bool enabled) noexcept;
 
 private:
     friend class Detail::RenderEndpointAccess;

@@ -1,5 +1,5 @@
 #include <Aero/Styling.hpp>
-#include "TemplateRuntime.hpp"
+#include "VisualStateRuntime.hpp"
 
 #include <Aero/Meta/ValueCodec.hpp>
 #include <Aero/Media/Transforms.hpp>
@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 #include "RuntimeManagers.hpp"
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/animation/AnimationRuntime.hpp"
 
 namespace Aero::Controls {
 using Aero::Controls::Detail::TemplateHandle;

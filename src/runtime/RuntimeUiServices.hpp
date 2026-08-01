@@ -6,7 +6,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Meta/MetadataDomain.hpp>
-#include "core/property/EffectiveValueEngine.hpp"
+#include "gui/property/EffectiveValueEngine.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
 

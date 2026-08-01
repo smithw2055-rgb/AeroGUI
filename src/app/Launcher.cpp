@@ -10,7 +10,7 @@
 #include <Aero/Integration/OpenGL33.hpp>
 #include <Aero/Integration/ViewHost.hpp>
 #include <Aero/Integration/View.hpp>
-#include "../ui/RuntimeManagers.hpp"
+
 #include "../runtime/ViewAccess.hpp"
 
 #if defined(_WIN32)

@@ -1,12 +1,12 @@
 # Runtime composition and public Gui/Meta aggregate targets.
 add_library(AeroRuntime ${AERO_LIBRARY_TYPE}
-    src/RuntimeEnvironment.cpp
-    src/ViewRuntime.cpp
-    src/IntegrationReloadCoordinator.cpp
+    src/runtime/View.cpp
+    src/runtime/ViewRuntime.cpp
+    src/integration/ReloadCoordinator.cpp
     src/integration/RenderEndpoint.cpp
-    src/RuntimeSafety.cpp
-    src/UiDocument.cpp
-    src/runtime/RuntimeUiServices.cpp
+    src/runtime/RuntimeSafety.cpp
+    src/markup/XamlDocument.cpp
+        src/runtime/RuntimeUiServices.cpp
     src/runtime/ImageRuntime.cpp
     src/runtime/StbImageImplementation.cpp
     src/runtime/TextRuntime.cpp

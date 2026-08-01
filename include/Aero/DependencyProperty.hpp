@@ -282,8 +282,6 @@ struct DependencyPropertyChangedEventArgs final {
     const PropertyValue& newValue;
     EffectiveValueSource oldSource = EffectiveValueSource::Default;
     EffectiveValueSource newSource = EffectiveValueSource::Default;
-    PropertyValueSourceInfo oldSourceInfo;
-    PropertyValueSourceInfo newSourceInfo;
 };
 
 using ValidateValueCallback = Base::Delegate<bool(

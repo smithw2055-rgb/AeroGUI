@@ -12,7 +12,7 @@ framework of managers, services, or access objects.
 The current implementation keeps complete UI and control runtime declarations
 under:
 
-- `src/ui/RuntimeManagers.hpp`
+- `src/gui/RuntimeServices.hpp`
 - `src/controls/RuntimeManagers.hpp`
 
 `Aero::Detail::UiRuntimeAccess` and

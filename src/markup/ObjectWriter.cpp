@@ -1,7 +1,7 @@
 #include "ObjectWriterState.hpp"
 
 #include <utility>
-#include "../ui/RuntimeManagers.hpp"
+#include "gui/binding/BindingService.hpp"
 
 namespace Aero::Markup {
 namespace {

@@ -30,7 +30,7 @@ HyperlinkInteractionManager::HyperlinkInteractionManager(
 HyperlinkInteractionManager::~HyperlinkInteractionManager() noexcept {
     if (initialized_) {
         static_cast<void>(
-            input_->Commands().RemoveRequerySuggested(requeryHandler_));
+            input_->RemoveRequerySuggested(requeryHandler_));
     }
     while (!links_.Empty()) {
         const std::uint32_t index = links_.Size() - 1U;
@@ -65,7 +65,7 @@ HyperlinkInteractionManager::~HyperlinkInteractionManager() noexcept {
 Base::Result<void> HyperlinkInteractionManager::Initialize() noexcept {
     if (initialized_) return {};
     Base::Result<void> result =
-        input_->Commands().TryAddRequerySuggested(requeryHandler_);
+        input_->TryAddRequerySuggested(requeryHandler_);
     if (!result) return result.GetStatus();
     initialized_ = true;
     return {};
@@ -166,7 +166,7 @@ Base::Result<bool> HyperlinkInteractionManager::Detach(
     if (index == UINT32_MAX) return false;
     Record& record = links_[index];
     if (record.pointerDown) {
-        static_cast<void>(input_->Pointer().ReleasePointer(record.pointerId));
+        static_cast<void>(input_->ReleasePointer(record.pointerId));
     }
     static_cast<void>(link.RemoveHandler(
         UIElement::MouseDownEvent, mouseDownHandler_));
@@ -211,13 +211,13 @@ Base::Result<void> HyperlinkInteractionManager::RefreshCanExecute(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> allowed =
-            input_->Commands().CanExecute(*command, value, *target);
+            input_->CanExecute(*command, value, *target);
         if (!allowed) return allowed.GetStatus();
         enabled = allowed.Value();
     }
     links_[index].commandEnabled = enabled;
-    if (!enabled && input_->Focus().FocusedNode() == &link) {
-        Base::Result<bool> cleared = input_->Focus().ClearFocus();
+    if (!enabled && input_->GetFocusedElement() == &link) {
+        Base::Result<bool> cleared = input_->ClearFocus();
         if (!cleared) return cleared.GetStatus();
     }
     return {};
@@ -243,7 +243,7 @@ Base::Result<void> HyperlinkInteractionManager::Invoke(
         const Value value = Value::FromObject(
             TypeOf<Base::Object>(), std::move(parameter));
         Base::Result<bool> executed =
-            input_->Commands().Execute(*command, value, *target);
+            input_->Execute(*command, value, *target);
         if (!executed) return executed.GetStatus();
     }
 
@@ -270,8 +270,8 @@ void HyperlinkInteractionManager::OnMouseDown(
     Record& record = links_[index];
     record.pointerId = args.pointerId;
     record.pointerDown = true;
-    static_cast<void>(input_->Pointer().CapturePointer(args.pointerId, link));
-    static_cast<void>(input_->Focus().SetFocus(&link));
+    static_cast<void>(input_->CapturePointer(args.pointerId, link));
+    static_cast<void>(input_->SetFocus(&link));
     args.handled = true;
 }
 
@@ -285,7 +285,7 @@ void HyperlinkInteractionManager::OnMouseUp(
     Record& record = links_[index];
     if (!record.pointerDown || record.pointerId != args.pointerId) return;
     record.pointerDown = false;
-    static_cast<void>(input_->Pointer().ReleasePointer(args.pointerId));
+    static_cast<void>(input_->ReleasePointer(args.pointerId));
     args.handled = true;
     if (link.GetIsEnabled() && link.GetIsMouseOver()) {
         static_cast<void>(Invoke(link));

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Aero/Base/Result.hpp>
+#include <Aero/RoutedEvent.hpp>
+
 // Internal runtime type ownership. Installed headers use these aliases only to
 // preserve source spelling for opaque pointers and runtime-only signatures.
 // Complete manager definitions remain under src/ and are not SDK authoring API.
@@ -13,17 +16,11 @@ class VisualStateManager;
 
 namespace Aero::Detail {
 
+class EventRouter;
 class InputService;
 
 class UiRuntimeAccess final {
 public:
-    class EventRouter;
-    class CommandManager;
-    class HitTestManager;
-    class PointerInputManager;
-    class FocusManager;
-    class KeyboardInputManager;
-    class TextInputManager;
     class LayoutManager;
     class BindingManager;
     class AnimationManager;
@@ -32,18 +29,16 @@ public:
 
     static void SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept;
     static void SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept;
+    static Base::Result<void> SetMouseOver(Aero::UIElement& element, bool value) noexcept;
+    static Base::Result<void> SetPressed(Aero::UIElement& element, bool value) noexcept;
+    static Base::Result<void> SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept;
+    static Base::Result<void> SetKeyboardFocusWithin(Aero::UIElement& element, bool value) noexcept;
+    static void InvokeHandlers(Aero::UIElement& element, RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 };
 
 } // namespace Aero::Detail
 
 namespace Aero::Detail {
-using EventRouter = UiRuntimeAccess::EventRouter;
-using CommandManager = UiRuntimeAccess::CommandManager;
-using HitTestManager = UiRuntimeAccess::HitTestManager;
-using PointerInputManager = UiRuntimeAccess::PointerInputManager;
-using FocusManager = UiRuntimeAccess::FocusManager;
-using KeyboardInputManager = UiRuntimeAccess::KeyboardInputManager;
-using TextInputManager = UiRuntimeAccess::TextInputManager;
 using LayoutManager = UiRuntimeAccess::LayoutManager;
 using BindingManager = UiRuntimeAccess::BindingManager;
 using AnimationManager = UiRuntimeAccess::AnimationManager;
