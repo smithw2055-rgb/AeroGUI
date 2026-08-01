@@ -58,7 +58,7 @@ StyleInternal.hpp
 The larger metadata stores remain separate only because they have independent
 storage and freeze lifetimes.
 
-## GUI context and element relationships
+## Gui context and element relationships
 
 `ElementTree` is a private per-View context. It owns Dispatcher-affine lifecycle,
 property inheritance integration, event/input/layout coordination and stable
@@ -173,7 +173,7 @@ RenderDevice semantics.
 
 Repository domains compile as build-only object components:
 
-- `AeroGuiTargets.cmake` owns GUI kernel, Controls, Markup, App-model and the
+- `AeroGuiTargets.cmake` owns Gui kernel, Controls, Markup, App-model and the
   real `Aero::Gui` product binary;
 - `AeroRuntimeTargets.cmake` owns the View/runtime object component;
 - `AeroRenderingTargets.cmake` owns the Renderer, RenderDevice, native GPU

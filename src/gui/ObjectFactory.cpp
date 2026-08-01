@@ -72,7 +72,7 @@ ObjectFactoryScope::ObjectFactoryScope(
 ObjectFactoryScope::ObjectFactoryScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties,
-    MetaRegistry& runtime) noexcept
+    Meta::Registry& runtime) noexcept
     : state_{&dispatcher, &properties, &runtime},
       previous_(activeObjectFactory),
       ownerThread_(CurrentDispatcherThreadToken()) {
@@ -82,7 +82,7 @@ ObjectFactoryScope::ObjectFactoryScope(
 ObjectFactoryScope::ObjectFactoryScope(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& properties,
-    MetaRegistry* runtime) noexcept
+    Meta::Registry* runtime) noexcept
     : state_{&dispatcher, &properties, runtime},
       previous_(activeObjectFactory),
       ownerThread_(CurrentDispatcherThreadToken()) {

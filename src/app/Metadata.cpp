@@ -8,8 +8,8 @@
 namespace Aero::App {
 
 Base::Result<void> Detail::PopulateAppMetadata(
-    Core::MetaRegistration& context) noexcept {
-    auto shutdownMode = Core::Describe<Aero::ShutdownMode>(context);
+    ::Aero::Meta::Registration& context) noexcept {
+    auto shutdownMode = Meta::Describe<Aero::ShutdownMode>(context);
     shutdownMode
         .Value(
             "OnLastWindowClose",
@@ -23,31 +23,31 @@ Base::Result<void> Detail::PopulateAppMetadata(
     Base::Result<void> status = shutdownMode.Result();
     if (!status) return status.GetStatus();
 
-    status = Core::Describe<Aero::StartupEventArgs>(context).Result();
+    status = Meta::Describe<Aero::StartupEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Core::Describe<Aero::ExitEventArgs>(context).Result();
+    status = Meta::Describe<Aero::ExitEventArgs>(context).Result();
     if (!status) return status.GetStatus();
-    status = Core::Describe<Aero::CancelEventArgs>(context).Result();
+    status = Meta::Describe<Aero::CancelEventArgs>(context).Result();
     if (!status) return status.GetStatus();
 
-    auto windowState = Core::Describe<Aero::WindowState>(context);
+    auto windowState = Meta::Describe<Aero::WindowState>(context);
     windowState.Value("Normal", Aero::WindowState::Normal).Value("Minimized", Aero::WindowState::Minimized).Value("Maximized", Aero::WindowState::Maximized);
     status = windowState.Result();
     if (!status) return status.GetStatus();
-    auto windowStyle = Core::Describe<Aero::WindowStyle>(context);
+    auto windowStyle = Meta::Describe<Aero::WindowStyle>(context);
     windowStyle.Value("None", Aero::WindowStyle::None).Value("SingleBorderWindow", Aero::WindowStyle::SingleBorderWindow).Value("ThreeDBorderWindow", Aero::WindowStyle::ThreeDBorderWindow).Value("ToolWindow", Aero::WindowStyle::ToolWindow);
     status = windowStyle.Result();
     if (!status) return status.GetStatus();
-    auto resizeMode = Core::Describe<Aero::ResizeMode>(context);
+    auto resizeMode = Meta::Describe<Aero::ResizeMode>(context);
     resizeMode.Value("NoResize", Aero::ResizeMode::NoResize).Value("CanMinimize", Aero::ResizeMode::CanMinimize).Value("CanResize", Aero::ResizeMode::CanResize).Value("CanResizeWithGrip", Aero::ResizeMode::CanResizeWithGrip);
     status = resizeMode.Result();
     if (!status) return status.GetStatus();
-    auto sizeToContent = Core::Describe<Aero::SizeToContent>(context);
+    auto sizeToContent = Meta::Describe<Aero::SizeToContent>(context);
     sizeToContent.Value("Manual", Aero::SizeToContent::Manual).Value("Width", Aero::SizeToContent::Width).Value("Height", Aero::SizeToContent::Height).Value("WidthAndHeight", Aero::SizeToContent::WidthAndHeight);
     status = sizeToContent.Result();
     if (!status) return status.GetStatus();
 
-    auto application = Core::Describe<Aero::Application>(context);
+    auto application = Meta::Describe<Aero::Application>(context);
     application
         .Property(
             "StartupUri",
@@ -66,7 +66,7 @@ Base::Result<void> Detail::PopulateAppMetadata(
     status = application.Result();
     if (!status) return status.GetStatus();
 
-    auto window = Core::Describe<Aero::Window>(context);
+    auto window = Meta::Describe<Aero::Window>(context);
     window
         .Property(Aero::Window::TitleProperty, Core::PropertyOptions(Base::String{}).AffectsMeasure())
         .Property(Aero::Window::WindowStateProperty, Core::PropertyOptions(Aero::WindowState::Normal).AffectsRender())

@@ -34,7 +34,7 @@ extension:
 - `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
   for engines and existing application frameworks.
 - `<Aero/Meta.hpp>` and `<Aero/Module.hpp>` layer typed metadata and module
-  authoring over the normal GUI class library for custom-control authors.
+  authoring over the normal Gui class library for custom-control authors.
 
 The matching CMake targets are `Aero::Gui`, `Aero::App`, `Aero::Integration`
 and `Aero::Meta`. Compatibility product targets do not form a second supported

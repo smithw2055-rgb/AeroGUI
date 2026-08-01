@@ -117,7 +117,7 @@ optional sokol bridge
     → folded into Aero::Integration
 ```
 
-GUI kernel、Controls、Markup、Runtime 和 Rendering 都是 build-only Object
+Gui kernel、Controls、Markup、Runtime 和 Rendering 都是 build-only Object
 components；第三方依赖不会导致额外 Aero `_Detail` 产品目标。
 
 ## 8. License

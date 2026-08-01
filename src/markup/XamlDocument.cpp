@@ -79,7 +79,7 @@ Base::Object* UiDocument::FindNamedObject(
         return object;
     }
     // A document is schema-neutral. Exact type validation remains available
-    // without retaining a MetaRegistry; derived-type lookup is performed by
+    // without retaining a Meta::Registry; derived-type lookup is performed by
     // View after mounting.
     return object->RuntimeType() == expectedType ? object : nullptr;
 }

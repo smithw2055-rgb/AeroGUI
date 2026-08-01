@@ -102,7 +102,7 @@ bool IsAeroExtensionsFacade(
 } // namespace
 
 Schema::Schema(
-    Core::MetaRegistry& metadata,
+    ::Aero::Meta::Registry& metadata,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
@@ -410,7 +410,7 @@ Schema::ResolvePropertyTarget(
             "XAML target does not support dependency properties");
     }
     if (&target->PropertyRegistry() !=
-        &static_cast<const Core::MetaRegistry&>(
+        &static_cast<const ::Aero::Meta::Registry&>(
             *domain_).DependencyProperties()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -659,7 +659,7 @@ Base::Result<void> Schema::Freeze() noexcept {
         !domain_->IsSealed() || !domain_->IsReady()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "MetaRegistry must be complete before XAML schema freeze");
+            "Meta::Registry must be complete before XAML schema freeze");
     }
     Base::Result<void> facetsFrozen = impl_->facets.Freeze();
     if (!facetsFrozen) return facetsFrozen.GetStatus();

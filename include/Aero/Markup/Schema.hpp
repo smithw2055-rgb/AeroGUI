@@ -38,7 +38,7 @@ class SchemaPrivate;
 class XamlStyleSchemaFacet;
 
 AERO_API Base::Result<void> PopulateMarkupMetadata(
-    Core::MetaRegistration& context) noexcept;
+    ::Aero::Meta::Registration& context) noexcept;
 }
 
 enum class MemberSyntax : std::uint8_t {
@@ -78,7 +78,7 @@ struct MemberWritePolicy final {
 class AERO_API Schema final {
 public:
     Schema(
-        Core::MetaRegistry& metadata,
+        ::Aero::Meta::Registry& metadata,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Schema() noexcept;
 
@@ -110,8 +110,8 @@ private:
     friend class Detail::XamlStyleSchemaFacet;
 
     Base::Result<void> Freeze() noexcept;
-    Core::MetaRegistry* Metadata() const noexcept { return domain_; }
-    const Core::MetaRegistry& Domain() const noexcept {
+    ::Aero::Meta::Registry* Metadata() const noexcept { return domain_; }
+    const ::Aero::Meta::Registry& Domain() const noexcept {
         return *domain_;
     }
 
@@ -169,7 +169,7 @@ private:
 
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
-    Core::MetaRegistry* domain_ = nullptr;
+    ::Aero::Meta::Registry* domain_ = nullptr;
     bool frozen_ = false;
 
     Base::Result<ResolvedMember> ResolvePropertyOrEvent(
@@ -250,7 +250,7 @@ MarkupMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterMarkupMetadata(
-    Core::MetaRegistry& domain) noexcept {
+    ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 4U;
     const Base::StringView name =
         MarkupMetadataModuleName();

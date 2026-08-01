@@ -18,13 +18,12 @@
 #include <type_traits>
 
 namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
+namespace Aero::Meta { class Registry; class Registration; }
 
 namespace Aero::Core {
 
-class MetaRegistration;
 class BehaviorTable;
 class RegistrationTypes;
-class MetaRegistry;
 template<class TOwner, class TValue>
 class DependencyPropertyRef;
 template<class TOwner, class TValue>
@@ -211,12 +210,12 @@ using MethodInvokeCallback = Base::Result<Value> (*)(
     void* context) noexcept;
 using ValueMemberGetCallback = Base::Result<Value> (*)(
     const void* object,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     void* context) noexcept;
 using ValueMemberSetCallback = Base::Result<void> (*)(
     void* object,
     const Value& value,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     void* context) noexcept;
 using MetadataPropertyChangedCallback = void (*)(
     Base::Object& object,

@@ -65,7 +65,7 @@ WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_S
 - WebGL 1 不进入 v1，也不作为 WebGL 2 的静默 fallback。
 - `sokol_gfx` 只作为可选 bring-up、样例或并行验证适配器，不能成为核心 RenderDevice 层、唯一渲染后端或主机平台方案。
 - FreeType 与 HarfBuzz 是内置文本管线的正式实现依赖；Expat、libtess2、Ryu 仍通过私有 provider/adapter 边界集成。第三方类型均不泄漏到公共 API。
-- GUI、Runtime、Markup、文本和 Rendering 内部域只作为构建期 Object 组件存在；安装包不导出 `_Detail` 实现目标。
+- Gui、Runtime、Markup、文本和 Rendering 内部域只作为构建期 Object 组件存在；安装包不导出 `_Detail` 实现目标。
 - 每个 View 的稳定服务采用一次对齐分配，避免多次小对象分配和碎片；动态 session 仍保留独立生命周期。
 
 ## 设计来源

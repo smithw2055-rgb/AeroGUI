@@ -25,10 +25,10 @@ add_library(AeroGuiKernelObjects OBJECT
     src/gui/RoutedEvents.cpp
     src/gui/CoreMetadata.cpp
     src/gui/MetadataAuthoring.cpp
-    src/gui/MetaRegistration.cpp
+    src/gui/Registration.cpp
     src/gui/MetaTable.cpp
     src/gui/BehaviorTable.cpp
-    src/gui/MetaRegistry.cpp
+    src/gui/Registry.cpp
     src/gui/RegistrationValues.cpp
     src/gui/MetadataValueFacets.cpp
     src/gui/ValueTable.cpp

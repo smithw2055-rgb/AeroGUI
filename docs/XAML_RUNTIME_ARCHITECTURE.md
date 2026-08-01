@@ -42,14 +42,14 @@ markup-extension 行为集中在一次冻结的 `XamlFacets` 中。每次加载�
 ## 冻结 Metadata 与模块组合
 
 模块只有一个 metadata-only 注册回调。`DefineModule()` 描述模块标识、依赖与
-`MetaRegistration` 回调；typed property、routed event、Style、Template 和控件
+`Meta::Registration` 回调；typed property、routed event、Style、Template 和控件
 authoring 记录都通过窄注册桥接提交。不存在第二个 markup 回调，也不向第三方模块
 开放 `SchemaBuilder` 或 XAML facet 注册。
 
 `ModuleSet`、模块依赖排序和 `GuiSchema` 都是 `src` 内部实现。Runtime、
 `aero-schema-gen` 与 `aero-xamlc` 通过私有 access 消费同一种冻结 metadata，
 默认 Product 与 Module 头不暴露 catalog、registration store 或 registry。
-冲突检查和提交由 `MetaRegistration::Impl` 完成；任一模块注册失败时，本次候选
+冲突检查和提交由 `Meta::Registry` 完成；任一模块注册失败时，本次候选
 metadata 整体丢弃，不污染已经冻结的状态。
 
 内置 `XamlFacets` 仍服务于 object writer 和内建 markup extension，但它由
@@ -139,12 +139,12 @@ schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对�
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
 表达式由 writer 安装并纳入事务，已处理结果携带可选 rollback token。
 
-## GUI、View 与 UiDocument
+## Gui、View 与 UiDocument
 
 产品运行时分为三个所有权层次：
 
 ```text
-GUI
+Gui
   -> ModuleSet + frozen GuiSchema
   -> creates View
 
@@ -182,14 +182,14 @@ ControlGallery 不再逐控件调用主题 apply，也不再包含程序化外�
 本机构建默认通过 `AeroCompiledThemes` 调用 `aero-xamlc --origin`，将 Light、
 Dark、Generic 编译为 AXIR 并嵌入 View runtime object component，最终折叠进 `Aero::Integration`。交叉编译可提供
 `AERO_HOST_XAMLC_EXECUTABLE`；关闭 `AERO_PRECOMPILE_BUILTIN_THEMES` 时只嵌入
-原始 XAML，并通过相同 pack URI/provider 路径加载。`LoadBuiltInTheme` 优先加载
+原始 XAML，并通过相同 pack URI/provider 路径加载。`XamlReader::LoadTheme` 优先加载
 compiled document，compiled payload 不存在或 schema identity 不兼容时确定性
 回退到内嵌源 XAML。
 
 ## 构建边界
 
 `AeroMarkupKernelObjects` 包含 tokenizer、node reader 和基础 compiled
-document/cache，只依赖 GUI kernel objects。Schema 验证、ObjectWriter、资源、
+document/cache，只依赖 Gui kernel objects。Schema 验证、ObjectWriter、资源、
 Binding、Style 与 Template 位于 `AeroMarkupObjects`，后者才依赖 Controls objects。
 这些都是 build-only object components，并共同折叠进 `Aero::Gui`；架构检查禁止
 Markup kernel 反向包含 View runtime 或高层 Controls/Markup integration。
@@ -211,7 +211,7 @@ application module registrations
 
 因此 target runtime 与 host xamlc 不需要链接同一平台二进制。运行时仍使用完整
 `GuiSchema` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXIR identity
-直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 MetaRegistry
+直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 `Meta::Registry`
 做兼容性校验。
 
 内置主题构建也走相同路径：native build 先由 `aero-schema-gen` 生成
@@ -243,7 +243,7 @@ Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 
 ## Document Cache、依赖图与完整文档热重载
 
-`GUI` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
+`Gui` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
 验证的 serialized AXIR、source revision 和 dependency URI，不保存实例对象或
 View service。多个 `View` 可以复用同一缓存，同时继续拥有独立的
 Binding、资源环境、布局和渲染状态。

@@ -5,7 +5,7 @@
 namespace Aero::Core::Detail {
 
 MetadataAuthoringSession::MetadataAuthoringSession(
-    MetaRegistration& context,
+    Meta::Registration& context,
     const TypeRegistration& registration,
     TypeId expectedType) noexcept
     : context_(&context) {
@@ -163,7 +163,7 @@ MetadataAuthoringSession::RoutedEvent(
     RoutingStrategy strategy) noexcept {
     if (!Ok()) return *this;
     auto* state =
-        static_cast<MetaRegistrationState*>(
+        static_cast<RegistrationState*>(
             context_->state_);
     RoutedEventTable* events =
         state != nullptr ? state->events : nullptr;

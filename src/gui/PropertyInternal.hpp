@@ -12,6 +12,8 @@
 
 #include <cstdint>
 
+namespace Aero::Meta { class Registry; class Registration; }
+
 namespace Aero::Core {
 
 using EffectiveValueDiagnostics = PropertyValueSourceInfo;
@@ -168,12 +170,11 @@ private:
 
 namespace Aero::Core {
 
-class MetaRegistry;
 
 struct ObjectFactoryState final {
     Dispatcher* dispatcher = nullptr;
     DependencyPropertyRegistry* dependencyProperties = nullptr;
-    MetaRegistry* metadata = nullptr;
+    Meta::Registry* metadata = nullptr;
 
     bool IsValid() const noexcept {
         return dispatcher != nullptr && dependencyProperties != nullptr;
@@ -195,11 +196,11 @@ public:
     ObjectFactoryScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties,
-        MetaRegistry& runtime) noexcept;
+        Meta::Registry& runtime) noexcept;
     ObjectFactoryScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties,
-        MetaRegistry* runtime) noexcept;
+        Meta::Registry* runtime) noexcept;
     ~ObjectFactoryScope();
 
     ObjectFactoryScope(const ObjectFactoryScope&) = delete;

@@ -3,7 +3,7 @@
 namespace Aero::Markup {
 
 Base::Result<CompiledCacheIdentity> BuildCompiledCacheIdentity(
-    const Core::MetaRegistry& domain) noexcept {
+    const ::Aero::Meta::Registry& domain) noexcept {
     Base::Result<Base::HashCode> hash = domain.ComputeSchemaHash();
     if (!hash) return hash.GetStatus();
 
@@ -40,7 +40,7 @@ CompiledCacheCompatibility CompareCompiledCacheIdentity(
 
 Base::Result<void> ValidateCompiledCacheIdentity(
     const CompiledCacheIdentity& cached,
-    const Core::MetaRegistry& currentDomain) noexcept {
+    const ::Aero::Meta::Registry& currentDomain) noexcept {
     Base::Result<CompiledCacheIdentity> current =
         BuildCompiledCacheIdentity(currentDomain);
     if (!current) return current.GetStatus();

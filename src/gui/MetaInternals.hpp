@@ -110,9 +110,9 @@ namespace Aero::Core {
 namespace Detail {
 
 // Module population is an implementation callback; hosts register through the
-// MetaRegistry overload below.
+// Meta::Registry overload below.
 AERO_API Base::Result<void> PopulateCoreMetadata(
-    MetaRegistration& context) noexcept;
+    Meta::Registration& context) noexcept;
 
 } // namespace Detail
 
@@ -121,7 +121,7 @@ inline constexpr Base::StringView CoreMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterCoreMetadata(
-    MetaRegistry& domain) noexcept {
+    Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 1U;
     const Base::StringView name = CoreMetadataModuleName();
     return domain.TryRegisterModule({
@@ -144,9 +144,9 @@ namespace Aero::Detail {
 namespace Detail {
 
 // Module population is an implementation callback; hosts register through the
-// MetaRegistry overload below.
+// Meta::Registry overload below.
 AERO_API Base::Result<void> PopulateUiMetadata(
-    Core::MetaRegistration& context) noexcept;
+    ::Aero::Meta::Registration& context) noexcept;
 
 } // namespace Detail
 
@@ -155,7 +155,7 @@ inline constexpr Base::StringView UiMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterUiMetadata(
-    Core::MetaRegistry& domain) noexcept {
+    ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 11U;
     const Base::StringView name = UiMetadataModuleName();
     return domain.TryRegisterModule({
@@ -175,12 +175,12 @@ namespace Aero::Core::Detail {
 class MetadataPrivate final {
 public:
     static DependencyPropertyRegistry& DependencyProperties(
-        MetaRegistry& domain) noexcept {
+        Meta::Registry& domain) noexcept {
         return domain.DependencyProperties();
     }
 
     static void* RoutedEventState(
-        MetaRegistry& domain) noexcept {
+        Meta::Registry& domain) noexcept {
         return domain.RoutedEventState();
     }
 };
@@ -243,7 +243,7 @@ private:
 
 namespace Aero::Core::Detail {
 
-struct MetaRegistrationState final {
+struct RegistrationState final {
     TypeRegistry* types = nullptr;
     BehaviorTable* behaviors = nullptr;
     ValueTable* values = nullptr;

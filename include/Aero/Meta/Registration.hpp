@@ -4,12 +4,10 @@
 
 namespace Aero::Core {
 
-class MetaRegistry;
 class DependencyPropertyRegistry;
 class RegistrationTypes;
-class ValueTable;
 class RegistrationValues;
-
+class ValueTable;
 template<class T>
 class TypeDescription;
 
@@ -17,26 +15,32 @@ namespace Detail {
 class MetadataAuthoringSession;
 }
 
-// Opaque, callback-scoped registration context. Module authors consume it
-// through Describe<T>; registration stores and runtime registries remain
-// owned by MetaRegistry and are not part of the public authoring surface.
-class AERO_API MetaRegistration final {
-private:
-    friend class MetaRegistry;
-    template<class T>
-    friend class TypeDescription;
-    friend class Detail::MetadataAuthoringSession;
+} // namespace Aero::Core
 
-    explicit MetaRegistration(void* state) noexcept
+namespace Aero::Meta {
+
+class Registry;
+
+// Callback-scoped metadata authoring session. Module authors use Describe<T>
+// against this object; mutable tables and registration storage stay private to
+// Registry.
+class AERO_API Registration final {
+private:
+    friend class Registry;
+    template<class T>
+    friend class Core::TypeDescription;
+    friend class Core::Detail::MetadataAuthoringSession;
+
+    explicit Registration(void* state) noexcept
         : state_(state) {}
 
-    RegistrationValues Values() noexcept;
-    RegistrationValues Values() const noexcept;
-    RegistrationTypes Types() noexcept;
-    ValueTable& ValueRegistrations() noexcept;
-    DependencyPropertyRegistry& DependencyProperties() noexcept;
+    Core::RegistrationValues Values() noexcept;
+    Core::RegistrationValues Values() const noexcept;
+    Core::RegistrationTypes Types() noexcept;
+    Core::ValueTable& ValueRegistrations() noexcept;
+    Core::DependencyPropertyRegistry& DependencyProperties() noexcept;
 
     void* state_ = nullptr;
 };
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

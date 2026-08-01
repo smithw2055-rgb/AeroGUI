@@ -1141,4 +1141,42 @@ if(aero_add_xaml_content MATCHES
         "Installed AeroAddXaml.cmake leaks private implementation details")
 endif()
 
+# Final SDK names are canonical. Do not recreate transitional public aliases or
+# expose frame diagnostics as part of the normal View authoring surface.
+file(GLOB_RECURSE final_sdk_sources
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/tools/sdk-consumers/*.cpp")
+aero_collect_matches(retired_final_sdk_names
+    "(class[ \t]+AERO_API[ \t]+GUI|Aero::GUI|ViewFrameResult|Core::MetaRegistry|Core::MetaRegistration|class[ \t]+AERO_API[ \t]+RenderEndpoint)"
+    ${final_sdk_sources})
+if(retired_final_sdk_names)
+    message(FATAL_ERROR
+        "Transitional SDK names were recreated: ${retired_final_sdk_names}")
+endif()
+
+file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta/Registry.hpp"
+    aero_meta_registry_header)
+file(READ "${AERO_SOURCE_DIR}/include/Aero/Meta/Registration.hpp"
+    aero_meta_registration_header)
+string(FIND "${aero_meta_registry_header}"
+    "namespace Aero::Meta" aero_meta_registry_namespace)
+string(FIND "${aero_meta_registry_header}"
+    "class AERO_API Registry final" aero_meta_registry_declaration)
+if(aero_meta_registry_namespace EQUAL -1 OR
+        aero_meta_registry_declaration EQUAL -1)
+    message(FATAL_ERROR
+        "Meta::Registry is not a canonical public declaration")
+endif()
+string(FIND "${aero_meta_registration_header}"
+    "namespace Aero::Meta" aero_meta_registration_namespace)
+string(FIND "${aero_meta_registration_header}"
+    "class AERO_API Registration final" aero_meta_registration_declaration)
+if(aero_meta_registration_namespace EQUAL -1 OR
+        aero_meta_registration_declaration EQUAL -1)
+    message(FATAL_ERROR
+        "Meta::Registration is not a canonical public declaration")
+endif()
+
 message(STATUS "Aero architecture dependency checks passed")

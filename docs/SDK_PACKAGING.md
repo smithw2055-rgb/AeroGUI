@@ -19,7 +19,7 @@ target_link_libraries(AudioFeature PRIVATE Aero::Audio)
 - `Aero::App` — optional default native desktop lifetime.
 - `Aero::Audio` — optional audio product independent from Application lifetime.
 
-Internal GUI, Controls, Markup, Runtime, text-provider and rendering domains
+Internal Gui, Controls, Markup, Runtime, text-provider and rendering domains
 compile as build-only object components. They are folded into the product
 binaries and never appear in `AeroTargets.cmake`. Static packages additionally
 carry only the vendored archives required to resolve private third-party
@@ -36,7 +36,7 @@ controls are published through six canonical family headers beneath
 `Aero/Controls`. See `docs/spec/PUBLIC_HEADER_MODEL.md` for declaration and
 header-growth rules.
 
-## GUI and custom controls
+## Gui and custom controls
 
 Normal WPF-style code includes `Aero/Gui.hpp`. Custom controls add the typed
 metadata entry points explicitly:
@@ -93,7 +93,7 @@ load XAML through `Markup::XamlReader`, and create Views directly:
 #include <Aero/Integration/D3D11.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 
-Aero::GUI environment;
+Aero::Gui environment;
 environment.AddModule(MyModule);
 environment.Initialize();
 

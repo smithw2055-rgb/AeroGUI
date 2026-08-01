@@ -1,6 +1,6 @@
 #include "MetaTable.hpp"
 
-// Executable metadata behavior is private to MetaRegistry.
+// Executable metadata behavior is private to Meta::Registry.
 #include "BehaviorTable.hpp"
 
 #include <Aero/DependencyProperty.hpp>

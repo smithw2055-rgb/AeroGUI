@@ -17,7 +17,7 @@ struct DeferredContentEdge final {
     Base::Object* owner = nullptr;
     Base::Object* parent = nullptr;
     Base::Ref<Base::Object> child;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Core::MemberId member = Core::InvalidMemberId;
     bool property = false;
 };
@@ -27,7 +27,7 @@ struct DeferredBindingEdge final {
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
     Aero::Detail::BindingEngine* manager = nullptr;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
@@ -45,13 +45,13 @@ public:
         Base::Object& owner,
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
-        Core::MetaRegistry& metadata,
+        ::Aero::Meta::Registry& metadata,
         Core::MemberId member) noexcept;
     Base::Result<void> StageProperty(
         Base::Object& owner,
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
-        Core::MetaRegistry& metadata,
+        ::Aero::Meta::Registry& metadata,
         Core::MemberId member) noexcept;
     Base::Result<void> CopyForOwner(
         const Base::Object& owner,
@@ -61,7 +61,7 @@ public:
         Base::Object* source,
         ::Aero::DependencyObject& target,
         Aero::Detail::BindingEngine& manager,
-        Core::MetaRegistry& metadata,
+        ::Aero::Meta::Registry& metadata,
         Core::DependencyPropertyHandle targetProperty,
         Core::DependencyPropertyHandle dataContextProperty,
         Base::StringView path,

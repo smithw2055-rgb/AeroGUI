@@ -2,9 +2,8 @@
 
 #include <Aero/Module.hpp>
 
-namespace Aero::Core {
-class MetaRegistry;
-}
+namespace Aero::Meta { class Registry; class Registration; }
+
 
 namespace Aero {
 
@@ -19,7 +18,7 @@ public:
     Base::Result<void> Add(
         const ModuleRegistration& registration) noexcept;
     Base::Result<void> RegisterMetadata(
-        Core::MetaRegistry& domain) const noexcept;
+        ::Aero::Meta::Registry& domain) const noexcept;
     Base::Result<void> Freeze() noexcept;
 
     bool IsFrozen() const noexcept;

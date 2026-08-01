@@ -316,7 +316,7 @@ struct ViewData final {
     Core::Dispatcher dispatcher;
     GuiSchema* schemaBundle = nullptr;
     Markup::DocumentCache* documentCache = nullptr;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Integration::ViewOptions options;
     Base::Ref<Integration::RenderDevice> device;
     bool deviceBound = false;
@@ -687,7 +687,7 @@ struct ViewData final {
         if (tree == nullptr || layout == nullptr || HasAttachedRoot() ||
             !IsValidLayoutSize(availableSize)) {
             return ViewInvalidState(
-                "GUI root cannot be attached in its current state");
+                "Gui root cannot be attached in its current state");
         }
         tree->AttachPresentation(layout, renderer);
         Base::Result<Aero::Detail::RootAttachment> rootAttached =
@@ -779,7 +779,7 @@ struct ViewData final {
         if (!HasAttachedRoot() && attachedRootVisual == nullptr) return {};
         if (tree == nullptr) {
             return ViewInvalidState(
-                "GUI context is unavailable during root detach");
+                "Gui context is unavailable during root detach");
         }
 
         std::uint32_t remaining = 0U;
@@ -4182,7 +4182,7 @@ struct ViewData final {
             terminal = true;
             return status
                 ? ViewInvalidState(
-                      "GUI schema is not initialized")
+                      "Gui schema is not initialized")
                 : status.GetStatus();
         }
         metadata = &schemaBundle->Metadata();
@@ -5184,6 +5184,38 @@ ViewData::ProcessStoryboardCompletions() noexcept {
 } // namespace Aero::Detail
 
 namespace Aero {
+
+struct View::FrameResult final {
+    struct Layout final {
+        std::uint64_t passVersion = 0U;
+        std::uint32_t measuredCount = 0U;
+        std::uint32_t arrangedCount = 0U;
+        std::uint32_t pendingMeasureCount = 0U;
+        std::uint32_t pendingArrangeCount = 0U;
+    };
+    struct Render final {
+        std::uint64_t snapshotVersion = 0U;
+        std::uint32_t nodeCount = 0U;
+        std::uint32_t commandCount = 0U;
+        std::uint32_t glyphCommandCount = 0U;
+        std::uint32_t dirtyCount = 0U;
+        std::uint64_t snapshotHash = 0U;
+        std::uint32_t drawPacketCount = 0U;
+        std::uint32_t batchCount = 0U;
+        std::uint32_t drawCallCount = 0U;
+        std::uint32_t mergedPacketCount = 0U;
+        std::uint32_t barrierCount = 0U;
+        std::uint32_t instanceCount = 0U;
+        std::uint32_t stateBindingCount = 0U;
+        bool batchingEnabled = true;
+    };
+
+    std::uint64_t frameNumber = 0U;
+    std::uint32_t callbackCount = 0U;
+    Layout layout;
+    Render render;
+};
+
 namespace {
 
 Base::Status ViewInvalidState(const char* message) noexcept {
@@ -5198,13 +5230,13 @@ Base::Status ViewNotInitialized(const char* message) noexcept {
 
 View::View(
     ConstructionToken,
-    GUI& gui,
+    Gui& gui,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()),
       gui_(gui.impl_) {
-    GUI::Impl& guiState = static_cast<GUI::Impl&>(*gui.impl_);
+    Gui::Impl& guiState = static_cast<Gui::Impl&>(*gui.impl_);
     void* memory = allocator_->Allocate({
         sizeof(::Aero::Detail::ViewData), alignof(::Aero::Detail::ViewData),
         Base::MemoryTag::Markup});
@@ -5233,12 +5265,12 @@ View::~View() noexcept {
 Base::Result<void> View::Initialize(
     const Integration::ViewOptions& options) noexcept {
     if (state_ == nullptr || !gui_) {
-        return ViewInvalidState("View has no GUI state");
+        return ViewInvalidState("View has no Gui state");
     }
-    const GUI::Impl& guiState = static_cast<const GUI::Impl&>(*gui_);
+    const Gui::Impl& guiState = static_cast<const Gui::Impl&>(*gui_);
     if (!guiState.initialized) {
         return ViewNotInitialized(
-            "GUI must be initialized before creating a View");
+            "Gui must be initialized before creating a View");
     }
     return state_->Initialize(options);
 }
@@ -5762,7 +5794,7 @@ Base::Result<void> View::UnmountContent(
               "content host does not contain a mounted XAML fragment"));
 }
 
-Base::Result<void> View::Resize(
+Base::Result<void> View::SetSize(
     Aero::Size availableSize) noexcept {
     if (!IsMounted() || state_ == nullptr ||
         !state_->HasAttachedRoot()) {
@@ -5777,7 +5809,7 @@ Base::Result<void> View::Unmount() noexcept {
     return state_->UnmountRoot();
 }
 
-Base::Result<ViewFrameResult> View::Update(
+Base::Result<void> View::Update(
     std::uint32_t elapsedMilliseconds) noexcept {
     std::uint32_t timedCallbacks = 0U;
     if (elapsedMilliseconds != 0U) {
@@ -5786,18 +5818,17 @@ Base::Result<ViewFrameResult> View::Update(
         if (!advanced) return advanced.GetStatus();
         timedCallbacks = advanced.Value();
     }
-    Base::Result<ViewFrameResult> frame = ExecuteFrame();
+    Base::Result<FrameResult> frame = ExecuteFrame();
     if (!frame) return frame.GetStatus();
     if (frame.Value().callbackCount > UINT32_MAX - timedCallbacks) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "View callback count overflow");
     }
-    frame.Value().callbackCount += timedCallbacks;
-    return std::move(frame).Value();
+    return {};
 }
 
-Base::Result<ViewFrameResult>
+Base::Result<View::FrameResult>
 View::ExecuteFrame() noexcept {
     if (!IsInitialized()) {
         return ViewNotInitialized(
@@ -5893,7 +5924,7 @@ View::ExecuteFrame() noexcept {
         Core::DispatcherFramePhase::Layout,
         Core::DispatcherFramePhase::RenderCommit,
         Core::DispatcherFramePhase::EndFrame};
-    ViewFrameResult result;
+    FrameResult result;
     for (Core::DispatcherFramePhase phase : phases) {
         if (phase ==
                 Core::DispatcherFramePhase::Layout &&
@@ -6290,10 +6321,16 @@ Base::Result<void> View::SetRenderDevice(
     return status;
 }
 
-const Base::Ref<Base::Object>&
-View::Root() const noexcept {
-    static const Base::Ref<Base::Object> empty;
-    return state_ != nullptr ? state_->root : empty;
+FrameworkElement* View::GetContent() noexcept {
+    return state_ != nullptr && state_->RootVisual() != nullptr
+        ? state_->RootVisual()->AsFrameworkElement()
+        : nullptr;
+}
+
+const FrameworkElement* View::GetContent() const noexcept {
+    return state_ != nullptr && state_->RootVisual() != nullptr
+        ? state_->RootVisual()->AsFrameworkElement()
+        : nullptr;
 }
 
 Base::Object* View::FindNamedObject(

@@ -217,29 +217,29 @@ Base::Result<void> ClearTransitionStoryboard(
 } // namespace
 
 Base::Result<void> PopulateMarkupMetadata(
-    MetaRegistration& context) noexcept {
+    Meta::Registration& context) noexcept {
     Base::Result<void> status =
-        Describe<DynamicResourceExtensionToken>(
+        Meta::Describe<DynamicResourceExtensionToken>(
             context,
             TypeFlags::MarkupExtension |
                 TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
-    status = Describe<StaticExtensionToken>(
+    status = Meta::Describe<StaticExtensionToken>(
         context,
         TypeFlags::MarkupExtension |
             TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
-    status = Describe<TypeExtensionToken>(
+    status = Meta::Describe<TypeExtensionToken>(
         context,
         TypeFlags::MarkupExtension |
             TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
-    status = Describe<TemplateBindingExtensionToken>(
+    status = Meta::Describe<TemplateBindingExtensionToken>(
         context,
         TypeFlags::MarkupExtension |
             TypeFlags::Sealed).Result();
     if (!status) return status.GetStatus();
-    status = Describe<StaticResourceObject>(context)
+    status = Meta::Describe<StaticResourceObject>(context)
         .Property(
             StaticResourceObject::ResourceKeyProperty,
             PropertyOptions(Base::String{}))
@@ -248,7 +248,7 @@ Base::Result<void> PopulateMarkupMetadata(
     if (!status) return status.GetStatus();
 
     auto visualStateManager =
-        Describe<XamlVisualStateManagerObject>(
+        Meta::Describe<XamlVisualStateManagerObject>(
             context, TypeFlags::Abstract);
     visualStateManager
         .Property(
@@ -266,7 +266,7 @@ Base::Result<void> PopulateMarkupMetadata(
     if (!status) return status.GetStatus();
 
     auto stateGroup =
-        Describe<XamlVisualStateGroupObject>(context);
+        Meta::Describe<XamlVisualStateGroupObject>(context);
     stateGroup
         .Property(
             "Name",
@@ -285,7 +285,7 @@ Base::Result<void> PopulateMarkupMetadata(
     status = stateGroup.Result();
     if (!status) return status.GetStatus();
 
-    auto state = Describe<XamlVisualStateObject>(context);
+    auto state = Meta::Describe<XamlVisualStateObject>(context);
     state
         .Property(
             "Name",
@@ -301,7 +301,7 @@ Base::Result<void> PopulateMarkupMetadata(
     if (!status) return status.GetStatus();
 
     auto transition =
-        Describe<XamlVisualTransitionObject>(context);
+        Meta::Describe<XamlVisualTransitionObject>(context);
     transition
         .Property(
             "From",

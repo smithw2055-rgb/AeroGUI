@@ -414,7 +414,7 @@ public:
         DependencyPropertyRegistry& properties,
         LayoutEngine* layout = nullptr,
         RenderTree* renderer = nullptr,
-        Core::MetaRegistry* metadata = nullptr,
+        ::Aero::Meta::Registry* metadata = nullptr,
         Aero::Detail::BindingEngine* bindings = nullptr) noexcept
         : tree_(&tree),
           providerSession_(values),
@@ -466,7 +466,7 @@ private:
     DependencyPropertyRegistry* properties_ = nullptr;
     LayoutEngine* layout_ = nullptr;
     RenderTree* renderer_ = nullptr;
-    Core::MetaRegistry* metadata_ = nullptr;
+    ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::Detail::BindingEngine* bindings_ = nullptr;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
@@ -551,7 +551,7 @@ class ControlBehavior final {
 public:
     ControlBehavior(
         Base::IAllocator& allocator,
-        Core::MetaRegistry& metadata,
+        ::Aero::Meta::Registry& metadata,
         Aero::ElementTree& tree,
         Aero::Detail::EventRouter& events,
         Aero::Detail::InputRouter& input,
@@ -594,7 +594,7 @@ private:
         9U * alignof(std::max_align_t);
 
     Base::IAllocator* allocator_ = nullptr;
-    Core::MetaRegistry* metadata_ = nullptr;
+    ::Aero::Meta::Registry* metadata_ = nullptr;
     Aero::ElementTree* tree_ = nullptr;
     Aero::Detail::EventRouter* events_ = nullptr;
     Aero::Detail::InputRouter* input_ = nullptr;

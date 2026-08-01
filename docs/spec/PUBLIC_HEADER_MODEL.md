@@ -47,7 +47,7 @@ example, `UIElement.hpp` does not forward to `Layout.hpp`, and
 `FrameworkElement.hpp` does not forward to a rendering implementation header.
 `View` is likewise owned by `<Aero/View.hpp>`; the former
 `Integration/View.hpp` forwarding path and `ViewHost` facade are removed.
-`GUI::CreateView(options)` is the single integration factory.
+`Gui::CreateView(options)` is the single integration factory.
 
 Domain values are grouped by stable authoring concepts rather than by internal
 subsystems:

@@ -11,9 +11,11 @@
 #include <new>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero::Meta {
 
-struct MetaRegistry::Storage final {
+using namespace Core;
+
+struct Registry::Storage final {
     struct ModuleRecord final {
         MetadataModuleId id = InvalidMetadataModuleId;
         std::uint32_t schemaVersion = 1U;
@@ -29,7 +31,7 @@ struct MetaRegistry::Storage final {
     ValueTable valueRegistrations;
     DependencyPropertyRegistry dependencyProperties;
     RoutedEventTable routedEvents;
-    Detail::MetaTable facets;
+    Core::Detail::MetaTable facets;
     Base::Vector<ModuleRecord> modules;
     Base::Vector<MetadataPropertyProviderRegistration> providers;
     bool sealed = false;
@@ -46,33 +48,33 @@ struct MetaRegistry::Storage final {
           providers() {}
 };
 
-MetaRegistry::MetaRegistry() noexcept
+Registry::Registry() noexcept
     : storage_(new (std::nothrow) Storage()) {}
 
-MetaRegistry::~MetaRegistry() noexcept {
+Registry::~Registry() noexcept {
     delete storage_;
     storage_ = nullptr;
 }
 
-Base::Status MetaRegistry::OutOfMemoryStatus() noexcept {
+Base::Status Registry::OutOfMemoryStatus() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::OutOfMemory,
-        "MetaRegistry storage allocation failed");
+        "Registry storage allocation failed");
 }
 
-bool MetaRegistry::IsValid() const noexcept {
+bool Registry::IsValid() const noexcept {
     return storage_ != nullptr;
 }
 
-bool MetaRegistry::IsSealed() const noexcept {
+bool Registry::IsSealed() const noexcept {
     return storage_ != nullptr && storage_->sealed;
 }
 
-std::uint32_t MetaRegistry::ModuleCount() const noexcept {
+std::uint32_t Registry::ModuleCount() const noexcept {
     return storage_ != nullptr ? storage_->modules.Size() : 0U;
 }
 
-Base::Result<void> MetaRegistry::ValidateRegistration(
+Base::Result<void> Registry::ValidateRegistration(
     const MetadataModuleRegistration& registration) noexcept {
     if (registration.id == InvalidMetadataModuleId ||
         registration.name.Empty() || registration.schemaVersion == 0U ||
@@ -92,7 +94,7 @@ Base::Result<void> MetaRegistry::ValidateRegistration(
     return {};
 }
 
-Base::Result<MetaRegistry::Storage*> MetaRegistry::BuildCandidate(
+Base::Result<Registry::Storage*> Registry::BuildCandidate(
     const MetadataModuleRegistration* extra,
     bool seal) const noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
@@ -103,13 +105,13 @@ Base::Result<MetaRegistry::Storage*> MetaRegistry::BuildCandidate(
     auto applyAndAppend = [candidate](
         const MetadataModuleRegistration& registration) noexcept
         -> Base::Result<void> {
-        Detail::MetaRegistrationState contextState{
+        Core::Detail::RegistrationState contextState{
             &candidate->types,
             &candidate->behaviorRegistrations,
             &candidate->valueRegistrations,
             &candidate->dependencyProperties,
             &candidate->routedEvents};
-        MetaRegistration context(&contextState);
+        Registration context(&contextState);
         Base::Result<void> applied = registration.registerModule != nullptr
             ? registration.registerModule(context)
             : registration.registerModuleWithContext(
@@ -199,13 +201,13 @@ Base::Result<MetaRegistry::Storage*> MetaRegistry::BuildCandidate(
     return candidate;
 }
 
-Base::Result<void> MetaRegistry::TryRegisterModule(
+Base::Result<void> Registry::TryRegisterModule(
     const MetadataModuleRegistration& registration) noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (storage_->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "MetaRegistry is sealed");
+            "Registry is sealed");
     }
     Base::Result<void> valid = ValidateRegistration(registration);
     if (!valid) return valid.GetStatus();
@@ -224,7 +226,7 @@ Base::Result<void> MetaRegistry::TryRegisterModule(
     return {};
 }
 
-Base::Result<void> MetaRegistry::Seal() noexcept {
+Base::Result<void> Registry::Seal() noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (storage_->sealed) return {};
     Base::Result<Storage*> candidate = BuildCandidate(nullptr, true);
@@ -234,37 +236,37 @@ Base::Result<void> MetaRegistry::Seal() noexcept {
     return {};
 }
 
-const TypeRegistry& MetaRegistry::Types() const noexcept {
+const TypeRegistry& Registry::Types() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->types;
 }
 
-DependencyPropertyRegistry& MetaRegistry::DependencyProperties() noexcept {
+DependencyPropertyRegistry& Registry::DependencyProperties() noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->dependencyProperties;
 }
 
-const DependencyPropertyRegistry& MetaRegistry::DependencyProperties() const noexcept {
+const DependencyPropertyRegistry& Registry::DependencyProperties() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->dependencyProperties;
 }
 
-void* MetaRegistry::RoutedEventState() noexcept {
+void* Registry::RoutedEventState() noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return &storage_->routedEvents;
 }
 
-const Detail::MetaTable& MetaRegistry::RuntimeData() const noexcept {
+const Core::Detail::MetaTable& Registry::RuntimeData() const noexcept {
     AERO_ASSERT(storage_ != nullptr);
     return storage_->facets;
 }
 
-Base::Result<Base::HashCode> MetaRegistry::ComputeSchemaHash() const noexcept {
+Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (!storage_->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "MetaRegistry schema hash requires a sealed domain");
+            "Registry schema hash requires a sealed domain");
     }
 
     Base::Result<Base::HashCode> descriptorHash =
@@ -273,7 +275,7 @@ Base::Result<Base::HashCode> MetaRegistry::ComputeSchemaHash() const noexcept {
     Base::Result<Base::HashCode> facetHash = storage_->facets.ComputeHash();
     if (!facetHash) return facetHash.GetStatus();
     Base::Result<Base::HashCode> valueFacetHash =
-        Detail::ComputeMetadataValueFacetHash(
+        Core::Detail::ComputeMetadataValueFacetHash(
             storage_->facets, storage_->types);
     if (!valueFacetHash) return valueFacetHash.GetStatus();
 
@@ -288,21 +290,24 @@ Base::Result<Base::HashCode> MetaRegistry::ComputeSchemaHash() const noexcept {
     return hash;
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta
 
-// Executable metadata operations share the MetaRegistry storage and lifetime.
+// Executable metadata operations share the Registry storage and lifetime.
 #include "MetaTable.hpp"
 #include <Aero/Meta/ValueConversion.hpp>
 #include <cstdio>
 
-namespace Aero::Core {
-Base::Result<void> MetaRegistry::TryRegisterPropertyProvider(
+namespace Aero::Meta {
+
+using namespace Core;
+
+Base::Result<void> Registry::TryRegisterPropertyProvider(
     const MetadataPropertyProviderRegistration& registration) noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (storage_->ready) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "MetaRegistry is complete");
+            "Registry is complete");
     }
     if (registration.id == InvalidPropertyProviderId ||
         registration.objectType == InvalidTypeId ||
@@ -321,7 +326,7 @@ Base::Result<void> MetaRegistry::TryRegisterPropertyProvider(
     return storage_->providers.TryPushBack(registration);
 }
 
-Base::Result<void> MetaRegistry::Complete() noexcept {
+Base::Result<void> Registry::Complete() noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
     if (storage_->ready) return {};
     if (!IsSealed() ||
@@ -330,21 +335,21 @@ Base::Result<void> MetaRegistry::Complete() noexcept {
         !RuntimeData().ValueFacetsSealed()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "MetaRegistry and all typed behavior must be sealed before MetaRegistry completion");
+            "Registry and all typed behavior must be sealed before Registry completion");
     }
     storage_->ready = true;
     return {};
 }
 
 
-bool MetaRegistry::IsReady() const noexcept {
+bool Registry::IsReady() const noexcept {
     return storage_ != nullptr && storage_->ready && storage_->sealed;
 }
 
-bool MetaRegistry::CanReadProperty(
+bool Registry::CanReadProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const Detail::PropertyAccessorFacet* accessor =
+    const Core::Detail::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
@@ -352,10 +357,10 @@ bool MetaRegistry::CanReadProperty(
           accessor->get != nullptr));
 }
 
-bool MetaRegistry::CanWriteProperty(
+bool Registry::CanWriteProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const Detail::PropertyAccessorFacet* accessor =
+    const Core::Detail::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
@@ -363,33 +368,33 @@ bool MetaRegistry::CanWriteProperty(
           accessor->set != nullptr));
 }
 
-bool MetaRegistry::CanReadValueMember(
+bool Registry::CanReadValueMember(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const Detail::ValueMemberAccessorFacet* accessor =
+    const Core::Detail::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     return accessor != nullptr && accessor->get != nullptr;
 }
 
-bool MetaRegistry::CanWriteValueMember(
+bool Registry::CanWriteValueMember(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
-    const Detail::ValueMemberAccessorFacet* accessor =
+    const Core::Detail::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     return accessor != nullptr && accessor->set != nullptr;
 }
 
-MemberId MetaRegistry::FindContentMember(
+MemberId Registry::FindContentMember(
     TypeId type) const noexcept {
     return IsReady()
         ? Types().FindContentMember(type)
         : InvalidMemberId;
 }
 
-Base::Result<ContentInfo> MetaRegistry::GetContentInfo(
+Base::Result<ContentInfo> Registry::GetContentInfo(
     MemberId member) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const Detail::ContentFacet* content =
+    const Core::Detail::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr) {
         return Base::Status::Failure(
@@ -405,12 +410,12 @@ Base::Result<ContentInfo> MetaRegistry::GetContentInfo(
         content->clear != nullptr};
 }
 
-Base::Result<void> MetaRegistry::WriteContent(
+Base::Result<void> Registry::WriteContent(
     Base::Object& owner,
     MemberId member,
     const Base::Ref<Base::Object>& value) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const Detail::ContentFacet* content =
+    const Core::Detail::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr || content->write == nullptr) {
         return Base::Status::Failure(
@@ -448,11 +453,11 @@ Base::Result<void> MetaRegistry::WriteContent(
     return content->write(owner, value, content->context);
 }
 
-Base::Result<void> MetaRegistry::ClearContent(
+Base::Result<void> Registry::ClearContent(
     Base::Object& owner,
     MemberId member) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const Detail::ContentFacet* content =
+    const Core::Detail::ContentFacet* content =
         RuntimeData().FindContentByMember(member);
     if (content == nullptr || content->clear == nullptr) {
         return Base::Status::Failure(
@@ -477,12 +482,12 @@ Base::Result<void> MetaRegistry::ClearContent(
 }
 
 Base::Result<std::uint64_t>
-MetaRegistry::SubscribePropertyChanged(
+Registry::SubscribePropertyChanged(
     Base::Object& object,
     MetadataPropertyChangedCallback callback,
     void* callbackContext) const noexcept {
     if (!IsReady()) return MetadataNotReady();
-    const Detail::PropertyChangeNotificationFacet* notification =
+    const Core::Detail::PropertyChangeNotificationFacet* notification =
         RuntimeData().FindPropertyChangeNotification(
             object.RuntimeType());
     if (notification == nullptr ||
@@ -496,12 +501,12 @@ MetaRegistry::SubscribePropertyChanged(
         notification->context);
 }
 
-Base::Result<bool> MetaRegistry::UnsubscribePropertyChanged(
+Base::Result<bool> Registry::UnsubscribePropertyChanged(
     Base::Object& object,
     std::uint64_t subscription) const noexcept {
     if (!IsReady()) return MetadataNotReady();
     if (subscription == 0U) return false;
-    const Detail::PropertyChangeNotificationFacet* notification =
+    const Core::Detail::PropertyChangeNotificationFacet* notification =
         RuntimeData().FindPropertyChangeNotification(
             object.RuntimeType());
     if (notification == nullptr ||
@@ -515,10 +520,10 @@ Base::Result<bool> MetaRegistry::UnsubscribePropertyChanged(
 }
 
 Base::Result<Base::Ref<Base::Object>>
-MetaRegistry::CreateObject(TypeId type) const noexcept {
+Registry::CreateObject(TypeId type) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const TypeInfo* descriptor = Types().FindType(type);
-    const Detail::TypeFactoryFacet* factory =
+    const Core::Detail::TypeFactoryFacet* factory =
         RuntimeData().FindTypeFactory(type);
     if (descriptor == nullptr) {
         return Base::Status::Failure(
@@ -557,12 +562,12 @@ MetaRegistry::CreateObject(TypeId type) const noexcept {
     return created;
 }
 
-Base::Result<Value> MetaRegistry::TryCreateValue(
+Base::Result<Value> Registry::TryCreateValue(
     TypeId type,
     const void* source) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const TypeInfo* descriptor = Types().FindType(type);
-    const Detail::ValueSemanticsFacet* behavior =
+    const Core::Detail::ValueSemanticsFacet* behavior =
         RuntimeData().FindValueSemantics(type);
     if (descriptor == nullptr) {
         return Base::Status::Failure(
@@ -580,7 +585,7 @@ Base::Result<Value> MetaRegistry::TryCreateValue(
         type, source, behavior->semantics);
 }
 
-Base::Result<Value> MetaRegistry::TryConvertText(
+Base::Result<Value> Registry::TryConvertText(
     TypeId type,
     Base::StringView text) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
@@ -593,7 +598,7 @@ Base::Result<Value> MetaRegistry::TryConvertText(
     if (descriptor->Kind() == MetadataTypeKind::Enum) {
         return TryConvertEnumText(*descriptor, text);
     }
-    const Detail::TextConverterFacet* converter =
+    const Core::Detail::TextConverterFacet* converter =
         RuntimeData().FindTextConverter(type);
     if (converter == nullptr ||
         converter->convert == nullptr) {
@@ -613,12 +618,12 @@ Base::Result<Value> MetaRegistry::TryConvertText(
     return converted;
 }
 
-Base::Result<Value> MetaRegistry::GetValueMember(
+Base::Result<Value> Registry::GetValueMember(
     const Value& owner,
     MemberId member) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const FieldInfo* field = Types().FindField(member);
-    const Detail::ValueMemberAccessorFacet* accessor =
+    const Core::Detail::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     if (field == nullptr ||
         accessor == nullptr ||
@@ -636,7 +641,7 @@ Base::Result<Value> MetaRegistry::GetValueMember(
     }
     Base::Result<Value> result = accessor->get(
         owner.AsCustom(),
-        const_cast<MetaRegistry&>(*this),
+        const_cast<Registry&>(*this),
         accessor->context);
     if (!result) return result.GetStatus();
     if (result.Value().IsUnset() ||
@@ -648,13 +653,13 @@ Base::Result<Value> MetaRegistry::GetValueMember(
     return result;
 }
 
-Base::Result<void> MetaRegistry::SetValueMember(
+Base::Result<void> Registry::SetValueMember(
     Value& owner,
     MemberId member,
     const Value& value) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const FieldInfo* field = Types().FindField(member);
-    const Detail::ValueMemberAccessorFacet* accessor =
+    const Core::Detail::ValueMemberAccessorFacet* accessor =
         RuntimeData().FindValueMemberAccessor(member);
     if (field == nullptr || accessor == nullptr) {
         return Base::Status::Failure(
@@ -687,11 +692,11 @@ Base::Result<void> MetaRegistry::SetValueMember(
     return accessor->set(
         owner.MutableCustom(),
         value,
-        const_cast<MetaRegistry&>(*this),
+        const_cast<Registry&>(*this),
         accessor->context);
 }
 
-Base::Result<Value> MetaRegistry::GetProperty(
+Base::Result<Value> Registry::GetProperty(
     const Base::Object& object,
     MemberId member) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
@@ -711,7 +716,7 @@ Base::Result<Value> MetaRegistry::GetProperty(
             Base::ErrorCode::Unsupported,
             "Write-only metadata property cannot be read");
     }
-    const Detail::PropertyAccessorFacet* accessor =
+    const Core::Detail::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     if (accessor == nullptr) return UnsupportedProperty();
 
@@ -756,7 +761,7 @@ Base::Result<Value> MetaRegistry::GetProperty(
     return value;
 }
 
-Base::Result<void> MetaRegistry::SetProperty(
+Base::Result<void> Registry::SetProperty(
     Base::Object& object,
     MemberId member,
     const Value& value) const noexcept {
@@ -782,7 +787,7 @@ Base::Result<void> MetaRegistry::SetProperty(
             Base::ErrorCode::ReadOnly,
             "Read-only metadata property cannot be written");
     }
-    const Detail::PropertyAccessorFacet* accessor =
+    const Core::Detail::PropertyAccessorFacet* accessor =
         RuntimeData().FindPropertyAccessor(member);
     if (accessor == nullptr) return UnsupportedProperty();
 
@@ -839,13 +844,13 @@ Base::Result<void> MetaRegistry::SetProperty(
     return UnsupportedProperty();
 }
 
-Base::Result<Value> MetaRegistry::InvokeMethod(
+Base::Result<Value> Registry::InvokeMethod(
     Base::Object& object,
     MemberId member,
     Base::Span<const Value> arguments) const noexcept {
     if (!storage_->ready) return MetadataNotReady();
     const MethodInfo* method = Types().FindMethod(member);
-    const Detail::MethodInvokerFacet* invoker =
+    const Core::Detail::MethodInvokerFacet* invoker =
         RuntimeData().FindMethodInvoker(member);
     if (method == nullptr ||
         invoker == nullptr ||
@@ -892,26 +897,26 @@ Base::Result<Value> MetaRegistry::InvokeMethod(
     return result;
 }
 
-bool MetaRegistry::HasPropertyFlag(
+bool Registry::HasPropertyFlag(
     PropertyFlags value,
     PropertyFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
             static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Base::Status MetaRegistry::MetadataNotReady() noexcept {
+Base::Status Registry::MetadataNotReady() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::InvalidState,
-        "MetaRegistry is not complete");
+        "Registry is not complete");
 }
 
-Base::Status MetaRegistry::UnsupportedProperty() noexcept {
+Base::Status Registry::UnsupportedProperty() noexcept {
     return Base::Status::Failure(
         Base::ErrorCode::Unsupported,
         "Metadata property has no usable accessor");
 }
 
-bool MetaRegistry::IsRegisteredEnumValue(
+bool Registry::IsRegisteredEnumValue(
     TypeId type,
     const Value& value) const noexcept {
     const TypeInfo* info = Types().FindType(type);
@@ -934,7 +939,7 @@ bool MetaRegistry::IsRegisteredEnumValue(
             type, value.AsUnsignedInteger());
 }
 
-Base::Result<Value> MetaRegistry::TryConvertEnumText(
+Base::Result<Value> Registry::TryConvertEnumText(
     const TypeInfo& type,
     Base::StringView input) const noexcept {
     Base::StringView remaining =
@@ -1001,7 +1006,7 @@ Base::Result<Value> MetaRegistry::TryConvertEnumText(
         : Value::FromUnsignedInteger(type.Id(), raw);
 }
 
-Base::Result<void> MetaRegistry::ValidatePropertyTarget(
+Base::Result<void> Registry::ValidatePropertyTarget(
     const Base::Object& object,
     const PropertyInfo& property) const noexcept {
     if (HasPropertyFlag(
@@ -1025,7 +1030,7 @@ Base::Result<void> MetaRegistry::ValidatePropertyTarget(
         "Object type is incompatible with the metadata property");
 }
 
-Base::Result<Value> MetaRegistry::GetDependencyProperty(
+Base::Result<Value> Registry::GetDependencyProperty(
     const Base::Object& object,
     const PropertyInfo& property) const noexcept {
     const DependencyPropertyHandle handle{property.Id()};
@@ -1050,7 +1055,7 @@ Base::Result<Value> MetaRegistry::GetDependencyProperty(
     return dependencyObject.GetValue(handle);
 }
 
-Base::Result<void> MetaRegistry::SetDependencyProperty(
+Base::Result<void> Registry::SetDependencyProperty(
     Base::Object& object,
     const PropertyInfo& property,
     const Value& value) const noexcept {
@@ -1077,7 +1082,7 @@ Base::Result<void> MetaRegistry::SetDependencyProperty(
 }
 
 const MetadataPropertyProviderRegistration*
-MetaRegistry::FindProvider(
+Registry::FindProvider(
     PropertyProviderId id) const noexcept {
     for (const MetadataPropertyProviderRegistration& provider :
          storage_->providers) {
@@ -1087,4 +1092,4 @@ MetaRegistry::FindProvider(
 }
 
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

@@ -154,14 +154,14 @@ Base::Result<Core::SourcePosition> ReadPosition(
 Base::Result<CompiledDocument>
 CompiledDocument::Compile(
     NodeReader& reader,
-    const Core::MetaRegistry& domain) noexcept {
+    const ::Aero::Meta::Registry& domain) noexcept {
     return Compile(reader, domain, {});
 }
 
 Base::Result<CompiledDocument>
 CompiledDocument::Compile(
     NodeReader& reader,
-    const Core::MetaRegistry& domain,
+    const ::Aero::Meta::Registry& domain,
     const Base::ResourceUri& originUri) noexcept {
     Base::Result<CompiledCacheIdentity> identity =
         BuildCompiledCacheIdentity(domain);
@@ -283,7 +283,7 @@ CompiledDocument::Serialize() const noexcept {
 Base::Result<CompiledDocument>
 CompiledDocument::Deserialize(
     Base::Span<const std::uint8_t> bytes,
-    const Core::MetaRegistry& domain,
+    const ::Aero::Meta::Registry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     if (limits.maxNodes == 0U ||
         limits.maxStringBytes == 0U) {

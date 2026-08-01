@@ -1,6 +1,6 @@
 #pragma once
 
-// Private element state and direct GUI runtime declarations.
+// Private element state and direct Gui runtime declarations.
 
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
@@ -262,7 +262,7 @@ struct VisualLease final {
 
 } // namespace Aero::Detail
 
-// Per-view GUI context and element attachment state.
+// Per-view Gui context and element attachment state.
 
 #include <Aero/Threading.hpp>
 #include "gui/PropertyInternal.hpp"

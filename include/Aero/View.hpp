@@ -7,11 +7,11 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Module.hpp>
-#include <Aero/Media/Geometry.hpp>
 #include <Aero/Input/Values.hpp>
+#include <Aero/Layout.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Media/Geometry.hpp>
+#include <Aero/Module.hpp>
 
 #include <cstdint>
 
@@ -22,59 +22,14 @@ class IDiagnosticSink;
 namespace Aero {
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
-
 enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
-
 enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
-
-struct ViewLayoutDiagnostics final {
-    std::uint64_t passVersion = 0U;
-    std::uint32_t measuredCount = 0U;
-    std::uint32_t arrangedCount = 0U;
-    std::uint32_t pendingMeasureCount = 0U;
-    std::uint32_t pendingArrangeCount = 0U;
-};
-
-struct ViewRenderDiagnostics final {
-    std::uint64_t snapshotVersion = 0U;
-    std::uint32_t nodeCount = 0U;
-    std::uint32_t commandCount = 0U;
-    std::uint32_t glyphCommandCount = 0U;
-    std::uint32_t dirtyCount = 0U;
-    std::uint64_t snapshotHash = 0U;
-    std::uint32_t drawPacketCount = 0U;
-    std::uint32_t batchCount = 0U;
-    std::uint32_t drawCallCount = 0U;
-    std::uint32_t mergedPacketCount = 0U;
-    std::uint32_t barrierCount = 0U;
-    std::uint32_t instanceCount = 0U;
-    std::uint32_t stateBindingCount = 0U;
-    bool batchingEnabled = true;
-};
-
-struct ViewFrameResult final {
-    std::uint64_t frameNumber = 0U;
-    std::uint32_t callbackCount = 0U;
-    ViewLayoutDiagnostics layout;
-    ViewRenderDiagnostics render;
-};
-
-} // namespace Aero
-
-namespace Aero {
 
 class FrameworkElement;
 class View;
-namespace Controls {
-class ContentControl;
-}
-namespace Detail {
-struct ViewData;
-}
-namespace Markup {
-class XamlReader;
-}
-
+namespace Controls { class ContentControl; }
+namespace Detail { struct ViewData; }
+namespace Markup { class XamlReader; }
 namespace App::Detail { class DesktopHost; }
 
 namespace Integration {
@@ -84,17 +39,16 @@ class ReloadCoordinator;
 struct ViewOptions;
 }
 
-// Process/application-level immutable composition. Its internal state is
-// reference counted so views remain valid when the lightweight environment
-// facade is released. Modules and schemas are still frozen exactly once.
-class AERO_API GUI final {
+// Process-level GUI composition used by embedded hosts. Application owns this
+// object automatically for desktop programs; engine integrations create one,
+// register optional modules, initialize it once and create one or more Views.
+class AERO_API Gui final {
 public:
-    explicit GUI(
-        Base::IAllocator* allocator = nullptr) noexcept;
-    ~GUI() noexcept;
+    explicit Gui(Base::IAllocator* allocator = nullptr) noexcept;
+    ~Gui() noexcept;
 
-    GUI(const GUI&) = delete;
-    GUI& operator=(const GUI&) = delete;
+    Gui(const Gui&) = delete;
+    Gui& operator=(const Gui&) = delete;
 
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
@@ -115,17 +69,17 @@ private:
     Base::Ref<Base::Object> impl_;
 };
 
+// Host-driven retained-mode view. The public surface is intentionally limited
+// to content, size, frame update, input and RenderDevice attachment. XAML,
+// resource-layer and fragment operations live on Markup::XamlReader.
 class AERO_API View final : public Base::Object {
     struct ConstructionToken final {};
+    struct FrameResult;
 
 public:
-    // Factory-only construction: ConstructionToken is private and can only be
-    // produced by GUI. The declaration remains public because
-    // Base::MakeRefWithAllocator verifies nothrow construction with a standard
-    // type trait, which cannot inspect private constructors.
     View(
         ConstructionToken,
-        GUI& gui,
+        Gui& gui,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~View() noexcept override;
 
@@ -135,58 +89,29 @@ public:
     Base::Result<void> SetContent(
         UiDocument&& document,
         Aero::Size availableSize) noexcept;
-    // Programmatic root overload used by Application::Run(Window) and native
-    // hosts. The root must be created through Aero::Base::MakeRef.
     Base::Result<void> SetContent(
         Base::Ref<FrameworkElement> root,
         Aero::Size availableSize) noexcept;
-    // Mounts a separately loaded XAML document into an already mounted
-    // ContentControl. The document keeps its own names, resources and
-    // deferred effects until UnmountContent() is called.
-    Base::Result<void> MountContent(
-        Controls::ContentControl& host,
-        UiDocument&& document) noexcept;
-    Base::Result<void> UnmountContent(
-        Controls::ContentControl& host) noexcept;
-    Base::Result<void> LoadResources(
-        ResourceLayer layer,
-        Base::StringView uri,
-        ResourceLoadMode mode =
-            ResourceLoadMode::Replace,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<void> LoadCompiledResources(
-        ResourceLayer layer,
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri,
-        ResourceLoadMode mode =
-            ResourceLoadMode::Replace) noexcept;
-    Base::Result<void> SetResourceDictionary(
-        ResourceLayer layer,
-        Aero::ResourceDictionary& dictionary,
-        ResourceLoadMode mode =
-            ResourceLoadMode::Replace) noexcept;
-    Base::Result<void> LoadBuiltInTheme(
-        BuiltInTheme theme) noexcept;
+    FrameworkElement* GetContent() noexcept;
+    const FrameworkElement* GetContent() const noexcept;
 
-    Base::Result<void> Resize(
-        Aero::Size availableSize) noexcept;
-    Base::Result<void> Unmount() noexcept;
-    Base::Result<ViewFrameResult> Update(
+    Base::Result<void> SetSize(Aero::Size availableSize) noexcept;
+    Base::Result<void> Update(
         std::uint32_t elapsedMilliseconds = 0U) noexcept;
+
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
     Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
         const Input::KeyboardInput& input) noexcept;
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
+
     Base::Result<void> SetRenderDevice(
         Base::Ref<Integration::RenderDevice> device,
         bool automaticAnimationClock = true) noexcept;
 
-    const Base::Ref<Base::Object>& Root() const noexcept;
-
 private:
-    friend class GUI;
+    friend class Gui;
     friend class Aero::Markup::XamlReader;
     friend class Aero::App::Detail::DesktopHost;
     friend class Integration::ReloadCoordinator;
@@ -210,7 +135,29 @@ private:
         Integration::ISourceProvider& provider,
         Base::StringView scheme = {},
         Base::StringView assembly = {}) noexcept;
-    Base::Result<ViewFrameResult> ExecuteFrame() noexcept;
+
+    Base::Result<void> MountContent(
+        Controls::ContentControl& host,
+        UiDocument&& document) noexcept;
+    Base::Result<void> UnmountContent(
+        Controls::ContentControl& host) noexcept;
+    Base::Result<void> LoadResources(
+        ResourceLayer layer,
+        Base::StringView uri,
+        ResourceLoadMode mode = ResourceLoadMode::Replace,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<void> LoadCompiledResources(
+        ResourceLayer layer,
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri,
+        ResourceLoadMode mode = ResourceLoadMode::Replace) noexcept;
+    Base::Result<void> SetResourceDictionary(
+        ResourceLayer layer,
+        Aero::ResourceDictionary& dictionary,
+        ResourceLoadMode mode = ResourceLoadMode::Replace) noexcept;
+    Base::Result<void> LoadBuiltInTheme(BuiltInTheme theme) noexcept;
+
+    Base::Result<FrameResult> ExecuteFrame() noexcept;
     Base::Result<std::uint32_t> AdvanceClocks(
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<std::uint32_t> AdvanceAnimations(
@@ -230,6 +177,7 @@ private:
     Base::Result<void> ReplaceMountedDocument(
         UiDocument&& document,
         Aero::Size availableSize) noexcept;
+    Base::Result<void> Unmount() noexcept;
     Base::Object* FindNamedObject(
         Base::StringView name,
         Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
@@ -248,6 +196,7 @@ private:
     bool IsInstanceOf(
         const Base::Object& object,
         Core::TypeId baseType) const noexcept;
+
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> gui_;
     Detail::ViewData* state_ = nullptr;

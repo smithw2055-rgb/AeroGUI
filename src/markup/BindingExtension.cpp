@@ -322,7 +322,7 @@ Base::Result<void> ParseArguments(
 
 struct DeferredBindingState final {
     Aero::Detail::BindingEngine* manager = nullptr;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     ::Aero::DependencyObject* target = nullptr;
     Core::DependencyPropertyHandle targetProperty;
@@ -448,7 +448,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Binding Source, ElementName, and RelativeSource are mutually exclusive");
     }
 
-    Core::MetaRegistry* metadata =
+    ::Aero::Meta::Registry* metadata =
         Detail::SchemaPrivate::Metadata(
             *services.schema);
     const Core::PropertyInfo* targetMember =

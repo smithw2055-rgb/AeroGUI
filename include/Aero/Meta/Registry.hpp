@@ -10,6 +10,8 @@
 
 #include <cstdint>
 
+namespace Aero::Meta { class Registration; }
+
 namespace Aero::Core {
 
 namespace Detail {
@@ -65,9 +67,9 @@ constexpr MetadataModuleId MakeMetadataModuleId(
 }
 
 using MetadataModuleRegisterCallback = Base::Result<void> (*)(
-    MetaRegistration& context) noexcept;
+    Meta::Registration& context) noexcept;
 using MetadataModuleRegisterContextCallback = Base::Result<void> (*)(
-    MetaRegistration& context,
+    Meta::Registration& context,
     void* userContext) noexcept;
 
 struct MetadataModuleRegistration final {
@@ -79,7 +81,26 @@ struct MetadataModuleRegistration final {
     void* context = nullptr;
 };
 
-// A MetaRegistry has two explicit phases:
+} // namespace Aero::Core
+
+namespace Aero::Meta {
+
+using Core::ContentInfo;
+using Core::DependencyPropertyRegistry;
+using Core::MemberId;
+using Core::MetadataCollectionChangedCallback;
+using Core::MetadataModuleRegistration;
+using Core::MetadataPropertyChangedCallback;
+using Core::MetadataPropertyProviderRegistration;
+using Core::PropertyFlags;
+using Core::PropertyInfo;
+using Core::PropertyProviderId;
+using Core::TypeId;
+using Core::TypeInfo;
+using Core::TypeRegistry;
+using Core::Value;
+
+// Registry has two explicit phases:
 //
 // 1. Registration phase: deterministic module callbacks populate mutable
 //    TypeRegistry, dependency/routed registries, and registration value services.
@@ -90,15 +111,15 @@ struct MetadataModuleRegistration final {
 // registration-value views obtained before the next module
 // transaction are provisional because a successful transaction replaces the
 // complete candidate storage.
-class AERO_API MetaRegistry final {
+class AERO_API Registry final {
 public:
-    MetaRegistry() noexcept;
-    ~MetaRegistry() noexcept;
+    Registry() noexcept;
+    ~Registry() noexcept;
 
-    MetaRegistry(const MetaRegistry&) = delete;
-    MetaRegistry& operator=(const MetaRegistry&) = delete;
-    MetaRegistry(MetaRegistry&&) = delete;
-    MetaRegistry& operator=(MetaRegistry&&) = delete;
+    Registry(const Registry&) = delete;
+    Registry& operator=(const Registry&) = delete;
+    Registry(Registry&&) = delete;
+    Registry& operator=(Registry&&) = delete;
 
     bool IsValid() const noexcept;
     bool IsSealed() const noexcept;
@@ -163,20 +184,20 @@ public:
         Base::Span<const Value> arguments) const noexcept;
 
     // Structural registration data is exposed read-only. Mutable registration
-    // is confined to module callbacks and their MetaRegistration.
+    // is confined to module callbacks and their Registration.
     const TypeRegistry& Types() const noexcept;
     const DependencyPropertyRegistry& DependencyProperties() const noexcept;
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
 
 private:
-    friend class Detail::MetadataPrivate;
+    friend class Core::Detail::MetadataPrivate;
 
     struct Storage;
     Storage* storage_ = nullptr;
 
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     void* RoutedEventState() noexcept;
-    const Detail::MetaTable& RuntimeData() const noexcept;
+    const Core::Detail::MetaTable& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;
     static bool HasPropertyFlag(
@@ -210,4 +231,5 @@ private:
         bool seal) const noexcept;
 };
 
-} // namespace Aero::Core
+
+} // namespace Aero::Meta

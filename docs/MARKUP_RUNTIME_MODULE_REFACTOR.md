@@ -9,7 +9,7 @@ Accepted and implemented through the root runtime/module, explicit load context,
 
 Implemented boundaries:
 
-1. Product composition lives at the Aero root through `GUI` and
+1. Product composition lives at the Aero root through `Gui` and
    `View`; the catalog and dependency ordering used to freeze modules are
    private implementation details shared with host tools.
 2. Markup no longer owns runtime composition, window/runtime service compatibility shims, or duplicate module manifests.
@@ -27,7 +27,7 @@ Implemented boundaries:
 14. `ResourceDictionary` stores `Core::Value`, so scalar, custom-value, null-object, and object resources share one lookup contract. Local document resources override the optional application/module dictionary supplied through `XamlLoadState`.
 15. Metadata value types are valid XAML value elements. For example, `<Color x:Key="Accent" Value="#FF0067C0"/>` converts through the registered value converter and enters the ordinary resource dictionary without an object wrapper.
 16. Built-in `ResourceDictionary`, `ControlTemplate`, `VisualStateGroup`, `VisualState`, and `Setter` objects are registered by the `Aero.Markup` metadata module. `Generic.xaml`, `Light.xaml`, and `Dark.xaml` are loaded by `XamlObjectWriter`; the private theme DOM/parser and `XamlThemeResources.cpp` are removed.
-17. Template prototypes are compiled from metadata-created visual objects, ordinary dependency-property local values, content facets, and XAML name scopes. Runtime template instances are recreated through `MetaRegistry::CreateObject`, not a control-kind switch.
+17. Template prototypes are compiled from metadata-created visual objects, ordinary dependency-property local values, content facets, and XAML name scopes. Runtime template instances are recreated through `Meta::Registry::CreateObject`, not a control-kind switch.
 18. Built-in and application XAML now share the same schema resolution, object creation, member assignment, resource lookup, value conversion, and initialization transaction semantics.
 
 19. XAML behavior registration is centralized in a frozen `XamlFacets`; `XamlSchemaContext` no longer maintains separate member/type/extension arrays.

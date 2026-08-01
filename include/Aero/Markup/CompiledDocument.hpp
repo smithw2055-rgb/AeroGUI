@@ -554,7 +554,7 @@ enum class CompiledCacheCompatibility : std::uint8_t {
 
 AERO_API Base::Result<CompiledCacheIdentity>
 BuildCompiledCacheIdentity(
-    const Core::MetaRegistry& domain) noexcept;
+    const ::Aero::Meta::Registry& domain) noexcept;
 
 AERO_API CompiledCacheCompatibility
 CompareCompiledCacheIdentity(
@@ -563,7 +563,7 @@ CompareCompiledCacheIdentity(
 
 AERO_API Base::Result<void> ValidateCompiledCacheIdentity(
     const CompiledCacheIdentity& cached,
-    const Core::MetaRegistry& currentDomain) noexcept;
+    const ::Aero::Meta::Registry& currentDomain) noexcept;
 
 struct CompiledDocumentLimits final {
     std::uint32_t maxNodes = 100000U;
@@ -586,10 +586,10 @@ public:
 
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
-        const Core::MetaRegistry& domain) noexcept;
+        const ::Aero::Meta::Registry& domain) noexcept;
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
-        const Core::MetaRegistry& domain,
+        const ::Aero::Meta::Registry& domain,
         const Base::ResourceUri& originUri) noexcept;
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
@@ -613,7 +613,7 @@ public:
     Serialize() const noexcept;
     static Base::Result<CompiledDocument> Deserialize(
         Base::Span<const std::uint8_t> bytes,
-        const Core::MetaRegistry& domain,
+        const ::Aero::Meta::Registry& domain,
         const CompiledDocumentLimits& limits = {}) noexcept;
 
     const CompiledCacheIdentity& Identity() const noexcept {

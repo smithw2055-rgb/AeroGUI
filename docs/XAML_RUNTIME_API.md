@@ -4,7 +4,7 @@ The public SDK is organized as Base, Gui, Meta, Integration, App and optional Au
 application and control code does not construct runtime managers or renderer
 objects.
 
-## GUI and Meta authoring
+## Gui and Meta authoring
 
 Normal control code includes `Aero/Gui.hpp`; custom types additionally include
 `Aero/Meta.hpp` and `Aero/Module.hpp`:
@@ -85,7 +85,7 @@ Embedded hosts link `Aero::Integration` and explicitly compose a View:
 #include <Aero/Integration.hpp>
 #include <Aero/Integration/D3D11.hpp>
 
-Aero::GUI environment;
+Aero::Gui environment;
 environment.AddModule(module);
 environment.Initialize();
 
@@ -96,7 +96,7 @@ options.renderDevice = std::move(endpoint).Value();
 auto created = environment.CreateView(options);
 ```
 
-`GUI` freezes module/schema composition. Each View owns resource,
+`Gui` freezes module/schema composition. Each View owns resource,
 interaction, layout, text and frame state. `RenderDevice` remains opaque.
 Concrete backends are opt-in and never leak renderer or RenderDevice
 implementation objects into Gui. The host drives frames through `View::Update()`.

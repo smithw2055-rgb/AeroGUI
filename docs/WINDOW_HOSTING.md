@@ -29,12 +29,12 @@ WindowPeer or application service locator is required.
 An engine or editor host uses the explicit Integration surface:
 
 ```cpp
-Aero::GUI environment;
+Aero::Gui environment;
 environment.AddModule(module);
 environment.Initialize();
 
 Aero::Integration::ViewOptions options;
-options.renderDevice = endpoint;
+options.renderDevice = renderDevice;
 auto view = environment.CreateView(options).Value();
 
 Aero::Markup::XamlReader reader(*view);
@@ -42,14 +42,14 @@ reader.RegisterSourceProvider(sourceProvider, "app");
 auto document = reader.Load("app:///MainView.xaml").Value();
 view->SetContent(std::move(document), logicalSize);
 
-view->Resize(logicalSize);
-endpoint->Resize(pixelWidth, pixelHeight);
+view->SetSize(logicalSize);
+renderDevice->Resize(pixelWidth, pixelHeight);
 view->Update(elapsedMilliseconds);
 ```
 
 `View::Update()` advances host-driven clocks, processes property/binding/input
 work, commits an immutable `RenderFrame`, and submits it synchronously to the
-bound endpoint. AeroGUI creates no hidden render thread or frame queue. Engines
+bound RenderDevice. AeroGUI creates no hidden render thread or frame queue. Engines
 may call Update from their chosen scheduling point, but mutable UI objects must
 remain on the View owner thread.
 
@@ -63,11 +63,11 @@ IME message handling, WGL and GLX context carriers live under
 ## Device and surface loss
 
 ```cpp
-endpoint->NotifySurfaceLost(); // or NotifyDeviceLost()
-endpoint->Restore();
+renderDevice->NotifySurfaceLost(); // or NotifyDeviceLost()
+renderDevice->Restore();
 view->Update(elapsedMilliseconds);
 ```
 
-Loss advances the endpoint generation and invalidates backend image, mesh and
+Loss advances the device generation and invalidates backend image, mesh and
 glyph resources. The next successful update submits a complete immutable
 snapshot. Renderer, native surface and GPU resource caches remain private.

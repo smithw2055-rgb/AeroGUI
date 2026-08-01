@@ -366,7 +366,7 @@ template<class T>
 class TypeDescription final {
 public:
     explicit TypeDescription(
-        MetaRegistration& context,
+        Meta::Registration& context,
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateDescriptionSession<T>(
               context, flags)) {}
@@ -784,11 +784,18 @@ private:
     Detail::MetadataAuthoringSession builder_;
 };
 
+} // namespace Aero::Core
+
+namespace Aero::Meta {
+
+// Public metadata authoring entry. The fluent description object is an
+// implementation type, while module code only names Meta::Describe and
+// Meta::Registration.
 template<class T>
-TypeDescription<T> Describe(
-    MetaRegistration& context,
-    TypeFlags flags = TypeFlags::None) noexcept {
-    return TypeDescription<T>(context, flags);
+Core::TypeDescription<T> Describe(
+    Registration& registration,
+    Core::TypeFlags flags = Core::TypeFlags::None) noexcept {
+    return Core::TypeDescription<T>(registration, flags);
 }
 
-} // namespace Aero::Core
+} // namespace Aero::Meta

@@ -6,81 +6,81 @@
 
 namespace Aero::Core {
 Base::Result<void> Detail::PopulateCoreMetadata(
-    MetaRegistration& context) noexcept {
+    Meta::Registration& context) noexcept {
     Base::Result<void> status;
 
-    status = Describe<Base::Object>(context).Result();
+    status = Meta::Describe<Base::Object>(context).Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<bool>(context)
+    status = Meta::Describe<bool>(context)
         .TextConverter<&ValueConversion::ConvertBoolean>()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<std::int8_t>(context)
+    status = Meta::Describe<std::int8_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::int8_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::int16_t>(context)
+    status = Meta::Describe<std::int16_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::int16_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::int32_t>(context)
+    status = Meta::Describe<std::int32_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::int32_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::int64_t>(context)
+    status = Meta::Describe<std::int64_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::int64_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::uint8_t>(context)
+    status = Meta::Describe<std::uint8_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::uint8_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::uint16_t>(context)
+    status = Meta::Describe<std::uint16_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::uint16_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::uint32_t>(context)
+    status = Meta::Describe<std::uint32_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::uint32_t>>()
         .Result();
     if (!status) return status.GetStatus();
-    status = Describe<std::uint64_t>(context)
+    status = Meta::Describe<std::uint64_t>(context)
         .TextConverter<
             &ValueConversion::ConvertInteger<std::uint64_t>>()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<double>(context)
+    status = Meta::Describe<double>(context)
         .TextConverter<&ValueConversion::ConvertDouble>()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<Base::String>(context)
+    status = Meta::Describe<Base::String>(context)
         .TextConverter<&ValueConversion::ConvertString>()
         .Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<Value>(context).Result();
+    status = Meta::Describe<Value>(context).Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<TypeReference>(context).Result();
+    status = Meta::Describe<TypeReference>(context).Result();
     if (!status) return status.GetStatus();
 
-    status = Describe<Base::ResourceUri>(context)
+    status = Meta::Describe<Base::ResourceUri>(context)
         .ValueSemantics()
         .TextConverter<&ValueConversion::ConvertResourceUri>()
         .Result();
     if (!status) return status.GetStatus();
 
-    return Describe<DependencyObject>(
+    return Meta::Describe<DependencyObject>(
         context, TypeFlags::Abstract).Result();
 }
 

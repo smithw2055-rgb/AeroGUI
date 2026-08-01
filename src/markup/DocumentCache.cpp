@@ -474,7 +474,7 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
     const Base::ResourceUri& uri,
     std::uint64_t sourceRevision,
     std::uint64_t sourceIdentity,
-    const Core::MetaRegistry& domain,
+    const ::Aero::Meta::Registry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     DocumentCacheLookup result;
     if (impl_ == nullptr || uri.Empty()) return result;

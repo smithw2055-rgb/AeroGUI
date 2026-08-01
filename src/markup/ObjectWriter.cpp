@@ -22,7 +22,7 @@ Base::Result<void> DeferredContentPlan::Stage(
     Base::Object& owner,
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
-    Core::MetaRegistry& metadata,
+    ::Aero::Meta::Registry& metadata,
     Core::MemberId member) noexcept {
     if (!child || member == Core::InvalidMemberId ||
         !metadata.IsReady()) {
@@ -51,7 +51,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
     Base::Object& owner,
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
-    Core::MetaRegistry& metadata,
+    ::Aero::Meta::Registry& metadata,
     Core::MemberId member) noexcept {
     if (!child ||
         member == Core::InvalidMemberId) {
@@ -107,7 +107,7 @@ Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object* source,
     ::Aero::DependencyObject& target,
     Aero::Detail::BindingEngine& manager,
-    Core::MetaRegistry& metadata,
+    ::Aero::Meta::Registry& metadata,
     Core::DependencyPropertyHandle targetProperty,
     Core::DependencyPropertyHandle dataContextProperty,
     Base::StringView path,
@@ -299,7 +299,7 @@ Base::Result<void> ObjectWriter::StageContent(
             "XAML visual content requires a non-null object");
     }
 
-    Core::MetaRegistry* metadata = schema.Metadata();
+    ::Aero::Meta::Registry* metadata = schema.Metadata();
     if (metadata == nullptr) {
         return InvalidContentState(
             "XAML content metadata is unavailable");

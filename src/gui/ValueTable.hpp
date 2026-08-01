@@ -16,7 +16,7 @@ class RegistrationValues;
 
 // Mutable registration storage for custom value semantics and text converters.
 //
-// The store is owned beside TypeRegistry by MetaRegistry. It validates type
+// The store is owned beside TypeRegistry by Meta::Registry. It validates type
 // identities through the structural registry, but does not make executable
 // value behavior part of TypeRegistry's ownership or public API.
 class AERO_API ValueTable final {

@@ -11,7 +11,7 @@
 namespace Aero {
 
 
-GUI::GUI(
+Gui::Gui(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
@@ -28,20 +28,20 @@ GUI::GUI(
     impl_ = Base::Ref<Base::Object>(std::move(made).Value());
 }
 
-GUI::~GUI() noexcept = default;
+Gui::~Gui() noexcept = default;
 
-Base::Result<void> GUI::AddModule(
+Base::Result<void> Gui::AddModule(
     const ModuleRegistration& registration) noexcept {
     Impl& state = static_cast<Impl&>(*impl_);
     if (state.initialized) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "GUI modules are frozen");
+            "Gui modules are frozen");
     }
     return state.modules.Add(registration);
 }
 
-Base::Result<void> GUI::Initialize() noexcept {
+Base::Result<void> Gui::Initialize() noexcept {
     Impl& state = static_cast<Impl&>(*impl_);
     if (state.initialized) return {};
     Base::Result<void> prepared = state.schema.Prepare(state.modules);
@@ -55,18 +55,18 @@ Base::Result<void> GUI::Initialize() noexcept {
     return {};
 }
 
-Base::Result<Base::Ref<View>> GUI::CreateView(
+Base::Result<Base::Ref<View>> Gui::CreateView(
     Base::IAllocator* allocator) noexcept {
     return CreateView(Integration::ViewOptions{}, allocator);
 }
 
-Base::Result<Base::Ref<View>> GUI::CreateView(
+Base::Result<Base::Ref<View>> Gui::CreateView(
     const Integration::ViewOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
-            "GUI must be initialized before creating a view");
+            "Gui must be initialized before creating a view");
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : *allocator_;
@@ -83,7 +83,7 @@ Base::Result<Base::Ref<View>> GUI::CreateView(
     return std::move(made).Value();
 }
 
-bool GUI::IsInitialized() const noexcept {
+bool Gui::IsInitialized() const noexcept {
     const Impl& state = static_cast<const Impl&>(*impl_);
     return state.initialized && state.schema.IsFrozen();
 }

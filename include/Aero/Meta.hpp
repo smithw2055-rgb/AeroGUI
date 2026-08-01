@@ -12,8 +12,6 @@
 
 namespace Aero::Meta {
 
-using Registration = Core::MetaRegistration;
-using Registry = Core::MetaRegistry;
 using TypeId = Core::TypeId;
 using MemberId = Core::MemberId;
 using Routing = Aero::RoutingStrategy;
@@ -70,6 +68,5 @@ FrameworkPropertyMetadata(TValue, Core::FrameworkPropertyMetadataOptions)
 template<class T>
 using ValueCodec = Core::ValueCodec<T>;
 
-using Core::Describe;
 
 } // namespace Aero::Meta

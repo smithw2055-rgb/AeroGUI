@@ -62,7 +62,7 @@ bool RequiresPrototypeObject(
 }
 
 Base::Result<Value> ConvertTemplateTextValue(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     const DependencyProperty& property,
     Base::StringView text) noexcept {
     // WPF uses -1 for no selection. Internally selection keeps UINT32_MAX;
@@ -120,7 +120,7 @@ CompileBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (!visualTree) {
         return InvalidTemplateCompiler(
@@ -331,7 +331,7 @@ Base::Result<Value> ConvertSetterValue(
     const Setter& setter,
     const TemplatePrototypeNode& target,
     const DependencyProperty& property,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Value value = setter.GetAuthoredValue();
     if (value.IsUnset()) {
@@ -471,7 +471,7 @@ Base::Result<Value> ConvertTriggerValue(
     Value value,
     TypeId targetType,
     const DependencyProperty& property,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (value.IsUnset()) {
         return InvalidTemplateCompiler(
@@ -527,7 +527,7 @@ Base::Result<Base::Vector<TemplatePropertyTrigger>>
 CompilePropertyTriggers(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<TemplatePropertyTrigger> compiled;
     auto addCondition = [&controlTemplate, &blueprint, &runtime, &properties](
@@ -689,7 +689,7 @@ Base::Result<Base::Vector<VisualStateGroup>>
 CompileVisualStates(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<VisualStateGroup> groups;
     auto compileGroup = [&groups, &blueprint, &runtime, &properties](
@@ -923,7 +923,7 @@ CompileControlTemplateDefinition(
     ControlTemplate& controlTemplate,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
@@ -1086,7 +1086,7 @@ CompileDeferredTemplateBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     return CompileBlueprint(
         visualTree,
@@ -1114,7 +1114,7 @@ std::uint32_t FindNodeIndex(
 Base::Result<bool> DeferredTriggerValuesMatch(
     const Value& actual,
     Value expected,
-    MetaRegistry& runtime) noexcept {
+    Meta::Registry& runtime) noexcept {
     if (actual.Kind() == ValueKind::Object &&
         !actual.IsNullObject() &&
         actual.AsObject() &&
@@ -1143,7 +1143,7 @@ Base::Result<bool> DeferredTriggerValuesMatch(
 Base::Result<Value> ReadDeferredTriggerBinding(
     const Data::Binding& binding,
     const Base::Ref<Base::Object>& payload,
-    MetaRegistry& runtime) noexcept {
+    Meta::Registry& runtime) noexcept {
     if (!payload || binding.GetPath().GetPath().Empty()) {
         return InvalidTemplateCompiler(
             "DataTemplate trigger Binding requires a data item and Path");

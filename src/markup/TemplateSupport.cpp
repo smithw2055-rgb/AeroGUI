@@ -96,7 +96,7 @@ namespace Detail {
 
 struct XamlTemplateSchemaFacet::Impl final {
     Impl(
-        MetaRegistry& metadata,
+        Meta::Registry& metadata,
         DependencyPropertyRegistry& dependencyProperties,
         Base::IAllocator& programAllocator) noexcept
         : allocator(&programAllocator),
@@ -104,7 +104,7 @@ struct XamlTemplateSchemaFacet::Impl final {
           properties(&dependencyProperties) {}
 
     Base::IAllocator* allocator = nullptr;
-    MetaRegistry* runtime = nullptr;
+    Meta::Registry* runtime = nullptr;
     DependencyPropertyRegistry* properties = nullptr;
     Schema* schema = nullptr;
 
@@ -428,7 +428,7 @@ struct XamlTemplateSchemaFacet::Impl final {
 };
 
 XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     DependencyPropertyRegistry& properties,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr

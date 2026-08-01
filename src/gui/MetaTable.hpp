@@ -1,7 +1,7 @@
 #pragma once
 
 // Private executable metadata storage. TypeRegistry is the public structural
-// source of truth; these records never cross the GUI-kernel boundary.
+// source of truth; these records never cross the Gui-kernel boundary.
 
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Hash.hpp>
@@ -124,7 +124,7 @@ struct CollectionChangeNotificationFacet final {
 };
 
 // Sealed value facets own their runtime registrations. No runtime lookup is
-// routed back through TypeRegistry after MetaRegistry::Seal().
+// routed back through TypeRegistry after Meta::Registry::Seal().
 struct ValueSemanticsFacet final {
     TypeId type = InvalidTypeId;
     Base::Ref<ValueTypeSemantics> semantics;

@@ -5,9 +5,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 
-namespace Aero::Core {
-class MetaRegistry;
-}
+namespace Aero::Meta { class Registry; class Registration; }
+
 
 namespace Aero::Markup {
 class Schema;
@@ -34,8 +33,8 @@ public:
         const GuiSchemaOptions& inputs) noexcept;
     bool IsPrepared() const noexcept;
     bool IsFrozen() const noexcept;
-    Core::MetaRegistry& Metadata() noexcept;
-    const Core::MetaRegistry& Metadata() const noexcept;
+    ::Aero::Meta::Registry& Metadata() noexcept;
+    const ::Aero::Meta::Registry& Metadata() const noexcept;
     Markup::Schema& Schema() noexcept;
     const Markup::Schema& Schema() const noexcept;
 

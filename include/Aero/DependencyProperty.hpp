@@ -21,12 +21,13 @@
 
 namespace Aero { class DependencyObject; }
 
+namespace Aero::Meta { class Registry; class Registration; }
+
 namespace Aero::Core {
 class DependencyProperty;
 class EffectiveValueEngine;
 class BehaviorTable;
 class DependencyPropertyRegistry;
-class MetaRegistration;
 
 struct DependencyPropertyHandle final {
     MemberId value = InvalidMemberId;

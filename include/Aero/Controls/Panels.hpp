@@ -631,7 +631,7 @@ public:
     Base::Result<void> SetContent(UIElement* content) noexcept;
 
     // Template teardown is a two-step transaction: clear the presenter-owned
-    // reference first, then detach the visual/layout/render edge through the GUI context. A nullptr literal selects this overload without weakening
+    // reference first, then detach the visual/layout/render edge through the Gui context. A nullptr literal selects this overload without weakening
     // the ordinary UIElement* validation path.
     Base::Result<void> SetContent(std::nullptr_t) noexcept {
         Base::Result<void> access = VerifyAccess();

@@ -84,7 +84,7 @@ bool IsObjectLike(MetadataTypeKind kind) noexcept {
 } // namespace
 
 Base::Result<BindingPathPlan> BindingPathPlan::Compile(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     TypeId rootType,
     Base::StringView path,
     BindingPathCompileError* error) noexcept {
@@ -253,7 +253,7 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
 }
 
 Base::Result<void> BindingPathPlan::VerifyRuntime(
-    MetaRegistry& runtime) const noexcept {
+    Meta::Registry& runtime) const noexcept {
     if (!IsValid() || !runtime.IsReady()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -272,7 +272,7 @@ Base::Result<void> BindingPathPlan::VerifyRuntime(
 }
 
 Base::Result<Value> BindingPathPlan::Get(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     const Base::Object& root) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready.GetStatus();
@@ -291,7 +291,7 @@ Base::Result<Value> BindingPathPlan::Get(
 }
 
 Base::Result<Value> BindingPathPlan::Get(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     const Value& root) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready.GetStatus();
@@ -317,7 +317,7 @@ Base::Result<Value> BindingPathPlan::Get(
 }
 
 Base::Result<Value> BindingPathPlan::GetObject(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     const Base::Object& object,
     std::uint32_t segmentIndex) const noexcept {
     const BindingPathSegment& segment = segments_[segmentIndex];
@@ -333,7 +333,7 @@ Base::Result<Value> BindingPathPlan::GetObject(
 }
 
 Base::Result<Value> BindingPathPlan::GetValue(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     const Value& value,
     std::uint32_t segmentIndex) const noexcept {
     if (value.Kind() == ValueKind::Object) {
@@ -359,7 +359,7 @@ Base::Result<Value> BindingPathPlan::GetValue(
 }
 
 Base::Result<void> BindingPathPlan::Set(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     Base::Object& root,
     const Value& value) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
@@ -380,7 +380,7 @@ Base::Result<void> BindingPathPlan::Set(
 }
 
 Base::Result<void> BindingPathPlan::Set(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     Value& root,
     const Value& value) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
@@ -416,7 +416,7 @@ Base::Result<void> BindingPathPlan::Set(
 }
 
 Base::Result<void> BindingPathPlan::SetObject(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     Base::Object& object,
     std::uint32_t segmentIndex,
     const Value& value) const noexcept {
@@ -441,7 +441,7 @@ Base::Result<void> BindingPathPlan::SetObject(
 }
 
 Base::Result<bool> BindingPathPlan::SetValue(
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     Value& owner,
     std::uint32_t segmentIndex,
     const Value& value) const noexcept {

@@ -20,7 +20,7 @@ RenderFrame 与 GPU backend 是实现机制，不形成第二套开发模型。
 3. `Aero::Application`、`Window`、`DependencyObject`、`UIElement`、
    `FrameworkElement`、Controls、Data、Media、Input、Documents 与 Threading
    使用熟悉的 WPF 名称和语义；
-4. 默认桌面宿主是可选产品，核心 GUI 可独立嵌入游戏引擎和现有应用；
+4. 默认桌面宿主是可选产品，核心 Gui 可独立嵌入游戏引擎和现有应用；
 5. 生产渲染不使用 Skia；
 6. 所有 GPU backend 消费同一 Renderer 与最小 RenderDevice 合同；
 7. GLX、EGL、WGL、Canvas 和 native window 是平台 adapter，不是绘制层；
@@ -41,7 +41,7 @@ Aero::Meta
     typed metadata and custom-type authoring over Aero::Gui
 
 Aero::Integration
-    GUI, View, source providers and backend factories
+    Gui, View, source providers and backend factories
 
 Aero::App
     optional Application/Window desktop host
@@ -164,9 +164,9 @@ View 负责一个 UI 实例的：
 推荐嵌入流程：
 
 ```text
-GUI.Initialize()
+Gui.Initialize()
 → XamlReader.Load()/Parse()
-→ GUI.CreateView(options)
+→ Gui.CreateView(options)
 → View.SetContent(document, size)
 → host dispatches input
 → View.Update(elapsedMilliseconds)

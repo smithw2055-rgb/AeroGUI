@@ -44,7 +44,7 @@ public:
     BindingPathPlan() noexcept = default;
 
     static Base::Result<BindingPathPlan> Compile(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         TypeId rootType,
         Base::StringView path,
         BindingPathCompileError* error = nullptr) noexcept;
@@ -65,22 +65,22 @@ public:
     }
 
     Base::Result<Value> Get(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         const Base::Object& root) const noexcept;
     Base::Result<Value> Get(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         const Value& root) const noexcept;
     Base::Result<void> Set(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         Base::Object& root,
         const Value& value) const noexcept;
     Base::Result<void> Set(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         Value& root,
         const Value& value) const noexcept;
 
 private:
-    const MetaRegistry* compiledDomain_ = nullptr;
+    const Meta::Registry* compiledDomain_ = nullptr;
     TypeId rootType_ = InvalidTypeId;
     TypeId resultType_ = InvalidTypeId;
     Base::HashCode schemaHash_ = 0U;
@@ -89,22 +89,22 @@ private:
     bool canWrite_ = false;
 
     Base::Result<void> VerifyRuntime(
-        MetaRegistry& runtime) const noexcept;
+        Meta::Registry& runtime) const noexcept;
     Base::Result<Value> GetObject(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         const Base::Object& object,
         std::uint32_t segmentIndex) const noexcept;
     Base::Result<Value> GetValue(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         const Value& value,
         std::uint32_t segmentIndex) const noexcept;
     Base::Result<void> SetObject(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         Base::Object& object,
         std::uint32_t segmentIndex,
         const Value& value) const noexcept;
     Base::Result<bool> SetValue(
-        MetaRegistry& runtime,
+        Meta::Registry& runtime,
         Value& owner,
         std::uint32_t segmentIndex,
         const Value& value) const noexcept;
@@ -118,7 +118,7 @@ private:
 
 namespace Aero::Data {
 
-using Core::MetaRegistry;
+using ::Aero::Meta::Registry;
 using Core::PropertyValue;
 using Core::TypeId;
 
@@ -196,7 +196,7 @@ struct BindingInspection final {
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
 struct MetadataBindingDescriptor final {
-    MetaRegistry* metadata = nullptr;
+    Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
@@ -347,7 +347,7 @@ private:
         BindingDescriptor descriptor;
         BindingSourceKind sourceKind =
             BindingSourceKind::DependencyProperty;
-        MetaRegistry* metadata = nullptr;
+        Meta::Registry* metadata = nullptr;
         Base::Object* metadataSource = nullptr;
         DependencyPropertyHandle dataContextProperty;
         Base::String path;
@@ -366,7 +366,7 @@ private:
     };
 
     struct DeferredBindingRecord final {
-        MetaRegistry* metadata = nullptr;
+        Meta::Registry* metadata = nullptr;
         Base::Object* source = nullptr;
         DependencyObject* target = nullptr;
         DependencyPropertyHandle targetProperty;

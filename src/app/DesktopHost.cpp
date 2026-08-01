@@ -99,8 +99,9 @@ struct Detail::DesktopHost::Impl final {
                 owner->environment.CreateView(options, owner->allocator);
             if (!created) return created.GetStatus();
             view = std::move(created).Value();
+            Markup::XamlReader reader(*view);
             if (owner->loadBuiltInTheme) {
-                Base::Result<void> themed = view->LoadBuiltInTheme(
+                Base::Result<void> themed = reader.LoadTheme(
                     owner->builtInTheme);
                 if (!themed) return themed.GetStatus();
             }
@@ -110,9 +111,10 @@ struct Detail::DesktopHost::Impl final {
                 : Base::Ref<ResourceDictionary>{};
             if (resources) {
                 Base::Result<void> installed =
-                    view->SetResourceDictionary(
+                    reader.SetResources(
                         ResourceLayer::Application,
-                        *resources);
+                        *resources,
+                        ResourceLoadMode::Replace);
                 if (!installed) return installed.GetStatus();
             }
             return {};
@@ -380,7 +382,7 @@ struct Detail::DesktopHost::Impl final {
             hasPendingResize = false;
             Base::Result<void> resized = renderDevice->Resize(width, height);
             if (!resized) return resized.GetStatus();
-            return view->Resize({
+            return view->SetSize({
                 static_cast<double>(width),
                 static_cast<double>(height)});
         }
@@ -422,7 +424,7 @@ struct Detail::DesktopHost::Impl final {
             }
             lastUpdate = now;
             updateClockInitialized = true;
-            Base::Result<ViewFrameResult> frame =
+            Base::Result<void> frame =
                 view->Update(elapsedMilliseconds);
             if (!frame) return frame.GetStatus();
             firstFrameRendered = true;
@@ -855,7 +857,7 @@ struct Detail::DesktopHost::Impl final {
 
     Detail::ApplicationHostState applicationRuntime;
     Base::IAllocator* allocator = nullptr;
-    GUI environment;
+    Gui environment;
     Base::Vector<WindowHost*> windows;
     Base::String applicationFile;
     Base::String assetRoot;

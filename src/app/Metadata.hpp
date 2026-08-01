@@ -8,7 +8,7 @@ namespace Aero::App {
 namespace Detail {
 
 AERO_API Base::Result<void> PopulateAppMetadata(
-    Core::MetaRegistration& context) noexcept;
+    ::Aero::Meta::Registration& context) noexcept;
 
 } // namespace Detail
 
@@ -17,7 +17,7 @@ inline constexpr Base::StringView AppMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterAppMetadata(
-    Core::MetaRegistry& domain) noexcept {
+    ::Aero::Meta::Registry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 1U;
     const Base::StringView name = AppMetadataModuleName();
     return domain.TryRegisterModule({

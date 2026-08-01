@@ -11,7 +11,7 @@ namespace Aero::Controls::Detail {
 
 ControlBehavior::ControlBehavior(
     Base::IAllocator& allocator,
-    Core::MetaRegistry& metadata,
+    ::Aero::Meta::Registry& metadata,
     Aero::ElementTree& tree,
     Aero::Detail::EventRouter& events,
     Aero::Detail::InputRouter& input,

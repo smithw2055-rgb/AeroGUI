@@ -41,7 +41,7 @@ namespace {
 } // namespace
 
 Base::Result<void> Detail::PopulateUiMetadata(
-    Core::MetaRegistration& context) noexcept {
+    ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
     status = PopulateUiResources(context);
     if (!status) return status.GetStatus();

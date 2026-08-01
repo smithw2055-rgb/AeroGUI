@@ -257,7 +257,7 @@ struct TemplatePrototypeBinding final {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
     Aero::Detail::BindingEngine* manager = nullptr;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
@@ -269,7 +269,7 @@ struct TemplatePrototypeBinding final {
 };
 
 struct CompiledTemplateBlueprint final {
-    Core::MetaRegistry* runtime = nullptr;
+    ::Aero::Meta::Registry* runtime = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
@@ -311,7 +311,7 @@ CompileDeferredTemplateBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Core::MetaRegistry& runtime,
+    ::Aero::Meta::Registry& runtime,
     Core::DependencyPropertyRegistry& properties) noexcept;
 
 Base::Result<CompiledTemplateDefinition>
@@ -319,7 +319,7 @@ CompileControlTemplateDefinition(
     Controls::ControlTemplate& controlTemplate,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Core::MetaRegistry& runtime,
+    ::Aero::Meta::Registry& runtime,
     Core::DependencyPropertyRegistry& properties) noexcept;
 
 } // namespace Aero::Markup::Detail

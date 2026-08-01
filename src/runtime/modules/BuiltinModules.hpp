@@ -2,13 +2,12 @@
 
 #include <Aero/Module.hpp>
 
-namespace Aero::Core {
-class MetaRegistry;
-}
+namespace Aero::Meta { class Registry; class Registration; }
+
 
 namespace Aero {
 
 AERO_API Base::Result<void> RegisterBuiltInUiModules(
-    Core::MetaRegistry& domain) noexcept;
+    ::Aero::Meta::Registry& domain) noexcept;
 
 } // namespace Aero

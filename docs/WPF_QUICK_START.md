@@ -111,7 +111,7 @@ Engine hosts load XAML explicitly and keep `View` focused on content, input and
 frame updates:
 
 ```cpp
-Aero::GUI environment;
+Aero::Gui environment;
 environment.Initialize();
 
 auto view = environment.CreateView(options).Value();
@@ -141,5 +141,22 @@ public:
 };
 ```
 
-Metadata authoring uses `FrameworkPropertyMetadata` and keeps effective-value,
-provider and render implementation details out of the control declaration.
+Metadata authoring uses the canonical `Meta::Registration` callback and
+`Meta::Describe<T>()` fluent entry:
+
+```cpp
+Aero::Base::Result<void> RegisterDemoTypes(
+    Aero::Meta::Registration& registration) noexcept {
+    return Aero::Meta::Describe<Rating>(registration)
+        .Property(
+            Rating::ValueProperty,
+            Aero::Meta::FrameworkPropertyMetadata(
+                0.0,
+                Aero::Meta::FrameworkPropertyMetadataOptions::AffectsRender))
+        .Factory()
+        .Result();
+}
+```
+
+Effective-value providers, registry tables and render implementation details
+remain private.

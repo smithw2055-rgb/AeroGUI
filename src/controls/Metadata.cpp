@@ -36,7 +36,7 @@ namespace {
 } // namespace
 
 Base::Result<void> Detail::PopulateControlsMetadata(
-    Core::MetaRegistration& context) noexcept {
+    ::Aero::Meta::Registration& context) noexcept {
     Base::Result<void> status;
     status = PopulateControlsValues(context);
     if (!status) return status.GetStatus();

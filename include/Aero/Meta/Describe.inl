@@ -114,7 +114,7 @@ struct MemberPointerTraits<Member> final {
 template<class Owner, class Field, Field Owner::*Member>
 Base::Result<Value> GetField(
     const void* object,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     void*) noexcept {
     if (object == nullptr) {
         return Base::Status::Failure(
@@ -130,7 +130,7 @@ template<class Owner, class Field, Field Owner::*Member>
 Base::Result<void> SetField(
     void* object,
     const Value& value,
-    MetaRegistry& runtime,
+    Meta::Registry& runtime,
     void*) noexcept {
     if (object == nullptr) {
         return Base::Status::Failure(
@@ -148,7 +148,7 @@ Base::Result<void> SetField(
 class AERO_API MetadataAuthoringSession final {
 public:
     MetadataAuthoringSession(
-        MetaRegistration& context,
+        Meta::Registration& context,
         const TypeRegistration& registration,
         TypeId expectedType) noexcept;
 
@@ -287,14 +287,14 @@ private:
         }
     }
 
-    MetaRegistration* context_ = nullptr;
+    Meta::Registration* context_ = nullptr;
     TypeId type_ = InvalidTypeId;
     Base::Status status_;
 };
 
 template<class T>
 MetadataAuthoringSession CreateDescriptionSession(
-    MetaRegistration& context,
+    Meta::Registration& context,
     TypeFlags flags) noexcept {
     if constexpr (std::is_enum_v<T>) {
         if constexpr (

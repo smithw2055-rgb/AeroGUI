@@ -37,7 +37,7 @@ using EffectCleanupCallback = void (*)(void* context) noexcept;
 struct VisualContentEdge final {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Core::MemberId member = Core::InvalidMemberId;
     bool property = false;
 };

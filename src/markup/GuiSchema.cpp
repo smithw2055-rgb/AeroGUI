@@ -51,7 +51,7 @@ struct GuiSchema::Impl final {
         : allocator(&value) {}
 
     Base::IAllocator* allocator = nullptr;
-    Core::MetaRegistry metadata;
+    ::Aero::Meta::Registry metadata;
     Markup::Schema* schema = nullptr;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
     Markup::BindingExtension* binding = nullptr;
@@ -242,12 +242,12 @@ bool GuiSchema::IsFrozen() const noexcept {
     return impl_ != nullptr && impl_->frozen;
 }
 
-Core::MetaRegistry& GuiSchema::Metadata() noexcept {
+::Aero::Meta::Registry& GuiSchema::Metadata() noexcept {
     AERO_ASSERT(impl_ != nullptr && impl_->prepared);
     return impl_->metadata;
 }
 
-const Core::MetaRegistry& GuiSchema::Metadata() const noexcept {
+const ::Aero::Meta::Registry& GuiSchema::Metadata() const noexcept {
     AERO_ASSERT(impl_ != nullptr && impl_->prepared);
     return impl_->metadata;
 }

@@ -74,10 +74,12 @@ static_assert(
     "Module SDK must expose the typed registration callback");
 
 static_assert(
-    std::is_same<
-        Aero::Meta::Registration,
-        Aero::Meta::Registration>::value,
-    "Meta context must preserve the compatibility authoring identity");
+    !std::is_copy_constructible<Aero::Meta::Registry>::value,
+    "Meta::Registry must remain the canonical non-copyable registry");
+
+static_assert(
+    std::is_class<Aero::Meta::Registration>::value,
+    "Meta::Registration must be a real public authoring type");
 
 static_assert(
     std::is_same<

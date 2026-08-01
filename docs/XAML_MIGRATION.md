@@ -6,15 +6,15 @@
 
 | 旧调用 | 新调用 |
 | --- | --- |
-| `View::Load(text)` | `View::Parse(text, baseUri)` |
-| 手工读文件后 parse | 注册 provider 后 `View::Load(uri)` |
-| 自建 compiled object-writer 路径 | `View::LoadCompiled(bytes, originUri)` |
-| XAML activation wrapper | `Core::ActivationProviderRegistry` |
-| 旧 `Load(reader/document)` | `View::Parse` / `View::LoadCompiled` |
+| `View::Load(text)` | `Markup::XamlReader::Parse(text, baseUri)` |
+| 手工读文件后 parse | 注册 provider 后 `XamlReader::Load(uri)` |
+| 自建 compiled object-writer 路径 | `XamlReader::LoadCompiled(bytes, originUri)` |
+| XAML activation wrapper | `Meta::Registry::CreateObject` |
+| 旧 `Load(reader/document)` | `XamlReader::Parse` / `XamlReader::LoadCompiled` |
 | root-only object-writer load | 保留完整 `XamlLoadResult` |
 | 独立注册 Style/Template XAML extension | `UiObjectModel::Register` |
 
-`View::Load` 的参数是 URI，不猜测字符串是路径还是 XAML 内容。相对 URI
+`XamlReader::Load` 的参数是 URI，不猜测字符串是路径还是 XAML 内容。相对 URI
 需要有效 base URI；网络 scheme 默认失败。
 
 ## 资源与主题迁移
@@ -23,7 +23,7 @@
 应改为普通资源：
 
 ```cpp
-host.LoadBuiltInTheme(Aero::BuiltInTheme::Dark);
+reader.LoadTheme(Aero::BuiltInTheme::Dark);
 ```
 
 主题 XAML 使用普通 `ResourceDictionary`。控件默认外观使用类型键隐式 Style：

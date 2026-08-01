@@ -10,12 +10,8 @@
 
 namespace Aero {
 
-namespace Core {
-class MetaRegistration;
-}
-namespace Meta {
-using Registration = Core::MetaRegistration;
-}
+namespace Meta { class Registration; }
+
 
 using ModuleRegisterCallback = Base::Result<void> (*)(
     Meta::Registration& registration) noexcept;

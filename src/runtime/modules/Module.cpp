@@ -199,7 +199,7 @@ Base::Result<void> ModuleSet::Add(
 }
 
 Base::Result<void> ModuleSet::RegisterMetadata(
-    Core::MetaRegistry& domain) const noexcept {
+    ::Aero::Meta::Registry& domain) const noexcept {
     if (impl_ == nullptr) return OutOfMemory();
     Base::Result<void> builtIns =
         RegisterBuiltInUiModules(domain);

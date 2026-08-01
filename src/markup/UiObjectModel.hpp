@@ -15,14 +15,14 @@ class Schema;
 struct UiObjectModelOptions final {
     UiObjectModelOptions() noexcept = default;
     UiObjectModelOptions(
-        Core::MetaRegistry* metadata,
+        ::Aero::Meta::Registry* metadata,
         Core::DependencyPropertyRegistry* dependencyProperties,
         Base::IAllocator* programAllocator = nullptr) noexcept
         : metadata(metadata),
           properties(dependencyProperties),
           allocator(programAllocator) {}
 
-    Core::MetaRegistry* metadata = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     Base::IAllocator* allocator = nullptr;
 };

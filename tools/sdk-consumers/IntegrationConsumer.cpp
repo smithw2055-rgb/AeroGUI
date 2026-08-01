@@ -8,7 +8,7 @@ namespace {
 [[maybe_unused]]
 Aero::Base::Result<Aero::Base::Ref<Aero::View>>
 CreateIntegratedView(
-    Aero::GUI& environment,
+    Aero::Gui& environment,
     Aero::Base::Ref<Aero::Integration::RenderDevice>
         endpoint) noexcept {
     Aero::Integration::ViewOptions options;

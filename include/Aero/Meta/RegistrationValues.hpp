@@ -6,9 +6,10 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Meta/Value.hpp>
 
+namespace Aero::Meta { class Registry; class Registration; }
+
 namespace Aero::Core {
 
-class MetaRegistration;
 class RegistrationValues;
 class TypeRegistry;
 class ValueTypeSemantics;
@@ -48,7 +49,7 @@ public:
     const TypeRegistry& Types() const noexcept;
 
 private:
-    friend class MetaRegistration;
+    friend class ::Aero::Meta::Registration;
     friend Base::Result<Value> Detail::CreateRegistrationValue(
         void* registrationState,
         TypeId type,

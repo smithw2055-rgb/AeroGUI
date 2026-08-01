@@ -86,7 +86,7 @@ public:
         return schema.ResolvePropertyTarget(object);
     }
 
-    static Core::MetaRegistry* Metadata(
+    static ::Aero::Meta::Registry* Metadata(
         const Schema& schema) noexcept {
         return schema.Metadata();
     }
