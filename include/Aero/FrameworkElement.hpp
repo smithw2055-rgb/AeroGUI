@@ -101,6 +101,7 @@ public:
         Visual* parent = GetVisualParent();
         return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
     }
+    DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
     FrameworkElementChildRange GetRenderChildren() const noexcept {
         return FrameworkElementChildRange(*this);
     }
@@ -235,12 +236,15 @@ public:
     Base::Result<void> InvalidateRender() noexcept;
 
 protected:
+    virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return VisualTreeHelper::GetChildrenCount(*this); }
+    virtual DependencyObject* GetLogicalChildCore(std::uint32_t index) const noexcept { return LogicalTreeHelper::GetChild(static_cast<const Visual&>(*this), index); }
     Base::Result<void> OnPropertyInvalidated(
         PropertyInvalidationFlags flags) noexcept override;
     virtual Base::Result<void> OnRender(
         DrawingContext& context) noexcept;
 
 private:
+    friend class LogicalTreeHelper;
     friend class Render::RenderTree;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;

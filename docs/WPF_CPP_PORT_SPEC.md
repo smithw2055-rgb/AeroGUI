@@ -134,7 +134,7 @@ flowchart TB
     Host --> Device[GPU Device / Queue / GL Context / Frame Scheduler]
 
     UI --> Markup[AeroMarkup]
-    UI --> Core[AeroCore]
+    UI --> Core[AeroGuiKernel]
     Markup --> Core
     Controls[AeroControls] --> Core
 
@@ -158,10 +158,9 @@ flowchart TB
 | 模块 | 职责 |
 | --- | --- |
 | `AeroBase` | allocator、memory、String、containers、Result、Ref/WeakRef、diagnostics 基础 |
-| `AeroCore` | Object、Dispatcher、TypeRegistry、DependencyProperty、Expression、事件基础 |
+| `AeroGuiKernel` | Object、Dispatcher、metadata、DependencyProperty、RoutedEvent、Visual/UIElement/FrameworkElement、layout、Binding、Resource、Style 与 Input 内核 |
 | `AeroMarkup` | XML/XAML node stream、schema、object writer、markup extension、compiled XAML IR |
-| `AeroCore` | Visual/UIElement/FrameworkElement、树、layout、Binding、Resource、Style、Template、Input |
-| `AeroControls` | Control、ContentControl、ItemsControl、Panel 和标准控件 |
+| `AeroControls` | Control、ContentControl、ItemsControl、Panel、Template 和标准控件 |
 | `AeroRender` | render tree、scene transactions、geometry/text/image cache、RenderFrame |
 | `AeroGraphics` | GPU resource、pipeline、pass、command、state 与 synchronization contracts |
 | `AeroPlatform` | window/canvas、GLX/EGL/WGL、input、IME、clipboard、file、time、DPI 和 accessibility bridge |
@@ -170,8 +169,8 @@ flowchart TB
 约束：
 
 - Base 不依赖第三方 runtime 库；
-- Core 不依赖 UI runtime、Controls、Platform 或 renderer；
-- AeroCore 的 UI/Data/Input/Media 语义不包含 Win32/X11/Cocoa/D3D/Vulkan/Metal/GL/WebGL/sokol 类型；
+- GUI kernel 不依赖 Controls、Platform backend 或 renderer；
+- AeroGuiKernel 的 UI/Data/Input/Media 语义不包含 Win32/X11/Cocoa/D3D/Vulkan/Metal/GL/WebGL/sokol 类型；
 - Render 不依赖 control class；
 - graphics layer 不依赖 XAML、Binding、Visual 或 window-system API；
 - GLX/EGL/WGL/HTML Canvas adapter 不定义 drawing primitive；

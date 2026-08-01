@@ -1,7 +1,7 @@
 #pragma once
 
 #include "TemplateAccess.hpp"
-#include "runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 namespace Aero::Controls::Detail {
 

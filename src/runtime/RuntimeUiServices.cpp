@@ -4,17 +4,18 @@
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include "gui/binding/BindingService.hpp"
-#include "gui/styling/StyleRuntime.hpp"
-#include "gui/events/EventRouter.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "../controls/RuntimeManagers.hpp"
-#include "gui/input/InputService.hpp"
+#include "gui/InputInternal.hpp"
 
 namespace Aero::Detail {
 
 void UiRuntimeAccess::SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept {
     element.eventRouter_ = router;
 }
+
 
 void UiRuntimeAccess::SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept {
     element.commandRouter_ = service;

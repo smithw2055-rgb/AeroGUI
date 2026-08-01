@@ -8,7 +8,7 @@
 #include <Aero/Documents.hpp>
 #include "RuntimeManagers.hpp"
 #include "ControlInternals.hpp"
-#include "gui/input/InputService.hpp"
+#include "gui/InputInternal.hpp"
 #include <Aero/Meta/MetadataDomain.hpp>
 #include <Aero/Integration/HostServices.hpp>
 
@@ -40,7 +40,7 @@ void Destroy(Base::IAllocator& allocator, T*& object) noexcept {
 
 struct ControlBehaviorService::Impl final {
     Core::MetadataDomain* metadata = nullptr;
-    Aero::ObjectTree* tree = nullptr;
+    Aero::GuiContext* tree = nullptr;
     Aero::Detail::EventRouter* events = nullptr;
     Aero::Detail::InputService* input = nullptr;
     VisualStateManager* visualStates = nullptr;
@@ -49,7 +49,6 @@ struct ControlBehaviorService::Impl final {
     bool textEditingEnabled = false;
 
     ControlInteractionManager* buttons = nullptr;
-    Aero::Detail::ControlRuntimeAccess::HyperlinkInteractionManager* hyperlinks = nullptr;
     TextBoxInteractionManager* textBoxes = nullptr;
     ScrollInteractionManager* scrolling = nullptr;
     SliderInteractionManager* sliders = nullptr;
@@ -60,7 +59,7 @@ struct ControlBehaviorService::Impl final {
 };
 
 ControlBehaviorService::ControlBehaviorService(Base::IAllocator& allocator,
-    Core::MetadataDomain& metadata, Aero::ObjectTree& tree,
+    Core::MetadataDomain& metadata, Aero::GuiContext& tree,
     Aero::Detail::EventRouter& events, Aero::Detail::InputService& input,
     VisualStateManager* visualStates, Integration::IClipboard* clipboard,
     bool controlsEnabled, bool textEditingEnabled) noexcept
@@ -99,13 +98,6 @@ Base::Result<void> ControlBehaviorService::Initialize() noexcept {
         if (!buttons) return buttons.GetStatus();
         impl_->buttons = buttons.Value();
         status = impl_->buttons->Initialize();
-        if (!status) return status.GetStatus();
-
-        auto hyperlinks = Create<Aero::Detail::ControlRuntimeAccess::HyperlinkInteractionManager>(
-            *allocator_, *impl_->tree, *impl_->events, *impl_->input);
-        if (!hyperlinks) return hyperlinks.GetStatus();
-        impl_->hyperlinks = hyperlinks.Value();
-        status = impl_->hyperlinks->Initialize();
         if (!status) return status.GetStatus();
 
         auto scrolling = Create<ScrollInteractionManager>(*allocator_, *impl_->tree, *impl_->events);
@@ -152,10 +144,6 @@ Base::Result<void> ControlBehaviorService::Attach(Visual& visual,
     }
     if (impl_->buttons != nullptr && types.IsDerivedFrom(type, Primitives::ButtonBase::StaticTypeId())) {
         Base::Result<void> result = impl_->buttons->Attach(*static_cast<Primitives::ButtonBase*>(&visual));
-        if (!result) return result.GetStatus();
-    }
-    if (impl_->hyperlinks != nullptr && types.IsDerivedFrom(type, Documents::Hyperlink::StaticTypeId())) {
-        Base::Result<void> result = impl_->hyperlinks->Attach(*static_cast<Documents::Hyperlink*>(&visual));
         if (!result) return result.GetStatus();
     }
     if (types.IsDerivedFrom(type, TextBox::StaticTypeId())) {
@@ -223,7 +211,6 @@ void ControlBehaviorService::Shutdown() noexcept {
     Destroy(*allocator_, impl_->sliders);
     Destroy(*allocator_, impl_->scrolling);
     Destroy(*allocator_, impl_->textBoxes);
-    Destroy(*allocator_, impl_->hyperlinks);
     Destroy(*allocator_, impl_->buttons);
 }
 

@@ -125,7 +125,7 @@ flowchart LR
     App --> Gui[AeroGui]
     Gui --> Markup[AeroMarkup]
     Markup --> Controls[AeroControls]
-    Controls --> Core[AeroCore]
+    Controls --> Core[AeroGuiKernel]
     Markup --> Core
     Controls -. text services .-> Text[AeroText]
 

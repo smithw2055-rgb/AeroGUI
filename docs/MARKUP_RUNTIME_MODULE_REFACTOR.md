@@ -16,11 +16,11 @@ Implemented boundaries:
 3. Metadata descriptors and Core facets remain the structural source of truth; XAML-only behavior is centralized in one frozen `XamlFacetStore` instead of feature-local adapter registries.
 4. Compiled XAML cache identity tracks the metadata schema rather than a second XAML module manifest hash.
 5. Loading returns `XamlLoadResult`; runtime hosts keep the root object, name scope, document resources, and visual content plan instead of using the writer as long-lived view state.
-6. `XamlLoadResult` contains `XamlVisualContentPlan`. Markup records content edges during loading; `View` then asks private `Aero::Detail::VisualTreeMount` to attach, resize, and detach that plan.
+6. `XamlLoadResult` contains the authored visual/content edges. Markup records those edges during loading; `View` applies them through the private `GuiContext` attachment transaction.
 7. `XamlContentWriter` translates visual `ContentFacet` assignments directly into the current `XamlLoadResult::visualContent`; it owns no staging or mounting state.
-8. UI runtime consumes the returned visual plan through `VisualTreeMount`; Markup no longer exposes a parallel visual-tree host or root-only visual load path.
+8. UI runtime consumes the returned content plan through `GuiContext`; Markup does not expose a parallel tree host or root-only visual load path.
 9. `View::Writer()` and `View::VisualTree()` are removed from the public API.
-10. Slice-era `RuntimeServices` compatibility APIs are removed. Code and tests use private `Aero::Detail::MountService` directly.
+10. Slice-era `RuntimeServices`, `MountService`, and `VisualTreeMount` compatibility APIs are removed. View owns the single attachment path.
 11. Runtime-oriented tests now live under `tests/runtime` and architecture checks reject the removed Markup/Runtime compatibility headers and `.inc` files.
 12. Binding, DynamicResource, and Style providers resolve effective-value targets through `XamlSchemaContext::ResolvePropertyTarget()` and the sealed metadata domain; Markup no longer exposes a DependencyObject cast bridge.
 13. `UiObjectModel` registers the complete Style/Setter/Trigger/Template object model in one step. `Setter.Value` and `Trigger.Value` accept normal `XamlValue` payloads, so object-valued setters, template resources, and trigger setters flow through the same metadata/property validation path as scalar setters.

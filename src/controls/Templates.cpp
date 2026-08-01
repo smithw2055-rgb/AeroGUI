@@ -1,17 +1,16 @@
 #include <Aero/Styling.hpp>
 #include "TemplateAccess.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "ControlInternals.hpp"
+#include "gui/BindingInternal.hpp"
 #include "ControlInternals.hpp"
 
 #include "render/RenderTree.hpp"
 
-#include "gui/resources/ResourceAssignment.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/tree/ObjectTree.hpp"
+#include "gui/ElementInternal.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdio>
@@ -98,15 +97,15 @@ Base::Result<void> TemplateBuildContext::SetRoot(
             "Template root registration is invalid");
     }
 
-    Base::Result<Aero::Detail::MountEdgeState> mounted =
-        state.mounts.Attach(*state.parent, root);
+    Base::Result<Aero::Detail::ElementAttachment> mounted =
+        state.tree->AttachElement(*state.parent, root);
     if (!mounted) return mounted.GetStatus();
-    Aero::Detail::MountEdgeState mount = std::move(mounted).Value();
+    Aero::Detail::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
         Detail::ControlAccess::SetTemplateRoot(*state.parent, root.AsUIElement());
     if (!selected) {
-        (void)state.mounts.Detach(mount);
+        (void)state.tree->DetachElement(mount);
         return selected.GetStatus();
     }
     if (root.AsFrameworkElement() != nullptr) {
@@ -114,7 +113,7 @@ Base::Result<void> TemplateBuildContext::SetRoot(
             root.AsFrameworkElement()->SetTemplatedParent(state.parent);
         if (!templated) {
             (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
-            (void)state.mounts.Detach(mount);
+            (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
         }
     }
@@ -125,7 +124,7 @@ Base::Result<void> TemplateBuildContext::SetRoot(
             (void)root.AsFrameworkElement()->SetTemplatedParent(nullptr);
         }
         (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
-        (void)state.mounts.Detach(mount);
+        (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
     state.rootVisual = &root;
@@ -149,15 +148,15 @@ Base::Result<void> TemplateBuildContext::AddPart(
             "Template part registration is invalid");
     }
 
-    Base::Result<Aero::Detail::MountEdgeState> mounted = state.mounts.Attach(parent, part);
+    Base::Result<Aero::Detail::ElementAttachment> mounted = state.tree->AttachElement(parent, part);
     if (!mounted) return mounted.GetStatus();
-    Aero::Detail::MountEdgeState mount = std::move(mounted).Value();
+    Aero::Detail::ElementAttachment mount = std::move(mounted).Value();
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
             part.AsFrameworkElement()->SetTemplatedParent(state.parent);
         if (!templated) {
-            (void)state.mounts.Detach(mount);
+            (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
         }
     }
@@ -167,7 +166,7 @@ Base::Result<void> TemplateBuildContext::AddPart(
         if (part.AsFrameworkElement() != nullptr) {
             (void)part.AsFrameworkElement()->SetTemplatedParent(nullptr);
         }
-        (void)state.mounts.Detach(mount);
+        (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
     return {};
@@ -244,7 +243,7 @@ TemplateBuildContext::ProjectContentCore(
     projection.originalVisualParent = content->GetVisualParent();
 
     auto restore = [&]() noexcept {
-        (void)state.mounts.DetachVisual(
+        (void)state.tree->DetachVisual(
             projection.projectedMount);
         if (presenter != nullptr) {
             (void)presenter->SetContent(nullptr);
@@ -253,7 +252,7 @@ TemplateBuildContext::ProjectContentCore(
         }
         if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            (void)state.mounts.AttachVisual(
+            (void)state.tree->AttachVisualChild(
                 *projection.originalVisualParent, *content);
         }
         if (projection.attachedLogical) {
@@ -267,7 +266,7 @@ TemplateBuildContext::ProjectContentCore(
         projection.attachedLogical = true;
     }
     if (projection.originalVisualParent != nullptr) {
-        Aero::Detail::UiMountState original;
+        Aero::Detail::VisualAttachment original;
         original.visualParent = projection.originalVisualParent;
         original.child = content;
         original.visualAttached = true;
@@ -276,7 +275,7 @@ TemplateBuildContext::ProjectContentCore(
         original.renderAttached = state.renderer != nullptr &&
             projection.originalVisualParent->AsFrameworkElement() != nullptr &&
             content->AsFrameworkElement() != nullptr;
-        Base::Result<void> detached = state.mounts.DetachVisual(original);
+        Base::Result<void> detached = state.tree->DetachVisual(original);
         if (!detached) {
             if (projection.attachedLogical) {
                 (void)state.tree->DetachLogical(owner, *content);
@@ -286,8 +285,8 @@ TemplateBuildContext::ProjectContentCore(
         projection.detachedOriginalVisual = true;
     }
 
-    Base::Result<Aero::Detail::UiMountState> projected =
-        state.mounts.AttachVisual(
+    Base::Result<Aero::Detail::VisualAttachment> projected =
+        state.tree->AttachVisualChild(
             presenterVisual, *content);
     if (!projected) {
         restore();
@@ -394,7 +393,7 @@ Base::Result<void> TemplateBuildContext::AddOwnedPart(
     Visual& visual,
     void* mountState) noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
-    const auto& mount = *static_cast<const Aero::Detail::MountEdgeState*>(mountState);
+    const auto& mount = *static_cast<const Aero::Detail::ElementAttachment*>(mountState);
     Aero::Controls::Detail::TemplatePart part;
     Base::Result<void> assigned = part.name.TryAssign(name);
     if (!assigned) return assigned.GetStatus();
@@ -416,7 +415,7 @@ void TemplateBuildContext::Rollback() noexcept {
             projection.content == nullptr) {
             continue;
         }
-        (void)state.mounts.DetachVisual(
+        (void)state.tree->DetachVisual(
             projection.projectedMount);
         if (projection.presenter != nullptr) {
             (void)projection.presenter->SetContent(nullptr);
@@ -425,7 +424,7 @@ void TemplateBuildContext::Rollback() noexcept {
         }
         if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            (void)state.mounts.AttachVisual(
+            (void)state.tree->AttachVisualChild(
                 *projection.originalVisualParent, *projection.content);
         }
         if (projection.attachedLogical && projection.owner != nullptr) {
@@ -440,7 +439,7 @@ void TemplateBuildContext::Rollback() noexcept {
         if (part.frameworkElement != nullptr) {
             (void)part.frameworkElement->SetTemplatedParent(nullptr);
         }
-        (void)state.mounts.Detach(part.mount);
+        (void)state.tree->DetachElement(part.mount);
     }
     if (state.parent != nullptr) (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
     state.parts.Clear();
@@ -1759,7 +1758,7 @@ Base::Result<void> TemplateManager::ClearAt(
             continue;
         }
         Base::Result<void> projectedDetached =
-            mounts_.DetachVisual(projection.projectedMount);
+            tree_->DetachVisual(projection.projectedMount);
         if (!projectedDetached) return projectedDetached.GetStatus();
         Base::Result<void> presenterCleared =
             projection.presenter != nullptr
@@ -1768,8 +1767,8 @@ Base::Result<void> TemplateManager::ClearAt(
         if (!presenterCleared) return presenterCleared.GetStatus();
         if (projection.detachedOriginalVisual &&
             projection.originalVisualParent != nullptr) {
-            Base::Result<Aero::Detail::UiMountState> restored =
-                mounts_.AttachVisual(
+            Base::Result<Aero::Detail::VisualAttachment> restored =
+                tree_->AttachVisualChild(
                     *projection.originalVisualParent, *projection.content);
             if (!restored) return restored.GetStatus();
         }
@@ -1783,7 +1782,7 @@ Base::Result<void> TemplateManager::ClearAt(
     for (std::uint32_t partIndex = instance.parts.Size();
          partIndex > 0U; --partIndex) {
         Base::Result<void> detached =
-            mounts_.Detach(instance.parts[partIndex - 1U].mount);
+            tree_->DetachElement(instance.parts[partIndex - 1U].mount);
         if (!detached) return detached.GetStatus();
     }
     for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {

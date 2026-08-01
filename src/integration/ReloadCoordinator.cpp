@@ -8,6 +8,7 @@
 #include <Aero/Markup/XamlDocument.hpp>
 
 #include "runtime/ViewRuntime.hpp"
+#include "runtime/ViewAccess.hpp"
 
 #include <new>
 #include <utility>
@@ -22,8 +23,9 @@ struct ReloadCoordinator::Impl final {
         std::uint64_t revision = 0U;
     };
 
-    Impl(ViewRuntime& valueHost, Base::IAllocator& valueAllocator) noexcept
+    Impl(ViewRuntime& valueHost, View& valueView, Base::IAllocator& valueAllocator) noexcept
         : host(&valueHost),
+          view(&valueView),
           allocator(&valueAllocator),
           revisions(&valueAllocator) {}
 
@@ -35,7 +37,7 @@ struct ReloadCoordinator::Impl final {
                 "XAML reload source is unavailable");
         }
         Markup::SourceProviderRegistry* providers =
-            host->Sources();
+            Aero::Detail::ViewAccess::Sources(*view);
         if (providers == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
@@ -75,14 +77,18 @@ struct ReloadCoordinator::Impl final {
         std::uint64_t revision = 0U;
         std::uint64_t sourceIdentity = 0U;
         Markup::SourceProviderRegistry* providers =
-            host != nullptr ? host->Sources() : nullptr;
+            host != nullptr && view != nullptr
+            ? Aero::Detail::ViewAccess::Sources(*view)
+            : nullptr;
         if (providers != nullptr) {
             Base::Result<Markup::SourceProviderResolution> resolved =
                 providers->ResolveDetailed(uri);
             if (resolved) sourceIdentity = resolved.Value().cacheIdentity;
         }
         Markup::DocumentCache* cache =
-            host != nullptr ? host->DocumentCache() : nullptr;
+            host != nullptr && view != nullptr
+            ? Aero::Detail::ViewAccess::DocumentCache(*view)
+            : nullptr;
         if (cache == nullptr ||
             !cache->TryGetSourceRevision(
                 uri, sourceIdentity, revision)) {
@@ -131,7 +137,8 @@ struct ReloadCoordinator::Impl final {
                 Base::ErrorCode::InvalidState,
                 "XAML reload coordinator is not active");
         }
-        Markup::DocumentCache* cache = host->DocumentCache();
+        Markup::DocumentCache* cache =
+            Aero::Detail::ViewAccess::DocumentCache(*view);
         std::uint32_t invalidatedCount = 0U;
         if (cache != nullptr) {
             Base::Result<std::uint32_t> invalidated =
@@ -165,6 +172,7 @@ struct ReloadCoordinator::Impl final {
     }
 
     ViewRuntime* host = nullptr;
+    View* view = nullptr;
     Base::IAllocator* allocator = nullptr;
     Base::ResourceUri rootUri;
     Aero::Size availableSize;
@@ -191,7 +199,7 @@ ReloadCoordinator::ReloadCoordinator(
         Base::ReportOutOfMemory(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
-    impl_ = new (memory) Impl(*runtime, *allocator_);
+    impl_ = new (memory) Impl(*runtime, viewHost.GetView(), *allocator_);
 }
 
 ReloadCoordinator::~ReloadCoordinator() noexcept {

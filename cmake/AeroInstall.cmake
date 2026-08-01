@@ -12,7 +12,7 @@ set_target_properties(AeroMeta PROPERTIES EXPORT_NAME Meta)
 set_target_properties(AeroIntegration PROPERTIES EXPORT_NAME Integration)
 set_target_properties(AeroApp PROPERTIES EXPORT_NAME App)
 
-set_target_properties(AeroCore PROPERTIES EXPORT_NAME _DetailCore)
+set_target_properties(AeroGuiKernel PROPERTIES EXPORT_NAME _DetailGuiKernel)
 set_target_properties(AeroPlatform PROPERTIES EXPORT_NAME _DetailPlatform)
 set_target_properties(AeroText PROPERTIES EXPORT_NAME _DetailText)
 set_target_properties(freetype PROPERTIES EXPORT_NAME _DetailFreeType)
@@ -43,7 +43,7 @@ set(_aero_product_targets
     AeroApp)
 
 set(_aero_static_support_targets
-    AeroCore
+    AeroGuiKernel
     AeroPlatform
     AeroText
     freetype

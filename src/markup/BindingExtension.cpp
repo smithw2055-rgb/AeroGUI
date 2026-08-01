@@ -1,6 +1,5 @@
 #include "Extensions.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/binding/BindingService.hpp"
+#include "gui/BindingInternal.hpp"
 
 // Binding markup-extension implementation.
 #include "DeferredContent.hpp"

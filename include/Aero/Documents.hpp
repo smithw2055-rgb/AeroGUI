@@ -1,18 +1,23 @@
 #pragma once
 
+#include <Aero/ContentElement.hpp>
 #include <Aero/Controls/Panels.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Text/TextTypes.hpp>
+
 #include <cstdint>
 #include <utility>
-#include <Aero/Input.hpp>
 
 namespace Aero::Detail { class DocumentTextAccess; }
 
 namespace Aero::Documents {
 
 class Inline;
+class Span;
 class Hyperlink;
 
-// Read-only projection over the canonical TextBlock owned-inline store.
+// Read-only projection over a TextBlock or Span inline collection.
 class AERO_API InlineCollectionView final {
 public:
     InlineCollectionView() noexcept = default;
@@ -22,14 +27,15 @@ public:
 
 private:
     friend class InlineCollection;
+    friend class Span;
     friend class Aero::Controls::TextBlock;
-    explicit InlineCollectionView(
-        const Controls::TextBlock& owner) noexcept : owner_(&owner) {}
-    const Controls::TextBlock* owner_ = nullptr;
+    explicit InlineCollectionView(const Base::Object& owner) noexcept
+        : owner_(&owner) {}
+    const Base::Object* owner_ = nullptr;
 };
 
-// Mutable WPF-shaped collection. Structural mutation is accepted while the
-// owner is detached; mounted edits remain the responsibility of MountService.
+// Mutable WPF-shaped collection. The collection itself is the logical child
+// store; Inline objects are not Visuals and are rendered by their TextBlock host.
 class AERO_API InlineCollection final {
 public:
     InlineCollection() noexcept = default;
@@ -42,10 +48,10 @@ public:
     Base::Result<void> Clear() noexcept;
 
 private:
+    friend class Span;
     friend class Aero::Controls::TextBlock;
-    explicit InlineCollection(
-        Controls::TextBlock& owner) noexcept : owner_(&owner) {}
-    Controls::TextBlock* owner_ = nullptr;
+    explicit InlineCollection(Base::Object& owner) noexcept : owner_(&owner) {}
+    Base::Object* owner_ = nullptr;
 };
 
 enum class LogicalDirection : std::uint8_t {
@@ -53,8 +59,8 @@ enum class LogicalDirection : std::uint8_t {
     Forward,
 };
 
-// Borrowed text position in a formatted text container. Storage offsets are
-// private so the public contract remains independent of UTF encoding.
+// Borrowed text position in a formatted text container. Storage offsets remain
+// private so the public contract is independent of the engine's UTF encoding.
 class AERO_API TextPointer final {
 public:
     TextPointer() noexcept = default;
@@ -69,14 +75,16 @@ public:
         std::int32_t delta,
         LogicalDirection direction = LogicalDirection::Forward) const noexcept;
 
-    friend bool operator==(const TextPointer& left,
-                           const TextPointer& right) noexcept {
+    friend bool operator==(
+        const TextPointer& left,
+        const TextPointer& right) noexcept {
         return left.container_ == right.container_ &&
             left.offset_ == right.offset_ &&
             left.direction_ == right.direction_;
     }
-    friend bool operator!=(const TextPointer& left,
-                           const TextPointer& right) noexcept {
+    friend bool operator!=(
+        const TextPointer& left,
+        const TextPointer& right) noexcept {
         return !(left == right);
     }
 
@@ -84,9 +92,10 @@ private:
     friend class Aero::Detail::DocumentTextAccess;
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
-    TextPointer(Controls::TextBlock& container,
-                std::uint32_t offset,
-                LogicalDirection direction) noexcept
+    TextPointer(
+        Controls::TextBlock& container,
+        std::uint32_t offset,
+        LogicalDirection direction) noexcept
         : container_(&container), offset_(offset), direction_(direction) {}
 
     Controls::TextBlock* container_ = nullptr;
@@ -98,7 +107,8 @@ class AERO_API TextRange final {
 public:
     TextRange() noexcept = default;
     static Base::Result<TextRange> TryCreate(
-        TextPointer start, TextPointer end) noexcept;
+        TextPointer start,
+        TextPointer end) noexcept;
 
     bool IsValid() const noexcept {
         return start_.IsValid() && end_.IsValid();
@@ -131,21 +141,64 @@ Base::Result<TextPointer> GetPositionFromPoint(
 Base::Result<Aero::Base::Rect> GetCharacterRect(
     const TextPointer& position) noexcept;
 
-// WPF-shaped document content surface. The implementation deliberately reuses
-// TextBlock as the retained visual/text-layout carrier; public document semantics
-// are expressed through this hierarchy rather than a second text engine.
-class AERO_API TextElement : public Controls::TextBlock {
-    AERO_DECLARE_TYPE(TextElement, Controls::TextBlock)
+// Non-visual WPF document content. TextElement values are interpreted by the
+// owning TextBlock during formatting and participate in logical/event routing.
+class AERO_API TextElement : public FrameworkContentElement {
+    AERO_DECLARE_TYPE(TextElement, FrameworkContentElement)
 public:
     ~TextElement() override = default;
 
-    inline static constexpr auto FontWeightProperty = Controls::TextBlock::FontWeightProperty;
-    inline static constexpr auto ForegroundProperty = Controls::TextBlock::ForegroundProperty;
-    inline static constexpr auto FontSizeProperty = Controls::TextBlock::FontSizeProperty;
+    Base::StringView GetFontFamily() const noexcept {
+        return GetValueOr(FontFamilyProperty, Base::StringView{});
+    }
+    double GetFontSize() const noexcept {
+        return GetValueOr(FontSizeProperty, 16.0);
+    }
+    FontWeight GetFontWeight() const noexcept {
+        return GetValueOr(FontWeightProperty, FontWeight::Normal);
+    }
+    Text::FontStyle GetFontStyle() const noexcept {
+        return GetValueOr(FontStyleProperty, Text::FontStyle::Normal);
+    }
+    Base::Ref<Media::Brush> GetForeground() const noexcept {
+        return GetValueOr(ForegroundProperty, Base::Ref<Media::Brush>{});
+    }
+    Controls::TextDecorations GetTextDecorations() const noexcept {
+        return GetValueOr(
+            TextDecorationsProperty,
+            Controls::TextDecorations::None);
+    }
+
+    Base::Result<void> SetFontFamily(Base::StringView value) noexcept {
+        return SetValue(FontFamilyProperty, value);
+    }
+    Base::Result<void> SetFontSize(double value) noexcept {
+        return SetValue(FontSizeProperty, value);
+    }
+    Base::Result<void> SetFontWeight(FontWeight value) noexcept {
+        return SetValue(FontWeightProperty, value);
+    }
+    Base::Result<void> SetFontStyle(Text::FontStyle value) noexcept {
+        return SetValue(FontStyleProperty, value);
+    }
+    Base::Result<void> SetForeground(Base::Ref<Media::Brush> value) noexcept {
+        return SetValue(ForegroundProperty, std::move(value));
+    }
+    Base::Result<void> SetTextDecorations(
+        Controls::TextDecorations value) noexcept {
+        return SetValue(TextDecorationsProperty, value);
+    }
+
+    inline static constexpr Members::Property<Base::String> FontFamilyProperty{"FontFamily"};
+    inline static constexpr Members::Property<double> FontSizeProperty{"FontSize"};
+    inline static constexpr Members::Property<FontWeight> FontWeightProperty{"FontWeight"};
+    inline static constexpr Members::Property<Text::FontStyle> FontStyleProperty{"FontStyle"};
+    inline static constexpr Members::Property<Base::Ref<Media::Brush>> ForegroundProperty{"Foreground"};
+    inline static constexpr Members::Property<Controls::TextDecorations> TextDecorationsProperty{"TextDecorations"};
 
 protected:
     explicit TextElement(Core::TypeId runtimeType) noexcept
-        : Controls::TextBlock(runtimeType) {}
+        : FrameworkContentElement(runtimeType) {}
 };
 
 class AERO_API Inline : public TextElement {
@@ -164,9 +217,18 @@ public:
     Run() noexcept : Inline(StaticTypeId()) {}
     ~Run() override = default;
 
-    Base::StringView GetText() const noexcept { return Text(); }
+    Base::StringView GetText() const noexcept {
+        return GetValueOr(TextProperty, Base::StringView{});
+    }
     Base::StringView Content() const noexcept { return GetText(); }
-    Base::Result<void> SetContent(Base::StringView value) noexcept { return SetText(value); }
+    Base::Result<void> SetText(Base::StringView value) noexcept {
+        return SetValue(TextProperty, value);
+    }
+    Base::Result<void> SetContent(Base::StringView value) noexcept {
+        return SetText(value);
+    }
+
+    inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
 };
 
 class AERO_API Span : public Inline {
@@ -175,16 +237,29 @@ public:
     Span() noexcept : Span(StaticTypeId()) {}
     ~Span() override = default;
 
-    InlineCollection GetInlines() noexcept { return Inlines(); }
-    InlineCollectionView GetInlines() const noexcept { return Inlines(); }
-    Base::Result<void> TryAddInline(Base::Ref<Inline> value) noexcept { return Inlines().Add(std::move(value)); }
-    Base::Result<void> ClearInlines() noexcept {
-        return Inlines().Clear();
+    InlineCollection GetInlines() noexcept { return InlineCollection(*this); }
+    InlineCollectionView GetInlines() const noexcept {
+        return InlineCollectionView(*this);
     }
+    Core::Value MetadataInlines() const noexcept;
+    Base::Result<void> SetInlineValue(Core::Value value) noexcept;
+    Base::Result<void> AddOwnedInline(Base::Ref<Inline> value) noexcept;
+    Base::Result<void> ClearOwnedInlines() noexcept;
 
 protected:
     explicit Span(Core::TypeId runtimeType) noexcept
-        : Inline(runtimeType) {}
+        : Inline(runtimeType), inlines_() {}
+    std::uint32_t GetLogicalChildrenCount() const noexcept override {
+        return inlines_.Size();
+    }
+    DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept override {
+        return index < inlines_.Size() ? inlines_[index].Get() : nullptr;
+    }
+
+private:
+    friend class Aero::Detail::DocumentTextAccess;
+    Base::Vector<Base::Ref<Inline>> inlines_;
+    Base::Ref<Inline> pendingInline_;
 };
 
 class AERO_API Bold final : public Span {
@@ -213,12 +288,6 @@ class AERO_API LineBreak final : public Inline {
 public:
     LineBreak() noexcept : Inline(StaticTypeId()) {}
     ~LineBreak() override = default;
-
-protected:
-    Base::Result<Aero::Base::Size> MeasureOverride(
-        Aero::Base::Size) noexcept override {
-        return Aero::Base::Size{};
-    }
 };
 
 struct RequestNavigateEventArgs final : Aero::RoutedEventArgs {
@@ -226,7 +295,8 @@ struct RequestNavigateEventArgs final : Aero::RoutedEventArgs {
     RequestNavigateEventArgs() noexcept
         : Aero::RoutedEventArgs(StaticTypeId()) {}
     RequestNavigateEventArgs(
-        Base::StringView value, Hyperlink* sourceLink) noexcept
+        Base::StringView value,
+        Hyperlink* sourceLink) noexcept
         : Aero::RoutedEventArgs(StaticTypeId()),
           uri(value), hyperlink(sourceLink) {}
 
@@ -243,11 +313,11 @@ public:
     ~Hyperlink() override = default;
 
     inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> ClickEvent{"Click"};
-    Aero::UIElement::Event<Aero::RoutedEventArgs> Click() noexcept {
+    ContentElement::Event<Aero::RoutedEventArgs> Click() noexcept {
         return GetEvent(ClickEvent);
     }
     inline static constexpr Members::RoutedEvent<RequestNavigateEventArgs> RequestNavigateEvent{"RequestNavigate"};
-    Aero::UIElement::Event<RequestNavigateEventArgs> RequestNavigate() noexcept {
+    ContentElement::Event<RequestNavigateEventArgs> RequestNavigate() noexcept {
         return GetEvent(RequestNavigateEvent);
     }
 
@@ -273,8 +343,6 @@ public:
 using NavigationHandler = Base::Delegate<bool(
     Base::StringView, Hyperlink&)>;
 
-// Host-facing adapter for RequestNavigate. It owns no browser or OS policy;
-// applications provide the callback and attach the service to a routed-event root.
 class AERO_API NavigationService final {
 public:
     explicit NavigationService(
@@ -286,8 +354,7 @@ public:
     void SetHandler(NavigationHandler handler) noexcept {
         handler_ = std::move(handler);
     }
-    Base::Result<void> Attach(
-        Aero::UIElement& root) noexcept;
+    Base::Result<void> Attach(Aero::UIElement& root) noexcept;
     bool Detach() noexcept;
     bool IsAttached() const noexcept { return root_ != nullptr; }
 

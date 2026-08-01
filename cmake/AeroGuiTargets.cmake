@@ -1,71 +1,70 @@
 # WPF/XAML kernel, controls, markup and schema composition targets.
-add_library(AeroCore ${AERO_LIBRARY_TYPE}
-    src/gui/metadata/BindingPath.cpp
-    src/gui/property/DependencyProperty.cpp
+add_library(AeroGuiKernel ${AERO_LIBRARY_TYPE}
+    src/gui/BindingPath.cpp
+    src/gui/DependencyProperty.cpp
     src/diagnostics/Diagnostics.cpp
-    src/gui/threading/Dispatcher.cpp
-    src/gui/property/EffectiveValueEngine.cpp
-    src/gui/metadata/RoutedEventCatalog.cpp
-    src/gui/metadata/CoreMetadata.cpp
-    src/gui/metadata/MetadataAuthoring.cpp
-    src/gui/metadata/MetadataContext.cpp
-    src/gui/metadata/MetadataRuntimeData.cpp
-    src/gui/metadata/MetadataBehaviorRegistrationStore.cpp
-    src/gui/metadata/MetadataDomain.cpp
-    src/gui/metadata/MetadataRegistrationValues.cpp
-    src/gui/metadata/MetadataRuntime.cpp
-    src/gui/metadata/MetadataValueFacets.cpp
-    src/gui/metadata/MetadataValueRegistrationStore.cpp
-    src/gui/metadata/ValueConversion.cpp
-    src/gui/property/ObjectServices.cpp
-    src/gui/metadata/TypeRegistry.cpp
-    src/gui/metadata/Value.cpp
+    src/gui/Dispatcher.cpp
+    src/gui/EffectiveValueEngine.cpp
+    src/gui/RoutedEventCatalog.cpp
+    src/gui/CoreMetadata.cpp
+    src/gui/MetadataAuthoring.cpp
+    src/gui/MetadataContext.cpp
+    src/gui/MetadataRuntimeData.cpp
+    src/gui/MetadataBehaviorRegistrationStore.cpp
+    src/gui/MetadataDomain.cpp
+    src/gui/MetadataRegistrationValues.cpp
+    src/gui/MetadataRuntime.cpp
+    src/gui/MetadataValueFacets.cpp
+    src/gui/MetadataValueRegistrationStore.cpp
+    src/gui/ValueConversion.cpp
+    src/gui/ObjectServices.cpp
+    src/gui/TypeRegistry.cpp
+    src/gui/Value.cpp
     src/media/AnimationRuntime.cpp
     src/media/Animation.cpp
     src/render/BatchPlanner.cpp
     src/render/DrawingContext.cpp
-    src/gui/binding/Binding.cpp
-    src/gui/binding/BindingObjects.cpp
+    src/gui/Binding.cpp
+    src/gui/BindingObjects.cpp
     src/media/Brushes.cpp
-    src/gui/input/Commands.cpp
+    src/gui/Commands.cpp
     src/media/Effects.cpp
-    src/gui/input/Input.cpp
+    src/gui/Input.cpp
     src/media/Images.cpp
-    src/gui/layout/Layout.cpp
-    src/gui/metadata/UiMetadata.cpp
-    src/gui/tree/MountService.cpp
-    src/gui/tree/ObjectTree.cpp
-    src/gui/resources/Resources.cpp
+    src/gui/Layout.cpp
+    src/gui/UiMetadata.cpp
+    src/gui/ContentElement.cpp
+    src/gui/GuiContext.cpp
+    src/gui/Resources.cpp
     src/render/RenderTree.cpp
     src/media/Transforms.cpp
-    src/gui/tree/VisualTreeMount.cpp
-    src/gui/styling/Style.cpp)
+    src/gui/Style.cpp)
 
-add_library(Aero::_DetailCore ALIAS AeroCore)
+add_library(Aero::_DetailGuiKernel ALIAS AeroGuiKernel)
 
-target_include_directories(AeroCore
+target_include_directories(AeroGuiKernel
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-target_link_libraries(AeroCore
+target_link_libraries(AeroGuiKernel
     PUBLIC
         Aero::Base
         Threads::Threads)
 
 target_compile_definitions(
-    AeroCore PUBLIC AERO_UI_RESOURCE_MODEL=2)
-target_compile_features(AeroCore PUBLIC cxx_std_17)
-set_target_properties(AeroCore PROPERTIES
+    AeroGuiKernel PUBLIC AERO_UI_RESOURCE_MODEL=2)
+target_compile_features(AeroGuiKernel PUBLIC cxx_std_17)
+set_target_properties(AeroGuiKernel PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 
-aero_apply_compiler_options(AeroCore)
+aero_apply_compiler_options(AeroGuiKernel)
 
 
 
@@ -79,7 +78,7 @@ target_include_directories(AeroAppModel
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroAppModel PUBLIC Aero::_DetailCore)
+target_link_libraries(AeroAppModel PUBLIC Aero::_DetailGuiKernel)
 target_compile_features(AeroAppModel PUBLIC cxx_std_17)
 set_target_properties(AeroAppModel PROPERTIES
     CXX_STANDARD 17
@@ -95,7 +94,6 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/ContentControls.cpp
     src/controls/ControlBehaviorService.cpp
     src/controls/Controls.cpp
-    src/controls/DocumentInteraction.cpp
     src/controls/Documents.cpp
     src/controls/Images.cpp
     src/controls/Items.cpp
@@ -121,7 +119,7 @@ target_include_directories(AeroControls
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroControls
     PUBLIC
-        Aero::_DetailCore
+        Aero::_DetailGuiKernel
         Aero::_DetailPlatform
         Aero::_DetailText)
 target_compile_definitions(
@@ -167,7 +165,7 @@ target_include_directories(AeroMarkupKernel
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroMarkupKernel PUBLIC Aero::_DetailCore)
+target_link_libraries(AeroMarkupKernel PUBLIC Aero::_DetailGuiKernel)
 target_compile_features(AeroMarkupKernel PUBLIC cxx_std_17)
 set_target_properties(AeroMarkupKernel PROPERTIES
     CXX_STANDARD 17

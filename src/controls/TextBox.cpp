@@ -4,13 +4,13 @@
 
 #include "TextLayoutService.hpp"
 
-#include "gui/property/ObjectServices.hpp"
+#include "gui/PropertyInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
-#include "gui/events/EventRouter.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -2324,7 +2324,7 @@ using namespace Aero::Controls;
 
 TextBoxInteractionManager::
 TextBoxInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input,
     Integration::IClipboard& clipboard) noexcept

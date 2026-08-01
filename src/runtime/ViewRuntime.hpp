@@ -1,7 +1,5 @@
 #pragma once
 
-#include "RuntimeFwd.hpp"
-
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Object.hpp>
@@ -36,7 +34,7 @@ class ITextInputMethodHost;
 }
 
 namespace Aero {
-class ObjectTree;
+class GuiContext;
 class ResourceDictionary;
 }
 namespace Aero::Render {
@@ -49,6 +47,8 @@ class DocumentCache;
 class Schema;
 class SourceProviderRegistry;
 }
+
+namespace Aero::Detail { class ViewAccess; }
 
 namespace Aero {
 
@@ -164,29 +164,9 @@ public:
             FindNamedObject(name, T::StaticTypeId()));
     }
 
-    Core::MetadataDomain* Metadata() noexcept;
-    Core::MetadataRuntime* MetadataRuntime() noexcept;
-    Core::EffectiveValueEngine* EffectiveValues() noexcept;
-    Aero::Detail::AnimationManager* Animations() noexcept;
-    Aero::ObjectTree* Tree() noexcept;
-    Aero::Detail::LayoutManager* Layout() noexcept;
-    Render::RenderTree* Renderer() noexcept;
-    Aero::Detail::BindingManager* Bindings() noexcept;
-    Aero::Detail::EventRouter* RoutedEvents() noexcept;
-    Controls::TemplateManager* Templates() noexcept;
-    Controls::VisualStateManager* VisualStates() noexcept;
-    Markup::Schema* Schema() noexcept;
-    Markup::SourceProviderRegistry* Sources() noexcept;
-    Markup::EmbeddedSourceProvider* EmbeddedSources() noexcept;
-    Markup::DocumentCache* DocumentCache() noexcept;
-    const Base::ResourceUri& CurrentDocumentUri() const noexcept;
-    Base::Span<const Base::ResourceUri> CurrentDocumentDependencies() const noexcept;
-    Aero::ResourceDictionary* ApplicationResources() noexcept;
-    Aero::ResourceDictionary* ThemeResources() noexcept;
-    Aero::ResourceDictionary* SystemResources() noexcept;
-    Aero::Detail::StyleManager* Styles() noexcept;
 
 private:
+    friend class Aero::Detail::ViewAccess;
     struct Impl;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

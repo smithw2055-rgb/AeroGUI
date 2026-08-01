@@ -4,11 +4,11 @@
 #include <Aero/Controls/Text.hpp>
 #include "ControlInternals.hpp"
 
-#include "gui/metadata/BuiltinTypeIds.hpp"
+#include "gui/MetadataInternal.hpp"
 
 #include <algorithm>
 #include <utility>
-#include "gui/events/EventRouter.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -1439,7 +1439,7 @@ using namespace Aero::Controls;
 
 ComboBoxInteractionManager::
 ComboBoxInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input) noexcept
     : tree_(&tree),
@@ -1646,7 +1646,7 @@ void ComboBoxInteractionManager::OnKeyDown(
 }
 
 ListBoxInteractionManager::ListBoxInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input,
     VisualStateManager* states) noexcept

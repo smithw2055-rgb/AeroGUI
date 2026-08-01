@@ -5,7 +5,7 @@
 #include "ObjectWriterState.hpp"
 #include "XamlDocumentAccess.hpp"
 
-#include "gui/property/ObjectServices.hpp"
+#include "gui/PropertyInternal.hpp"
 #include <Aero/Base/Hash.hpp>
 #include "ObjectWriter.hpp"
 #include <Aero/Markup/Schema.hpp>

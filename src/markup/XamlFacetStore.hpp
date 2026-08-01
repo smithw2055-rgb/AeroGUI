@@ -6,7 +6,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Meta/TypeRegistry.hpp>
-#include "gui/property/EffectiveValueEngine.hpp"
+#include "gui/PropertyInternal.hpp"
 #include "Extensions.hpp"
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Version.hpp>

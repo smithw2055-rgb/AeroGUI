@@ -40,7 +40,7 @@ Acceptance:
 
 ### Slice B — Atomic tree mutation and safe deferred work
 
-Implementation status: **portable safety primitives and conformance coverage complete; direct ObjectTree/LayoutManager/RenderManager migration remains incremental**.
+Implementation status: **portable safety primitives and conformance coverage complete; the legacy ObjectTree and mount layers are retired in favor of WPF logical/visual relationships coordinated by GuiContext**.
 
 Delivered on this branch:
 

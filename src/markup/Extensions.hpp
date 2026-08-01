@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 // Canonical markup-extension API.
 
@@ -14,7 +14,7 @@
 #include <Aero/Meta/Value.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include "gui/property/EffectiveValueEngine.hpp"
+#include "gui/PropertyInternal.hpp"
 #include <Aero/Markup/Resources.hpp>
 
 #include <cstdint>

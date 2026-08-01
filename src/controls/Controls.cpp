@@ -5,7 +5,8 @@
 #include <Aero/Documents.hpp>
 
 #include "TextLayoutService.hpp"
-#include "gui/property/ObjectServices.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1736,19 +1737,15 @@ Base::Result<void> TextBlock::SetInlineValue(
     if (value.Kind() == Core::ValueKind::Object &&
         !value.IsNullObject() &&
         value.AsObject()) {
-        Base::Ref<Base::Object> inlineObject =
-            value.AsObject();
+        Base::Ref<Base::Object> inlineObject = value.AsObject();
         if (!PropertyRegistry().Types().IsDerivedFrom(
                 inlineObject->RuntimeType(),
-                UIElement::StaticTypeId())) {
+                Documents::Inline::StaticTypeId())) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
-                "TextBlock inline object must be a UIElement");
+                "TextBlock inline object must derive from Documents::Inline");
         }
-        return AddOwnedInline(
-            inlineObject,
-            *static_cast<UIElement*>(
-                inlineObject.Get()));
+        return AddOwnedInline(inlineObject);
     }
     if (value.Kind() != Core::ValueKind::String) {
         return Base::Status::Failure(
@@ -1767,13 +1764,11 @@ Base::Result<void> TextBlock::SetInlineValue(
 }
 
 Base::Result<void> TextBlock::AddOwnedInline(
-    const Base::Ref<Base::Object>& inlineObject,
-    UIElement& inlineElement) noexcept {
-    if (!inlineObject ||
-        inlineObject.Get() != &inlineElement) {
+    const Base::Ref<Base::Object>& inlineObject) noexcept {
+    if (!inlineObject) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "TextBlock owned inline does not match its UIElement");
+            "TextBlock inline cannot be null");
     }
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
@@ -1797,6 +1792,9 @@ Base::Result<void> TextBlock::AddOwnedInline(
     Base::Result<void> appended =
         ownedInlines_.TryPushBack(inlineObject);
     if (!appended) return appended.GetStatus();
+    auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
+    Aero::Detail::ContentElementAccess::Attach(
+        inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
 }
@@ -1804,10 +1802,11 @@ Base::Result<void> TextBlock::AddOwnedInline(
 Base::Result<void> TextBlock::ClearOwnedInlines() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!LayoutChildren().Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "TextBlock inlines must be detached before releasing ownership");
+    for (Base::Ref<Base::Object>& item : ownedInlines_) {
+        if (item) {
+            Aero::Detail::ContentElementAccess::Detach(
+                *static_cast<Documents::Inline*>(item.Get()));
+        }
     }
     ownedInlines_.Clear();
     pendingInline_.Reset();
@@ -1831,137 +1830,6 @@ Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
     if (bold) return Base::StringView("Segoe UI Bold");
     if (italic) return Base::StringView("Segoe UI Italic");
     return configured;
-}
-
-bool TextBlock::IsLineBreak(
-    const UIElement& child) const noexcept {
-    return child.RuntimeType() ==
-        Documents::LineBreak::StaticTypeId();
-}
-
-Base::Result<void> TextBlock::SynchronizeInlineStyle(
-    UIElement& child) noexcept {
-    if (!PropertyRegistry().Types().IsDerivedFrom(
-            child.RuntimeType(),
-            TextBlock::StaticTypeId())) {
-        return {};
-    }
-    auto& text = static_cast<TextBlock&>(child);
-    const auto syncBrush = [&](
-        const auto& property,
-        Base::Ref<Brush> value) noexcept -> Base::Result<void> {
-        Base::Result<EffectiveValueSource> source =
-            text.GetValueSource(property.Handle());
-        if (!source) return source.GetStatus();
-        return source.Value() == EffectiveValueSource::Local
-            ? Base::Result<void>()
-            : text.SetCurrentValue(property, value);
-    };
-    const auto syncDouble = [&](
-        const auto& property,
-        double value) noexcept -> Base::Result<void> {
-        Base::Result<EffectiveValueSource> source =
-            text.GetValueSource(property.Handle());
-        if (!source) return source.GetStatus();
-        return source.Value() == EffectiveValueSource::Local
-            ? Base::Result<void>()
-            : text.SetCurrentValue(property, value);
-    };
-    Base::Result<void> result =
-        syncBrush(
-            ForegroundProperty,
-            ForegroundBrush());
-    if (result) {
-        result = syncDouble(
-            FontSizeProperty,
-            FontSize());
-    }
-    if (result) {
-        Base::Result<EffectiveValueSource> source =
-            text.GetValueSource(
-                FrameworkElement::FontFamilyProperty.Handle());
-        if (!source) {
-            result = source.GetStatus();
-        } else if (source.Value() !=
-                   EffectiveValueSource::Local) {
-            Base::Result<Core::Value> encoded =
-                Core::Value::TryFromString(
-                    Core::TypeOf<Base::String>(),
-                    FontFamily());
-            result = encoded
-                ? text.SetCurrentValue(
-                    FrameworkElement::FontFamilyProperty.Handle(),
-                    encoded.Value())
-                : Base::Result<void>(encoded.GetStatus());
-        }
-    }
-    if (!result) return result.GetStatus();
-    Base::Result<EffectiveValueSource> wrappingSource =
-        text.GetValueSource(
-            TextWrappingProperty.Handle());
-    if (!wrappingSource) {
-        return wrappingSource.GetStatus();
-    }
-    if (wrappingSource.Value() !=
-        EffectiveValueSource::Local) {
-        result = text.SetCurrentValue(
-            TextWrappingProperty,
-            TextWrapping());
-        if (!result) return result.GetStatus();
-    }
-    Base::Result<EffectiveValueSource> trimmingSource =
-        text.GetValueSource(
-            TextTrimmingProperty.Handle());
-    if (!trimmingSource) {
-        return trimmingSource.GetStatus();
-    }
-    if (trimmingSource.Value() !=
-        EffectiveValueSource::Local) {
-        result = text.SetCurrentValue(
-            TextTrimmingProperty,
-            TextTrimming());
-        if (!result) return result.GetStatus();
-    }
-
-    Base::Result<EffectiveValueSource> weightSource =
-        text.GetValueSource(
-            FontWeightProperty.Handle());
-    if (!weightSource) return weightSource.GetStatus();
-    if (weightSource.Value() !=
-            EffectiveValueSource::Local &&
-        child.RuntimeType() != Documents::Bold::StaticTypeId()) {
-        result = text.SetCurrentValue(
-            FontWeightProperty,
-            GetFontWeight());
-        if (!result) return result.GetStatus();
-    }
-    Base::Result<EffectiveValueSource> styleSource =
-        text.GetValueSource(
-            FontStyleProperty.Handle());
-    if (!styleSource) return styleSource.GetStatus();
-    if (styleSource.Value() !=
-            EffectiveValueSource::Local &&
-        child.RuntimeType() != Documents::Italic::StaticTypeId()) {
-        result = text.SetCurrentValue(
-            FontStyleProperty,
-            GetFontStyle());
-        if (!result) return result.GetStatus();
-    }
-    Base::Result<EffectiveValueSource> decorationSource =
-        text.GetValueSource(
-            TextDecorationsProperty.Handle());
-    if (!decorationSource) {
-        return decorationSource.GetStatus();
-    }
-    if (decorationSource.Value() !=
-            EffectiveValueSource::Local &&
-        child.RuntimeType() !=
-            Documents::Underline::StaticTypeId()) {
-        result = text.SetCurrentValue(
-            TextDecorationsProperty,
-            GetTextDecorations());
-    }
-    return result;
 }
 
 Base::Result<void> TextBlock::SetGlyphRun(
@@ -1993,8 +1861,12 @@ Base::Result<void> TextBlock::SetGlyphRun(
 }
 
 Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
+    Base::String flattened;
+    Base::Result<void> copied = Documents::CopyText(*this, flattened);
+    if (!copied) return copied.GetStatus();
+
     if (layoutService_ != nullptr) {
-        const Base::StringView text = Text();
+        const Base::StringView text = flattened.View();
         if (text.Empty()) {
             const bool changed =
                 !glyphRuns_.Empty() ||
@@ -2009,171 +1881,68 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
                 if (!invalidated) return invalidated.GetStatus();
             }
         } else {
-        Detail::TextLayoutRequest request;
-        request.text = text;
-        request.availableSize = availableSize;
-        request.dpiScale = GetDpiScale();
-        request.pixelSize =
-            static_cast<float>(FontSize());
-        request.fontFamily = EffectiveFontFamily();
-        request.wrapping = TextWrapping();
-        request.trimming = TextTrimming();
-        request.alignment = TextAlignment();
-        Detail::TextLayoutResult output;
-        Base::Result<void> prepared =
-            layoutService_->ShapeAndPrepare(request, output);
-        if (!prepared) return prepared.GetStatus();
-        bool validGlyphRuns = true;
-        for (RenderGlyphRunId glyphRun : output.glyphRuns) {
-            if (glyphRun == InvalidRenderGlyphRunId) {
-                validGlyphRuns = false;
-                break;
-            }
-        }
-        if (!IsValidTextSize(output.desiredSize) ||
-            !validGlyphRuns) {
+            Detail::TextLayoutRequest request;
+            request.text = text;
+            request.availableSize = availableSize;
+            request.dpiScale = GetDpiScale();
+            request.pixelSize = static_cast<float>(FontSize());
+            request.fontFamily = EffectiveFontFamily();
+            request.wrapping = TextWrapping();
+            request.trimming = TextTrimming();
+            request.alignment = TextAlignment();
+            Detail::TextLayoutResult output;
+            Base::Result<void> prepared =
+                layoutService_->ShapeAndPrepare(request, output);
+            if (!prepared) return prepared.GetStatus();
+            bool validGlyphRuns = true;
             for (RenderGlyphRunId glyphRun : output.glyphRuns) {
-                if (glyphRun != InvalidRenderGlyphRunId) {
-                    layoutService_->ReleaseGlyphRun(glyphRun);
-                }
-            }
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Text layout service returned an invalid result");
-        }
-
-        bool changed =
-            glyphRuns_.Size() != output.glyphRuns.Size() ||
-            glyphRunSize_.width != output.desiredSize.width ||
-            glyphRunSize_.height != output.desiredSize.height ||
-            !serviceOwnsGlyphRun_;
-        if (!changed) {
-            for (std::uint32_t index = 0U;
-                 index < glyphRuns_.Size(); ++index) {
-                if (glyphRuns_[index] != output.glyphRuns[index]) {
-                    changed = true;
+                if (glyphRun == InvalidRenderGlyphRunId) {
+                    validGlyphRuns = false;
                     break;
                 }
             }
-        }
-        ReleaseServiceGlyphRun();
-        glyphRuns_ = std::move(output.glyphRuns);
-        textHitRegions_ = std::move(output.hitRegions);
-        glyphRunSize_ = output.desiredSize;
-        serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
-        if (changed) {
-            Base::Result<void> invalidated = InvalidateRender();
-            if (!invalidated) return invalidated.GetStatus();
-        }
-        }
-    }
-    double lineWidth = glyphRunSize_.width;
-    double lineHeight = glyphRunSize_.height;
-    double desiredWidth = lineWidth;
-    double desiredHeight = 0.0;
-    const bool wrapping =
-        TextWrapping() != Text::TextWrapping::NoWrap;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        if (IsLineBreak(*child)) {
-            desiredWidth =
-                std::max(desiredWidth, lineWidth);
-            desiredHeight += std::max(
-                lineHeight,
-                FontSize() * 1.2);
-            lineWidth = 0.0;
-            lineHeight = 0.0;
-            continue;
-        }
-        Base::Result<void> synchronized =
-            SynchronizeInlineStyle(*child);
-        if (!synchronized) {
-            return synchronized.GetStatus();
-        }
-        Size childAvailable = availableSize;
-        if (!wrapping) {
-            childAvailable.width = 1.0e12;
-        } else {
-            childAvailable.width =
-                std::max(
-                    0.0,
-                    availableSize.width -
-                        lineWidth);
-        }
-        Base::Result<void> measured =
-            MeasureChild(*child, childAvailable);
-        if (!measured) return measured.GetStatus();
-        Size childDesired = child->GetDesiredSize();
-        if (wrapping &&
-            lineWidth > 0.0 &&
-            lineWidth + childDesired.width >
-                availableSize.width) {
-            desiredWidth =
-                std::max(desiredWidth, lineWidth);
-            desiredHeight += std::max(
-                lineHeight,
-                FontSize() * 1.2);
-            lineWidth = 0.0;
-            lineHeight = 0.0;
-            childAvailable.width =
-                availableSize.width;
-            measured = MeasureChild(
-                *child, childAvailable);
-            if (!measured) {
-                return measured.GetStatus();
+            if (!IsValidTextSize(output.desiredSize) || !validGlyphRuns) {
+                for (RenderGlyphRunId glyphRun : output.glyphRuns) {
+                    if (glyphRun != InvalidRenderGlyphRunId) {
+                        layoutService_->ReleaseGlyphRun(glyphRun);
+                    }
+                }
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Text layout service returned an invalid result");
             }
-            childDesired = child->GetDesiredSize();
+
+            bool changed =
+                glyphRuns_.Size() != output.glyphRuns.Size() ||
+                glyphRunSize_.width != output.desiredSize.width ||
+                glyphRunSize_.height != output.desiredSize.height ||
+                !serviceOwnsGlyphRun_;
+            if (!changed) {
+                for (std::uint32_t index = 0U;
+                     index < glyphRuns_.Size(); ++index) {
+                    if (glyphRuns_[index] != output.glyphRuns[index]) {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            ReleaseServiceGlyphRun();
+            glyphRuns_ = std::move(output.glyphRuns);
+            textHitRegions_ = std::move(output.hitRegions);
+            glyphRunSize_ = output.desiredSize;
+            serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+            if (changed) {
+                Base::Result<void> invalidated = InvalidateRender();
+                if (!invalidated) return invalidated.GetStatus();
+            }
         }
-        lineWidth += childDesired.width;
-        lineHeight =
-            std::max(lineHeight, childDesired.height);
     }
-    desiredWidth =
-        std::max(desiredWidth, lineWidth);
-    desiredHeight += lineHeight;
     return Size{
-        std::min(desiredWidth, availableSize.width),
-        std::min(desiredHeight, availableSize.height)};
+        std::min(glyphRunSize_.width, availableSize.width),
+        std::min(glyphRunSize_.height, availableSize.height)};
 }
 
-Base::Result<Size> TextBlock::ArrangeOverride(
-    Size finalSize) noexcept {
-    double x = glyphRunSize_.width;
-    double y = 0.0;
-    double lineHeight = glyphRunSize_.height;
-    const bool wrapping =
-        TextWrapping() != Text::TextWrapping::NoWrap;
-    for (UIElement* child : LayoutChildren()) {
-        if (child == nullptr) continue;
-        if (IsLineBreak(*child)) {
-            y += std::max(
-                lineHeight,
-                FontSize() * 1.2);
-            x = 0.0;
-            lineHeight = 0.0;
-            Base::Result<void> arranged =
-                ArrangeChild(*child, {x, y, 0.0, 0.0});
-            if (!arranged) return arranged.GetStatus();
-            continue;
-        }
-        const Size desired = child->GetDesiredSize();
-        if (wrapping && x > 0.0 &&
-            x + desired.width > finalSize.width) {
-            y += std::max(
-                lineHeight,
-                FontSize() * 1.2);
-            x = 0.0;
-            lineHeight = 0.0;
-        }
-        Base::Result<void> arranged =
-            ArrangeChild(
-                *child,
-                {x, y, desired.width, desired.height});
-        if (!arranged) return arranged.GetStatus();
-        x += desired.width;
-        lineHeight =
-            std::max(lineHeight, desired.height);
-    }
+Base::Result<Size> TextBlock::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 

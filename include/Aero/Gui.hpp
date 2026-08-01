@@ -4,6 +4,7 @@
 // semantics only; application lifetime lives in Aero/App.hpp, metadata authoring
 // in Aero/Meta.hpp and engine/backend integration in Aero/Integration.hpp.
 #include <Aero/DependencyObject.hpp>
+#include <Aero/ContentElement.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/RoutedEvent.hpp>

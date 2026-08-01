@@ -2,10 +2,10 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
-#include "runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 namespace Aero {
-class ObjectTree;
+class GuiContext;
 class Visual;
 namespace Core { class MetadataDomain; }
 namespace Detail { class InputService; }
@@ -22,7 +22,7 @@ namespace Detail {
 class ControlBehaviorService final {
 public:
     ControlBehaviorService(Base::IAllocator& allocator, Core::MetadataDomain& metadata,
-        Aero::ObjectTree& tree, Aero::Detail::EventRouter& events,
+        Aero::GuiContext& tree, Aero::Detail::EventRouter& events,
         Aero::Detail::InputService& input, VisualStateManager* visualStates,
         Integration::IClipboard* clipboard, bool controlsEnabled,
         bool textEditingEnabled) noexcept;

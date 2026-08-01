@@ -1,20 +1,18 @@
 #include <Aero/Controls/Items.hpp>
 #include "ControlInternals.hpp"
-#include "ControlInternals.hpp"
 #include "TemplateAccess.hpp"
 
 #include "render/RenderTree.hpp"
-#include "gui/resources/ResourceAssignment.hpp"
-#include "gui/tree/MountService.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/ElementInternal.hpp"
 
-#include "gui/metadata/BuiltinTypeIds.hpp"
+#include "gui/MetadataInternal.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <new>
 #include <utility>
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/styling/StyleRuntime.hpp"
+#include "gui/LayoutInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -868,7 +866,7 @@ class ItemContainerGeneratorImpl final {
 public:
     ItemContainerGeneratorImpl(
         ItemContainerGenerator& facade,
-        ObjectTree& tree,
+        GuiContext& tree,
         LayoutManager& layout,
         EffectiveValueEngine& values,
         StyleManager* styles,
@@ -910,9 +908,9 @@ private:
         Base::Ref<Base::Object> item;
         Base::Ref<ItemContainer> container;
         Base::Ref<Base::Object> content;
-        MountEdgeState containerMount;
-        MountEdgeState contentMount;
-        Base::Vector<MountEdgeState> subtreeMounts;
+        ElementAttachment containerMount;
+        ElementAttachment contentMount;
+        Base::Vector<ElementAttachment> subtreeMounts;
         const Style* appliedStyle = nullptr;
         bool itemIsOwnContainer = false;
         bool generatedTextContent = false;
@@ -920,7 +918,7 @@ private:
     };
 
     ItemContainerGenerator* facade_ = nullptr;
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     LayoutManager* layout_ = nullptr;
     EffectiveValueEngine* values_ = nullptr;
     StyleManager* styles_ = nullptr;
@@ -928,7 +926,6 @@ private:
     TemplateManager* templates_ = nullptr;
     ItemSubtreeCallback subtreeCallback_ = nullptr;
     void* subtreeContext_ = nullptr;
-    MountService mounts_;
     ItemsControl* owner_ = nullptr;
     Panel* host_ = nullptr;
     VirtualizingStackPanel* virtualizingHost_ = nullptr;
@@ -963,7 +960,7 @@ private:
 
 Detail::ItemContainerGeneratorImpl::ItemContainerGeneratorImpl(
     ItemContainerGenerator& facade,
-    ObjectTree& tree,
+    GuiContext& tree,
     LayoutManager& layout,
     EffectiveValueEngine& values,
     StyleManager* styles,
@@ -980,7 +977,6 @@ Detail::ItemContainerGeneratorImpl::ItemContainerGeneratorImpl(
       templates_(templates),
       subtreeCallback_(subtreeCallback),
       subtreeContext_(subtreeContext),
-      mounts_(tree, &layout, renderer),
       changedHandler_(
           this,
           &ItemContainerGeneratorImpl::OnItemsChanged) {}
@@ -1242,25 +1238,25 @@ Detail::ItemContainerGeneratorImpl::AttachOwnedSubtree(
                 Base::ErrorCode::InvalidState,
                 "Owned item-template child is already mounted elsewhere");
         }
-        Base::Result<MountEdgeState> mounted =
-            mounts_.Attach(parent, child);
+        Base::Result<ElementAttachment> mounted =
+            tree_->AttachElement(parent, child);
         if (!mounted) return mounted.GetStatus();
-        MountEdgeState edge =
+        ElementAttachment edge =
             std::move(mounted).Value();
         Base::Result<void> tracked =
             record.subtreeMounts.TryPushBack(
                 std::move(edge));
         if (!tracked) {
-            (void)mounts_.Detach(edge);
+            (void)tree_->DetachElement(edge);
             return tracked.GetStatus();
         }
         Base::Result<void> queued =
             pending.TryPushBack(&child);
         if (!queued) {
-            MountEdgeState rollback =
+            ElementAttachment rollback =
                 std::move(record.subtreeMounts.Back());
             record.subtreeMounts.PopBack();
-            (void)mounts_.Detach(rollback);
+            (void)tree_->DetachElement(rollback);
             return queued.GetStatus();
         }
         return {};
@@ -1345,7 +1341,7 @@ Detail::ItemContainerGeneratorImpl::DetachOwnedSubtree(
              record.subtreeMounts.Size();
          index > 0U; --index) {
         Base::Result<void> detached =
-            mounts_.Detach(
+            tree_->DetachElement(
                 record.subtreeMounts[index - 1U]);
         if (!detached && firstError.IsOk()) {
             firstError = detached.GetStatus();
@@ -1363,8 +1359,8 @@ Detail::ItemContainerGeneratorImpl::AttachRecord(
     std::uint32_t index) noexcept {
     ItemContainer& container = *record.container;
 
-    Base::Result<MountEdgeState> containerMounted =
-        mounts_.Attach(*owner_, *host_, container);
+    Base::Result<ElementAttachment> containerMounted =
+        tree_->AttachElement(*owner_, *host_, container);
     if (!containerMounted) return containerMounted.GetStatus();
     record.containerMount = std::move(containerMounted).Value();
 
@@ -1372,10 +1368,10 @@ Detail::ItemContainerGeneratorImpl::AttachRecord(
         auto& content =
             *static_cast<UIElement*>(
                 record.content.Get());
-        Base::Result<MountEdgeState> contentMounted =
-            mounts_.Attach(container, content);
+        Base::Result<ElementAttachment> contentMounted =
+            tree_->AttachElement(container, content);
         if (!contentMounted) {
-            (void)mounts_.Detach(record.containerMount);
+            (void)tree_->DetachElement(record.containerMount);
             return contentMounted.GetStatus();
         }
         record.contentMount =
@@ -1389,9 +1385,9 @@ Detail::ItemContainerGeneratorImpl::AttachRecord(
             : Detail::ContentControlAccess::SetOwnedContent(container,
                   record.content, content);
         if (!selected) {
-            (void)mounts_.Detach(
+            (void)tree_->DetachElement(
                 record.contentMount);
-            (void)mounts_.Detach(
+            (void)tree_->DetachElement(
                 record.containerMount);
             return selected.GetStatus();
         }
@@ -1472,11 +1468,11 @@ Detail::ItemContainerGeneratorImpl::DetachRecord(
         ? nullptr
         : Detail::ContentControlAccess::ContentElement(container);
     if (content != nullptr) {
-        capture(mounts_.Detach(record.contentMount));
+        capture(tree_->DetachElement(record.contentMount));
         capture(container.SetContent(nullptr));
         capture(values_->DetachObject(*content));
     }
-    capture(mounts_.Detach(record.containerMount));
+    capture(tree_->DetachElement(record.containerMount));
     if (!record.itemIsOwnContainer &&
         recycleContainer && firstError.IsOk()) {
         Base::Result<void> recycled = recycledContainers_.TryPushBack(std::move(record.container));
@@ -1564,11 +1560,11 @@ void Detail::ItemContainerGeneratorImpl::RemoveRecordAt(
 Base::Result<void>
 Detail::ItemContainerGeneratorImpl::ReorderVisuals() noexcept {
     for (Record& record : records_) {
-        Base::Result<void> detached = mounts_.DetachVisual(record.containerMount);
+        Base::Result<void> detached = tree_->DetachVisual(record.containerMount);
         if (!detached) return detached.GetStatus();
     }
     for (Record& record : records_) {
-        Base::Result<void> attached = mounts_.AttachVisual(record.containerMount, *host_);
+        Base::Result<void> attached = tree_->AttachVisual(record.containerMount, *host_);
         if (!attached) return attached.GetStatus();
     }
     return {};
@@ -2020,7 +2016,7 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
 
 Base::Result<ItemContainerGenerator*>
 Detail::ItemContainerGeneratorAccess::Create(
-    ObjectTree& tree,
+    GuiContext& tree,
     Aero::Detail::LayoutManager& layout,
     Core::EffectiveValueEngine& values,
     Aero::Detail::StyleManager* styles,

@@ -3,7 +3,7 @@
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Controls/Items.hpp>
-#include "../runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 namespace Aero::Controls::Detail {
 
@@ -64,7 +64,7 @@ public:
 } // namespace Aero::Controls::Detail
 
 namespace Aero {
-class ObjectTree;
+class GuiContext;
 namespace Render { class RenderTree; }
 }
 
@@ -81,7 +81,7 @@ public:
     }
 
     static Base::Result<ItemContainerGenerator*> Create(
-        ObjectTree& tree,
+        GuiContext& tree,
         Aero::Detail::LayoutManager& layout,
         Core::EffectiveValueEngine& values,
         Aero::Detail::StyleManager* styles = nullptr,

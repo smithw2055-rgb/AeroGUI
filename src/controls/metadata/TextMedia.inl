@@ -82,7 +82,7 @@ Base::Result<void> PopulateControlsTextMedia(
             ContentKind::Collection,
             &AddTextBlockInline,
             &ClearTextBlockInlines,
-            ContentFlags::Visual)
+            ContentFlags::None)
         .Factory();
     status = textBlock.Result();
     if (!status) return status.GetStatus();
@@ -90,17 +90,25 @@ Base::Result<void> PopulateControlsTextMedia(
     auto textElement = Describe<Documents::TextElement>(
         context, TypeFlags::Abstract);
     textElement
-        .AddOwner(
+        .Property(
+            Documents::TextElement::FontFamilyProperty,
+            PropertyOptions(Base::String{}).Inherits().AffectsMeasure())
+        .Property(
             Documents::TextElement::FontWeightProperty,
-            PropertyOptions(FontWeight::Normal).Inherits())
-        .AddOwner(
+            PropertyOptions(FontWeight::Normal).Inherits().AffectsMeasure())
+        .Property(
             Documents::TextElement::ForegroundProperty,
-            PropertyOptions(Base::Ref<Brush>{})
-                .Inherits().AffectsRender())
-        .AddOwner(
+            PropertyOptions(Base::Ref<Brush>{}).Inherits())
+        .Property(
             Documents::TextElement::FontSizeProperty,
-            PropertyOptions(16.0).Inherits().AffectsMeasure()
-                .Validate(&ValidatePositiveFiniteDouble));
+            PropertyOptions(16.0).Inherits().Validate(
+                &ValidatePositiveFiniteDouble))
+        .Property(
+            Documents::TextElement::FontStyleProperty,
+            PropertyOptions(Text::FontStyle::Normal).Inherits())
+        .Property(
+            Documents::TextElement::TextDecorationsProperty,
+            PropertyOptions(TextDecorations::None).Inherits());
     status = textElement.Result();
     if (!status) return status.GetStatus();
 
@@ -110,30 +118,41 @@ Base::Result<void> PopulateControlsTextMedia(
 
     auto run = Describe<Documents::Run>(context);
     run
-        .Property<
-            Base::String,
-            &Documents::Run::Content,
-            &Documents::Run::SetContent>(
-            "Content",
-            PropertyFlags::Structural)
-        .Content(
-            MakeMemberId(
-                Documents::Run::StaticTypeId(),
-                MemberKind::Property,
-                "Content"))
+        .Property(
+            Documents::Run::TextProperty,
+            PropertyOptions(Base::String{}).Structural())
+        .Content(Documents::Run::TextProperty.Id())
         .Factory();
     status = run.Result();
     if (!status) return status.GetStatus();
 
     auto span = Describe<Documents::Span>(context);
-    span.Factory();
+    span
+        .Property<
+            Value,
+            &Documents::Span::MetadataInlines,
+            &Documents::Span::SetInlineValue>(
+                "Inlines",
+                PropertyFlags::AnyValue |
+                    PropertyFlags::Collection |
+                    PropertyFlags::Structural)
+        .ContentAccessor(
+            MakeMemberId(
+                Documents::Span::StaticTypeId(),
+                MemberKind::Property,
+                "Inlines"),
+            ContentKind::Collection,
+            &AddSpanInline,
+            &ClearSpanInlines,
+            ContentFlags::None)
+        .Factory();
     status = span.Result();
     if (!status) return status.GetStatus();
 
     auto bold = Describe<Documents::Bold>(context);
     bold
         .Override(
-            TextBlock::FontWeightProperty,
+            Documents::TextElement::FontWeightProperty,
             PropertyOptions(FontWeight::Bold)
                 .AffectsMeasure())
         .Factory();
@@ -143,7 +162,7 @@ Base::Result<void> PopulateControlsTextMedia(
     auto italic = Describe<Documents::Italic>(context);
     italic
         .Override(
-            TextBlock::FontStyleProperty,
+            Documents::TextElement::FontStyleProperty,
             PropertyOptions(Text::FontStyle::Italic)
                 .AffectsMeasure())
         .Factory();
@@ -153,7 +172,7 @@ Base::Result<void> PopulateControlsTextMedia(
     auto underline = Describe<Documents::Underline>(context);
     underline
         .Override(
-            TextBlock::TextDecorationsProperty,
+            Documents::TextElement::TextDecorationsProperty,
             PropertyOptions(TextDecorations::Underline)
                 .AffectsRender())
         .Factory();
@@ -186,12 +205,9 @@ Base::Result<void> PopulateControlsTextMedia(
             Documents::Hyperlink::CommandTargetProperty,
             PropertyOptions(Base::Ref<UIElement>{}))
         .Override(
-            TextBlock::TextDecorationsProperty,
+            Documents::TextElement::TextDecorationsProperty,
             PropertyOptions(TextDecorations::Underline)
                 .AffectsRender())
-        .Override(
-            UIElement::IsTabStopProperty,
-            PropertyOptions(true))
         .Factory();
     status = hyperlink.Result();
     if (!status) return status.GetStatus();
@@ -434,9 +450,6 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(black)
                 .AffectsRender()
                 .Validate(&ValidateColorValue))
-        .Override(
-            UIElement::IsTabStopProperty,
-            PropertyOptions(true))
         .Factory();
     status = textBox.Result();
     if (!status) return status.GetStatus();
@@ -491,9 +504,6 @@ Base::Result<void> PopulateControlsTextMedia(
             PropertyOptions(black)
                 .AffectsRender()
                 .Validate(&ValidateColorValue))
-        .Override(
-            UIElement::IsTabStopProperty,
-            PropertyOptions(true))
         .Factory();
     status = passwordBox.Result();
     if (!status) return status.GetStatus();

@@ -189,7 +189,7 @@ compiled document，compiled payload 不存在或 schema identity 不兼容时�
 ## 构建边界
 
 `AeroMarkupKernel` 包含 tokenizer、node reader 和基础 compiled document/cache，
-只依赖 `AeroCore`。Schema 验证、object writer、资源、Binding、Style 与 Template
+只依赖 `AeroGuiKernel`。Schema 验证、object writer、资源、Binding、Style 与 Template
 位于上层 `AeroMarkup`，后者才依赖 Controls。架构检查禁止 Kernel 反向包含
 UI runtime、Controls 或 Markup integration 目录。
 

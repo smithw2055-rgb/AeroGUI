@@ -9,7 +9,7 @@
 #include <new>
 #include <utility>
 #include "RuntimeManagers.hpp"
-#include "gui/animation/AnimationRuntime.hpp"
+#include "gui/AnimationInternal.hpp"
 
 namespace Aero::Controls {
 using Aero::Controls::Detail::TemplateHandle;

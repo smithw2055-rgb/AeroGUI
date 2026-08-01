@@ -16,7 +16,7 @@ class VisualAccess;
 namespace Aero {
 
 class FrameworkElement;
-class ObjectTree;
+class GuiContext;
 class UIElement;
 class Visual;
 
@@ -29,6 +29,9 @@ public:
 
 class AERO_API LogicalTreeHelper final {
 public:
+    static DependencyObject* GetParent(const DependencyObject& object) noexcept;
+    static std::uint32_t GetChildrenCount(const DependencyObject& object) noexcept;
+    static DependencyObject* GetChild(const DependencyObject& object, std::uint32_t index) noexcept;
     static Visual* GetParent(const Visual& visual) noexcept;
     static std::uint32_t GetChildrenCount(const Visual& visual) noexcept;
     static Visual* GetChild(const Visual& visual, std::uint32_t index) noexcept;
@@ -49,16 +52,20 @@ public:
     virtual FrameworkElement* AsFrameworkElement() noexcept { return nullptr; }
     virtual const FrameworkElement* AsFrameworkElement() const noexcept { return nullptr; }
 
+protected:
+    virtual std::uint32_t GetVisualChildrenCountCore() const noexcept { return visualChildren_.Size(); }
+    virtual Visual* GetVisualChildCore(std::uint32_t index) const noexcept { return index < visualChildren_.Size() ? visualChildren_[index] : nullptr; }
+
 private:
     friend class LogicalTreeHelper;
-    friend class ObjectTree;
+    friend class GuiContext;
     friend class VisualTreeHelper;
     friend class Aero::Detail::UiRuntimeAccess;
     friend class Aero::Detail::VisualAccess;
 
     Base::Result<Base::Ref<Base::Object>> AcquireLifetime() noexcept;
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     Visual* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
     Base::Vector<Visual*> logicalChildren_;

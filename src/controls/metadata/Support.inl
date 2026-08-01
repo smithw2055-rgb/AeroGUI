@@ -652,21 +652,47 @@ Base::Result<void> AddTextBlockInline(
     auto& text = static_cast<TextBlock&>(owner);
     if (!text.PropertyRegistry().Types().IsDerivedFrom(
             child->RuntimeType(),
-            Aero::UIElement::StaticTypeId())) {
+            Aero::Documents::Inline::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "TextBlock inline content must be a UIElement");
+            "TextBlock inline content must derive from Documents::Inline");
     }
-    return text.AddOwnedInline(
-        child,
-        *static_cast<Aero::UIElement*>(
-            child.Get()));
+    return text.AddOwnedInline(child);
 }
 
 Base::Result<void> ClearTextBlockInlines(
     Base::Object& owner,
     void*) noexcept {
     return static_cast<TextBlock&>(owner)
+        .ClearOwnedInlines();
+}
+
+Base::Result<void> AddSpanInline(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& child,
+    void*) noexcept {
+    if (!child) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Span inline child is null");
+    }
+    auto& span = static_cast<Documents::Span&>(owner);
+    if (!span.PropertyRegistry().Types().IsDerivedFrom(
+            child->RuntimeType(),
+            Documents::Inline::StaticTypeId())) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Span content must derive from Documents::Inline");
+    }
+    return span.AddOwnedInline(
+        Base::Ref<Documents::Inline>::FromBorrowed(
+            *static_cast<Documents::Inline*>(child.Get())));
+}
+
+Base::Result<void> ClearSpanInlines(
+    Base::Object& owner,
+    void*) noexcept {
+    return static_cast<Documents::Span&>(owner)
         .ClearOwnedInlines();
 }
 

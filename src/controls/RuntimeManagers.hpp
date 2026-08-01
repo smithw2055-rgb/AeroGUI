@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../runtime/RuntimeFwd.hpp"
-#include "gui/input/RuntimeTypes.hpp"
-#include "gui/property/PropertyProviderSession.hpp"
+#include "gui/ElementInternal.hpp"
+#include "gui/InputInternal.hpp"
+#include "gui/PropertyInternal.hpp"
 #include "TemplateInstance.hpp"
 
 // Private runtime declarations extracted from public authoring headers.
@@ -14,10 +14,9 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Standard.hpp>
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingService.hpp"
-#include "gui/events/EventRouter.hpp"
-#include "gui/input/InputService.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
 
 namespace Aero::Detail {
 
@@ -30,7 +29,7 @@ using Aero::Controls::Detail::TemplateHandle;
 class AERO_API ControlRuntimeAccess::ControlInteractionManager final {
 public:
     ControlInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input,
         VisualStateManager* states = nullptr) noexcept;
@@ -61,7 +60,7 @@ private:
         bool updatingToggle = false;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
     VisualStateManager* states_ = nullptr;
@@ -120,73 +119,10 @@ private:
         bool captured) noexcept;
     void OnRequerySuggested() noexcept;
 };
-class AERO_API ControlRuntimeAccess::HyperlinkInteractionManager final {
-public:
-    HyperlinkInteractionManager(
-        ObjectTree& tree,
-        EventRouter& events,
-        InputService& input) noexcept;
-    ~HyperlinkInteractionManager() noexcept;
-
-    Base::Result<void> Initialize() noexcept;
-    Base::Result<void> Attach(Documents::Hyperlink& link) noexcept;
-    Base::Result<bool> Detach(Documents::Hyperlink& link) noexcept;
-    Base::Result<void> RefreshCanExecute(
-        Documents::Hyperlink& link) noexcept;
-
-private:
-    struct Record final {
-        VisualHandle handle;
-        Base::Ref<ICommand> command;
-        std::uint32_t pointerId = 0U;
-        bool pointerDown = false;
-        bool keyboardDown = false;
-        bool commandEnabled = true;
-    };
-
-    ObjectTree* tree_ = nullptr;
-    EventRouter* events_ = nullptr;
-    InputService* input_ = nullptr;
-    Base::Vector<Record> links_;
-    MouseButtonEventHandler mouseDownHandler_;
-    MouseButtonEventHandler mouseUpHandler_;
-    KeyEventHandler keyDownHandler_;
-    KeyEventHandler keyUpHandler_;
-    KeyboardFocusChangedEventHandler focusChangedHandler_;
-    DependencyPropertyChangedEventHandler propertyChangedHandler_;
-    RequerySuggestedHandler requeryHandler_;
-    bool initialized_ = false;
-
-    std::uint32_t Find(const Documents::Hyperlink& link) const noexcept;
-    Documents::Hyperlink* Resolve(std::uint32_t index) noexcept;
-    Base::Result<void> SubscribeCommand(
-        Documents::Hyperlink& link, Record& record) noexcept;
-    void UnsubscribeCommand(Record& record) noexcept;
-    Base::Result<void> Invoke(Documents::Hyperlink& link) noexcept;
-    void OnMouseDown(
-        Base::Object* sender,
-        MouseButtonEventArgs& args) noexcept;
-    void OnMouseUp(
-        Base::Object* sender,
-        MouseButtonEventArgs& args) noexcept;
-    void OnKeyDown(
-        Base::Object* sender,
-        KeyEventArgs& args) noexcept;
-    void OnKeyUp(
-        Base::Object* sender,
-        KeyEventArgs& args) noexcept;
-    void OnFocusChanged(
-        Base::Object* sender,
-        KeyboardFocusChangedEventArgs& args) noexcept;
-    void OnPropertyChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
-    void OnRequerySuggested() noexcept;
-};
 class AERO_API ControlRuntimeAccess::TextBoxInteractionManager final {
 public:
     TextBoxInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input,
         Integration::IClipboard& clipboard) noexcept;
@@ -210,7 +146,7 @@ private:
         bool password = false;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     [[maybe_unused]] EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
     Integration::IClipboard* clipboard_ = nullptr;
@@ -262,7 +198,7 @@ private:
 class AERO_API ControlRuntimeAccess::ScrollInteractionManager final {
 public:
     ScrollInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events) noexcept;
     ~ScrollInteractionManager() noexcept;
 
@@ -277,7 +213,7 @@ private:
         VisualHandle handle;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     Base::Vector<ViewerRecord> viewers_;
     MouseWheelEventHandler wheelHandler_;
@@ -291,7 +227,7 @@ private:
 class AERO_API ControlRuntimeAccess::SliderInteractionManager final {
 public:
     SliderInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input) noexcept;
     ~SliderInteractionManager() noexcept;
@@ -308,7 +244,7 @@ private:
         bool dragging = false;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
     Base::Vector<SliderRecord> sliders_;
@@ -347,7 +283,7 @@ private:
 class AERO_API ControlRuntimeAccess::TreeViewInteractionManager final {
 public:
     TreeViewInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input,
         VisualStateManager* states = nullptr)
@@ -360,7 +296,7 @@ public:
         TreeView& treeView) noexcept;
 
 private:
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     [[maybe_unused]]
     EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
@@ -391,7 +327,7 @@ private:
 class AERO_API ControlRuntimeAccess::ComboBoxInteractionManager final {
 public:
     ComboBoxInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input) noexcept;
     ~ComboBoxInteractionManager() noexcept;
@@ -402,7 +338,7 @@ public:
         ComboBox& comboBox) noexcept;
 
 private:
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     [[maybe_unused]]
     EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
@@ -424,7 +360,7 @@ private:
 class AERO_API ControlRuntimeAccess::ListBoxInteractionManager final {
 public:
     ListBoxInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input,
         VisualStateManager* states = nullptr) noexcept;
@@ -439,7 +375,7 @@ private:
         std::uint32_t anchorIndex = UINT32_MAX;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     [[maybe_unused]] EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
     VisualStateManager* states_ = nullptr;
@@ -469,7 +405,7 @@ private:
 class AERO_API ControlRuntimeAccess::TemplateManager final {
 public:
     TemplateManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties,
         LayoutManager* layout = nullptr,
@@ -484,7 +420,6 @@ public:
           renderer_(renderer),
           metadata_(metadata),
           bindings_(bindings),
-          mounts_(tree, layout, renderer),
           propertyChangedHandler_(
               this, &TemplateManager::OnPropertyChanged) {}
     ~TemplateManager() noexcept;
@@ -521,7 +456,7 @@ private:
             metadataBindings;
     };
 
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     Core::Detail::TemplatedParentProviderSession providerSession_;
     Core::Detail::TemplatedParentProviderSession* values_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
@@ -529,7 +464,6 @@ private:
     RenderTree* renderer_ = nullptr;
     Core::MetadataRuntime* metadata_ = nullptr;
     Aero::Detail::BindingManager* bindings_ = nullptr;
-    MountService mounts_;
     Base::Vector<Instance> instances_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
@@ -565,7 +499,7 @@ private:
 class AERO_API ControlRuntimeAccess::MenuInteractionManager final {
 public:
     MenuInteractionManager(
-        ObjectTree& tree,
+        GuiContext& tree,
         EventRouter& events,
         InputService& input) noexcept;
     ~MenuInteractionManager() noexcept;
@@ -576,7 +510,7 @@ public:
         Menu& menu) noexcept;
 
 private:
-    ObjectTree* tree_ = nullptr;
+    GuiContext* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     InputService* input_ = nullptr;
     Base::Vector<VisualHandle> records_;

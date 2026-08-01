@@ -114,7 +114,7 @@ target_include_directories(AeroRender
         $<INSTALL_INTERFACE:include>
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(
-    AeroRender PUBLIC Aero::_DetailCore Aero::_DetailGraphics)
+    AeroRender PUBLIC Aero::_DetailGuiKernel Aero::_DetailGraphics)
 target_compile_features(AeroRender PUBLIC cxx_std_17)
 set_target_properties(AeroRender PROPERTIES
     CXX_STANDARD 17

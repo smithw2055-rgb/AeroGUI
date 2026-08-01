@@ -8,7 +8,7 @@
 #include "markup/Loader.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
-#include "gui/tree/ObjectTree.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include <limits>
 #include <utility>

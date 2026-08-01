@@ -1,5 +1,5 @@
 #include "UiObjectModelInternal.hpp"
-#include "gui/styling/StyleAccess.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <Aero/Base/String.hpp>
 #include "SchemaInternal.hpp"

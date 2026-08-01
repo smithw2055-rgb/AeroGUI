@@ -1,94 +1,57 @@
 #pragma once
 
-#include "RuntimeFwd.hpp"
-#include "gui/binding/BindingRuntime.hpp"
-#include "gui/binding/BindingService.hpp"
-#include "gui/tree/ObjectTree.hpp"
-#include "../controls/ControlInternals.hpp"
-
-#include <Aero/Controls/Items.hpp>
-#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Base/Result.hpp>
+#include "gui/ElementInternal.hpp"
+#include "gui/BindingInternal.hpp"
 #include <Aero/Data.hpp>
-#include "../media/AnimationRuntimeTypes.hpp"
 #include <Aero/Integration/View.hpp>
-
-#include "ViewRuntime.hpp"
+#include <Aero/Meta/MetadataId.hpp>
 
 #include <memory>
 
-namespace Aero::Controls {
+namespace Aero {
+class GuiContext;
+class ViewRuntime;
+class Visual;
+namespace Controls {
+class ItemContainerGenerator;
+class VisualStateManager;
 }
-
+namespace Markup {
+class DocumentCache;
+class SourceProviderRegistry;
+}
+namespace Detail {
+class AnimationManager;
+}
+}
 
 namespace Aero::Detail {
 
-// Source-side bridge for repository-owned diagnostics and samples. Product
-// consumers operate on View and cannot observe the runtime service graph.
+// Narrow source-side bridge for repository-owned diagnostics, reload support
+// and tooling. It is implemented beside ViewRuntime so the runtime does not
+// expose its service graph through public or private accessor methods.
 class ViewAccess final {
 public:
     static Base::Result<Data::BindingHandle> AttachBinding(
         View& view,
-        const Data::BindingDescriptor& descriptor) noexcept {
-        return Runtime(view).Bindings()->Attach(descriptor);
-    }
-
-    static Base::Result<std::uint32_t> FlushBindings(
-        View& view) noexcept {
-        return Runtime(view).Bindings()->Flush();
-    }
-
+        const Data::BindingDescriptor& descriptor) noexcept;
+    static Base::Result<std::uint32_t> FlushBindings(View& view) noexcept;
     static std::unique_ptr<Controls::ItemContainerGenerator>
-    CreateItemContainerGenerator(View& view) {
-        ViewRuntime& runtime = Runtime(view);
-        Base::Result<Controls::ItemContainerGenerator*> created =
-            Controls::Detail::ItemContainerGeneratorAccess::Create(
-                *runtime.Tree(),
-                *runtime.Layout(),
-                *runtime.EffectiveValues(),
-                nullptr,
-                runtime.Renderer());
-        return created
-            ? std::unique_ptr<Controls::ItemContainerGenerator>(
-                  created.Value())
-            : nullptr;
-    }
-
-    static Aero::Visual* RootVisual(
-        View& view) noexcept {
-        Aero::ObjectTree* tree = Runtime(view).Tree();
-        return tree != nullptr ? tree->Root() : nullptr;
-    }
-
-    static Aero::Detail::AnimationManager* Animations(
-        View& view) noexcept {
-        return Runtime(view).Animations();
-    }
-
-    static Controls::VisualStateManager* VisualStates(
-        View& view) noexcept {
-        return Runtime(view).VisualStates();
-    }
-
-    static Controls::TemplateManager* Templates(
-        View& view) noexcept {
-        return Runtime(view).Templates();
-    }
-
+    CreateItemContainerGenerator(View& view);
+    static Visual* RootVisual(View& view) noexcept;
+    static AnimationManager* Animations(View& view) noexcept;
+    static Controls::VisualStateManager* VisualStates(View& view) noexcept;
+    static Controls::TemplateManager* Templates(View& view) noexcept;
     static bool IsInstanceOf(
         View& view,
         const Base::Object& object,
-        Core::TypeId baseType) noexcept {
-        Core::MetadataDomain* metadata = Runtime(view).Metadata();
-        return metadata != nullptr &&
-            metadata->Types().IsDerivedFrom(
-                object.RuntimeType(), baseType);
-    }
+        Core::TypeId baseType) noexcept;
+    static Markup::SourceProviderRegistry* Sources(View& view) noexcept;
+    static Markup::DocumentCache* DocumentCache(View& view) noexcept;
 
 private:
-    static ViewRuntime& Runtime(View& view) noexcept {
-        return *static_cast<ViewRuntime*>(
-            view.IntegrationRuntime());
-    }
+    static ViewRuntime& Runtime(View& view) noexcept;
 };
 
 } // namespace Aero::Detail

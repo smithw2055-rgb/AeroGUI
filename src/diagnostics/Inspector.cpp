@@ -1,5 +1,5 @@
 #include "Inspector.hpp"
-#include "gui/styling/StyleRuntime.hpp"
+#include "gui/StyleInternal.hpp"
 
 #include <Aero/Controls/Base.hpp>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 // Private template compiler used by ObjectWriter finalization.
 

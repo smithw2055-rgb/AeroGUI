@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 #include "../controls/TemplateAccess.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/BindingInternal.hpp"
 
 #include "render/RenderTree.hpp"
 
@@ -13,7 +13,6 @@
 #include <Aero/Styling.hpp>
 #include <Aero/Data.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/tree/ObjectTree.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -77,7 +76,7 @@ struct InspectorSnapshot final {
 class AERO_API InspectorEndpoint final {
 public:
     InspectorEndpoint(
-        Aero::ObjectTree& tree,
+        Aero::GuiContext& tree,
         Core::EffectiveValueEngine& values,
         Aero::Detail::BindingManager&
             bindings,
@@ -106,7 +105,7 @@ public:
     }
 
 private:
-    Aero::ObjectTree* tree_ =
+    Aero::GuiContext* tree_ =
         nullptr;
     Core::EffectiveValueEngine* values_ =
         nullptr;

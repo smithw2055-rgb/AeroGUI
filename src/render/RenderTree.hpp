@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/tree/VisualAccess.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include "DisplayList.hpp"
 

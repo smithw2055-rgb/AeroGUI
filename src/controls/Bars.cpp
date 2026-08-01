@@ -1,5 +1,5 @@
 #include <Aero/Controls/Standard.hpp>
-#include "gui/tree/VisualAccess.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include <utility>
 

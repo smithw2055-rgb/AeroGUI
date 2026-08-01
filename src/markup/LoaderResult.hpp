@@ -8,12 +8,22 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Meta/TypeRegistry.hpp>
-#include "gui/property/EffectiveValueEngine.hpp"
+#include "gui/PropertyInternal.hpp"
 #include "Loader.hpp"
 #include <Aero/Markup/Resources.hpp>
-#include "gui/tree/VisualTreeMount.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include <utility>
+
+namespace Aero::Detail {
+
+struct VisualEdge final {
+    UIElement* parent = nullptr;
+    UIElement* child = nullptr;
+    ElementAttachment state;
+};
+
+} // namespace Aero::Detail
 
 namespace Aero::Markup {
 
@@ -34,10 +44,10 @@ struct VisualContentEdge final {
 
 // Markup-owned declaration result for visual content. The plan intentionally
 // stores only content ownership and UI mount edges; the UI runtime owns
-// the actual attach/detach sequence through VisualTreeMount.
+// the actual attach/detach sequence through the owning GuiContext.
 struct VisualContentPlan final {
     Base::Vector<VisualContentEdge> contentEdges;
-    Base::Vector<Aero::Detail::VisualTreeMountEdge> mountEdges;
+    Base::Vector<Aero::Detail::VisualEdge> mountEdges;
     Base::Vector<Aero::Visual*> nodes;
 
     Base::Result<void> TryReserve(

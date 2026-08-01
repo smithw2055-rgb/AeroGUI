@@ -12,7 +12,7 @@
 #include <cstddef>
 #include <new>
 #include <utility>
-#include "gui/animation/AnimationRuntime.hpp"
+#include "gui/AnimationInternal.hpp"
 
 namespace Aero::Detail::Animation {
 namespace {
@@ -155,7 +155,7 @@ using namespace Aero::Core;
 using namespace Aero::Detail::Animation;
 using namespace Aero::Media;
 
-struct UiRuntimeAccess::AnimationManager::Track final {
+struct AnimationManager::Track final {
     enum class Kind : std::uint8_t {
         Double,
         Color,

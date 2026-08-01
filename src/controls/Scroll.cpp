@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include "gui/events/EventRouter.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -2210,7 +2210,7 @@ using namespace Aero::Core;
 using namespace Aero::Controls;
 
 ScrollInteractionManager::ScrollInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
@@ -2322,7 +2322,7 @@ void ScrollInteractionManager::OnMouseWheel(
 }
 
 SliderInteractionManager::SliderInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input) noexcept
     : tree_(&tree),

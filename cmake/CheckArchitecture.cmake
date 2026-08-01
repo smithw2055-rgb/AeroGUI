@@ -94,16 +94,14 @@ if(aero_duplicate_public_includes)
 endif()
 
 file(GLOB_RECURSE core_files
-    "${AERO_SOURCE_DIR}/src/gui/metadata/*.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/metadata/*.hpp"
-    "${AERO_SOURCE_DIR}/src/gui/property/*.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/property/*.hpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Meta/*.hpp")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/src/diagnostics/Diagnostics.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/threading/Dispatcher.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/property/ObjectServices.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/property/ObjectServices.hpp")
+    "${AERO_SOURCE_DIR}/src/gui/Dispatcher.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/ObjectServices.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/PropertyInternal.hpp")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Diagnostics.hpp"
@@ -159,8 +157,8 @@ foreach(removed_path IN ITEMS
     "include/Aero/Core/Metadata/MetadataDsl.hpp"
     "include/Aero/Core/Metadata/MetaRegistrationContext.hpp"
     "include/Aero/Core/Metadata/MetadataValueFacets.hpp"
-    "src/gui/metadata/LegacyActivation.hpp"
-    "src/gui/metadata/MetadataDescriptors.cpp"
+    "src/gui/LegacyActivation.hpp"
+    "src/gui/MetadataDescriptors.cpp"
     "src/markup/LoaderEngine.hpp"
     "src/markup/LoaderEngine.cpp"
     "include/Aero/Markup/RuntimeHost.hpp"
@@ -216,7 +214,7 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Rhi/Surface.hpp"
     "include/Aero/Rhi/WglSurface.hpp"
     "include/Aero/Drawing.hpp"
-    "include/Aero/ObjectTree.hpp"
+    "include/Aero/GuiContext.hpp"
     "include/Aero/Rendering.hpp"
     "include/Aero/Data/Binding.hpp"
     "include/Aero/Documents/Documents.hpp"
@@ -275,7 +273,7 @@ if(legacy_markup_includes)
 endif()
 
 set(legacy_header_pattern
-    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|ObjectTree|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
+    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|GuiContext|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
 file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp"
@@ -465,7 +463,7 @@ endif()
 
 aero_collect_matches(command_parent_walk
     "Get(Visual|Logical)Parent[ \t]*[(]"
-    "${AERO_SOURCE_DIR}/src/gui/input/Commands.cpp")
+    "${AERO_SOURCE_DIR}/src/gui/Commands.cpp")
 if(command_parent_walk)
     message(FATAL_ERROR
         "Command routing must consume the canonical EventRoute instead of walking parents: "
@@ -659,12 +657,15 @@ if(aero_root_source_files)
 endif()
 
 foreach(required_private_header IN ITEMS
-        "src/gui/events/EventRouter.hpp"
-        "src/gui/input/InputState.hpp"
-        "src/gui/layout/LayoutRuntime.hpp"
-        "src/gui/binding/BindingService.hpp"
-        "src/gui/animation/AnimationRuntime.hpp"
-        "src/gui/styling/StyleRuntime.hpp"
+        "src/gui/RoutedEventInternal.hpp"
+        "src/gui/InputInternal.hpp"
+        "src/gui/LayoutInternal.hpp"
+        "src/gui/BindingInternal.hpp"
+        "src/gui/AnimationInternal.hpp"
+        "src/gui/StyleInternal.hpp"
+        "src/gui/ElementInternal.hpp"
+        "src/gui/MetadataInternal.hpp"
+        "src/gui/PropertyInternal.hpp"
         "src/controls/TemplateProgram.hpp"
         "src/controls/TemplateInstance.hpp"
         "src/controls/TemplateAccess.hpp"
@@ -681,7 +682,9 @@ foreach(retired_private_file IN ITEMS
         "src/controls/TemplateRuntime.hpp"
         "src/render/TextBackendAccess.hpp"
         "src/graphics/Device.hpp"
-        "src/runtime/PresentationRuntime.cpp")
+        "src/runtime/PresentationRuntime.cpp"
+        "src/runtime/PresentationRuntime.hpp"
+        "src/runtime/RuntimeFwd.hpp")
     if(EXISTS "${AERO_SOURCE_DIR}/${retired_private_file}")
         message(FATAL_ERROR
             "Retired private aggregation file was recreated: ${retired_private_file}")
@@ -689,9 +692,8 @@ foreach(retired_private_file IN ITEMS
 endforeach()
 
 file(GLOB_RECURSE input_runtime_files
-    "${AERO_SOURCE_DIR}/src/gui/input/*.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/input/*.hpp"
-    "${AERO_SOURCE_DIR}/src/runtime/RuntimeFwd.hpp")
+    "${AERO_SOURCE_DIR}/src/gui/*.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/*.hpp")
 aero_collect_matches(retired_input_managers
     "(CommandManager|HitTestManager|PointerInputManager|FocusManager|KeyboardInputManager|TextInputManager)"
     ${input_runtime_files})
@@ -703,7 +705,7 @@ endif()
 
 aero_collect_matches(command_route_bypass
     "EventRoute[ \t]+[A-Za-z_]|[.]Build\\([A-Za-z_]+,[ \t]*RoutingStrategy"
-    "${AERO_SOURCE_DIR}/src/gui/input/Commands.cpp")
+    "${AERO_SOURCE_DIR}/src/gui/Commands.cpp")
 if(command_route_bypass)
     message(FATAL_ERROR
         "Commands must traverse routes through EventRouter: ${command_route_bypass}")
@@ -734,19 +736,89 @@ if(render_tree_submission_leak)
         "${render_tree_submission_leak}")
 endif()
 
-foreach(gui_runtime_header IN ITEMS
-        "src/gui/layout/LayoutRuntime.hpp"
-        "src/gui/binding/BindingService.hpp"
-        "src/gui/animation/AnimationRuntime.hpp"
-        "src/gui/styling/StyleRuntime.hpp")
-    file(READ "${AERO_SOURCE_DIR}/${gui_runtime_header}" gui_runtime_content)
-    string(REGEX MATCHALL "\n" gui_runtime_newlines "${gui_runtime_content}")
-    list(LENGTH gui_runtime_newlines gui_runtime_line_count)
-    math(EXPR gui_runtime_line_count "${gui_runtime_line_count} + 1")
-    if(gui_runtime_line_count GREATER 260)
-        message(FATAL_ERROR
-            "GUI runtime domain header exceeded 260 lines: ${gui_runtime_header}")
+# J-series flat GUI kernel and tree-model gates.
+file(GLOB gui_kernel_children LIST_DIRECTORIES true
+    "${AERO_SOURCE_DIR}/src/gui/*")
+set(gui_kernel_subdirectories)
+foreach(gui_kernel_child IN LISTS gui_kernel_children)
+    if(IS_DIRECTORY "${gui_kernel_child}")
+        file(RELATIVE_PATH gui_kernel_relative
+            "${AERO_SOURCE_DIR}" "${gui_kernel_child}")
+        list(APPEND gui_kernel_subdirectories "${gui_kernel_relative}")
     endif()
 endforeach()
+if(gui_kernel_subdirectories)
+    message(FATAL_ERROR
+        "src/gui is a flat WPF semantic kernel; subdirectories are not allowed: "
+        "${gui_kernel_subdirectories}")
+endif()
+
+file(GLOB gui_kernel_cpp "${AERO_SOURCE_DIR}/src/gui/*.cpp")
+file(GLOB gui_kernel_headers "${AERO_SOURCE_DIR}/src/gui/*.hpp")
+list(LENGTH gui_kernel_cpp gui_kernel_cpp_count)
+list(LENGTH gui_kernel_headers gui_kernel_header_count)
+if(gui_kernel_cpp_count GREATER 30)
+    message(FATAL_ERROR
+        "Flat GUI kernel exceeded the 30-translation-unit budget: "
+        "${gui_kernel_cpp_count}")
+endif()
+if(gui_kernel_header_count GREATER 12)
+    message(FATAL_ERROR
+        "Flat GUI kernel exceeded the 12-private-header budget: "
+        "${gui_kernel_header_count}")
+endif()
+
+foreach(gui_internal_header IN ITEMS
+        "src/gui/AnimationInternal.hpp"
+        "src/gui/BindingInternal.hpp"
+        "src/gui/ElementInternal.hpp"
+        "src/gui/InputInternal.hpp"
+        "src/gui/LayoutInternal.hpp"
+        "src/gui/MetadataInternal.hpp"
+        "src/gui/PropertyInternal.hpp"
+        "src/gui/RoutedEventInternal.hpp"
+        "src/gui/StyleInternal.hpp")
+    file(READ "${AERO_SOURCE_DIR}/${gui_internal_header}" gui_internal_content)
+    string(REGEX MATCHALL "\n" gui_internal_newlines "${gui_internal_content}")
+    list(LENGTH gui_internal_newlines gui_internal_line_count)
+    math(EXPR gui_internal_line_count "${gui_internal_line_count} + 1")
+    if(gui_internal_line_count GREATER 750)
+        message(FATAL_ERROR
+            "Consolidated GUI domain header exceeded 750 lines: "
+            "${gui_internal_header}")
+    endif()
+endforeach()
+
+file(GLOB_RECURSE tree_runtime_sources
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp")
+aero_collect_matches(retired_tree_layers
+    "(class[ \t]+ObjectTree|class[ \t]+MountService|class[ \t]+VisualTreeMount|ObjectTree::|MountService::|VisualTreeMount::)"
+    ${tree_runtime_sources})
+if(retired_tree_layers)
+    message(FATAL_ERROR
+        "Retired object-tree or mount layer was recreated: ${retired_tree_layers}")
+endif()
+
+aero_collect_matches(view_runtime_service_locator
+    "(Metadata|MetadataRuntime|EffectiveValues|Animations|Tree|Layout|Renderer|Bindings|RoutedEvents|Templates|VisualStates|Schema|Sources|EmbeddedSources|DocumentCache|ApplicationResources|ThemeResources|SystemResources|Styles)[ \t]*\\(\\)[ \t]*noexcept"
+    "${AERO_SOURCE_DIR}/src/runtime/ViewRuntime.hpp")
+if(view_runtime_service_locator)
+    message(FATAL_ERROR
+        "ViewRuntime must not expose its internal service graph: "
+        "${view_runtime_service_locator}")
+endif()
+
+aero_collect_matches(retired_gui_target_name
+    "(^|[^A-Za-z0-9_])AeroCore([^A-Za-z0-9_]|$)|Aero::_DetailCore"
+    "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroGraphicsTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
+if(retired_gui_target_name)
+    message(FATAL_ERROR
+        "The internal GUI binary must be named AeroGuiKernel: "
+        "${retired_gui_target_name}")
+endif()
 
 message(STATUS "Aero architecture dependency checks passed")

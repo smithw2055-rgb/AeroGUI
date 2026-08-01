@@ -2,7 +2,7 @@
 #include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
-#include "gui/events/EventRouter.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -166,7 +166,7 @@ using namespace Aero::Core;
 using namespace Aero::Controls;
 
 ControlInteractionManager::ControlInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input,
     VisualStateManager* states) noexcept

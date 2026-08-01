@@ -477,8 +477,7 @@ public:
     Base::Result<void> SetInlineValue(
         Core::Value value) noexcept;
     Base::Result<void> AddOwnedInline(
-        const Base::Ref<Base::Object>& inlineObject,
-        UIElement& inlineElement) noexcept;
+        const Base::Ref<Base::Object>& inlineObject) noexcept;
     Base::Result<void> ClearOwnedInlines() noexcept;
     inline static constexpr Members::Property<Base::String> TextProperty{"Text"};
     inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;
@@ -507,8 +506,6 @@ private:
     friend class Detail::TextServicesAccess;
     friend class Aero::Detail::DocumentTextAccess;
 
-    Base::Result<void> SynchronizeInlineStyle(UIElement& child) noexcept;
-    bool IsLineBreak(const UIElement& child) const noexcept;
     Base::StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
     Base::Result<void> SetGlyphRun(
@@ -635,8 +632,7 @@ public:
     Base::Result<void> SetContent(UIElement* content) noexcept;
 
     // Template teardown is a two-step transaction: clear the presenter-owned
-    // reference first, then detach the visual/layout/render edge through
-    // MountService. A nullptr literal selects this overload without weakening
+    // reference first, then detach the visual/layout/render edge through the GUI context. A nullptr literal selects this overload without weakening
     // the ordinary UIElement* validation path.
     Base::Result<void> SetContent(std::nullptr_t) noexcept {
         Base::Result<void> access = VerifyAccess();

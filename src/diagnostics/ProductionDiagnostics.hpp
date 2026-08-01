@@ -12,7 +12,7 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Documents.hpp>
 #include <Aero/Layout.hpp>
-#include "gui/tree/ObjectTree.hpp"
+#include "gui/ElementInternal.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <cstdint>
@@ -75,7 +75,7 @@ public:
         : nodes_(allocator) {}
 
     Base::Result<void> Capture(
-        const Aero::ObjectTree& tree) noexcept {
+        const Aero::GuiContext& tree) noexcept {
         nodes_.Clear();
         const Aero::Visual* root = tree.Root();
         return root != nullptr ? CaptureNode(*root) : Base::Result<void>{};
@@ -266,7 +266,7 @@ public:
         : nodes_(allocator) {}
 
     Base::Result<void> Capture(
-        const Aero::ObjectTree& tree,
+        const Aero::GuiContext& tree,
         const Render::RenderFrame* plan = nullptr) noexcept {
         nodes_.Clear();
         const Aero::Visual* root = tree.Root();

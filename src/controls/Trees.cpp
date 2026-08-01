@@ -3,7 +3,7 @@
 #include <Aero/Styling.hpp>
 
 #include <utility>
-#include "gui/events/EventRouter.hpp"
+#include "gui/RoutedEventInternal.hpp"
 #include "RuntimeManagers.hpp"
 
 namespace Aero::Controls {
@@ -352,7 +352,7 @@ using namespace Aero::Controls;
 
 TreeViewInteractionManager::
 TreeViewInteractionManager(
-    ObjectTree& tree,
+    GuiContext& tree,
     EventRouter& events,
     InputService& input,
     VisualStateManager* states) noexcept

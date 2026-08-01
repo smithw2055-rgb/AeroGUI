@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include "Loader.hpp"
 #include "LoaderResult.hpp"

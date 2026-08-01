@@ -25,6 +25,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Base/Utf8.hpp
     include/Aero/Base/Vector.hpp
     include/Aero/CAPI.h
+    include/Aero/ContentElement.hpp
     include/Aero/Controls.hpp
     include/Aero/Controls/Base.hpp
     include/Aero/Controls/Items.hpp

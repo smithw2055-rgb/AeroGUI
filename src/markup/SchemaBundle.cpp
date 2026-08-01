@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include "markup/Extensions.hpp"
-#include "gui/metadata/MetadataDomainAccess.hpp"
+#include "gui/MetadataInternal.hpp"
 #include "markup/UiObjectModel.hpp"
 #include "markup/ResourceSupport.hpp"
 #include "markup/ObjectWriter.hpp"

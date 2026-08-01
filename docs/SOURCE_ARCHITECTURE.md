@@ -1,22 +1,22 @@
 # AeroGUI source architecture
 
 This document defines ownership inside `src/`. It is an implementation guide,
-not an additional public SDK layer. Public products remain `Aero::Gui`,
+not an additional SDK layer. Supported products remain `Aero::Gui`,
 `Aero::Meta`, `Aero::Integration`, `Aero::App`, `Aero::Base`, and the optional
 `Aero::Audio` module.
 
 ## Design rules
 
-1. A source directory owns a product responsibility, not an interface tier.
-2. A translation unit belongs to one top-level source domain.
-3. Internal headers exist only when two or more translation units share a
-   contract; single-use helpers stay in the owning `.cpp` file.
-4. `Access`, `Manager`, `Provider`, and `Runtime` are not automatic layering
-   patterns. Add one only when it represents a real lifetime or shared state.
-5. UI objects do not cross the immutable `RenderFrame` boundary.
-6. Platform code owns native windows, contexts, and surfaces. Graphics code owns
-   GPU resources and command submission. Render code owns conversion from the UI
-   frame to graphics commands.
+1. Public types follow WPF naming and semantics. Private implementation names do
+   not create a second authoring model.
+2. A directory owns a product responsibility, not an abstract interface tier.
+3. A private header must describe a shared domain contract. Single-use helpers
+   stay in the owning `.cpp` file.
+4. `Access`, `Manager`, `Provider`, and `Runtime` are not default layering
+   patterns. Add one only when it represents shared state or a real lifetime.
+5. Logical and visual relationships are framework semantics. There is no public
+   or private `ObjectTree` product abstraction.
+6. UI objects never cross the immutable `RenderFrame` boundary.
 7. Public DependencyProperty and RoutedEvent static declarations remain on one
    physical line.
 
@@ -25,136 +25,152 @@ not an additional public SDK layer. Public products remain `Aero::Gui`,
 ```text
 src/
 ├─ base/          allocation, strings, object ownership and C ABI
-├─ gui/           WPF semantic kernel
-│  ├─ metadata/   type/member metadata and registration storage
-│  ├─ property/   dependency properties and effective values
-│  ├─ tree/       logical/visual tree and mount transactions
-│  ├─ events/     routed-event route construction and dispatch
-│  ├─ input/      input state, focus, capture and commands
-│  ├─ layout/     measure/arrange queues and layout execution
-│  ├─ binding/    binding expressions and scheduling
-│  ├─ resources/  resource dictionaries and lookup
-│  ├─ styling/    style compilation and application
-│  ├─ animation/  animation scheduling against dependency properties
-│  ├─ threading/  dispatcher implementation
-│  └─ registration/ built-in GUI metadata registration
-├─ controls/      standard controls, templates and control behavior
+├─ gui/           flat WPF semantic kernel
+├─ controls/      standard controls, templates and default behavior
 ├─ markup/        XAML schema, object writer, compiled XAML and document cache
 ├─ text/          shaping, glyph atlas and text-provider adapters
 ├─ media/         brushes, images, transforms, effects and animation objects
 ├─ runtime/       View composition, frame lifecycle and built-in modules
 ├─ render/        RenderTree, immutable RenderFrame and generic Renderer
-├─ graphics/      GraphicsDevice, command list and API backends
-├─ platform/      native window, clipboard, IME and native surfaces
-├─ integration/   public host factories and RenderEndpoint implementations
+├─ graphics/      GraphicsDevice, command list and native API backends
+├─ platform/      native windows, clipboard, IME and native surfaces
+├─ integration/   host factories and RenderEndpoint implementations
 ├─ app/           default Application/Window desktop lifetime
 ├─ diagnostics/   inspector and diagnostics implementation
 └─ audio/         optional audio module
 ```
 
-The root of `src/` and the root of `src/gui/` intentionally contain no source
-files. New files must be placed in the domain that owns their behavior.
+`src/gui` is intentionally flat. Its implementation files are grouped by file
+name rather than by one-directory-per-concept. Shared private contracts are
+limited to:
+
+```text
+AnimationInternal.hpp
+BindingInternal.hpp
+ElementInternal.hpp
+InputInternal.hpp
+LayoutInternal.hpp
+MetadataInternal.hpp
+PropertyInternal.hpp
+RoutedEventInternal.hpp
+StyleInternal.hpp
+```
+
+The larger metadata stores remain separate only because they have independent
+storage and freeze lifetimes.
+
+## GUI context and element relationships
+
+`GuiContext` is a private per-View context. It owns Dispatcher-affine lifecycle,
+property inheritance integration, event/input/layout coordination and stable
+runtime identity. It is not a public tree API and it does not replace WPF's
+logical-tree and visual-tree semantics.
+
+Public traversal remains:
+
+```text
+VisualTreeHelper  -> visual parent and visual children
+LogicalTreeHelper -> logical parent and logical children
+```
+
+`ContentElement` and `FrameworkContentElement` participate in logical content
+and routed events without becoming Visual objects. `TextElement` and `Inline`
+therefore remain nonvisual; `TextBlock` is their layout and rendering host.
+
+The retired `ObjectTree`, `MountService`, and `VisualTreeMount` layers must not
+be recreated. Root and child attachment are coordinated directly by
+`GuiContext` while controls remain the owners of Content, Items and Children.
+See `TREE_MODEL.md` for the detailed contract.
 
 ## Runtime composition
-
-`ViewRuntime::Impl` is the composition root for a view. Presentation services
-are inherited from one private aggregate rather than exposed as a service locator:
 
 ```text
 ViewRuntime::Impl
 ├─ schema and document cache
-├─ PresentationRuntime
-│  ├─ dependency-property engine
-│  ├─ element tree
-│  ├─ routed-event router
-│  ├─ input service
-│  ├─ layout queue
-│  ├─ binding service
-│  ├─ style service
-│  └─ animation service
+├─ GUI services owned directly by the View
+│  ├─ metadata and dependency properties
+│  ├─ GuiContext
+│  ├─ routed events and input
+│  ├─ layout and binding
+│  ├─ style, template and animation
+│  └─ text and image resources
 ├─ control behavior service
 ├─ RenderTree
 └─ RenderEndpoint
 ```
 
-`InputService` is the only view-facing entry for pointer, keyboard, text, focus,
-capture and routed commands. Its state classes are private implementation units;
-callers must not reach through it to obtain manager objects.
-
-Control-specific default behavior is coordinated by one private
-`ControlBehaviorService`. Controls and XAML authoring APIs do not expose its
-state or lifetime.
+`ViewRuntime` does not expose a service-locator surface. Repository-owned
+inspection and reload code uses the narrow `ViewAccess` bridge implemented next
+to `ViewRuntime::Impl`.
 
 ## Event and command routing
 
-There is one route implementation under `src/gui/events`.
+There is one route implementation in `RoutedEventInternal.hpp` and
+`GuiContext.cpp`.
 
 ```text
-input or command source
-→ EventRouter builds one route
+input, command or content source
+→ resolve one event parent chain
+→ create one stable route snapshot
 → preview/tunnel traversal
 → bubble traversal
 → class handlers
 → instance handlers
 ```
 
-Commands visit the same route through `EventRouter`; command code must not walk
-visual or logical parents directly. `Handled` and `handledEventsToo` are applied
-only by the event router.
+Route nodes are `DependencyObject` instances, so both `UIElement` and
+`ContentElement` participate. Commands visit the same route through
+`EventRouter`; command code must not walk visual or logical parents directly.
 
-## Template ownership
+## Templates and controls
 
-Template implementation is split by responsibility:
+Template implementation is split by real responsibility:
 
 - `TemplateProgram.hpp`: immutable compiled instructions and deferred factories;
 - `TemplateInstance.hpp`: mounted parts, projections and rollback state;
-- `TemplateAccess.hpp`: the narrow cross-translation-unit private bridge;
-- `VisualStateRuntime.hpp`: current-state and transition bookkeeping.
+- `TemplateAccess.hpp`: narrow cross-translation-unit bridge;
+- `VisualStateRuntime.hpp`: current state and transition bookkeeping.
 
-Do not recreate a catch-all `TemplateRuntime.hpp` or per-type Access headers.
+Do not recreate a catch-all `TemplateRuntime.hpp` or per-control Access headers.
+Default control behavior is coordinated by one private
+`ControlBehaviorService` and routed class handlers.
 
 ## Render and graphics path
 
 ```text
-retained UI tree
-→ RenderTree::Commit() creates an immutable RenderFrame
+retained UI
+→ RenderTree::Commit() creates RenderFrame
 → RenderEndpoint::Submit(RenderFrame)
-→ generic Renderer records a Graphics::CommandList
+→ Renderer records Graphics::CommandList
 → GraphicsDevice submits to GraphicsBackend
-→ native RenderSurface presents
+→ native surface presents
 ```
 
-`RenderTree` does not own an endpoint or backend. `RenderEndpoint` owns queueing,
-device/surface loss and presentation policy. Backend-specific endpoint adapters provide GPU functions, shader packages and a
-native surface while reusing the common `Renderer` for frame recording.
-
-Render resources are passed through explicit image, mesh and glyph registries.
-Magic service identifiers and `QueryInternalService()` style lookup are
-forbidden.
+Render resources use explicit image, mesh and glyph contracts. Magic service
+identifiers and `QueryInternalService()` lookup are forbidden.
 
 ## CMake ownership
 
-- `AeroGuiTargets.cmake` owns the GUI kernel, controls, markup and module catalog.
-- `AeroRuntimeTargets.cmake` owns View/runtime composition.
-- `AeroGraphicsTargets.cmake` owns render, graphics and native backend targets.
-- `AeroProductTargets.cmake` owns Integration and App products.
-- `AeroToolsTargets.cmake` owns `aero-schema-gen` and `aero-xamlc`.
-- `AeroInstall.cmake` owns package exports and the explicit public-header list.
+- `AeroGuiTargets.cmake` owns `AeroGuiKernel`, controls, markup and schema;
+- `AeroRuntimeTargets.cmake` owns View/runtime composition;
+- `AeroGraphicsTargets.cmake` owns render, graphics and native backends;
+- `AeroProductTargets.cmake` owns Integration and App;
+- `AeroToolsTargets.cmake` owns `aero-schema-gen` and `aero-xamlc`;
+- `AeroInstall.cmake` owns package exports and public headers.
 
-The root `CMakeLists.txt` contains global options, third-party setup, generated
-assets and module includes. It must not regain target source lists from the
-module files.
+`AeroGuiKernel` is an internal binary identity. Product consumers link
+`Aero::Gui`, not the underscore-prefixed static support targets.
 
 ## Architecture gates
 
-`cmake/CheckArchitecture.cmake` enforces the following invariants:
+`cmake/CheckArchitecture.cmake` verifies that:
 
-- the physical public header tree equals the install whitelist;
-- no public `Core`, `Platform` or `Detail` directory is recreated;
-- no source file lives directly in `src/` or `src/gui/`;
-- retired catch-all runtime headers and old input-manager names stay removed;
-- command routing does not construct its own event route;
-- RenderTree does not submit to endpoints;
-- render service-locator IDs stay removed;
-- private Access headers and public headers remain within explicit budgets;
-- DependencyProperty and RoutedEvent static declarations are single-line.
+- the physical public tree equals the install whitelist;
+- public `Core`, `Platform`, and `Detail` directories are not recreated;
+- `src/gui` stays flat and within explicit file budgets;
+- ObjectTree/MountService/VisualTreeMount and the old runtime forward layer stay
+  removed;
+- `ViewRuntime` does not expose internal service accessors;
+- commands and content use the single routed-event route;
+- RenderTree does not own endpoint submission;
+- DependencyProperty and RoutedEvent declarations remain single-line.

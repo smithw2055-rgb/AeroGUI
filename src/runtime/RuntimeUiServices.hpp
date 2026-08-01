@@ -1,12 +1,12 @@
 #pragma once
 
-#include "RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Meta/MetadataDomain.hpp>
-#include "gui/property/EffectiveValueEngine.hpp"
+#include "gui/PropertyInternal.hpp"
 #include <Aero/Data.hpp>
 #include <Aero/Resources.hpp>
 

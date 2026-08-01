@@ -1,6 +1,6 @@
-#include "gui/styling/ThemeCompatibilityTypes.hpp"
+#include "gui/StyleInternal.hpp"
 #include "TemplateCompiler.hpp"
-#include "gui/binding/BindingRuntime.hpp"
+#include "gui/BindingInternal.hpp"
 #include "../controls/TemplateAccess.hpp"
 #include "../runtime/DataTemplateTriggerContext.hpp"
 #include "../media/AnimationAccess.hpp"

@@ -1,8 +1,7 @@
 #pragma once
 
 #include "TemplateProgram.hpp"
-#include "gui/tree/MountService.hpp"
-#include "runtime/RuntimeFwd.hpp"
+#include "gui/ElementInternal.hpp"
 
 namespace Aero::Controls::Detail {
 
@@ -12,7 +11,7 @@ struct TemplatePart final {
     Visual* visual = nullptr;
     DependencyObject* object = nullptr;
     FrameworkElement* frameworkElement = nullptr;
-    Aero::Detail::MountEdgeState mount;
+    Aero::Detail::ElementAttachment mount;
 };
 
 struct TemplateContentProjection final {
@@ -21,21 +20,19 @@ struct TemplateContentProjection final {
     ContentControl* contentHost = nullptr;
     UIElement* content = nullptr;
     Visual* originalVisualParent = nullptr;
-    Aero::Detail::UiMountState projectedMount;
+    Aero::Detail::VisualAttachment projectedMount;
     bool attachedLogical = false;
     bool detachedOriginalVisual = false;
 };
 
 struct TemplateBuildState final {
-    TemplateBuildState(ObjectTree& tree, Control& parent,
+    TemplateBuildState(GuiContext& tree, Control& parent,
         Aero::Detail::LayoutManager* layout, Render::RenderTree* renderer) noexcept
-        : tree(&tree), layout(layout), renderer(renderer),
-          mounts(tree, layout, renderer), parent(&parent) {}
+        : tree(&tree), layout(layout), renderer(renderer), parent(&parent) {}
 
-    ObjectTree* tree = nullptr;
+    GuiContext* tree = nullptr;
     Aero::Detail::LayoutManager* layout = nullptr;
     Render::RenderTree* renderer = nullptr;
-    Aero::Detail::MountService mounts;
     Control* parent = nullptr;
     Visual* rootVisual = nullptr;
     UIElement* rootElement = nullptr;

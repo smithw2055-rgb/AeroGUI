@@ -14,6 +14,8 @@
 namespace Aero::Detail {
 class UiRuntimeAccess;
 class ControlRuntimeAccess;
+class ContentElementAccess;
+class LayoutManager;
 }
 
 namespace Aero::Input { class RoutedCommand; }
@@ -294,6 +296,8 @@ protected:
 private:
     friend class Aero::Detail::UiRuntimeAccess;
     friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ContentElementAccess;
+    friend class Aero::Detail::LayoutManager;
     friend class Aero::Input::RoutedCommand;
 
     struct HandlerOperations final {

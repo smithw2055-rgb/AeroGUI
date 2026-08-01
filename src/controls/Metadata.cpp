@@ -15,7 +15,6 @@
 #include <Aero/Meta/ValueConversion.hpp>
 
 #include "TextRuntime.hpp"
-#include "ControlInternals.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -1,5 +1,5 @@
 #include "runtime/ViewRuntime.hpp"
-#include "runtime/PresentationRuntime.hpp"
+#include "runtime/ViewAccess.hpp"
 #include "runtime/ImageRuntime.hpp"
 #include "runtime/TextRuntime.hpp"
 #include "markup/SchemaBundle.hpp"
@@ -13,15 +13,13 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Documents.hpp>
 #include "controls/Metadata.hpp"
-#include "controls/ControlInternals.hpp"
 #include "controls/VisualStateRuntime.hpp"
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
 #include <Aero/Meta/MetadataDomain.hpp>
 #include <Aero/Meta/MetadataRuntime.hpp>
-#include "gui/property/ObjectServices.hpp"
-#include "gui/property/EffectiveValueEngine.hpp"
-#include "gui/metadata/MetadataDomainAccess.hpp"
+#include "gui/PropertyInternal.hpp"
+#include "gui/MetadataInternal.hpp"
 #include "markup/Loader.hpp"
 #include "markup/LoadOptionsAccess.hpp"
 #include "markup/LoaderResult.hpp"
@@ -33,11 +31,10 @@
 #include "media/AnimationAccess.hpp"
 #include <Aero/Animation.hpp>
 #include <Aero/Input.hpp>
-#include "gui/tree/ObjectTree.hpp"
+#include "gui/ElementInternal.hpp"
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Transforms.hpp>
-#include "gui/tree/VisualTreeMount.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 
 #include "runtime/RuntimeUiServices.hpp"
@@ -50,12 +47,12 @@
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "gui/layout/LayoutRuntime.hpp"
-#include "gui/binding/BindingService.hpp"
-#include "gui/animation/AnimationRuntime.hpp"
-#include "gui/styling/StyleRuntime.hpp"
-#include "gui/events/EventRouter.hpp"
-#include "gui/input/InputService.hpp"
+#include "gui/LayoutInternal.hpp"
+#include "gui/BindingInternal.hpp"
+#include "gui/AnimationInternal.hpp"
+#include "gui/StyleInternal.hpp"
+#include "gui/RoutedEventInternal.hpp"
+#include "gui/InputInternal.hpp"
 #include "controls/RuntimeManagers.hpp"
 
 void Aero::Detail::ControlRuntimeAccess::SetVisualStateManager(
@@ -128,11 +125,11 @@ void DestroyRuntimeObject(
 
 } // namespace
 
-struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
+struct ViewRuntime::Impl final {
     struct FragmentMount final {
         Controls::ContentControl* host = nullptr;
         Markup::LoaderResult document;
-        Aero::Detail::MountEdgeState rootEdge;
+        Aero::Detail::ElementAttachment rootEdge;
     };
 
     Impl(
@@ -169,13 +166,29 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
     bool endpointBound = false;
     std::uint64_t endpointGeneration = 0U;
 
+    Core::MetadataRuntime* metadataRuntime = nullptr;
+    Core::ObjectServicesScope* objectServices = nullptr;
+    Core::EffectiveValueEngine* values = nullptr;
+    Aero::Detail::AnimationManager* animations = nullptr;
+    Aero::GuiContext* tree = nullptr;
+    Aero::Detail::LayoutManager* layout = nullptr;
+    Render::RenderTree* renderer = nullptr;
+    Aero::Detail::ImageRuntime* imageRuntime = nullptr;
+    Aero::Detail::TextRuntime* textRuntime = nullptr;
+    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::Detail::EventRouter* events = nullptr;
+    Aero::Detail::InputService* input = nullptr;
+
     Controls::TemplateManager* templates = nullptr;
     Controls::VisualStateManager* visualStates = nullptr;
     Aero::Detail::StyleManager* styles = nullptr;
     Aero::Detail::RuntimeUiServices uiServices;
 
     Markup::Schema* schema = nullptr;
-    Aero::Detail::VisualTreeMount* visualMount = nullptr;
+    Aero::Detail::RootAttachment rootAttachment;
+    Aero::Visual* attachedRootVisual = nullptr;
+    Aero::UIElement* attachedRootLayout = nullptr;
+    Aero::FrameworkElement* attachedRootRender = nullptr;
     Markup::SourceProviderRegistry xamlSources;
     Markup::EmbeddedSourceProvider embeddedXaml;
     Markup::FileSourceProvider fileXaml;
@@ -505,6 +518,152 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
 
     Markup::LoaderResult loadedDocument;
     Base::Vector<FragmentMount> fragmentMounts;
+
+    bool HasAttachedRoot() const noexcept {
+        return rootAttachment.IsAttached();
+    }
+
+    Base::Result<void> AttachVisualGraph(
+        Visual& rootVisual,
+        UIElement& rootLayout,
+        FrameworkElement* rootRender,
+        Base::Span<Aero::Detail::VisualEdge> edges,
+        Size availableSize) noexcept {
+        if (tree == nullptr || layout == nullptr || HasAttachedRoot() ||
+            !IsValidLayoutSize(availableSize)) {
+            return RuntimeInvalidState(
+                "GUI root cannot be attached in its current state");
+        }
+        tree->SetPresentationServices(layout, renderer);
+        Base::Result<Aero::Detail::RootAttachment> rootAttached =
+            tree->AttachRoot(rootVisual, availableSize);
+        if (!rootAttached) return rootAttached.GetStatus();
+        rootAttachment = std::move(rootAttached).Value();
+        attachedRootVisual = &rootVisual;
+        attachedRootLayout = &rootLayout;
+        attachedRootRender = rootRender;
+
+        std::uint32_t attached = 0U;
+        while (attached < edges.Size()) {
+            bool progressed = false;
+            for (Aero::Detail::VisualEdge& edge : edges) {
+                if (edge.state.logicalAttached || edge.parent == nullptr ||
+                    edge.child == nullptr ||
+                    Aero::Detail::VisualAccess::Tree(*edge.parent) != tree) {
+                    continue;
+                }
+                Base::Result<Aero::Detail::ElementAttachment> edgeAttached =
+                    tree->AttachElement(*edge.parent, *edge.child);
+                if (!edgeAttached) {
+                    static_cast<void>(DetachVisualGraph(edges));
+                    return edgeAttached.GetStatus();
+                }
+                edge.state = std::move(edgeAttached).Value();
+                ++attached;
+                progressed = true;
+            }
+            if (!progressed) break;
+        }
+        return {};
+    }
+
+    Base::Result<void> CompleteVisualEdges(
+        Base::Span<Aero::Detail::VisualEdge> edges) noexcept {
+        if (!HasAttachedRoot() || tree == nullptr) {
+            return RuntimeInvalidState(
+                "Deferred visual edges require an attached root");
+        }
+        std::uint32_t attached = 0U;
+        for (const Aero::Detail::VisualEdge& edge : edges) {
+            if (edge.state.logicalAttached) ++attached;
+        }
+        while (attached < edges.Size()) {
+            bool progressed = false;
+            for (Aero::Detail::VisualEdge& edge : edges) {
+                if (edge.state.logicalAttached ||
+                    (edge.child != nullptr &&
+                     Aero::Detail::VisualAccess::Tree(*edge.child) == tree) ||
+                    edge.parent == nullptr || edge.child == nullptr ||
+                    Aero::Detail::VisualAccess::Tree(*edge.parent) != tree) {
+                    continue;
+                }
+                Base::Result<Aero::Detail::ElementAttachment> edgeAttached =
+                    tree->AttachElement(*edge.parent, *edge.child);
+                if (!edgeAttached) return edgeAttached.GetStatus();
+                edge.state = std::move(edgeAttached).Value();
+                ++attached;
+                progressed = true;
+            }
+            if (!progressed) break;
+        }
+        return {};
+    }
+
+    Base::Result<void> ResizeVisualRoot(Size availableSize) noexcept {
+        if (!HasAttachedRoot() || attachedRootLayout == nullptr ||
+            layout == nullptr) {
+            return RuntimeNotInitialized(
+                "View resize requires an attached layout root");
+        }
+        if (!IsValidLayoutSize(availableSize)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "View dimensions are invalid");
+        }
+        Base::Result<void> resized =
+            layout->SetRoot(attachedRootLayout, availableSize);
+        if (!resized) return resized.GetStatus();
+        if (renderer != nullptr && attachedRootRender != nullptr) {
+            return renderer->Invalidate(*attachedRootRender);
+        }
+        return {};
+    }
+
+    Base::Result<void> DetachVisualGraph(
+        Base::Span<Aero::Detail::VisualEdge> edges) noexcept {
+        if (!HasAttachedRoot() && attachedRootVisual == nullptr) return {};
+        if (tree == nullptr) {
+            return RuntimeInvalidState(
+                "GUI context is unavailable during root detach");
+        }
+
+        std::uint32_t remaining = 0U;
+        for (const Aero::Detail::VisualEdge& edge : edges) {
+            if (edge.state.IsAttached()) ++remaining;
+        }
+        while (remaining > 0U) {
+            bool progressed = false;
+            for (Aero::Detail::VisualEdge& edge : edges) {
+                if (!edge.state.IsAttached()) continue;
+                bool hasAttachedChild = false;
+                for (const Aero::Detail::VisualEdge& candidate : edges) {
+                    if (candidate.state.IsAttached() &&
+                        candidate.parent == edge.child) {
+                        hasAttachedChild = true;
+                        break;
+                    }
+                }
+                if (hasAttachedChild) continue;
+                Base::Result<void> detached =
+                    tree->DetachElement(edge.state);
+                if (!detached) return detached.GetStatus();
+                --remaining;
+                progressed = true;
+            }
+            if (!progressed) {
+                return RuntimeInvalidState(
+                    "Visual edges cannot be detached leaf-first");
+            }
+        }
+
+        Base::Result<void> rootDetached = tree->DetachRoot(rootAttachment);
+        if (!rootDetached) return rootDetached.GetStatus();
+        rootAttachment = {};
+        attachedRootVisual = nullptr;
+        attachedRootLayout = nullptr;
+        attachedRootRender = nullptr;
+        return {};
+    }
     Markup::LoadContext loadContext;
     Base::Ref<Markup::EffectLifetime> effectLifetime;
     Base::Ref<Base::Object> root;
@@ -723,7 +882,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
     }
 
     static void TextLifecycleHook(
-        const Aero::ObjectTreeLifecycleEvent& event,
+        const Aero::GuiContextLifecycleEvent& event,
         void* context) noexcept {
         auto* runtime = static_cast<Impl*>(context);
         if (runtime == nullptr || event.node == nullptr) {
@@ -3656,8 +3815,8 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             static_cast<void>(animations->RemoveAll());
         }
         storyboardSessions.Clear();
-        if (visualMount != nullptr && visualMount->IsMounted()) {
-            static_cast<void>(visualMount->Unmount({
+        if (HasAttachedRoot()) {
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
         }
@@ -3666,8 +3825,6 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
         ClearLoadedDocument();
         if (effectLifetime) effectLifetime->Invalidate();
 
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui, visualMount);
 
         DestroyRuntimeObject(
             *allocator, Base::MemoryTag::Ui,
@@ -3864,9 +4021,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
         }
         if (status && schemaBundle->IsFrozen()) {
             schema = &schemaBundle->Schema();
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
-                visualMount, *tree, *layout, renderer);
+            tree->SetPresentationServices(layout, renderer);
         }
         if (!status) {
             ShutdownServices();
@@ -4041,11 +4196,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
         Base::Result<void> rootTracked =
             loadedDocument.visualContent.TryAddNode(*rootVisual.Value());
         if (!rootTracked) return rootTracked.GetStatus();
-        if (visualMount == nullptr) {
-            return RuntimeNotInitialized(
-                "ViewRuntime visual mount service is unavailable");
-        }
-        Base::Result<void> mountedResult = visualMount->Mount(
+        Base::Result<void> mountedResult = AttachVisualGraph(
             *rootVisual.Value(),
             *rootLayout.Value(),
             ResolveFrameworkElement(*requestedRoot, requestedRoot->RuntimeType()),
@@ -4059,7 +4210,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             uiServices.Apply(*rootVisual.Value());
         if (!uiApplied) {
             DetachRuntimeUi();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4073,7 +4224,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             BeginDestroyInteractions();
             DetachRuntimeUi();
             FinishDestroyInteractions();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4082,14 +4233,14 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             return interactions.GetStatus();
         }
         Base::Result<void> completed =
-            visualMount->CompleteDeferredEdges({
+            CompleteVisualEdges({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()});
         if (!completed) {
             BeginDestroyInteractions();
             DetachRuntimeUi();
             FinishDestroyInteractions();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4104,7 +4255,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             BeginDestroyInteractions();
             DetachRuntimeUi();
             FinishDestroyInteractions();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4117,7 +4268,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             BeginDestroyInteractions();
             DetachRuntimeUi();
             FinishDestroyInteractions();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4135,7 +4286,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             BeginDestroyInteractions();
             DetachRuntimeUi();
             FinishDestroyInteractions();
-            static_cast<void>(visualMount->Unmount({
+            static_cast<void>(DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()}));
             mounted = false;
@@ -4161,20 +4312,19 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             {fragment.document.visualContent.nodes.Data(),
              fragment.document.visualContent.nodes.Size()});
 
-        Aero::Detail::MountService mounts(
-            *tree, layout, renderer);
+        GuiContext& context = *tree;
         std::uint32_t remaining = 0U;
-        for (const Aero::Detail::VisualTreeMountEdge& edge :
+        for (const Aero::Detail::VisualEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.IsAttached()) ++remaining;
         }
         while (remaining > 0U) {
             bool progressed = false;
-            for (Aero::Detail::VisualTreeMountEdge& edge :
+            for (Aero::Detail::VisualEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (!edge.state.IsAttached()) continue;
                 bool hasMountedChild = false;
-                for (const Aero::Detail::VisualTreeMountEdge& candidate :
+                for (const Aero::Detail::VisualEdge& candidate :
                      fragment.document.visualContent.mountEdges) {
                     if (candidate.state.IsAttached() &&
                         candidate.parent == edge.child) {
@@ -4183,7 +4333,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
                     }
                 }
                 if (hasMountedChild) continue;
-                Base::Result<void> detached = mounts.Detach(edge.state);
+                Base::Result<void> detached = context.DetachElement(edge.state);
                 if (!detached) return detached.GetStatus();
                 --remaining;
                 progressed = true;
@@ -4195,7 +4345,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
             }
         }
         if (fragment.rootEdge.IsAttached()) {
-            Base::Result<void> detached = mounts.Detach(fragment.rootEdge);
+            Base::Result<void> detached = context.DetachElement(fragment.rootEdge);
             if (!detached) return detached.GetStatus();
         }
         if (fragment.host != nullptr) {
@@ -4254,7 +4404,7 @@ struct ViewRuntime::Impl final : Aero::Detail::PresentationRuntime {
         Base::Result<void> fragments = UnmountAllFragments();
         if (!fragments) return fragments.GetStatus();
         Base::Result<void> unmounted =
-            visualMount->Unmount({
+            DetachVisualGraph({
                 loadedDocument.visualContent.mountEdges.Data(),
                 loadedDocument.visualContent.mountEdges.Size()});
         mounted = false;
@@ -5260,10 +5410,9 @@ Base::Result<void> ViewRuntime::MountContent(
         return assigned.GetStatus();
     }
 
-    Aero::Detail::MountService mounts(
-        *impl_->tree, impl_->layout, impl_->renderer);
-    Base::Result<Aero::Detail::MountEdgeState> rootMounted =
-        mounts.Attach(host, *rootVisual.Value());
+    GuiContext& context = *impl_->tree;
+    Base::Result<Aero::Detail::ElementAttachment> rootMounted =
+        context.AttachElement(host, *rootVisual.Value());
     if (!rootMounted) {
         static_cast<void>(host.SetContent(nullptr));
         fragment.document.Clear();
@@ -5277,13 +5426,13 @@ Base::Result<void> ViewRuntime::MountContent(
     const auto attachEdges = [&](bool deferred) noexcept
         -> Base::Result<void> {
         std::uint32_t attached = 0U;
-        for (const Aero::Detail::VisualTreeMountEdge& edge :
+        for (const Aero::Detail::VisualEdge& edge :
              fragment.document.visualContent.mountEdges) {
             if (edge.state.logicalAttached) ++attached;
         }
         while (attached < fragment.document.visualContent.mountEdges.Size()) {
             bool progressed = false;
-            for (Aero::Detail::VisualTreeMountEdge& edge :
+            for (Aero::Detail::VisualEdge& edge :
                  fragment.document.visualContent.mountEdges) {
                 if (edge.state.logicalAttached || edge.parent == nullptr ||
                     edge.child == nullptr ||
@@ -5291,8 +5440,8 @@ Base::Result<void> ViewRuntime::MountContent(
                     (deferred && Aero::Detail::VisualAccess::Tree(*edge.child) == impl_->tree)) {
                     continue;
                 }
-                Base::Result<Aero::Detail::MountEdgeState> mounted =
-                    mounts.Attach(*edge.parent, *edge.child);
+                Base::Result<Aero::Detail::ElementAttachment> mounted =
+                    context.AttachElement(*edge.parent, *edge.child);
                 if (!mounted) return mounted.GetStatus();
                 edge.state = std::move(mounted).Value();
                 ++attached;
@@ -5366,12 +5515,12 @@ Base::Result<void> ViewRuntime::UnmountContent(
 Base::Result<void> ViewRuntime::Resize(
     Aero::Size availableSize) noexcept {
     if (!IsMounted() || impl_ == nullptr ||
-        impl_->visualMount == nullptr) {
+        !impl_->HasAttachedRoot()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
             "ViewRuntime resize requires a mounted visual tree");
     }
-    return impl_->visualMount->Resize(availableSize);
+    return impl_->ResizeVisualRoot(availableSize);
 }
 
 Base::Result<void> ViewRuntime::Unmount() noexcept {
@@ -5483,10 +5632,9 @@ ViewRuntime::RunFrame() noexcept {
     for (Core::DispatcherFramePhase phase : phases) {
         if (phase ==
                 Core::DispatcherFramePhase::Layout &&
-            impl_->visualMount != nullptr &&
-            impl_->visualMount->IsMounted()) {
+            impl_->HasAttachedRoot()) {
             Base::Result<void> completed =
-                impl_->visualMount->CompleteDeferredEdges({
+                impl_->CompleteVisualEdges({
                     impl_->loadedDocument.visualContent.mountEdges.Data(),
                     impl_->loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) return completed.GetStatus();
@@ -5939,122 +6087,99 @@ Base::Object* ViewRuntime::FindNamedObject(
         expectedType, object->RuntimeType()) ? object : nullptr;
 }
 
-Core::MetadataDomain* ViewRuntime::Metadata() noexcept {
-    return IsInitialized() ? impl_->metadata : nullptr;
-}
-
-Core::MetadataRuntime*
-ViewRuntime::MetadataRuntime() noexcept {
-    return impl_ != nullptr ? impl_->metadataRuntime : nullptr;
-}
-
-Core::EffectiveValueEngine*
-ViewRuntime::EffectiveValues() noexcept {
-    return impl_ != nullptr ? impl_->values : nullptr;
-}
-
-Aero::Detail::AnimationManager*
-ViewRuntime::Animations() noexcept {
-    return impl_ != nullptr ? impl_->animations : nullptr;
-}
-
-Aero::ObjectTree* ViewRuntime::Tree() noexcept {
-    return impl_ != nullptr ? impl_->tree : nullptr;
-}
-
-Aero::Detail::LayoutManager* ViewRuntime::Layout() noexcept {
-    return impl_ != nullptr ? impl_->layout : nullptr;
-}
-
-Render::RenderTree* ViewRuntime::Renderer() noexcept {
-    return impl_ != nullptr ? impl_->renderer : nullptr;
-}
-
-Aero::Detail::BindingManager* ViewRuntime::Bindings() noexcept {
-    return impl_ != nullptr ? impl_->bindings : nullptr;
-}
-
-
-Aero::Detail::EventRouter*
-ViewRuntime::RoutedEvents() noexcept {
-    return impl_ != nullptr ? impl_->events : nullptr;
-}
-
-Controls::TemplateManager* ViewRuntime::Templates() noexcept {
-    return impl_ != nullptr ? impl_->templates : nullptr;
-}
-
-Controls::VisualStateManager*
-ViewRuntime::VisualStates() noexcept {
-    return impl_ != nullptr ? impl_->visualStates : nullptr;
-}
-
-Markup::Schema* ViewRuntime::Schema() noexcept {
-    return impl_ != nullptr ? impl_->schema : nullptr;
-}
-
-Markup::SourceProviderRegistry*
-ViewRuntime::Sources() noexcept {
-    return impl_ != nullptr
-        ? &impl_->xamlSources
-        : nullptr;
-}
-
-Markup::EmbeddedSourceProvider*
-ViewRuntime::EmbeddedSources() noexcept {
-    return impl_ != nullptr
-        ? &impl_->embeddedXaml
-        : nullptr;
-}
-
-Markup::DocumentCache* ViewRuntime::DocumentCache() noexcept {
-    return impl_ != nullptr ? impl_->documentCache : nullptr;
-}
-
-const Base::ResourceUri& ViewRuntime::CurrentDocumentUri() const noexcept {
-    static const Base::ResourceUri empty;
-    return impl_ != nullptr
-        ? impl_->loadedDocument.canonicalUri
-        : empty;
-}
-
-Base::Span<const Base::ResourceUri>
-ViewRuntime::CurrentDocumentDependencies() const noexcept {
-    return impl_ != nullptr
-        ? Base::Span<const Base::ResourceUri>{
-              impl_->loadedDocument.dependencies.Data(),
-              impl_->loadedDocument.dependencies.Size()}
-        : Base::Span<const Base::ResourceUri>{};
-}
-
-Aero::ResourceDictionary*
-ViewRuntime::ApplicationResources() noexcept {
-    return impl_ != nullptr
-        ? &impl_->applicationResources
-        : nullptr;
-}
-
-Aero::ResourceDictionary*
-ViewRuntime::ThemeResources() noexcept {
-    return impl_ != nullptr
-        ? &impl_->themeResources
-        : nullptr;
-}
-
-Aero::ResourceDictionary*
-ViewRuntime::SystemResources() noexcept {
-    return impl_ != nullptr
-        ? &impl_->systemResources
-        : nullptr;
-}
-
-Aero::Detail::StyleManager*
-ViewRuntime::Styles() noexcept {
-    return impl_ != nullptr ? impl_->styles : nullptr;
-}
-
 std::uint32_t ViewRuntime::NamedObjectCount() const noexcept {
     return impl_ != nullptr ? impl_->loadedDocument.names.Size() : 0U;
 }
 
 } // namespace Aero
+
+namespace Aero::Detail {
+
+ViewRuntime& ViewAccess::Runtime(View& view) noexcept {
+    return *static_cast<ViewRuntime*>(view.IntegrationRuntime());
+}
+
+Base::Result<Data::BindingHandle> ViewAccess::AttachBinding(
+    View& view,
+    const Data::BindingDescriptor& descriptor) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    if (runtime.impl_ == nullptr || runtime.impl_->bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View binding service is not initialized");
+    }
+    return runtime.impl_->bindings->Attach(descriptor);
+}
+
+Base::Result<std::uint32_t> ViewAccess::FlushBindings(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    if (runtime.impl_ == nullptr || runtime.impl_->bindings == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View binding service is not initialized");
+    }
+    return runtime.impl_->bindings->Flush();
+}
+
+std::unique_ptr<Controls::ItemContainerGenerator>
+ViewAccess::CreateItemContainerGenerator(View& view) {
+    ViewRuntime& runtime = Runtime(view);
+    if (runtime.impl_ == nullptr || runtime.impl_->tree == nullptr ||
+        runtime.impl_->layout == nullptr || runtime.impl_->values == nullptr) {
+        return nullptr;
+    }
+    Base::Result<Controls::ItemContainerGenerator*> created =
+        Controls::Detail::ItemContainerGeneratorAccess::Create(
+            *runtime.impl_->tree,
+            *runtime.impl_->layout,
+            *runtime.impl_->values,
+            nullptr,
+            runtime.impl_->renderer);
+    return created
+        ? std::unique_ptr<Controls::ItemContainerGenerator>(created.Value())
+        : nullptr;
+}
+
+Visual* ViewAccess::RootVisual(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr && runtime.impl_->tree != nullptr
+        ? runtime.impl_->tree->Root()
+        : nullptr;
+}
+
+AnimationManager* ViewAccess::Animations(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr ? runtime.impl_->animations : nullptr;
+}
+
+Controls::VisualStateManager* ViewAccess::VisualStates(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr ? runtime.impl_->visualStates : nullptr;
+}
+
+Controls::TemplateManager* ViewAccess::Templates(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr ? runtime.impl_->templates : nullptr;
+}
+
+bool ViewAccess::IsInstanceOf(
+    View& view,
+    const Base::Object& object,
+    Core::TypeId baseType) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr && runtime.impl_->metadata != nullptr &&
+        runtime.impl_->metadata->Types().IsDerivedFrom(
+            object.RuntimeType(), baseType);
+}
+
+Markup::SourceProviderRegistry* ViewAccess::Sources(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr ? &runtime.impl_->xamlSources : nullptr;
+}
+
+Markup::DocumentCache* ViewAccess::DocumentCache(View& view) noexcept {
+    ViewRuntime& runtime = Runtime(view);
+    return runtime.impl_ != nullptr ? runtime.impl_->documentCache : nullptr;
+}
+
+} // namespace Aero::Detail

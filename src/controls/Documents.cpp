@@ -1,5 +1,7 @@
 #include <Aero/Documents.hpp>
 
+#include "gui/ElementInternal.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -8,109 +10,235 @@ namespace Aero::Detail {
 
 class DocumentTextAccess final {
 public:
-    static std::uint32_t Count(
-        const Controls::TextBlock& owner) noexcept {
-        return owner.ownedInlines_.Size();
+    static bool IsTextBlock(const Base::Object& owner) noexcept {
+        return owner.RuntimeType() == Controls::TextBlock::StaticTypeId() ||
+            static_cast<const Core::DependencyObject&>(owner)
+                .PropertyRegistry().Types().IsDerivedFrom(
+                    owner.RuntimeType(), Controls::TextBlock::StaticTypeId());
+    }
+
+    static bool IsSpan(const Base::Object& owner) noexcept {
+        return owner.RuntimeType() == Documents::Span::StaticTypeId() ||
+            static_cast<const Core::DependencyObject&>(owner)
+                .PropertyRegistry().Types().IsDerivedFrom(
+                    owner.RuntimeType(), Documents::Span::StaticTypeId());
+    }
+
+    static std::uint32_t Count(const Base::Object& owner) noexcept {
+        if (IsTextBlock(owner)) {
+            return static_cast<const Controls::TextBlock&>(owner)
+                .ownedInlines_.Size();
+        }
+        if (IsSpan(owner)) {
+            return static_cast<const Documents::Span&>(owner)
+                .inlines_.Size();
+        }
+        return 0U;
     }
 
     static Documents::Inline* At(
-        Controls::TextBlock& owner,
+        Base::Object& owner,
         std::uint32_t index) noexcept {
-        if (index >= owner.ownedInlines_.Size()) return nullptr;
-        Base::Object* object = owner.ownedInlines_[index].Get();
-        return object != nullptr
-            ? static_cast<Documents::Inline*>(object)
-            : nullptr;
+        if (IsTextBlock(owner)) {
+            auto& text = static_cast<Controls::TextBlock&>(owner);
+            if (index >= text.ownedInlines_.Size()) return nullptr;
+            return static_cast<Documents::Inline*>(
+                text.ownedInlines_[index].Get());
+        }
+        if (IsSpan(owner)) {
+            auto& span = static_cast<Documents::Span&>(owner);
+            return index < span.inlines_.Size()
+                ? span.inlines_[index].Get() : nullptr;
+        }
+        return nullptr;
     }
 
     static const Documents::Inline* At(
-        const Controls::TextBlock& owner,
+        const Base::Object& owner,
         std::uint32_t index) noexcept {
-        if (index >= owner.ownedInlines_.Size()) return nullptr;
-        const Base::Object* object = owner.ownedInlines_[index].Get();
-        return object != nullptr
-            ? static_cast<const Documents::Inline*>(object)
-            : nullptr;
+        return At(
+            const_cast<Base::Object&>(owner), index);
+    }
+
+    static Controls::TextBlock* Host(Base::Object& owner) noexcept {
+        if (IsTextBlock(owner)) {
+            return &static_cast<Controls::TextBlock&>(owner);
+        }
+        if (IsSpan(owner)) {
+            Core::DependencyObject* current =
+                static_cast<Documents::Span&>(owner).GetParent();
+            while (current != nullptr) {
+                if (current->PropertyRegistry().Types().IsDerivedFrom(
+                        current->RuntimeType(),
+                        Controls::TextBlock::StaticTypeId())) {
+                    return static_cast<Controls::TextBlock*>(current);
+                }
+                if (!current->PropertyRegistry().Types().IsDerivedFrom(
+                        current->RuntimeType(),
+                        ContentElement::StaticTypeId())) {
+                    break;
+                }
+                current = static_cast<ContentElement*>(current)->GetParent();
+            }
+        }
+        return nullptr;
     }
 
     static bool Contains(
-        const Controls::TextBlock& root,
-        const Controls::TextBlock& candidate,
+        const Documents::Inline& root,
+        const Documents::Inline& candidate,
         std::uint32_t depth = 0U) noexcept {
         if (&root == &candidate) return true;
         if (depth >= 1024U) return true;
-        for (const Base::Ref<Base::Object>& item : root.ownedInlines_) {
-            if (!item) continue;
-            const auto* inlineValue =
-                static_cast<const Documents::Inline*>(item.Get());
-            if (Contains(*inlineValue, candidate, depth + 1U)) return true;
+        const Core::TypeRegistry& types = root.PropertyRegistry().Types();
+        if (!types.IsDerivedFrom(
+                root.RuntimeType(), Documents::Span::StaticTypeId())) {
+            return false;
+        }
+        const auto& span = static_cast<const Documents::Span&>(root);
+        for (const Base::Ref<Documents::Inline>& child : span.inlines_) {
+            if (child && Contains(*child, candidate, depth + 1U)) return true;
         }
         return false;
     }
 
+    static void PropagateHost(
+        Documents::Inline& inlineValue,
+        Core::DependencyObject& parent,
+        Controls::TextBlock* host) noexcept {
+        ContentElementAccess::Attach(
+            inlineValue,
+            &parent,
+            host,
+            nullptr);
+        const Core::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
+        if (!types.IsDerivedFrom(
+                inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
+            return;
+        }
+        auto& span = static_cast<Documents::Span&>(inlineValue);
+        for (Base::Ref<Documents::Inline>& child : span.inlines_) {
+            if (child) PropagateHost(*child, span, host);
+        }
+    }
+
+    static void ClearHost(Documents::Inline& inlineValue) noexcept {
+        const Core::TypeRegistry& types = inlineValue.PropertyRegistry().Types();
+        if (types.IsDerivedFrom(
+                inlineValue.RuntimeType(), Documents::Span::StaticTypeId())) {
+            auto& span = static_cast<Documents::Span&>(inlineValue);
+            for (Base::Ref<Documents::Inline>& child : span.inlines_) {
+                if (child) ClearHost(*child);
+            }
+        }
+        ContentElementAccess::Detach(inlineValue);
+    }
+
     static Base::Result<void> Add(
-        Controls::TextBlock& owner,
+        Base::Object& owner,
         Base::Ref<Documents::Inline> value) noexcept {
         if (!value) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "InlineCollection value cannot be null");
         }
-        if (!owner.LayoutChildren().Empty() || owner.GetIsLoaded()) {
+        if (!IsTextBlock(owner) && !IsSpan(owner)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
-                "Mounted inline collections require a MountService transaction");
+                "InlineCollection owner is not a TextBlock or Span");
         }
-        if (Contains(*value, owner)) {
+        if (value->GetParent() != nullptr) {
             return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
+                Base::ErrorCode::InvalidState,
+                "Inline already belongs to a logical parent");
+        }
+        if (IsSpan(owner) &&
+            Contains(*value, static_cast<Documents::Span&>(owner))) {
+            return Base::Status::Failure(
+                Base::ErrorCode::CycleDetected,
                 "InlineCollection cannot create a document cycle");
         }
-        Base::Ref<Base::Object> object(value);
-        return owner.AddOwnedInline(object, *value);
+
+        Base::Result<void> added;
+        if (IsTextBlock(owner)) {
+            added = static_cast<Controls::TextBlock&>(owner)
+                .AddOwnedInline(Base::Ref<Base::Object>(value));
+        } else {
+            added = static_cast<Documents::Span&>(owner)
+                .AddOwnedInline(value);
+        }
+        if (!added) return added.GetStatus();
+
+        return {};
     }
 
     static Base::Result<bool> Remove(
-        Controls::TextBlock& owner,
+        Base::Object& owner,
         Documents::Inline& value) noexcept {
-        Base::Result<void> access = owner.VerifyAccess();
+        Base::Result<void> access =
+            static_cast<Core::DependencyObject&>(owner).VerifyAccess();
         if (!access) return access.GetStatus();
-        if (!owner.LayoutChildren().Empty() || owner.GetIsLoaded()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Mounted inline collections require a MountService transaction");
-        }
-        for (std::uint32_t index = 0U;
-             index < owner.ownedInlines_.Size(); ++index) {
-            if (owner.ownedInlines_[index].Get() != &value) continue;
-            for (std::uint32_t move = index + 1U;
-                 move < owner.ownedInlines_.Size(); ++move) {
-                owner.ownedInlines_[move - 1U] =
-                    std::move(owner.ownedInlines_[move]);
+        if (value.GetParent() != &owner) return false;
+
+        if (IsTextBlock(owner)) {
+            auto& text = static_cast<Controls::TextBlock&>(owner);
+            for (std::uint32_t index = 0U;
+                 index < text.ownedInlines_.Size(); ++index) {
+                if (text.ownedInlines_[index].Get() != &value) continue;
+                ClearHost(value);
+                for (std::uint32_t move = index + 1U;
+                     move < text.ownedInlines_.Size(); ++move) {
+                    text.ownedInlines_[move - 1U] =
+                        std::move(text.ownedInlines_[move]);
+                }
+                text.ownedInlines_.PopBack();
+                text.pendingInline_ = text.ownedInlines_.Empty()
+                    ? Base::Ref<Base::Object>{}
+                    : text.ownedInlines_.Back();
+                Base::Result<void> invalidated = text.InvalidateMeasure();
+                if (!invalidated) return invalidated.GetStatus();
+                return true;
             }
-            owner.ownedInlines_.PopBack();
-            owner.pendingInline_ = owner.ownedInlines_.Empty()
-                ? Base::Ref<Base::Object>{}
-                : owner.ownedInlines_.Back();
-            Base::Result<void> invalidated = owner.InvalidateMeasure();
-            if (!invalidated) return invalidated.GetStatus();
+            return false;
+        }
+
+        auto& span = static_cast<Documents::Span&>(owner);
+        for (std::uint32_t index = 0U;
+             index < span.inlines_.Size(); ++index) {
+            if (span.inlines_[index].Get() != &value) continue;
+            ClearHost(value);
+            for (std::uint32_t move = index + 1U;
+                 move < span.inlines_.Size(); ++move) {
+                span.inlines_[move - 1U] =
+                    std::move(span.inlines_[move]);
+            }
+            span.inlines_.PopBack();
+            span.pendingInline_ = span.inlines_.Empty()
+                ? Base::Ref<Documents::Inline>{}
+                : span.inlines_.Back();
+            Controls::TextBlock* host = Host(owner);
+            if (host != nullptr) {
+                Base::Result<void> invalidated = host->InvalidateMeasure();
+                if (!invalidated) return invalidated.GetStatus();
+            }
             return true;
         }
         return false;
     }
 
-    static Base::Result<void> Clear(
-        Controls::TextBlock& owner) noexcept {
-        if (owner.GetIsLoaded()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Mounted inline collections require a MountService transaction");
+    static Base::Result<void> Clear(Base::Object& owner) noexcept {
+        while (Count(owner) != 0U) {
+            Documents::Inline* value = At(owner, Count(owner) - 1U);
+            if (value == nullptr) break;
+            Base::Result<bool> removed = Remove(owner, *value);
+            if (!removed) return removed.GetStatus();
+            if (!removed.Value()) break;
         }
-        return owner.ClearOwnedInlines();
+        return {};
     }
 
-    static Base::Result<void> AppendText(
-        const Controls::TextBlock& owner,
+    static Base::Result<void> AppendInline(
+        const Documents::Inline& value,
         Base::String& output,
         std::uint32_t depth = 0U) noexcept {
         if (depth >= 1024U) {
@@ -118,49 +246,50 @@ public:
                 Base::ErrorCode::OutOfRange,
                 "Document inline nesting exceeds the supported depth");
         }
+        const Core::TypeRegistry& types = value.PropertyRegistry().Types();
+        if (types.IsDerivedFrom(
+                value.RuntimeType(), Documents::Run::StaticTypeId())) {
+            return output.TryAppend(
+                static_cast<const Documents::Run&>(value).GetText());
+        }
+        if (types.IsDerivedFrom(
+                value.RuntimeType(), Documents::LineBreak::StaticTypeId())) {
+            return output.TryAppend(Base::StringView("\n"));
+        }
+        if (types.IsDerivedFrom(
+                value.RuntimeType(), Documents::Span::StaticTypeId())) {
+            const auto& span = static_cast<const Documents::Span&>(value);
+            for (const Base::Ref<Documents::Inline>& child : span.inlines_) {
+                if (!child) continue;
+                Base::Result<void> appended =
+                    AppendInline(*child, output, depth + 1U);
+                if (!appended) return appended.GetStatus();
+            }
+        }
+        return {};
+    }
+
+    static Base::Result<void> AppendText(
+        const Controls::TextBlock& owner,
+        Base::String& output) noexcept {
         Base::Result<void> appended = output.TryAppend(owner.Text());
         if (!appended) return appended.GetStatus();
         for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
             if (!item) continue;
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                appended = output.TryAppend(Base::StringView("\n"));
-            } else {
-                appended = AppendText(
-                    *static_cast<const Documents::Inline*>(item.Get()),
-                    output, depth + 1U);
-            }
+            appended = AppendInline(
+                *static_cast<const Documents::Inline*>(item.Get()),
+                output);
             if (!appended) return appended.GetStatus();
         }
         return {};
     }
 
     static Base::Result<std::uint32_t> Length(
-        const Controls::TextBlock& owner,
-        std::uint32_t depth = 0U) noexcept {
-        if (depth >= 1024U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document inline nesting exceeds the supported depth");
-        }
-        std::uint64_t total = owner.Text().SizeBytes();
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                ++total;
-            } else {
-                Base::Result<std::uint32_t> nested = Length(
-                    *static_cast<const Documents::Inline*>(item.Get()),
-                    depth + 1U);
-                if (!nested) return nested.GetStatus();
-                total += nested.Value();
-            }
-            if (total > UINT32_MAX) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    "Flattened document text is too large");
-            }
-        }
-        return static_cast<std::uint32_t>(total);
+        const Controls::TextBlock& owner) noexcept {
+        Base::String flattened;
+        Base::Result<void> copied = AppendText(owner, flattened);
+        if (!copied) return copied.GetStatus();
+        return flattened.SizeBytes();
     }
 
     static Base::Result<bool> IsUtf8Boundary(
@@ -180,180 +309,52 @@ public:
         return (byte & 0xC0U) != 0x80U;
     }
 
-    static Base::Span<const Text::TextHitRegion> Hits(
-        const Controls::TextBlock& owner) noexcept {
-        return owner.textHitRegions_.AsSpan();
-    }
-
-    static bool IsMeasured(
-        const Controls::TextBlock& owner) noexcept {
-        return owner.GetIsMeasureValid();
-    }
-
-private:
-    struct Candidate final {
-        bool found = false;
-        double distance = 0.0;
-        std::uint32_t offset = 0U;
-        Aero::Rect rect;
-    };
-
-    static void Consider(
-        Candidate& best,
-        Aero::Point point,
-        Aero::Rect rect,
-        std::uint32_t leading,
-        std::uint32_t trailing,
-        bool snap) noexcept {
-        const bool inside = point.x >= rect.x &&
-            point.x <= rect.x + rect.width &&
-            point.y >= rect.y &&
-            point.y <= rect.y + rect.height;
-        if (!inside && !snap) return;
-        const double clampedX = std::max(
-            rect.x, std::min(point.x, rect.x + rect.width));
-        const double clampedY = std::max(
-            rect.y, std::min(point.y, rect.y + rect.height));
-        const double dx = point.x - clampedX;
-        const double dy = point.y - clampedY;
-        const double distance = dx * dx + dy * dy;
-        if (best.found && distance >= best.distance) return;
-        best.found = true;
-        best.distance = distance;
-        best.offset = point.x > rect.x + rect.width * 0.5
-            ? trailing : leading;
-        best.rect = rect;
-    }
-
-    static Base::Result<std::uint32_t> HitRecursive(
-        Controls::TextBlock& owner,
-        Aero::Point point,
-        std::uint32_t baseOffset,
-        bool snap,
-        Candidate& best,
-        std::uint32_t depth = 0U) noexcept {
-        if (depth >= 1024U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document hit testing exceeded the nesting limit");
-        }
-        const Base::StringView ownText = owner.Text();
-        for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
-            Aero::Rect rect{
-                static_cast<double>(hit.x),
-                static_cast<double>(hit.y),
-                static_cast<double>(std::max(hit.width, 1.0F)),
-                static_cast<double>(std::max(hit.height, 1.0F))};
-            const std::uint32_t leading = baseOffset + hit.textOffset;
-            const std::uint32_t trailing = leading + hit.textLength;
-            Consider(best, point, rect, leading, trailing, snap);
-        }
-        std::uint32_t cursor = baseOffset + ownText.SizeBytes();
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            auto& inlineValue =
-                *static_cast<Documents::Inline*>(item.Get());
-            const Aero::Rect slot = inlineValue.GetLayoutSlot();
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                const Aero::Rect rect{
-                    slot.x, slot.y, 1.0,
-                    std::max(owner.FontSize() * 1.2, 1.0)};
-                Consider(best, point, rect, cursor, cursor + 1U, snap);
-                ++cursor;
-                continue;
-            }
-            Aero::Point local{
-                point.x - slot.x, point.y - slot.y};
-            Base::Result<std::uint32_t> childLength =
-                HitRecursive(inlineValue, local, cursor, snap, best, depth + 1U);
-            if (!childLength) return childLength.GetStatus();
-            cursor += childLength.Value();
-        }
-        return cursor - baseOffset;
-    }
-
-    static Base::Result<bool> RectRecursive(
-        const Controls::TextBlock& owner,
-        std::uint32_t requested,
-        std::uint32_t baseOffset,
-        Aero::Point origin,
-        Aero::Rect& output,
-        std::uint32_t depth = 0U) noexcept {
-        if (depth >= 1024U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Document rectangle lookup exceeded the nesting limit");
-        }
-        const std::uint32_t ownEnd = baseOffset + owner.Text().SizeBytes();
-        if (requested <= ownEnd && !owner.textHitRegions_.Empty()) {
-            const Text::TextHitRegion* selected = &owner.textHitRegions_.Back();
-            for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
-                if (requested >= baseOffset + hit.textOffset &&
-                    requested <= baseOffset + hit.textOffset + hit.textLength) {
-                    selected = &hit;
-                    break;
-                }
-            }
-            output = {
-                origin.x + selected->x,
-                origin.y + selected->y,
-                std::max(static_cast<double>(selected->width), 1.0),
-                std::max(static_cast<double>(selected->height), 1.0)};
-            return true;
-        }
-        std::uint32_t cursor = ownEnd;
-        for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
-            if (!item) continue;
-            const auto& inlineValue =
-                *static_cast<const Documents::Inline*>(item.Get());
-            const Aero::Rect slot = inlineValue.GetLayoutSlot();
-            if (item->RuntimeType() == Documents::LineBreak::StaticTypeId()) {
-                if (requested == cursor || requested == cursor + 1U) {
-                    output = {
-                        origin.x + slot.x,
-                        origin.y + slot.y,
-                        1.0,
-                        std::max(owner.FontSize() * 1.2, 1.0)};
-                    return true;
-                }
-                ++cursor;
-                continue;
-            }
-            Base::Result<std::uint32_t> length = Length(inlineValue);
-            if (!length) return length.GetStatus();
-            if (requested <= cursor + length.Value()) {
-                return RectRecursive(
-                    inlineValue, requested, cursor,
-                    {origin.x + slot.x, origin.y + slot.y},
-                    output, depth + 1U);
-            }
-            cursor += length.Value();
-        }
-        return false;
-    }
-
-public:
     static Base::Result<Documents::TextPointer> PositionFromPoint(
         Controls::TextBlock& owner,
         Aero::Point point,
         bool snap) noexcept {
-        if (!IsMeasured(owner)) {
+        if (!owner.GetIsMeasureValid()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "Document text positions require a valid measure pass");
         }
-        Candidate best;
-        Base::Result<std::uint32_t> length =
-            HitRecursive(owner, point, 0U, snap, best);
-        if (!length) return length.GetStatus();
-        if (!best.found) {
+        const Text::TextHitRegion* best = nullptr;
+        double bestDistance = 0.0;
+        for (const Text::TextHitRegion& hit : owner.textHitRegions_) {
+            const Aero::Rect rect{
+                static_cast<double>(hit.x),
+                static_cast<double>(hit.y),
+                static_cast<double>(std::max(hit.width, 1.0F)),
+                static_cast<double>(std::max(hit.height, 1.0F))};
+            const bool inside = point.x >= rect.x &&
+                point.x <= rect.x + rect.width &&
+                point.y >= rect.y &&
+                point.y <= rect.y + rect.height;
+            if (!inside && !snap) continue;
+            const double clampedX = std::max(
+                rect.x, std::min(point.x, rect.x + rect.width));
+            const double clampedY = std::max(
+                rect.y, std::min(point.y, rect.y + rect.height));
+            const double dx = point.x - clampedX;
+            const double dy = point.y - clampedY;
+            const double distance = dx * dx + dy * dy;
+            if (best != nullptr && distance >= bestDistance) continue;
+            best = &hit;
+            bestDistance = distance;
+        }
+        if (best == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Point does not resolve to document text");
         }
-        best.offset = std::min(best.offset, length.Value());
+        const bool trailing = point.x >
+            static_cast<double>(best->x + best->width * 0.5F);
+        const std::uint32_t offset = best->textOffset +
+            (trailing ? best->textLength : 0U);
         return Documents::TextPointer(
-            owner, best.offset, Documents::LogicalDirection::Forward);
+            owner,
+            offset,
+            Documents::LogicalDirection::Forward);
     }
 
     static Base::Result<Aero::Rect> CharacterRect(
@@ -368,16 +369,29 @@ public:
                 Base::ErrorCode::InvalidState,
                 "Document character rectangles require a valid measure pass");
         }
-        Aero::Rect rect;
-        Base::Result<bool> found = RectRecursive(
-            *position.container_, position.offset_, 0U, {}, rect);
-        if (!found) return found.GetStatus();
-        if (!found.Value()) {
+        const Text::TextHitRegion* selected = nullptr;
+        for (const Text::TextHitRegion& hit :
+             position.container_->textHitRegions_) {
+            if (position.offset_ >= hit.textOffset &&
+                position.offset_ <= hit.textOffset + hit.textLength) {
+                selected = &hit;
+                break;
+            }
+        }
+        if (selected == nullptr &&
+            !position.container_->textHitRegions_.Empty()) {
+            selected = &position.container_->textHitRegions_.Back();
+        }
+        if (selected == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "TextPointer has no arranged character rectangle");
         }
-        return rect;
+        return Aero::Rect{
+            selected->x,
+            selected->y,
+            std::max(static_cast<double>(selected->width), 1.0),
+            std::max(static_cast<double>(selected->height), 1.0)};
     }
 };
 
@@ -410,7 +424,8 @@ Documents::TextPointer TextBlock::ContentEnd() noexcept {
     Base::Result<std::uint32_t> length =
         Aero::Detail::DocumentTextAccess::Length(*this);
     return Documents::TextPointer(
-        *this, length ? length.Value() : 0U,
+        *this,
+        length ? length.Value() : 0U,
         Documents::LogicalDirection::Backward);
 }
 
@@ -477,6 +492,76 @@ Base::Result<void> InlineCollection::Clear() noexcept {
             "InlineCollection is not bound to an owner");
     }
     return Aero::Detail::DocumentTextAccess::Clear(*owner_);
+}
+
+Core::Value Span::MetadataInlines() const noexcept {
+    if (pendingInline_) {
+        return Core::Value::FromObject(
+            pendingInline_->RuntimeType(),
+            Base::Ref<Base::Object>(pendingInline_));
+    }
+    return Core::Value::NullObject(Core::TypeOf<Base::Object>());
+}
+
+Base::Result<void> Span::SetInlineValue(Core::Value value) noexcept {
+    if (value.Kind() == Core::ValueKind::Object &&
+        !value.IsNullObject() && value.AsObject()) {
+        Base::Ref<Base::Object> object = value.AsObject();
+        if (!PropertyRegistry().Types().IsDerivedFrom(
+                object->RuntimeType(), Inline::StaticTypeId())) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Span inline content must derive from Documents::Inline");
+        }
+        pendingInline_ = Base::Ref<Inline>::FromBorrowed(
+            *static_cast<Inline*>(object.Get()));
+        return {};
+    }
+    if (value.Kind() != Core::ValueKind::String) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Span inline content must be text or an Inline object");
+    }
+    Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
+    if (!created) return created.GetStatus();
+    Base::Result<void> text = created.Value()->SetText(value.AsString());
+    if (!text) return text.GetStatus();
+    pendingInline_ = Base::Ref<Inline>(created.Value());
+    return {};
+}
+
+Base::Result<void> Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {
+    if (!value) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Span inline cannot be null");
+    }
+    for (const Base::Ref<Inline>& current : inlines_) {
+        if (current.Get() == value.Get()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Span already owns the inline");
+        }
+    }
+    Base::Result<void> appended = inlines_.TryPushBack(value);
+    if (!appended) return appended.GetStatus();
+    Aero::Detail::ContentElementAccess::Attach(
+        *value, this, GetContentHost(), nullptr);
+    pendingInline_ = std::move(value);
+    Controls::TextBlock* host = Aero::Detail::DocumentTextAccess::Host(*this);
+    return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
+}
+
+Base::Result<void> Span::ClearOwnedInlines() noexcept {
+    for (Base::Ref<Inline>& value : inlines_) {
+        if (value) Aero::Detail::ContentElementAccess::Detach(*value);
+    }
+    inlines_.Clear();
+    pendingInline_.Reset();
+    Controls::TextBlock* host = GetContentHost() != nullptr
+        ? static_cast<Controls::TextBlock*>(GetContentHost())
+        : nullptr;
+    return host != nullptr ? host->InvalidateMeasure() : Base::Result<void>{};
 }
 
 Base::Result<void> CopyText(
