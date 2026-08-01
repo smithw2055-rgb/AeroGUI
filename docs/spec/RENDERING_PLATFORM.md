@@ -298,9 +298,9 @@ standalone sample MAY 使用 AeroGUI platform helper 创建窗口、surface 和 
 ### 13.3 GLX/EGL/WGL
 
 ```text
-AeroPlatform_GLX  Linux/X11 + GL3.3
-AeroPlatform_EGL  Android/Wayland/headless + GLES/OpenGL
-AeroPlatform_WGL  Windows + GL3.3
+private GLX adapter  Linux/X11 + GL3.3
+private EGL adapter  Android/Wayland/headless + GLES/OpenGL
+private WGL adapter  Windows + GL3.3
 ```
 
 - GLX baseline 为 1.4；通过运行时查询 `GLX_ARB_create_context` 创建 3.3 core context；

@@ -2050,7 +2050,7 @@ Base::Result<void> Slider::OnRender(
     return {};
 }
 
-Base::Ref<Media::Brush> TickBar::Fill() const noexcept {
+Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
     return GetValueOr(
         FillProperty,
         Base::Ref<Media::Brush>{});
@@ -2092,7 +2092,7 @@ Base::Result<void> TickBar::OnRender(
     if (primary <= 0.0 || range < 0.0) return {};
 
     const Color color = Media::SampleBrush(
-        Fill(), 0.5, Foreground());
+        GetFill(), 0.5, Foreground());
     constexpr double thumbLength = 14.0;
     const double start = std::min(
         primary * 0.5, thumbLength * 0.5);

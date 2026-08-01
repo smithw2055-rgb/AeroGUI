@@ -1,7 +1,9 @@
 # Public Integration/App products and SDK dependency checks.
 set(_aero_integration_sources
     src/integration/HostedGraphics.cpp
-    src/integration/OpenGL33Endpoint.cpp)
+    src/integration/OpenGL33Endpoint.cpp
+    src/integration/SourceProvider.cpp
+    src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_integration_sources
         src/integration/D3D11Endpoint.cpp)
@@ -18,23 +20,10 @@ target_include_directories(AeroIntegration
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroIntegration
     PUBLIC AeroRuntime
-    PRIVATE
-        Aero::_DetailRender
-        Aero::_DetailGraphics
-        Aero::_DetailRenderOpenGL33
-        Aero::_DetailGraphicsOpenGL33)
-if(WIN32)
-    target_link_libraries(AeroIntegration PRIVATE
-        Aero::_DetailRenderD3D11
-        Aero::_DetailGraphicsD3D11)
-    if(TARGET AeroPlatformWGL)
-        target_link_libraries(
-            AeroIntegration PRIVATE Aero::_DetailPlatformWGL)
-    endif()
-elseif(TARGET AeroPlatformGLX)
-    target_link_libraries(
-        AeroIntegration PRIVATE Aero::_DetailPlatformGLX)
-endif()
+    PRIVATE Aero::_DetailRendering)
+target_compile_definitions(AeroIntegration PRIVATE
+    AERO_HAS_WGL_SURFACE=$<BOOL:${AERO_ENABLE_WGL_SURFACE}>
+    AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
 target_compile_features(AeroIntegration PUBLIC cxx_std_17)
 set_target_properties(AeroIntegration PROPERTIES
     CXX_STANDARD 17
@@ -71,9 +60,22 @@ target_link_libraries(
 aero_apply_compiler_options(
     AeroHostedGraphicsHeaderConsumer)
 
-add_library(AeroApp ${AERO_LIBRARY_TYPE}
-    src/app/Launcher.cpp
+set(_aero_app_sources
+    src/app/ApplicationRun.cpp
+    src/app/DesktopHost.cpp
     src/app/Window.cpp)
+if(WIN32)
+    list(APPEND _aero_app_sources
+        src/platform/win32/Clipboard.cpp
+        src/platform/win32/Ime.cpp
+        src/platform/win32/Window.cpp)
+else()
+    list(APPEND _aero_app_sources
+        src/platform/x11/Window.cpp)
+endif()
+
+add_library(AeroApp ${AERO_LIBRARY_TYPE}
+    ${_aero_app_sources})
 add_library(Aero::App ALIAS AeroApp)
 target_include_directories(AeroApp
     PUBLIC
@@ -86,9 +88,19 @@ target_link_libraries(AeroApp
         Aero::Integration
         Aero::Gui
         Aero::_DetailAppModel)
+if(WIN32)
+    target_link_libraries(AeroApp PRIVATE user32 imm32)
+elseif(AERO_ENABLE_GLX_SURFACE)
+    if(NOT TARGET X11::X11)
+        message(FATAL_ERROR
+            "X11::X11 is required by the enabled default X11 App host")
+    endif()
+    target_link_libraries(AeroApp PRIVATE X11::X11)
+endif()
 target_compile_definitions(AeroApp PRIVATE
     AERO_APP_HAS_D3D11=$<BOOL:${AERO_ENABLE_D3D11_BACKEND}>
-    "AERO_APP_HAS_OPENGL_WINDOW=$<OR:$<BOOL:${AERO_ENABLE_WGL_SURFACE}>,$<BOOL:${AERO_ENABLE_GLX_SURFACE}>>")
+    "AERO_APP_HAS_OPENGL_WINDOW=$<OR:$<BOOL:${AERO_ENABLE_WGL_SURFACE}>,$<BOOL:${AERO_ENABLE_GLX_SURFACE}>>"
+    AERO_PLATFORM_HAS_X11_WINDOW=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
 target_compile_features(AeroApp PUBLIC cxx_std_17)
 set_target_properties(AeroApp PROPERTIES
     CXX_STANDARD 17
@@ -107,9 +119,9 @@ aero_apply_compiler_options(AeroProductHeaderConsumer)
 # owns no GPU backend, while Meta remains a header-only authoring facade.
 get_target_property(_aero_runtime_links AeroRuntime LINK_LIBRARIES)
 if("${_aero_runtime_links}" MATCHES
-        "(^|;)(Aero::_DetailGraphics|Aero::_DetailRender|AeroGraphics|AeroRender)")
+        "(^|;)(Aero::_DetailRendering|AeroRendering|Aero::_DetailGraphics|Aero::_DetailRender|AeroGraphics|AeroRender)")
     message(FATAL_ERROR
-        "AeroRuntime must not link render or RHI implementation targets")
+        "AeroRuntime must not link the rendering implementation target")
 endif()
 get_target_property(
     _aero_meta_links AeroMeta INTERFACE_LINK_LIBRARIES)

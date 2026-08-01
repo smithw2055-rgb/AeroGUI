@@ -1,4 +1,4 @@
-#include "X11Window.hpp"
+#include "Window.hpp"
 
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>

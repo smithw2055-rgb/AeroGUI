@@ -36,6 +36,6 @@ Implemented boundaries:
 22. `XamlObjectWriter` is reusable configuration while `XamlLoadSession` has its own header and owns all one-shot mutable state.
 23. `AeroMarkupKernel` is a real Core-only target for parsing and base compiled IR; UI integration remains in `AeroMarkup`.
 24. Built-in theme generation supports a host `aero-xamlc` and deterministic embedded-source fallback for cross builds.
-25. Runtime Style/Template application policy lives in `RuntimeUiServices`, not in `View::Impl`.
+25. View-owned Style/Template application policy lives in `ViewUiServices`, not in `View::Impl`.
 
 The remaining theme work is feature expansion only: richer template bindings, style composition, transitions, and additional controls must extend these metadata objects and existing UI plans. Do not add another theme DOM, parser, resource wrapper, activation registry, or feature-local property system.

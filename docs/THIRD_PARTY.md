@@ -228,8 +228,8 @@ AeroBase       -> no third-party runtime dependency
 AeroGuiKernel  -> AeroBase + Threads
 AeroControls   -> AeroGuiKernel + platform/text contracts
 AeroMarkup     -> AeroControls + IXmlTokenizer
-AeroRender     -> AeroGuiKernel + AeroGraphics + text/geometry contracts
-AeroPlatform   -> host/platform contracts
+AeroRendering  -> AeroGuiKernel + render device + text/geometry contracts
+AeroIntegration/App -> platform-neutral contracts / private OS adapters
 ```
 
 ## 10. Build 与 packaging

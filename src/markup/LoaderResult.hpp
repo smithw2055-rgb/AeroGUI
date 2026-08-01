@@ -1,6 +1,6 @@
 #pragma once
 
-// Private transaction result consumed by Loader, UiDocument, and ViewRuntime.
+// Private transaction result consumed by Loader, UiDocument, and View.
 
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>

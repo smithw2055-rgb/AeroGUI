@@ -56,7 +56,7 @@ Base::Result<void> ContentElement::TryAddHandlerCore(
             "Routed event handler requires a valid event and callback");
     }
 
-    auto* state = static_cast<ContentElementHandlerState*>(handlerState_);
+    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
     if (state == nullptr) {
         Base::IAllocator& allocator = Base::GetDefaultAllocator();
         void* memory = allocator.Allocate({
@@ -69,7 +69,7 @@ Base::Result<void> ContentElement::TryAddHandlerCore(
                 "Routed event handler state allocation failed");
         }
         state = new (memory) ContentElementHandlerState();
-        handlerState_ = state;
+        routedHandlers_ = state;
     }
     if (state->nextSequence == 0U) {
         return Base::Status::Failure(
@@ -98,7 +98,7 @@ bool ContentElement::RemoveHandlerCore(
     const HandlerDescriptor& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access || !event.IsValid() || handler.value == nullptr ||
-        handler.operations == nullptr || handlerState_ == nullptr) {
+        handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
     Aero::Detail::RoutedHandlerStorage probe(
@@ -111,7 +111,7 @@ bool ContentElement::RemoveHandlerCore(
         handler.operations->equals,
         handler.operations->invoke);
     auto& handlers =
-        static_cast<ContentElementHandlerState*>(handlerState_)->handlers;
+        static_cast<ContentElementHandlerState*>(routedHandlers_)->handlers;
     for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
         if (handlers[index].event == event &&
             handlers[index].handler.Equals(probe)) {
@@ -129,7 +129,7 @@ bool ContentElement::RemoveHandlerCore(
 void ContentElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    auto* state = static_cast<ContentElementHandlerState*>(handlerState_);
+    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
     if (state == nullptr) return;
     const std::uint32_t count = state->handlers.Size();
     for (std::uint32_t index = 0U;
@@ -144,7 +144,7 @@ void ContentElement::InvokeHandlers(
 }
 
 void ContentElement::CleanupHandlers() noexcept {
-    auto* state = static_cast<ContentElementHandlerState*>(handlerState_);
+    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
     if (state == nullptr) return;
     state->~ContentElementHandlerState();
     Base::GetDefaultAllocator().Deallocate(
@@ -152,7 +152,7 @@ void ContentElement::CleanupHandlers() noexcept {
         sizeof(ContentElementHandlerState),
         alignof(ContentElementHandlerState),
         Base::MemoryTag::Ui);
-    handlerState_ = nullptr;
+    routedHandlers_ = nullptr;
 }
 
 Base::Result<void> ContentElement::RaiseEvent(

@@ -255,7 +255,7 @@ public:
         const MetadataBindingDescriptor& descriptor) noexcept;
     // Deferred templates are cloned before their visual roots are mounted.
     // Queueing preserves the declaration until the target acquires its
-    // Dispatcher; RuntimeUiServices activates it while walking the
+    // Dispatcher; ViewUiServices activates it while walking the
     // newly mounted instance.
     Base::Result<void> QueueDeferred(
         const MetadataBindingDescriptor& descriptor) noexcept;

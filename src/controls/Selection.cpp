@@ -719,7 +719,7 @@ Base::Result<void> Selector::PrepareContainer(
             listBoxItem.SetIsSelected(
                 IsSelected(index));
         if (!selected) return selected.GetStatus();
-        return listBoxItem.SetTabStop(true);
+        return listBoxItem.SetIsTabStop(true);
     }
     return {};
 }
@@ -999,7 +999,7 @@ Base::Result<void> ComboBox::PrepareContainer(
         if (!selected) {
             return selected.GetStatus();
         }
-        return comboItem.SetTabStop(true);
+        return comboItem.SetIsTabStop(true);
     }
     return {};
 }

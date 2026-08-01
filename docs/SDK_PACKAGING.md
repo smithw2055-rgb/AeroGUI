@@ -19,7 +19,10 @@ Legacy runtime/module/integration aliases and the low-level host facade are
 retired. Static packages still install private support archives needed to
 resolve the product link graph; their imported names are uniformly prefixed
 `Aero::_Detail`. Those targets are implementation dependencies, are omitted
-from product documentation, and carry no source-compatibility promise.
+from product documentation, and carry no source-compatibility promise. The
+retained renderer, minimal render device, native GPU backends and private
+surface adapters are shipped as one `_DetailRendering` archive rather than a
+chain of Graphics, Render and per-backend support targets.
 
 The installed header set is declared explicitly in
 `cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
@@ -59,20 +62,23 @@ point:
 #include <Aero/App.hpp>
 
 int main() {
-    return Aero::App::Run();
+    Aero::Application app;
+    static_cast<void>(app.SetStartupUri("MainWindow.xaml"));
+    return app.Run();
 }
 ```
 
 `Aero::Application` and `Aero::Window` are ordinary WPF-facing XAML objects.
-`Aero::App::Run()` uses the private default desktop lifetime. Applications that
-need explicit backend or allocator selection include `Aero/App/Launcher.hpp`.
+`Application::Run()` uses the private default desktop lifetime. Optional
+backend, allocator and diagnostics selection is passed through
+`Aero::App::RunOptions`; the SDK does not expose a launcher object.
 Audio and other optional subsystems are separate modules; constructing an
 Application never creates platform devices.
 
 ## Integration and backend opt-in
 
 Engine/editor/native hosts link `Aero::Integration`, create or receive an
-endpoint and create a View through `Integration::ViewHost`:
+endpoint and create a View directly through `RuntimeEnvironment`:
 
 ```cpp
 #include <Aero/Integration.hpp>
@@ -84,9 +90,9 @@ environment.Initialize();
 
 auto endpoint =
     Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
-Aero::Integration::ViewHostOptions options;
+Aero::Integration::ViewOptions options;
 options.renderEndpoint = std::move(endpoint).Value();
-auto view = Aero::Integration::ViewHost::CreateView(environment, options);
+auto view = environment.CreateView(options);
 ```
 
 Concrete backend factories remain opt-in:
@@ -97,6 +103,8 @@ Concrete backend factories remain opt-in:
 
 The default integration headers do not expose the internal render snapshot,
 render managers, graphics layer devices, caches or backend resource handles.
+Endpoint submission is synchronous; applications and engines own any render
+thread, queue and frame-coalescing policy.
 
 ## XAML tools
 
@@ -126,3 +134,8 @@ collide.
 The generated `Aero/Version.hpp`, runtime and host tools consume the same
 values. Module and schema registration reject incompatible versions before
 freezing.
+
+## Platform implementation ownership
+
+There is no standalone `AeroPlatform` target. Platform-neutral contracts are
+part of Integration; the default OS implementations are private App sources.

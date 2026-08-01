@@ -389,7 +389,7 @@ Base::Result<Size> PasswordBox::MeasureOverride(
         templateSize = measuredTemplate.Value();
     }
     Base::Result<void> dpi =
-        editor_.SetLayoutRounding(
+        editor_.SetUseLayoutRounding(
             GetUseLayoutRounding(),
             GetDpiScale());
     if (!dpi) return dpi.GetStatus();

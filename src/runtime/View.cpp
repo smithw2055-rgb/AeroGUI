@@ -1,12 +1,12 @@
-#include <Aero/Integration/View.hpp>
+#include <Aero/View.hpp>
 
 #include <Aero/Integration/SourceProvider.hpp>
-#include <Aero/Integration/ViewHost.hpp>
+#include <Aero/Integration/ViewOptions.hpp>
 #include "markup/SchemaBundle.hpp"
 
 #include "markup/Loader.hpp"
 #include "markup/LoadOptionsAccess.hpp"
-#include "runtime/ViewRuntime.hpp"
+#include "runtime/ViewState.hpp"
 
 #include <new>
 #include <utility>
@@ -33,10 +33,10 @@ struct View::Impl final {
         Markup::DocumentCache& documents,
         Base::IAllocator* allocator) noexcept
         : environment(std::move(environmentState)),
-          runtime(schema, documents, allocator) {}
+          state(schema, documents, allocator) {}
 
     Base::Ref<Base::Object> environment;
-    ViewRuntime runtime;
+    Aero::Detail::ViewState state;
 };
 
 RuntimeEnvironment::RuntimeEnvironment(
@@ -85,12 +85,11 @@ Base::Result<void> RuntimeEnvironment::Initialize() noexcept {
 
 Base::Result<Base::Ref<View>> RuntimeEnvironment::CreateView(
     Base::IAllocator* allocator) noexcept {
-    return CreateIntegratedView({}, allocator);
+    return CreateView(Integration::ViewOptions{}, allocator);
 }
 
-Base::Result<Base::Ref<View>>
-RuntimeEnvironment::CreateIntegratedView(
-    const Integration::ViewHostOptions& options,
+Base::Result<Base::Ref<View>> RuntimeEnvironment::CreateView(
+    const Integration::ViewOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!IsInitialized()) {
         return Base::Status::Failure(
@@ -146,7 +145,7 @@ View::View(
 
 View::~View() noexcept {
     if (impl_ == nullptr) return;
-    impl_->runtime.Shutdown();
+    impl_->state.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
         impl_,
@@ -157,7 +156,7 @@ View::~View() noexcept {
 }
 
 Base::Result<void> View::Initialize(
-    const Integration::ViewHostOptions& options) noexcept {
+    const Integration::ViewOptions& options) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -171,37 +170,54 @@ Base::Result<void> View::Initialize(
             Base::ErrorCode::NotInitialized,
             "Runtime environment must be initialized before creating a view");
     }
-    return impl_->runtime.Initialize(options);
+    return impl_->state.Initialize(options);
 }
 
 Base::Result<UiDocument> View::Load(
     Base::StringView uri,
     Core::IDiagnosticSink* diagnostics) noexcept {
-    return impl_->runtime.Load(uri, diagnostics);
+    return impl_->state.Load(uri, diagnostics);
 }
 
 Base::Result<UiDocument> View::Parse(
     Base::StringView source,
     const Base::ResourceUri& baseUri,
     Core::IDiagnosticSink* diagnostics) noexcept {
-    return impl_->runtime.Parse(source, baseUri, diagnostics);
+    return impl_->state.Parse(source, baseUri, diagnostics);
 }
 
 Base::Result<void> View::SetContent(
     UiDocument&& document,
     Aero::Size availableSize) noexcept {
-    return impl_->runtime.IsMounted()
-        ? impl_->runtime.ReplaceMountedDocument(
+    return impl_->state.IsMounted()
+        ? impl_->state.ReplaceMountedDocument(
               std::move(document), availableSize)
-        : impl_->runtime.Mount(
+        : impl_->state.Mount(
               std::move(document), availableSize);
+}
+
+Base::Result<void> View::SetContent(
+    Base::Ref<Base::Object> root,
+    Aero::Size availableSize) noexcept {
+    if (impl_ == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "View is not initialized");
+    }
+    if (impl_->state.IsMounted()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "A programmatic View root cannot replace a mounted document");
+    }
+    return impl_->state.Mount(
+        std::move(root), availableSize);
 }
 
 Base::Result<void> View::MountContent(
     Controls::ContentControl& host,
     UiDocument&& document) noexcept {
     return impl_ != nullptr
-        ? impl_->runtime.MountContent(host, std::move(document))
+        ? impl_->state.MountContent(host, std::move(document))
         : Base::Result<void>(
               Base::Status::Failure(
                   Base::ErrorCode::NotInitialized,
@@ -211,7 +227,7 @@ Base::Result<void> View::MountContent(
 Base::Result<void> View::UnmountContent(
     Controls::ContentControl& host) noexcept {
     return impl_ != nullptr
-        ? impl_->runtime.UnmountContent(host)
+        ? impl_->state.UnmountContent(host)
         : Base::Result<void>(
               Base::Status::Failure(
                   Base::ErrorCode::NotInitialized,
@@ -232,7 +248,7 @@ Base::Result<void> View::LoadContent(
 Base::Result<UiDocument> View::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri) noexcept {
-    return impl_->runtime.LoadCompiled(bytes, originUri);
+    return impl_->state.LoadCompiled(bytes, originUri);
 }
 
 Base::Result<void> View::LoadResources(
@@ -240,7 +256,7 @@ Base::Result<void> View::LoadResources(
     Base::StringView uri,
     RuntimeResourceLoadMode mode,
     Core::IDiagnosticSink* diagnostics) noexcept {
-    return impl_->runtime.LoadResources(
+    return impl_->state.LoadResources(
         layer, uri, mode, diagnostics);
 }
 
@@ -249,7 +265,7 @@ Base::Result<void> View::LoadCompiledResources(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     RuntimeResourceLoadMode mode) noexcept {
-    return impl_->runtime.LoadCompiledResources(
+    return impl_->state.LoadCompiledResources(
         layer, bytes, originUri, mode);
 }
 
@@ -258,7 +274,7 @@ Base::Result<void> View::SetResourceDictionary(
     Aero::ResourceDictionary& dictionary,
     RuntimeResourceLoadMode mode) noexcept {
     return impl_ != nullptr
-        ? impl_->runtime.SetResourceDictionary(
+        ? impl_->state.SetResourceDictionary(
               layer, dictionary, mode)
         : Base::Result<void>(
               Base::Status::Failure(
@@ -268,48 +284,48 @@ Base::Result<void> View::SetResourceDictionary(
 
 Base::Result<void> View::LoadBuiltInTheme(
     BuiltInTheme theme) noexcept {
-    return impl_->runtime.LoadBuiltInTheme(theme);
+    return impl_->state.LoadBuiltInTheme(theme);
 }
 
 Base::Result<void> View::Resize(
     Aero::Size availableSize) noexcept {
-    return impl_->runtime.Resize(availableSize);
+    return impl_->state.Resize(availableSize);
 }
 
 Base::Result<void> View::Unmount() noexcept {
-    return impl_->runtime.Unmount();
+    return impl_->state.Unmount();
 }
 
 Base::Result<ViewFrameResult> View::RunFrame() noexcept {
-    return impl_->runtime.RunFrame();
+    return impl_->state.RunFrame();
 }
 
 Base::Result<Input::PointerDispatchResult>
 View::DispatchPointer(
     const Input::PointerInput& input) noexcept {
-    return impl_->runtime.DispatchPointer(input);
+    return impl_->state.DispatchPointer(input);
 }
 
 Base::Result<Input::KeyboardDispatchResult>
 View::DispatchKeyboard(
     const Input::KeyboardInput& input) noexcept {
-    return impl_->runtime.DispatchKeyboard(input);
+    return impl_->state.DispatchKeyboard(input);
 }
 
 Base::Result<Input::TextInputDispatchResult>
 View::DispatchText(
     const Input::TextInput& input) noexcept {
-    return impl_->runtime.DispatchText(input);
+    return impl_->state.DispatchText(input);
 }
 
 Base::Result<std::uint32_t> View::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
-    return impl_->runtime.AdvanceTime(elapsedMilliseconds);
+    return impl_->state.AdvanceTime(elapsedMilliseconds);
 }
 
 Base::Result<std::uint32_t> View::AdvanceAnimationTime(
     std::uint32_t elapsedMilliseconds) noexcept {
-    return impl_->runtime.AdvanceAnimationTime(
+    return impl_->state.AdvanceAnimationTime(
         elapsedMilliseconds);
 }
 
@@ -317,7 +333,7 @@ Base::Result<void> View::SetRenderEndpoint(
     Base::Ref<Integration::RenderEndpoint> endpoint,
     bool automaticAnimationClock) noexcept {
     return impl_ != nullptr
-        ? impl_->runtime.SetRenderEndpoint(
+        ? impl_->state.SetRenderEndpoint(
               std::move(endpoint),
               automaticAnimationClock)
         : Base::Result<void>(
@@ -327,22 +343,22 @@ Base::Result<void> View::SetRenderEndpoint(
 }
 
 const Base::Ref<Base::Object>& View::Root() const noexcept {
-    return impl_->runtime.Root();
+    return impl_->state.Root();
 }
 
 Base::Object* View::FindNamedObject(
     Base::StringView name,
     Core::TypeId expectedType) noexcept {
-    return impl_->runtime.FindNamedObject(name, expectedType);
+    return impl_->state.FindNamedObject(name, expectedType);
 }
 
 std::uint32_t View::NamedObjectCount() const noexcept {
-    return impl_->runtime.NamedObjectCount();
+    return impl_->state.NamedObjectCount();
 }
 
-void* View::IntegrationRuntime() noexcept {
+void* View::InternalState() noexcept {
     return impl_ != nullptr
-        ? static_cast<void*>(&impl_->runtime)
+        ? static_cast<void*>(&impl_->state)
         : nullptr;
 }
 
@@ -350,58 +366,12 @@ Base::Result<void> View::RegisterSourceProvider(
     Integration::ISourceProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
-    return impl_->runtime.RegisterSourceProvider(
+    return impl_->state.RegisterSourceProvider(
         provider,
         scheme,
         assembly);
 }
 
-Base::Result<Base::Ref<View>>
-Integration::ViewHost::CreateView(
-    RuntimeEnvironment& environment,
-    const ViewHostOptions& options,
-    Base::IAllocator* allocator) noexcept {
-    return environment.CreateIntegratedView(options, allocator);
-}
 
-Base::Result<void>
-Integration::ViewHost::RegisterSourceProvider(
-    Integration::ISourceProvider& provider,
-    Base::StringView scheme,
-    Base::StringView assembly) noexcept {
-    if (view_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "ViewHost is not bound to a View");
-    }
-    return view_->RegisterSourceProvider(
-        provider, scheme, assembly);
-}
-
-Base::Result<Integration::Source>
-Integration::SourceProviderAdapter::Load(
-    const Base::ResourceUri& uri) const noexcept {
-    if (load_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Source provider has no load callback");
-    }
-    return load_(uri, context_);
-}
-
-Base::Result<std::uint64_t>
-Integration::SourceProviderAdapter::Revision(
-    const Base::ResourceUri& uri) const noexcept {
-    return revision_ != nullptr
-        ? revision_(uri, context_)
-        : ISourceProvider::Revision(uri);
-}
-
-std::uint64_t
-Integration::SourceProviderAdapter::CacheIdentity() const noexcept {
-    return cacheIdentity_ != 0U
-        ? cacheIdentity_
-        : ISourceProvider::CacheIdentity();
-}
 
 } // namespace Aero

@@ -35,8 +35,6 @@ struct D3D11EmbeddedEndpointOptions final {
     void* callbackContext = nullptr;
     D3D11StatePreservationPolicy statePolicy =
         D3D11StatePreservationPolicy::HostResetsState;
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate;
 };
 
 struct D3D11WindowEndpointOptions final {
@@ -44,8 +42,6 @@ struct D3D11WindowEndpointOptions final {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     RenderPresentMode presentMode = RenderPresentMode::Fifo;
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate;
     bool useWarp = false;
     bool allowWarpFallback = true;
     bool enableDebugLayer = false;

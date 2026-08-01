@@ -30,21 +30,15 @@ public:
     virtual Aero::Detail::TextBackendServices* TextServices() noexcept { return nullptr; }
     virtual Aero::Detail::MeshBackendServices* MeshServices() noexcept { return nullptr; }
     virtual Aero::Detail::ImageBackendServices* ImageServices() noexcept { return nullptr; }
-    virtual bool SupportsDedicatedThread() const noexcept {
-        return true;
-    }
 };
 
 class RenderEndpointAccess final {
 public:
     static Base::Result<Base::Ref<RenderEndpoint>> Create(
         RenderEndpointMode mode,
-        RenderSubmissionMode submissionMode,
         EndpointBackend* backend,
         Base::IAllocator* allocator = nullptr) noexcept;
     static Base::Result<Base::Ref<RenderEndpoint>> CreateHeadless(
-        RenderSubmissionMode submissionMode =
-            RenderSubmissionMode::Immediate,
         Base::IAllocator* allocator = nullptr) noexcept;
 
     static Base::Result<void> Bind(

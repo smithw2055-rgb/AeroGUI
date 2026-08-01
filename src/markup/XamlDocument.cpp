@@ -80,7 +80,7 @@ Base::Object* UiDocument::FindNamedObject(
     }
     // A document is schema-neutral. Exact type validation remains available
     // without retaining a MetadataRuntime; derived-type lookup is performed by
-    // ViewRuntime after mounting.
+    // View after mounting.
     return object->RuntimeType() == expectedType ? object : nullptr;
 }
 

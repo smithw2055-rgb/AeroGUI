@@ -13,7 +13,6 @@ set_target_properties(AeroIntegration PROPERTIES EXPORT_NAME Integration)
 set_target_properties(AeroApp PROPERTIES EXPORT_NAME App)
 
 set_target_properties(AeroGuiKernel PROPERTIES EXPORT_NAME _DetailGuiKernel)
-set_target_properties(AeroPlatform PROPERTIES EXPORT_NAME _DetailPlatform)
 set_target_properties(AeroText PROPERTIES EXPORT_NAME _DetailText)
 set_target_properties(freetype PROPERTIES EXPORT_NAME _DetailFreeType)
 set_target_properties(AeroTextFreeType PROPERTIES EXPORT_NAME _DetailTextFreeType)
@@ -25,10 +24,7 @@ set_target_properties(AeroMarkupKernel PROPERTIES EXPORT_NAME _DetailMarkupKerne
 set_target_properties(AeroMarkup PROPERTIES EXPORT_NAME _DetailMarkup)
 set_target_properties(AeroModuleCatalog PROPERTIES EXPORT_NAME _DetailModuleCatalog)
 set_target_properties(AeroRuntime PROPERTIES EXPORT_NAME _DetailRuntime)
-set_target_properties(AeroGraphics PROPERTIES EXPORT_NAME _DetailGraphics)
-set_target_properties(AeroGraphicsOpenGL33 PROPERTIES EXPORT_NAME _DetailGraphicsOpenGL33)
-set_target_properties(AeroRender PROPERTIES EXPORT_NAME _DetailRender)
-set_target_properties(AeroRenderOpenGL33 PROPERTIES EXPORT_NAME _DetailRenderOpenGL33)
+set_target_properties(AeroRendering PROPERTIES EXPORT_NAME _DetailRendering)
 
 if(_aero_vendored_expat_target)
     set_target_properties(${_aero_vendored_expat_target} PROPERTIES EXPORT_NAME _DetailExpat)
@@ -44,7 +40,6 @@ set(_aero_product_targets
 
 set(_aero_static_support_targets
     AeroGuiKernel
-    AeroPlatform
     AeroText
     freetype
     AeroTextFreeType
@@ -56,26 +51,11 @@ set(_aero_static_support_targets
     AeroMarkup
     AeroModuleCatalog
     AeroRuntime
-    AeroGraphics
-    AeroGraphicsOpenGL33
-    AeroRender
-    AeroRenderOpenGL33)
+    AeroRendering)
 
 if(_aero_vendored_expat_target)
     list(APPEND _aero_static_support_targets ${_aero_vendored_expat_target})
 endif()
-
-foreach(_aero_optional_target IN ITEMS
-        AeroPlatformWGL
-        AeroPlatformGLX
-        AeroGraphicsD3D11
-        AeroRenderD3D11)
-    if(TARGET ${_aero_optional_target})
-        list(APPEND _aero_static_support_targets ${_aero_optional_target})
-        string(REGEX REPLACE "^Aero" "" _aero_export_name "${_aero_optional_target}")
-        set_target_properties(${_aero_optional_target} PROPERTIES EXPORT_NAME "_Detail${_aero_export_name}")
-    endif()
-endforeach()
 
 set(_aero_sdk_targets ${_aero_product_targets} ${_aero_static_support_targets})
 

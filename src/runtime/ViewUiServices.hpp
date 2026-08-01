@@ -19,9 +19,9 @@ namespace Aero { class Visual; }
 namespace Aero::Detail {
 
 // Internal policy service that applies resource-selected Style and Template
-// objects to a mounted visual tree. ViewRuntime owns lifecycle and delegates the
+// objects to a mounted visual tree. The View owns lifecycle and delegates the
 // UI style and template rules to this service.
-class RuntimeUiServices final {
+class ViewUiServices final {
 public:
     void Configure(
         Base::IAllocator& allocator,
@@ -47,6 +47,7 @@ public:
     }
 
 private:
+    Aero::Detail::UiElementServices elementServices_;
     Base::IAllocator* allocator_ = nullptr;
     Core::MetadataDomain* metadata_ = nullptr;
     Core::EffectiveValueEngine* values_ = nullptr;

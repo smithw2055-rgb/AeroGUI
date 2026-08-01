@@ -29,24 +29,29 @@ provider sessions, XAML facets and runtime managers are private implementation.
 
 ## Default App lifetime
 
-A standalone desktop program links `Aero::App`:
+A standalone desktop program links `Aero::App` and runs its WPF-facing
+`Application` object directly:
 
 ```cpp
 #include <Aero/App.hpp>
 
-Aero::App::Launcher launcher;
-launcher.AddModule(module);
-auto result = launcher.Run();
+Aero::Application application;
+static_cast<void>(application.SetStartupUri("MainWindow.xaml"));
+
+const Aero::ModuleRegistration modules[] = {module};
+Aero::App::RunOptions options;
+options.modules = modules;
+return application.Run(options);
 ```
 
-`Application` and `Window` retain WPF/XAML semantics. Launcher owns native
-window creation, endpoint choice and event pumping behind a PImpl; no public
-low-level host facade or service locator is required.
+`Application` and `Window` retain WPF/XAML semantics. Native-window creation,
+endpoint choice and event pumping live in the private desktop host; no public
+launcher, low-level host facade or service locator is required.
 
 
 ## WPF-facing application and control semantics
 
-`Application` and `Window` remain derivable XAML types. The default launcher
+`Application` and `Window` remain derivable XAML types. The default App runtime
 accepts registered subclasses by semantic metadata inheritance rather than by
 exact runtime type. `Application::MainWindow` and `ShutdownMode` describe
 application lifetime; the first desktop host is single-window, so
@@ -87,9 +92,9 @@ environment.Initialize();
 
 auto endpoint =
     Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
-Aero::Integration::ViewHostOptions options;
+Aero::Integration::ViewOptions options;
 options.renderEndpoint = std::move(endpoint).Value();
-auto created = Aero::Integration::ViewHost::CreateView(environment, options);
+auto created = environment.CreateView(options);
 ```
 
 `RuntimeEnvironment` freezes module/schema composition. Each View owns resource,

@@ -3,7 +3,7 @@
 #include <Aero/Controls/Items.hpp>
 
 namespace Aero {
-namespace App { class Launcher; }
+namespace App { namespace Detail { class WindowAccess; } }
 namespace App { class WindowInterop; }
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
@@ -81,7 +81,7 @@ protected:
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
-    friend class App::Launcher;
+    friend class App::Detail::WindowAccess;
     friend class App::WindowInterop;
 
     void Attach(void* runtimeState) noexcept { runtimeState_ = runtimeState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }

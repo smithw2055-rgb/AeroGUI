@@ -9,8 +9,9 @@ private graphics implementation. The only public product frame entry is
 The default `Aero::App` implementation privately owns the native top-level
 window and event pump. Engine and editor hosts exchange only
 `Aero::Integration::NativeWindowHandle` plus the narrow clipboard and text-input
-interfaces from `Aero/Integration/HostServices.hpp`. Win32, X11, WGL and GLX
-window classes and event records are implementation details under `src/platform`.
+interfaces from `Aero/Integration/PlatformServices.hpp`. That public header contains
+contracts only. Win32/X11 windows, clipboard adapters, IME message handling, WGL and
+GLX context carriers are implementation details under `src/platform/<os>`.
 
 `Aero::Integration::RenderEndpoint` is the only rendering object held by a
 `View`. It is reference counted and opaque: it does not expose a renderer,
@@ -27,13 +28,13 @@ An endpoint has one of three modes:
   accepted GPU frame exactly once.
 
 One endpoint can be bound to one `View`. The `View` keeps a strong reference,
-so the caller may release its reference after `ViewHost::CreateView()` returns.
+so the caller may release its endpoint reference after `RuntimeEnvironment::CreateView()` returns.
 Multiple endpoints may borrow the same host native device.
 
 ## Public factories
 
-The default `Aero/Integration.hpp` exposes `ViewHost`, `RenderEndpoint`,
-source-provider registration and reload coordination. Backend factories are
+The default `Aero/Integration.hpp` exposes `View`, `ViewOptions`,
+`RenderEndpoint`, source-provider registration and reload coordination. Backend factories are
 explicit opt-in headers:
 
 - `Aero/Integration/D3D11.hpp`;
@@ -60,13 +61,13 @@ it to the bound endpoint. The current snapshot version advances only after the
 endpoint accepts the candidate. `ViewFrameResult` contains safe layout/render
 statistics only.
 
-`RenderSubmissionMode::Immediate` preserves synchronous submission.
-`DedicatedThread` uses the endpoint's private worker and two frame slots: an
-executing snapshot is never replaced, while a pending snapshot may be replaced
-by the newest accepted one. UI and `Visual` pointers never cross this boundary.
-HostedGraphics requires the `ThreadSafe` capability for this mode. The current
-D3D11 and OpenGL 3.3 factories reject it with `Unsupported` because their
-text/resource preparation and native contexts remain owner-thread affine.
+Endpoint submission is synchronous on the calling thread. AeroGUI does not
+create a private rendering worker, queue or frame slots. A single-threaded app
+may call `View::RunFrame()` directly; a game engine may invoke it from its
+chosen UI/render scheduling point or place immutable host work in its own
+queue. Native context affinity, synchronization and presentation therefore
+remain explicit host policy rather than a hidden endpoint mode. UI and
+`Visual` pointers never cross the immutable `RenderFrame` boundary.
 
 ## Device and surface loss
 
@@ -78,8 +79,7 @@ endpoint.Restore();
 view.RunFrame();
 ```
 
-Reporting loss stops acceptance, discards pending frames and advances the
-endpoint generation. Backend image, mesh and glyph resources are invalidated
+Reporting loss stops acceptance and advances the endpoint generation. Backend image, mesh and glyph resources are invalidated
 inside the endpoint. A successful `Restore()` rebuilds the native surface or
 device, and the next `RunFrame()` submits a complete snapshot. Hosts do not manually shut down or reinitialize renderer, surface or graphics-device objects.
 
@@ -94,11 +94,12 @@ The sample follows the public sequence:
 
 1. create the OS window;
 2. create a Window endpoint from its opaque native handle;
-3. create the `View` through `Integration::ViewHost`;
+3. create the `View` directly through `RuntimeEnvironment::CreateView(options)`;
 4. load content and dispatch normalized input;
 5. resize the `View` logically and the endpoint physically;
 6. call `View::RunFrame()`;
 7. use endpoint loss/restore operations for recovery.
 
-Win32 clipboard and IME stay platform services supplied in `ViewHostOptions`;
-they do not become renderer or text-layout extension points.
+Clipboard and IME enter a View only through the platform-neutral contracts in
+`ViewOptions`. The default App privately creates the Win32 implementations; engine
+hosts supply their own services without depending on an Aero Win32/X11 class.

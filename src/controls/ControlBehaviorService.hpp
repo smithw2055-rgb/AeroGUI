@@ -17,7 +17,7 @@ class VisualStateManager;
 namespace Detail {
 
 // Owns the built-in control class behavior state for one View. The individual
-// behavior tables are implementation details; ViewRuntime only creates this
+// behavior tables are implementation details; The View only creates this
 // aggregate and asks it to attach a newly mounted element.
 class ControlBehaviorService final {
 public:

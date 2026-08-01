@@ -10,7 +10,7 @@
 #include "ControlInternals.hpp"
 #include "gui/InputInternal.hpp"
 #include <Aero/Meta/MetadataDomain.hpp>
-#include <Aero/Integration/HostServices.hpp>
+#include <Aero/Integration/PlatformServices.hpp>
 
 #include <new>
 #include <utility>

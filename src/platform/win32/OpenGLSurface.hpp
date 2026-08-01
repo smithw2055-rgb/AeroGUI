@@ -3,8 +3,8 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include "graphics/OpenGL33.hpp"
-#include "platform/Surface.hpp"
+#include "render/opengl33/OpenGL33.hpp"
+#include "render/Surface.hpp"
 
 #include <cstdint>
 

@@ -1,4 +1,4 @@
-#include "graphics/OpenGL33.hpp"
+#include "render/opengl33/OpenGL33.hpp"
 
 namespace Aero::Graphics {
 namespace {

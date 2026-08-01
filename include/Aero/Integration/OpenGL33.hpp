@@ -48,8 +48,6 @@ struct OpenGL33EmbeddedEndpointOptions final {
     void* callbackContext = nullptr;
     OpenGL33StatePreservationPolicy statePolicy =
         OpenGL33StatePreservationPolicy::HostResetsState;
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate;
 };
 
 struct OpenGL33WindowEndpointOptions final {
@@ -57,8 +55,6 @@ struct OpenGL33WindowEndpointOptions final {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     RenderPresentMode presentMode = RenderPresentMode::Fifo;
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate;
     bool enableDebugContext = false;
 };
 

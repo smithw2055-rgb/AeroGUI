@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
-#include "graphics/Graphics.hpp"
+#include "render/RenderDevice.hpp"
 
 #include <cmath>
 #include <cstdint>

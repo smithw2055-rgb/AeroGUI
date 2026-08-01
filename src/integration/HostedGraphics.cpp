@@ -99,11 +99,6 @@ public:
           ownsPresentation_(ownsPresentation),
           commands_(&allocator) {}
 
-    bool SupportsDedicatedThread() const noexcept override {
-        return (callbacks_.capabilities &
-            HostedGraphicsCapabilityThreadSafe) != 0U;
-    }
-
     Base::Result<void> Submit(
         const Render::RenderFrame& plan) noexcept override {
         if (callbacks_.submit == nullptr ||
@@ -268,7 +263,6 @@ Base::Result<Base::Ref<RenderEndpoint>>
 CreateHostedEndpoint(
     const HostedGraphicsCallbacks& callbacks,
     RenderEndpointMode mode,
-    RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
     if (callbacks.structSize < sizeof(HostedGraphicsCallbacks) ||
         callbacks.abiVersion != HostedGraphicsAbiVersion ||
@@ -293,14 +287,6 @@ CreateHostedEndpoint(
             Base::ErrorCode::InvalidArgument,
             "Hosted window endpoint requires a present callback");
     }
-    if (submissionMode ==
-            RenderSubmissionMode::DedicatedThread &&
-        (callbacks.capabilities &
-            HostedGraphicsCapabilityThreadSafe) == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Hosted callbacks are not declared thread safe");
-    }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
         : Base::GetDefaultAllocator();
@@ -314,7 +300,7 @@ CreateHostedEndpoint(
             "Unable to allocate the hosted graphics endpoint");
     }
     return Detail::RenderEndpointAccess::Create(
-        mode, submissionMode, driver, &selected);
+        mode, driver, &selected);
 }
 
 } // namespace
@@ -322,24 +308,20 @@ CreateHostedEndpoint(
 Base::Result<Base::Ref<RenderEndpoint>>
 CreateHostedEmbeddedEndpoint(
     const HostedGraphicsCallbacks& callbacks,
-    RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
     return CreateHostedEndpoint(
         callbacks,
         RenderEndpointMode::Embedded,
-        submissionMode,
         allocator);
 }
 
 Base::Result<Base::Ref<RenderEndpoint>>
 CreateHostedWindowEndpoint(
     const HostedGraphicsCallbacks& callbacks,
-    RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
     return CreateHostedEndpoint(
         callbacks,
         RenderEndpointMode::Window,
-        submissionMode,
         allocator);
 }
 

@@ -14,11 +14,11 @@ using namespace Aero::Render;
 class AERO_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 public:
-    Color Fill() const noexcept;
-    Base::Ref<Brush> FillBrush() const noexcept;
-    Color Stroke() const noexcept;
-    Base::Ref<Brush> StrokeBrush() const noexcept;
-    double StrokeThickness() const noexcept;
+    Color GetFill() const noexcept;
+    Base::Ref<Brush> GetFillBrush() const noexcept;
+    Color GetStroke() const noexcept;
+    Base::Ref<Brush> GetStrokeBrush() const noexcept;
+    double GetStrokeThickness() const noexcept;
 
     Base::Result<void> SetFill(Color value) noexcept;
     Base::Result<void> SetFillBrush(
@@ -44,8 +44,8 @@ public:
     Rectangle() noexcept : Shape(StaticTypeId()) {}
     ~Rectangle() override = default;
 
-    double RadiusX() const noexcept;
-    double RadiusY() const noexcept;
+    double GetRadiusX() const noexcept;
+    double GetRadiusY() const noexcept;
     Base::Result<void> SetRadiusX(double value) noexcept;
     Base::Result<void> SetRadiusY(double value) noexcept;
 

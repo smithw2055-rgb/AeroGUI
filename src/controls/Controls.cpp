@@ -126,7 +126,7 @@ Base::Result<Size> StackPanel::ArrangeOverride(Size finalSize) noexcept {
     return finalSize;
 }
 
-bool DockPanel::LastChildFill() const noexcept {
+bool DockPanel::GetLastChildFill() const noexcept {
     return GetValueOr(LastChildFillProperty, true);
 }
 
@@ -209,7 +209,7 @@ Base::Result<Size> DockPanel::ArrangeOverride(
             std::max(0.0, right - left),
             std::max(0.0, bottom - top)};
         const bool fill =
-            LastChildFill() &&
+            GetLastChildFill() &&
             index + 1U == children.Size();
         if (!fill) {
             const Size desired = child->GetDesiredSize();

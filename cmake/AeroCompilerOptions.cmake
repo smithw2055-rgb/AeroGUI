@@ -44,5 +44,3 @@ function(aero_apply_compiler_options target)
 
     endif()
 endfunction()
-
-include("${CMAKE_CURRENT_LIST_DIR}/AeroPlatformSources.cmake")

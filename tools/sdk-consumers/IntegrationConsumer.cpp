@@ -10,10 +10,9 @@ CreateIntegratedView(
     Aero::RuntimeEnvironment& environment,
     Aero::Base::Ref<Aero::Integration::RenderEndpoint>
         endpoint) noexcept {
-    Aero::Integration::ViewHostOptions options;
+    Aero::Integration::ViewOptions options;
     options.renderEndpoint = std::move(endpoint);
-    return Aero::Integration::ViewHost::CreateView(
-        environment, options);
+    return environment.CreateView(options);
 }
 
 

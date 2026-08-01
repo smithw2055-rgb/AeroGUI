@@ -8,14 +8,14 @@
 #include <Aero/Meta/TypeRegistry.hpp>
 #include <Aero/RoutedEvent.hpp>
 #include <Aero/Resources.hpp>
+#include <Aero/Window.hpp>
 
 #include <cstdint>
 #include <utility>
 
 namespace Aero {
 class Application;
-class Window;
-namespace App { class Launcher; }
+namespace App { struct RunOptions; namespace Detail { class ApplicationAccess; } }
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -66,6 +66,15 @@ public:
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
 
+    // Runs this application through the optional default desktop host.
+    // A StartupUri is required unless an explicit Window is supplied.
+    int Run() noexcept;
+    int Run(const App::RunOptions& options) noexcept;
+    int Run(Base::Ref<Window> window) noexcept;
+    int Run(
+        Base::Ref<Window> window,
+        const App::RunOptions& options) noexcept;
+
     void Shutdown(int exitCode = 0) noexcept;
 
 protected:
@@ -76,7 +85,7 @@ protected:
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class App::Launcher;
+    friend class App::Detail::ApplicationAccess;
     friend class Window;
     friend class WindowCollection;
 

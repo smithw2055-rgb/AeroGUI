@@ -3,7 +3,6 @@
 set(AERO_PUBLIC_HEADERS
     include/Aero/Animation.hpp
     include/Aero/App.hpp
-    include/Aero/App/Launcher.hpp
     include/Aero/Application.hpp
     include/Aero/Audio/Audio.hpp
     include/Aero/Base/Allocator.hpp
@@ -59,16 +58,16 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Input.hpp
     include/Aero/Input/Values.hpp
     include/Aero/Integration.hpp
-    include/Aero/Integration/HostServices.hpp
+    include/Aero/Integration/PlatformServices.hpp
     include/Aero/Integration/NativeWindow.hpp
-    include/Aero/Integration/View.hpp
+    include/Aero/View.hpp
     include/Aero/Integration/D3D11.hpp
     include/Aero/Integration/HostedGraphics.hpp
     include/Aero/Integration/OpenGL33.hpp
     include/Aero/Integration/ReloadCoordinator.hpp
     include/Aero/Integration/RenderEndpoint.hpp
     include/Aero/Integration/SourceProvider.hpp
-    include/Aero/Integration/ViewHost.hpp
+    include/Aero/Integration/ViewOptions.hpp
     include/Aero/App/WindowInterop.hpp
     include/Aero/Layout.hpp
     include/Aero/Markup.hpp

@@ -8,10 +8,10 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Integration/ViewHost.hpp>
+#include <Aero/Integration/ViewOptions.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Module.hpp>
-#include <Aero/Integration/View.hpp>
+#include <Aero/View.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 
 #include <cstdint>
@@ -48,37 +48,34 @@ class Schema;
 class SourceProviderRegistry;
 }
 
-namespace Aero::Detail { class ViewAccess; }
+namespace Aero { class SchemaBundle; }
 
-namespace Aero {
+namespace Aero::Detail {
 
-class SchemaBundle;
+class ViewAccess;
 
-using ViewRuntimeOptions = Integration::ViewHostOptions;
-using RuntimeFrameResult = ViewFrameResult;
-
-class ViewRuntime final {
+class ViewState final {
 public:
-    explicit ViewRuntime(
+    explicit ViewState(
         Base::IAllocator* allocator = nullptr) noexcept;
-    ViewRuntime(
+    ViewState(
         SchemaBundle& schema,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ViewRuntime(
+    ViewState(
         SchemaBundle& schema,
         Markup::DocumentCache& documentCache,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~ViewRuntime() noexcept;
+    ~ViewState() noexcept;
 
-    ViewRuntime(const ViewRuntime&) = delete;
-    ViewRuntime& operator=(const ViewRuntime&) = delete;
+    ViewState(const ViewState&) = delete;
+    ViewState& operator=(const ViewState&) = delete;
 
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Initialize(
-        const ViewRuntimeOptions& options) noexcept;
+        const Integration::ViewOptions& options) noexcept;
     void Shutdown() noexcept;
 
     bool IsInitialized() const noexcept;
@@ -137,7 +134,7 @@ public:
         Aero::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
 
-    Base::Result<RuntimeFrameResult> RunFrame() noexcept;
+    Base::Result<ViewFrameResult> RunFrame() noexcept;
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
     Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
@@ -166,10 +163,10 @@ public:
 
 
 private:
-    friend class Aero::Detail::ViewAccess;
+    friend class ViewAccess;
     struct Impl;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
 };
 
-} // namespace Aero
+} // namespace Aero::Detail

@@ -4,7 +4,7 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/ViewHost.hpp>
+#include <Aero/View.hpp>
 #include <Aero/Media/Geometry.hpp>
 
 #include <cstdint>
@@ -31,7 +31,7 @@ struct ReloadResult final {
 class AERO_API ReloadCoordinator final {
 public:
     explicit ReloadCoordinator(
-        ViewHost& host,
+        View& view,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~ReloadCoordinator() noexcept;
 

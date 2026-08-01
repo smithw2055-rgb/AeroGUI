@@ -1,5 +1,4 @@
-#include <Aero/App/Launcher.hpp>
-#include <Aero/App.hpp>
+#include "DesktopHost.hpp"
 
 #include <Aero/Application.hpp>
 #include <Aero/Window.hpp>
@@ -8,16 +7,17 @@
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Integration/OpenGL33.hpp>
-#include <Aero/Integration/ViewHost.hpp>
-#include <Aero/Integration/View.hpp>
+#include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/View.hpp>
 
 #include "../runtime/ViewAccess.hpp"
 
 #if defined(_WIN32)
 #include <Aero/Integration/D3D11.hpp>
-#include "platform/Win32Window.hpp"
+#include "platform/win32/InputServices.hpp"
+#include "platform/win32/Window.hpp"
 #else
-#include "platform/X11Window.hpp"
+#include "platform/x11/Window.hpp"
 #endif
 
 #include <chrono>
@@ -69,16 +69,17 @@ std::uint32_t WindowExtent(
 
 } // namespace
 
-struct Launcher::Impl final {
+struct Detail::DesktopHost::Impl final {
     Impl(
-        const LaunchOptions& source,
-        Base::IAllocator* selectedAllocator) noexcept
+        const RunOptions& source,
+        Application* providedApplication,
+        Base::Ref<Window> providedWindow) noexcept
         : applicationRuntime{this, &Impl::RequestExitThunk},
           windowRuntime{this, &Impl::ShowThunk, &Impl::CloseThunk,
               &Impl::IsOpenThunk, &Impl::NativeHandleThunk,
               &Impl::HostedViewThunk},
-          allocator(selectedAllocator != nullptr
-              ? selectedAllocator
+          allocator(source.allocator != nullptr
+              ? source.allocator
               : &Base::GetDefaultAllocator()),
           environment(allocator),
           backend(source.graphicsBackend),
@@ -90,7 +91,10 @@ struct Launcher::Impl final {
               source.automaticAnimationClock),
           loadBuiltInTheme(source.loadBuiltInTheme),
           builtInTheme(source.builtInTheme),
-          diagnostics(source.diagnostics) {
+          modules(source.modules),
+          diagnostics(source.diagnostics),
+          suppliedApplication(providedApplication),
+          suppliedWindow(std::move(providedWindow)) {
         optionsStatus =
             applicationFile.TryAssign(
                 source.applicationFile);
@@ -126,6 +130,9 @@ struct Launcher::Impl final {
         applicationOwner.Reset();
         view.Reset();
         endpoint.Reset();
+#if defined(_WIN32)
+        static_cast<void>(inputMethod.Detach());
+#endif
         if (nativeWindow) {
             nativeWindow->Close();
         }
@@ -135,15 +142,24 @@ struct Launcher::Impl final {
         if (!optionsStatus) {
             return optionsStatus.GetStatus();
         }
+        for (const ModuleRegistration& module : modules) {
+            Base::Result<void> added =
+                environment.AddModule(module);
+            if (!added) return added.GetStatus();
+        }
         Base::Result<void> initialized =
             environment.Initialize();
         if (!initialized) return initialized.GetStatus();
-        Integration::ViewHostOptions hostOptions;
+        Integration::ViewOptions hostOptions;
         hostOptions.text.fontSearchRoot =
             assetRoot.View();
+#if defined(_WIN32)
+        hostOptions.clipboard = &clipboard;
+        hostOptions.textInputMethodHost = &inputMethod;
+#endif
         Base::Result<Base::Ref<View>> created =
-            Integration::ViewHost::CreateView(
-                environment, hostOptions, allocator);
+            environment.CreateView(
+                hostOptions, allocator);
         if (!created) return created.GetStatus();
         view = std::move(created).Value();
         if (loadBuiltInTheme) {
@@ -159,41 +175,60 @@ struct Launcher::Impl final {
     }
 
     Base::Result<void> LoadApplication() noexcept {
-        Base::Result<UiDocument> loaded =
-            view->Load(
-                applicationFile.View(),
-                diagnostics);
-        if (!loaded) return loaded.GetStatus();
-        const Base::Ref<Base::Object>& root =
-            loaded.Value().Root();
-        if (!root ||
-            !Aero::Detail::ViewAccess::IsInstanceOf(
-                *view, *root,
-                Application::StaticTypeId())) {
-            return HostFailure(
-                Base::ErrorCode::InvalidArgument,
-                "Application XAML root must be Application");
+        if (suppliedApplication != nullptr) {
+            application = suppliedApplication;
+            if (!suppliedWindow &&
+                application->GetStartupUri().Empty()) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Application StartupUri is empty");
+            }
+            if (!application->GetStartupUri().Empty()) {
+                Base::Result<Base::ResourceUri> baseUri =
+                    Base::ResourceUri::Parse(
+                        applicationFile.View());
+                if (!baseUri) return baseUri.GetStatus();
+                Base::Result<Base::ResourceUri> resolved =
+                    Base::ResourceUri::Resolve(
+                        baseUri.Value(),
+                        application->GetStartupUri());
+                if (!resolved) return resolved.GetStatus();
+                startupUri = std::move(resolved).Value();
+            }
+        } else {
+            Base::Result<UiDocument> loaded =
+                view->Load(
+                    applicationFile.View(),
+                    diagnostics);
+            if (!loaded) return loaded.GetStatus();
+            const Base::Ref<Base::Object>& root =
+                loaded.Value().Root();
+            if (!root ||
+                !Aero::Detail::ViewAccess::IsInstanceOf(
+                    *view, *root,
+                    Application::StaticTypeId())) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Application XAML root must be Application");
+            }
+            applicationOwner = root;
+            application = static_cast<Application*>(
+                applicationOwner.Get());
+            if (application->GetStartupUri().Empty()) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Application StartupUri is empty");
+            }
+            Base::Result<Base::ResourceUri> resolved =
+                Base::ResourceUri::Resolve(
+                    loaded.Value().CanonicalUri(),
+                    application->GetStartupUri());
+            if (!resolved) return resolved.GetStatus();
+            startupUri = std::move(resolved).Value();
         }
-        applicationOwner = root;
-        application = static_cast<Application*>(
-            applicationOwner.Get());
-        if (application->GetStartupUri().Empty()) {
-            return HostFailure(
-                Base::ErrorCode::InvalidArgument,
-                "Application StartupUri is empty");
-        }
-        Base::Result<Base::ResourceUri> resolvedStartupUri =
-            Base::ResourceUri::Resolve(
-                loaded.Value().CanonicalUri(),
-                application->GetStartupUri());
-        if (!resolvedStartupUri) {
-            return resolvedStartupUri.GetStatus();
-        }
-        startupUri =
-            std::move(resolvedStartupUri).Value();
 
-        Base::Ref<Aero::ResourceDictionary>
-            resources = application->GetResources();
+        Base::Ref<Aero::ResourceDictionary> resources =
+            application->GetResources();
         if (resources) {
             Base::Result<void> installed =
                 view->SetResourceDictionary(
@@ -205,23 +240,30 @@ struct Launcher::Impl final {
     }
 
     Base::Result<void> LoadMainWindow() noexcept {
-        Base::Result<UiDocument> loaded =
-            view->Load(
-                startupUri.Canonical(),
-                diagnostics);
-        if (!loaded) return loaded.GetStatus();
-        const Base::Ref<Base::Object>& root =
-            loaded.Value().Root();
-        if (!root ||
-            !Aero::Detail::ViewAccess::IsInstanceOf(
-                *view, *root,
-                Window::StaticTypeId())) {
-            return HostFailure(
-                Base::ErrorCode::InvalidArgument,
-                "StartupUri XAML root must be Window");
+        UiDocument loadedWindow;
+        if (suppliedWindow) {
+            windowOwner = Base::Ref<Base::Object>(suppliedWindow);
+            window = suppliedWindow.Get();
+        } else {
+            Base::Result<UiDocument> loaded =
+                view->Load(
+                    startupUri.Canonical(),
+                    diagnostics);
+            if (!loaded) return loaded.GetStatus();
+            const Base::Ref<Base::Object>& root =
+                loaded.Value().Root();
+            if (!root ||
+                !Aero::Detail::ViewAccess::IsInstanceOf(
+                    *view, *root,
+                    Window::StaticTypeId())) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidArgument,
+                    "StartupUri XAML root must be Window");
+            }
+            windowOwner = root;
+            window = static_cast<Window*>(windowOwner.Get());
+            loadedWindow = std::move(loaded).Value();
         }
-        windowOwner = root;
-        window = static_cast<Window*>(windowOwner.Get());
 
         std::uint32_t width =
             WindowExtent(window->GetWidth(), defaultWidth);
@@ -244,18 +286,22 @@ struct Launcher::Impl final {
             view->SetRenderEndpoint(
                 endpoint, automaticAnimationClock);
         if (!attached) return attached.GetStatus();
-        Base::Result<void> mounted =
-            view->SetContent(
-                std::move(loaded).Value(),
-                {static_cast<double>(width),
-                 static_cast<double>(height)});
+        const Aero::Size size{
+            static_cast<double>(width),
+            static_cast<double>(height)};
+        Base::Result<void> mounted = suppliedWindow
+            ? view->SetContent(
+                  Base::Ref<Base::Object>(windowOwner), size)
+            : view->SetContent(
+                  std::move(loadedWindow), size);
         if (!mounted) return mounted.GetStatus();
 
-        Launcher::AttachRuntime(
-            *application, *window,
-            &applicationRuntime, &windowRuntime);
-        window->NotifySourceInitialized();
-        application->RaiseStartup();
+        Detail::WindowAccess::Attach(
+            *window, &windowRuntime);
+        Detail::ApplicationAccess::Attach(
+            *application, &applicationRuntime, window);
+        Detail::WindowAccess::NotifySourceInitialized(*window);
+        Detail::ApplicationAccess::RaiseStartup(*application);
         return {};
     }
 
@@ -284,7 +330,23 @@ struct Launcher::Impl final {
         descriptor.height = height;
         descriptor.visible = false;
         descriptor.resizable = resizable;
-        return nativeWindow->Create(descriptor);
+        Base::Result<void> created =
+            nativeWindow->Create(descriptor);
+        if (!created) return created.GetStatus();
+#if defined(_WIN32)
+        const Integration::NativeWindowHandle handle =
+            nativeWindow->NativeHandle();
+        void* nativeHandle =
+            reinterpret_cast<void*>(handle.window);
+        clipboard.SetOwnerWindow(nativeHandle);
+        Base::Result<void> attached =
+            inputMethod.Attach(nativeHandle);
+        if (!attached) {
+            nativeWindow->Close();
+            return attached.GetStatus();
+        }
+#endif
+        return {};
     }
 
     Base::Result<void> CreateEndpoint(
@@ -363,7 +425,7 @@ struct Launcher::Impl final {
             }
             return {};
         case Platform::WindowEventType::Closed:
-            if (window != nullptr) window->NotifyClosed();
+            if (window != nullptr) Detail::WindowAccess::NotifyClosed(*window);
             Close();
             return {};
         case Platform::WindowEventType::Resized:
@@ -488,7 +550,7 @@ struct Launcher::Impl final {
             status = Show();
             if (!status) return status.GetStatus();
         }
-        window->NotifyContentRendered();
+        Detail::WindowAccess::NotifyContentRendered(*window);
 
         while (!exitRequested) {
             const bool windowOpen =
@@ -528,8 +590,8 @@ struct Launcher::Impl final {
             if (!status) return status.GetStatus();
         }
         const int result = exitCode;
-        if (window != nullptr) window->NotifyClosed();
-        if (application != nullptr) application->RaiseExit(result);
+        if (window != nullptr) Detail::WindowAccess::NotifyClosed(*window);
+        if (application != nullptr) Detail::ApplicationAccess::RaiseExit(*application, result);
         if (view) {
             status = view->Unmount();
             if (!status) return status.GetStatus();
@@ -543,7 +605,12 @@ struct Launcher::Impl final {
     }
 
     void DetachObjects() noexcept {
-        Launcher::DetachRuntime(application, window);
+        if (application != nullptr) {
+            Detail::ApplicationAccess::Detach(*application);
+        }
+        if (window != nullptr) {
+            Detail::WindowAccess::Detach(*window);
+        }
         application = nullptr;
         window = nullptr;
     }
@@ -629,7 +696,10 @@ struct Launcher::Impl final {
     bool loadBuiltInTheme = true;
     BuiltInTheme builtInTheme =
         BuiltInTheme::Light;
+    Base::Span<const ModuleRegistration> modules;
     Core::IDiagnosticSink* diagnostics = nullptr;
+    Application* suppliedApplication = nullptr;
+    Base::Ref<Window> suppliedWindow;
     bool exitRequested = false;
     bool hasPendingResize = false;
     int exitCode = 0;
@@ -641,22 +711,32 @@ struct Launcher::Impl final {
     Base::Ref<Base::Object> windowOwner;
     Application* application = nullptr;
     Window* window = nullptr;
+#if defined(_WIN32)
+    Platform::Win32Clipboard clipboard;
+    Platform::Win32ImeAdapter inputMethod;
+#endif
     std::unique_ptr<Platform::IWindow> nativeWindow;
     Base::Ref<Integration::RenderEndpoint> endpoint;
 };
 
-Launcher::Launcher(
-    const LaunchOptions& options,
-    Base::IAllocator* allocator) noexcept
+Detail::DesktopHost::DesktopHost(
+    const RunOptions& options) noexcept
     : impl_(new (std::nothrow) Impl(
-          options, allocator)) {}
+          options, nullptr, {})) {}
 
-Launcher::~Launcher() noexcept {
+Detail::DesktopHost::DesktopHost(
+    Application& application,
+    Base::Ref<Window> window,
+    const RunOptions& options) noexcept
+    : impl_(new (std::nothrow) Impl(
+          options, &application, std::move(window))) {}
+
+Detail::DesktopHost::~DesktopHost() noexcept {
     delete impl_;
     impl_ = nullptr;
 }
 
-Base::Result<int> Launcher::Run() noexcept {
+Base::Result<int> Detail::DesktopHost::Run() noexcept {
     if (impl_ == nullptr) {
         return HostFailure(
             Base::ErrorCode::OutOfMemory,
@@ -665,58 +745,57 @@ Base::Result<int> Launcher::Run() noexcept {
     return impl_->Run();
 }
 
-Base::Result<void> Launcher::AddModule(
-    const ModuleRegistration& registration) noexcept {
-    if (impl_ == nullptr) {
-        return HostFailure(
-            Base::ErrorCode::OutOfMemory,
-            "Application host allocation failed");
-    }
-    return impl_->environment.AddModule(registration);
-}
-
-void Launcher::RequestExit(int exitCode) noexcept {
-    if (impl_ != nullptr) {
-        impl_->RequestExit(exitCode);
-    }
-}
-
-Application*
-Launcher::GetApplication() const noexcept {
-    return impl_ != nullptr
-        ? impl_->application
-        : nullptr;
-}
-
-Window* Launcher::GetMainWindow() const noexcept {
-    return impl_ != nullptr
-        ? impl_->window
-        : nullptr;
-}
-
-void Launcher::AttachRuntime(
+void Detail::ApplicationAccess::Attach(
     Application& application,
+    void* runtimeState,
+    Window* mainWindow) noexcept {
+    application.Attach(runtimeState, mainWindow);
+}
+
+void Detail::ApplicationAccess::Detach(
+    Application& application) noexcept {
+    application.Detach();
+}
+
+void Detail::ApplicationAccess::RaiseStartup(
+    Application& application) noexcept {
+    application.RaiseStartup();
+}
+
+void Detail::ApplicationAccess::RaiseExit(
+    Application& application,
+    int exitCode) noexcept {
+    application.RaiseExit(exitCode);
+}
+
+void Detail::WindowAccess::Attach(
     Window& window,
-    void* applicationRuntime,
-    void* windowRuntime) noexcept {
-    window.Attach(windowRuntime);
-    application.Attach(applicationRuntime, &window);
+    void* runtimeState) noexcept {
+    window.Attach(runtimeState);
 }
 
-void Launcher::DetachRuntime(
-    Application* application,
-    Window* window) noexcept {
-    if (application != nullptr) application->Detach();
-    if (window != nullptr) window->Detach();
+void Detail::WindowAccess::Detach(Window& window) noexcept {
+    window.Detach();
 }
 
-int Run() noexcept {
-    return Run(LaunchOptions{}, nullptr);
+void Detail::WindowAccess::NotifySourceInitialized(
+    Window& window) noexcept {
+    window.NotifySourceInitialized();
 }
 
-int Run(const LaunchOptions& options, Base::IAllocator* allocator) noexcept {
-    Launcher launcher(options, allocator);
-    Base::Result<int> result = launcher.Run();
+void Detail::WindowAccess::NotifyContentRendered(
+    Window& window) noexcept {
+    window.NotifyContentRendered();
+}
+
+void Detail::WindowAccess::NotifyClosed(
+    Window& window) noexcept {
+    window.NotifyClosed();
+}
+
+int Run(const RunOptions& options) noexcept {
+    Detail::DesktopHost host(options);
+    Base::Result<int> result = host.Run();
     return result ? result.Value() : -1;
 }
 

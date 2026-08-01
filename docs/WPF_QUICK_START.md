@@ -1,8 +1,9 @@
 # AeroGUI for WPF and NoesisGUI developers
 
 AeroGUI keeps WPF/XAML names and semantics while using ordinary C++17 methods.
-The default desktop application entry point is `Aero::App::Run()`; engine and
-custom native hosts use `Aero::Integration` explicitly.
+Code-first desktop applications call `Application::Run()`; generated XAML
+bootstrap code may call `App::Run()` to load `App.xaml`. Engine and custom
+native hosts use `Aero::Integration` explicitly.
 
 ## Application and Window
 
@@ -12,6 +13,11 @@ custom native hosts use `Aero::Integration` explicitly.
 class App final : public Aero::Application {
     AERO_DECLARE_TYPE_NAMED(App, Aero::Application, "urn:demo", "App")
 
+public:
+    App() noexcept {
+        static_cast<void>(SetStartupUri("MainWindow.xaml"));
+    }
+
 protected:
     void OnStartup(Aero::StartupEventArgs& args) noexcept override {
         Aero::Application::OnStartup(args);
@@ -19,13 +25,15 @@ protected:
 };
 
 int main() {
-    return Aero::App::Run();
+    App app;
+    return app.Run();
 }
 ```
 
-`App.xaml` and `StartupUri` select the application and main-window types. Include
-`<Aero/App/Launcher.hpp>` only when backend selection, allocator injection or
-module registration must be controlled by the native host.
+For a generated XAML application entry point, `Aero::App::Run()` still loads
+`App.xaml`, reads its `StartupUri`, and runs the same private desktop host.
+Backend, allocator, diagnostics and initial-window options are supplied through
+`Aero::App::RunOptions`; no public launcher or host object is required.
 
 ## Properties
 

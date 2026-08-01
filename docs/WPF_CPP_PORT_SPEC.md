@@ -129,7 +129,7 @@ Runtime loader 与 `aero-xamlc` MUST 使用同一 manifest。未知类型、未�
 
 ```mermaid
 flowchart TB
-    Host[Host Application / Game Engine / Browser] --> Platform[AeroPlatform]
+    Host[Host Application / Game Engine / Browser] --> Platform[Private platform adapters]
     Host --> UI[AeroApplication / Dispatcher]
     Host --> Device[GPU Device / Queue / GL Context / Frame Scheduler]
 
@@ -163,7 +163,7 @@ flowchart TB
 | `AeroControls` | Control、ContentControl、ItemsControl、Panel、Template 和标准控件 |
 | `AeroRender` | render tree、scene transactions、geometry/text/image cache、RenderFrame |
 | `AeroGraphics` | GPU resource、pipeline、pass、command、state 与 synchronization contracts |
-| `AeroPlatform` | window/canvas、GLX/EGL/WGL、input、IME、clipboard、file、time、DPI 和 accessibility bridge |
+| App/Integration platform sources | private window/canvas、GLX/EGL/WGL、input、IME、clipboard、file、time、DPI 和 accessibility adapters；不形成独立 SDK target |
 | `AeroTestKit` | WPF probes、golden XAML、layout/render snapshots、browser harness、fuzz |
 
 约束：
@@ -312,9 +312,9 @@ Skia 不进入依赖图、测试图或 fallback 图。
 ### 12.3 GLX/EGL/WGL
 
 ```text
-AeroPlatform_GLX  -> Linux/X11 + OpenGL33
-AeroPlatform_EGL  -> Android/Wayland/headless + GLES30/OpenGL
-AeroPlatform_WGL  -> Windows + OpenGL33
+private GLX adapter -> Linux/X11 + OpenGL33
+private EGL adapter -> Android/Wayland/headless + GLES30/OpenGL
+private WGL adapter -> Windows + OpenGL33
 ```
 
 GLX baseline 为 1.4；现代 core context 通过运行时查询的 `GLX_ARB_create_context` 创建。Wayland 不使用 GLX。游戏引擎提供现有 context 时可跳过 platform context adapter。

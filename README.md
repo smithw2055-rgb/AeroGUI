@@ -5,8 +5,9 @@
 AeroGUI exposes a small product surface organized by WPF semantics:
 
 - `Aero/Gui.hpp` + `Aero::Gui` provide the retained WPF/XAML class library.
-- `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime through
-  `Aero::App::Run()`; advanced launcher configuration is opt-in.
+- `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime;
+  ordinary C++ applications call `Aero::Application::Run()`, while
+  `Aero::App::Run()` is reserved for generated `App.xaml` bootstrap code.
 - `Aero/Integration.hpp` + `Aero::Integration` provide explicit embedding,
   renderer-endpoint and native-host integration.
 - `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
@@ -45,7 +46,7 @@ WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_S
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v7；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed graphics layer 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
 - 已完成交互/集合基础切片：Command、统一 hover/pressed/focus/capture 状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton、Generic/Light/Dark 主题、ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox，以及带 realization window、overscan、recycling 和 10k benchmark 的 VirtualizingStackPanel。
-- 已完成 OpenGL 3.3 基础合同、graphics layer 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。`AeroRenderOpenGL33` 复用 backend-neutral `Renderer` 完成 RenderFrame lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
+- 已完成 OpenGL 3.3 基础合同、graphics layer 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。统一的私有 `AeroRendering` 库复用 backend-neutral `Renderer` 完成 RenderFrame lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
 - 已完成独立 UTF-8 可编辑文本模型：gap buffer 避免逐次输入复制全文，公共位置统一使用 grapheme cluster 索引，并覆盖 caret/selection、range replacement、undo/redo、最大长度、只读模式、行模型和 UTF-8 边界诊断。
 - 已完成 TextBox 与剪贴板切片：`Text` 默认 TwoWay、UTF-8 文本输入、selection/caret 绘制、指针拖选、键盘导航与编辑、undo/redo、平台中立剪贴板、Win32 `CF_UNICODETEXT`、独立密码显示/复制策略，以及 `IScrollInfo`/ScrollViewer 接入均已有跨平台测试。
 - 已完成平台中立 IME host seam 与 Win32 Imm32 adapter：支持 composition 开始、预编辑、提交、取消和 DPI-aware candidate window；预编辑不会提前写回 Binding source，失焦、禁用、只读、宿主切换和控件销毁均安全终止 composition。
@@ -58,7 +59,7 @@ WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_S
 - 采用轻量、自有的 `AeroBase` 基础设施，包括 allocator、UTF-8 String、容器、Result 和 intrusive 引用计数指针。
 - Runtime 公共 ABI 不暴露 STL 容器、异常、RTTI、协程或编译器专有类型。
 - 采用类似 NoesisGUI 产品定位的 **高性能、可嵌入、保留模式、原生 GPU UI 引擎**，但实现完全独立。
-- 生产渲染不使用 Skia；核心图形抽象为自有 `AeroGraphics`。
+- 生产渲染不使用 Skia；Renderer 与最小 RenderDevice 合同统一由私有 `AeroRendering` 实现域拥有。
 - 战略后端：D3D12、Vulkan、Metal 和受限仓库中的游戏主机后端。
 - 正式兼容后端：D3D11、OpenGL 3.3 Core、OpenGL ES 3.0、WebGL 2。
 - GLX、EGL、WGL 是 Platform 层的 context/surface adapter，不是绘制后端。
@@ -133,14 +134,13 @@ flowchart LR
     Text --> Base
     Markup --> Base
 
-    Core --> Tx[Immutable RenderTransaction]
-    Tx --> Render[AeroRender]
-    Render --> graphics layer[AeroGraphics]
-    Device --> graphics layer
+    Core --> Tx[Immutable RenderFrame]
+    Tx --> Rendering[AeroRendering]
+    Device --> Rendering
 
-    graphics layer --> Modern[D3D12 / Vulkan / Metal / Console]
-    graphics layer --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
-    graphics layer -. optional adapter .-> Sokol[sokol_gfx]
+    Rendering --> Modern[D3D12 / Vulkan / Metal / Console]
+    Rendering --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
+    Rendering -. optional adapter .-> Sokol[sokol_gfx]
 
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
 ```
@@ -164,7 +164,7 @@ Aero::Text
 
 `Aero::Text` 是独立的 provider 合同层，不依赖 Core、UI runtime、Controls、Markup、Render 或 graphics layer。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
-仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewHostOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
+仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
 
 Core metadata and property-system headers live under
 `Aero/Core/Metadata` and `Aero/Core/Property`. UI semantics are grouped under
@@ -226,7 +226,10 @@ UI 线程之外不得读写可变 UI 对象。渲染域只接收不可变事务�
 
 ## 原生 GPU 渲染
 
-`AeroRender` 负责 retained render tree、scene diff、clip/effect plan、批次、glyph/image/geometry cache；`AeroGraphics` 只负责资源、pipeline、pass、command encoding 和同步抽象。
+`AeroRendering` 是一个私有实现域：其中 retained `RenderTree` 和 immutable
+`RenderFrame` 保持 UI/渲染线程边界，`Renderer` 与最小 `RenderDevice` 合同
+共同负责批次、资源、pipeline、command encoding、同步和 native backend。
+它不是面向应用开发者的通用 RHI 产品。
 
 ### 后端等级
 
@@ -339,16 +342,12 @@ C++17 Runtime
 - native backend shader 使用离线 binary/package；GL/GLES/WebGL 使用离线生成和验证后的固定 GLSL source package；
 - WebGL 运行时 compile/link 是浏览器 API 所要求的显式例外。
 
-## ControlGallery
+## 精简源码分发
 
-`AERO_BUILD_SAMPLES=ON`（默认）会构建 `AeroControlGallery`，并在构建阶段用样例模块目录生成 compiled XAML 资产。以下命令启动真实窗口；去掉 `--interactive` 可用于无人值守 smoke：
-
-```powershell
-out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=d3d11 --xaml=compiled --theme=light --interactive
-out\build\<preset>\samples\ControlGallery\AeroControlGallery.exe --backend=opengl --xaml=compiled --theme=dark --interactive
-```
-
-Linux 使用同一 `--backend=opengl` 命令并通过 GLX 呈现。`--xaml=both --theme=both --simulate-context-loss` 会同时验证 runtime/compiled 等价性、两套默认主题和后端恢复路径。
+当前分支只包含产品库、离线工具、主题和正式文档，不携带 tests/samples。
+`AERO_BUILD_TESTS` 与 `AERO_BUILD_SAMPLES` 默认关闭；只有在额外提供对应
+源码树时才可启用。D3D11、WGL 和 GLX 也作为显式可选后端，其中 GLX 默认
+关闭，避免普通 Linux SDK 配置被系统 OpenGL/X11 开发包阻塞。
 
 ## Source layout
 
@@ -358,26 +357,22 @@ AeroGUI/
 ├── src/base/               # foundation implementation
 ├── src/gui/                # WPF semantic kernel by domain
 ├── src/controls/           # standard controls and control behavior
-├── src/markup/             # XAML schema, object writer and compiled XAML
+├── src/markup/             # XAML schema, object writer and UiDocument
 ├── src/text/               # shaping, fonts and glyph runtime
 ├── src/media/              # brushes, images, transforms and effects
 ├── src/runtime/            # View composition and frame lifecycle
-├── src/render/             # RenderTree, RenderFrame and Renderer
-├── src/graphics/           # GraphicsDevice and GPU API backends
-├── src/platform/           # native window, IME, clipboard and surfaces
-├── src/integration/        # host factories and RenderEndpoint implementations
+├── src/render/             # RenderTree, Renderer, RenderDevice and GPU backends
+├── src/platform/           # private OS window, IME, clipboard and context adapters
+├── src/integration/        # embedding factories and RenderEndpoint implementations
 ├── src/app/                # default desktop Application framework
 ├── third_party/
 ├── tools/{xamlc,schema-gen}/
-├── tests/
-├── samples/
+├── themes/
 └── docs/
 ```
 
 The implementation ownership and dependency rules are documented in
 [`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md).
-└── LICENSE
-```
 
 ## 路线图
 

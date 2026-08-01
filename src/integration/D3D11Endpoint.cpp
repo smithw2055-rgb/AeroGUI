@@ -3,7 +3,7 @@
 #include "RenderEndpointInternal.hpp"
 
 #include "render/d3d11/D3D11Renderer.hpp"
-#include "graphics/D3D11Backend.hpp"
+#include "render/d3d11/D3D11Backend.hpp"
 
 #include <new>
 
@@ -142,13 +142,6 @@ public:
 
     ~D3D11EndpointBackend() override {
         Shutdown();
-    }
-
-    bool SupportsDedicatedThread() const noexcept override {
-        // Text/resource preparation currently shares the immediate context
-        // with submission. Keep the factory honest until those leases are
-        // staged entirely on the endpoint worker.
-        return false;
     }
 
     Base::Result<void> Initialize() noexcept {
@@ -472,7 +465,6 @@ Base::Result<Base::Ref<RenderEndpoint>>
 CreateD3D11Endpoint(
     const TOptions& options,
     RenderEndpointMode mode,
-    RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -490,7 +482,7 @@ CreateD3D11Endpoint(
         return initialized.GetStatus();
     }
     return Detail::RenderEndpointAccess::Create(
-        mode, submissionMode, driver, &selected);
+        mode, driver, &selected);
 }
 
 } // namespace
@@ -509,7 +501,6 @@ CreateD3D11EmbeddedEndpoint(
     return CreateD3D11Endpoint(
         options,
         RenderEndpointMode::Embedded,
-        options.submissionMode,
         allocator);
 }
 
@@ -529,7 +520,6 @@ CreateD3D11WindowEndpoint(
     return CreateD3D11Endpoint(
         options,
         RenderEndpointMode::Window,
-        options.submissionMode,
         allocator);
 }
 

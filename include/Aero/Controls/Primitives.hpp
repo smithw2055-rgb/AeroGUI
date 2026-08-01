@@ -801,7 +801,7 @@ public:
     TickBar() noexcept : Control(StaticTypeId()) {}
     ~TickBar() override = default;
 
-    Base::Ref<Aero::Media::Brush> Fill() const noexcept;
+    Base::Ref<Aero::Media::Brush> GetFill() const noexcept;
     TickBarPlacement Placement() const noexcept;
     Base::Result<void> SetFill(
         Base::Ref<Aero::Media::Brush> value) noexcept;

@@ -4,7 +4,7 @@
 
 #include "../Renderer.hpp"
 
-#include "graphics/D3D11Backend.hpp"
+#include "render/d3d11/D3D11Backend.hpp"
 
 namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
 

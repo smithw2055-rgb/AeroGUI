@@ -24,8 +24,6 @@ enum class HostedGraphicsResult : std::uint32_t {
 
 enum HostedGraphicsCapability : std::uint64_t {
     HostedGraphicsCapabilityNone = 0U,
-    HostedGraphicsCapabilityThreadSafe =
-        UINT64_C(1) << 0U,
     HostedGraphicsCapabilityEmbeddedTarget =
         UINT64_C(1) << 1U,
     HostedGraphicsCapabilityWindowSurface =
@@ -160,15 +158,11 @@ struct HostedGraphicsCallbacks final {
 AERO_API Base::Result<Base::Ref<RenderEndpoint>>
 CreateHostedEmbeddedEndpoint(
     const HostedGraphicsCallbacks& callbacks,
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 AERO_API Base::Result<Base::Ref<RenderEndpoint>>
 CreateHostedWindowEndpoint(
     const HostedGraphicsCallbacks& callbacks,
-    RenderSubmissionMode submissionMode =
-        RenderSubmissionMode::Immediate,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Integration

@@ -1,4 +1,4 @@
-#include "RuntimeUiServices.hpp"
+#include "ViewUiServices.hpp"
 #include "../controls/VisualStateRuntime.hpp"
 
 #include <Aero/Controls/Base.hpp>
@@ -11,16 +11,6 @@
 #include "gui/InputInternal.hpp"
 
 namespace Aero::Detail {
-
-void UiRuntimeAccess::SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept {
-    element.eventRouter_ = router;
-}
-
-
-void UiRuntimeAccess::SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept {
-    element.commandRouter_ = service;
-}
-
 
 namespace {
 
@@ -66,7 +56,7 @@ Base::Result<const T*> ResolveUiValue(
 
 } // namespace
 
-void RuntimeUiServices::Configure(
+void ViewUiServices::Configure(
     Base::IAllocator& allocator,
     Core::MetadataDomain& metadata,
     Core::EffectiveValueEngine& values,
@@ -83,26 +73,29 @@ void RuntimeUiServices::Configure(
     bindings_ = &bindings;
     events_ = &events;
     input_ = &input;
+    elementServices_.events = &events;
+    elementServices_.input = &input;
     styles_ = &styles;
     templates_ = &templates;
     visualStates_ = &visualStates;
     resources_ = resources;
 }
 
-void RuntimeUiServices::Reset() noexcept {
+void ViewUiServices::Reset() noexcept {
     allocator_ = nullptr;
     metadata_ = nullptr;
     values_ = nullptr;
     bindings_ = nullptr;
     events_ = nullptr;
     input_ = nullptr;
+    elementServices_ = {};
     styles_ = nullptr;
     templates_ = nullptr;
     visualStates_ = nullptr;
     resources_ = {};
 }
 
-Base::Result<void> RuntimeUiServices::Apply(
+Base::Result<void> ViewUiServices::Apply(
     Aero::Visual& root) noexcept {
     if (!IsConfigured() || metadata_ == nullptr || values_ == nullptr ||
         bindings_ == nullptr || events_ == nullptr || input_ == nullptr ||
@@ -121,8 +114,7 @@ Base::Result<void> RuntimeUiServices::Apply(
         if (node == nullptr) continue;
 
         if (Aero::UIElement* element = node->AsUIElement()) {
-            UiRuntimeAccess::SetEventRouter(*element, events_);
-            UiRuntimeAccess::SetCommandRouter(*element, input_);
+            UiRuntimeAccess::SetViewServices(*element, &elementServices_);
         }
 
         auto* dependencyObject =
@@ -197,7 +189,7 @@ Base::Result<void> RuntimeUiServices::Apply(
         : Base::Result<void>(appliedValues.GetStatus());
 }
 
-void RuntimeUiServices::Detach(
+void ViewUiServices::Detach(
     Aero::Visual* root,
     Base::Span<Aero::Visual* const> declarationNodes) noexcept {
     if (!IsConfigured() || values_ == nullptr) return;
@@ -217,8 +209,7 @@ void RuntimeUiServices::Detach(
     for (Aero::Visual* node : reachable) {
         if (node == nullptr) continue;
         if (Aero::UIElement* ui = node->AsUIElement()) {
-            UiRuntimeAccess::SetEventRouter(*ui, nullptr);
-            UiRuntimeAccess::SetCommandRouter(*ui, nullptr);
+            UiRuntimeAccess::SetViewServices(*ui, nullptr);
         }
         Aero::FrameworkElement* element = node->AsFrameworkElement();
         if (bindings_ != nullptr) {

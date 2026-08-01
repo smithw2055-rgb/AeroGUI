@@ -190,7 +190,8 @@ UIElement::UIElement(TypeId runtimeType) noexcept
     : Visual(runtimeType) {}
 
 UIElement::~UIElement() {
-    AERO_ASSERT(manager_ == nullptr);
+    AERO_ASSERT(layoutManager_ == nullptr);
+    AERO_ASSERT(viewServices_ == nullptr);
     AERO_ASSERT(!layoutAttached_);
     CleanupHandlers();
 }
@@ -209,7 +210,7 @@ Base::Result<void> UIElement::TryAddHandlerCore(
         return InvalidArgument("Routed event handler requires a valid event and callback");
     }
 
-    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
     if (state == nullptr) {
         Base::IAllocator& allocator = Base::GetDefaultAllocator();
         void* memory = allocator.Allocate({
@@ -222,7 +223,7 @@ Base::Result<void> UIElement::TryAddHandlerCore(
                 "Routed event handler state allocation failed");
         }
         state = new (memory) UIElementHandlerState();
-        handlerState_ = state;
+        routedHandlers_ = state;
     }
     if (state->nextSequence == 0U) {
         return Base::Status::Failure(
@@ -251,7 +252,7 @@ bool UIElement::RemoveHandlerCore(
     const HandlerDescriptor& handler) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access || !event.IsValid() || handler.value == nullptr ||
-        handler.operations == nullptr || handlerState_ == nullptr) {
+        handler.operations == nullptr || routedHandlers_ == nullptr) {
         return false;
     }
     Aero::Detail::RoutedHandlerStorage probe(
@@ -263,7 +264,7 @@ bool UIElement::RemoveHandlerCore(
         handler.operations->destroy,
         handler.operations->equals,
         handler.operations->invoke);
-    auto& handlers = static_cast<UIElementHandlerState*>(handlerState_)->handlers;
+    auto& handlers = static_cast<UIElementHandlerState*>(routedHandlers_)->handlers;
     for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
         if (handlers[index].event == event && handlers[index].handler.Equals(probe)) {
             for (std::uint32_t current = index + 1U; current < handlers.Size(); ++current) {
@@ -279,7 +280,7 @@ bool UIElement::RemoveHandlerCore(
 void UIElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
     if (state == nullptr) return;
     const std::uint32_t count = state->handlers.Size();
     for (std::uint32_t index = 0U;
@@ -293,7 +294,7 @@ void UIElement::InvokeHandlers(
 }
 
 void UIElement::CleanupHandlers() noexcept {
-    auto* state = static_cast<UIElementHandlerState*>(handlerState_);
+    auto* state = static_cast<UIElementHandlerState*>(routedHandlers_);
     if (state == nullptr) return;
     state->~UIElementHandlerState();
     Base::GetDefaultAllocator().Deallocate(
@@ -301,38 +302,40 @@ void UIElement::CleanupHandlers() noexcept {
         sizeof(UIElementHandlerState),
         alignof(UIElementHandlerState),
         Base::MemoryTag::Ui);
-    handlerState_ = nullptr;
+    routedHandlers_ = nullptr;
 }
 
 Base::Result<void> UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
-    if (eventRouter_ == nullptr) {
+    Aero::Detail::EventRouter* eventRouter =
+        Aero::Detail::UiRuntimeAccess::EventRouterFor(*this);
+    if (eventRouter == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "UIElement is not attached to an event router");
     }
-    return static_cast<Aero::Detail::EventRouter*>(eventRouter_)->RaiseEvent(*this, event, args);
+    return eventRouter->RaiseEvent(*this, event, args);
 }
 
 Base::Result<void> UIElement::InvalidateMeasure() noexcept {
-    if (manager_ == nullptr) {
+    if (layoutManager_ == nullptr) {
         measureValid_ = false;
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutManager*>(manager_)->InvalidateMeasure(*this);
+    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
-    if (manager_ == nullptr) {
+    if (layoutManager_ == nullptr) {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutManager*>(manager_)->InvalidateArrange(*this);
+    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->InvalidateArrange(*this);
 }
 
-Base::Result<void> FrameworkElement::SetLayoutRounding(
+Base::Result<void> FrameworkElement::SetUseLayoutRounding(
     bool enabled,
     double dpiScale) noexcept {
     Base::Result<void> access = VerifyAccess();
@@ -487,23 +490,23 @@ Base::Result<void> UIElement::SetEffect(
         EffectProperty, std::move(value));
 }
 
-Base::Result<void> UIElement::SetHitTestVisible(bool value) noexcept {
+Base::Result<void> UIElement::SetIsHitTestVisible(bool value) noexcept {
     return SetValue(IsHitTestVisibleProperty, value);
 }
 Base::Result<void> UIElement::SetVisibility(
     Visibility value) noexcept {
     return SetValue(VisibilityProperty, value);
 }
-Base::Result<void> UIElement::SetEnabled(bool value) noexcept {
+Base::Result<void> UIElement::SetIsEnabled(bool value) noexcept {
     return SetValue(IsEnabledProperty, value);
 }
-Base::Result<void> UIElement::SetTabStop(bool value) noexcept {
+Base::Result<void> UIElement::SetIsTabStop(bool value) noexcept {
     return SetValue(IsTabStopProperty, value);
 }
 Base::Result<void> UIElement::SetTabIndex(std::uint32_t value) noexcept {
     return SetValue(TabIndexProperty, value);
 }
-Base::Result<void> UIElement::SetFocusScope(bool value) noexcept {
+Base::Result<void> UIElement::SetIsFocusScope(bool value) noexcept {
     return SetValue(IsFocusScopeProperty, value);
 }
 Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
@@ -605,7 +608,7 @@ Base::Result<Size> UIElement::ArrangeOverride(Size finalSize) noexcept {
 Base::Result<void> UIElement::MeasureChild(
     UIElement& child,
     Size availableSize) noexcept {
-    if (manager_ == nullptr || !child.layoutAttached_ ||
+    if (layoutManager_ == nullptr || !child.layoutAttached_ ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -654,13 +657,13 @@ Base::Result<void> UIElement::MeasureChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutManager*>(manager_)->MeasureElement(child, availableSize);
+    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
     UIElement& child,
     Rect finalRect) noexcept {
-    if (manager_ == nullptr || !child.layoutAttached_ ||
+    if (layoutManager_ == nullptr || !child.layoutAttached_ ||
         child.LayoutParent() != this) {
         thread_local char message[512];
         const TypeInfo* parentType =
@@ -709,7 +712,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutManager*>(manager_)->ArrangeElement(child, finalRect);
+    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero
@@ -729,7 +732,7 @@ LayoutManager::~LayoutManager() noexcept {
         (void)dispatcher_->RemoveFrameHook(phaseHook_);
     }
     if (root_ != nullptr) {
-        root_->manager_ = nullptr;
+        root_->layoutManager_ = nullptr;
         root_ = nullptr;
     }
 }
@@ -767,7 +770,7 @@ Base::Result<void> LayoutManager::VerifyElement(
             Base::ErrorCode::WrongThread,
             "Layout element belongs to another Dispatcher");
     }
-    if (element.manager_ != nullptr && element.manager_ != this) {
+    if (element.layoutManager_ != nullptr && element.layoutManager_ != this) {
         return InvalidState("Layout element belongs to another LayoutManager");
     }
     return {};
@@ -793,8 +796,8 @@ Base::Result<void> LayoutManager::Attach(
     Base::Result<void> invalidated = InvalidateMeasure(parent);
     if (!invalidated) return invalidated.GetStatus();
 
-    parent.manager_ = this;
-    child.manager_ = this;
+    parent.layoutManager_ = this;
+    child.layoutManager_ = this;
     child.layoutAttached_ = true;
     child.measureValid_ = false;
     child.arrangeValid_ = false;
@@ -807,7 +810,7 @@ Base::Result<void> LayoutManager::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (!child.layoutAttached_ || child.LayoutParent() != &parent ||
-        child.manager_ != this) {
+        child.layoutManager_ != this) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Layout parent-child relationship was not found");
@@ -818,7 +821,7 @@ Base::Result<void> LayoutManager::Detach(
 
     RemoveQueued(child);
     child.layoutAttached_ = false;
-    child.manager_ = nullptr;
+    child.layoutManager_ = nullptr;
     child.measureValid_ = false;
     child.arrangeValid_ = false;
     return {};
@@ -846,11 +849,11 @@ Base::Result<void> LayoutManager::SetRoot(
 
     if (root_ != nullptr && root_ != root) {
         RemoveQueued(*root_);
-        root_->manager_ = nullptr;
+        root_->layoutManager_ = nullptr;
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
-    if (root_ != nullptr) root_->manager_ = this;
+    if (root_ != nullptr) root_->layoutManager_ = this;
     return {};
 }
 
@@ -1358,7 +1361,7 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element == nullptr || element == root_ ||
-            element->manager_ != this || element->measureValid_) {
+            element->layoutManager_ != this || element->measureValid_) {
             continue;
         }
         UIElement* parent = element->layoutAttached_
@@ -1388,7 +1391,7 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
         UIElement* element = visual != nullptr
             ? visual->AsUIElement() : nullptr;
         if (element == nullptr || element == root_ ||
-            element->manager_ != this || element->arrangeValid_) {
+            element->layoutManager_ != this || element->arrangeValid_) {
             continue;
         }
         Rect slot = element->layoutSlot_;

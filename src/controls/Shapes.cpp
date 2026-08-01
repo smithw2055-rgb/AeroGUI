@@ -216,25 +216,25 @@ Color SampleShapeBrush(
     return {};
 }
 
-Color Shape::Fill() const noexcept {
-    return SampleShapeBrush(FillBrush());
+Color Shape::GetFill() const noexcept {
+    return SampleShapeBrush(GetFillBrush());
 }
 
-Base::Ref<Brush> Shape::FillBrush() const noexcept {
+Base::Ref<Brush> Shape::GetFillBrush() const noexcept {
     return GetValueOr(
         FillProperty, Base::Ref<Brush>{});
 }
 
-Color Shape::Stroke() const noexcept {
-    return SampleShapeBrush(StrokeBrush());
+Color Shape::GetStroke() const noexcept {
+    return SampleShapeBrush(GetStrokeBrush());
 }
 
-Base::Ref<Brush> Shape::StrokeBrush() const noexcept {
+Base::Ref<Brush> Shape::GetStrokeBrush() const noexcept {
     return GetValueOr(
         StrokeProperty, Base::Ref<Brush>{});
 }
 
-double Shape::StrokeThickness() const noexcept {
+double Shape::GetStrokeThickness() const noexcept {
     return GetValueOr(StrokeThicknessProperty, 1.0);
 }
 
@@ -278,11 +278,11 @@ Base::Result<void> Shape::SetStrokeThickness(double value) noexcept {
     return SetValue(StrokeThicknessProperty, value);
 }
 
-double Rectangle::RadiusX() const noexcept {
+double Rectangle::GetRadiusX() const noexcept {
     return GetValueOr(RadiusXProperty, 0.0);
 }
 
-double Rectangle::RadiusY() const noexcept {
+double Rectangle::GetRadiusY() const noexcept {
     return GetValueOr(RadiusYProperty, 0.0);
 }
 
@@ -297,7 +297,7 @@ Base::Result<void> Rectangle::SetRadiusY(double value) noexcept {
 Base::Result<Size> Rectangle::MeasureOverride(
     Size) noexcept {
     const double stroke =
-        std::max(0.0, StrokeThickness());
+        std::max(0.0, GetStrokeThickness());
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
@@ -313,8 +313,8 @@ Base::Result<void> Rectangle::OnRender(
     const Rect bounds{
         0.0, 0.0, renderSize.width, renderSize.height};
     const double radius = std::max(
-        0.0, std::min(RadiusX(), RadiusY()));
-    Base::Ref<Brush> fillBrush = FillBrush();
+        0.0, std::min(GetRadiusX(), GetRadiusY()));
+    Base::Ref<Brush> fillBrush = GetFillBrush();
     if (fillBrush &&
         fillBrush->RuntimeType() ==
             LinearGradientBrush::StaticTypeId()) {
@@ -418,7 +418,7 @@ Base::Result<void> Rectangle::OnRender(
             return painted.GetStatus();
         }
     } else {
-        const Color fill = Fill();
+        const Color fill = GetFill();
         if (fill.alpha > 0.0F) {
         Base::Result<void> painted = radius > 0.0
             ? builder.FillRoundedRect(bounds, fill, radius)
@@ -427,8 +427,8 @@ Base::Result<void> Rectangle::OnRender(
         }
     }
 
-    const Color stroke = Stroke();
-    const double thickness = StrokeThickness();
+    const Color stroke = GetStroke();
+    const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         return builder.StrokeRect(bounds, stroke, thickness);
     }
@@ -438,7 +438,7 @@ Base::Result<void> Rectangle::OnRender(
 Base::Result<Size> Ellipse::MeasureOverride(
     Size) noexcept {
     const double stroke =
-        std::max(0.0, StrokeThickness());
+        std::max(0.0, GetStrokeThickness());
     return Size{stroke * 2.0, stroke * 2.0};
 }
 
@@ -451,7 +451,7 @@ Base::Result<void> Ellipse::OnRender(
         return {};
     }
 
-    const Color fill = Fill();
+    const Color fill = GetFill();
     if (fill.alpha > 0.0F) {
         Transform2D scale;
         scale.m11 = renderSize.width;
@@ -472,8 +472,8 @@ Base::Result<void> Ellipse::OnRender(
     // The retained command model does not yet expose a rounded-stroke
     // primitive. Preserve a deterministic visible outline until ellipse
     // stroke tessellation is added.
-    const Color stroke = Stroke();
-    const double thickness = StrokeThickness();
+    const Color stroke = GetStroke();
+    const double thickness = GetStrokeThickness();
     if (stroke.alpha > 0.0F && thickness > 0.0) {
         return builder.StrokeRect(
             Rect{0.0, 0.0, renderSize.width, renderSize.height},

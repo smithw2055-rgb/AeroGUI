@@ -67,12 +67,12 @@ AeroGraphics_WebGL2
 
 ### 5. GLX、EGL 与 WGL
 
-这些属于 `AeroPlatform` / surface-context adapter，不属于 `AeroGraphics` 绘制后端：
+这些属于 App/Integration 私有的 surface-context adapter，不形成独立 `AeroPlatform` target，也不属于通用绘制后端：
 
 ```text
-AeroPlatform_GLX   Linux + X11 + desktop OpenGL
-AeroPlatform_EGL   Wayland/Linux, Android, headless, GLES/OpenGL where available
-AeroPlatform_WGL   Windows + desktop OpenGL
+private GLX adapter   Linux + X11 + desktop OpenGL
+private EGL adapter   Wayland/Linux, Android, headless, GLES/OpenGL where available
+private WGL adapter   Windows + desktop OpenGL
 ```
 
 - GLX 基线为 GLX 1.4；创建现代 core context 时要求运行时查询并使用 `GLX_ARB_create_context`。

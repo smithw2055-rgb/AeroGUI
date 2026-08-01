@@ -159,7 +159,7 @@ class AERO_API DockPanel final : public Panel {
     AERO_DECLARE_TYPE(DockPanel, Panel)
 public:
     DockPanel() noexcept : Panel(StaticTypeId()) {}
-    bool LastChildFill() const noexcept;
+    bool GetLastChildFill() const noexcept;
     Base::Result<void> SetLastChildFill(bool value) noexcept;
     Base::Result<void> SetChildDock(
         UIElement& child, Dock value) noexcept;
@@ -532,11 +532,11 @@ public:
 
     Base::StringView Data() const noexcept;
     Base::Ref<Geometry> DataGeometry() const noexcept;
-    Color Fill() const noexcept;
-    Base::Ref<Brush> FillBrush() const noexcept;
-    Color Stroke() const noexcept;
-    Base::Ref<Brush> StrokeBrush() const noexcept;
-    double StrokeThickness() const noexcept;
+    Color GetFill() const noexcept;
+    Base::Ref<Brush> GetFillBrush() const noexcept;
+    Color GetStroke() const noexcept;
+    Base::Ref<Brush> GetStrokeBrush() const noexcept;
+    double GetStrokeThickness() const noexcept;
     PenLineJoin StrokeLineJoin() const noexcept;
     PenLineCap StrokeStartLineCap() const noexcept;
     PenLineCap StrokeEndLineCap() const noexcept;

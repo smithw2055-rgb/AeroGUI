@@ -4,14 +4,13 @@
 #include "gui/ElementInternal.hpp"
 #include "gui/BindingInternal.hpp"
 #include <Aero/Data.hpp>
-#include <Aero/Integration/View.hpp>
+#include <Aero/View.hpp>
 #include <Aero/Meta/MetadataId.hpp>
 
 #include <memory>
 
 namespace Aero {
 class GuiContext;
-class ViewRuntime;
 class Visual;
 namespace Controls {
 class ItemContainerGenerator;
@@ -22,6 +21,7 @@ class DocumentCache;
 class SourceProviderRegistry;
 }
 namespace Detail {
+class ViewState;
 class AnimationManager;
 }
 }
@@ -29,7 +29,7 @@ class AnimationManager;
 namespace Aero::Detail {
 
 // Narrow source-side bridge for repository-owned diagnostics, reload support
-// and tooling. It is implemented beside ViewRuntime so the runtime does not
+// and tooling. It is implemented beside ViewState so the View does not
 // expose its service graph through public or private accessor methods.
 class ViewAccess final {
 public:
@@ -51,7 +51,7 @@ public:
     static Markup::DocumentCache* DocumentCache(View& view) noexcept;
 
 private:
-    static ViewRuntime& Runtime(View& view) noexcept;
+    static ViewState& State(View& view) noexcept;
 };
 
 } // namespace Aero::Detail

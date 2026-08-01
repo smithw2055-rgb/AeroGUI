@@ -29,8 +29,8 @@ extension:
 - `<Aero/Gui.hpp>` is the retained-mode WPF/XAML class library. It contains the
   dependency-object spine, routed events, layout values, styles, resources,
   controls, data binding, input, media and shapes.
-- `<Aero/App.hpp>` adds `Application`, `Window` and the opaque
-  `App::Launcher` default desktop lifetime.
+- `<Aero/App.hpp>` adds the optional default desktop lifetime to
+  `Application` and `Window`; `App::RunOptions` configures optional host details.
 - `<Aero/Integration.hpp>` exposes renderer, host and native-window integration
   for engines and existing application frameworks.
 - `<Aero/Meta.hpp>` and `<Aero/Module.hpp>` layer typed metadata and module
@@ -56,8 +56,8 @@ SDK.
 | `System.Windows.Markup` | `Aero::Markup` | `MarkupExtension`, `XamlReader` |
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Aero metadata authoring | `Aero::Meta` | `Context`, `Describe`, `TypeId` |
-| Host and renderer integration | `Aero::Integration` | `RenderEndpoint`, `ViewHost`, native integration APIs |
-| Default application framework | `Aero::App` | `Launcher`, `LaunchOptions` |
+| Host and renderer integration | `Aero::Integration` | `ViewOptions`, `RenderEndpoint`, native integration APIs |
+| Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
 | Private implementation | `Aero::Detail` or domain `Detail` | property, style, template, XAML and render runtimes |
 
 ## Root namespace rule
@@ -120,22 +120,19 @@ local name.
 
 ## Application framework boundary
 
-`Aero::Application` and `Aero::Window` are WPF-facing XAML objects.
-`Aero::App::Launcher` owns the optional default application lifetime: platform
-window creation, event pumping, endpoint selection and View orchestration.
-Embedded engines may consume the GUI and Integration surfaces without using
-Launcher.
+`Aero::Application` and `Aero::Window` are the WPF-facing XAML objects.
+`Application::Run()` owns the ordinary code-first desktop lifetime. The free
+`Aero::App::Run()` function is only the generated/XAML bootstrap that loads
+`App.xaml` before entering the same private host.
+
+The native window, event loop, View and endpoint composition are private under
+`src/app`. Backend and allocator selection use the value-type
+`Aero::App::RunOptions`; there is no public launcher, host peer, App service
+locator, or duplicate `Aero::App::Application` / `Window` type.
 
 `Aero::Application` owns application resources and startup/shutdown policy only.
-It does not own audio, graphics, native-window or other platform device
-services. Constructing an Application therefore remains valid in headless and
-embedded runtimes.
-
-`Aero::App::Launcher` is the only public default-host type. Its native window,
-event loop, View and endpoint composition are opaque implementation details.
-There are no `Aero::App::Application` / `Window` aliases, public
-low-level host facade, or App service locator. Optional subsystems such as audio are
-linked and created explicitly.
+It does not become a graphics or platform service locator. Embedded engines may
+consume the Gui and Integration products without using the default App product.
 
 Application and Window metadata are owned by the App module. Controls does not
 include or register App types, preserving the dependency direction
@@ -144,7 +141,7 @@ include or register App types, preserving the dependency direction
 ## Migration order
 
 1. Application and Window namespace boundary.
-2. Opaque Launcher composition without public host peers or service locators.
+2. `Application::Run()` with a private desktop host and no public launcher.
 3. Gui, App, Integration and Meta product targets.
 4. App-owned Application/Window metadata.
 5. Controls primitives and WPF-aligned public control domains.

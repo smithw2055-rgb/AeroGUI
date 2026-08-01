@@ -13,18 +13,22 @@ public type names and observable behavior; it does not require AeroGUI to copy
 The supported product umbrellas are:
 
 - `<Aero/Gui.hpp>` — retained WPF/XAML authoring surface;
-- `<Aero/App.hpp>` — optional default desktop lifetime;
+- `<Aero/App.hpp>` — `Application::Run()` and optional default desktop lifetime;
 - `<Aero/Integration.hpp>` — embedding and renderer endpoint integration;
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
 `Markup.hpp`, concrete Integration backend headers and Text provider headers
-are explicit specialist surfaces. They are not transitively
-included by ordinary WPF-style application code.
+are explicit specialist surfaces. `Integration/PlatformServices.hpp` contains only
+platform-neutral clipboard and text-input contracts; native Win32/X11 adapters are
+private. These specialist headers are not transitively included by ordinary
+WPF-style application code.
 
 ## Canonical declaration ownership
 
 Each public type has one declaration owner. The SDK does not retain a parallel
-set of old-path forwarding headers or namespace-projection headers.
+set of old-path forwarding headers or namespace-projection headers. The former
+`Aero/App/Launcher.hpp` surface is removed; desktop hosting is private and
+configured with the value-type `App::RunOptions` declared by `App.hpp`.
 
 The root WPF spine is owned by:
 
@@ -35,11 +39,15 @@ Aero/UIElement.hpp
 Aero/FrameworkElement.hpp
 Aero/Application.hpp
 Aero/Window.hpp
+Aero/View.hpp
 ```
 
 The corresponding class declaration is physically present in that header. For
 example, `UIElement.hpp` does not forward to `Layout.hpp`, and
 `FrameworkElement.hpp` does not forward to a rendering implementation header.
+`View` is likewise owned by `<Aero/View.hpp>`; the former
+`Integration/View.hpp` forwarding path and `ViewHost` facade are removed.
+`RuntimeEnvironment::CreateView(options)` is the single integration factory.
 
 Domain values are grouped by stable authoring concepts rather than by internal
 subsystems:
@@ -94,7 +102,7 @@ private and live under `src/`:
 - effective-value provider sessions;
 - XAML facets and frozen runtime plans;
 - display lists, render commands, GPU resource identifiers and backend state;
-- native Win32/X11 window implementations;
+- native Win32/X11 window, clipboard and IME implementations;
 - built-in metadata bootstrap and runtime safety checks.
 
 A private header should normally be shared by at least two translation units.
@@ -118,6 +126,7 @@ The architecture check enforces:
 - a bounded top-level header count;
 - no duplicate direct includes in public headers;
 - no retired forwarding/compatibility paths;
+- no native Win32/X11 adapter types in the public platform-service contract;
 - no manager, mount, display-list or typed runtime attachment leakage through
   WPF authoring headers;
 - exact equality between the source public tree and the installation whitelist.

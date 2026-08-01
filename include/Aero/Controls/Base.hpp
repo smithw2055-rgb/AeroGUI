@@ -10,7 +10,7 @@
 
 namespace Aero::Detail {
 class ControlRuntimeAccess;
-class RuntimeUiServices;
+class ViewUiServices;
 }
 namespace Aero::Controls::Detail {
 class ItemContainerGeneratorAccess;
@@ -434,7 +434,7 @@ protected:
         DrawingContext& context) noexcept override;
 private:
     friend class Aero::Detail::ControlRuntimeAccess;
-    friend class Aero::Detail::RuntimeUiServices;
+    friend class Aero::Detail::ViewUiServices;
     friend class VisualStateManager;
     friend class Detail::ControlAccess;
     Base::Result<void> SetTemplateChildCore(UIElement* child) noexcept {

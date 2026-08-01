@@ -4,8 +4,8 @@
 
 #include "../Renderer.hpp"
 
-#include "graphics/OpenGL33Backend.hpp"
-#include "platform/Surface.hpp"
+#include "render/opengl33/OpenGL33Backend.hpp"
+#include "render/Surface.hpp"
 
 namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
 

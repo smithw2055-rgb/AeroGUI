@@ -17,6 +17,7 @@ Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     return index == 0U && owner_ != nullptr ? owner_->mainWindow_ : nullptr;
 }
 
+
 void Application::Shutdown(int exitCode) noexcept {
     auto* state = static_cast<App::Detail::ApplicationRuntimeState*>(runtimeState_);
     if (state != nullptr && state->requestExit != nullptr) state->requestExit(state->context, exitCode);

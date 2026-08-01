@@ -1,4 +1,4 @@
-#include <Aero/Integration/HostServices.hpp>
+#include "InputServices.hpp"
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Utf8.hpp>
@@ -19,7 +19,7 @@
 #include <imm.h>
 #endif
 
-namespace Aero::Integration {
+namespace Aero::Platform {
 namespace {
 
 #if defined(_WIN32)
@@ -354,7 +354,7 @@ Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
 }
 
 Base::Result<void> Win32ImeAdapter::SetClient(
-    ITextCompositionClient* client) noexcept {
+    Integration::ITextCompositionClient* client) noexcept {
 #if defined(_WIN32)
     if (client != nullptr &&
         client_ != nullptr &&
@@ -455,7 +455,7 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
 
 Base::Result<void>
 Win32ImeAdapter::SetCandidateWindow(
-    const ImeCandidateWindow& value) noexcept {
+    const Integration::ImeCandidateWindow& value) noexcept {
 #if defined(_WIN32)
     if (!IsAttached()) {
         Base::Result<bool> attached = AttachActiveWindow();
@@ -595,4 +595,4 @@ Win32ImeAdapter::CancelNativeComposition() noexcept {
 #endif
 }
 
-} // namespace Aero::Integration
+} // namespace Aero::Platform

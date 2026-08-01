@@ -2,7 +2,7 @@
 
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/ViewHost.hpp>
+#include <Aero/Integration/ViewOptions.hpp>
 
 namespace Aero::Controls::Detail {
 class TextLayoutService;

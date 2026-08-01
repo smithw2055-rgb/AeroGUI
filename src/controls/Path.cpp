@@ -679,25 +679,25 @@ Base::Ref<Geometry> Path::DataGeometry() const noexcept {
         Base::Ref<Geometry>{});
 }
 
-Color Path::Fill() const noexcept {
-    return SampleBrush(FillBrush());
+Color Path::GetFill() const noexcept {
+    return SampleBrush(GetFillBrush());
 }
 
-Base::Ref<Brush> Path::FillBrush() const noexcept {
+Base::Ref<Brush> Path::GetFillBrush() const noexcept {
     return GetValueOr(
         FillProperty, Base::Ref<Brush>{});
 }
 
-Color Path::Stroke() const noexcept {
-    return SampleBrush(StrokeBrush());
+Color Path::GetStroke() const noexcept {
+    return SampleBrush(GetStrokeBrush());
 }
 
-Base::Ref<Brush> Path::StrokeBrush() const noexcept {
+Base::Ref<Brush> Path::GetStrokeBrush() const noexcept {
     return GetValueOr(
         StrokeProperty, Base::Ref<Brush>{});
 }
 
-double Path::StrokeThickness() const noexcept {
+double Path::GetStrokeThickness() const noexcept {
     return GetValueOr(
         StrokeThicknessProperty, 1.0);
 }
@@ -859,7 +859,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         // reveal it later. Geometry is independent from the sampled alpha;
         // omitting it here leaves no mesh to draw when that animation reaches
         // an opaque key frame.
-        static_cast<bool>(FillBrush()));
+        static_cast<bool>(GetFillBrush()));
     Base::Result<Rect> parsed =
         parser.Parse();
     if (!parsed) {
@@ -872,14 +872,14 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
         return parsed.GetStatus();
     }
     geometryBounds_ = parsed.Value();
-    if (StrokeBrush()) {
+    if (GetStrokeBrush()) {
         Base::Result<void> stroked =
             TessellateStroke(
                 pathPoints_,
                 pathContourStarts_,
                 pathContourCounts_,
                 pathContourClosed_,
-                StrokeThickness(),
+                GetStrokeThickness(),
                 TrimStart(),
                 TrimEnd(),
                 strokeVertices_,
@@ -1105,13 +1105,13 @@ Base::Result<void> Path::OnRender(
     if (!transform) return transform.GetStatus();
     if (mesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
-            builder.DrawMesh(mesh_, Fill());
+            builder.DrawMesh(mesh_, GetFill());
         if (!drawn) return drawn.GetStatus();
     }
     if (strokeMesh_ != InvalidRenderMeshId) {
         Base::Result<void> drawn =
             builder.DrawMesh(
-                strokeMesh_, Stroke());
+                strokeMesh_, GetStroke());
         if (!drawn) return drawn.GetStatus();
     }
     return builder.PopTransform();

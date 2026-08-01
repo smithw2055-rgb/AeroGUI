@@ -4,8 +4,8 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
-#include "Graphics.hpp"
-#include "platform/Surface.hpp"
+#include "render/RenderDevice.hpp"
+#include "render/Surface.hpp"
 
 #include <cstdint>
 

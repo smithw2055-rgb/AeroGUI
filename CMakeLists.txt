@@ -20,8 +20,8 @@ configure_file(
     @ONLY)
 include_directories(BEFORE "${AERO_GENERATED_INCLUDE_DIR}")
 
-option(AERO_BUILD_TESTS "Build AeroGUI unit tests" ON)
-option(AERO_BUILD_SAMPLES "Build AeroGUI sample applications" ON)
+option(AERO_BUILD_TESTS "Build AeroGUI unit tests when the test tree is present" OFF)
+option(AERO_BUILD_SAMPLES "Build AeroGUI samples when the sample tree is present" OFF)
 option(AERO_BUILD_SHARED "Build AeroGUI as shared libraries" OFF)
 option(AERO_BUILD_TOOLS "Build AeroGUI offline tools" ON)
 add_custom_target(AeroArchitectureCheck ALL
@@ -49,19 +49,13 @@ option(AERO_WITH_EXPAT
 option(AERO_WITH_MINIAUDIO
     "Build the built-in miniAudio playback provider" ON)
 option(AERO_ENABLE_SOKOL_BACKEND
-    "Compile a host-supplied sokol_gfx bridge into AeroGraphics" OFF)
+    "Compile a host-supplied sokol_gfx bridge into AeroRendering" OFF)
 option(AERO_ENABLE_D3D11_BACKEND
     "Build the native Windows D3D11 graphics backend" ${WIN32})
 option(AERO_ENABLE_WGL_SURFACE
     "Build the native Windows WGL surface adapter" ${WIN32})
-set(_aero_glx_default OFF)
-if(UNIX AND NOT APPLE)
-    set(_aero_glx_default ON)
-endif()
 option(AERO_ENABLE_GLX_SURFACE
-    "Build the native Linux/X11 GLX surface adapter"
-    ${_aero_glx_default})
-unset(_aero_glx_default)
+    "Build the optional native Linux/X11 GLX surface adapter" OFF)
 set(AERO_SOKOL_BRIDGE_SOURCE "" CACHE FILEPATH
     "Private C++ source that populates Aero hosted callbacks with sokol_gfx")
 set(AERO_SOKOL_INCLUDE_DIR "" CACHE PATH
@@ -170,29 +164,6 @@ set_target_properties(AeroAudio PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroAudio)
-
-add_library(AeroPlatform ${AERO_LIBRARY_TYPE}
-    src/platform/Clipboard.cpp
-    src/platform/Ime.cpp)
-
-add_library(Aero::_DetailPlatform ALIAS AeroPlatform)
-
-target_include_directories(AeroPlatform
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroPlatform PUBLIC Aero::Base)
-target_compile_features(AeroPlatform PUBLIC cxx_std_17)
-set_target_properties(AeroPlatform PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroPlatform)
-if(WIN32)
-    target_link_libraries(AeroPlatform PRIVATE imm32)
-endif()
 
 add_library(AeroText ${AERO_LIBRARY_TYPE}
     src/text/EditableText.cpp
@@ -330,6 +301,10 @@ function(aero_add_vendored_harfbuzz source_directory binary_directory)
     add_subdirectory(
         "${source_directory}" "${binary_directory}"
         EXCLUDE_FROM_ALL)
+    if(TARGET harfbuzz)
+        set_target_properties(harfbuzz PROPERTIES
+            POSITION_INDEPENDENT_CODE ON)
+    endif()
 endfunction()
 
 if(AERO_WITH_HARFBUZZ)
@@ -541,19 +516,23 @@ else()
 endif()
 
 include(cmake/AeroRuntimeTargets.cmake)
-include(cmake/AeroGraphicsTargets.cmake)
+include(cmake/AeroRenderingTargets.cmake)
 include(cmake/AeroProductTargets.cmake)
 include(cmake/AeroInstall.cmake)
 
 if(AERO_BUILD_TESTS)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+        message(FATAL_ERROR
+            "AERO_BUILD_TESTS=ON but this source distribution has no tests tree")
+    endif()
     enable_testing()
     add_subdirectory(tests)
 endif()
 
 if(AERO_BUILD_SAMPLES)
-    add_subdirectory(samples/ControlGallery)
-    add_subdirectory(samples/HelloWorld)
-    add_subdirectory(samples/Localization)
-    add_subdirectory(samples/Menu3D)
-    add_subdirectory(samples/Scoreboard)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/samples/CMakeLists.txt")
+        message(FATAL_ERROR
+            "AERO_BUILD_SAMPLES=ON but this source distribution has no samples tree")
+    endif()
+    add_subdirectory(samples)
 endif()

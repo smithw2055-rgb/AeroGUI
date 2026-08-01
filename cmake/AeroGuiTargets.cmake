@@ -120,7 +120,6 @@ target_include_directories(AeroControls
 target_link_libraries(AeroControls
     PUBLIC
         Aero::_DetailGuiKernel
-        Aero::_DetailPlatform
         Aero::_DetailText)
 target_compile_definitions(
     AeroControls PUBLIC AERO_CONTROLS_TEMPLATE_ABI=10)
@@ -132,6 +131,17 @@ set_target_properties(AeroControls PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroControls)
+
+# Window derives from ContentControl. Keep the App object model independent of
+# native hosting, but express its real shared-library dependency on Controls.
+target_link_libraries(AeroAppModel PUBLIC Aero::_DetailControls)
+get_target_property(_aero_app_model_links AeroAppModel LINK_LIBRARIES)
+if(NOT "${_aero_app_model_links}" MATCHES
+        "(^|;)(Aero::_DetailControls|AeroControls)(;|$)")
+    message(FATAL_ERROR
+        "AeroAppModel must express its ContentControl dependency")
+endif()
+unset(_aero_app_model_links)
 
 add_library(AeroInspector ${AERO_LIBRARY_TYPE}
     src/diagnostics/Inspector.cpp)
@@ -196,7 +206,8 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/Resources.cpp
     src/markup/Schema.cpp
     src/markup/ObjectWriter.cpp
-    src/markup/SchemaServices.cpp)
+    src/markup/SchemaServices.cpp
+    src/markup/XamlDocument.cpp)
 
 if(AERO_WITH_EXPAT)
     set(_aero_vendored_expat_target "")
@@ -224,6 +235,8 @@ if(AERO_WITH_EXPAT)
             "${_aero_expat_source}"
             "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat"
             EXCLUDE_FROM_ALL)
+        set_target_properties(expat PROPERTIES
+            POSITION_INDEPENDENT_CODE ON)
         set(_aero_expat_target expat::expat)
         set(_aero_vendored_expat_target expat)
     else()

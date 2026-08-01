@@ -273,8 +273,8 @@ public:
 
     Point Center() const noexcept;
     Point GradientOrigin() const noexcept;
-    double RadiusX() const noexcept;
-    double RadiusY() const noexcept;
+    double GetRadiusX() const noexcept;
+    double GetRadiusY() const noexcept;
     Base::Result<void> SetCenter(Point value) noexcept;
     Base::Result<void> SetGradientOrigin(
         Point value) noexcept;

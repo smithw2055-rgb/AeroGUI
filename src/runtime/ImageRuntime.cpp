@@ -154,7 +154,7 @@ Base::Result<bool> ImageRuntime::Synchronize(
             }
             if (shape == nullptr) continue;
             Base::Ref<Media::Brush>
-                fill = shape->FillBrush();
+                fill = shape->GetFillBrush();
             if (!fill ||
                 fill->RuntimeType() !=
                     Media::ImageBrush::

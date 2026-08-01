@@ -18,17 +18,24 @@ namespace Aero::Detail {
 
 class EventRouter;
 class InputService;
+class ViewUiServices;
 class LayoutManager;
 class BindingManager;
 class AnimationManager;
 class StyleManager;
 class ThemeStyleManager;
 
+struct UiElementServices final {
+    EventRouter* events = nullptr;
+    InputService* input = nullptr;
+};
+
 // Narrow bridge for private UIElement state shared across the GUI runtime.
 class UiRuntimeAccess final {
 public:
-    static void SetEventRouter(Aero::UIElement& element, EventRouter* router) noexcept;
-    static void SetCommandRouter(Aero::UIElement& element, InputService* service) noexcept;
+    static void SetViewServices(Aero::UIElement& element, UiElementServices* services) noexcept;
+    static EventRouter* EventRouterFor(const Aero::UIElement& element) noexcept;
+    static InputService* InputServiceFor(const Aero::UIElement& element) noexcept;
     static Base::Result<void> SetMouseOver(Aero::UIElement& element, bool value) noexcept;
     static Base::Result<void> SetPressed(Aero::UIElement& element, bool value) noexcept;
     static Base::Result<void> SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept;
@@ -73,6 +80,28 @@ using MenuInteractionManager = Aero::Detail::ControlRuntimeAccess::MenuInteracti
 #include <Aero/Base/Span.hpp>
 
 #include <cstdint>
+
+namespace Aero::Detail {
+
+inline void UiRuntimeAccess::SetViewServices(
+    Aero::UIElement& element,
+    UiElementServices* services) noexcept {
+    element.viewServices_ = services;
+}
+
+inline EventRouter* UiRuntimeAccess::EventRouterFor(
+    const Aero::UIElement& element) noexcept {
+    auto* services = static_cast<UiElementServices*>(element.viewServices_);
+    return services != nullptr ? services->events : nullptr;
+}
+
+inline InputService* UiRuntimeAccess::InputServiceFor(
+    const Aero::UIElement& element) noexcept {
+    auto* services = static_cast<UiElementServices*>(element.viewServices_);
+    return services != nullptr ? services->input : nullptr;
+}
+
+} // namespace Aero::Detail
 
 namespace Aero {
 
@@ -168,7 +197,7 @@ public:
 
     static EventRouter* EventRouterFor(
         const UIElement& element) noexcept {
-        return static_cast<EventRouter*>(element.eventRouter_);
+        return UiRuntimeAccess::EventRouterFor(element);
     }
 
     static std::uint32_t LogicalChildrenCount(

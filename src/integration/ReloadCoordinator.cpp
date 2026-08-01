@@ -4,10 +4,10 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
 #include "markup/Loader.hpp"
-#include <Aero/Integration/View.hpp>
+#include <Aero/View.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 
-#include "runtime/ViewRuntime.hpp"
+#include "runtime/ViewState.hpp"
 #include "runtime/ViewAccess.hpp"
 
 #include <new>
@@ -23,7 +23,7 @@ struct ReloadCoordinator::Impl final {
         std::uint64_t revision = 0U;
     };
 
-    Impl(ViewRuntime& valueHost, View& valueView, Base::IAllocator& valueAllocator) noexcept
+    Impl(Aero::Detail::ViewState& valueHost, View& valueView, Base::IAllocator& valueAllocator) noexcept
         : host(&valueHost),
           view(&valueView),
           allocator(&valueAllocator),
@@ -171,7 +171,7 @@ struct ReloadCoordinator::Impl final {
         return result;
     }
 
-    ViewRuntime* host = nullptr;
+    Aero::Detail::ViewState* host = nullptr;
     View* view = nullptr;
     Base::IAllocator* allocator = nullptr;
     Base::ResourceUri rootUri;
@@ -182,7 +182,7 @@ struct ReloadCoordinator::Impl final {
 };
 
 ReloadCoordinator::ReloadCoordinator(
-    ViewHost& viewHost,
+    View& view,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
@@ -193,13 +193,13 @@ ReloadCoordinator::ReloadCoordinator(
         Base::ReportOutOfMemory(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
-    ViewRuntime* runtime = static_cast<ViewRuntime*>(
-        viewHost.GetView().IntegrationRuntime());
-    if (runtime == nullptr) {
+    Aero::Detail::ViewState* state = static_cast<Aero::Detail::ViewState*>(
+        view.InternalState());
+    if (state == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup);
     }
-    impl_ = new (memory) Impl(*runtime, viewHost.GetView(), *allocator_);
+    impl_ = new (memory) Impl(*state, view, *allocator_);
 }
 
 ReloadCoordinator::~ReloadCoordinator() noexcept {
@@ -239,12 +239,12 @@ Base::Result<void> ReloadCoordinator::Start(
         !impl_->host->IsInitialized()) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
-            "XAML reload requires an initialized ViewRuntime");
+            "XAML reload requires an initialized View");
     }
     if (impl_->active || impl_->host->IsMounted()) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
-            "XAML reload requires an unmounted ViewRuntime");
+            "XAML reload requires an unmounted View");
     }
     Base::Result<Base::ResourceUri> parsed =
         Base::ResourceUri::Parse(rootUri);

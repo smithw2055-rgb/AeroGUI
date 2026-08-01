@@ -196,11 +196,11 @@ Point RadialGradientBrush::GradientOrigin() const noexcept {
         GradientOriginProperty, Point{0.5, 0.5});
 }
 
-double RadialGradientBrush::RadiusX() const noexcept {
+double RadialGradientBrush::GetRadiusX() const noexcept {
     return GetValueOr(RadiusXProperty, 0.5);
 }
 
-double RadialGradientBrush::RadiusY() const noexcept {
+double RadialGradientBrush::GetRadiusY() const noexcept {
     return GetValueOr(RadiusYProperty, 0.5);
 }
 
@@ -392,10 +392,10 @@ Base::Result<void> PaintBrushRect(
         const Point center = gradient.Center();
         const Point origin = gradient.GradientOrigin();
         const double radiusX =
-            std::max(std::fabs(gradient.RadiusX()),
+            std::max(std::fabs(gradient.GetRadiusX()),
                      1.0e-6);
         const double radiusY =
-            std::max(std::fabs(gradient.RadiusY()),
+            std::max(std::fabs(gradient.GetRadiusY()),
                      1.0e-6);
         constexpr std::uint32_t columns = 20U;
         constexpr std::uint32_t rows = 10U;

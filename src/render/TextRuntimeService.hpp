@@ -5,7 +5,7 @@
 #include "../controls/TextLayoutService.hpp"
 #include "../runtime/TextResourceContract.hpp"
 
-#include "graphics/Graphics.hpp"
+#include "render/RenderDevice.hpp"
 
 #include <cstdint>
 

@@ -189,7 +189,7 @@ public:
     inline static constexpr Members::Property<bool> UseLayoutRoundingProperty{"UseLayoutRounding"};
     inline static constexpr Members::Property<Base::Ref<Media::Transform>> LayoutTransformProperty{"LayoutTransform"};
 
-    Base::Result<void> SetLayoutRounding(
+    Base::Result<void> SetUseLayoutRounding(
         bool enabled, double dpiScale = 1.0) noexcept;
     Base::Result<void> SetWidth(double value) noexcept;
     Base::Result<void> ClearWidth() noexcept;

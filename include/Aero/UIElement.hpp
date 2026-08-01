@@ -268,12 +268,12 @@ public:
         BlendMode value) noexcept;
     Base::Result<void> SetEffect(
         Base::Ref<Media::Effect> value) noexcept;
-    Base::Result<void> SetHitTestVisible(bool value) noexcept;
+    Base::Result<void> SetIsHitTestVisible(bool value) noexcept;
     Base::Result<void> SetVisibility(Visibility value) noexcept;
-    Base::Result<void> SetEnabled(bool value) noexcept;
-    Base::Result<void> SetTabStop(bool value) noexcept;
+    Base::Result<void> SetIsEnabled(bool value) noexcept;
+    Base::Result<void> SetIsTabStop(bool value) noexcept;
     Base::Result<void> SetTabIndex(std::uint32_t value) noexcept;
-    Base::Result<void> SetFocusScope(bool value) noexcept;
+    Base::Result<void> SetIsFocusScope(bool value) noexcept;
     Base::Result<void> SetRenderTransform(
         Base::Ref<Media::Transform> value) noexcept;
     Base::Result<void> SetRenderTransformOrigin(
@@ -344,10 +344,9 @@ private:
         const HandlerDescriptor& handler) noexcept;
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
 
-    void* manager_ = nullptr;
-    void* eventRouter_ = nullptr;
-    void* commandRouter_ = nullptr;
-    void* handlerState_ = nullptr;
+    void* layoutManager_ = nullptr;
+    void* viewServices_ = nullptr;
+    void* routedHandlers_ = nullptr;
     Size desiredSize_;
     Size untransformedDesiredSize_;
     Size renderSize_;

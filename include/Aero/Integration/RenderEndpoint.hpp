@@ -16,11 +16,6 @@ enum class RenderEndpointMode : std::uint8_t {
     Window
 };
 
-enum class RenderSubmissionMode : std::uint8_t {
-    Immediate = 0U,
-    DedicatedThread
-};
-
 enum class RenderPresentMode : std::uint8_t {
     Immediate = 0U,
     Fifo,
@@ -38,12 +33,9 @@ enum class RenderEndpointState : std::uint8_t {
 struct RenderEndpointStatistics final {
     std::uint64_t acceptedFrameCount = 0U;
     std::uint64_t completedFrameCount = 0U;
-    std::uint64_t coalescedFrameCount = 0U;
     std::uint64_t failedFrameCount = 0U;
     std::uint64_t lastAcceptedVersion = 0U;
     std::uint64_t lastCompletedVersion = 0U;
-    std::uint32_t pendingFrameCount = 0U;
-    std::uint32_t highWatermark = 0U;
     std::uint64_t generation = 1U;
 };
 
@@ -64,8 +56,9 @@ class RenderEndpointAccess;
 }
 
 // A RenderEndpoint is the only public rendering attachment owned by a View.
-// Backend devices, surfaces, command streams and resource caches are private
-// implementation details behind this reference-counted object.
+// Submission is synchronous on the calling thread; the host owns thread and
+// frame scheduling. Backend devices, surfaces, command streams and resource
+// caches remain private behind this reference-counted object.
 class AERO_API RenderEndpoint final : public Base::Object {
     struct ConstructionToken final {};
 
@@ -75,7 +68,6 @@ public:
     RenderEndpoint(
         ConstructionToken,
         RenderEndpointMode mode,
-        RenderSubmissionMode submissionMode,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~RenderEndpoint() noexcept override;
 
@@ -83,7 +75,6 @@ public:
     RenderEndpoint& operator=(const RenderEndpoint&) = delete;
 
     RenderEndpointMode Mode() const noexcept;
-    RenderSubmissionMode SubmissionMode() const noexcept;
     RenderEndpointState State() const noexcept;
     std::uint64_t Generation() const noexcept;
     RenderEndpointStatistics Statistics() const noexcept;

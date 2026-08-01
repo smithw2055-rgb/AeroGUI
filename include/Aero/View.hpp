@@ -75,8 +75,7 @@ namespace Integration {
 class ISourceProvider;
 class RenderEndpoint;
 class ReloadCoordinator;
-class ViewHost;
-struct ViewHostOptions;
+struct ViewOptions;
 }
 
 // Process/application-level immutable composition. Its internal state is
@@ -96,17 +95,16 @@ public:
     Base::Result<void> Initialize() noexcept;
     Base::Result<Base::Ref<View>> CreateView(
         Base::IAllocator* allocator = nullptr) noexcept;
+    Base::Result<Base::Ref<View>> CreateView(
+        const Integration::ViewOptions& options,
+        Base::IAllocator* allocator = nullptr) noexcept;
 
     bool IsInitialized() const noexcept;
 
 private:
-    friend class Integration::ViewHost;
     friend class View;
 
     struct Impl;
-    Base::Result<Base::Ref<View>> CreateIntegratedView(
-        const Integration::ViewHostOptions& options,
-        Base::IAllocator* allocator) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> impl_;
@@ -136,8 +134,17 @@ public:
         Base::StringView source,
         const Base::ResourceUri& baseUri = {},
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<void> RegisterSourceProvider(
+        Integration::ISourceProvider& provider,
+        Base::StringView scheme = {},
+        Base::StringView assembly = {}) noexcept;
     Base::Result<void> SetContent(
         UiDocument&& document,
+        Aero::Size availableSize) noexcept;
+    // Programmatic root overload used by Application::Run(Window) and native
+    // hosts. The root must be created through Aero::Base::MakeRef.
+    Base::Result<void> SetContent(
+        Base::Ref<Base::Object> root,
         Aero::Size availableSize) noexcept;
     // Mounts a separately loaded XAML document into an already mounted
     // ContentControl. The document keeps its own names, resources and
@@ -209,7 +216,6 @@ private:
     friend class RuntimeEnvironment;
     friend class Aero::Detail::ViewAccess;
     friend class Integration::ReloadCoordinator;
-    friend class Integration::ViewHost;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
     Base::MakeRefWithAllocator(
@@ -218,12 +224,8 @@ private:
 
     struct Impl;
     Base::Result<void> Initialize(
-        const Integration::ViewHostOptions& options) noexcept;
-    Base::Result<void> RegisterSourceProvider(
-        Integration::ISourceProvider& provider,
-        Base::StringView scheme,
-        Base::StringView assembly) noexcept;
-    void* IntegrationRuntime() noexcept;
+        const Integration::ViewOptions& options) noexcept;
+    void* InternalState() noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

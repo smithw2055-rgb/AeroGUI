@@ -3,11 +3,11 @@
 #include "RenderEndpointInternal.hpp"
 
 #include "render/opengl33/OpenGL33Renderer.hpp"
-#include "graphics/OpenGL33Backend.hpp"
+#include "render/opengl33/OpenGL33Backend.hpp"
 
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
 #include "platform/win32/OpenGLSurface.hpp"
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
 #include "platform/x11/OpenGLSurface.hpp"
 #endif
 
@@ -167,11 +167,6 @@ public:
 
     ~OpenGL33EndpointBackend() override {
         Shutdown();
-    }
-
-    bool SupportsDedicatedThread() const noexcept override {
-        // WGL/GLX and embedded context callbacks remain owner-thread affine.
-        return false;
     }
 
     Base::Result<void> Initialize() noexcept {
@@ -419,7 +414,7 @@ private:
     }
 
     Base::Result<void> CreateWindowSurface() noexcept {
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         if (windowOptions_.window.system !=
             Integration::WindowSystem::Win32) {
             return Base::Status::Failure(
@@ -432,7 +427,7 @@ private:
         return surfaceBackend_ != nullptr
             ? Base::Result<void>()
             : Base::Result<void>(OutOfMemory());
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
         if (windowOptions_.window.system !=
             Integration::WindowSystem::X11) {
             return Base::Status::Failure(
@@ -458,9 +453,9 @@ private:
             return Graphics::LoadGlFunctionTable(
                 &ResolveEmbedded, this);
         }
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         return wglSurface_->LoadFunctions();
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
         return glxSurface_->LoadFunctions();
 #else
         return Base::Status::Failure(
@@ -472,9 +467,9 @@ private:
     Base::Result<Graphics::GlContextContract>
     ContextContract() noexcept {
         if (!embedded_) {
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
             return wglSurface_->ContextContract();
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
             return glxSurface_->ContextContract();
 #else
             return Base::Status::Failure(
@@ -528,12 +523,12 @@ private:
             descriptor.presentMode =
                 ToRhiPresentMode(
                     windowOptions_.presentMode);
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
             descriptor.kind =
                 Graphics::SurfaceKind::WglWindow;
             descriptor.wgl.window =
                 windowOptions_.window.window;
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
             descriptor.kind =
                 Graphics::SurfaceKind::GlxWindow;
             descriptor.glx.display =
@@ -571,10 +566,10 @@ private:
         }
         delete embeddedSurface_;
         embeddedSurface_ = nullptr;
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
         delete wglSurface_;
         wglSurface_ = nullptr;
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
         delete glxSurface_;
         glxSurface_ = nullptr;
 #endif
@@ -590,9 +585,9 @@ private:
     std::uint64_t contextGeneration_ = 0U;
     Graphics::NativeSurfaceDescriptor descriptor_;
     OpenGL33EmbeddedSurface* embeddedSurface_ = nullptr;
-#if defined(_WIN32)
+#if defined(_WIN32) && AERO_HAS_WGL_SURFACE
     Graphics::WglSurfaceBackend* wglSurface_ = nullptr;
-#elif defined(__linux__)
+#elif defined(__linux__) && AERO_HAS_GLX_SURFACE
     Graphics::GlxSurfaceBackend* glxSurface_ = nullptr;
 #endif
     Graphics::ISurfaceBackend* surfaceBackend_ = nullptr;
@@ -607,7 +602,6 @@ Base::Result<Base::Ref<RenderEndpoint>>
 CreateOpenGL33Endpoint(
     const TOptions& options,
     RenderEndpointMode mode,
-    RenderSubmissionMode submissionMode,
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator
@@ -625,7 +619,7 @@ CreateOpenGL33Endpoint(
         return initialized.GetStatus();
     }
     return Detail::RenderEndpointAccess::Create(
-        mode, submissionMode, driver, &selected);
+        mode, driver, &selected);
 }
 
 } // namespace
@@ -648,7 +642,6 @@ CreateOpenGL33EmbeddedEndpoint(
     return CreateOpenGL33Endpoint(
         options,
         RenderEndpointMode::Embedded,
-        options.submissionMode,
         allocator);
 }
 
@@ -666,7 +659,6 @@ CreateOpenGL33WindowEndpoint(
     return CreateOpenGL33Endpoint(
         options,
         RenderEndpointMode::Window,
-        options.submissionMode,
         allocator);
 }
 

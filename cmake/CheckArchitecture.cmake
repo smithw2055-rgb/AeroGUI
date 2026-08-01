@@ -179,6 +179,10 @@ foreach(removed_path IN ITEMS
 endforeach()
 
 foreach(removed_sdk_path IN ITEMS
+    "include/Aero/Integration/HostServices.hpp"
+    "include/Aero/Integration/View.hpp"
+    "include/Aero/Integration/ViewHost.hpp"
+    "include/Aero/App/Launcher.hpp"
     "include/Aero/App/ApplicationHost.hpp"
     "include/Aero/App/Services.hpp"
     "include/Aero/App/Fwd.hpp"
@@ -337,7 +341,8 @@ set(sdk_entry_headers
     "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Module.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/ViewHost.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/View.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/ViewOptions.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/SourceProvider.hpp")
 aero_collect_matches(sdk_entry_leaks
@@ -348,13 +353,24 @@ if(sdk_entry_leaks)
         "Default SDK headers expose runtime implementation types: ${sdk_entry_leaks}")
 endif()
 
-aero_collect_matches(default_app_launcher_leak
-    "Aero/App/Launcher[.]hpp|LaunchOptions|GraphicsBackend|class[ \t]+Launcher"
-    "${AERO_SOURCE_DIR}/include/Aero/App.hpp")
-if(default_app_launcher_leak)
+aero_collect_matches(retired_view_host_surface
+    "(ViewHost|ViewHostOptions|Aero/Integration/View[.]hpp)"
+    ${sdk_entry_headers})
+if(retired_view_host_surface)
     message(FATAL_ERROR
-        "Default App.hpp must not expose the advanced launcher surface: "
-        "${default_app_launcher_leak}")
+        "The forwarding ViewHost layer or old View header path remains: "
+        "${retired_view_host_surface}")
+endif()
+
+set(platform_service_contract
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/PlatformServices.hpp")
+aero_collect_matches(public_native_platform_adapters
+    "(Win32|X11|DispatchWin32|WindowMessage|GetActiveWindow|HWND|HIMC)"
+    ${platform_service_contract})
+if(public_native_platform_adapters)
+    message(FATAL_ERROR
+        "PlatformServices must expose contracts only; native adapters are private: "
+        "${public_native_platform_adapters}")
 endif()
 
 set(wpf_authoring_headers
@@ -385,6 +401,30 @@ if(wpf_legacy_accessors)
     message(FATAL_ERROR
         "WPF-facing element headers expose legacy non-Get accessors: "
         "${wpf_legacy_accessors}")
+endif()
+
+aero_collect_matches(wpf_legacy_setters
+    "[ \t](SetEnabled|SetHitTestVisible|SetTabStop|SetFocusScope|SetLayoutRounding)[ \t]*[(]"
+    ${wpf_single_track_headers}
+    "${AERO_SOURCE_DIR}/include/Aero/FrameworkElement.hpp")
+if(wpf_legacy_setters)
+    message(FATAL_ERROR
+        "WPF-facing element headers expose property setters without the canonical property name: "
+        "${wpf_legacy_setters}")
+endif()
+
+set(wpf_shape_headers
+    "${AERO_SOURCE_DIR}/include/Aero/Shapes.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Panels.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Controls/Primitives.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Media/Brushes.hpp")
+aero_collect_matches(wpf_shape_legacy_getters
+    "[ \t](Fill|FillBrush|Stroke|StrokeBrush|StrokeThickness|RadiusX|RadiusY|LastChildFill)[ \t]*[(][)]"
+    ${wpf_shape_headers})
+if(wpf_shape_legacy_getters)
+    message(FATAL_ERROR
+        "WPF-facing property getters must use Get<Property>(): "
+        "${wpf_shape_legacy_getters}")
 endif()
 
 aero_collect_matches(default_property_diagnostics
@@ -454,10 +494,10 @@ endif()
 
 aero_collect_matches(split_view_input_services
     "Aero::Detail::(FocusManager|PointerInputManager|KeyboardInputManager|TextInputManager)[*][ \t]+(focus|pointer|keyboard|textInput)"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewRuntime.cpp")
+    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp")
 if(split_view_input_services)
     message(FATAL_ERROR
-        "ViewRuntime must own input through its private InputService aggregate: "
+        "ViewState must own input through its private InputService aggregate: "
         "${split_view_input_services}")
 endif()
 
@@ -577,10 +617,19 @@ if(retired_ui)
 endif()
 
 
-# G-series product and graphics convergence gates.
+# G-series product and rendering convergence gates.
 if(EXISTS "${AERO_SOURCE_DIR}/src/rhi")
     message(FATAL_ERROR
-        "The retired src/rhi layer must not be recreated; use src/graphics")
+        "The retired src/rhi layer must not be recreated; use src/render")
+endif()
+if(EXISTS "${AERO_SOURCE_DIR}/src/graphics")
+    message(FATAL_ERROR
+        "GPU device and backend implementation belongs to src/render; "
+        "the split src/graphics layer must not be recreated")
+endif()
+if(EXISTS "${AERO_SOURCE_DIR}/cmake/AeroGraphicsTargets.cmake")
+    message(FATAL_ERROR
+        "Rendering targets must be composed by AeroRenderingTargets.cmake")
 endif()
 
 file(GLOB_RECURSE converged_runtime_sources
@@ -606,6 +655,15 @@ if(public_internal_target_aliases)
     message(FATAL_ERROR
         "Internal build targets must use Aero::_Detail* aliases: "
         "${public_internal_target_aliases}")
+endif()
+
+aero_collect_matches(split_render_targets
+    "add_library[^A-Za-z0-9_:]+(Aero(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX))|Aero::_Detail(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX)))[ \t\r\n]"
+    ${aero_target_modules})
+if(split_render_targets)
+    message(FATAL_ERROR
+        "Renderer, render device and native backends must use the single "
+        "AeroRendering target: ${split_render_targets}")
 endif()
 
 aero_collect_matches(unprefixed_support_exports
@@ -669,7 +727,10 @@ foreach(required_private_header IN ITEMS
         "src/controls/TemplateProgram.hpp"
         "src/controls/TemplateInstance.hpp"
         "src/controls/TemplateAccess.hpp"
-        "src/controls/VisualStateRuntime.hpp")
+        "src/controls/VisualStateRuntime.hpp"
+        "src/platform/win32/InputServices.hpp"
+        "src/platform/win32/Window.hpp"
+        "src/platform/x11/Window.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_private_header}")
         message(FATAL_ERROR
             "Required converged private header is missing: ${required_private_header}")
@@ -681,10 +742,21 @@ foreach(retired_private_file IN ITEMS
         "src/gui/RuntimeServices.hpp"
         "src/controls/TemplateRuntime.hpp"
         "src/render/TextBackendAccess.hpp"
+        "src/render/Device.hpp"
         "src/graphics/Device.hpp"
         "src/runtime/PresentationRuntime.cpp"
         "src/runtime/PresentationRuntime.hpp"
-        "src/runtime/RuntimeFwd.hpp")
+        "src/runtime/RuntimeFwd.hpp"
+        "src/runtime/ViewRuntime.cpp"
+        "src/runtime/ViewRuntime.hpp"
+        "src/runtime/RuntimeUiServices.cpp"
+        "src/runtime/RuntimeUiServices.hpp"
+        "src/platform/Ime.cpp"
+        "src/platform/Win32Window.cpp"
+        "src/platform/Win32Window.hpp"
+        "src/platform/X11Window.cpp"
+        "src/platform/X11Window.hpp"
+        "cmake/AeroPlatformSources.cmake")
     if(EXISTS "${AERO_SOURCE_DIR}/${retired_private_file}")
         message(FATAL_ERROR
             "Retired private aggregation file was recreated: ${retired_private_file}")
@@ -703,6 +775,15 @@ if(retired_input_managers)
         "${retired_input_managers}")
 endif()
 
+aero_collect_matches(split_ui_element_services
+    "(eventRouter_|commandRouter_|(^|[^A-Za-z0-9_])manager_|handlerState_)"
+    "${AERO_SOURCE_DIR}/include/Aero/UIElement.hpp")
+if(split_ui_element_services)
+    message(FATAL_ERROR
+        "UIElement must use one View service attachment and semantic private state: "
+        "${split_ui_element_services}")
+endif()
+
 aero_collect_matches(command_route_bypass
     "EventRoute[ \t]+[A-Za-z_]|[.]Build\\([A-Za-z_]+,[ \t]*RoutingStrategy"
     "${AERO_SOURCE_DIR}/src/gui/Commands.cpp")
@@ -718,6 +799,34 @@ file(GLOB_RECURSE render_runtime_files
     "${AERO_SOURCE_DIR}/src/integration/*.hpp"
     "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/*.hpp")
+aero_collect_matches(view_owned_document_implementation
+    "UiDocumentAccess::Adopt|struct[ \t]+UiDocument::Impl"
+    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp"
+    "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
+if(view_owned_document_implementation)
+    message(FATAL_ERROR
+        "UiDocument implementation belongs to Markup, not View runtime: "
+        "${view_owned_document_implementation}")
+endif()
+
+aero_collect_matches(view_owned_control_state_mutation
+    "void[ \t\r\n]+Aero::Detail::ControlRuntimeAccess::SetVisualStateManager"
+    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp")
+if(view_owned_control_state_mutation)
+    message(FATAL_ERROR
+        "Control private state mutation belongs to Controls: "
+        "${view_owned_control_state_mutation}")
+endif()
+
+aero_collect_matches(ungated_window_surface_backends
+    "#if[ \t]+defined[(]_WIN32[)]([ \t\r\n]*)$|#elif[ \t]+defined[(]__linux__[)]([ \t\r\n]*)$"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp")
+if(ungated_window_surface_backends)
+    message(FATAL_ERROR
+        "OpenGL window endpoint backends must be gated by enabled surface options: "
+        "${ungated_window_surface_backends}")
+endif()
+
 aero_collect_matches(retired_render_submission_layers
     "(RenderBackend|EndpointSubmissionBackend|QueryInternalService|TextBackendServiceId|MeshBackendServiceId|ImageBackendServiceId)"
     ${render_runtime_files})
@@ -725,6 +834,32 @@ if(retired_render_submission_layers)
     message(FATAL_ERROR
         "Retired render submission layers or service locators remain: "
         "${retired_render_submission_layers}")
+endif()
+
+aero_collect_matches(hidden_render_worker
+    "(RenderSubmissionMode|DedicatedThread|WorkerMain|StartWorker|StopWorker|pendingFrameCount|coalescedFrameCount|highWatermark)"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/D3D11.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/OpenGL33.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/HostedGraphics.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/RenderEndpoint.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/RenderEndpointInternal.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/D3D11Endpoint.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/HostedGraphics.cpp")
+if(hidden_render_worker)
+    message(FATAL_ERROR
+        "Render scheduling belongs to the host; hidden endpoint workers or "
+        "queues remain: ${hidden_render_worker}")
+endif()
+
+aero_collect_matches(hidden_endpoint_thread
+    "(std::thread|condition_variable)"
+    "${AERO_SOURCE_DIR}/src/integration/RenderEndpoint.cpp")
+if(hidden_endpoint_thread)
+    message(FATAL_ERROR
+        "RenderEndpoint must not create or coordinate a private thread: "
+        "${hidden_endpoint_thread}")
 endif()
 
 aero_collect_matches(render_tree_submission_leak
@@ -801,19 +936,32 @@ if(retired_tree_layers)
         "Retired object-tree or mount layer was recreated: ${retired_tree_layers}")
 endif()
 
-aero_collect_matches(view_runtime_service_locator
+aero_collect_matches(view_state_service_locator
     "(Metadata|MetadataRuntime|EffectiveValues|Animations|Tree|Layout|Renderer|Bindings|RoutedEvents|Templates|VisualStates|Schema|Sources|EmbeddedSources|DocumentCache|ApplicationResources|ThemeResources|SystemResources|Styles)[ \t]*\\(\\)[ \t]*noexcept"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewRuntime.hpp")
-if(view_runtime_service_locator)
+    "${AERO_SOURCE_DIR}/src/runtime/ViewState.hpp")
+if(view_state_service_locator)
     message(FATAL_ERROR
-        "ViewRuntime must not expose its internal service graph: "
-        "${view_runtime_service_locator}")
+        "ViewState must not expose its internal service graph: "
+        "${view_state_service_locator}")
+endif()
+
+aero_collect_matches(retired_platform_target
+    "(^|[^A-Za-z0-9_])AeroPlatform([^A-Za-z0-9_]|$)|Aero::_DetailPlatform"
+    "${AERO_SOURCE_DIR}/CMakeLists.txt"
+    "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroRuntimeTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroProductTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
+if(retired_platform_target)
+    message(FATAL_ERROR
+        "The forwarding AeroPlatform target was recreated: "
+        "${retired_platform_target}")
 endif()
 
 aero_collect_matches(retired_gui_target_name
     "(^|[^A-Za-z0-9_])AeroCore([^A-Za-z0-9_]|$)|Aero::_DetailCore"
     "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
-    "${AERO_SOURCE_DIR}/cmake/AeroGraphicsTargets.cmake"
+    "${AERO_SOURCE_DIR}/cmake/AeroRenderingTargets.cmake"
     "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
 if(retired_gui_target_name)
     message(FATAL_ERROR

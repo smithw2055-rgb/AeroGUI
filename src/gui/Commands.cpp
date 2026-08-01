@@ -168,26 +168,28 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 Base::Result<bool> RoutedCommand::CanExecute(
     const Core::Value& parameter,
     UIElement* target) noexcept {
-    if (target == nullptr || target->commandRouter_ == nullptr) {
+    Aero::Detail::InputService* input = target != nullptr
+        ? Aero::Detail::UiRuntimeAccess::InputServiceFor(*target)
+        : nullptr;
+    if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "RoutedCommand requires a loaded command target");
     }
-    auto* input = static_cast<Aero::Detail::InputService*>(
-        target->commandRouter_);
     return input->CanExecute(*this, parameter, *target);
 }
 
 Base::Result<void> RoutedCommand::Execute(
     const Core::Value& parameter,
     UIElement* target) noexcept {
-    if (target == nullptr || target->commandRouter_ == nullptr) {
+    Aero::Detail::InputService* input = target != nullptr
+        ? Aero::Detail::UiRuntimeAccess::InputServiceFor(*target)
+        : nullptr;
+    if (input == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "RoutedCommand requires a loaded command target");
     }
-    auto* input = static_cast<Aero::Detail::InputService*>(
-        target->commandRouter_);
     Base::Result<bool> executed =
         input->Execute(*this, parameter, *target);
     if (!executed) return executed.GetStatus();

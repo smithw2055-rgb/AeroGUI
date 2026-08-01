@@ -213,7 +213,9 @@ GLES 3.1/3.2 能力可作为优化，不改变 GLES 3.0 baseline。
 
 ### 7.1 GLX
 
-Target：`AeroPlatform_GLX`
+GLX is opt-in in the trimmed SDK build and requires system OpenGL/X11 development packages.
+
+Private adapter: `src/platform/x11` + `src/render/opengl33`
 
 GLX 负责 Linux/X11 环境：
 
@@ -238,7 +240,7 @@ GLX 负责 Linux/X11 环境：
 
 ### 7.2 EGL
 
-Target：`AeroPlatform_EGL`
+Private adapter: `src/platform/egl` (planned)
 
 用途：
 
@@ -252,7 +254,7 @@ EGL adapter 与 `AeroGraphics_GLES30` 主要组合，也可在实现支持时承
 
 ### 7.3 WGL
 
-Target：`AeroPlatform_WGL`
+Private adapter: `src/platform/win32` + `src/render/opengl33`
 
 用途：Windows desktop OpenGL 3.3 Core。
 
@@ -292,10 +294,10 @@ JavaScript/HTML Host
   context lost/restored events
         |
         v
-AeroPlatform_Web
+private Web host/context adapter
         |
         v
-AeroGraphics_WebGL2 (WASM-facing handle/function layer)
+WebGL2 RenderDevice implementation (WASM-facing handle/function layer)
 ```
 
 JS bridge 应最小化，不使用 Embind 作为核心 ABI 前提。资源 ID 在 C++ 和 JS 之间使用受控 handle table，避免直接持有不稳定 JS object pointer。

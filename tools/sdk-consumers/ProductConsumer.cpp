@@ -1,5 +1,4 @@
 #include <Aero/App.hpp>
-#include <Aero/App/Launcher.hpp>
 
 #include <type_traits>
 
@@ -44,11 +43,8 @@ protected:
 };
 
 [[maybe_unused]] void ConsumeApplicationSdk(
-    Aero::App::Launcher& launcher,
     Aero::Application& application,
     Aero::Window& window) noexcept {
-    static_cast<void>(launcher.GetApplication());
-    static_cast<void>(launcher.GetMainWindow());
     application.SetMainWindow(&window);
     application.SetShutdownMode(
         Aero::ShutdownMode::OnExplicitShutdown);
@@ -67,7 +63,12 @@ protected:
     ConsumerWindow window;
     static_cast<void>(application.RuntimeType());
     static_cast<void>(window.RuntimeType());
-    static_cast<void>(static_cast<int (*)() noexcept>(&Aero::App::Run));
+    static_cast<void>(
+        static_cast<int (Aero::Application::*)() noexcept>(
+            &Aero::Application::Run));
+    static_cast<void>(
+        static_cast<int (*)(const Aero::App::RunOptions&) noexcept>(
+            &Aero::App::Run));
 }
 
 static_assert(

@@ -31,9 +31,8 @@ src/
 ├─ text/          shaping, glyph atlas and text-provider adapters
 ├─ media/         brushes, images, transforms, effects and animation objects
 ├─ runtime/       View composition, frame lifecycle and built-in modules
-├─ render/        RenderTree, immutable RenderFrame and generic Renderer
-├─ graphics/      GraphicsDevice, command list and native API backends
-├─ platform/      native windows, clipboard, IME and native surfaces
+├─ render/        RenderTree, RenderFrame, Renderer, RenderDevice and GPU backends
+├─ platform/      OS-private windows, clipboard, IME and context adapters
 ├─ integration/   host factories and RenderEndpoint implementations
 ├─ app/           default Application/Window desktop lifetime
 ├─ diagnostics/   inspector and diagnostics implementation
@@ -85,7 +84,7 @@ See `TREE_MODEL.md` for the detailed contract.
 ## Runtime composition
 
 ```text
-ViewRuntime::Impl
+Aero::Detail::ViewState::Impl
 ├─ schema and document cache
 ├─ GUI services owned directly by the View
 │  ├─ metadata and dependency properties
@@ -99,9 +98,19 @@ ViewRuntime::Impl
 └─ RenderEndpoint
 ```
 
-`ViewRuntime` does not expose a service-locator surface. Repository-owned
+`Aero::Detail::ViewState` does not expose a service-locator surface. Repository-owned
 inspection and reload code uses the narrow `ViewAccess` bridge implemented next
-to `ViewRuntime::Impl`.
+to `Aero::Detail::ViewState::Impl`.
+
+Platform-neutral clipboard and text-input contracts are declared in
+`Aero/Integration/PlatformServices.hpp`. The default App owns concrete adapters
+from `src/platform/win32` or another OS directory. Controls and View state consume
+only the interfaces; native message types and window procedures never cross the
+installed SDK boundary.
+There is no standalone `AeroPlatform` library. The reusable in-memory clipboard
+implementation belongs to Integration, while the default OS window, clipboard
+and IME adapters are compiled directly into App. Platform directories organize
+source ownership; they are not an additional link-time product layer.
 
 ## Event and command routing
 
@@ -122,6 +131,11 @@ Route nodes are `DependencyObject` instances, so both `UIElement` and
 `ContentElement` participate. Commands visit the same route through
 `EventRouter`; command code must not walk visual or logical parents directly.
 
+Loaded `UIElement` objects carry one private View-services attachment. It
+provides the canonical `EventRouter` and `InputService`; separate event-router
+and command-router pointers are not stored on each element. Layout ownership
+and routed-handler storage remain explicit element state.
+
 ## Templates and controls
 
 Template implementation is split by real responsibility:
@@ -141,25 +155,28 @@ Default control behavior is coordinated by one private
 retained UI
 → RenderTree::Commit() creates RenderFrame
 → RenderEndpoint::Submit(RenderFrame)
-→ Renderer records Graphics::CommandList
-→ GraphicsDevice submits to GraphicsBackend
-→ native surface presents
+→ Renderer records the private RenderDevice command stream
+→ the selected D3D11/OpenGL/hosted device submits and presents
 ```
 
 Render resources use explicit image, mesh and glyph contracts. Magic service
-identifiers and `QueryInternalService()` lookup are forbidden.
+identifiers and `QueryInternalService()` lookup are forbidden. `RenderEndpoint`
+submits synchronously on the caller-selected thread; the core library owns no
+render worker, pending-frame queue or coalescing policy.
 
 ## CMake ownership
 
-- `AeroGuiTargets.cmake` owns `AeroGuiKernel`, controls, markup and schema;
+- `AeroGuiTargets.cmake` owns `AeroGuiKernel`, controls, markup, `UiDocument` and schema;
 - `AeroRuntimeTargets.cmake` owns View/runtime composition;
-- `AeroGraphicsTargets.cmake` owns render, graphics and native backends;
-- `AeroProductTargets.cmake` owns Integration and App;
+- `AeroRenderingTargets.cmake` owns the retained renderer, render device,
+  native GPU backends and their private surface/context adapters;
+- `AeroProductTargets.cmake` owns Integration, App and their platform implementations;
 - `AeroToolsTargets.cmake` owns `aero-schema-gen` and `aero-xamlc`;
 - `AeroInstall.cmake` owns package exports and public headers.
 
-`AeroGuiKernel` is an internal binary identity. Product consumers link
-`Aero::Gui`, not the underscore-prefixed static support targets.
+`AeroGuiKernel` and `AeroRendering` are internal binary identities. Product
+consumers link `Aero::Gui` or `Aero::Integration`, not the underscore-prefixed
+static support targets.
 
 ## Architecture gates
 
@@ -170,7 +187,7 @@ identifiers and `QueryInternalService()` lookup are forbidden.
 - `src/gui` stays flat and within explicit file budgets;
 - ObjectTree/MountService/VisualTreeMount and the old runtime forward layer stay
   removed;
-- `ViewRuntime` does not expose internal service accessors;
+- `Aero::Detail::ViewState` does not expose internal service accessors;
 - commands and content use the single routed-event route;
 - RenderTree does not own endpoint submission;
 - DependencyProperty and RoutedEvent declarations remain single-line.

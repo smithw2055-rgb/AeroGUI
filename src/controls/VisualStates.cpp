@@ -10,6 +10,17 @@
 #include <utility>
 #include "RuntimeManagers.hpp"
 #include "gui/AnimationInternal.hpp"
+#include "gui/ElementInternal.hpp"
+
+namespace Aero::Detail {
+
+void ControlRuntimeAccess::SetVisualStateManager(
+    Controls::Control& control,
+    Controls::VisualStateManager* visualStates) noexcept {
+    control.visualStateRuntime_ = visualStates;
+}
+
+} // namespace Aero::Detail
 
 namespace Aero::Controls {
 using Aero::Controls::Detail::TemplateHandle;

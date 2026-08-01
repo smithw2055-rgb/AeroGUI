@@ -1,28 +1,21 @@
 #pragma once
 
 #include <Aero/Base/Allocator.hpp>
-#include "Window.hpp"
+#include "../Window.hpp"
 
 namespace Aero::Platform {
 
-class AERO_API X11Window final : public IWindow {
+class AERO_API Win32Window final : public IWindow {
 public:
-    explicit X11Window(
+    explicit Win32Window(
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~X11Window() override;
+    ~Win32Window() override;
 
-    X11Window(const X11Window&) = delete;
-    X11Window& operator=(const X11Window&) = delete;
+    Win32Window(const Win32Window&) = delete;
+    Win32Window& operator=(const Win32Window&) = delete;
 
     Base::Result<void> Create(
         const WindowDescriptor& descriptor) noexcept override;
-    Base::Result<void> Attach(
-        std::uintptr_t display,
-        std::uintptr_t window,
-        std::uint32_t width,
-        std::uint32_t height,
-        Base::StringView title = "AeroGUI",
-        bool visible = true) noexcept;
     Base::Result<void> Show() noexcept override;
     Base::Result<bool> PollEvent(
         WindowEvent& event) noexcept override;

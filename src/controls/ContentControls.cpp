@@ -18,7 +18,7 @@ Popup::Popup(TypeId runtimeType) noexcept
       openChangedHandler_(
           this,
           &Popup::OnOpenPropertyChanged) {
-    static_cast<void>(SetHitTestVisible(false));
+    static_cast<void>(SetIsHitTestVisible(false));
     static_cast<void>(TryAddValueChangedHandler(
         IsOpenProperty,
         openChangedHandler_));
@@ -140,7 +140,7 @@ void Popup::OnOpenPropertyChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
     static_cast<void>(
-        SetHitTestVisible(
+        SetIsHitTestVisible(
             args.newValue.AsBoolean()));
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;

@@ -180,7 +180,7 @@ private:
     DependencyObject* logicalParent_ = nullptr;
     UIElement* contentHost_ = nullptr;
     void* eventRouter_ = nullptr;
-    void* handlerState_ = nullptr;
+    void* routedHandlers_ = nullptr;
 };
 
 // WPF-shaped non-visual content node with resources, DataContext, Style and
