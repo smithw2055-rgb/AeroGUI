@@ -19,8 +19,8 @@ enum class TransformOwnerRole : std::uint8_t {
     Layout = 2U
 };
 
-class AERO_API Transform : public Core::DependencyObject {
-    AERO_DECLARE_TYPE(Transform, Core::DependencyObject)
+class AERO_API Transform : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(Transform, ::Aero::DependencyObject)
 public:
     virtual Base::Transform2D Matrix() const noexcept = 0;
     Aero::FrameworkElement* Owner() const noexcept { return owner_; }

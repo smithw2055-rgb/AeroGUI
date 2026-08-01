@@ -8,12 +8,12 @@ namespace Aero::Detail {
 
 using namespace Aero::Core;
 
-class AERO_API LayoutManager final {
+class AERO_API LayoutEngine final {
 public:
-    explicit LayoutManager(Dispatcher& dispatcher) noexcept;
-    ~LayoutManager() noexcept;
-    LayoutManager(const LayoutManager&) = delete;
-    LayoutManager& operator=(const LayoutManager&) = delete;
+    explicit LayoutEngine(Dispatcher& dispatcher) noexcept;
+    ~LayoutEngine() noexcept;
+    LayoutEngine(const LayoutEngine&) = delete;
+    LayoutEngine& operator=(const LayoutEngine&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     Base::Result<void> Attach(UIElement& parent, UIElement& child) noexcept;

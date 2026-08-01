@@ -15,7 +15,7 @@
 #include <new>
 
 namespace Aero::Detail {
-class ContentElementAccess;
+class ElementPrivate;
 class EventRouter;
 }
 
@@ -121,7 +121,7 @@ protected:
         RoutedEventArgs* args = nullptr) noexcept;
 
 private:
-    friend class Aero::Detail::ContentElementAccess;
+    friend class Aero::Detail::ElementPrivate;
     friend class Aero::Detail::EventRouter;
 
     struct HandlerOperations final {
@@ -221,7 +221,7 @@ protected:
     virtual DependencyObject* GetLogicalChild(std::uint32_t) const noexcept { return nullptr; }
 
 private:
-    friend class Aero::Detail::ContentElementAccess;
+    friend class Aero::Detail::ElementPrivate;
     ResourceDictionary resources_;
 };
 

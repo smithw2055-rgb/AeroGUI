@@ -12,7 +12,7 @@
 #include <utility>
 
 namespace Aero::Detail {
-class StyleAccess;
+class StylePrivate;
 }
 
 namespace Aero {
@@ -571,7 +571,7 @@ public:
         Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend class ::Aero::Detail::StyleAccess;
+    friend class ::Aero::Detail::StylePrivate;
 
     Base::Result<void> SealRuntime(
         const void* properties) noexcept;

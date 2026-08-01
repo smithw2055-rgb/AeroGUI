@@ -3,7 +3,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Integration/RenderEndpoint.hpp>
+#include <Aero/Integration/RenderDevice.hpp>
 #include <Aero/Integration/NativeWindow.hpp>
 
 #include <cstdint>
@@ -28,7 +28,7 @@ using D3D11TargetCallback = Base::Status (*)(
     void* context,
     D3D11EmbeddedTarget* target) noexcept;
 
-struct D3D11EmbeddedEndpointOptions final {
+struct D3D11EmbeddedDeviceOptions final {
     std::uintptr_t device = 0U;
     std::uintptr_t immediateContext = 0U;
     D3D11TargetCallback acquireTarget = nullptr;
@@ -37,7 +37,7 @@ struct D3D11EmbeddedEndpointOptions final {
         D3D11StatePreservationPolicy::HostResetsState;
 };
 
-struct D3D11WindowEndpointOptions final {
+struct D3D11WindowDeviceOptions final {
     NativeWindowHandle window;
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
@@ -47,14 +47,14 @@ struct D3D11WindowEndpointOptions final {
     bool enableDebugLayer = false;
 };
 
-AERO_API Base::Result<Base::Ref<RenderEndpoint>>
-CreateD3D11EmbeddedEndpoint(
-    const D3D11EmbeddedEndpointOptions& options,
+AERO_API Base::Result<Base::Ref<RenderDevice>>
+CreateD3D11EmbeddedDevice(
+    const D3D11EmbeddedDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
-AERO_API Base::Result<Base::Ref<RenderEndpoint>>
-CreateD3D11WindowEndpoint(
-    const D3D11WindowEndpointOptions& options,
+AERO_API Base::Result<Base::Ref<RenderDevice>>
+CreateD3D11WindowDevice(
+    const D3D11WindowDeviceOptions& options,
     Base::IAllocator* allocator = nullptr) noexcept;
 
 } // namespace Aero::Integration

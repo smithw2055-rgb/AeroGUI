@@ -1,16 +1,16 @@
 #pragma once
 
 #include <Aero/Base/Result.hpp>
-#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Meta/Registry.hpp>
 
 namespace Aero::Controls {
 
 namespace Detail {
 
 // Module population is an implementation callback; hosts register through the
-// MetadataDomain overload below.
+// MetaRegistry overload below.
 AERO_API Base::Result<void> PopulateControlsMetadata(
-    Core::MetadataContext& context) noexcept;
+    Core::MetaRegistration& context) noexcept;
 
 } // namespace Detail
 
@@ -19,7 +19,7 @@ inline constexpr Base::StringView ControlsMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterControlsMetadata(
-    Core::MetadataDomain& domain) noexcept {
+    Core::MetaRegistry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 28U;
     const Base::StringView name = ControlsMetadataModuleName();
     return domain.TryRegisterModule({

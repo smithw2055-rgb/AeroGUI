@@ -1,6 +1,6 @@
 #include <Aero/Application.hpp>
 
-#include "ApplicationRuntime.hpp"
+#include "ApplicationState.hpp"
 
 namespace Aero {
 namespace {
@@ -11,8 +11,8 @@ Application* Application::Current() noexcept { return currentApplication; }
 
 std::uint32_t WindowCollection::GetCount() const noexcept {
     if (owner_ == nullptr) return 0U;
-    const auto* state = static_cast<const App::Detail::ApplicationRuntimeState*>(
-        owner_->runtimeState_);
+    const auto* state = static_cast<const App::Detail::ApplicationHostState*>(
+        owner_->hostState_);
     if (state != nullptr && state->windowCount != nullptr) {
         return state->windowCount(state->context);
     }
@@ -21,8 +21,8 @@ std::uint32_t WindowCollection::GetCount() const noexcept {
 
 Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
     if (owner_ == nullptr) return nullptr;
-    const auto* state = static_cast<const App::Detail::ApplicationRuntimeState*>(
-        owner_->runtimeState_);
+    const auto* state = static_cast<const App::Detail::ApplicationHostState*>(
+        owner_->hostState_);
     if (state != nullptr && state->windowAt != nullptr) {
         return state->windowAt(state->context, index);
     }
@@ -38,7 +38,7 @@ void Application::SetMainWindow(Window* value) noexcept {
             mainWindowOwner_ = Base::Ref<Base::Object>(std::move(retained));
         }
     }
-    auto* state = static_cast<App::Detail::ApplicationRuntimeState*>(runtimeState_);
+    auto* state = static_cast<App::Detail::ApplicationHostState*>(hostState_);
     if (state != nullptr && state->setMainWindow != nullptr) {
         state->setMainWindow(state->context, value);
     }
@@ -46,7 +46,7 @@ void Application::SetMainWindow(Window* value) noexcept {
 
 
 void Application::Shutdown(int exitCode) noexcept {
-    auto* state = static_cast<App::Detail::ApplicationRuntimeState*>(runtimeState_);
+    auto* state = static_cast<App::Detail::ApplicationHostState*>(hostState_);
     if (state != nullptr && state->requestExit != nullptr) state->requestExit(state->context, exitCode);
 }
 
@@ -55,8 +55,8 @@ void Application::OnExit(ExitEventArgs&) noexcept {}
 void Application::OnActivated(EventArgs&) noexcept {}
 void Application::OnDeactivated(EventArgs&) noexcept {}
 
-void Application::Attach(void* runtimeState, Window* mainWindow) noexcept {
-    runtimeState_ = runtimeState;
+void Application::Attach(void* hostState, Window* mainWindow) noexcept {
+    hostState_ = hostState;
     currentApplication = this;
     if (mainWindow_ == nullptr && mainWindow != nullptr) {
         SetMainWindow(mainWindow);
@@ -65,7 +65,7 @@ void Application::Attach(void* runtimeState, Window* mainWindow) noexcept {
 
 void Application::Detach() noexcept {
     if (currentApplication == this) currentApplication = nullptr;
-    runtimeState_ = nullptr;
+    hostState_ = nullptr;
     mainWindow_ = nullptr;
     mainWindowOwner_.Reset();
 }

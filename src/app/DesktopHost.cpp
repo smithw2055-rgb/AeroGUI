@@ -2,7 +2,7 @@
 
 #include <Aero/Application.hpp>
 #include <Aero/Window.hpp>
-#include "ApplicationRuntime.hpp"
+#include "ApplicationState.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
@@ -12,11 +12,10 @@
 #include <Aero/Integration/ViewOptions.hpp>
 #include <Aero/View.hpp>
 
-#include "runtime/ViewAccess.hpp"
 
 #if defined(_WIN32)
 #include <Aero/Integration/D3D11.hpp>
-#include "platform/win32/InputServices.hpp"
+#include "platform/win32/InputRouters.hpp"
 #include "platform/win32/Window.hpp"
 #else
 #include "platform/x11/Window.hpp"
@@ -112,7 +111,7 @@ struct Detail::DesktopHost::Impl final {
             if (resources) {
                 Base::Result<void> installed =
                     view->SetResourceDictionary(
-                        RuntimeResourceLayer::Application,
+                        ResourceLayer::Application,
                         *resources);
                 if (!installed) return installed.GetStatus();
             }
@@ -129,8 +128,7 @@ struct Detail::DesktopHost::Impl final {
             if (!loaded) return loaded.GetStatus();
             const Base::Ref<Base::Object>& root = loaded.Value().Root();
             if (!root ||
-                !Aero::Detail::ViewAccess::IsInstanceOf(
-                    *view, *root, Window::StaticTypeId())) {
+                !view->IsInstanceOf(*root, Window::StaticTypeId())) {
                 return HostFailure(
                     Base::ErrorCode::InvalidArgument,
                     "StartupUri XAML root must be Window");
@@ -175,10 +173,10 @@ struct Detail::DesktopHost::Impl final {
                     Base::ErrorCode::InvalidState,
                     "Application native window has an empty client area");
             }
-            Base::Result<void> graphics = CreateEndpoint(width, height);
+            Base::Result<void> graphics = CreateRenderDevice(width, height);
             if (!graphics) return graphics.GetStatus();
-            Base::Result<void> attached = view->SetRenderEndpoint(
-                endpoint, owner->automaticAnimationClock);
+            Base::Result<void> attached = view->SetRenderDevice(
+                renderDevice, owner->automaticAnimationClock);
             if (!attached) return attached.GetStatus();
             const Size size{
                 static_cast<double>(width),
@@ -189,8 +187,8 @@ struct Detail::DesktopHost::Impl final {
                       size)
                 : view->SetContent(std::move(loadedDocument), size);
             if (!mounted) return mounted.GetStatus();
-            Detail::WindowAccess::Attach(*window, &runtime);
-            Detail::WindowAccess::NotifySourceInitialized(*window);
+            Detail::DesktopPrivate::Attach(*window, &runtime);
+            Detail::DesktopPrivate::NotifySourceInitialized(*window);
             return {};
         }
 
@@ -235,7 +233,7 @@ struct Detail::DesktopHost::Impl final {
             return {};
         }
 
-        Base::Result<void> CreateEndpoint(
+        Base::Result<void> CreateRenderDevice(
             std::uint32_t width,
             std::uint32_t height) noexcept {
 #if !AERO_APP_HAS_D3D11 && !AERO_APP_HAS_OPENGL_WINDOW
@@ -253,17 +251,17 @@ struct Detail::DesktopHost::Impl final {
 #if defined(_WIN32)
             if (selected == GraphicsBackend::D3D11) {
 #if AERO_APP_HAS_D3D11
-                Integration::D3D11WindowEndpointOptions options;
+                Integration::D3D11WindowDeviceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
                 options.presentMode = Integration::RenderPresentMode::Fifo;
                 options.allowWarpFallback = true;
-                Base::Result<Base::Ref<Integration::RenderEndpoint>> created =
-                    Integration::CreateD3D11WindowEndpoint(
+                Base::Result<Base::Ref<Integration::RenderDevice>> created =
+                    Integration::CreateD3D11WindowDevice(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
-                endpoint = std::move(created).Value();
+                renderDevice = std::move(created).Value();
                 return {};
 #else
                 return HostFailure(
@@ -274,16 +272,16 @@ struct Detail::DesktopHost::Impl final {
 #endif
             if (selected == GraphicsBackend::OpenGL33) {
 #if AERO_APP_HAS_OPENGL_WINDOW
-                Integration::OpenGL33WindowEndpointOptions options;
+                Integration::OpenGL33WindowDeviceOptions options;
                 options.window = nativeWindow->NativeHandle();
                 options.width = width;
                 options.height = height;
                 options.presentMode = Integration::RenderPresentMode::Fifo;
-                Base::Result<Base::Ref<Integration::RenderEndpoint>> created =
-                    Integration::CreateOpenGL33WindowEndpoint(
+                Base::Result<Base::Ref<Integration::RenderDevice>> created =
+                    Integration::CreateOpenGL33WindowDevice(
                         options, owner->allocator);
                 if (!created) return created.GetStatus();
-                endpoint = std::move(created).Value();
+                renderDevice = std::move(created).Value();
                 return {};
 #else
                 return HostFailure(
@@ -306,7 +304,7 @@ struct Detail::DesktopHost::Impl final {
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
-                    Detail::WindowAccess::NotifyClosed(*window);
+                    Detail::DesktopPrivate::NotifyClosed(*window);
                 }
                 return {};
             case Platform::WindowEventType::Resized:
@@ -380,7 +378,7 @@ struct Detail::DesktopHost::Impl final {
             const std::uint32_t width = pendingResizeWidth;
             const std::uint32_t height = pendingResizeHeight;
             hasPendingResize = false;
-            Base::Result<void> resized = endpoint->Resize(width, height);
+            Base::Result<void> resized = renderDevice->Resize(width, height);
             if (!resized) return resized.GetStatus();
             return view->Resize({
                 static_cast<double>(width),
@@ -443,7 +441,7 @@ struct Detail::DesktopHost::Impl final {
             }
             Base::Result<void> shown = nativeWindow->Show();
             if (shown && window != nullptr) {
-                Detail::WindowAccess::NotifyContentRendered(*window);
+                Detail::DesktopPrivate::NotifyContentRendered(*window);
             }
             return shown;
         }
@@ -470,18 +468,18 @@ struct Detail::DesktopHost::Impl final {
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (endpoint) static_cast<void>(endpoint->WaitIdle());
+            if (renderDevice) static_cast<void>(renderDevice->WaitIdle());
             if (view) static_cast<void>(view->Unmount());
             if (window != nullptr) {
-                Detail::WindowAccess::NotifyClosed(*window);
-                Detail::WindowAccess::Detach(*window);
+                Detail::DesktopPrivate::NotifyClosed(*window);
+                Detail::DesktopPrivate::Detach(*window);
             }
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
 #endif
             if (nativeWindow) nativeWindow->Close();
             loadedDocument = {};
-            endpoint.Reset();
+            renderDevice.Reset();
             view.Reset();
             windowOwner.Reset();
             window = nullptr;
@@ -506,9 +504,9 @@ struct Detail::DesktopHost::Impl final {
         }
 
         Impl* owner = nullptr;
-        Detail::WindowRuntimeState runtime;
+        Detail::WindowHostState runtime;
         Base::Ref<View> view;
-        Base::Ref<Integration::RenderEndpoint> endpoint;
+        Base::Ref<Integration::RenderDevice> renderDevice;
         Base::Ref<Base::Object> windowOwner;
         UiDocument loadedDocument;
         Window* window = nullptr;
@@ -574,7 +572,7 @@ struct Detail::DesktopHost::Impl final {
     ~Impl() noexcept {
         ShutdownWindows();
         if (application != nullptr) {
-            Detail::ApplicationAccess::Detach(*application);
+            Detail::DesktopPrivate::Detach(*application);
         }
         application = nullptr;
         applicationOwner.Reset();
@@ -621,8 +619,8 @@ struct Detail::DesktopHost::Impl final {
         if (!loaded) return loaded.GetStatus();
         const Base::Ref<Base::Object>& root = loaded.Value().Root();
         if (!root ||
-            !Aero::Detail::ViewAccess::IsInstanceOf(
-                *loaderView, *root, Application::StaticTypeId())) {
+            !loaderView->IsInstanceOf(
+                *root, Application::StaticTypeId())) {
             return HostFailure(
                 Base::ErrorCode::InvalidArgument,
                 "Application XAML root must be Application");
@@ -676,7 +674,7 @@ struct Detail::DesktopHost::Impl final {
     }
 
     Base::Result<void> StartApplication() noexcept {
-        Detail::ApplicationAccess::Attach(
+        Detail::DesktopPrivate::Attach(
             *application, &applicationRuntime, nullptr);
 
         if (suppliedWindow || !startupUri.Empty()) {
@@ -698,7 +696,7 @@ struct Detail::DesktopHost::Impl final {
 
         // WPF allows Application.Run() without StartupUri. In that form the
         // application creates and shows one or more windows from OnStartup().
-        Detail::ApplicationAccess::RaiseStartup(*application);
+        Detail::DesktopPrivate::RaiseStartup(*application);
         if (application->GetMainWindow() == nullptr && !windows.Empty()) {
             application->SetMainWindow(windows[0]->window);
         }
@@ -758,7 +756,7 @@ struct Detail::DesktopHost::Impl final {
             const bool mainClosed = closingWindow != nullptr &&
                 closingWindow == application->GetMainWindow();
             if (host != nullptr && closingWindow != nullptr) {
-                Detail::WindowAccess::NotifyClosed(*closingWindow);
+                Detail::DesktopPrivate::NotifyClosed(*closingWindow);
             }
             RemoveWindowAt(index);
             const ShutdownMode mode = application->GetShutdownMode();
@@ -812,8 +810,8 @@ struct Detail::DesktopHost::Impl final {
         const int result = exitCode;
         ShutdownWindows();
         if (application != nullptr) {
-            Detail::ApplicationAccess::RaiseExit(*application, result);
-            Detail::ApplicationAccess::Detach(*application);
+            Detail::DesktopPrivate::RaiseExit(*application, result);
+            Detail::DesktopPrivate::Detach(*application);
             application = nullptr;
         }
         applicationOwner.Reset();
@@ -855,9 +853,9 @@ struct Detail::DesktopHost::Impl final {
         static_cast<Impl*>(context)->SetMainWindow(window);
     }
 
-    Detail::ApplicationRuntimeState applicationRuntime;
+    Detail::ApplicationHostState applicationRuntime;
     Base::IAllocator* allocator = nullptr;
-    RuntimeEnvironment environment;
+    GUI environment;
     Base::Vector<WindowHost*> windows;
     Base::String applicationFile;
     Base::String assetRoot;
@@ -908,50 +906,50 @@ Base::Result<int> Detail::DesktopHost::Run() noexcept {
     return impl_->Run();
 }
 
-void Detail::ApplicationAccess::Attach(
+void Detail::DesktopPrivate::Attach(
     Application& application,
-    void* runtimeState,
+    void* hostState,
     Window* mainWindow) noexcept {
-    application.Attach(runtimeState, mainWindow);
+    application.Attach(hostState, mainWindow);
 }
 
-void Detail::ApplicationAccess::Detach(
+void Detail::DesktopPrivate::Detach(
     Application& application) noexcept {
     application.Detach();
 }
 
-void Detail::ApplicationAccess::RaiseStartup(
+void Detail::DesktopPrivate::RaiseStartup(
     Application& application) noexcept {
     application.RaiseStartup();
 }
 
-void Detail::ApplicationAccess::RaiseExit(
+void Detail::DesktopPrivate::RaiseExit(
     Application& application,
     int exitCode) noexcept {
     application.RaiseExit(exitCode);
 }
 
-void Detail::WindowAccess::Attach(
+void Detail::DesktopPrivate::Attach(
     Window& window,
-    void* runtimeState) noexcept {
-    window.Attach(runtimeState);
+    void* hostState) noexcept {
+    window.Attach(hostState);
 }
 
-void Detail::WindowAccess::Detach(Window& window) noexcept {
+void Detail::DesktopPrivate::Detach(Window& window) noexcept {
     window.Detach();
 }
 
-void Detail::WindowAccess::NotifySourceInitialized(
+void Detail::DesktopPrivate::NotifySourceInitialized(
     Window& window) noexcept {
     window.NotifySourceInitialized();
 }
 
-void Detail::WindowAccess::NotifyContentRendered(
+void Detail::DesktopPrivate::NotifyContentRendered(
     Window& window) noexcept {
     window.NotifyContentRendered();
 }
 
-void Detail::WindowAccess::NotifyClosed(
+void Detail::DesktopPrivate::NotifyClosed(
     Window& window) noexcept {
     window.NotifyClosed();
 }

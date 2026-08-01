@@ -86,7 +86,7 @@ TemplatedParentProviderSession
   trigger rank = TemplatedParentTrigger
 ```
 
-`StyleManager`, `ThemeStyleManager` and `TemplateManager` own these sessions.
+`StyleEngine`, `ThemeStyleEngine` and `TemplateEngine` own these sessions.
 Their existing application loops retain the familiar methods such as
 `SetStyleValue`, `SetTemplateValue` and `SetTriggerValue`, but those methods now
 emit canonical tokens rather than writing through the old anonymous engine

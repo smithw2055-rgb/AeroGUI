@@ -5,7 +5,7 @@
 #include <Aero/Base/Result.hpp>
 
 namespace Aero::Detail {
-class DrawingContextAccess;
+class DrawingPrivate;
 }
 
 namespace Aero {
@@ -39,7 +39,7 @@ public:
         double thickness) noexcept;
 
 private:
-    friend class ::Aero::Detail::DrawingContextAccess;
+    friend class ::Aero::Detail::DrawingPrivate;
 
     explicit DrawingContext(void* implementation) noexcept
         : implementation_(implementation) {}

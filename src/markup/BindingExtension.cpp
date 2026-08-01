@@ -7,7 +7,7 @@
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include "../controls/TemplateAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Items.hpp>
@@ -321,10 +321,10 @@ Base::Result<void> ParseArguments(
 }
 
 struct DeferredBindingState final {
-    Aero::Detail::BindingManager* manager = nullptr;
-    Core::MetadataRuntime* metadata = nullptr;
+    Aero::Detail::BindingEngine* manager = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Base::Object* source = nullptr;
-    Core::DependencyObject* target = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
@@ -391,7 +391,7 @@ BindingExtension::BindingExtension(
 Base::Result<void> BindingExtension::Register(
     Schema& schema,
     Core::TypeId bindingExtensionType) noexcept {
-    return Detail::SchemaAccess::AddMarkupExtension(schema, {
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
         bindingExtensionType,
         &BindingExtension::ProvideValue,
         this});
@@ -399,7 +399,7 @@ Base::Result<void> BindingExtension::Register(
 
 Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     Base::StringView arguments,
-    const ExtensionContext& services,
+    const ExtensionServices& services,
     void* context) noexcept {
     BindingExtension* extension =
         static_cast<BindingExtension*>(context);
@@ -448,8 +448,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Binding Source, ElementName, and RelativeSource are mutually exclusive");
     }
 
-    Core::MetadataRuntime* metadata =
-        Detail::SchemaAccess::Runtime(
+    Core::MetaRegistry* metadata =
+        Detail::SchemaPrivate::Metadata(
             *services.schema);
     const Core::PropertyInfo* targetMember =
         metadata != nullptr
@@ -531,25 +531,25 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             std::move(value).Value());
     }
 
-    Base::Result<Core::DependencyObject*> targetResult =
-        Detail::SchemaAccess::ResolvePropertyTarget(
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();
     }
-    Core::DependencyObject* target = targetResult.Value();
+    ::Aero::DependencyObject* target = targetResult.Value();
 
     const Core::DependencyPropertyHandle targetHandle{
         services.targetMember};
     const Core::DependencyProperty* targetProperty =
         target->PropertyRegistry().Find(targetHandle);
     if (targetProperty == nullptr ||
-        Detail::SchemaAccess::Runtime(
+        Detail::SchemaPrivate::Metadata(
             *services.schema) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
-            "Binding target property or metadata runtime was not found");
+            "Binding target property or metadata program was not found");
     }
 
     if (relativeSource ==
@@ -566,7 +566,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 *services.targetObject);
         if (authoredName.Empty()) {
             Base::Result<Base::String> generated =
-                Controls::Detail::FrameworkTemplateAccess::EnsureAuthoredName(controlTemplate,
+                Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                     *services.targetObject);
             if (!generated) {
                 return generated.GetStatus();
@@ -576,7 +576,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             authoredName = targetName.View();
         }
         Base::Result<void> added =
-            Controls::Detail::FrameworkTemplateAccess::TryAddTemplatedParentBinding(controlTemplate,
+            Controls::Detail::TemplatePrivate::TryAddTemplatedParentBinding(controlTemplate,
                 authoredName,
                 path,
                 stringFormat,
@@ -633,14 +633,14 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
     }
 
-    Aero::Detail::BindingManager* bindings =
+    Aero::Detail::BindingEngine* bindings =
         services.bindings != nullptr
         ? services.bindings
         : extension->options_.bindings;
     if (bindings == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "Binding requires a load-scoped BindingManager");
+            "Binding requires a load-scoped BindingEngine");
     }
 
     if (services.deferredContentOwner != nullptr &&
@@ -651,7 +651,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 source,
                 *target,
                 *bindings,
-                *Detail::SchemaAccess::Runtime(
+                *Detail::SchemaPrivate::Metadata(
                     *services.schema),
                 targetHandle,
                 extension->options_.dataContextProperty,
@@ -679,7 +679,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
     auto* state = new (memory) DeferredBindingState();
     state->manager = bindings;
-    state->metadata = Detail::SchemaAccess::Runtime(
+    state->metadata = Detail::SchemaPrivate::Metadata(
         *services.schema);
     state->source = source;
     state->target = target;

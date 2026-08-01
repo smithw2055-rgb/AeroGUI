@@ -3,12 +3,12 @@
 #include <Aero/Module.hpp>
 
 namespace Aero::Core {
-class MetadataDomain;
+class MetaRegistry;
 }
 
 namespace Aero {
 
 AERO_API Base::Result<void> RegisterBuiltInUiModules(
-    Core::MetadataDomain& domain) noexcept;
+    Core::MetaRegistry& domain) noexcept;
 
 } // namespace Aero

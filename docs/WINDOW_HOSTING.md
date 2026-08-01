@@ -14,7 +14,7 @@ receives an independent host record containing:
 Window
 ├─ native top-level window
 ├─ View
-├─ RenderEndpoint
+├─ RenderDevice
 ├─ clipboard / IME services
 └─ activation, visibility and close state
 ```
@@ -29,12 +29,12 @@ WindowPeer or application service locator is required.
 An engine or editor host uses the explicit Integration surface:
 
 ```cpp
-Aero::RuntimeEnvironment environment;
+Aero::GUI environment;
 environment.AddModule(module);
 environment.Initialize();
 
 Aero::Integration::ViewOptions options;
-options.renderEndpoint = endpoint;
+options.renderDevice = endpoint;
 auto view = environment.CreateView(options).Value();
 
 Aero::Markup::XamlReader reader(*view);
@@ -56,7 +56,7 @@ remain on the View owner thread.
 ## Platform boundary
 
 Hosts exchange only `Integration::NativeWindowHandle` plus the narrow contracts
-from `Integration/PlatformServices.hpp`. Win32/X11 windows, clipboard adapters,
+from `Integration/Platform.hpp`. Win32/X11 windows, clipboard adapters,
 IME message handling, WGL and GLX context carriers live under
 `src/platform/<os>` and are not installed SDK types.
 

@@ -23,9 +23,9 @@ namespace Aero {
 
 enum class BuiltInTheme : std::uint8_t { Light = 0U, Dark };
 
-enum class RuntimeResourceLayer : std::uint8_t { Application = 0U, Theme, System };
+enum class ResourceLayer : std::uint8_t { Application = 0U, Theme, System };
 
-enum class RuntimeResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
+enum class ResourceLoadMode : std::uint8_t { Replace = 0U, Merge };
 
 struct ViewLayoutDiagnostics final {
     std::uint64_t passVersion = 0U;
@@ -69,15 +69,17 @@ namespace Controls {
 class ContentControl;
 }
 namespace Detail {
-class ViewAccess;
+struct ViewData;
 }
 namespace Markup {
 class XamlReader;
 }
 
+namespace App::Detail { class DesktopHost; }
+
 namespace Integration {
 class ISourceProvider;
-class RenderEndpoint;
+class RenderDevice;
 class ReloadCoordinator;
 struct ViewOptions;
 }
@@ -85,14 +87,14 @@ struct ViewOptions;
 // Process/application-level immutable composition. Its internal state is
 // reference counted so views remain valid when the lightweight environment
 // facade is released. Modules and schemas are still frozen exactly once.
-class AERO_API RuntimeEnvironment final {
+class AERO_API GUI final {
 public:
-    explicit RuntimeEnvironment(
+    explicit GUI(
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~RuntimeEnvironment() noexcept;
+    ~GUI() noexcept;
 
-    RuntimeEnvironment(const RuntimeEnvironment&) = delete;
-    RuntimeEnvironment& operator=(const RuntimeEnvironment&) = delete;
+    GUI(const GUI&) = delete;
+    GUI& operator=(const GUI&) = delete;
 
     Base::Result<void> AddModule(
         const ModuleRegistration& registration) noexcept;
@@ -109,7 +111,6 @@ private:
     friend class View;
 
     struct Impl;
-
     Base::IAllocator* allocator_ = nullptr;
     Base::Ref<Base::Object> impl_;
 };
@@ -119,12 +120,12 @@ class AERO_API View final : public Base::Object {
 
 public:
     // Factory-only construction: ConstructionToken is private and can only be
-    // produced by RuntimeEnvironment. The declaration remains public because
+    // produced by GUI. The declaration remains public because
     // Base::MakeRefWithAllocator verifies nothrow construction with a standard
     // type trait, which cannot inspect private constructors.
     View(
         ConstructionToken,
-        RuntimeEnvironment& environment,
+        GUI& gui,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~View() noexcept override;
 
@@ -148,22 +149,22 @@ public:
     Base::Result<void> UnmountContent(
         Controls::ContentControl& host) noexcept;
     Base::Result<void> LoadResources(
-        RuntimeResourceLayer layer,
+        ResourceLayer layer,
         Base::StringView uri,
-        RuntimeResourceLoadMode mode =
-            RuntimeResourceLoadMode::Replace,
+        ResourceLoadMode mode =
+            ResourceLoadMode::Replace,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
     Base::Result<void> LoadCompiledResources(
-        RuntimeResourceLayer layer,
+        ResourceLayer layer,
         Base::Span<const std::uint8_t> bytes,
         const Base::ResourceUri& originUri,
-        RuntimeResourceLoadMode mode =
-            RuntimeResourceLoadMode::Replace) noexcept;
+        ResourceLoadMode mode =
+            ResourceLoadMode::Replace) noexcept;
     Base::Result<void> SetResourceDictionary(
-        RuntimeResourceLayer layer,
+        ResourceLayer layer,
         Aero::ResourceDictionary& dictionary,
-        RuntimeResourceLoadMode mode =
-            RuntimeResourceLoadMode::Replace) noexcept;
+        ResourceLoadMode mode =
+            ResourceLoadMode::Replace) noexcept;
     Base::Result<void> LoadBuiltInTheme(
         BuiltInTheme theme) noexcept;
 
@@ -178,16 +179,16 @@ public:
         const Input::KeyboardInput& input) noexcept;
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
-    Base::Result<void> SetRenderEndpoint(
-        Base::Ref<Integration::RenderEndpoint> endpoint,
+    Base::Result<void> SetRenderDevice(
+        Base::Ref<Integration::RenderDevice> device,
         bool automaticAnimationClock = true) noexcept;
 
     const Base::Ref<Base::Object>& Root() const noexcept;
 
 private:
-    friend class RuntimeEnvironment;
-    friend class Aero::Detail::ViewAccess;
+    friend class GUI;
     friend class Aero::Markup::XamlReader;
+    friend class Aero::App::Detail::DesktopHost;
     friend class Integration::ReloadCoordinator;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -195,7 +196,6 @@ private:
         Base::IAllocator&,
         Args&&...) noexcept;
 
-    struct Impl;
     Base::Result<UiDocument> LoadDocument(
         Base::StringView uri,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
@@ -217,10 +217,40 @@ private:
         std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<void> Initialize(
         const Integration::ViewOptions& options) noexcept;
-    void* InternalState() noexcept;
-
+    void Shutdown() noexcept;
+    bool IsInitialized() const noexcept;
+    bool IsMounted() const noexcept;
+    Base::Result<void> Mount(Aero::Size availableSize) noexcept;
+    Base::Result<void> Mount(
+        Base::Ref<Base::Object> root,
+        Aero::Size availableSize) noexcept;
+    Base::Result<void> Mount(
+        UiDocument&& document,
+        Aero::Size availableSize) noexcept;
+    Base::Result<void> ReplaceMountedDocument(
+        UiDocument&& document,
+        Aero::Size availableSize) noexcept;
+    Base::Object* FindNamedObject(
+        Base::StringView name,
+        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
+    std::uint32_t NamedObjectCount() const noexcept;
+    Base::Result<void> QueryReloadSource(
+        const Base::ResourceUri& uri,
+        std::uint64_t& sourceIdentity,
+        std::uint64_t& revision) noexcept;
+    bool TryGetCachedReloadRevision(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceIdentity,
+        std::uint64_t& revision) noexcept;
+    Base::Result<std::uint32_t> InvalidateReloadDocuments(
+        const Base::ResourceUri& uri,
+        bool includeDependents) noexcept;
+    bool IsInstanceOf(
+        const Base::Object& object,
+        Core::TypeId baseType) const noexcept;
     Base::IAllocator* allocator_ = nullptr;
-    Impl* impl_ = nullptr;
+    Base::Ref<Base::Object> gui_;
+    Detail::ViewData* state_ = nullptr;
 };
 
 } // namespace Aero

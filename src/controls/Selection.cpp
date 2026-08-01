@@ -1,17 +1,19 @@
-#include "VisualStateRuntime.hpp"
+#include "TemplateInternals.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 #include <Aero/Controls/Text.hpp>
 #include "ControlInternals.hpp"
 
-#include "gui/MetadataInternal.hpp"
+#include "gui/MetaInternals.hpp"
 
 #include <algorithm>
 #include <utility>
 #include "gui/RoutedEventInternal.hpp"
-#include "RuntimeManagers.hpp"
+#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
+using Aero::Detail::ComboBehavior;
+using Aero::Detail::ListBehavior;
 
 using namespace Primitives;
 namespace {
@@ -502,7 +504,7 @@ void Selector::SyncContainers() noexcept {
             item.SetIsSelected(selected));
         if (states_ != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     item,
                     "SelectionStates",
                     selected
@@ -743,7 +745,7 @@ void Selector::OnContainersChanged() noexcept {
 ListBox::~ListBox() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            static_cast<ListBoxInteractionManager*>(
+            static_cast<ListBehavior*>(
                 interactions_)->Detach(*this));
     }
 }
@@ -888,7 +890,7 @@ ComboBox::ComboBox() noexcept
 ComboBox::~ComboBox() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            static_cast<ComboBoxInteractionManager*>(
+            static_cast<ComboBehavior*>(
                 interactions_)->Detach(*this));
     }
     static_cast<void>(RemoveSelectionChanged(
@@ -1317,7 +1319,7 @@ ComboBox::UpdateSelectionBox() noexcept {
                 selected->RuntimeType(),
                 ContentControl::StaticTypeId())) {
         UIElement* content =
-            Detail::ContentControlAccess::ContentElement(*static_cast<ContentControl*>(
+            Detail::ControlPrivate::ContentElement(*static_cast<ContentControl*>(
                 selected.Get()));
         if (content != nullptr &&
             PropertyRegistry().Types().
@@ -1437,25 +1439,25 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Controls;
 
-ComboBoxInteractionManager::
-ComboBoxInteractionManager(
-    GuiContext& tree,
+ComboBehavior::
+ComboBehavior(
+    ElementTree& tree,
     EventRouter& events,
-    InputService& input) noexcept
+    InputRouter& input) noexcept
     : tree_(&tree),
       events_(&events),
       input_(&input),
       mouseDownHandler_(
           this,
-          &ComboBoxInteractionManager::
+          &ComboBehavior::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &ComboBoxInteractionManager::
+          &ComboBehavior::
               OnKeyDown) {}
 
-ComboBoxInteractionManager::
-~ComboBoxInteractionManager() noexcept {
+ComboBehavior::
+~ComboBehavior() noexcept {
     while (!records_.Empty()) {
         ComboBox* comboBox =
             ResolveComboBox(
@@ -1470,7 +1472,7 @@ ComboBoxInteractionManager::
 }
 
 std::uint32_t
-ComboBoxInteractionManager::FindComboBox(
+ComboBehavior::FindComboBox(
     const ComboBox& comboBox) const noexcept {
     for (std::uint32_t index = 0U;
          index < records_.Size(); ++index) {
@@ -1484,7 +1486,7 @@ ComboBoxInteractionManager::FindComboBox(
 }
 
 ComboBox*
-ComboBoxInteractionManager::ResolveComboBox(
+ComboBehavior::ResolveComboBox(
     std::uint32_t index) noexcept {
     Visual* visual =
         tree_->ResolveHandle(records_[index]);
@@ -1495,10 +1497,10 @@ ComboBoxInteractionManager::ResolveComboBox(
 }
 
 Base::Result<void>
-ComboBoxInteractionManager::Attach(
+ComboBehavior::Attach(
     ComboBox& comboBox) noexcept {
     if (comboBox.interactions_ != nullptr ||
-        Aero::Detail::VisualAccess::Tree(comboBox) != tree_ ||
+        Aero::Detail::ElementPrivate::Tree(comboBox) != tree_ ||
         FindComboBox(comboBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1542,7 +1544,7 @@ ComboBoxInteractionManager::Attach(
 }
 
 Base::Result<bool>
-ComboBoxInteractionManager::Detach(
+ComboBehavior::Detach(
     ComboBox& comboBox) noexcept {
     const std::uint32_t index =
         FindComboBox(comboBox);
@@ -1566,7 +1568,7 @@ ComboBoxInteractionManager::Detach(
     return true;
 }
 
-void ComboBoxInteractionManager::OnMouseDown(
+void ComboBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() !=
@@ -1597,7 +1599,7 @@ void ComboBoxInteractionManager::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ComboBoxInteractionManager::OnKeyDown(
+void ComboBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& comboBox =
@@ -1645,10 +1647,10 @@ void ComboBoxInteractionManager::OnKeyDown(
     args.SetHandled(true);
 }
 
-ListBoxInteractionManager::ListBoxInteractionManager(
-    GuiContext& tree,
+ListBehavior::ListBehavior(
+    ElementTree& tree,
     EventRouter& events,
-    InputService& input,
+    InputRouter& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
@@ -1656,12 +1658,12 @@ ListBoxInteractionManager::ListBoxInteractionManager(
       states_(states),
       mouseDownHandler_(
           this,
-          &ListBoxInteractionManager::OnMouseDown),
+          &ListBehavior::OnMouseDown),
       keyDownHandler_(
           this,
-          &ListBoxInteractionManager::OnKeyDown) {}
+          &ListBehavior::OnKeyDown) {}
 
-ListBoxInteractionManager::~ListBoxInteractionManager() noexcept {
+ListBehavior::~ListBehavior() noexcept {
     while (!records_.Empty()) {
         ListBox* listBox =
             ResolveListBox(records_.Size() - 1U);
@@ -1673,7 +1675,7 @@ ListBoxInteractionManager::~ListBoxInteractionManager() noexcept {
     }
 }
 
-std::uint32_t ListBoxInteractionManager::FindListBox(
+std::uint32_t ListBehavior::FindListBox(
     const ListBox& listBox) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -1686,7 +1688,7 @@ std::uint32_t ListBoxInteractionManager::FindListBox(
     return UINT32_MAX;
 }
 
-ListBox* ListBoxInteractionManager::ResolveListBox(
+ListBox* ListBehavior::ResolveListBox(
     std::uint32_t index) noexcept {
     Visual* visual =
         tree_->ResolveHandle(records_[index].handle);
@@ -1696,10 +1698,10 @@ ListBox* ListBoxInteractionManager::ResolveListBox(
         : nullptr;
 }
 
-Base::Result<void> ListBoxInteractionManager::Attach(
+Base::Result<void> ListBehavior::Attach(
     ListBox& listBox) noexcept {
     if (listBox.interactions_ != nullptr ||
-        Aero::Detail::VisualAccess::Tree(listBox) != tree_ ||
+        Aero::Detail::ElementPrivate::Tree(listBox) != tree_ ||
         FindListBox(listBox) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1742,7 +1744,7 @@ Base::Result<void> ListBoxInteractionManager::Attach(
     return {};
 }
 
-Base::Result<bool> ListBoxInteractionManager::Detach(
+Base::Result<bool> ListBehavior::Detach(
     ListBox& listBox) noexcept {
     const std::uint32_t index =
         FindListBox(listBox);
@@ -1766,7 +1768,7 @@ Base::Result<bool> ListBoxInteractionManager::Detach(
 }
 
 std::uint32_t
-ListBoxInteractionManager::FindContainerIndex(
+ListBehavior::FindContainerIndex(
     ListBox& listBox,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -1801,7 +1803,7 @@ ListBoxInteractionManager::FindContainerIndex(
 }
 
 Base::Result<bool>
-ListBoxInteractionManager::ApplyUserSelection(
+ListBehavior::ApplyUserSelection(
     ListBox& listBox,
     Record& record,
     std::uint32_t index,
@@ -1840,7 +1842,7 @@ ListBoxInteractionManager::ApplyUserSelection(
         : listBox.SetSelectedIndex(index);
 }
 
-void ListBoxInteractionManager::OnMouseDown(
+void ListBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     if (args.GetChangedButton() != MouseButton::Left) {
@@ -1874,7 +1876,7 @@ void ListBoxInteractionManager::OnMouseDown(
     args.SetHandled(true);
 }
 
-void ListBoxInteractionManager::OnKeyDown(
+void ListBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&

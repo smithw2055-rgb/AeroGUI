@@ -1,7 +1,9 @@
 #pragma once
 
+namespace Aero::Detail { class TemplateEngine; }
+
 #include "gui/ElementInternal.hpp"
-#include "../controls/TemplateAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
 #include "gui/BindingInternal.hpp"
 
 #include "render/RenderTree.hpp"
@@ -73,18 +75,18 @@ struct InspectorSnapshot final {
         frameTimings;
 };
 
-class AERO_API InspectorEndpoint final {
+class AERO_API Inspector final {
 public:
-    InspectorEndpoint(
-        Aero::GuiContext& tree,
+    Inspector(
+        Aero::ElementTree& tree,
         Core::EffectiveValueEngine& values,
-        Aero::Detail::BindingManager&
+        Aero::Detail::BindingEngine&
             bindings,
         Render::RenderTree&
             renderer,
-        Aero::Detail::StyleManager*
+        Aero::Detail::StyleEngine*
             styles = nullptr,
-        Controls::TemplateManager*
+        Aero::Detail::TemplateEngine*
             templates = nullptr) noexcept
         : tree_(&tree),
           values_(&values),
@@ -105,17 +107,17 @@ public:
     }
 
 private:
-    Aero::GuiContext* tree_ =
+    Aero::ElementTree* tree_ =
         nullptr;
     Core::EffectiveValueEngine* values_ =
         nullptr;
-    Aero::Detail::BindingManager*
+    Aero::Detail::BindingEngine*
         bindings_ = nullptr;
     Render::RenderTree*
         renderer_ = nullptr;
-    Aero::Detail::StyleManager* styles_ =
+    Aero::Detail::StyleEngine* styles_ =
         nullptr;
-    Controls::TemplateManager*
+    Aero::Detail::TemplateEngine*
         templates_ = nullptr;
 };
 

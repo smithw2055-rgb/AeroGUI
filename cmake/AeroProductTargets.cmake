@@ -2,12 +2,12 @@
 # composition into one product binary. App layers only the default desktop
 # lifetime and OS window implementation over that product.
 set(_aero_integration_sources
-    src/integration/OpenGL33Endpoint.cpp
+    src/integration/OpenGL33Device.cpp
     src/integration/SourceProvider.cpp
     src/platform/Clipboard.cpp)
 if(WIN32)
     list(APPEND _aero_integration_sources
-        src/integration/D3D11Endpoint.cpp)
+        src/integration/D3D11Device.cpp)
 endif()
 
 add_library(AeroIntegration ${AERO_LIBRARY_TYPE}
@@ -15,7 +15,7 @@ add_library(AeroIntegration ${AERO_LIBRARY_TYPE}
 add_library(Aero::Integration ALIAS AeroIntegration)
 target_sources(AeroIntegration PRIVATE
     $<TARGET_OBJECTS:AeroAppModelObjects>
-    $<TARGET_OBJECTS:AeroModuleCatalogObjects>
+    $<TARGET_OBJECTS:AeroModuleSetObjects>
     $<TARGET_OBJECTS:AeroTextFreeTypeObjects>
     $<TARGET_OBJECTS:AeroTextHarfBuzzObjects>
     $<TARGET_OBJECTS:AeroRuntimeObjects>
@@ -128,7 +128,7 @@ aero_apply_compiler_options(AeroProductHeaderConsumer)
 get_target_property(_aero_integration_links
     AeroIntegration LINK_LIBRARIES)
 if("${_aero_integration_links}" MATCHES
-        "Aero(Runtime|Rendering|ModuleCatalog|AppModel|Controls|Markup|GuiKernel)")
+        "Aero(Runtime|Rendering|ModuleSet|AppModel|Controls|Markup|GuiKernel)")
     message(FATAL_ERROR
         "Integration must fold internal object components, not link support binaries")
 endif()

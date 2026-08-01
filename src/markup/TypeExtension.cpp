@@ -24,13 +24,13 @@ Base::Result<void> TypeExtension::Register(
             Base::ErrorCode::InvalidArgument,
             "x:Type reference token must be a value type");
     }
-    return Detail::SchemaAccess::AddMarkupExtension(schema, {
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
         markupExtensionType, &ProvideValue, nullptr});
 }
 
 Base::Result<ProvidedValue> TypeExtension::ProvideValue(
     Base::StringView arguments,
-    const ExtensionContext& services,
+    const ExtensionServices& services,
     void* context) noexcept {
     if (context != nullptr || services.schema == nullptr) {
         return Base::Status::Failure(
@@ -38,7 +38,7 @@ Base::Result<ProvidedValue> TypeExtension::ProvideValue(
             "x:Type extension context is invalid");
     }
     Base::Result<Core::Value> value =
-        Detail::SchemaAccess::ConvertText(
+        Detail::SchemaPrivate::ConvertText(
             *services.schema,
             Core::TypeOf<Core::TypeReference>(),
             arguments,

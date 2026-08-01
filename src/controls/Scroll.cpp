@@ -1,15 +1,17 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Primitives.hpp>
-#include "../render/DrawingContextAccess.hpp"
+#include "../render/DrawingInternals.hpp"
 #include <Aero/Meta/ValueConversion.hpp>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include "gui/RoutedEventInternal.hpp"
-#include "RuntimeManagers.hpp"
+#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
+using Aero::Detail::ScrollBehavior;
+using Aero::Detail::SliderBehavior;
 
 using namespace Primitives;
 namespace {
@@ -585,7 +587,7 @@ ScrollViewer::ScrollViewer() noexcept
 ScrollViewer::~ScrollViewer() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            static_cast<ScrollInteractionManager*>(
+            static_cast<ScrollBehavior*>(
                 interactions_)->Detach(*this));
     }
 }
@@ -1856,7 +1858,7 @@ Base::Result<Size> Slider::ArrangeOverride(
 
 Base::Result<void> Slider::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const TickPlacement placement =
         GetTickPlacement();
     const Size size = GetRenderSize();
@@ -2069,7 +2071,7 @@ Base::Result<void> TickBar::SetPlacement(
 
 Base::Result<void> TickBar::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     DependencyObject* parent = GetTemplatedParent();
     if (parent == nullptr ||
         !PropertyRegistry().Types().IsDerivedFrom(
@@ -2204,16 +2206,16 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Controls;
 
-ScrollInteractionManager::ScrollInteractionManager(
-    GuiContext& tree,
+ScrollBehavior::ScrollBehavior(
+    ElementTree& tree,
     EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       wheelHandler_(
           this,
-          &ScrollInteractionManager::OnMouseWheel) {}
+          &ScrollBehavior::OnMouseWheel) {}
 
-ScrollInteractionManager::~ScrollInteractionManager() noexcept {
+ScrollBehavior::~ScrollBehavior() noexcept {
     while (!viewers_.Empty()) {
         ScrollViewer* viewer =
             viewers_.Back().viewer;
@@ -2225,9 +2227,9 @@ ScrollInteractionManager::~ScrollInteractionManager() noexcept {
     }
 }
 
-std::uint32_t ScrollInteractionManager::FindViewer(
+std::uint32_t ScrollBehavior::FindViewer(
     const ScrollViewer& viewer) const noexcept {
-    const VisualHandle handle = Aero::Detail::VisualAccess::Handle(viewer);
+    const VisualHandle handle = Aero::Detail::ElementPrivate::Handle(viewer);
     for (std::uint32_t index = 0U;
         index < viewers_.Size(); ++index) {
         if (viewers_[index].viewer == &viewer ||
@@ -2240,7 +2242,7 @@ std::uint32_t ScrollInteractionManager::FindViewer(
     return UINT32_MAX;
 }
 
-Base::Result<void> ScrollInteractionManager::Attach(
+Base::Result<void> ScrollBehavior::Attach(
     ScrollViewer& viewer) noexcept {
     if (FindViewer(viewer) != UINT32_MAX) {
         return Base::Status::Failure(
@@ -2253,8 +2255,8 @@ Base::Result<void> ScrollInteractionManager::Attach(
             Base::ErrorCode::InvalidState,
             "ScrollViewer belongs to another interaction manager");
     }
-    if (Aero::Detail::VisualAccess::Tree(viewer) != tree_ ||
-        !Aero::Detail::VisualAccess::Handle(viewer).IsValid()) {
+    if (Aero::Detail::ElementPrivate::Tree(viewer) != tree_ ||
+        !Aero::Detail::ElementPrivate::Handle(viewer).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ScrollViewer must be loaded in the interaction tree");
@@ -2266,7 +2268,7 @@ Base::Result<void> ScrollInteractionManager::Attach(
     if (!handler) return handler.GetStatus();
     Base::Result<void> added =
         viewers_.TryPushBack(
-            {&viewer, Aero::Detail::VisualAccess::Handle(viewer)});
+            {&viewer, Aero::Detail::ElementPrivate::Handle(viewer)});
     if (!added) {
         static_cast<void>(viewer.RemoveHandler(
             UIElement::MouseWheelEvent,
@@ -2278,7 +2280,7 @@ Base::Result<void> ScrollInteractionManager::Attach(
     return {};
 }
 
-Base::Result<bool> ScrollInteractionManager::Detach(
+Base::Result<bool> ScrollBehavior::Detach(
     ScrollViewer& viewer) noexcept {
     const std::uint32_t index = FindViewer(viewer);
     if (index == UINT32_MAX) return false;
@@ -2294,7 +2296,7 @@ Base::Result<bool> ScrollInteractionManager::Detach(
     return true;
 }
 
-void ScrollInteractionManager::OnMouseWheel(
+void ScrollBehavior::OnMouseWheel(
     Base::Object* sender,
     MouseWheelEventArgs& args) noexcept {
     auto* viewer = static_cast<ScrollViewer*>(sender);
@@ -2316,30 +2318,30 @@ void ScrollInteractionManager::OnMouseWheel(
     }
 }
 
-SliderInteractionManager::SliderInteractionManager(
-    GuiContext& tree,
+SliderBehavior::SliderBehavior(
+    ElementTree& tree,
     EventRouter& events,
-    InputService& input) noexcept
+    InputRouter& input) noexcept
     : tree_(&tree),
       events_(&events),
       input_(&input),
       mouseDownHandler_(
           this,
-          &SliderInteractionManager::OnMouseDown),
+          &SliderBehavior::OnMouseDown),
       mouseMoveHandler_(
           this,
-          &SliderInteractionManager::OnMouseMove),
+          &SliderBehavior::OnMouseMove),
       mouseUpHandler_(
           this,
-          &SliderInteractionManager::OnMouseUp),
+          &SliderBehavior::OnMouseUp),
       keyDownHandler_(
           this,
-          &SliderInteractionManager::OnKeyDown),
+          &SliderBehavior::OnKeyDown),
       captureChangedHandler_(
           this,
-          &SliderInteractionManager::OnCaptureChanged) {}
+          &SliderBehavior::OnCaptureChanged) {}
 
-SliderInteractionManager::~SliderInteractionManager()
+SliderBehavior::~SliderBehavior()
     noexcept {
     while (!sliders_.Empty()) {
         Slider* slider =
@@ -2355,12 +2357,12 @@ SliderInteractionManager::~SliderInteractionManager()
             captureChangedHandler_));
 }
 
-std::uint32_t SliderInteractionManager::Find(
+std::uint32_t SliderBehavior::Find(
     const Slider& slider) const noexcept {
     for (std::uint32_t index = 0U;
          index < sliders_.Size(); ++index) {
         const VisualHandle current =
-            Aero::Detail::VisualAccess::Handle(slider);
+            Aero::Detail::ElementPrivate::Handle(slider);
         if (sliders_[index].handle.index ==
                 current.index &&
             sliders_[index].handle.generation ==
@@ -2371,7 +2373,7 @@ std::uint32_t SliderInteractionManager::Find(
     return UINT32_MAX;
 }
 
-Slider* SliderInteractionManager::Resolve(
+Slider* SliderBehavior::Resolve(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return nullptr;
     Visual* node =
@@ -2387,7 +2389,7 @@ Slider* SliderInteractionManager::Resolve(
     return static_cast<Slider*>(node);
 }
 
-void SliderInteractionManager::RemoveAt(
+void SliderBehavior::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= sliders_.Size()) return;
     if (index + 1U != sliders_.Size()) {
@@ -2397,15 +2399,15 @@ void SliderInteractionManager::RemoveAt(
     sliders_.PopBack();
 }
 
-Base::Result<void> SliderInteractionManager::Attach(
+Base::Result<void> SliderBehavior::Attach(
     Slider& slider) noexcept {
     if (Find(slider) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
             "Slider is already attached");
     }
-    if (Aero::Detail::VisualAccess::Tree(slider) != tree_ ||
-        !Aero::Detail::VisualAccess::Handle(slider).IsValid()) {
+    if (Aero::Detail::ElementPrivate::Tree(slider) != tree_ ||
+        !Aero::Detail::ElementPrivate::Handle(slider).IsValid()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Slider must be loaded in the interaction tree");
@@ -2457,7 +2459,7 @@ Base::Result<void> SliderInteractionManager::Attach(
     }
     Base::Result<void> appended =
         sliders_.TryPushBack(
-            {Aero::Detail::VisualAccess::Handle(slider), 0U, false});
+            {Aero::Detail::ElementPrivate::Handle(slider), 0U, false});
     if (!appended) {
         static_cast<void>(slider.RemoveHandler(
             UIElement::MouseDownEvent,
@@ -2481,7 +2483,7 @@ Base::Result<void> SliderInteractionManager::Attach(
     return {};
 }
 
-Base::Result<bool> SliderInteractionManager::Detach(
+Base::Result<bool> SliderBehavior::Detach(
     Slider& slider) noexcept {
     const std::uint32_t index = Find(slider);
     if (index == UINT32_MAX) return false;
@@ -2512,7 +2514,7 @@ Base::Result<bool> SliderInteractionManager::Detach(
 }
 
 Base::Result<void>
-SliderInteractionManager::SetFromPoint(
+SliderBehavior::SetFromPoint(
     Slider& slider,
     Point point) noexcept {
     const bool horizontal =
@@ -2533,7 +2535,7 @@ SliderInteractionManager::SetFromPoint(
             changed.GetStatus());
 }
 
-void SliderInteractionManager::OnMouseDown(
+void SliderBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2600,7 +2602,7 @@ void SliderInteractionManager::OnMouseDown(
     args.SetHandled(true);
 }
 
-void SliderInteractionManager::OnMouseMove(
+void SliderBehavior::OnMouseMove(
     Base::Object* sender,
     MouseEventArgs& args) noexcept {
     auto& slider =
@@ -2618,7 +2620,7 @@ void SliderInteractionManager::OnMouseMove(
     args.SetHandled(true);
 }
 
-void SliderInteractionManager::OnMouseUp(
+void SliderBehavior::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& slider =
@@ -2642,7 +2644,7 @@ void SliderInteractionManager::OnMouseUp(
     args.SetHandled(true);
 }
 
-void SliderInteractionManager::OnKeyDown(
+void SliderBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& slider =
@@ -2685,7 +2687,7 @@ void SliderInteractionManager::OnKeyDown(
     }
 }
 
-void SliderInteractionManager::OnCaptureChanged(
+void SliderBehavior::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {

@@ -3,7 +3,7 @@
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
-#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Meta/Registry.hpp>
 
 #include <new>
 #include <utility>
@@ -474,7 +474,7 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
     const Base::ResourceUri& uri,
     std::uint64_t sourceRevision,
     std::uint64_t sourceIdentity,
-    const Core::MetadataDomain& domain,
+    const Core::MetaRegistry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     DocumentCacheLookup result;
     if (impl_ == nullptr || uri.Empty()) return result;

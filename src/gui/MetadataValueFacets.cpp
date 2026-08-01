@@ -1,5 +1,5 @@
-#include "MetadataInternal.hpp"
-#include "MetadataValueRegistrationStore.hpp"
+#include "MetaInternals.hpp"
+#include "ValueTable.hpp"
 
 #include <utility>
 
@@ -32,8 +32,8 @@ Base::Status ValueFacetStateError(const char* message) noexcept {
 
 } // namespace
 
-Base::Result<void> MetadataFacetStore::BuildValueFacets(
-    const MetadataValueRegistrationStore& source,
+Base::Result<void> MetaTable::BuildValueFacets(
+    const ValueTable& source,
     const TypeRegistry& types) noexcept {
     if (!sealed_ || valueFacetsSealed_) {
         return Base::Status::Failure(
@@ -110,14 +110,14 @@ Base::Result<void> MetadataFacetStore::BuildValueFacets(
     return {};
 }
 
-const ValueSemanticsFacet* MetadataFacetStore::FindValueSemantics(
+const ValueSemanticsFacet* MetaTable::FindValueSemantics(
     TypeId type) const noexcept {
     const std::uint32_t* index = valueSemanticsIndex_.Find(type);
     return index != nullptr && *index < valueSemantics_.Size()
         ? &valueSemantics_[*index] : nullptr;
 }
 
-const TextConverterFacet* MetadataFacetStore::FindTextConverter(
+const TextConverterFacet* MetaTable::FindTextConverter(
     TypeId type) const noexcept {
     const std::uint32_t* index = textConverterIndex_.Find(type);
     return index != nullptr && *index < textConverters_.Size()
@@ -125,7 +125,7 @@ const TextConverterFacet* MetadataFacetStore::FindTextConverter(
 }
 
 Base::Result<Base::HashCode> ComputeMetadataValueFacetHash(
-    const MetadataFacetStore& facets,
+    const MetaTable& facets,
     const TypeRegistry& descriptors) noexcept {
     if (!facets.IsSealed() || !facets.ValueFacetsSealed() ||
         !descriptors.IsFrozen()) {

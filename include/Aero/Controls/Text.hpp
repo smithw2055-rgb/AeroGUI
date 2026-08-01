@@ -1,16 +1,16 @@
 #pragma once
 
-#include <Aero/Integration/PlatformServices.hpp>
+#include <Aero/Integration/Platform.hpp>
 #include <Aero/Text/EditableText.hpp>
 #include <Aero/Controls/Primitives.hpp>
 
-namespace Aero::Detail { class ControlRuntimeAccess; }
+namespace Aero::Detail { class TextEditBehavior; }
 
 namespace Aero::Controls {
 
 namespace Detail {
-class TextLayoutService;
-class TextServicesAccess;
+class TextBlockLayout;
+class ControlPrivate;
 }
 
 class AERO_API ITextDisplayPolicy {
@@ -236,9 +236,9 @@ protected:
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::TextEditBehavior;
     friend class PasswordBox;
-    friend class Detail::TextServicesAccess;
+    friend class Detail::ControlPrivate;
 
     struct CaretStop final {
         double x = 0.0;
@@ -249,7 +249,7 @@ private:
 
     Text::EditableTextModel model_;
     Text::EditableTextModel compositionModel_;
-    Detail::TextLayoutService* layoutService_ = nullptr;
+    Detail::TextBlockLayout* layoutService_ = nullptr;
     ITextDisplayPolicy* displayPolicy_ = nullptr;
     PlainTextDisplayPolicy plainPolicy_;
     Base::String displayText_;
@@ -384,8 +384,8 @@ protected:
 
 private:
     friend class TextBox;
-    friend class Aero::Detail::ControlRuntimeAccess;
-    friend class Detail::TextServicesAccess;
+    friend class Aero::Detail::TextEditBehavior;
+    friend class Detail::ControlPrivate;
     Base::String password_;
     Text::EditableTextModel validation_;
     PasswordTextDisplayPolicy passwordPolicy_;

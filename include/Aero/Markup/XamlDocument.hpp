@@ -16,7 +16,7 @@ namespace Aero {
 class ResourceDictionary;
 
 namespace Detail {
-class UiDocumentAccess;
+class XamlDocumentPrivate;
 }
 
 // Move-only ownership for one successfully loaded XAML document. The document
@@ -45,7 +45,7 @@ public:
     Base::Span<const Base::ResourceUri> Dependencies() const noexcept;
 
 private:
-    friend class Aero::Detail::UiDocumentAccess;
+    friend class Aero::Detail::XamlDocumentPrivate;
     struct Impl;
 
     void Reset() noexcept;

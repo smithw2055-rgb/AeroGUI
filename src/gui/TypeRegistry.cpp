@@ -1,5 +1,5 @@
 #include <Aero/Meta/TypeRegistry.hpp>
-#include "MetadataBehaviorRegistrationStore.hpp"
+#include "BehaviorTable.hpp"
 
 #include <Aero/Base/Assert.hpp>
 
@@ -168,7 +168,7 @@ TypeRegistry::TypeRegistry() noexcept
       memberIndex_() {}
 
 Base::Result<TypeId> TypeRegistry::TryRegisterType(
-    MetadataBehaviorRegistrationStore& behaviors,
+    BehaviorTable& behaviors,
     const TypeRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
     if (registration.xamlNamespace.Empty() || registration.name.Empty()) {
@@ -280,7 +280,7 @@ Base::Result<void> TypeRegistry::TryRegisterInterface(
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
-    MetadataBehaviorRegistrationStore& behaviors,
+    BehaviorTable& behaviors,
     TypeId ownerType,
     const PropertyRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -360,7 +360,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterProperty(
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterField(
-    MetadataBehaviorRegistrationStore& behaviors,
+    BehaviorTable& behaviors,
     TypeId ownerType,
     const FieldRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -511,7 +511,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterEvent(
 }
 
 Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
-    MetadataBehaviorRegistrationStore& behaviors,
+    BehaviorTable& behaviors,
     TypeId ownerType,
     const MethodRegistration& registration) noexcept {
     if (frozen_) return RegistryFrozenStatus();
@@ -590,7 +590,7 @@ Base::Result<MemberId> TypeRegistry::TryRegisterMethod(
 }
 
 Base::Result<void> TypeRegistry::TrySetFactory(
-    MetadataBehaviorRegistrationStore& behaviors,
+    BehaviorTable& behaviors,
     TypeId type,
     ObjectFactory factory) noexcept {
     if (frozen_) return RegistryFrozenStatus();

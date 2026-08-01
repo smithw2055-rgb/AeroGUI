@@ -4,7 +4,7 @@ if(AERO_BUILD_TOOLS)
     add_executable(aero-schema-gen
         tools/schema-gen/main.cpp
         $<TARGET_OBJECTS:AeroAppModelObjects>
-        $<TARGET_OBJECTS:AeroModuleCatalogObjects>)
+        $<TARGET_OBJECTS:AeroModuleSetObjects>)
     add_executable(Aero::schema-gen ALIAS aero-schema-gen)
     target_link_libraries(aero-schema-gen PRIVATE Aero::Gui)
     target_include_directories(aero-schema-gen PRIVATE
@@ -19,7 +19,7 @@ if(AERO_BUILD_TOOLS)
     add_executable(aero-xamlc
         tools/xamlc/main.cpp
         $<TARGET_OBJECTS:AeroAppModelObjects>
-        $<TARGET_OBJECTS:AeroModuleCatalogObjects>)
+        $<TARGET_OBJECTS:AeroModuleSetObjects>)
     add_executable(Aero::xamlc ALIAS aero-xamlc)
     target_link_libraries(aero-xamlc PRIVATE
         Aero::Gui

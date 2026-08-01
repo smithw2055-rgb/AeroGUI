@@ -14,9 +14,9 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Styling.hpp>
-#include "../controls/TemplateAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Animation.hpp>
 
@@ -197,9 +197,9 @@ private:
 // ControlTemplate rather than only as a ControlTemplate member. Keep that
 // authored collection on the root dependency object until the template is
 // compiled into its immutable state program.
-class XamlVisualStateGroupStore final
+class XamlVisualStates final
     : public Base::Object {
-    AERO_DECLARE_TYPE(XamlVisualStateGroupStore, Base::Object)
+    AERO_DECLARE_TYPE(XamlVisualStates, Base::Object)
 public:
     Core::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
@@ -256,8 +256,8 @@ struct TemplatePrototypeNode final {
 struct TemplatePrototypeBinding final {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
-    Aero::Detail::BindingManager* manager = nullptr;
-    Core::MetadataRuntime* metadata = nullptr;
+    Aero::Detail::BindingEngine* manager = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
@@ -269,7 +269,7 @@ struct TemplatePrototypeBinding final {
 };
 
 struct CompiledTemplateBlueprint final {
-    Core::MetadataRuntime* runtime = nullptr;
+    Core::MetaRegistry* runtime = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
@@ -297,7 +297,7 @@ struct CompiledTemplateDefinition final {
 };
 
 Base::Result<void> BuildCompiledTemplate(
-    Controls::TemplateBuildContext& context,
+    Controls::TemplateBuilder& context,
     void* factoryContext) noexcept;
 
 Base::Result<Base::Ref<Base::Object>>
@@ -311,7 +311,7 @@ CompileDeferredTemplateBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Core::MetadataRuntime& runtime,
+    Core::MetaRegistry& runtime,
     Core::DependencyPropertyRegistry& properties) noexcept;
 
 Base::Result<CompiledTemplateDefinition>
@@ -319,7 +319,7 @@ CompileControlTemplateDefinition(
     Controls::ControlTemplate& controlTemplate,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Core::MetadataRuntime& runtime,
+    Core::MetaRegistry& runtime,
     Core::DependencyPropertyRegistry& properties) noexcept;
 
 } // namespace Aero::Markup::Detail

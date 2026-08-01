@@ -41,7 +41,7 @@ Aero::Meta
     typed metadata and custom-type authoring over Aero::Gui
 
 Aero::Integration
-    RuntimeEnvironment, View, source providers and backend factories
+    GUI, View, source providers and backend factories
 
 Aero::App
     optional Application/Window desktop host
@@ -51,7 +51,7 @@ Aero::Audio
 ```
 
 普通桌面应用从 `Application::Run()` 开始；高级宿主加载 XAML 后创建 View。
-公开 API 不要求开发者理解内部 GuiKernel、ModuleCatalog、ViewState、
+公开 API 不要求开发者理解内部 GuiKernel、ModuleSet、View implementation、
 RenderDevice cache 或平台 peer。
 
 ## 3. WPF 对象模型
@@ -164,9 +164,9 @@ View 负责一个 UI 实例的：
 推荐嵌入流程：
 
 ```text
-RuntimeEnvironment.Initialize()
+GUI.Initialize()
 → XamlReader.Load()/Parse()
-→ RuntimeEnvironment.CreateView(options)
+→ GUI.CreateView(options)
 → View.SetContent(document, size)
 → host dispatches input
 → View.Update(elapsedMilliseconds)
@@ -218,21 +218,21 @@ WebGL 1 和 OpenGL fixed-function/compatibility profile 不进入 v1。
 
 ## 8. 私有实现与性能
 
-### 8.1 ViewState
+### 8.1 View implementation
 
 每个 View 的稳定服务使用一个对齐 arena placement-construct：
 
 ```text
-ObjectServicesScope
+ObjectFactoryScope
 EffectiveValueEngine
-AnimationManager
-GuiContext
-LayoutManager
+AnimationEngine
+ElementTree
+LayoutEngine
 RenderTree
-ImageRuntime / TextRuntime
-BindingManager
-EventRouter / InputService
-TemplateManager / StyleManager
+ImageCache / TextPipeline
+BindingEngine
+EventRouter / InputRouter
+TemplateEngine / StyleEngine
 ```
 
 这将多次小对象分配收敛为一次分配，并保留明确的析构顺序。只有生命周期独立的
@@ -259,7 +259,7 @@ Provider implementation、warning suppression 和单头库 implementation macro 
 
 ```text
 GuiKernel/Text/Controls/Markup objects → Aero::Gui
-AppModel/ModuleCatalog/Runtime/Rendering objects → Aero::Integration
+AppModel/ModuleSet/Runtime/Rendering objects → Aero::Integration
 DesktopHost/OS adapters → Aero::App
 ```
 

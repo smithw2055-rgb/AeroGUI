@@ -60,7 +60,7 @@ storage and freeze lifetimes.
 
 ## GUI context and element relationships
 
-`GuiContext` is a private per-View context. It owns Dispatcher-affine lifecycle,
+`ElementTree` is a private per-View context. It owns Dispatcher-affine lifecycle,
 property inheritance integration, event/input/layout coordination and stable
 runtime identity. It is not a public tree API and it does not replace WPF's
 logical-tree and visual-tree semantics.
@@ -78,17 +78,17 @@ therefore remain nonvisual; `TextBlock` is their layout and rendering host.
 
 The retired `ObjectTree`, `MountService`, and `VisualTreeMount` layers must not
 be recreated. Root and child attachment are coordinated directly by
-`GuiContext` while controls remain the owners of Content, Items and Children.
+`ElementTree` while controls remain the owners of Content, Items and Children.
 See `TREE_MODEL.md` for the detailed contract.
 
 ## Runtime composition
 
 ```text
-Aero::Detail::ViewState::Impl
+Aero::View::Impl
 ├─ schema, document cache and resource layers
 ├─ one packed service allocation
 │  ├─ metadata, dependency properties and animation
-│  ├─ GuiContext, routed events and input
+│  ├─ ElementTree, routed events and input
 │  ├─ layout, binding, style and templates
 │  ├─ RenderTree
 │  └─ text and image runtime
@@ -96,9 +96,9 @@ Aero::Detail::ViewState::Impl
 └─ opaque render attachment
 ```
 
-`Aero::Detail::ViewState` does not expose a service-locator surface. Repository-owned
+`Aero::View` does not expose a service-locator surface. Repository-owned
 inspection and reload code uses the narrow `ViewAccess` bridge implemented next
-to `Aero::Detail::ViewState::Impl`.
+to `Aero::View::Impl`.
 
 The stable per-View services are placement-constructed in one aligned arena. This
 replaces thirteen small allocator calls with one allocation while retaining
@@ -106,7 +106,7 @@ explicit destructor order. Dynamic trigger, fragment and control sessions keep
 their independent lifetimes and are not forced into the arena.
 
 Platform-neutral clipboard and text-input contracts are declared in
-`Aero/Integration/PlatformServices.hpp`. The default App owns concrete adapters
+`Aero/Integration/Platform.hpp`. The default App owns concrete adapters
 from `src/platform/win32` or another OS directory. Controls and View state consume
 only the interfaces; native message types and window procedures never cross the
 installed SDK boundary.
@@ -118,7 +118,7 @@ source ownership; they are not an additional link-time product layer.
 ## Event and command routing
 
 There is one route implementation in `RoutedEventInternal.hpp` and
-`GuiContext.cpp`.
+`ElementTree.cpp`.
 
 ```text
 input, command or content source
@@ -135,7 +135,7 @@ Route nodes are `DependencyObject` instances, so both `UIElement` and
 `EventRouter`; command code must not walk visual or logical parents directly.
 
 Loaded `UIElement` objects carry one private View-services attachment. It
-provides the canonical `EventRouter` and `InputService`; separate event-router
+provides the canonical `EventRouter` and `InputRouter`; separate event-router
 and command-router pointers are not stored on each element. Layout ownership
 and routed-handler storage remain explicit element state.
 
@@ -150,7 +150,7 @@ Template implementation is split by real responsibility:
 
 Do not recreate a catch-all `TemplateRuntime.hpp` or per-control Access headers.
 Default control behavior is coordinated by one private
-`ControlBehaviorService` and routed class handlers.
+`ControlBehavior` and routed class handlers.
 
 ## Render and graphics path
 
@@ -198,7 +198,7 @@ No internal Aero domain is an installed binary target. Product consumers see
 - `src/gui` stays flat and within explicit file budgets;
 - ObjectTree/MountService/VisualTreeMount and the old runtime forward layer stay
   removed;
-- `Aero::Detail::ViewState` does not expose internal service accessors;
+- `Aero::View` does not expose internal service accessors;
 - commands and content use the single routed-event route;
 - RenderTree only creates immutable frames and owns no submission;
 - DependencyProperty and RoutedEvent declarations remain single-line;

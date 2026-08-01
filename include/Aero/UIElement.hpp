@@ -12,10 +12,17 @@
 #include <type_traits>
 
 namespace Aero::Detail {
-class UiRuntimeAccess;
-class ControlRuntimeAccess;
-class ContentElementAccess;
-class LayoutManager;
+class ElementPrivate;
+class ButtonBehavior;
+class TextEditBehavior;
+class ScrollBehavior;
+class SliderBehavior;
+class ListBehavior;
+class ComboBehavior;
+class TreeBehavior;
+class MenuBehavior;
+class TemplateEngine;
+class LayoutEngine;
 }
 
 namespace Aero::Input { class RoutedCommand; }
@@ -294,10 +301,17 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::UiRuntimeAccess;
-    friend class Aero::Detail::ControlRuntimeAccess;
-    friend class Aero::Detail::ContentElementAccess;
-    friend class Aero::Detail::LayoutManager;
+    friend class Aero::Detail::ElementPrivate;
+    friend class Aero::Detail::ButtonBehavior;
+    friend class Aero::Detail::TextEditBehavior;
+    friend class Aero::Detail::ScrollBehavior;
+    friend class Aero::Detail::SliderBehavior;
+    friend class Aero::Detail::ListBehavior;
+    friend class Aero::Detail::ComboBehavior;
+    friend class Aero::Detail::TreeBehavior;
+    friend class Aero::Detail::MenuBehavior;
+    friend class Aero::Detail::TemplateEngine;
+    friend class Aero::Detail::LayoutEngine;
     friend class Aero::Input::RoutedCommand;
 
     struct HandlerOperations final {

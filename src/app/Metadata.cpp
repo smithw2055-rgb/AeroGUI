@@ -8,7 +8,7 @@
 namespace Aero::App {
 
 Base::Result<void> Detail::PopulateAppMetadata(
-    Core::MetadataContext& context) noexcept {
+    Core::MetaRegistration& context) noexcept {
     auto shutdownMode = Core::Describe<Aero::ShutdownMode>(context);
     shutdownMode
         .Value(

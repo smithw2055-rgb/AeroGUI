@@ -11,7 +11,7 @@
 namespace Aero::Markup {
 
 namespace Detail {
-class ResourceServiceAccess;
+class ResourcePrivate;
 }
 
 inline constexpr Base::StringView
@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    friend class Detail::ResourceServiceAccess;
+    friend class Detail::ResourcePrivate;
 
     NamespaceScope(
         LookupCallback lookup,
@@ -62,7 +62,7 @@ public:
     }
 
 private:
-    friend class Detail::ResourceServiceAccess;
+    friend class Detail::ResourcePrivate;
 
     ResourceResolver(
         LookupCallback lookup,

@@ -8,7 +8,7 @@
 #include <Aero/Media/Transforms.hpp>
 
 namespace Aero::Detail {
-class ImageBrushAccess;
+class BrushPrivate;
 }
 
 namespace Aero::Media {
@@ -317,7 +317,7 @@ public:
     inline static constexpr Members::Property<TileMode> TileModeProperty{"TileMode"};
 
 private:
-    friend class Aero::Detail::ImageBrushAccess;
+    friend class Aero::Detail::BrushPrivate;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

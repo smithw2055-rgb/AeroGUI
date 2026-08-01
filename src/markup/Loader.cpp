@@ -1,9 +1,9 @@
 #include "Loader.hpp"
 #include "LoaderResult.hpp"
-#include "LoadContext.hpp"
-#include "LoadOptionsAccess.hpp"
-#include "ObjectWriterState.hpp"
-#include "XamlDocumentAccess.hpp"
+#include "LoadState.hpp"
+#include "LoadInternals.hpp"
+#include "ObjectBuilder.hpp"
+#include "XamlDocumentInternal.hpp"
 
 #include "gui/PropertyInternal.hpp"
 #include <Aero/Base/Hash.hpp>
@@ -39,7 +39,7 @@ inline constexpr Core::DiagnosticCode ResourceDependencyFailed =
 struct Loader::Impl final {
     Impl(
         Schema& schema,
-        SourceProviderRegistry& providers,
+        SourceProviders& providers,
         Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
 
     Base::Result<LoaderResult> Load(
@@ -69,7 +69,7 @@ private:
     struct Operation;
 
     Schema* schema_ = nullptr;
-    SourceProviderRegistry* providers_ = nullptr;
+    SourceProviders* providers_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
 };
 
@@ -147,7 +147,7 @@ Base::Result<Base::ResourceUri> ResolveRequestedUri(
 
 } // namespace
 
-Base::Result<void> SourceProviderRegistry::TryRegister(
+Base::Result<void> SourceProviders::TryRegister(
     ISourceProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {
@@ -179,7 +179,7 @@ Base::Result<void> SourceProviderRegistry::TryRegister(
 }
 
 Base::Result<SourceProviderResolution>
-SourceProviderRegistry::ResolveDetailed(
+SourceProviders::ResolveDetailed(
     const Base::ResourceUri& uri) const noexcept {
     const struct Route final {
         bool scheme;
@@ -220,7 +220,7 @@ SourceProviderRegistry::ResolveDetailed(
 }
 
 Base::Result<ISourceProvider*>
-SourceProviderRegistry::Resolve(
+SourceProviders::Resolve(
     const Base::ResourceUri& uri) const noexcept {
     Base::Result<SourceProviderResolution> resolved =
         ResolveDetailed(uri);
@@ -429,7 +429,7 @@ Base::Result<Source> FileSourceProvider::Load(
 }
 
 struct Loader::Impl::Operation final {
-    struct FinalizeContext final {
+    struct FinalizeState final {
         Operation* operation = nullptr;
         const LoadOptions* options = nullptr;
         const Base::ResourceUri* origin = nullptr;
@@ -443,7 +443,7 @@ struct Loader::Impl::Operation final {
 
     Operation(
         Schema& schema,
-        SourceProviderRegistry& providers,
+        SourceProviders& providers,
         Core::IDiagnosticSink* diagnostics) noexcept
         : schema_(&schema),
           providers_(&providers),
@@ -513,14 +513,14 @@ struct Loader::Impl::Operation final {
         Base::StringView message) noexcept;
 
     Schema* schema_ = nullptr;
-    SourceProviderRegistry* providers_ = nullptr;
+    SourceProviders* providers_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
     Base::Vector<Base::ResourceUri> loadStack_;
 };
 
 Loader::Impl::Impl(
     Schema& schema,
-    SourceProviderRegistry& providers,
+    SourceProviders& providers,
     Core::IDiagnosticSink* diagnostics) noexcept
     : schema_(&schema),
       providers_(&providers),
@@ -659,9 +659,9 @@ Loader::Impl::Operation::LoadCompiledDocument(
     const Base::ResourceUri& originUri,
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
-    LoadContext context;
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
+    LoadState context;
     context.resources = runtime.resources;
     context.effectiveValues = runtime.effectiveValues;
     context.bindings = runtime.bindings;
@@ -672,7 +672,7 @@ Loader::Impl::Operation::LoadCompiledDocument(
     context.effectLifetime = runtime.effectLifetime;
     context.effectCommitMode = runtime.effectCommitMode;
     context.maxObjects = options.limits.maxObjects;
-    FinalizeContext finalize{
+    FinalizeState finalize{
         this, &options, &originUri, &document};
     context.finalize = &FinalizeLoad;
     context.finalizeContext = &finalize;
@@ -681,15 +681,15 @@ Loader::Impl::Operation::LoadCompiledDocument(
         runtime.dispatcher != nullptr &&
         runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
-              Core::ObjectServicesScope services(
+              Core::ObjectFactoryScope services(
                   *runtime.dispatcher,
                   *runtime.dependencyProperties,
-                  schema_->Runtime());
-              ObjectWriterState state(writer);
+                  schema_->Metadata());
+              ObjectBuilder state(writer);
               return state.Load(document, context);
           }()
         : [&]() noexcept {
-              ObjectWriterState state(writer);
+              ObjectBuilder state(writer);
               return state.Load(document, context);
           }();
     if (!loaded) return loaded.GetStatus();
@@ -700,8 +700,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
     const Base::ResourceUri& uri,
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -834,11 +834,11 @@ Base::Result<LoaderResult> Loader::Impl::Operation::LoadCore(
             auto& discoveredResources =
                 static_cast<ResourceDictionary&>(
                     *loaded.Value().root);
-            LoadContext replayContext = runtime;
+            LoadState replayContext = runtime;
             replayContext.resources = &discoveredResources;
             replayContext.deferUnresolvedStaticResources = false;
             LoadOptions replayOptions = options;
-            Detail::LoadOptionsAccess::SetContext(
+            Detail::LoadOptionsPrivate::SetContext(
                 replayOptions, &replayContext);
             Base::Result<LoaderResult> replayed = ParseCore(
                 source.Value().Text(),
@@ -867,8 +867,8 @@ Base::Result<void> Loader::Impl::Operation::PopulateDocumentCache(
     std::uint64_t sourceIdentity,
     const LoaderResult& loaded,
     const LoadOptions& options) noexcept {
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
     if (runtime.documentCache == nullptr ||
         source.bytes.Empty()) return {};
 #if AERO_WITH_EXPAT
@@ -901,8 +901,8 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     const LoadOptions& options,
     const Base::Ref<Base::Object>& existingRoot,
     bool deferUnresolvedStaticResources) noexcept {
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
     Base::Result<void> validOptions =
         ValidateOptions(options);
     if (!validOptions) {
@@ -930,7 +930,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
         return reset.GetStatus();
     }
     NodeReader reader(tokenizer, diagnostics_);
-    LoadContext context;
+    LoadState context;
     context.resources = runtime.resources;
     context.effectiveValues = runtime.effectiveValues;
     context.bindings = runtime.bindings;
@@ -943,7 +943,7 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
     context.maxObjects = options.limits.maxObjects;
     context.deferUnresolvedStaticResources =
         deferUnresolvedStaticResources;
-    FinalizeContext finalize{
+    FinalizeState finalize{
         this, &options, &baseUri, nullptr};
     context.finalize = &FinalizeLoad;
     context.finalizeContext = &finalize;
@@ -952,15 +952,15 @@ Base::Result<LoaderResult> Loader::Impl::Operation::ParseCore(
         runtime.dispatcher != nullptr &&
         runtime.dependencyProperties != nullptr
         ? [&]() noexcept -> Base::Result<LoaderResult> {
-              Core::ObjectServicesScope services(
+              Core::ObjectFactoryScope services(
                   *runtime.dispatcher,
                   *runtime.dependencyProperties,
-                  schema_->Runtime());
-              ObjectWriterState state(writer);
+                  schema_->Metadata());
+              ObjectBuilder state(writer);
               return state.Load(reader, context);
           }()
         : [&]() noexcept {
-              ObjectWriterState state(writer);
+              ObjectBuilder state(writer);
               return state.Load(reader, context);
           }();
     if (!loaded) {
@@ -973,7 +973,7 @@ Base::Result<void> Loader::Impl::Operation::FinalizeLoad(
     LoaderResult& result,
     void* context) noexcept {
     auto* finalize =
-        static_cast<FinalizeContext*>(context);
+        static_cast<FinalizeState*>(context);
     if (finalize == nullptr ||
         finalize->operation == nullptr ||
         finalize->options == nullptr ||
@@ -1166,13 +1166,13 @@ Loader::Impl::Operation::ResolveDictionaryDependencies(
         }
     }
     if (!ambientMerged) return ambientMerged.GetStatus();
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
-    LoadContext resourceContext = runtime;
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
+    LoadState resourceContext = runtime;
     resourceContext.resources = &ambientResources;
     resourceContext.fallbackResources = &ambientResources;
     LoadOptions resourceOptions = options;
-    Detail::LoadOptionsAccess::SetContext(
+    Detail::LoadOptionsPrivate::SetContext(
         resourceOptions, &resourceContext);
     Base::Result<LoaderResult> loaded =
         LoadCore(source, resourceOptions, {});
@@ -1297,8 +1297,8 @@ Base::Result<void> Loader::Impl::Operation::AppendDependency(
 
 Base::Result<void> Loader::Impl::Operation::ValidateOptions(
     const LoadOptions& options) const noexcept {
-    const LoadContext& runtime =
-        Detail::LoadOptionsAccess::Context(options);
+    const LoadState& runtime =
+        Detail::LoadOptionsPrivate::Context(options);
     if (schema_ == nullptr || providers_ == nullptr ||
         !schema_->IsFrozen()) {
         return Base::Status::Failure(
@@ -1321,7 +1321,7 @@ Base::Result<void> Loader::Impl::Operation::ValidateOptions(
         (runtime.dependencyProperties == nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
-            "XAML object services require dispatcher and property metadata");
+            "XAML object factory require dispatcher and property metadata");
     }
     return {};
 }
@@ -1408,7 +1408,7 @@ Base::Result<UiDocument> AdoptResult(
     Base::Result<LoaderResult>&& loaded,
     Base::IAllocator& allocator) noexcept {
     if (!loaded) return loaded.GetStatus();
-    return Aero::Detail::UiDocumentAccess::Adopt(
+    return Aero::Detail::XamlDocumentPrivate::Adopt(
         std::move(loaded).Value(), allocator);
 }
 
@@ -1416,7 +1416,7 @@ Base::Result<UiDocument> AdoptResult(
 
 Loader::Loader(
     Schema& schema,
-    SourceProviderRegistry& providers,
+    SourceProviders& providers,
     Core::IDiagnosticSink* diagnostics,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr

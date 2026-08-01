@@ -159,7 +159,7 @@ Base::Result<void> ContentElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     if (eventRouter_ == nullptr && contentHost_ != nullptr) {
-        eventRouter_ = Aero::Detail::ContentElementAccess::EventRouterFor(
+        eventRouter_ = Aero::Detail::ElementPrivate::EventRouterFor(
             *contentHost_);
     }
     if (eventRouter_ == nullptr) {

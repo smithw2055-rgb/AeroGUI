@@ -279,7 +279,7 @@ requires all of the following to match the runtime:
 - `TypeIdAlgorithmVersion`;
 - `MetadataDescriptorFormatVersion`;
 - `MetadataFacetFormatVersion`;
-- the sealed `MetadataDomain::ComputeSchemaHash()` value, which includes module
+- the sealed `MetaRegistry::ComputeSchemaHash()` value, which includes module
   IDs, module schema versions, structural descriptors, and sealed facets.
 
 A format or algorithm mismatch is an unsupported cache format. A schema-hash

@@ -24,9 +24,9 @@ namespace Aero { class DependencyObject; }
 namespace Aero::Core {
 class DependencyProperty;
 class EffectiveValueEngine;
-class MetadataBehaviorRegistrationStore;
+class BehaviorTable;
 class DependencyPropertyRegistry;
-class MetadataContext;
+class MetaRegistration;
 
 struct DependencyPropertyHandle final {
     MemberId value = InvalidMemberId;
@@ -439,7 +439,7 @@ class AERO_API DependencyPropertyRegistry final {
 public:
     DependencyPropertyRegistry(
         TypeRegistry& typeRegistry,
-        MetadataBehaviorRegistrationStore& behaviors) noexcept;
+        BehaviorTable& behaviors) noexcept;
 
     DependencyPropertyRegistry(const DependencyPropertyRegistry&) = delete;
     DependencyPropertyRegistry& operator=(
@@ -496,7 +496,7 @@ private:
     friend class ::Aero::DependencyObject;
 
     TypeRegistry* typeRegistry_ = nullptr;
-    MetadataBehaviorRegistrationStore* behaviorRegistrations_ = nullptr;
+    BehaviorTable* behaviorRegistrations_ = nullptr;
     Base::Vector<DependencyProperty> properties_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
     std::uint64_t nextReadOnlySecret_ = 1U;

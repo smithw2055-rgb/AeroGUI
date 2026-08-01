@@ -648,47 +648,6 @@ Base::Result<void> Style::SealRuntime(
     return {};
 }
 
-Base::Result<void> Aero::Detail::ThemeStyleRegistry::TryRegister(
-    TypeId controlType,
-    const Style& style) noexcept {
-    if (properties_ == nullptr || !properties_->IsFrozen() ||
-        controlType == InvalidTypeId ||
-        properties_->Types().FindType(controlType) == nullptr ||
-        !style.IsSealed() ||
-        style.GetTargetType() != controlType) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Theme style registration requires a sealed exact-type Style");
-    }
-    for (const Entry& entry : entries_) {
-        if (entry.controlType == controlType) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "A theme style is already registered for this control type");
-        }
-    }
-    return entries_.TryPushBack({controlType, &style});
-}
-
-const Aero::Style* Aero::Detail::ThemeStyleRegistry::Find(
-    TypeId controlType) const noexcept {
-    if (properties_ == nullptr) return nullptr;
-    TypeId current = controlType;
-    for (std::uint32_t depth = 0U;
-         current != InvalidTypeId &&
-         depth <= properties_->Types().TypeCount();
-         ++depth) {
-        for (const Entry& entry : entries_) {
-            if (entry.controlType == current) return entry.style;
-        }
-        const TypeInfo* type =
-            properties_->Types().FindType(current);
-        if (type == nullptr) break;
-        current = type->BaseType();
-    }
-    return nullptr;
-}
-
 Base::Result<void> Style::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     return Aero::Detail::AssignResourceDictionary(
@@ -704,11 +663,11 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero;
 
-Base::Result<void> StyleManager::VerifyTarget(
+Base::Result<void> StyleEngine::VerifyTarget(
     const DependencyObject& object,
     const Style& style) const noexcept {
     if (values_ == nullptr || properties_ == nullptr || !style.IsSealed()) {
-        return InvalidStyle("StyleManager requires a sealed Style");
+        return InvalidStyle("StyleEngine requires a sealed Style");
     }
     if (!IsTargetCompatible(
             properties_->Types(), properties_, object.RuntimeType(),
@@ -720,7 +679,7 @@ Base::Result<void> StyleManager::VerifyTarget(
     return {};
 }
 
-Base::Result<void> StyleManager::Apply(
+Base::Result<void> StyleEngine::Apply(
     DependencyObject& object,
     const Style& style) noexcept {
     Base::Result<void> hooked =
@@ -787,7 +746,7 @@ Base::Result<void> StyleManager::Apply(
     return EvaluateTriggers(object, style);
 }
 
-Base::Result<void> StyleManager::Clear(
+Base::Result<void> StyleEngine::Clear(
     DependencyObject& object,
     const Style& style) noexcept {
     Base::Result<void> verified = VerifyTarget(object, style);
@@ -814,7 +773,7 @@ Base::Result<void> StyleManager::Clear(
     return {};
 }
 
-Base::Result<bool> StyleManager::DetachObject(
+Base::Result<bool> StyleEngine::DetachObject(
     DependencyObject& object) noexcept {
     const std::uint32_t existing = FindApplication(object);
     if (existing == UINT32_MAX) {
@@ -836,7 +795,7 @@ Base::Result<bool> StyleManager::DetachObject(
     return true;
 }
 
-const Style* StyleManager::AppliedStyle(
+const Style* StyleEngine::AppliedStyle(
     const DependencyObject& object)
     const noexcept {
     const std::uint32_t application =
@@ -846,7 +805,7 @@ const Style* StyleManager::AppliedStyle(
         : nullptr;
 }
 
-std::uint32_t StyleManager::FindApplication(
+std::uint32_t StyleEngine::FindApplication(
     const DependencyObject& object) const noexcept {
     for (std::uint32_t index = 0U; index < applications_.Size(); ++index) {
         if (applications_[index].object == &object) {
@@ -856,7 +815,7 @@ std::uint32_t StyleManager::FindApplication(
     return UINT32_MAX;
 }
 
-Base::Result<void> StyleManager::ClearSetters(
+Base::Result<void> StyleEngine::ClearSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     for (const StyleSetter& setter : style.Setters()) {
@@ -871,7 +830,7 @@ Base::Result<void> StyleManager::ClearSetters(
     return {};
 }
 
-Base::Result<void> StyleManager::SubscribeTriggers(
+Base::Result<void> StyleEngine::SubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
@@ -895,7 +854,7 @@ Base::Result<void> StyleManager::SubscribeTriggers(
     return {};
 }
 
-void StyleManager::UnsubscribeTriggers(
+void StyleEngine::UnsubscribeTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     for (std::uint32_t index = 0U;
@@ -917,7 +876,7 @@ void StyleManager::UnsubscribeTriggers(
     }
 }
 
-Base::Result<void> StyleManager::EvaluateTriggers(
+Base::Result<void> StyleEngine::EvaluateTriggers(
     DependencyObject& object,
     const Style& style) noexcept {
     const std::uint32_t applicationIndex =
@@ -990,7 +949,7 @@ Base::Result<void> StyleManager::EvaluateTriggers(
     return {};
 }
 
-Base::Result<void> StyleManager::ExecuteTriggerActions(
+Base::Result<void> StyleEngine::ExecuteTriggerActions(
     DependencyObject& object,
     Base::Span<const Base::Ref<Base::Object>>
         actions) noexcept {
@@ -1002,7 +961,7 @@ Base::Result<void> StyleManager::ExecuteTriggerActions(
         object, actions, triggerActionContext_);
 }
 
-Base::Result<void> StyleManager::ClearTriggerSetters(
+Base::Result<void> StyleEngine::ClearTriggerSetters(
     DependencyObject& object,
     const Style& style) noexcept {
     const Base::Span<const StylePropertyTrigger> triggers =
@@ -1047,7 +1006,7 @@ Base::Result<void> StyleManager::ClearTriggerSetters(
     return {};
 }
 
-void StyleManager::OnPropertyChanged(
+void StyleEngine::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     const std::uint32_t index = FindApplication(object);
@@ -1075,7 +1034,7 @@ void StyleManager::OnPropertyChanged(
     }
 }
 
-StyleManager::~StyleManager() noexcept {
+StyleEngine::~StyleEngine() noexcept {
     if (dispatcher_ != nullptr &&
         triggerPhaseHook_.IsValid() &&
         dispatcher_->CheckAccess()) {
@@ -1085,7 +1044,7 @@ StyleManager::~StyleManager() noexcept {
     }
 }
 
-Base::Result<void> StyleManager::EnsureTriggerPhaseHook(
+Base::Result<void> StyleEngine::EnsureTriggerPhaseHook(
     DependencyObject& object) noexcept {
     Dispatcher& dispatcher = object.GetDispatcher();
     if (triggerPhaseHook_.IsValid()) {
@@ -1094,12 +1053,12 @@ Base::Result<void> StyleManager::EnsureTriggerPhaseHook(
             : Base::Result<void>(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
-                    "StyleManager objects must share one Dispatcher"));
+                    "StyleEngine objects must share one Dispatcher"));
     }
     Base::Result<DispatcherFrameHookHandle> hook =
         dispatcher.RegisterFrameHook(
             DispatcherFramePhase::DataBind,
-            &StyleManager::TriggerPhaseHook,
+            &StyleEngine::TriggerPhaseHook,
             this,
             nullptr);
     if (!hook) return hook.GetStatus();
@@ -1108,7 +1067,7 @@ Base::Result<void> StyleManager::EnsureTriggerPhaseHook(
     return {};
 }
 
-Base::Result<void> StyleManager::QueueTriggerEvaluation(
+Base::Result<void> StyleEngine::QueueTriggerEvaluation(
     DependencyObject& object) noexcept {
     for (DependencyObject* pending :
          pendingTriggerEvaluations_) {
@@ -1118,7 +1077,7 @@ Base::Result<void> StyleManager::QueueTriggerEvaluation(
         &object);
 }
 
-void StyleManager::RemovePendingTriggerEvaluation(
+void StyleEngine::RemovePendingTriggerEvaluation(
     DependencyObject& object) noexcept {
     for (std::uint32_t index = 0U;
          index < pendingTriggerEvaluations_.Size();) {
@@ -1137,7 +1096,7 @@ void StyleManager::RemovePendingTriggerEvaluation(
 }
 
 Base::Result<std::uint32_t>
-StyleManager::FlushPendingTriggerEvaluations() noexcept {
+StyleEngine::FlushPendingTriggerEvaluations() noexcept {
     Base::Vector<DependencyObject*> pending =
         std::move(pendingTriggerEvaluations_);
     std::uint32_t evaluatedCount = 0U;
@@ -1156,10 +1115,10 @@ StyleManager::FlushPendingTriggerEvaluations() noexcept {
     return evaluatedCount;
 }
 
-void StyleManager::TriggerPhaseHook(
+void StyleEngine::TriggerPhaseHook(
     void* context) noexcept {
     auto* manager =
-        static_cast<StyleManager*>(context);
+        static_cast<StyleEngine*>(context);
     if (manager == nullptr ||
         !manager->lastActionStatus_.IsOk()) {
         return;
@@ -1172,78 +1131,5 @@ void StyleManager::TriggerPhaseHook(
     }
 }
 
-Base::Result<bool> ThemeStyleManager::ApplyDefault(
-    DependencyObject& object) noexcept {
-    if (values_ == nullptr || registry_ == nullptr) {
-        return InvalidStyle(
-            "ThemeStyleManager is not configured").GetStatus();
-    }
-    const Style* style = registry_->Find(object.RuntimeType());
-    if (style == nullptr) return false;
-    const std::uint32_t existing = FindApplication(object);
-    if (existing != UINT32_MAX &&
-        applications_[existing].style != style) {
-        Base::Result<void> cleared = ClearSetters(
-            object, *applications_[existing].style);
-        if (!cleared) return cleared.GetStatus();
-    }
-    for (const StyleSetter& setter : style->Setters()) {
-        if (IsDeferredBindingSetterValue(setter.value)) {
-            continue;
-        }
-        Base::Result<void> applied =
-            values_->SetThemeStyleValue(
-                object, setter.property, setter.value);
-        if (!applied) return applied.GetStatus();
-    }
-    if (existing == UINT32_MAX) {
-        Base::Result<void> tracked =
-            applications_.TryPushBack({&object, style});
-        if (!tracked) return tracked.GetStatus();
-    } else {
-        applications_[existing].style = style;
-    }
-    return true;
-}
-
-Base::Result<bool> ThemeStyleManager::Clear(
-    DependencyObject& object) noexcept {
-    const std::uint32_t existing = FindApplication(object);
-    if (existing == UINT32_MAX) return false;
-    Base::Result<void> cleared =
-        ClearSetters(object, *applications_[existing].style);
-    if (!cleared) return cleared.GetStatus();
-    if (existing + 1U != applications_.Size()) {
-        applications_[existing] =
-            applications_[applications_.Size() - 1U];
-    }
-    applications_.PopBack();
-    return true;
-}
-
-std::uint32_t ThemeStyleManager::FindApplication(
-    const DependencyObject& object) const noexcept {
-    for (std::uint32_t index = 0U;
-         index < applications_.Size();
-         ++index) {
-        if (applications_[index].object == &object) return index;
-    }
-    return UINT32_MAX;
-}
-
-Base::Result<void> ThemeStyleManager::ClearSetters(
-    DependencyObject& object,
-    const Style& style) noexcept {
-    for (const StyleSetter& setter : style.Setters()) {
-        if (IsDeferredBindingSetterValue(setter.value)) {
-            continue;
-        }
-        Base::Result<void> cleared =
-            values_->ClearThemeStyleValue(
-                object, setter.property);
-        if (!cleared) return cleared.GetStatus();
-    }
-    return {};
-}
 
 } // namespace Aero::Detail

@@ -6,7 +6,7 @@ add_library(AeroRenderingObjects OBJECT
     src/render/RenderDeviceResources.cpp
     src/render/Surface.cpp
     src/render/Renderer.cpp
-    src/render/TextRuntimeService.cpp
+    src/render/TextRenderer.cpp
     src/render/opengl33/OpenGL33Backend.cpp
     src/render/opengl33/OpenGL33Context.cpp
     src/render/opengl33/OpenGL33StateCache.cpp

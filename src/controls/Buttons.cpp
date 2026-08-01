@@ -1,11 +1,12 @@
-#include "VisualStateRuntime.hpp"
+#include "TemplateInternals.hpp"
 #include <Aero/Controls/Primitives.hpp>
 
 #include <utility>
 #include "gui/RoutedEventInternal.hpp"
-#include "RuntimeManagers.hpp"
+#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
+using Aero::Detail::ButtonBehavior;
 
 using namespace Primitives;
 
@@ -152,7 +153,7 @@ Base::Result<void> ButtonBase::OnApplyTemplate() noexcept {
         ContentControl::OnApplyTemplate();
     if (!applied) return applied.GetStatus();
     if (interactionRuntime_ != nullptr) {
-        return static_cast<ControlInteractionManager*>(
+        return static_cast<ButtonBehavior*>(
             interactionRuntime_)->SyncVisualState(*this, false);
     }
     return {};
@@ -165,10 +166,10 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Controls;
 
-ControlInteractionManager::ControlInteractionManager(
-    GuiContext& tree,
+ButtonBehavior::ButtonBehavior(
+    ElementTree& tree,
     EventRouter& events,
-    InputService& input,
+    InputRouter& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
@@ -176,25 +177,25 @@ ControlInteractionManager::ControlInteractionManager(
       states_(states),
       buttons_(&Base::GetDefaultAllocator()),
       mouseDownHandler_(
-          this, &ControlInteractionManager::OnMouseDown),
+          this, &ButtonBehavior::OnMouseDown),
       mouseUpHandler_(
-          this, &ControlInteractionManager::OnMouseUp),
+          this, &ButtonBehavior::OnMouseUp),
       keyDownHandler_(
-          this, &ControlInteractionManager::OnKeyDown),
+          this, &ButtonBehavior::OnKeyDown),
       keyUpHandler_(
-          this, &ControlInteractionManager::OnKeyUp),
+          this, &ButtonBehavior::OnKeyUp),
       focusChangedHandler_(
-          this, &ControlInteractionManager::OnFocusChanged),
+          this, &ButtonBehavior::OnFocusChanged),
       propertyChangedHandler_(
-          this, &ControlInteractionManager::OnPropertyChanged),
+          this, &ButtonBehavior::OnPropertyChanged),
       pointerStateChangedHandler_(
-          this, &ControlInteractionManager::OnPointerStateChanged),
+          this, &ButtonBehavior::OnPointerStateChanged),
       captureChangedHandler_(
-          this, &ControlInteractionManager::OnCaptureChanged),
+          this, &ButtonBehavior::OnCaptureChanged),
       requeryHandler_(
-          this, &ControlInteractionManager::OnRequerySuggested) {}
+          this, &ButtonBehavior::OnRequerySuggested) {}
 
-ControlInteractionManager::~ControlInteractionManager() noexcept {
+ButtonBehavior::~ButtonBehavior() noexcept {
     if (initialized_) {
         static_cast<void>(
             input_->RemovePointerStateChanged(
@@ -260,7 +261,7 @@ ControlInteractionManager::~ControlInteractionManager() noexcept {
     }
 }
 
-Base::Result<void> ControlInteractionManager::Initialize() noexcept {
+Base::Result<void> ButtonBehavior::Initialize() noexcept {
     if (initialized_) return {};
     Base::Result<void> state =
         input_->TryAddPointerStateChanged(
@@ -286,7 +287,7 @@ Base::Result<void> ControlInteractionManager::Initialize() noexcept {
     return {};
 }
 
-std::uint32_t ControlInteractionManager::FindButton(
+std::uint32_t ButtonBehavior::FindButton(
     const ButtonBase& button) const noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -297,7 +298,7 @@ std::uint32_t ControlInteractionManager::FindButton(
     return UINT32_MAX;
 }
 
-ButtonBase* ControlInteractionManager::ResolveButton(
+ButtonBase* ButtonBehavior::ResolveButton(
     std::uint32_t index) noexcept {
     Visual* visual = tree_->ResolveHandle(buttons_[index].handle);
     return visual != nullptr
@@ -305,7 +306,7 @@ ButtonBase* ControlInteractionManager::ResolveButton(
         : nullptr;
 }
 
-void ControlInteractionManager::UnsubscribeCommand(
+void ButtonBehavior::UnsubscribeCommand(
     ButtonRecord& record) noexcept {
     if (record.command) {
         static_cast<void>(
@@ -315,7 +316,7 @@ void ControlInteractionManager::UnsubscribeCommand(
     }
 }
 
-Base::Result<void> ControlInteractionManager::SubscribeCommand(
+Base::Result<void> ButtonBehavior::SubscribeCommand(
     ButtonBase& button,
     ButtonRecord& record) noexcept {
     UnsubscribeCommand(record);
@@ -332,7 +333,7 @@ Base::Result<void> ControlInteractionManager::SubscribeCommand(
     return {};
 }
 
-Base::Result<void> ControlInteractionManager::Attach(
+Base::Result<void> ButtonBehavior::Attach(
     ButtonBase& button) noexcept {
     Base::Result<void> ready = Initialize();
     if (!ready) return ready.GetStatus();
@@ -346,7 +347,7 @@ Base::Result<void> ControlInteractionManager::Attach(
             Base::ErrorCode::AlreadyExists,
             "Button is already attached to another interaction service");
     }
-    if (!button.GetIsLoaded() || Aero::Detail::VisualAccess::Tree(button) != tree_) {
+    if (!button.GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(button) != tree_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Button must be loaded in the interaction tree");
@@ -447,7 +448,7 @@ Base::Result<void> ControlInteractionManager::Attach(
     return {};
 }
 
-void ControlInteractionManager::RemoveAt(
+void ButtonBehavior::RemoveAt(
     std::uint32_t index) noexcept {
     if (index + 1U != buttons_.Size()) {
         buttons_[index] =
@@ -456,7 +457,7 @@ void ControlInteractionManager::RemoveAt(
     buttons_.PopBack();
 }
 
-Base::Result<bool> ControlInteractionManager::Detach(
+Base::Result<bool> ButtonBehavior::Detach(
     ButtonBase& button) noexcept {
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return false;
@@ -508,7 +509,7 @@ Base::Result<bool> ControlInteractionManager::Detach(
     }
     UnsubscribeCommand(record);
     if (states_ != nullptr) {
-        static_cast<void>(Aero::Controls::Detail::VisualStateManagerAccess::Clear(*states_, button));
+        static_cast<void>(Aero::Controls::Detail::TemplatePrivate::Clear(*states_, button));
     }
     if (button.interactionRuntime_ == this) {
         button.interactionRuntime_ = nullptr;
@@ -517,7 +518,7 @@ Base::Result<bool> ControlInteractionManager::Detach(
     return true;
 }
 
-Base::Result<void> ControlInteractionManager::RefreshCanExecute(
+Base::Result<void> ButtonBehavior::RefreshCanExecute(
     ButtonBase& button) noexcept {
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) {
@@ -559,7 +560,7 @@ Base::Result<void> ControlInteractionManager::RefreshCanExecute(
 }
 
 Base::Result<std::uint32_t>
-ControlInteractionManager::AdvanceTime(
+ButtonBehavior::AdvanceTime(
     std::uint32_t elapsedMilliseconds) noexcept {
     std::uint32_t emitted = 0U;
     for (std::uint32_t index = 0U;
@@ -596,7 +597,7 @@ ControlInteractionManager::AdvanceTime(
     return emitted;
 }
 
-Base::Result<void> ControlInteractionManager::InvokeClick(
+Base::Result<void> ButtonBehavior::InvokeClick(
     ButtonBase& button) noexcept {
     if (!button.GetIsEnabled()) return {};
     const TypeId type = button.RuntimeType();
@@ -639,7 +640,7 @@ Base::Result<void> ControlInteractionManager::InvokeClick(
         : Base::Result<void>(executed.GetStatus());
 }
 
-Base::Result<void> ControlInteractionManager::ApplyToggleState(
+Base::Result<void> ButtonBehavior::ApplyToggleState(
     ToggleButton& button,
     ToggleState state) noexcept {
     const std::uint32_t index = FindButton(button);
@@ -658,7 +659,7 @@ Base::Result<void> ControlInteractionManager::ApplyToggleState(
     return {};
 }
 
-void ControlInteractionManager::PublishToggleState(
+void ButtonBehavior::PublishToggleState(
     ToggleButton& button,
     ButtonRecord& record) noexcept {
     const ToggleState state = button.GetToggleState();
@@ -684,7 +685,7 @@ void ControlInteractionManager::PublishToggleState(
         SyncVisualState(button));
 }
 
-void ControlInteractionManager::UncheckRadioPeers(
+void ButtonBehavior::UncheckRadioPeers(
     RadioButton& button) noexcept {
     Visual* parent = button.GetLogicalParent();
     const Base::StringView group = button.GroupName();
@@ -708,7 +709,7 @@ void ControlInteractionManager::UncheckRadioPeers(
 }
 
 Base::Result<void>
-ControlInteractionManager::SyncVisualState(
+ButtonBehavior::SyncVisualState(
     ButtonBase& button,
     bool useTransitions) noexcept {
     if (states_ == nullptr) return {};
@@ -718,7 +719,7 @@ ControlInteractionManager::SyncVisualState(
             Base::StringView state) noexcept
             -> Base::Result<void> {
         Base::Result<bool> changed =
-            Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
+            Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                 button, group, state,
                 useTransitions);
         if (!changed &&
@@ -765,7 +766,7 @@ ControlInteractionManager::SyncVisualState(
     return {};
 }
 
-void ControlInteractionManager::OnMouseDown(
+void ButtonBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -789,7 +790,7 @@ void ControlInteractionManager::OnMouseDown(
         SyncVisualState(button));
 }
 
-void ControlInteractionManager::OnMouseUp(
+void ButtonBehavior::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -811,7 +812,7 @@ void ControlInteractionManager::OnMouseUp(
         SyncVisualState(button));
 }
 
-void ControlInteractionManager::OnKeyDown(
+void ButtonBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -835,7 +836,7 @@ void ControlInteractionManager::OnKeyDown(
     args.SetHandled(true);
 }
 
-void ControlInteractionManager::OnKeyUp(
+void ButtonBehavior::OnKeyUp(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -857,7 +858,7 @@ void ControlInteractionManager::OnKeyUp(
         SyncVisualState(button));
 }
 
-void ControlInteractionManager::OnFocusChanged(
+void ButtonBehavior::OnFocusChanged(
     Base::Object* sender,
     KeyboardFocusChangedEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
@@ -874,7 +875,7 @@ void ControlInteractionManager::OnFocusChanged(
         SyncVisualState(button));
 }
 
-void ControlInteractionManager::OnPropertyChanged(
+void ButtonBehavior::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     auto& button = static_cast<ButtonBase&>(object);
@@ -924,7 +925,7 @@ void ControlInteractionManager::OnPropertyChanged(
     }
 }
 
-void ControlInteractionManager::OnPointerStateChanged(
+void ButtonBehavior::OnPointerStateChanged(
     UIElement& element) noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
@@ -943,7 +944,7 @@ void ControlInteractionManager::OnPointerStateChanged(
     }
 }
 
-void ControlInteractionManager::OnCaptureChanged(
+void ButtonBehavior::OnCaptureChanged(
     std::uint32_t pointerId,
     UIElement* target,
     bool captured) noexcept {
@@ -965,7 +966,7 @@ void ControlInteractionManager::OnCaptureChanged(
     }
 }
 
-void ControlInteractionManager::OnRequerySuggested() noexcept {
+void ButtonBehavior::OnRequerySuggested() noexcept {
     for (std::uint32_t index = 0U;
         index < buttons_.Size(); ++index) {
         ButtonBase* button = ResolveButton(index);

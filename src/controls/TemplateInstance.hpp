@@ -26,12 +26,12 @@ struct TemplateContentProjection final {
 };
 
 struct TemplateBuildState final {
-    TemplateBuildState(GuiContext& tree, Control& parent,
-        Aero::Detail::LayoutManager* layout, Render::RenderTree* renderer) noexcept
+    TemplateBuildState(ElementTree& tree, Control& parent,
+        Aero::Detail::LayoutEngine* layout, Render::RenderTree* renderer) noexcept
         : tree(&tree), layout(layout), renderer(renderer), parent(&parent) {}
 
-    GuiContext* tree = nullptr;
-    Aero::Detail::LayoutManager* layout = nullptr;
+    ElementTree* tree = nullptr;
+    Aero::Detail::LayoutEngine* layout = nullptr;
     Render::RenderTree* renderer = nullptr;
     Control* parent = nullptr;
     Visual* rootVisual = nullptr;

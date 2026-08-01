@@ -7,7 +7,7 @@
 #include "render/opengl33/OpenGL33Backend.hpp"
 #include "render/Surface.hpp"
 
-namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
+namespace Aero::Detail { struct TextResources; struct MeshResources; struct ImageResources; }
 
 namespace Aero::Render {
 
@@ -54,9 +54,9 @@ public:
     OpenGL33RendererStatistics
     LastSubmitStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
-    Aero::Detail::TextBackendServices* TextServices() noexcept;
-    Aero::Detail::MeshBackendServices* MeshServices() noexcept;
-    Aero::Detail::ImageBackendServices* ImageServices() noexcept;
+    Aero::Detail::TextResources* GetTextResources() noexcept;
+    Aero::Detail::MeshResources* GetMeshResources() noexcept;
+    Aero::Detail::ImageResources* GetImageResources() noexcept;
 
 private:
     struct Impl;

@@ -3,7 +3,7 @@
 namespace Aero::Markup {
 
 Base::Result<CompiledCacheIdentity> BuildCompiledCacheIdentity(
-    const Core::MetadataDomain& domain) noexcept {
+    const Core::MetaRegistry& domain) noexcept {
     Base::Result<Base::HashCode> hash = domain.ComputeSchemaHash();
     if (!hash) return hash.GetStatus();
 
@@ -25,9 +25,9 @@ CompiledCacheCompatibility CompareCompiledCacheIdentity(
         current.metadataSchemaFormatVersion) {
         return CompiledCacheCompatibility::MetadataSchemaFormatMismatch;
     }
-    if (cached.metadataRuntimeFormatVersion !=
-        current.metadataRuntimeFormatVersion) {
-        return CompiledCacheCompatibility::MetadataRuntimeFormatMismatch;
+    if (cached.metadataProgramFormatVersion !=
+        current.metadataProgramFormatVersion) {
+        return CompiledCacheCompatibility::MetadataProgramFormatMismatch;
     }
     if (cached.schemaVersion != current.schemaVersion) {
         return CompiledCacheCompatibility::SchemaVersionMismatch;
@@ -40,7 +40,7 @@ CompiledCacheCompatibility CompareCompiledCacheIdentity(
 
 Base::Result<void> ValidateCompiledCacheIdentity(
     const CompiledCacheIdentity& cached,
-    const Core::MetadataDomain& currentDomain) noexcept {
+    const Core::MetaRegistry& currentDomain) noexcept {
     Base::Result<CompiledCacheIdentity> current =
         BuildCompiledCacheIdentity(currentDomain);
     if (!current) return current.GetStatus();
@@ -60,7 +60,7 @@ Base::Result<void> ValidateCompiledCacheIdentity(
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Compiled XAML metadata descriptor format is incompatible");
-    case CompiledCacheCompatibility::MetadataRuntimeFormatMismatch:
+    case CompiledCacheCompatibility::MetadataProgramFormatMismatch:
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Compiled XAML metadata facet format is incompatible");

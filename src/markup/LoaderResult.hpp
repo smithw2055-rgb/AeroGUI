@@ -37,14 +37,14 @@ using EffectCleanupCallback = void (*)(void* context) noexcept;
 struct VisualContentEdge final {
     Base::Ref<Base::Object> parentOwner;
     Base::Ref<Base::Object> childOwner;
-    Core::MetadataRuntime* runtime = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Core::MemberId member = Core::InvalidMemberId;
     bool property = false;
 };
 
 // Markup-owned declaration result for visual content. The plan intentionally
 // stores only content ownership and UI mount edges; the UI runtime owns
-// the actual attach/detach sequence through the owning GuiContext.
+// the actual attach/detach sequence through the owning ElementTree.
 struct VisualContentPlan final {
     Base::Vector<VisualContentEdge> contentEdges;
     Base::Vector<Aero::Detail::VisualEdge> mountEdges;
@@ -70,7 +70,7 @@ struct VisualContentPlan final {
 struct CommittedEffect final {
     Base::Ref<EffectLifetime> lifetime;
     Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Core::DependencyObject* target = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
     Core::DependencyPropertyHandle property;
     Core::PropertyExpression pendingExpression;
     void* context = nullptr;

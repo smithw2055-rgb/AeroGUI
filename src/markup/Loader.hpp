@@ -68,7 +68,7 @@ struct SourceProviderRegistration final {
     ISourceProvider* provider = nullptr;
 };
 
-class AERO_API SourceProviderRegistry final {
+class AERO_API SourceProviders final {
 public:
     Base::Result<void> TryRegister(
         ISourceProvider& provider,
@@ -239,7 +239,7 @@ public:
     Base::Result<DocumentCacheLookup> Lookup(
         const Base::ResourceUri& uri,
         std::uint64_t sourceRevision,
-        const Core::MetadataDomain& domain,
+        const Core::MetaRegistry& domain,
         const CompiledDocumentLimits& limits = {}) noexcept {
         return Lookup(
             uri, sourceRevision, 0U, domain, limits);
@@ -248,7 +248,7 @@ public:
         const Base::ResourceUri& uri,
         std::uint64_t sourceRevision,
         std::uint64_t sourceIdentity,
-        const Core::MetadataDomain& domain,
+        const Core::MetaRegistry& domain,
         const CompiledDocumentLimits& limits = {}) noexcept;
     Base::Result<void> Store(
         const Base::ResourceUri& uri,
@@ -300,7 +300,7 @@ class AERO_API Loader final {
 public:
     Loader(
         Schema& schema,
-        SourceProviderRegistry& providers,
+        SourceProviders& providers,
         Core::IDiagnosticSink* diagnostics = nullptr,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Loader() noexcept;

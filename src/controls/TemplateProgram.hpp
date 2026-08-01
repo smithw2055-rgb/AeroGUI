@@ -18,7 +18,7 @@ struct TemplateHandle final {
 
 } // namespace Aero::Controls::Detail
 
-namespace Aero::Detail { class ControlRuntimeAccess; }
+namespace Aero::Detail { class TemplateEngine; }
 
 namespace Aero::Controls {
 
@@ -26,7 +26,7 @@ class ContentPresenter;
 class ItemsPanelTemplate;
 class ItemsPresenter;
 
-class TemplateBuildContext final {
+class TemplateBuilder final {
 public:
     Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, Visual& root) noexcept;
     Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, Visual& root) noexcept;
@@ -38,8 +38,8 @@ public:
     UIElement* RootElement() const noexcept;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
-    explicit TemplateBuildContext(void* state) noexcept : state_(state) {}
+    friend class Aero::Detail::TemplateEngine;
+    explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, Visual& visual, void* mount) noexcept;
     Base::Result<void> PopulateItemsPresenter(ItemsPresenter& presenter, const ItemsPanelTemplate* itemsPanel) noexcept;
@@ -49,7 +49,7 @@ private:
     void* state_ = nullptr;
 };
 
-using TemplateFactoryCallback = Base::Result<void> (*)(TemplateBuildContext& context, void* factoryContext) noexcept;
+using TemplateFactoryCallback = Base::Result<void> (*)(TemplateBuilder& context, void* factoryContext) noexcept;
 
 struct TemplateNamespace final {
     Base::String prefix;

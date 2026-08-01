@@ -2,7 +2,7 @@
 #error "Describe.inl is an implementation companion; include <Aero/Meta/Describe.hpp>"
 #endif
 
-#include <Aero/Meta/MetadataContext.hpp>
+#include <Aero/Meta/Registration.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 #include <cstddef>
@@ -114,7 +114,7 @@ struct MemberPointerTraits<Member> final {
 template<class Owner, class Field, Field Owner::*Member>
 Base::Result<Value> GetField(
     const void* object,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     void*) noexcept {
     if (object == nullptr) {
         return Base::Status::Failure(
@@ -130,7 +130,7 @@ template<class Owner, class Field, Field Owner::*Member>
 Base::Result<void> SetField(
     void* object,
     const Value& value,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     void*) noexcept {
     if (object == nullptr) {
         return Base::Status::Failure(
@@ -148,7 +148,7 @@ Base::Result<void> SetField(
 class AERO_API MetadataAuthoringSession final {
 public:
     MetadataAuthoringSession(
-        MetadataContext& context,
+        MetaRegistration& context,
         const TypeRegistration& registration,
         TypeId expectedType) noexcept;
 
@@ -242,7 +242,7 @@ public:
     template<class TValue>
     Base::Result<Value> Encode(
         const TValue& value) noexcept {
-        MetadataRegistrationValues values =
+        RegistrationValues values =
             context_->Values();
         return ValueCodec<TValue>::Encode(
             values, value);
@@ -287,14 +287,14 @@ private:
         }
     }
 
-    MetadataContext* context_ = nullptr;
+    MetaRegistration* context_ = nullptr;
     TypeId type_ = InvalidTypeId;
     Base::Status status_;
 };
 
 template<class T>
 MetadataAuthoringSession CreateDescriptionSession(
-    MetadataContext& context,
+    MetaRegistration& context,
     TypeFlags flags) noexcept {
     if constexpr (std::is_enum_v<T>) {
         if constexpr (

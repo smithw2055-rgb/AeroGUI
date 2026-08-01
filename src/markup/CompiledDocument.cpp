@@ -154,14 +154,14 @@ Base::Result<Core::SourcePosition> ReadPosition(
 Base::Result<CompiledDocument>
 CompiledDocument::Compile(
     NodeReader& reader,
-    const Core::MetadataDomain& domain) noexcept {
+    const Core::MetaRegistry& domain) noexcept {
     return Compile(reader, domain, {});
 }
 
 Base::Result<CompiledDocument>
 CompiledDocument::Compile(
     NodeReader& reader,
-    const Core::MetadataDomain& domain,
+    const Core::MetaRegistry& domain,
     const Base::ResourceUri& originUri) noexcept {
     Base::Result<CompiledCacheIdentity> identity =
         BuildCompiledCacheIdentity(domain);
@@ -232,7 +232,7 @@ CompiledDocument::Serialize() const noexcept {
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity_.metadataSchemaFormatVersion);
     if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.metadataRuntimeFormatVersion);
+    result = AppendU32(output, identity_.metadataProgramFormatVersion);
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity_.schemaVersion);
     if (!result) return result.GetStatus();
@@ -283,7 +283,7 @@ CompiledDocument::Serialize() const noexcept {
 Base::Result<CompiledDocument>
 CompiledDocument::Deserialize(
     Base::Span<const std::uint8_t> bytes,
-    const Core::MetadataDomain& domain,
+    const Core::MetaRegistry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     if (limits.maxNodes == 0U ||
         limits.maxStringBytes == 0U) {
@@ -315,7 +315,7 @@ CompiledDocument::Deserialize(
     document.identity_.metadataSchemaFormatVersion = value.Value();
     value = decoder.ReadU32();
     if (!value) return value.GetStatus();
-    document.identity_.metadataRuntimeFormatVersion = value.Value();
+    document.identity_.metadataProgramFormatVersion = value.Value();
     value = decoder.ReadU32();
     if (!value) return value.GetStatus();
     document.identity_.schemaVersion = value.Value();

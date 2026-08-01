@@ -1,56 +1,56 @@
 #pragma once
 
 #include "gui/ElementInternal.hpp"
-#include "media/AnimationRuntimeTypes.hpp"
+#include "media/AnimationModel.hpp"
 
 namespace Aero::Detail {
 
 using namespace Aero::Detail::Animation;
 
-class AERO_API AnimationManager final {
+class AERO_API AnimationEngine final {
 public:
-    AnimationManager(
+    AnimationEngine(
         Core::Dispatcher& dispatcher,
         Core::EffectiveValueEngine& values,
         Base::IAllocator* allocator = nullptr) noexcept;
-    ~AnimationManager() noexcept;
+    ~AnimationEngine() noexcept;
 
-    AnimationManager(const AnimationManager&) = delete;
-    AnimationManager& operator=(const AnimationManager&) = delete;
+    AnimationEngine(const AnimationEngine&) = delete;
+    AnimationEngine& operator=(const AnimationEngine&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const DoubleAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const ColorAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const PointAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const RectAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const ThicknessAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const DoubleKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const ColorKeyFrameAnimation& animation) noexcept;
     Base::Result<AnimationHandle> Begin(
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         const DiscreteAnimation& animation) noexcept;
 
@@ -62,7 +62,7 @@ public:
     Base::Result<void> Stop(AnimationHandle handle) noexcept;
     Base::Result<void> Remove(AnimationHandle handle) noexcept;
     Base::Result<std::uint32_t> RemoveTarget(
-        Core::DependencyObject& target) noexcept;
+        ::Aero::DependencyObject& target) noexcept;
     Base::Result<void> RemoveAll() noexcept;
 
     Base::Result<std::uint32_t> Tick(

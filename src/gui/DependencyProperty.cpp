@@ -1,5 +1,5 @@
 #include <Aero/DependencyProperty.hpp>
-#include "MetadataBehaviorRegistrationStore.hpp"
+#include "BehaviorTable.hpp"
 #include "gui/PropertyInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
@@ -86,7 +86,7 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
     TypeRegistry& typeRegistry,
-    MetadataBehaviorRegistrationStore& behaviors) noexcept
+    BehaviorTable& behaviors) noexcept
     : typeRegistry_(&typeRegistry),
       behaviorRegistrations_(&behaviors),
       properties_(),
@@ -406,7 +406,7 @@ DependencyPropertyRegistry::TryRegister(
         registration.flags, registration.metadata.flags);
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
-    Base::Result<MemberId> registered = MetadataRegistrationTypes(
+    Base::Result<MemberId> registered = RegistrationTypes(
         *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
             registration.ownerType, metaProperty);
     if (!registered) {
@@ -511,7 +511,7 @@ Base::Result<void> DependencyPropertyRegistry::TryAddOwner(
     metaProperty.flags = ToTypeRegistryFlags(property.Flags(), metadata.flags);
     metaProperty.access = PropertyAccessKind::Provider;
     metaProperty.provider = DependencyPropertyProviderId;
-    Base::Result<MemberId> alias = MetadataRegistrationTypes(
+    Base::Result<MemberId> alias = RegistrationTypes(
         *typeRegistry_, *behaviorRegistrations_).TryRegisterProperty(
             ownerType, metaProperty);
     if (!alias) {
@@ -716,10 +716,10 @@ void DependencyObject::MutationScope::Release() noexcept {
 }
 
 DependencyObject::DependencyObject(TypeId runtimeType) noexcept
-    : DispatcherObject(*GetCurrentObjectServices().dispatcher),
-      registry_(GetCurrentObjectServices().dependencyProperties),
+    : DispatcherObject(*CurrentObjectFactory().dispatcher),
+      registry_(CurrentObjectFactory().dependencyProperties),
       runtimeType_(runtimeType),
-      objectServicesAvailable_(HasCurrentObjectServices()),
+      objectServicesAvailable_(HasObjectFactory()),
       values_(),
       updateStack_(),
       changeHandlers_() {}
@@ -736,7 +736,7 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
     if (!objectServicesAvailable_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "DependencyObject was created without an ObjectServicesScope");
+            "DependencyObject was created without an ObjectFactoryScope");
     }
     if (registry_ == nullptr || !registry_->IsFrozen()) {
         return Base::Status::Failure(

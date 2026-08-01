@@ -21,10 +21,10 @@ namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
 
 namespace Aero::Core {
 
-class MetadataContext;
-class MetadataBehaviorRegistrationStore;
-class MetadataRegistrationTypes;
-class MetadataRuntime;
+class MetaRegistration;
+class BehaviorTable;
+class RegistrationTypes;
+class MetaRegistry;
 template<class TOwner, class TValue>
 class DependencyPropertyRef;
 template<class TOwner, class TValue>
@@ -34,7 +34,7 @@ class ReadOnlyPropertyRef;
 
 inline constexpr std::uint32_t TypeIdAlgorithmVersion = 1U;
 inline constexpr std::uint32_t MetadataSchemaFormatVersion = 2U;
-inline constexpr std::uint32_t MetadataRuntimeDataFormatVersion = 7U;
+inline constexpr std::uint32_t MetadataProgramFormatVersion = 8U;
 
 enum class MetadataTypeKind : std::uint8_t {
     Object = 0U,
@@ -211,12 +211,12 @@ using MethodInvokeCallback = Base::Result<Value> (*)(
     void* context) noexcept;
 using ValueMemberGetCallback = Base::Result<Value> (*)(
     const void* object,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     void* context) noexcept;
 using ValueMemberSetCallback = Base::Result<void> (*)(
     void* object,
     const Value& value,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     void* context) noexcept;
 using MetadataPropertyChangedCallback = void (*)(
     Base::Object& object,
@@ -718,15 +718,15 @@ public:
     bool Implements(TypeId type, TypeId interfaceType) const noexcept;
     bool IsAssignableFrom(TypeId targetType, TypeId sourceType) const noexcept;
 private:
-    friend class MetadataRegistrationTypes;
-    Base::Result<TypeId> TryRegisterType(MetadataBehaviorRegistrationStore& behaviors, const TypeRegistration& registration) noexcept;
+    friend class RegistrationTypes;
+    Base::Result<TypeId> TryRegisterType(BehaviorTable& behaviors, const TypeRegistration& registration) noexcept;
     Base::Result<void> TryRegisterInterface(TypeId ownerType, TypeId interfaceType) noexcept;
-    Base::Result<MemberId> TryRegisterProperty(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterField(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterProperty(BehaviorTable& behaviors, TypeId ownerType, const PropertyRegistration& registration) noexcept;
+    Base::Result<MemberId> TryRegisterField(BehaviorTable& behaviors, TypeId ownerType, const FieldRegistration& registration) noexcept;
     Base::Result<MemberId> TryRegisterEnumValue(TypeId ownerType, const EnumValueRegistration& registration) noexcept;
     Base::Result<MemberId> TryRegisterEvent(TypeId ownerType, const EventRegistration& registration) noexcept;
-    Base::Result<MemberId> TryRegisterMethod(MetadataBehaviorRegistrationStore& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
-    Base::Result<void> TrySetFactory(MetadataBehaviorRegistrationStore& behaviors, TypeId type, ObjectFactory factory) noexcept;
+    Base::Result<MemberId> TryRegisterMethod(BehaviorTable& behaviors, TypeId ownerType, const MethodRegistration& registration) noexcept;
+    Base::Result<void> TrySetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
     Base::Result<void> TrySetContentMember(TypeId type, MemberId member) noexcept;
     struct MemberLocation final { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
     Base::Vector<TypeInfo> types_;

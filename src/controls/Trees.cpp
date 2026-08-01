@@ -1,12 +1,13 @@
-#include "VisualStateRuntime.hpp"
+#include "TemplateInternals.hpp"
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Styling.hpp>
 
 #include <utility>
 #include "gui/RoutedEventInternal.hpp"
-#include "RuntimeManagers.hpp"
+#include "ControlBehavior.hpp"
 
 namespace Aero::Controls {
+using Aero::Detail::TreeBehavior;
 
 using namespace Primitives;
 
@@ -259,7 +260,7 @@ void TreeViewItem::OnSelectedChanged(
 TreeView::~TreeView() {
     if (interactions_ != nullptr) {
         static_cast<void>(
-            static_cast<TreeViewInteractionManager*>(
+            static_cast<TreeBehavior*>(
                 interactions_)->Detach(*this));
     }
 }
@@ -297,7 +298,7 @@ Base::Result<bool> TreeView::SelectItem(
         if (!cleared) return cleared.GetStatus();
         if (states_ != nullptr) {
             static_cast<void>(
-                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     *static_cast<TreeViewItem*>(
                         previous.Get()),
                     "SelectionStates",
@@ -319,7 +320,7 @@ Base::Result<bool> TreeView::SelectItem(
         }
         if (states_ != nullptr) {
             Base::Result<bool> state =
-                Aero::Controls::Detail::VisualStateManagerAccess::GoToState(*states_,
+                Aero::Controls::Detail::TemplatePrivate::GoToState(*states_,
                     *item,
                     "SelectionStates",
                     "Selected");
@@ -350,11 +351,11 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Controls;
 
-TreeViewInteractionManager::
-TreeViewInteractionManager(
-    GuiContext& tree,
+TreeBehavior::
+TreeBehavior(
+    ElementTree& tree,
     EventRouter& events,
-    InputService& input,
+    InputRouter& input,
     VisualStateManager* states) noexcept
     : tree_(&tree),
       events_(&events),
@@ -362,15 +363,15 @@ TreeViewInteractionManager(
       states_(states),
       mouseDownHandler_(
           this,
-          &TreeViewInteractionManager::
+          &TreeBehavior::
               OnMouseDown),
       keyDownHandler_(
           this,
-          &TreeViewInteractionManager::
+          &TreeBehavior::
               OnKeyDown) {}
 
-TreeViewInteractionManager::
-~TreeViewInteractionManager() noexcept {
+TreeBehavior::
+~TreeBehavior() noexcept {
     while (!records_.Empty()) {
         TreeView* treeView =
             ResolveTreeView(
@@ -385,7 +386,7 @@ TreeViewInteractionManager::
 }
 
 std::uint32_t
-TreeViewInteractionManager::FindTreeView(
+TreeBehavior::FindTreeView(
     const TreeView& treeView) const noexcept {
     for (std::uint32_t index = 0U;
         index < records_.Size(); ++index) {
@@ -399,7 +400,7 @@ TreeViewInteractionManager::FindTreeView(
 }
 
 TreeView*
-TreeViewInteractionManager::ResolveTreeView(
+TreeBehavior::ResolveTreeView(
     std::uint32_t index) noexcept {
     Visual* visual =
         index < records_.Size()
@@ -412,10 +413,10 @@ TreeViewInteractionManager::ResolveTreeView(
 }
 
 Base::Result<void>
-TreeViewInteractionManager::Attach(
+TreeBehavior::Attach(
     TreeView& treeView) noexcept {
     if (treeView.interactions_ != nullptr ||
-        Aero::Detail::VisualAccess::Tree(treeView) != tree_ ||
+        Aero::Detail::ElementPrivate::Tree(treeView) != tree_ ||
         FindTreeView(treeView) != UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -459,7 +460,7 @@ TreeViewInteractionManager::Attach(
 }
 
 Base::Result<bool>
-TreeViewInteractionManager::Detach(
+TreeBehavior::Detach(
     TreeView& treeView) noexcept {
     const std::uint32_t index =
         FindTreeView(treeView);
@@ -483,7 +484,7 @@ TreeViewInteractionManager::Detach(
 }
 
 TreeViewItem*
-TreeViewInteractionManager::FindItem(
+TreeBehavior::FindItem(
     TreeView& treeView,
     Base::Object* source) const noexcept {
     if (source == nullptr ||
@@ -513,12 +514,12 @@ TreeViewInteractionManager::FindItem(
 }
 
 Base::Result<void>
-TreeViewInteractionManager::CollectVisibleItems(
+TreeBehavior::CollectVisibleItems(
     Visual& parent,
     Base::Vector<TreeViewItem*>& items)
     noexcept {
     for (Visual* child :
-        Aero::Detail::VisualAccess::VisualChildren(parent)) {
+        Aero::Detail::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element =
             child->AsUIElement();
@@ -545,7 +546,7 @@ TreeViewInteractionManager::CollectVisibleItems(
     return {};
 }
 
-void TreeViewInteractionManager::OnMouseDown(
+void TreeBehavior::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
@@ -572,7 +573,7 @@ void TreeViewInteractionManager::OnMouseDown(
     args.SetHandled(true);
 }
 
-void TreeViewInteractionManager::OnKeyDown(
+void TreeBehavior::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     if (args.GetKey() != KeyboardKeyUp &&

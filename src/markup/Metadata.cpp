@@ -119,14 +119,14 @@ Base::Result<void> AddElementVisualStateGroup(
             Base::ErrorCode::InvalidArgument,
             "VisualStateGroups expects VisualStateGroup");
     }
-    auto& target = static_cast<Core::DependencyObject&>(object);
+    auto& target = static_cast<::Aero::DependencyObject&>(object);
     Base::Ref<Base::Object> valueStore = target.GetValueOr(
         XamlVisualStateManagerObject::
             VisualStateGroupStoreProperty,
         Base::Ref<Base::Object>{});
     if (!valueStore) {
-        Base::Result<Base::Ref<XamlVisualStateGroupStore>> created =
-            Base::MakeRef<XamlVisualStateGroupStore>();
+        Base::Result<Base::Ref<XamlVisualStates>> created =
+            Base::MakeRef<XamlVisualStates>();
         if (!created) return created.GetStatus();
         valueStore = Base::Ref<Base::Object>(
             std::move(created).Value());
@@ -137,19 +137,19 @@ Base::Result<void> AddElementVisualStateGroup(
         if (!stored) return stored.GetStatus();
     }
     if (valueStore->RuntimeType() !=
-            XamlVisualStateGroupStore::StaticTypeId()) {
+            XamlVisualStates::StaticTypeId()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "VisualStateGroups store has an invalid value");
     }
-    return static_cast<XamlVisualStateGroupStore&>(
+    return static_cast<XamlVisualStates&>(
         *valueStore).Add(value);
 }
 
 Base::Result<void> ClearElementVisualStateGroups(
     Base::Object& object,
     void*) noexcept {
-    return static_cast<Core::DependencyObject&>(object).SetValue(
+    return static_cast<::Aero::DependencyObject&>(object).SetValue(
         XamlVisualStateManagerObject::
             VisualStateGroupStoreProperty,
         Base::Ref<Base::Object>{});
@@ -217,7 +217,7 @@ Base::Result<void> ClearTransitionStoryboard(
 } // namespace
 
 Base::Result<void> PopulateMarkupMetadata(
-    MetadataContext& context) noexcept {
+    MetaRegistration& context) noexcept {
     Base::Result<void> status =
         Describe<DynamicResourceExtensionToken>(
             context,

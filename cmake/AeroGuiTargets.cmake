@@ -22,22 +22,21 @@ add_library(AeroGuiKernelObjects OBJECT
     src/diagnostics/Diagnostics.cpp
     src/gui/Dispatcher.cpp
     src/gui/EffectiveValueEngine.cpp
-    src/gui/RoutedEventCatalog.cpp
+    src/gui/RoutedEvents.cpp
     src/gui/CoreMetadata.cpp
     src/gui/MetadataAuthoring.cpp
-    src/gui/MetadataContext.cpp
-    src/gui/MetadataRuntimeData.cpp
-    src/gui/MetadataBehaviorRegistrationStore.cpp
-    src/gui/MetadataDomain.cpp
-    src/gui/MetadataRegistrationValues.cpp
-    src/gui/MetadataRuntime.cpp
+    src/gui/MetaRegistration.cpp
+    src/gui/MetaTable.cpp
+    src/gui/BehaviorTable.cpp
+    src/gui/MetaRegistry.cpp
+    src/gui/RegistrationValues.cpp
     src/gui/MetadataValueFacets.cpp
-    src/gui/MetadataValueRegistrationStore.cpp
+    src/gui/ValueTable.cpp
     src/gui/ValueConversion.cpp
-    src/gui/ObjectServices.cpp
+    src/gui/ObjectFactory.cpp
     src/gui/TypeRegistry.cpp
     src/gui/Value.cpp
-    src/media/AnimationRuntime.cpp
+    src/media/AnimationEngine.cpp
     src/media/Animation.cpp
     src/render/BatchPlanner.cpp
     src/render/DrawingContext.cpp
@@ -51,7 +50,7 @@ add_library(AeroGuiKernelObjects OBJECT
     src/gui/Layout.cpp
     src/gui/UiMetadata.cpp
     src/gui/ContentElement.cpp
-    src/gui/GuiContext.cpp
+    src/gui/ElementTree.cpp
     src/gui/Resources.cpp
     src/render/RenderTree.cpp
     src/media/Transforms.cpp
@@ -66,7 +65,7 @@ add_library(AeroControlsObjects OBJECT
     src/controls/Bars.cpp
     src/controls/Buttons.cpp
     src/controls/ContentControls.cpp
-    src/controls/ControlBehaviorService.cpp
+    src/controls/ControlBehavior.cpp
     src/controls/Controls.cpp
     src/controls/Documents.cpp
     src/controls/Images.cpp
@@ -171,13 +170,12 @@ add_library(AeroMarkupObjects OBJECT
     src/markup/StaticExtension.cpp
     src/markup/Scopes.cpp
     src/markup/LoaderResult.cpp
-    src/markup/ObjectWriterState.cpp
+    src/markup/ObjectBuilder.cpp
     src/markup/DocumentCache.cpp
     src/markup/Loader.cpp
     src/markup/Resources.cpp
     src/markup/Schema.cpp
     src/markup/ObjectWriter.cpp
-    src/markup/SchemaServices.cpp
     src/markup/XamlDocument.cpp)
 aero_configure_internal_objects(AeroMarkupObjects)
 target_link_libraries(AeroMarkupObjects PUBLIC
@@ -186,12 +184,12 @@ target_compile_definitions(AeroMarkupObjects PRIVATE
     AERO_MARKUP_UI_RESOURCES=1)
 
 # Module/schema composition is folded into Integration and the offline tools.
-add_library(AeroModuleCatalogObjects OBJECT
+add_library(AeroModuleSetObjects OBJECT
     src/runtime/modules/Module.cpp
     src/runtime/modules/BuiltinModules.cpp
-    src/markup/SchemaBundle.cpp)
-aero_configure_internal_objects(AeroModuleCatalogObjects)
-target_link_libraries(AeroModuleCatalogObjects PUBLIC
+    src/markup/GuiSchema.cpp)
+aero_configure_internal_objects(AeroModuleSetObjects)
+target_link_libraries(AeroModuleSetObjects PUBLIC
     AeroMarkupObjects AeroAppModelObjects)
 
 # The supported GUI SDK is one real binary rather than an interface route over

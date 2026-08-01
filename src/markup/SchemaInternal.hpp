@@ -1,19 +1,19 @@
 #pragma once
 
-#include "XamlFacetStore.hpp"
+#include "XamlFacets.hpp"
 #include <Aero/Markup/Schema.hpp>
 
 namespace Aero::Markup {
 
 struct Schema::Impl final {
-    Detail::XamlFacetStore facets;
+    Detail::XamlFacets facets;
 };
 
 namespace Detail {
 
-class SchemaAccess final {
+class SchemaPrivate final {
 public:
-    // Compatibility aggregate input. XamlFacetStore projects it atomically and
+    // Compatibility aggregate input. XamlFacets projects it atomically and
     // retains only narrow facet records.
     static Base::Result<void> AddType(
         Schema& schema,
@@ -75,20 +75,20 @@ public:
         const Schema& schema,
         Core::TypeId type,
         Base::StringView text,
-        const ExtensionContext* services = nullptr) noexcept {
+        const ExtensionServices* services = nullptr) noexcept {
         return schema.ConvertText(type, text, services);
     }
 
-    static Base::Result<Core::DependencyObject*>
+    static Base::Result<::Aero::DependencyObject*>
     ResolvePropertyTarget(
         const Schema& schema,
         Base::Object& object) noexcept {
         return schema.ResolvePropertyTarget(object);
     }
 
-    static Core::MetadataRuntime* Runtime(
+    static Core::MetaRegistry* Metadata(
         const Schema& schema) noexcept {
-        return schema.Runtime();
+        return schema.Metadata();
     }
 
     static Base::Result<const Core::TypeInfo*> ResolveType(

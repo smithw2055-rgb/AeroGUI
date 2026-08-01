@@ -1,4 +1,4 @@
-#include "MetadataInternal.hpp"
+#include "MetaInternals.hpp"
 
 #include <Aero/Meta/Describe.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
@@ -6,7 +6,7 @@
 
 namespace Aero::Core {
 Base::Result<void> Detail::PopulateCoreMetadata(
-    MetadataContext& context) noexcept {
+    MetaRegistration& context) noexcept {
     Base::Result<void> status;
 
     status = Describe<Base::Object>(context).Result();

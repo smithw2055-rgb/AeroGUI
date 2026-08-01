@@ -110,7 +110,7 @@ struct ProvidedValue final {
     }
 };
 
-struct ExtensionContext final {
+struct ExtensionServices final {
     const Schema* schema = nullptr;
     Base::Object* targetObject = nullptr;
     Core::TypeId targetObjectType = Core::InvalidTypeId;
@@ -124,7 +124,7 @@ struct ExtensionContext final {
     NamespaceScope namespaces;
     ResourceResolver resources;
     Core::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::Detail::BindingEngine* bindings = nullptr;
     Aero::ResourceDictionary* fallbackResources = nullptr;
     Base::Span<const Aero::ResourceDictionary* const>
         ambientResourceChain;
@@ -136,12 +136,12 @@ struct ExtensionContext final {
 struct BindingExtensionOptions final {
     BindingExtensionOptions() noexcept = default;
     BindingExtensionOptions(
-        Aero::Detail::BindingManager* bindingManager,
+        Aero::Detail::BindingEngine* bindingManager,
         Core::DependencyPropertyHandle dataContext) noexcept
         : bindings(bindingManager),
           dataContextProperty(dataContext) {}
 
-    Aero::Detail::BindingManager* bindings = nullptr;
+    Aero::Detail::BindingEngine* bindings = nullptr;
     Core::DependencyPropertyHandle dataContextProperty;
 };
 
@@ -170,7 +170,7 @@ private:
 
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept;
 };
 
@@ -179,7 +179,7 @@ public:
     static Base::Result<void> Attach(
         Core::EffectiveValueEngine& effectiveValues,
         Aero::ResourceDictionary& resources,
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
     static Base::Result<void> Attach(
@@ -187,7 +187,7 @@ public:
         Base::Span<
             const Aero::ResourceDictionary* const> resourceChain,
         Aero::ResourceDictionary* fallbackResources,
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
     static Base::Result<Core::PropertyExpression> CreateExpression(
@@ -195,7 +195,7 @@ public:
         Base::Span<
             const Aero::ResourceDictionary* const> resourceChain,
         Aero::ResourceDictionary* fallbackResources,
-        Core::DependencyObject& target,
+        ::Aero::DependencyObject& target,
         Core::DependencyPropertyHandle property,
         Base::StringView key) noexcept;
 };
@@ -230,7 +230,7 @@ private:
 
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept;
 };
 
@@ -248,7 +248,7 @@ public:
 private:
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept;
 };
 
@@ -271,7 +271,7 @@ public:
 private:
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept;
 };
 
@@ -293,7 +293,7 @@ public:
 private:
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept;
 };
 

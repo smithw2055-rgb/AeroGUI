@@ -8,7 +8,7 @@
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Panels.hpp>
 
-namespace Aero::Detail { class ControlRuntimeAccess; }
+namespace Aero::Detail { class MenuBehavior; }
 
 namespace Aero::Controls {
 
@@ -66,7 +66,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::MenuBehavior;
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
@@ -98,7 +98,7 @@ protected:
             noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::MenuBehavior;
     void* interactions_ =
         nullptr;
 };
@@ -350,7 +350,7 @@ public:
 } // namespace Aero::Controls
 
 namespace Aero::Detail {
-class ImageControlAccess;
+class ImageControlPrivate;
 }
 
 namespace Aero::Controls {
@@ -388,7 +388,7 @@ protected:
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Aero::Detail::ImageControlAccess;
+    friend class Aero::Detail::ImageControlPrivate;
     std::uint64_t renderImage_ = 0U;
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;

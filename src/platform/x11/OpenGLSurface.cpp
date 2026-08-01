@@ -561,8 +561,8 @@ GlxSurfaceBackend::LoadFunctions() noexcept {
     return LoadGlFunctionTable(&Impl::Resolve, impl_);
 }
 
-Base::Result<GlContextContract>
-GlxSurfaceBackend::ContextContract() noexcept {
+Base::Result<GlContextBinding>
+GlxSurfaceBackend::ContextBinding() noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
             "GLX surface is not initialized");
@@ -571,14 +571,14 @@ GlxSurfaceBackend::ContextContract() noexcept {
     if (!current) {
         return current.GetStatus();
     }
-    GlContextContract contract;
-    contract.userData = impl_;
-    contract.contextHandle = impl_->context;
-    contract.resolve = &Impl::Resolve;
-    contract.isCurrent = &Impl::IsCurrent;
-    contract.currentThreadToken = &Impl::CurrentThread;
-    contract.owningThreadToken = impl_->owningThread;
-    contract.generation = impl_->generation;
+    GlContextBinding contract;
+    binding.userData = impl_;
+    binding.contextHandle = impl_->context;
+    binding.resolve = &Impl::Resolve;
+    binding.isCurrent = &Impl::IsCurrent;
+    binding.currentThreadToken = &Impl::CurrentThread;
+    binding.owningThreadToken = impl_->owningThread;
+    binding.generation = impl_->generation;
     contract.embeddingMode =
         impl_->descriptor.ownership == SurfaceOwnership::Borrowed
         ? GlEmbeddingMode::PreserveAndRestore

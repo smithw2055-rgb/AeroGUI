@@ -13,7 +13,7 @@ The current implementation keeps complete UI and control runtime declarations
 under:
 
 - `src/gui/RuntimeServices.hpp`
-- `src/controls/RuntimeManagers.hpp`
+- `src/controls/ControlBehavior.hpp`
 
 `Aero::Detail::UiRuntimeAccess` and
 `Aero::Detail::ControlRuntimeAccess` are private friendship boundaries used by

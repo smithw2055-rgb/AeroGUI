@@ -4,14 +4,14 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::Integration::RenderEndpoint>>
-CreateOpenGL33Endpoint(
+    Aero::Base::Ref<Aero::Integration::RenderDevice>>
+CreateOpenGL33Device(
     Aero::Integration::NativeWindowHandle window) noexcept {
-    Aero::Integration::OpenGL33WindowEndpointOptions options;
+    Aero::Integration::OpenGL33WindowDeviceOptions options;
     options.window = window;
     options.width = 640U;
     options.height = 480U;
-    return Aero::Integration::CreateOpenGL33WindowEndpoint(
+    return Aero::Integration::CreateOpenGL33WindowDevice(
         options);
 }
 

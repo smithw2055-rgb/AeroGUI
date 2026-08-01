@@ -3,8 +3,8 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Integration/PlatformServices.hpp>
-#include <Aero/Integration/RenderEndpoint.hpp>
+#include <Aero/Integration/Platform.hpp>
+#include <Aero/Integration/RenderDevice.hpp>
 
 namespace Aero::Integration {
 
@@ -18,9 +18,9 @@ struct TextOptions final {
 };
 
 // Immutable creation options copied into a View. The caller may release the
-// RenderEndpoint reference and all temporary spans after CreateView returns.
+// RenderDevice reference and all temporary spans after CreateView returns.
 struct ViewOptions final {
-    Base::Ref<RenderEndpoint> renderEndpoint;
+    Base::Ref<RenderDevice> renderDevice;
     IClipboard* clipboard = nullptr;
     ITextInputMethodHost* textInputMethodHost = nullptr;
     TextOptions text;

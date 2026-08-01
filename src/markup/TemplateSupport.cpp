@@ -8,7 +8,7 @@
 #include <Aero/Markup/Schema.hpp>
 
 #include "TemplateCompiler.hpp"
-#include "../controls/TemplateAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
 
 #include <new>
 #include <utility>
@@ -96,21 +96,21 @@ namespace Detail {
 
 struct XamlTemplateSchemaFacet::Impl final {
     Impl(
-        MetadataRuntime& metadataRuntime,
+        MetaRegistry& metadata,
         DependencyPropertyRegistry& dependencyProperties,
         Base::IAllocator& programAllocator) noexcept
         : allocator(&programAllocator),
-          runtime(&metadataRuntime),
+          runtime(&metadata),
           properties(&dependencyProperties) {}
 
     Base::IAllocator* allocator = nullptr;
-    MetadataRuntime* runtime = nullptr;
+    MetaRegistry* runtime = nullptr;
     DependencyPropertyRegistry* properties = nullptr;
     Schema* schema = nullptr;
 
     static Base::Result<void> EndTemplate(
         Base::Object& object,
-        const ExtensionContext& services,
+        const ExtensionServices& services,
         void* context) noexcept {
         auto* self = static_cast<Impl*>(context);
         const TypeId type = object.RuntimeType();
@@ -174,20 +174,20 @@ struct XamlTemplateSchemaFacet::Impl final {
             if (object.RuntimeType() ==
                     ControlTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<ControlTemplate&>(object);
-                if (Controls::Detail::FrameworkTemplateAccess::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::FrameworkTemplateAccess::SetBaseUri(templateValue, *services.baseUri);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             } else if (object.RuntimeType() ==
                        DataTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<DataTemplate&>(object);
-                if (Controls::Detail::DeferredTemplateAccess::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::DeferredTemplateAccess::SetBaseUri(templateValue, *services.baseUri);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             } else if (object.RuntimeType() ==
                        ItemsPanelTemplate::StaticTypeId()) {
                 auto& templateValue = static_cast<ItemsPanelTemplate&>(object);
-                if (Controls::Detail::DeferredTemplateAccess::BaseUri(templateValue).Empty()) {
-                    baseUri = Controls::Detail::DeferredTemplateAccess::SetBaseUri(templateValue, *services.baseUri);
+                if (Controls::Detail::TemplatePrivate::BaseUri(templateValue).Empty()) {
+                    baseUri = Controls::Detail::TemplatePrivate::SetBaseUri(templateValue, *services.baseUri);
                 }
             }
             if (!baseUri) return baseUri.GetStatus();
@@ -200,10 +200,10 @@ struct XamlTemplateSchemaFacet::Impl final {
             if (object.RuntimeType() ==
                     DataTemplate::StaticTypeId()) {
                 authored =
-                    &Controls::Detail::DeferredTemplateAccess::AuthoredVisualTree(static_cast<DataTemplate&>(object));
+                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<DataTemplate&>(object));
             } else {
                 authored =
-                    &Controls::Detail::DeferredTemplateAccess::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
+                    &Controls::Detail::TemplatePrivate::AuthoredVisualTree(static_cast<ItemsPanelTemplate&>(object));
             }
             Base::Result<Detail::CompiledTemplateBlueprint>
                 compiled =
@@ -211,7 +211,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                         *authored,
                         object.RuntimeType() ==
                                 DataTemplate::StaticTypeId()
-                            ? &Controls::Detail::DeferredTemplateAccess::AuthoredNames(static_cast<DataTemplate&>(object))
+                            ? &Controls::Detail::TemplatePrivate::AuthoredNames(static_cast<DataTemplate&>(object))
                             : nullptr,
                         {
                             edges.Data(),
@@ -231,13 +231,13 @@ struct XamlTemplateSchemaFacet::Impl final {
                 Base::Result<void> reserved =
                     compiled.Value().
                         dataTemplateTriggers.TryReserve(
-                            Controls::Detail::DeferredTemplateAccess::AuthoredTriggers(dataTemplate).Size());
+                            Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate).Size());
                 if (!reserved) {
                     return reserved.GetStatus();
                 }
                 for (const Base::Ref<
                          Aero::TriggerBase>& trigger :
-                     Controls::Detail::DeferredTemplateAccess::AuthoredTriggers(dataTemplate)) {
+                     Controls::Detail::TemplatePrivate::AuthoredTriggers(dataTemplate)) {
                     Base::Result<void> retained =
                         compiled.Value().
                             dataTemplateTriggers.
@@ -265,22 +265,22 @@ struct XamlTemplateSchemaFacet::Impl final {
                     DataTemplate::StaticTypeId()) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                configured = Controls::Detail::DeferredTemplateAccess::Configure(dataTemplate,
+                configured = Controls::Detail::TemplatePrivate::Configure(dataTemplate,
                     &Detail::BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = Controls::Detail::DeferredTemplateAccess::Seal(dataTemplate);
+                    configured = Controls::Detail::TemplatePrivate::Seal(dataTemplate);
                 }
             } else {
                 auto& itemsPanel =
                     static_cast<ItemsPanelTemplate&>(object);
-                configured = Controls::Detail::DeferredTemplateAccess::Configure(itemsPanel,
+                configured = Controls::Detail::TemplatePrivate::Configure(itemsPanel,
                     &Detail::BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
                 if (configured) {
-                    configured = Controls::Detail::DeferredTemplateAccess::Seal(itemsPanel);
+                    configured = Controls::Detail::TemplatePrivate::Seal(itemsPanel);
                 }
             }
             if (!configured) {
@@ -292,11 +292,11 @@ struct XamlTemplateSchemaFacet::Impl final {
                     DataTemplate::StaticTypeId()) {
                 auto& dataTemplate =
                     static_cast<DataTemplate&>(object);
-                Controls::Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(dataTemplate);
-                Controls::Detail::DeferredTemplateAccess::ClearAuthoredTriggers(dataTemplate);
-                Controls::Detail::DeferredTemplateAccess::ClearAuthoredNames(dataTemplate);
+                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(dataTemplate);
+                Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(dataTemplate);
+                Controls::Detail::TemplatePrivate::ClearAuthoredNames(dataTemplate);
             } else {
-                Controls::Detail::DeferredTemplateAccess::ClearAuthoredVisualTree(
+                Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(
                     static_cast<ItemsPanelTemplate&>(object));
             }
             return {};
@@ -310,7 +310,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             // compile against the common Control contract so its authored
             // bindings and triggers remain valid until then.
             Base::Result<void> inferred =
-                Controls::Detail::FrameworkTemplateAccess::TrySetTargetType(controlTemplate,
+                Controls::Detail::TemplatePrivate::TrySetTargetType(controlTemplate,
                     Control::StaticTypeId());
             if (!inferred) return inferred.GetStatus();
         }
@@ -346,7 +346,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             program.Value();
 
         Base::Result<void> configured =
-            Controls::Detail::FrameworkTemplateAccess::ConfigureFactory(controlTemplate,
+            Controls::Detail::TemplatePrivate::ConfigureFactory(controlTemplate,
                 &Detail::BuildCompiledTemplate,
                 programContext,
                 std::move(programOwner));
@@ -355,7 +355,7 @@ struct XamlTemplateSchemaFacet::Impl final {
                  compiled.Value().
                      contentSourceBindings) {
                 configured =
-                    Controls::Detail::FrameworkTemplateAccess::TryAddTemplateBinding(controlTemplate,
+                    Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
                             binding.targetName.View(),
                             binding.sourceProperty,
                             binding.targetProperty);
@@ -368,7 +368,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (TemplatePropertyTrigger& trigger :
                  compiled.Value().propertyTriggers) {
                 configured =
-                    Controls::Detail::FrameworkTemplateAccess::TryAddPropertyTrigger(controlTemplate,
+                    Controls::Detail::TemplatePrivate::TryAddPropertyTrigger(controlTemplate,
                         std::move(trigger));
                 if (!configured) {
                     break;
@@ -379,7 +379,7 @@ struct XamlTemplateSchemaFacet::Impl final {
             for (VisualStateGroup& group :
                  compiled.Value().visualStateGroups) {
                 configured =
-                    Controls::Detail::FrameworkTemplateAccess::TryAddVisualStateGroup(controlTemplate,
+                    Controls::Detail::TemplatePrivate::TryAddVisualStateGroup(controlTemplate,
                         std::move(group));
                 if (!configured) {
                     break;
@@ -388,7 +388,7 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         if (configured) {
             configured =
-                Controls::Detail::FrameworkTemplateAccess::Seal(
+                Controls::Detail::TemplatePrivate::Seal(
                     controlTemplate,
                     *self->properties);
         }
@@ -398,10 +398,10 @@ struct XamlTemplateSchemaFacet::Impl final {
 
         services.deferredContent->ReleaseOwner(
             object);
-        Controls::Detail::FrameworkTemplateAccess::ClearAuthoredVisualTree(controlTemplate);
-        Controls::Detail::FrameworkTemplateAccess::ClearAuthoredVisualStateGroups(controlTemplate);
-        Controls::Detail::FrameworkTemplateAccess::ClearAuthoredTriggers(controlTemplate);
-        Controls::Detail::FrameworkTemplateAccess::ClearAuthoredNames(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredVisualTree(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredTriggers(controlTemplate);
+        Controls::Detail::TemplatePrivate::ClearAuthoredNames(controlTemplate);
         return {};
     }
 
@@ -420,15 +420,15 @@ struct XamlTemplateSchemaFacet::Impl final {
         }
         return scopeOwner.RuntimeType() ==
                 ControlTemplate::StaticTypeId()
-            ? Controls::Detail::FrameworkTemplateAccess::RegisterAuthoredName(
+            ? Controls::Detail::TemplatePrivate::RegisterAuthoredName(
                   static_cast<ControlTemplate&>(scopeOwner), name, object)
-            : Controls::Detail::DeferredTemplateAccess::RegisterAuthoredName(
+            : Controls::Detail::TemplatePrivate::RegisterAuthoredName(
                   static_cast<DataTemplate&>(scopeOwner), name, object);
     }
 };
 
 XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -502,7 +502,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
 
     impl_->schema = &schema;
     Base::Result<void> status =
-        Detail::SchemaAccess::AddType(schema, {
+        Detail::SchemaPrivate::AddType(schema, {
             ControlTemplate::StaticTypeId(),
             nullptr,
             nullptr,
@@ -517,7 +517,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             true,
             &ResolveTemplateImplicitKey});
     if (status) {
-        status = Detail::SchemaAccess::AddType(schema, {
+        status = Detail::SchemaPrivate::AddType(schema, {
             DataTemplate::StaticTypeId(),
             nullptr,
             nullptr,
@@ -533,7 +533,7 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
             &ResolveTemplateImplicitKey});
     }
     if (status) {
-        status = Detail::SchemaAccess::AddType(schema, {
+        status = Detail::SchemaPrivate::AddType(schema, {
             ItemsPanelTemplate::StaticTypeId(),
             nullptr,
             nullptr,

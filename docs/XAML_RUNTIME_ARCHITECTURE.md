@@ -11,7 +11,7 @@
 
 ```text
 ResourceUri
-  -> XamlSourceProviderRegistry
+  -> XamlSourceProviders
   -> UTF-8 XML tokenizer (Expat or built-in)
   -> XamlNodeReader
   -> XamlLoadSession
@@ -28,7 +28,7 @@ ResourceUri
 
 `XamlObjectWriter` 保存冻结的 schema 与服务配置，不保存跨文档可变状态。
 `XamlSchemaContext` 只负责 metadata 解析和行为调用；成员、类型、资源与
-markup-extension 行为集中在一次冻结的 `XamlFacetStore` 中。每次加载创建一次性
+markup-extension 行为集中在一次冻结的 `XamlFacets` 中。每次加载创建一次性
 `XamlLoadSession`。对象栈、事务、文档 NameScope、资源
 作用域、base URI、templated parent 和 ambient resource chain 都属于 session。
 任一对象创建、成员赋值、字典依赖或 `LoadComponent` 步骤失败时，session
@@ -42,17 +42,17 @@ markup-extension 行为集中在一次冻结的 `XamlFacetStore` 中。每次加
 ## 冻结 Metadata 与模块组合
 
 模块只有一个 metadata-only 注册回调。`DefineModule()` 描述模块标识、依赖与
-`MetadataContext` 回调；typed property、routed event、Style、Template 和控件
+`MetaRegistration` 回调；typed property、routed event、Style、Template 和控件
 authoring 记录都通过窄注册桥接提交。不存在第二个 markup 回调，也不向第三方模块
 开放 `SchemaBuilder` 或 XAML facet 注册。
 
-`ModuleCatalog`、模块依赖排序和 `SchemaBundle` 都是 `src` 内部实现。Runtime、
+`ModuleSet`、模块依赖排序和 `GuiSchema` 都是 `src` 内部实现。Runtime、
 `aero-schema-gen` 与 `aero-xamlc` 通过私有 access 消费同一种冻结 metadata，
 默认 Product 与 Module 头不暴露 catalog、registration store 或 registry。
-冲突检查和提交由 `MetadataContext::Impl` 完成；任一模块注册失败时，本次候选
+冲突检查和提交由 `MetaRegistration::Impl` 完成；任一模块注册失败时，本次候选
 metadata 整体丢弃，不污染已经冻结的状态。
 
-内置 `XamlFacetStore` 仍服务于 object writer 和内建 markup extension，但它由
+内置 `XamlFacets` 仍服务于 object writer 和内建 markup extension，但它由
 Runtime 在 metadata 冻结后构造并保持私有，不复制进 Core Metadata，也不是模块
 扩展面。
 
@@ -62,7 +62,7 @@ Runtime 在 metadata 冻结后构造并保持私有，不复制进 Core Metadata
 `pack/application` 以及 `assembly;component` 形式。安全策略由
 `XamlLoadPolicy` 执行，默认拒绝网络 scheme。
 
-`XamlSourceProviderRegistry` 的路由顺序固定为：
+`XamlSourceProviders` 的路由顺序固定为：
 
 1. scheme + assembly
 2. scheme
@@ -139,13 +139,13 @@ schema 注册入口。内部 Style 与 Template facet 只负责把 metadata 对�
 DynamicResource 与 Type 扩展统一返回 `XamlProvidedValue`：普通值由 writer 写入，
 表达式由 writer 安装并纳入事务，已处理结果携带可选 rollback token。
 
-## RuntimeEnvironment、View 与 UiDocument
+## GUI、View 与 UiDocument
 
 产品运行时分为三个所有权层次：
 
 ```text
-RuntimeEnvironment
-  -> ModuleCatalog + frozen SchemaBundle
+GUI
+  -> ModuleSet + frozen GuiSchema
   -> creates View
 
 View
@@ -160,7 +160,7 @@ UiDocument
 多个 `View` 可以共享同一个不可变 schema state，但不共享 View 级别的
 Binding、DynamicResource、输入、布局或渲染状态。Binding 和 DynamicResource
 所需的 manager、effective-value engine 与 fallback resources 由每次加载的
-`XamlExtensionContext` 提供，不再被固化进冻结 Schema。
+`XamlExtensionServices` 提供，不再被固化进冻结 Schema。
 
 `UiDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
 和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有 `View` 是唯一的单 View 产品入口。`Markup::XamlReader` 提供
@@ -196,7 +196,7 @@ Markup kernel 反向包含 View runtime 或高层 Controls/Markup integration。
 
 ## Schema Manifest 与工具隔离
 
-`SchemaBundle` 可以导出 `XamlSchemaManifest`。manifest 是 host-tool validation
+`GuiSchema` 可以导出 `XamlSchemaManifest`。manifest 是 host-tool validation
 snapshot，只包含稳定的 TypeId/MemberId、namespace、继承、property/event、
 content-member 与 schema identity；运行时 factory、Facet callback、allocator 和
 View service 不进入文件。
@@ -210,8 +210,8 @@ application module registrations
 ```
 
 因此 target runtime 与 host xamlc 不需要链接同一平台二进制。运行时仍使用完整
-`SchemaBundle` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXIR identity
-直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 MetadataDomain
+`GuiSchema` 和 callbacks；xamlc 仅使用 manifest 做结构验证。AXIR identity
+直接继承 manifest identity，目标 Runtime 在加载时继续使用自己的 MetaRegistry
 做兼容性校验。
 
 内置主题构建也走相同路径：native build 先由 `aero-schema-gen` 生成
@@ -243,7 +243,7 @@ Template 和 `XamlContentWriter` schema extension。值类型元素（例如
 
 ## Document Cache、依赖图与完整文档热重载
 
-`RuntimeEnvironment` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
+`GUI` 拥有共享 `XamlDocumentCache`。缓存项只保存由当前 Schema
 验证的 serialized AXIR、source revision 和 dependency URI，不保存实例对象或
 View service。多个 `View` 可以复用同一缓存，同时继续拥有独立的
 Binding、资源环境、布局和渲染状态。
@@ -259,5 +259,5 @@ cache 失败不会改变文档加载结果。
 
 Binding handle 与 DynamicResource expression 的 committed rollback records 现在
 随 document 所有权移动。文档替换后旧 effects 被逆序撤销；replacement 失败时
-旧 document 可以重新挂载，不再通过全局 `BindingManager::Shutdown()` 清理。
+旧 document 可以重新挂载，不再通过全局 `BindingEngine::Shutdown()` 清理。
 详细契约见 [`XAML_DOCUMENT_CACHE_RELOAD.md`](XAML_DOCUMENT_CACHE_RELOAD.md)。

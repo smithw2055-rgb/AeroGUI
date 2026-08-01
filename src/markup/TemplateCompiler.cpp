@@ -1,9 +1,9 @@
 #include "gui/StyleInternal.hpp"
 #include "TemplateCompiler.hpp"
 #include "gui/BindingInternal.hpp"
-#include "../controls/TemplateAccess.hpp"
-#include "../runtime/DataTemplateTriggerContext.hpp"
-#include "../media/AnimationAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
+#include "../runtime/DataTemplateTriggerState.hpp"
+#include "../media/AnimationInternals.hpp"
 
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Controls/Primitives.hpp>
@@ -14,7 +14,7 @@
 
 #include <cstdio>
 #include <utility>
-#include "../controls/RuntimeManagers.hpp"
+#include "../controls/ControlBehavior.hpp"
 
 
 namespace Aero::Markup::Detail {
@@ -62,7 +62,7 @@ bool RequiresPrototypeObject(
 }
 
 Base::Result<Value> ConvertTemplateTextValue(
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     const DependencyProperty& property,
     Base::StringView text) noexcept {
     // WPF uses -1 for no selection. Internally selection keeps UINT32_MAX;
@@ -120,7 +120,7 @@ CompileBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (!visualTree) {
         return InvalidTemplateCompiler(
@@ -331,7 +331,7 @@ Base::Result<Value> ConvertSetterValue(
     const Setter& setter,
     const TemplatePrototypeNode& target,
     const DependencyProperty& property,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Value value = setter.GetAuthoredValue();
     if (value.IsUnset()) {
@@ -471,7 +471,7 @@ Base::Result<Value> ConvertTriggerValue(
     Value value,
     TypeId targetType,
     const DependencyProperty& property,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     if (value.IsUnset()) {
         return InvalidTemplateCompiler(
@@ -527,7 +527,7 @@ Base::Result<Base::Vector<TemplatePropertyTrigger>>
 CompilePropertyTriggers(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<TemplatePropertyTrigger> compiled;
     auto addCondition = [&controlTemplate, &blueprint, &runtime, &properties](
@@ -619,7 +619,7 @@ CompilePropertyTriggers(
                     // serialized definition vectors; their trigger mutation
                     // is deferred until that declaration-object runtime is
                     // materialized.
-                    if (Controls::Detail::FrameworkTemplateAccess::AuthoredNames(controlTemplate).Find(
+                    if (Controls::Detail::TemplatePrivate::AuthoredNames(controlTemplate).Find(
                             targetName) != nullptr) {
                         continue;
                     }
@@ -652,7 +652,7 @@ CompilePropertyTriggers(
         return {};
     };
     for (const Base::Ref<Base::Object>& object :
-         Controls::Detail::FrameworkTemplateAccess::AuthoredTriggers(controlTemplate)) {
+         Controls::Detail::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
         TemplatePropertyTrigger trigger;
         Base::Result<void> configured;
         if (object && object->RuntimeType() == PropertyTrigger::StaticTypeId()) {
@@ -673,7 +673,7 @@ CompilePropertyTriggers(
         } else {
             // Data and event triggers are compiled into the instance runtime
             // plan below. They cannot be represented by the dependency-
-            // property trigger table used by TemplateManager.
+            // property trigger table used by TemplateEngine.
             continue;
         }
         if (!configured) return configured.GetStatus();
@@ -689,7 +689,7 @@ Base::Result<Base::Vector<VisualStateGroup>>
 CompileVisualStates(
     ControlTemplate& controlTemplate,
     const CompiledTemplateBlueprint& blueprint,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<VisualStateGroup> groups;
     auto compileGroup = [&groups, &blueprint, &runtime, &properties](
@@ -872,7 +872,7 @@ CompileVisualStates(
                     sourceTransition.GeneratedDuration());
                 if (!assigned) return assigned.GetStatus();
                 transition.generatedDurationMicroseconds =
-                    Aero::Detail::AnimationAccess::Timing(duration).durationMicroseconds;
+                    Aero::Detail::AnimationPrivate::Timing(duration).durationMicroseconds;
             }
             transition.generatedEasingFunction =
                 sourceTransition.GeneratedEasingFunction();
@@ -888,25 +888,25 @@ CompileVisualStates(
         return {};
     };
     for (const Base::Ref<Base::Object>& groupObject :
-         Controls::Detail::FrameworkTemplateAccess::AuthoredVisualStateGroups(controlTemplate)) {
+         Controls::Detail::TemplatePrivate::AuthoredVisualStateGroups(controlTemplate)) {
         Base::Result<void> compiled = compileGroup(groupObject);
         if (!compiled) return compiled.GetStatus();
     }
     Base::Ref<Base::Object> authoredRoot =
-        Controls::Detail::FrameworkTemplateAccess::AuthoredVisualTree(controlTemplate);
+        Controls::Detail::TemplatePrivate::AuthoredVisualTree(controlTemplate);
     if (authoredRoot &&
         runtime.Types().IsDerivedFrom(
             authoredRoot->RuntimeType(),
-            Core::DependencyObject::StaticTypeId())) {
-        auto& root = static_cast<Core::DependencyObject&>(*authoredRoot);
+            ::Aero::DependencyObject::StaticTypeId())) {
+        auto& root = static_cast<::Aero::DependencyObject&>(*authoredRoot);
         Base::Ref<Base::Object> valueStore = root.GetValueOr(
             XamlVisualStateManagerObject::
                 VisualStateGroupStoreProperty,
             Base::Ref<Base::Object>{});
         if (valueStore && valueStore->RuntimeType() ==
-                XamlVisualStateGroupStore::StaticTypeId()) {
+                XamlVisualStates::StaticTypeId()) {
             for (const Base::Ref<Base::Object>& groupObject :
-                 static_cast<XamlVisualStateGroupStore&>(
+                 static_cast<XamlVisualStates&>(
                      *valueStore).Groups()) {
                 Base::Result<void> compiled = compileGroup(groupObject);
                 if (!compiled) return compiled.GetStatus();
@@ -923,12 +923,12 @@ CompileControlTemplateDefinition(
     ControlTemplate& controlTemplate,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Result<CompiledTemplateBlueprint> blueprint =
         CompileBlueprint(
-        Controls::Detail::FrameworkTemplateAccess::AuthoredVisualTree(controlTemplate),
-        &Controls::Detail::FrameworkTemplateAccess::AuthoredNames(controlTemplate),
+        Controls::Detail::TemplatePrivate::AuthoredVisualTree(controlTemplate),
+        &Controls::Detail::TemplatePrivate::AuthoredNames(controlTemplate),
         edges,
         bindings,
         runtime,
@@ -952,7 +952,7 @@ CompileControlTemplateDefinition(
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
-         Controls::Detail::FrameworkTemplateAccess::AuthoredTriggers(controlTemplate)) {
+         Controls::Detail::TemplatePrivate::AuthoredTriggers(controlTemplate)) {
         if (!authored) continue;
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
@@ -1086,7 +1086,7 @@ CompileDeferredTemplateBlueprint(
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    MetadataRuntime& runtime,
+    MetaRegistry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     return CompileBlueprint(
         visualTree,
@@ -1114,7 +1114,7 @@ std::uint32_t FindNodeIndex(
 Base::Result<bool> DeferredTriggerValuesMatch(
     const Value& actual,
     Value expected,
-    MetadataRuntime& runtime) noexcept {
+    MetaRegistry& runtime) noexcept {
     if (actual.Kind() == ValueKind::Object &&
         !actual.IsNullObject() &&
         actual.AsObject() &&
@@ -1143,7 +1143,7 @@ Base::Result<bool> DeferredTriggerValuesMatch(
 Base::Result<Value> ReadDeferredTriggerBinding(
     const Data::Binding& binding,
     const Base::Ref<Base::Object>& payload,
-    MetadataRuntime& runtime) noexcept {
+    MetaRegistry& runtime) noexcept {
     if (!payload || binding.GetPath().GetPath().Empty()) {
         return InvalidTemplateCompiler(
             "DataTemplate trigger Binding requires a data item and Path");
@@ -1319,7 +1319,7 @@ Base::Result<void> ApplyInitialDataTemplateTriggers(
 }
 
 Base::Result<void> BuildCompiledTemplate(
-    TemplateBuildContext& context,
+    TemplateBuilder& context,
     void* factoryContext) noexcept {
     auto* blueprint =
         static_cast<CompiledTemplateBlueprint*>(
@@ -1504,16 +1504,16 @@ Base::Result<void> BuildCompiledTemplate(
                 "ControlTemplate root does not support runtime triggers");
         }
         Base::Result<Base::Ref<
-            Aero::Detail::DataTemplateTriggerContext>> created =
-            Base::MakeRef<Aero::Detail::DataTemplateTriggerContext>();
+            Aero::Detail::DataTemplateTriggerState>> created =
+            Base::MakeRef<Aero::Detail::DataTemplateTriggerState>();
         if (!created) return created.GetStatus();
-        Base::Ref<Aero::Detail::DataTemplateTriggerContext> triggerContext =
+        Base::Ref<Aero::Detail::DataTemplateTriggerState> triggerContext =
             std::move(created).Value();
         triggerContext->root =
             static_cast<FrameworkElement*>(visuals[0U]);
         for (std::uint32_t index = 0U; index < visuals.Size(); ++index) {
             if (blueprint->nodes[index].name.Empty()) continue;
-            Aero::Detail::DataTemplateTriggerContext::NamedObject named;
+            Aero::Detail::DataTemplateTriggerState::NamedObject named;
             Base::Result<void> namedAssigned = named.name.TryAssign(
                 blueprint->nodes[index].name.View());
             if (!namedAssigned) return namedAssigned.GetStatus();
@@ -1617,7 +1617,7 @@ Base::Result<void> BuildCompiledTemplate(
                     std::move(condition));
                 if (!added) return added.GetStatus();
                 // Property-trigger setters continue to be owned by
-                // TemplateManager, which preserves their trigger precedence.
+                // TemplateEngine, which preserves their trigger precedence.
                 // This per-instance plan supplies only the action lifecycle.
             } else if (authored->RuntimeType() == DataTrigger::StaticTypeId()) {
                 const auto& data = static_cast<const DataTrigger&>(*authored);
@@ -1676,7 +1676,7 @@ Base::Result<void> BuildCompiledTemplate(
             if (!configured) return configured.GetStatus();
         }
         Base::Result<void> attached =
-            Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+            Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
                 *triggerContext->root,
                 Base::Ref<Base::Object>(std::move(triggerContext)));
         if (!attached) return attached.GetStatus();
@@ -1814,20 +1814,20 @@ BuildCompiledDeferredTemplate(
                 descriptor);
         if (!queued) return queued.GetStatus();
     }
-    Base::Ref<Aero::Detail::DataTemplateTriggerContext>
+    Base::Ref<Aero::Detail::DataTemplateTriggerState>
         triggerContext;
     auto ensureTriggerContext =
         [&]() noexcept
         -> Base::Result<
-            Aero::Detail::DataTemplateTriggerContext*> {
+            Aero::Detail::DataTemplateTriggerState*> {
         if (triggerContext) {
             return triggerContext.Get();
         }
         Base::Result<Base::Ref<
-            Aero::Detail::DataTemplateTriggerContext>>
+            Aero::Detail::DataTemplateTriggerState>>
             created = Base::MakeRef<
                 Aero::Detail::
-                    DataTemplateTriggerContext>();
+                    DataTemplateTriggerState>();
         if (!created) {
             return created.GetStatus();
         }
@@ -1840,7 +1840,7 @@ BuildCompiledDeferredTemplate(
             if (blueprint->nodes[index].name.Empty()) {
                 continue;
             }
-            Aero::Detail::DataTemplateTriggerContext::
+            Aero::Detail::DataTemplateTriggerState::
                 NamedObject named;
             Base::Result<void> assigned =
                 named.name.TryAssign(
@@ -1923,7 +1923,7 @@ BuildCompiledDeferredTemplate(
             continue;
         }
         Base::Result<
-            Aero::Detail::DataTemplateTriggerContext*>
+            Aero::Detail::DataTemplateTriggerState*>
             ensured = ensureTriggerContext();
         if (!ensured) return ensured.GetStatus();
         Aero::Detail::DataTemplatePropertyTrigger
@@ -2043,7 +2043,7 @@ BuildCompiledDeferredTemplate(
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+            Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
                 static_cast<FrameworkElement&>(*root),
                 Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();

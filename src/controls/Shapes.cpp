@@ -1,8 +1,8 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Shapes.hpp>
-#include "../render/DrawingContextAccess.hpp"
+#include "../render/DrawingInternals.hpp"
 
-#include "media/ImageBrushAccess.hpp"
+#include "media/BrushInternals.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,12 +22,12 @@ ImageBrushGeometry FitImageBrush(
     Rect sourceUv) noexcept {
     const double sourceWidth =
         static_cast<double>(
-            Aero::Detail::ImageBrushAccess::
+            Aero::Detail::BrushPrivate::
                 PixelWidth(brush)) *
         sourceUv.width;
     const double sourceHeight =
         static_cast<double>(
-            Aero::Detail::ImageBrushAccess::
+            Aero::Detail::BrushPrivate::
                 PixelHeight(brush)) *
         sourceUv.height;
     if (sourceWidth <= 0.0 ||
@@ -89,14 +89,14 @@ Base::Result<void> PaintImageBrush(
     DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const RenderImageId image =
-        Aero::Detail::ImageBrushAccess::
+        Aero::Detail::BrushPrivate::
             RuntimeImage(brush);
     if (image == InvalidRenderImageId ||
-        Aero::Detail::ImageBrushAccess::
+        Aero::Detail::BrushPrivate::
             PixelWidth(brush) == 0U ||
-        Aero::Detail::ImageBrushAccess::
+        Aero::Detail::BrushPrivate::
             PixelHeight(brush) == 0U) {
         return {};
     }
@@ -303,7 +303,7 @@ Base::Result<Size> Rectangle::MeasureOverride(
 
 Base::Result<void> Rectangle::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {
@@ -444,7 +444,7 @@ Base::Result<Size> Ellipse::MeasureOverride(
 
 Base::Result<void> Ellipse::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const Size renderSize = GetRenderSize();
     if (renderSize.width <= 0.0 ||
         renderSize.height <= 0.0) {

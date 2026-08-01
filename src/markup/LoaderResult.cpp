@@ -1,5 +1,5 @@
 #include "LoaderResult.hpp"
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 
 namespace Aero::Markup {
 
@@ -36,20 +36,20 @@ void VisualContentPlan::ReleaseContent() noexcept {
                 break;
             }
         }
-        if (firstForParent && edge.runtime != nullptr && edge.parentOwner) {
+        if (firstForParent && edge.metadata != nullptr && edge.parentOwner) {
             if (edge.property) {
                 const Core::PropertyInfo* property =
-                    edge.runtime->Types().
+                    edge.metadata->Types().
                         FindProperty(edge.member);
                 if (property != nullptr) {
-                    (void)edge.runtime->SetProperty(
+                    (void)edge.metadata->SetProperty(
                         *edge.parentOwner.Get(),
                         edge.member,
                         Core::Value::NullObject(
                             property->ValueType()));
                 }
             } else {
-                (void)edge.runtime->ClearContent(
+                (void)edge.metadata->ClearContent(
                     *edge.parentOwner.Get(),
                     edge.member);
             }

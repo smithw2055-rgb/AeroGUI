@@ -13,14 +13,13 @@ class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
 }
-namespace Aero::Detail { class DocumentTextAccess; }
+namespace Aero::Detail { class DocumentPrivate; }
 
 namespace Aero::Controls {
 
 namespace Detail {
-class TextLayoutService;
-class TextServicesAccess;
-class PathServicesAccess;
+class TextBlockLayout;
+class ControlPrivate;
 }
 
 using namespace Aero::Core;
@@ -503,15 +502,15 @@ protected:
     Base::Result<Size> ArrangeOverride(Size finalSize) noexcept override;
     Base::Result<void> OnRender(DrawingContext& context) noexcept override;
 private:
-    friend class Detail::TextServicesAccess;
-    friend class Aero::Detail::DocumentTextAccess;
+    friend class Detail::ControlPrivate;
+    friend class Aero::Detail::DocumentPrivate;
 
     Base::StringView EffectiveFontFamily() const noexcept;
     void ReleaseServiceGlyphRun() noexcept;
     Base::Result<void> SetGlyphRun(
         std::uint64_t glyphRun, Size size) noexcept;
 
-    Detail::TextLayoutService* layoutService_ = nullptr;
+    Detail::TextBlockLayout* layoutService_ = nullptr;
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<Text::TextHitRegion> textHitRegions_;
     Base::Vector<Base::Ref<Base::Object>> ownedInlines_;
@@ -582,12 +581,12 @@ protected:
         DrawingContext& context) noexcept override;
 
 private:
-    friend class Detail::PathServicesAccess;
+    friend class Detail::ControlPrivate;
 
     Base::Result<void> EnsureGeometry() noexcept;
     Base::Result<void> EnsureMesh() noexcept;
     void ResetGeometry() noexcept;
-    void AttachMeshServices(
+    void AttachMeshResources(
         void* services,
         bool force = false) noexcept;
     void ReleaseMesh() noexcept;
@@ -655,7 +654,7 @@ public:
     inline static constexpr Members::Property<Core::Value> ContentProperty{"Content"};
     inline static constexpr Members::Property<Base::Ref<Base::Object>> ContentTemplateProperty{"ContentTemplate"};
     static void OnContentPropertyChanged(
-        Core::DependencyObject& object,
+        ::Aero::DependencyObject& object,
         const Core::DependencyPropertyChangedEventArgs&
             change) noexcept;
 protected:

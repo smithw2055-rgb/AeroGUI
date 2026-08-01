@@ -13,32 +13,32 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Markup/CompiledDocument.hpp>
 
 #include <cstdint>
 
-namespace Aero { class ResourceDictionary; class ResourceKey; }
+namespace Aero { class DependencyObject; class ResourceDictionary; class ResourceKey; }
 
 namespace Aero {
-class SchemaBundle;
+class GuiSchema;
 }
 
 namespace Aero::Markup {
 
-struct ExtensionContext;
+struct ExtensionServices;
 struct ProvidedValue;
 class Loader;
 class ObjectWriter;
-class ObjectWriterState;
+class ObjectBuilder;
 class SchemaManifest;
 
 namespace Detail {
-class SchemaAccess;
+class SchemaPrivate;
 class XamlStyleSchemaFacet;
 
 AERO_API Base::Result<void> PopulateMarkupMetadata(
-    Core::MetadataContext& context) noexcept;
+    Core::MetaRegistration& context) noexcept;
 }
 
 enum class MemberSyntax : std::uint8_t {
@@ -78,8 +78,7 @@ struct MemberWritePolicy final {
 class AERO_API Schema final {
 public:
     Schema(
-        Core::MetadataDomain& domain,
-        Core::MetadataRuntime& runtime,
+        Core::MetaRegistry& metadata,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~Schema() noexcept;
 
@@ -88,7 +87,7 @@ public:
 
     bool IsFrozen() const noexcept { return frozen_; }
     const Core::TypeRegistry& Types() const noexcept {
-        return runtime_->Types();
+        return domain_->Types();
     }
     Base::Result<const Core::TypeInfo*> ResolveType(
         Base::StringView xamlNamespace,
@@ -101,30 +100,29 @@ public:
         Core::TypeId targetType) const noexcept;
 
 private:
-    friend class ::Aero::SchemaBundle;
+    friend class ::Aero::GuiSchema;
     friend class CompiledDocument;
-    friend class Detail::SchemaAccess;
+    friend class Detail::SchemaPrivate;
     friend class Loader;
     friend class ObjectWriter;
-    friend class ObjectWriterState;
+    friend class ObjectBuilder;
     friend class SchemaManifest;
     friend class Detail::XamlStyleSchemaFacet;
 
     Base::Result<void> Freeze() noexcept;
-    bool UsesRuntime() const noexcept { return runtime_ != nullptr; }
-    Core::MetadataRuntime* Runtime() const noexcept { return runtime_; }
-    const Core::MetadataDomain& Domain() const noexcept {
+    Core::MetaRegistry* Metadata() const noexcept { return domain_; }
+    const Core::MetaRegistry& Domain() const noexcept {
         return *domain_;
     }
 
     Base::Result<Base::Ref<Base::Object>> CreateObject(
         Core::TypeId type) const noexcept;
-    Base::Result<Core::DependencyObject*> ResolvePropertyTarget(
+    Base::Result<::Aero::DependencyObject*> ResolvePropertyTarget(
         Base::Object& object) const noexcept;
     Base::Result<Core::Value> ConvertText(
         Core::TypeId type,
         Base::StringView text,
-        const ExtensionContext* services = nullptr) const noexcept;
+        const ExtensionServices* services = nullptr) const noexcept;
     Base::Result<void> SetMember(
         Base::Object& object,
         Core::TypeId objectType,
@@ -133,7 +131,7 @@ private:
     Base::Result<ProvidedValue> ProvideMarkupExtensionValue(
         Core::TypeId type,
         Base::StringView arguments,
-        const ExtensionContext& services) const noexcept;
+        const ExtensionServices& services) const noexcept;
 
     Base::Result<void> BeginInit(
         Core::TypeId type,
@@ -141,7 +139,7 @@ private:
     Base::Result<void> EndInit(
         Core::TypeId type,
         Base::Object& object,
-        const ExtensionContext& services) const noexcept;
+        const ExtensionServices& services) const noexcept;
     void AbortInit(Core::TypeId type, Base::Object& object) const noexcept;
 
     bool CreatesNameScope(Core::TypeId type) const noexcept;
@@ -171,11 +169,10 @@ private:
 
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;
-    Core::MetadataDomain* domain_ = nullptr;
-    Core::MetadataRuntime* runtime_ = nullptr;
+    Core::MetaRegistry* domain_ = nullptr;
     bool frozen_ = false;
 
-    Base::Result<ResolvedMember> ResolvePropertyOrEventRuntime(
+    Base::Result<ResolvedMember> ResolvePropertyOrEvent(
         Core::TypeId targetType,
         Core::TypeId ownerType,
         Base::StringView memberName,
@@ -253,7 +250,7 @@ MarkupMetadataModuleName() noexcept {
 }
 
 inline Base::Result<void> TryRegisterMarkupMetadata(
-    Core::MetadataDomain& domain) noexcept {
+    Core::MetaRegistry& domain) noexcept {
     constexpr std::uint32_t SchemaVersion = 4U;
     const Base::StringView name =
         MarkupMetadataModuleName();

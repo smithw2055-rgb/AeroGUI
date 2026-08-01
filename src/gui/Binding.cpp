@@ -391,16 +391,16 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Data;
 
-BindingManager::BindingManager(Dispatcher& dispatcher) noexcept
+BindingEngine::BindingEngine(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
       bindings_(),
-      propertyChangedHandler_(this, &BindingManager::OnPropertyChanged) {}
+      propertyChangedHandler_(this, &BindingEngine::OnPropertyChanged) {}
 
-BindingManager::~BindingManager() noexcept {
+BindingEngine::~BindingEngine() noexcept {
     Shutdown();
 }
 
-Base::Result<void> BindingManager::Initialize() noexcept {
+Base::Result<void> BindingEngine::Initialize() noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess();
     }
@@ -410,7 +410,7 @@ Base::Result<void> BindingManager::Initialize() noexcept {
     Base::Result<DispatcherFrameHookHandle> registered =
         dispatcher_->RegisterFrameHook(
             DispatcherFramePhase::DataBind,
-            &BindingManager::DataBindHook,
+            &BindingEngine::DataBindHook,
             this);
     if (!registered) {
         return registered.GetStatus();
@@ -419,7 +419,7 @@ Base::Result<void> BindingManager::Initialize() noexcept {
     return {};
 }
 
-void BindingManager::Shutdown() noexcept {
+void BindingEngine::Shutdown() noexcept {
     if (hook_.IsValid()) {
         (void)dispatcher_->RemoveFrameHook(hook_);
         hook_ = {};
@@ -431,16 +431,16 @@ void BindingManager::Shutdown() noexcept {
     flushing_ = false;
 }
 
-Base::Result<BindingHandle> BindingManager::Attach(
+Base::Result<BindingHandle> BindingEngine::Attach(
     const BindingDescriptor& descriptor) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (!hook_.IsValid()) {
-        return InvalidState("BindingManager must be initialized before Attach");
+        return InvalidState("BindingEngine must be initialized before Attach");
     }
     if (flushing_) {
-        return InvalidState("BindingManager cannot attach while flushing");
+        return InvalidState("BindingEngine cannot attach while flushing");
     }
     Base::Result<void> valid = VerifyDescriptor(descriptor);
     if (!valid) {
@@ -479,16 +479,16 @@ Base::Result<BindingHandle> BindingManager::Attach(
     return bindings_.Back().handle;
 }
 
-Base::Result<BindingHandle> BindingManager::Attach(
+Base::Result<BindingHandle> BindingEngine::Attach(
     const MetadataBindingDescriptor& descriptor) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (!hook_.IsValid()) {
-        return InvalidState("BindingManager must be initialized before Attach");
+        return InvalidState("BindingEngine must be initialized before Attach");
     }
     if (flushing_) {
-        return InvalidState("BindingManager cannot attach while flushing");
+        return InvalidState("BindingEngine cannot attach while flushing");
     }
     Base::Result<void> valid = VerifyDescriptor(descriptor);
     if (!valid) return valid.GetStatus();
@@ -644,7 +644,7 @@ Base::Result<BindingHandle> BindingManager::Attach(
     return stored.handle;
 }
 
-Base::Result<void> BindingManager::QueueDeferred(
+Base::Result<void> BindingEngine::QueueDeferred(
     const MetadataBindingDescriptor& descriptor) noexcept {
     if (descriptor.metadata == nullptr ||
         descriptor.target == nullptr ||
@@ -692,7 +692,7 @@ Base::Result<void> BindingManager::QueueDeferred(
 }
 
 Base::Result<std::uint32_t>
-BindingManager::ActivateDeferred(
+BindingEngine::ActivateDeferred(
     DependencyObject& target) noexcept {
     std::uint32_t activated = 0U;
     for (std::uint32_t index = 0U;
@@ -749,12 +749,12 @@ BindingManager::ActivateDeferred(
     return activated;
 }
 
-Base::Result<bool> BindingManager::Detach(BindingHandle handle) noexcept {
+Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (flushing_) {
-        return InvalidState("BindingManager cannot detach while flushing");
+        return InvalidState("BindingEngine cannot detach while flushing");
     }
     if (!handle.IsValid()) {
         return false;
@@ -768,12 +768,12 @@ Base::Result<bool> BindingManager::Detach(BindingHandle handle) noexcept {
     return false;
 }
 
-Base::Result<bool> BindingManager::UpdateSource(BindingHandle handle) noexcept {
+Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (!hook_.IsValid() || flushing_) {
-        return InvalidState("BindingManager is not ready to update a source");
+        return InvalidState("BindingEngine is not ready to update a source");
     }
     for (BindingRecord& record : bindings_) {
         if (record.handle.value != handle.value) {
@@ -790,13 +790,13 @@ Base::Result<bool> BindingManager::UpdateSource(BindingHandle handle) noexcept {
     return false;
 }
 
-Base::Result<std::uint32_t> BindingManager::DetachObject(
+Base::Result<std::uint32_t> BindingEngine::DetachObject(
     DependencyObject& object) noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (flushing_) {
-        return InvalidState("BindingManager cannot detach objects while flushing");
+        return InvalidState("BindingEngine cannot detach objects while flushing");
     }
     std::uint32_t detached = 0U;
     for (std::uint32_t index = 0U; index < bindings_.Size();) {
@@ -832,15 +832,15 @@ Base::Result<std::uint32_t> BindingManager::DetachObject(
     return detached;
 }
 
-Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
+Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
     if (!hook_.IsValid()) {
-        return InvalidState("BindingManager is not initialized");
+        return InvalidState("BindingEngine is not initialized");
     }
     if (flushing_) {
-        return InvalidState("BindingManager cannot flush recursively");
+        return InvalidState("BindingEngine cannot flush recursively");
     }
 
     flushing_ = true;
@@ -1053,7 +1053,7 @@ Base::Result<std::uint32_t> BindingManager::Flush() noexcept {
 }
 
 Base::Result<std::uint32_t>
-BindingManager::InspectBindings(
+BindingEngine::InspectBindings(
     const DependencyObject& object,
     Base::Vector<BindingInspection>&
         output) const noexcept {
@@ -1112,14 +1112,14 @@ BindingManager::InspectBindings(
     return output.Size();
 }
 
-void BindingManager::DataBindHook(void* context) noexcept {
-    BindingManager* manager = static_cast<BindingManager*>(context);
+void BindingEngine::DataBindHook(void* context) noexcept {
+    BindingEngine* manager = static_cast<BindingEngine*>(context);
     if (manager != nullptr) {
         (void)manager->Flush();
     }
 }
 
-void BindingManager::OnPropertyChanged(
+void BindingEngine::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     for (BindingRecord& record : bindings_) {
@@ -1144,7 +1144,7 @@ void BindingManager::OnPropertyChanged(
     }
 }
 
-void BindingManager::OnMetadataPropertyChanged(
+void BindingEngine::OnMetadataPropertyChanged(
     Base::Object& object,
     MemberId property) noexcept {
     for (BindingRecord& record : bindings_) {
@@ -1162,17 +1162,17 @@ void BindingManager::OnMetadataPropertyChanged(
     }
 }
 
-void BindingManager::MetadataPropertyChanged(
+void BindingEngine::MetadataPropertyChanged(
     Base::Object& object,
     MemberId property,
     void* context) noexcept {
-    BindingManager* manager = static_cast<BindingManager*>(context);
+    BindingEngine* manager = static_cast<BindingEngine*>(context);
     if (manager != nullptr) {
         manager->OnMetadataPropertyChanged(object, property);
     }
 }
 
-Base::Result<void> BindingManager::VerifyDescriptor(
+Base::Result<void> BindingEngine::VerifyDescriptor(
     const BindingDescriptor& descriptor) const noexcept {
     if (descriptor.source == nullptr || descriptor.target == nullptr ||
         !descriptor.sourceProperty.IsValid() ||
@@ -1222,10 +1222,10 @@ Base::Result<void> BindingManager::VerifyDescriptor(
     return {};
 }
 
-Base::Result<void> BindingManager::VerifyDescriptor(
+Base::Result<void> BindingEngine::VerifyDescriptor(
     const MetadataBindingDescriptor& descriptor) const noexcept {
     if (descriptor.metadata == nullptr ||
-        !descriptor.metadata->IsFrozen() ||
+        !descriptor.metadata->IsReady() ||
         descriptor.target == nullptr ||
         !descriptor.targetProperty.IsValid() ||
         (descriptor.path.Empty() && !descriptor.bindsToSource) ||
@@ -1269,7 +1269,7 @@ Base::Result<void> BindingManager::VerifyDescriptor(
     return {};
 }
 
-Base::Result<void> BindingManager::ResolveMetadataSource(
+Base::Result<void> BindingEngine::ResolveMetadataSource(
     BindingRecord& record) noexcept {
     if (record.sourceKind == BindingSourceKind::MetadataObject) {
         return record.metadataSource != nullptr
@@ -1365,7 +1365,7 @@ Base::Result<void> BindingManager::ResolveMetadataSource(
     return {};
 }
 
-Base::Result<PropertyValue> BindingManager::ReadSource(
+Base::Result<PropertyValue> BindingEngine::ReadSource(
     BindingRecord& record) noexcept {
     if (record.sourceKind ==
         BindingSourceKind::DependencyProperty) {
@@ -1384,7 +1384,7 @@ Base::Result<PropertyValue> BindingManager::ReadSource(
         *record.metadata, *record.metadataSource);
 }
 
-Base::Result<void> BindingManager::WriteSource(
+Base::Result<void> BindingEngine::WriteSource(
     BindingRecord& record,
     const PropertyValue& value) noexcept {
     if (record.sourceKind ==
@@ -1403,7 +1403,7 @@ Base::Result<void> BindingManager::WriteSource(
         *record.metadata, *record.metadataSource, value);
 }
 
-Base::Result<PropertyValue> BindingManager::ConvertForTarget(
+Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
     BindingRecord& record,
     const PropertyValue& value) noexcept {
     record.conversionFailureStage =
@@ -1481,7 +1481,7 @@ Base::Result<PropertyValue> BindingManager::ConvertForTarget(
     return converted;
 }
 
-Base::Result<PropertyValue> BindingManager::ConvertForSource(
+Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     BindingRecord& record,
     const PropertyValue& value) noexcept {
     record.conversionFailureStage =
@@ -1547,7 +1547,7 @@ Base::Result<PropertyValue> BindingManager::ConvertForSource(
     return converted;
 }
 
-void BindingManager::ReportDiagnostic(
+void BindingEngine::ReportDiagnostic(
     BindingRecord& record,
     BindingDiagnosticStage stage,
     Base::Status status) noexcept {
@@ -1559,7 +1559,7 @@ void BindingManager::ReportDiagnostic(
     }
 }
 
-Base::Result<void> BindingManager::SubscribeMetadataSource(
+Base::Result<void> BindingEngine::SubscribeMetadataSource(
     BindingRecord& record) noexcept {
     if (record.metadata == nullptr ||
         record.metadataSource == nullptr) {
@@ -1569,14 +1569,14 @@ Base::Result<void> BindingManager::SubscribeMetadataSource(
     Base::Result<std::uint64_t> subscribed =
         record.metadata->SubscribePropertyChanged(
         *record.metadataSource,
-        &BindingManager::MetadataPropertyChanged,
+        &BindingEngine::MetadataPropertyChanged,
         this);
     if (!subscribed) return subscribed.GetStatus();
     record.notificationSubscription = subscribed.Value();
     return {};
 }
 
-void BindingManager::ReleaseMetadataSource(
+void BindingEngine::ReleaseMetadataSource(
     BindingRecord& record) noexcept {
     if (record.notificationSubscription != 0U &&
         record.metadata != nullptr &&
@@ -1588,7 +1588,7 @@ void BindingManager::ReleaseMetadataSource(
     record.notificationSubscription = 0U;
 }
 
-void BindingManager::RemoveAt(std::uint32_t index) noexcept {
+void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     BindingRecord& removed = bindings_[index];
     if (removed.sourceKind ==
         BindingSourceKind::DependencyProperty) {

@@ -1,11 +1,11 @@
 #include "DisplayList.hpp"
-#include "DrawingContextAccess.hpp"
+#include "DrawingInternals.hpp"
 #include "RenderTree.hpp"
 
 #include "gui/StyleInternal.hpp"
 
 #include <Aero/Base/Assert.hpp>
-#include "gui/MetadataInternal.hpp"
+#include "gui/MetaInternals.hpp"
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Transforms.hpp>
 
@@ -633,7 +633,7 @@ RenderTree::~RenderTree() noexcept {
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
+            for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
                 self(self, *child);
             }
             element.renderAttached_ = false;
@@ -698,7 +698,7 @@ Base::Result<void> RenderTree::SetRoot(
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
                              FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
+                for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
                     self(self, *child);
                 }
                 RemoveQueued(element);
@@ -756,7 +756,7 @@ Base::Result<void> RenderTree::Attach(
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this ||
         child.renderRuntime_ != nullptr || child.renderAttached_ ||
-        Aero::Detail::FrameworkElementAccess::RenderParent(child) != &parent) {
+        Aero::Detail::ElementPrivate::RenderParent(child) != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -773,7 +773,7 @@ Base::Result<void> RenderTree::Attach(
     std::uint32_t required = 1U;
     for (FrameworkElement* current = &parent; current != nullptr;
          current = current->renderAttached_
-             ? Aero::Detail::FrameworkElementAccess::RenderParent(*current) : nullptr) {
+             ? Aero::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
         if (!current->renderQueued_) ++required;
     }
     Base::Result<void> reserved =
@@ -801,7 +801,7 @@ Base::Result<void> RenderTree::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this || !child.renderAttached_ ||
-        Aero::Detail::FrameworkElementAccess::RenderParent(child) != &parent ||
+        Aero::Detail::ElementPrivate::RenderParent(child) != &parent ||
         child.renderRuntime_ != this) {
         return NotFound(
             "Render parent-child relationship was not found");
@@ -812,7 +812,7 @@ Base::Result<void> RenderTree::Detach(
 
     auto clear = [&](auto&& self,
                      FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
+        for (FrameworkElement* descendant : Aero::Detail::ElementPrivate::RenderChildren(element)) {
             self(self, *descendant);
         }
         RemoveQueued(element);
@@ -858,7 +858,7 @@ void RenderTree::MarkCommittedSubtree(
     ++element.renderRevision_;
     element.renderValid_ = true;
     element.renderQueued_ = false;
-    for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
         MarkCommittedSubtree(*child);
     }
 }
@@ -875,7 +875,7 @@ Base::Result<void> RenderTree::Invalidate(
     Base::Vector<FrameworkElement*> path;
     for (FrameworkElement* current = &element; current != nullptr;
          current = current->renderAttached_
-             ? Aero::Detail::FrameworkElementAccess::RenderParent(*current) : nullptr) {
+             ? Aero::Detail::ElementPrivate::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.TryPushBack(current);
@@ -1032,7 +1032,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     element.rendering_ = true;
     DisplayListBuilder builder;
     DrawingContext context =
-        Aero::Detail::DrawingContextAccess::Create(builder);
+        Aero::Detail::DrawingPrivate::Create(builder);
     Base::Result<void> built = visible
         ? element.OnRender(context)
         : Base::Result<void>();
@@ -1126,7 +1126,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
+    for (FrameworkElement* child : Aero::Detail::ElementPrivate::RenderChildren(element)) {
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(

@@ -231,7 +231,7 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
     setterType_ = setterType;
     triggerType_ = triggerType;
     Base::Result<void> styleAdapter =
-        Detail::SchemaAccess::AddType(schema, {
+        Detail::SchemaPrivate::AddType(schema, {
         styleType_,
         nullptr,
         &EndStyleInit,
@@ -460,7 +460,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             std::move(plan));
         if (!added) return added.GetStatus();
     }
-    return Aero::Detail::StyleAccess::Seal(
+    return Aero::Detail::StylePrivate::Seal(
         style, *options_.properties);
 }
 
@@ -483,7 +483,7 @@ struct UiObjectModel::Impl final {
         const UiObjectModelOptions& options) noexcept
         : style(options),
           templates(
-              *options.runtime,
+              *options.metadata,
               *options.properties,
               options.allocator) {}
 
@@ -497,7 +497,7 @@ UiObjectModel::UiObjectModel(
     : allocator_(options.allocator != nullptr
           ? options.allocator
           : &Base::GetDefaultAllocator()) {
-    if (options.runtime == nullptr ||
+    if (options.metadata == nullptr ||
         options.properties == nullptr) {
         return;
     }

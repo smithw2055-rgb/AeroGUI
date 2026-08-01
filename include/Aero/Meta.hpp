@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Meta/Describe.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Meta/ValueCodec.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -11,7 +12,8 @@
 
 namespace Aero::Meta {
 
-using Context = Core::MetadataContext;
+using Registration = Core::MetaRegistration;
+using Registry = Core::MetaRegistry;
 using TypeId = Core::TypeId;
 using MemberId = Core::MemberId;
 using Routing = Aero::RoutingStrategy;

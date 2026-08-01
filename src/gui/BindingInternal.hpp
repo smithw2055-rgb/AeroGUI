@@ -8,7 +8,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 
 #include <cstdint>
 
@@ -44,7 +44,7 @@ public:
     BindingPathPlan() noexcept = default;
 
     static Base::Result<BindingPathPlan> Compile(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         TypeId rootType,
         Base::StringView path,
         BindingPathCompileError* error = nullptr) noexcept;
@@ -65,22 +65,22 @@ public:
     }
 
     Base::Result<Value> Get(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         const Base::Object& root) const noexcept;
     Base::Result<Value> Get(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         const Value& root) const noexcept;
     Base::Result<void> Set(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         Base::Object& root,
         const Value& value) const noexcept;
     Base::Result<void> Set(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         Value& root,
         const Value& value) const noexcept;
 
 private:
-    const MetadataDomain* compiledDomain_ = nullptr;
+    const MetaRegistry* compiledDomain_ = nullptr;
     TypeId rootType_ = InvalidTypeId;
     TypeId resultType_ = InvalidTypeId;
     Base::HashCode schemaHash_ = 0U;
@@ -89,22 +89,22 @@ private:
     bool canWrite_ = false;
 
     Base::Result<void> VerifyRuntime(
-        MetadataRuntime& runtime) const noexcept;
+        MetaRegistry& runtime) const noexcept;
     Base::Result<Value> GetObject(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         const Base::Object& object,
         std::uint32_t segmentIndex) const noexcept;
     Base::Result<Value> GetValue(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         const Value& value,
         std::uint32_t segmentIndex) const noexcept;
     Base::Result<void> SetObject(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         Base::Object& object,
         std::uint32_t segmentIndex,
         const Value& value) const noexcept;
     Base::Result<bool> SetValue(
-        MetadataRuntime& runtime,
+        MetaRegistry& runtime,
         Value& owner,
         std::uint32_t segmentIndex,
         const Value& value) const noexcept;
@@ -115,11 +115,10 @@ private:
 // Binding descriptors, expressions and the view binding service.
 
 #include <Aero/Data.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
 
 namespace Aero::Data {
 
-using Core::MetadataRuntime;
+using Core::MetaRegistry;
 using Core::PropertyValue;
 using Core::TypeId;
 
@@ -197,7 +196,7 @@ struct BindingInspection final {
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
 struct MetadataBindingDescriptor final {
-    MetadataRuntime* metadata = nullptr;
+    MetaRegistry* metadata = nullptr;
     Base::Object* source = nullptr;
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
@@ -238,13 +237,13 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Data;
 
-class AERO_API BindingManager final {
+class AERO_API BindingEngine final {
 public:
-    explicit BindingManager(Dispatcher& dispatcher) noexcept;
-    ~BindingManager() noexcept;
+    explicit BindingEngine(Dispatcher& dispatcher) noexcept;
+    ~BindingEngine() noexcept;
 
-    BindingManager(const BindingManager&) = delete;
-    BindingManager& operator=(const BindingManager&) = delete;
+    BindingEngine(const BindingEngine&) = delete;
+    BindingEngine& operator=(const BindingEngine&) = delete;
 
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
@@ -255,7 +254,7 @@ public:
         const MetadataBindingDescriptor& descriptor) noexcept;
     // Deferred templates are cloned before their visual roots are mounted.
     // Queueing preserves the declaration until the target acquires its
-    // Dispatcher; ViewUiServices activates it while walking the
+    // Dispatcher; ViewStyling activates it while walking the
     // newly mounted instance.
     Base::Result<void> QueueDeferred(
         const MetadataBindingDescriptor& descriptor) noexcept;
@@ -348,7 +347,7 @@ private:
         BindingDescriptor descriptor;
         BindingSourceKind sourceKind =
             BindingSourceKind::DependencyProperty;
-        MetadataRuntime* metadata = nullptr;
+        MetaRegistry* metadata = nullptr;
         Base::Object* metadataSource = nullptr;
         DependencyPropertyHandle dataContextProperty;
         Base::String path;
@@ -367,7 +366,7 @@ private:
     };
 
     struct DeferredBindingRecord final {
-        MetadataRuntime* metadata = nullptr;
+        MetaRegistry* metadata = nullptr;
         Base::Object* source = nullptr;
         DependencyObject* target = nullptr;
         DependencyPropertyHandle targetProperty;

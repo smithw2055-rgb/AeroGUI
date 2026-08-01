@@ -2,7 +2,7 @@
 
 #include "SchemaInternal.hpp"
 
-#include "../controls/TemplateAccess.hpp"
+#include "../controls/TemplateInternals.hpp"
 
 #include <Aero/Styling.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
@@ -73,7 +73,7 @@ Base::Result<void> TemplateBindingExtension::Register(
             Base::ErrorCode::InvalidState,
             "TemplateBinding extension registration is invalid");
     }
-    return Detail::SchemaAccess::AddMarkupExtension(
+    return Detail::SchemaPrivate::AddMarkupExtension(
         schema,
         {markupExtensionType, &ProvideValue, nullptr});
 }
@@ -81,7 +81,7 @@ Base::Result<void> TemplateBindingExtension::Register(
 Base::Result<ProvidedValue>
 TemplateBindingExtension::ProvideValue(
     Base::StringView arguments,
-    const ExtensionContext& services,
+    const ExtensionServices& services,
     void* context) noexcept {
     if (context != nullptr ||
         services.schema == nullptr ||
@@ -108,8 +108,8 @@ TemplateBindingExtension::ProvideValue(
     auto& controlTemplate =
         static_cast<Controls::ControlTemplate&>(
             *services.deferredContentOwner);
-    Base::Result<Core::DependencyObject*> target =
-        Detail::SchemaAccess::ResolvePropertyTarget(
+    Base::Result<::Aero::DependencyObject*> target =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!target) return target.GetStatus();
@@ -140,7 +140,7 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (authoredName.Empty()) {
         Base::Result<Base::String> generated =
-            Controls::Detail::FrameworkTemplateAccess::EnsureAuthoredName(controlTemplate,
+            Controls::Detail::TemplatePrivate::EnsureAuthoredName(controlTemplate,
                 *services.targetObject);
         if (!generated) {
             return generated.GetStatus();
@@ -150,7 +150,7 @@ TemplateBindingExtension::ProvideValue(
         authoredName = targetName.View();
     }
     Base::Result<void> added =
-        Controls::Detail::FrameworkTemplateAccess::TryAddTemplateBinding(controlTemplate,
+        Controls::Detail::TemplatePrivate::TryAddTemplateBinding(controlTemplate,
             authoredName,
             source->Handle(),
             destination->Handle());

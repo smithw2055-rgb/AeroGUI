@@ -4,14 +4,14 @@ namespace {
 
 [[maybe_unused]]
 Aero::Base::Result<
-    Aero::Base::Ref<Aero::Integration::RenderEndpoint>>
-CreateD3D11Endpoint(
+    Aero::Base::Ref<Aero::Integration::RenderDevice>>
+CreateD3D11Device(
     Aero::Integration::NativeWindowHandle window) noexcept {
-    Aero::Integration::D3D11WindowEndpointOptions options;
+    Aero::Integration::D3D11WindowDeviceOptions options;
     options.window = window;
     options.width = 640U;
     options.height = 480U;
-    return Aero::Integration::CreateD3D11WindowEndpoint(
+    return Aero::Integration::CreateD3D11WindowDevice(
         options);
 }
 

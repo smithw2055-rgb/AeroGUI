@@ -39,41 +39,13 @@ public:
 } // namespace Aero
 
 #include <Aero/Styling.hpp>
-
-namespace Aero::Detail {
-
-// Runtime-only type-keyed default-style table. Public controls expose WPF
-// Style semantics; lookup storage and base-type traversal belong to the view.
-class ThemeStyleRegistry final {
-public:
-    explicit ThemeStyleRegistry(
-        const Core::DependencyPropertyRegistry& properties) noexcept
-        : properties_(&properties) {}
-
-    Base::Result<void> TryRegister(
-        Core::TypeId controlType,
-        const Style& style) noexcept;
-    const Style* Find(Core::TypeId controlType) const noexcept;
-
-private:
-    struct Entry final {
-        Core::TypeId controlType = Core::InvalidTypeId;
-        const Style* style = nullptr;
-    };
-
-    const Core::DependencyPropertyRegistry* properties_ = nullptr;
-    Base::Vector<Entry> entries_;
-};
-
-} // namespace Aero::Detail
-
 #include <Aero/Style.hpp>
 
 namespace Aero::Detail {
 
 // Private bridge used by XAML and runtime style compilation. Dependency-property
 // registries are implementation state and never appear in the Style SDK.
-class StyleAccess final {
+class StylePrivate final {
 public:
     static Base::Result<void> Seal(
         Aero::Style& style,
@@ -92,14 +64,14 @@ namespace Aero::Detail {
 
 using namespace Aero::Core;
 
-class AERO_API StyleManager final {
+class AERO_API StyleEngine final {
 public:
     using TriggerActionHandler = Base::Result<void>(*)(
         DependencyObject& owner,
         Base::Span<const Base::Ref<Base::Object>> actions,
         void* context) noexcept;
 
-    explicit StyleManager(
+    explicit StyleEngine(
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties) noexcept
         : providerSession_(values),
@@ -107,8 +79,8 @@ public:
           properties_(&properties),
           applications_(),
           propertyChangedHandler_(
-              this, &StyleManager::OnPropertyChanged) {}
-    ~StyleManager() noexcept;
+              this, &StyleEngine::OnPropertyChanged) {}
+    ~StyleEngine() noexcept;
 
     Base::Result<void> Apply(
         DependencyObject& object,
@@ -188,36 +160,7 @@ private:
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
 };
-class AERO_API ThemeStyleManager final {
-public:
-    ThemeStyleManager(
-        EffectiveValueEngine& values,
-        const Aero::Detail::ThemeStyleRegistry& registry) noexcept
-        : providerSession_(values),
-          values_(&providerSession_),
-          registry_(&registry) {}
 
-    Base::Result<bool> ApplyDefault(
-        DependencyObject& object) noexcept;
-    Base::Result<bool> Clear(
-        DependencyObject& object) noexcept;
-
-private:
-    struct Application final {
-        DependencyObject* object = nullptr;
-        const Style* style = nullptr;
-    };
-    Core::Detail::ThemeStyleProviderSession providerSession_;
-    Core::Detail::ThemeStyleProviderSession* values_ = nullptr;
-    const Aero::Detail::ThemeStyleRegistry* registry_ = nullptr;
-    Base::Vector<Application> applications_;
-
-    std::uint32_t FindApplication(
-        const DependencyObject& object) const noexcept;
-    Base::Result<void> ClearSetters(
-        DependencyObject& object,
-        const Style& style) noexcept;
-};
 
 } // namespace Aero::Detail
 

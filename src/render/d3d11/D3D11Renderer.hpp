@@ -6,7 +6,7 @@
 
 #include "render/d3d11/D3D11Backend.hpp"
 
-namespace Aero::Detail { struct TextBackendServices; struct MeshBackendServices; struct ImageBackendServices; }
+namespace Aero::Detail { struct TextResources; struct MeshResources; struct ImageResources; }
 
 namespace Aero::Render {
 
@@ -51,9 +51,9 @@ public:
     D3D11RendererStatistics
     LastSubmitStatistics() const noexcept;
     void SetBatchingEnabled(bool enabled) noexcept;
-    Aero::Detail::TextBackendServices* TextServices() noexcept;
-    Aero::Detail::MeshBackendServices* MeshServices() noexcept;
-    Aero::Detail::ImageBackendServices* ImageServices() noexcept;
+    Aero::Detail::TextResources* GetTextResources() noexcept;
+    Aero::Detail::MeshResources* GetMeshResources() noexcept;
+    Aero::Detail::ImageResources* GetImageResources() noexcept;
 
 private:
     struct Impl;

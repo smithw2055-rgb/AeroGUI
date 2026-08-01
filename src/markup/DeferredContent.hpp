@@ -7,7 +7,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Data.hpp>
 
 
@@ -17,7 +17,7 @@ struct DeferredContentEdge final {
     Base::Object* owner = nullptr;
     Base::Object* parent = nullptr;
     Base::Ref<Base::Object> child;
-    Core::MetadataRuntime* runtime = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Core::MemberId member = Core::InvalidMemberId;
     bool property = false;
 };
@@ -25,9 +25,9 @@ struct DeferredContentEdge final {
 struct DeferredBindingEdge final {
     Base::Object* owner = nullptr;
     Base::Object* source = nullptr;
-    Core::DependencyObject* target = nullptr;
-    Aero::Detail::BindingManager* manager = nullptr;
-    Core::MetadataRuntime* metadata = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
+    Aero::Detail::BindingEngine* manager = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Core::DependencyPropertyHandle targetProperty;
     Core::DependencyPropertyHandle dataContextProperty;
     Base::String path;
@@ -45,13 +45,13 @@ public:
         Base::Object& owner,
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
-        Core::MetadataRuntime& runtime,
+        Core::MetaRegistry& metadata,
         Core::MemberId member) noexcept;
     Base::Result<void> StageProperty(
         Base::Object& owner,
         Base::Object& parent,
         const Base::Ref<Base::Object>& child,
-        Core::MetadataRuntime& runtime,
+        Core::MetaRegistry& metadata,
         Core::MemberId member) noexcept;
     Base::Result<void> CopyForOwner(
         const Base::Object& owner,
@@ -59,9 +59,9 @@ public:
     Base::Result<void> StageBinding(
         Base::Object& owner,
         Base::Object* source,
-        Core::DependencyObject& target,
-        Aero::Detail::BindingManager& manager,
-        Core::MetadataRuntime& metadata,
+        ::Aero::DependencyObject& target,
+        Aero::Detail::BindingEngine& manager,
+        Core::MetaRegistry& metadata,
         Core::DependencyPropertyHandle targetProperty,
         Core::DependencyPropertyHandle dataContextProperty,
         Base::StringView path,

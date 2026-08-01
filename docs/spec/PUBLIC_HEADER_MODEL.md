@@ -18,7 +18,7 @@ The supported product umbrellas are:
 - `<Aero/Meta.hpp>` — typed metadata and custom-module authoring.
 
 `Markup.hpp`, concrete Integration backend headers and Text provider headers
-are explicit specialist surfaces. `Integration/PlatformServices.hpp` contains only
+are explicit specialist surfaces. `Integration/Platform.hpp` contains only
 platform-neutral clipboard and text-input contracts; native Win32/X11 adapters are
 private. These specialist headers are not transitively included by ordinary
 WPF-style application code.
@@ -47,7 +47,7 @@ example, `UIElement.hpp` does not forward to `Layout.hpp`, and
 `FrameworkElement.hpp` does not forward to a rendering implementation header.
 `View` is likewise owned by `<Aero/View.hpp>`; the former
 `Integration/View.hpp` forwarding path and `ViewHost` facade are removed.
-`RuntimeEnvironment::CreateView(options)` is the single integration factory.
+`GUI::CreateView(options)` is the single integration factory.
 
 Domain values are grouped by stable authoring concepts rather than by internal
 subsystems:

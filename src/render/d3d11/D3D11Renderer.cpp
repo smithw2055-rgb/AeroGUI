@@ -10,9 +10,9 @@
 
 #include <new>
 
-#include "../MeshRuntimeBackend.hpp"
-#include "../ImageRuntimeBackend.hpp"
-#include "../TextRuntimeBackend.hpp"
+#include "../MeshGpuResources.hpp"
+#include "../ImageGpuResources.hpp"
+#include "../TextGpuResources.hpp"
 
 #include "AeroD3D11RenderFramePixelShader.hpp"
 #include "AeroD3D11RenderFrameVertexShader.hpp"
@@ -114,17 +114,17 @@ struct D3D11Renderer::Impl final {
               device,
               MakeD3D11RendererShaderSet(),
               allocator),
-          textRuntime(
+          textResources(
               device, renderer, generation, *allocator),
-          meshRuntime(
+          meshResources(
               device, renderer, generation, *allocator),
-          imageRuntime(
+          imageResources(
               device, renderer, generation, *allocator) {}
 
     Renderer renderer;
-    Detail::TextRuntimeBackend textRuntime;
-    Detail::MeshRuntimeBackend meshRuntime;
-    Detail::ImageRuntimeBackend imageRuntime;
+    Detail::TextGpuResources textResources;
+    Detail::MeshGpuResources meshResources;
+    Detail::ImageGpuResources imageResources;
     Graphics::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -179,8 +179,8 @@ void D3D11Renderer::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
-    impl_->textRuntime.Shutdown();
-    impl_->meshRuntime.Shutdown();
+    impl_->textResources.Shutdown();
+    impl_->meshResources.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -256,16 +256,16 @@ Base::Result<void> D3D11Renderer::UnregisterGlyphRun(
             "D3D11 render adapter is not initialized"));
 }
 
-Aero::Detail::TextBackendServices* D3D11Renderer::TextServices() noexcept {
-    return IsInitialized() ? &impl_->textRuntime.Services() : nullptr;
+Aero::Detail::TextResources* D3D11Renderer::GetTextResources() noexcept {
+    return IsInitialized() ? &impl_->textResources.Table() : nullptr;
 }
 
-Aero::Detail::MeshBackendServices* D3D11Renderer::MeshServices() noexcept {
-    return IsInitialized() ? &impl_->meshRuntime.Services() : nullptr;
+Aero::Detail::MeshResources* D3D11Renderer::GetMeshResources() noexcept {
+    return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
 }
 
-Aero::Detail::ImageBackendServices* D3D11Renderer::ImageServices() noexcept {
-    return IsInitialized() ? &impl_->imageRuntime.Services() : nullptr;
+Aero::Detail::ImageResources* D3D11Renderer::GetImageResources() noexcept {
+    return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 
 Base::Result<void> D3D11Renderer::Submit(

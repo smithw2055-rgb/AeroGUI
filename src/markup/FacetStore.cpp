@@ -1,4 +1,4 @@
-#include "XamlFacetStore.hpp"
+#include "XamlFacets.hpp"
 
 #include <cstdint>
 #include <utility>
@@ -79,8 +79,8 @@ const T* FindByPolicy(
 
 } // namespace
 
-Base::Result<XamlFacetStore::TypeFacets*>
-XamlFacetStore::EnsureType(Core::TypeId type) noexcept {
+Base::Result<XamlFacets::TypeFacets*>
+XamlFacets::EnsureType(Core::TypeId type) noexcept {
     TypeFacets* existing = FindTypeMutable(type);
     if (existing != nullptr) return existing;
 
@@ -91,7 +91,7 @@ XamlFacetStore::EnsureType(Core::TypeId type) noexcept {
     return &types_[types_.Size() - 1U];
 }
 
-XamlFacetStore::TypeFacets* XamlFacetStore::FindTypeMutable(
+XamlFacets::TypeFacets* XamlFacets::FindTypeMutable(
     Core::TypeId type) noexcept {
     if (frozen_) {
         const std::uint32_t* position = index_.Find(type);
@@ -105,7 +105,7 @@ XamlFacetStore::TypeFacets* XamlFacetStore::FindTypeMutable(
     return nullptr;
 }
 
-const XamlFacetStore::TypeFacets* XamlFacetStore::FindType(
+const XamlFacets::TypeFacets* XamlFacets::FindType(
     Core::TypeId type) const noexcept {
     if (frozen_) {
         const std::uint32_t* position = index_.Find(type);
@@ -119,7 +119,7 @@ const XamlFacetStore::TypeFacets* XamlFacetStore::FindType(
     return nullptr;
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlTypeFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -219,7 +219,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlLifecycleFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -245,7 +245,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlNameScopeFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -269,7 +269,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlResourceScopeFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -295,7 +295,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlDeferredContentFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -320,7 +320,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlImplicitResourceKeyFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -345,7 +345,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlPropertyTargetFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -370,7 +370,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::TryAdd(
+Base::Result<void> XamlFacets::TryAdd(
     const XamlMarkupExtensionFacet& facet,
     const Core::TypeRegistry& descriptors) noexcept {
     if (frozen_) return FrozenStatus();
@@ -392,7 +392,7 @@ Base::Result<void> XamlFacetStore::TryAdd(
     return {};
 }
 
-Base::Result<void> XamlFacetStore::Freeze() noexcept {
+Base::Result<void> XamlFacets::Freeze() noexcept {
     if (frozen_) return {};
 
     index_.Clear();
@@ -415,7 +415,7 @@ Base::Result<void> XamlFacetStore::Freeze() noexcept {
     return {};
 }
 
-Base::Result<void> XamlFacetStore::CollectLifecycle(
+Base::Result<void> XamlFacets::CollectLifecycle(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors,
     Base::Vector<const XamlLifecycleFacet*>& output) const noexcept {
@@ -462,7 +462,7 @@ Base::Result<void> XamlFacetStore::CollectLifecycle(
     return {};
 }
 
-const XamlLifecycleFacet* XamlFacetStore::FindLifecycle(
+const XamlLifecycleFacet* XamlFacets::FindLifecycle(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlLifecycleFacet>(
@@ -472,7 +472,7 @@ const XamlLifecycleFacet* XamlFacetStore::FindLifecycle(
         });
 }
 
-const XamlNameScopeFacet* XamlFacetStore::FindNameScope(
+const XamlNameScopeFacet* XamlFacets::FindNameScope(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlNameScopeFacet>(
@@ -482,7 +482,7 @@ const XamlNameScopeFacet* XamlFacetStore::FindNameScope(
         });
 }
 
-const XamlResourceScopeFacet* XamlFacetStore::FindResourceScope(
+const XamlResourceScopeFacet* XamlFacets::FindResourceScope(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlResourceScopeFacet>(
@@ -492,7 +492,7 @@ const XamlResourceScopeFacet* XamlFacetStore::FindResourceScope(
         });
 }
 
-const XamlDeferredContentFacet* XamlFacetStore::FindDeferredContent(
+const XamlDeferredContentFacet* XamlFacets::FindDeferredContent(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlDeferredContentFacet>(
@@ -503,7 +503,7 @@ const XamlDeferredContentFacet* XamlFacetStore::FindDeferredContent(
 }
 
 const XamlImplicitResourceKeyFacet*
-XamlFacetStore::FindImplicitResourceKey(
+XamlFacets::FindImplicitResourceKey(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlImplicitResourceKeyFacet>(
@@ -513,7 +513,7 @@ XamlFacetStore::FindImplicitResourceKey(
         });
 }
 
-const XamlPropertyTargetFacet* XamlFacetStore::FindPropertyTarget(
+const XamlPropertyTargetFacet* XamlFacets::FindPropertyTarget(
     Core::TypeId type,
     const Core::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlPropertyTargetFacet>(
@@ -523,7 +523,7 @@ const XamlPropertyTargetFacet* XamlFacetStore::FindPropertyTarget(
         });
 }
 
-const XamlMarkupExtensionFacet* XamlFacetStore::FindMarkupExtension(
+const XamlMarkupExtensionFacet* XamlFacets::FindMarkupExtension(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasMarkupExtension
@@ -531,7 +531,7 @@ const XamlMarkupExtensionFacet* XamlFacetStore::FindMarkupExtension(
         : nullptr;
 }
 
-const XamlLifecycleFacet* XamlFacetStore::FindLifecycleExact(
+const XamlLifecycleFacet* XamlFacets::FindLifecycleExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasLifecycle
@@ -539,7 +539,7 @@ const XamlLifecycleFacet* XamlFacetStore::FindLifecycleExact(
         : nullptr;
 }
 
-const XamlNameScopeFacet* XamlFacetStore::FindNameScopeExact(
+const XamlNameScopeFacet* XamlFacets::FindNameScopeExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasNameScope
@@ -547,7 +547,7 @@ const XamlNameScopeFacet* XamlFacetStore::FindNameScopeExact(
         : nullptr;
 }
 
-const XamlResourceScopeFacet* XamlFacetStore::FindResourceScopeExact(
+const XamlResourceScopeFacet* XamlFacets::FindResourceScopeExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasResourceScope
@@ -556,7 +556,7 @@ const XamlResourceScopeFacet* XamlFacetStore::FindResourceScopeExact(
 }
 
 const XamlDeferredContentFacet*
-XamlFacetStore::FindDeferredContentExact(
+XamlFacets::FindDeferredContentExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasDeferredContent
@@ -565,7 +565,7 @@ XamlFacetStore::FindDeferredContentExact(
 }
 
 const XamlImplicitResourceKeyFacet*
-XamlFacetStore::FindImplicitResourceKeyExact(
+XamlFacets::FindImplicitResourceKeyExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasImplicitResourceKey
@@ -574,7 +574,7 @@ XamlFacetStore::FindImplicitResourceKeyExact(
 }
 
 const XamlPropertyTargetFacet*
-XamlFacetStore::FindPropertyTargetExact(
+XamlFacets::FindPropertyTargetExact(
     Core::TypeId type) const noexcept {
     const TypeFacets* entry = FindType(type);
     return entry != nullptr && entry->hasPropertyTarget

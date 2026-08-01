@@ -61,19 +61,19 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Input;
 
-Base::Result<void> UiRuntimeAccess::SetMouseOver(Aero::UIElement& element, bool value) noexcept {
+Base::Result<void> ElementPrivate::SetMouseOver(Aero::UIElement& element, bool value) noexcept {
     return element.SetMouseOverState(value);
 }
 
-Base::Result<void> UiRuntimeAccess::SetPressed(Aero::UIElement& element, bool value) noexcept {
+Base::Result<void> ElementPrivate::SetPressed(Aero::UIElement& element, bool value) noexcept {
     return element.SetPressedState(value);
 }
 
-Base::Result<void> UiRuntimeAccess::SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept {
+Base::Result<void> ElementPrivate::SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept {
     return element.SetKeyboardFocusedState(value);
 }
 
-Base::Result<void> UiRuntimeAccess::SetKeyboardFocusWithin(Aero::UIElement& element, bool value) noexcept {
+Base::Result<void> ElementPrivate::SetKeyboardFocusWithin(Aero::UIElement& element, bool value) noexcept {
     return element.SetKeyboardFocusWithinState(value);
 }
 
@@ -258,7 +258,7 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
         return HitTestResult{};
     }
 
-    const Base::Span<Visual* const> children = Aero::Detail::VisualAccess::VisualChildren(element);
+    const Base::Span<Visual* const> children = Aero::Detail::ElementPrivate::VisualChildren(element);
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
@@ -321,8 +321,8 @@ std::uint32_t PointerStateMachine::FindState(
 bool PointerStateMachine::HasHover(
     VisualHandle target, std::uint32_t ignoredIndex) const noexcept {
     if (!target.IsValid()) return false;
-    GuiContext* tree = root_ != nullptr
-        ? Aero::Detail::VisualAccess::Tree(*root_)
+    ElementTree* tree = root_ != nullptr
+        ? Aero::Detail::ElementPrivate::Tree(*root_)
         : nullptr;
     Visual* targetVisual =
         tree != nullptr
@@ -358,10 +358,10 @@ bool PointerStateMachine::HasPressed(
 
 Base::Result<void> PointerStateMachine::UpdateHover(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    GuiContext* tree = Aero::Detail::VisualAccess::Tree(*root_);
+    ElementTree* tree = Aero::Detail::ElementPrivate::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Pointer state requires an GuiContext");
+            "Pointer state requires an ElementTree");
     }
     VisualHandle next;
     if (target != nullptr && target->GetIsEnabled()) {
@@ -434,7 +434,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
             if (!HasHover(handle.Value(), index) ||
                 !element->GetIsMouseOver()) {
                 Base::Result<void> set =
-                    UiRuntimeAccess::SetMouseOver(*element, true);
+                    ElementPrivate::SetMouseOver(*element, true);
                 if (!set) return set.GetStatus();
                 if (!stateChanged_.Empty()) {
                     stateChanged_.Invoke(*element);
@@ -457,7 +457,7 @@ Base::Result<void> PointerStateMachine::UpdateHover(
             if (!handle) return handle.GetStatus();
             if (!HasHover(handle.Value(), index)) {
                 Base::Result<void> cleared =
-                    UiRuntimeAccess::SetMouseOver(*element, false);
+                    ElementPrivate::SetMouseOver(*element, false);
                 if (!cleared) {
                     return cleared.GetStatus();
                 }
@@ -476,10 +476,10 @@ Base::Result<void> PointerStateMachine::UpdateHover(
 
 Base::Result<void> PointerStateMachine::UpdatePressed(
     std::uint32_t pointerId, UIElement* target) noexcept {
-    GuiContext* tree = Aero::Detail::VisualAccess::Tree(*root_);
+    ElementTree* tree = Aero::Detail::ElementPrivate::Tree(*root_);
     if (tree == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Pointer state requires an GuiContext");
+            "Pointer state requires an ElementTree");
     }
     VisualHandle next;
     if (target != nullptr && target->GetIsEnabled()) {
@@ -503,7 +503,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
         Visual* visual = tree->ResolveHandle(next);
         nextElement = visual != nullptr ? visual->AsUIElement() : nullptr;
         if (nextElement != nullptr) {
-            Base::Result<void> set = UiRuntimeAccess::SetPressed(*nextElement, true);
+            Base::Result<void> set = ElementPrivate::SetPressed(*nextElement, true);
             if (!set) return set.GetStatus();
             if (!stateChanged_.Empty()) {
                 stateChanged_.Invoke(*nextElement);
@@ -516,11 +516,11 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
             visual != nullptr ? visual->AsUIElement() : nullptr;
         if (previousElement != nullptr) {
             Base::Result<void> cleared =
-                UiRuntimeAccess::SetPressed(*previousElement, false);
+                ElementPrivate::SetPressed(*previousElement, false);
             if (!cleared) {
                 if (nextElement != nullptr) {
                     static_cast<void>(
-                        UiRuntimeAccess::SetPressed(*nextElement, false));
+                        ElementPrivate::SetPressed(*nextElement, false));
                 }
                 return cleared.GetStatus();
             }
@@ -536,7 +536,7 @@ Base::Result<void> PointerStateMachine::UpdatePressed(
 UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return nullptr;
-    GuiContext* tree = Aero::Detail::VisualAccess::Tree(*root_);
+    ElementTree* tree = Aero::Detail::ElementPrivate::Tree(*root_);
     Visual* target = tree != nullptr
         ? tree->ResolveHandle(captures_[index].target) : nullptr;
     UIElement* element = target != nullptr ? target->AsUIElement() : nullptr;
@@ -557,8 +557,8 @@ Base::Result<void> PointerStateMachine::CapturePointer(
     std::uint32_t pointerId, UIElement& target) noexcept {
     Base::Result<void> access = root_->VerifyAccess();
     if (!access) return access.GetStatus();
-    GuiContext* tree = Aero::Detail::VisualAccess::Tree(*root_);
-    if (tree == nullptr || Aero::Detail::VisualAccess::Tree(target) != tree || !target.GetIsLoaded()) {
+    ElementTree* tree = Aero::Detail::ElementPrivate::Tree(*root_);
+    if (tree == nullptr || Aero::Detail::ElementPrivate::Tree(target) != tree || !target.GetIsLoaded()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Pointer capture target must be loaded in the input tree");
     }
@@ -597,7 +597,7 @@ Base::Result<bool> PointerStateMachine::ReleasePointer(
     if (index == UINT32_MAX) return false;
     Base::Result<void> state = UpdatePressed(pointerId, nullptr);
     if (!state) return state.GetStatus();
-    Visual* visual = Aero::Detail::VisualAccess::Tree(*root_)->ResolveHandle(
+    Visual* visual = Aero::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
         visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -699,7 +699,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
         if (index != UINT32_MAX) {
-            Visual* visual = Aero::Detail::VisualAccess::Tree(*root_)->ResolveHandle(
+            Visual* visual = Aero::Detail::ElementPrivate::Tree(*root_)->ResolveHandle(
                 captures_[index].target);
             UIElement* target =
                 visual != nullptr ? visual->AsUIElement() : nullptr;
@@ -714,7 +714,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
 }
 
 FocusState::FocusState(
-    GuiContext& tree, EventRouter& events) noexcept
+    ElementTree& tree, EventRouter& events) noexcept
     : tree_(&tree), events_(&events),
       scopeFocus_(&Base::GetDefaultAllocator()) {}
 
@@ -765,10 +765,10 @@ Base::Result<void> FocusState::RememberFocus(
             }
             if (recordIndex == UINT32_MAX) {
                 Base::Result<void> appended = scopeFocus_.TryPushBack(
-                    {scope.Value(), Aero::Detail::VisualAccess::Handle(node)});
+                    {scope.Value(), Aero::Detail::ElementPrivate::Handle(node)});
                 if (!appended) return appended.GetStatus();
             } else {
-                scopeFocus_[recordIndex].focused = Aero::Detail::VisualAccess::Handle(node);
+                scopeFocus_[recordIndex].focused = Aero::Detail::ElementPrivate::Handle(node);
             }
         }
         if (current == root) break;
@@ -804,7 +804,7 @@ Base::Result<void> FocusState::CollectCandidates(
     Visual& parent,
     Base::Vector<FocusCandidate>& candidates,
     std::uint32_t& order) noexcept {
-    for (Visual* child : Aero::Detail::VisualAccess::VisualChildren(parent)) {
+    for (Visual* child : Aero::Detail::ElementPrivate::VisualChildren(parent)) {
         if (child == nullptr) continue;
         UIElement* element = child->AsUIElement();
         const std::uint32_t candidateOrder = order++;
@@ -866,7 +866,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         while (current != nullptr) {
             if (UIElement* ancestor = current->AsUIElement()) {
                 Base::Result<void> updated =
-                    UiRuntimeAccess::SetKeyboardFocusWithin(*ancestor, value);
+                    ElementPrivate::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
             current = current->GetLogicalParent() != nullptr
@@ -878,11 +878,11 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     if (previous == node) return false;
     if (previous != nullptr) {
         Base::Result<void> state =
-            UiRuntimeAccess::SetKeyboardFocused(*previous, false);
+            ElementPrivate::SetKeyboardFocused(*previous, false);
         if (!state) return state.GetStatus();
         state = setFocusWithin(*previous, false);
         if (!state) {
-            static_cast<void>(UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+            static_cast<void>(ElementPrivate::SetKeyboardFocused(*previous, true));
             return state.GetStatus();
         }
         KeyboardFocusChangedEventArgs args;
@@ -892,25 +892,25 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             *previous, UIElement::LostKeyboardFocusEvent, &args);
         if (!lost) {
             static_cast<void>(
-                UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+                ElementPrivate::SetKeyboardFocused(*previous, true));
             static_cast<void>(setFocusWithin(*previous, true));
             return lost.GetStatus();
         }
     }
-    Base::Result<void> state = UiRuntimeAccess::SetKeyboardFocused(*node, true);
+    Base::Result<void> state = ElementPrivate::SetKeyboardFocused(*node, true);
     if (!state) {
         if (previous != nullptr) {
             static_cast<void>(
-                UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+                ElementPrivate::SetKeyboardFocused(*previous, true));
             static_cast<void>(setFocusWithin(*previous, true));
         }
         return state.GetStatus();
     }
     state = setFocusWithin(*node, true);
     if (!state) {
-        static_cast<void>(UiRuntimeAccess::SetKeyboardFocused(*node, false));
+        static_cast<void>(ElementPrivate::SetKeyboardFocused(*node, false));
         if (previous != nullptr) {
-            static_cast<void>(UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+            static_cast<void>(ElementPrivate::SetKeyboardFocused(*previous, true));
             static_cast<void>(setFocusWithin(*previous, true));
         }
         return state.GetStatus();
@@ -921,11 +921,11 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
     Base::Result<void> gained = events_->RaiseEvent(
         *node, UIElement::GotKeyboardFocusEvent, &args);
     if (!gained) {
-        static_cast<void>(UiRuntimeAccess::SetKeyboardFocused(*node, false));
+        static_cast<void>(ElementPrivate::SetKeyboardFocused(*node, false));
         static_cast<void>(setFocusWithin(*node, false));
         if (previous != nullptr) {
             static_cast<void>(
-                UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+                ElementPrivate::SetKeyboardFocused(*previous, true));
             static_cast<void>(setFocusWithin(*previous, true));
         }
         return gained.GetStatus();
@@ -942,7 +942,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
     Base::Result<void> access = previous->VerifyAccess();
     if (!access) return access.GetStatus();
     Base::Result<void> state =
-        UiRuntimeAccess::SetKeyboardFocused(*previous, false);
+        ElementPrivate::SetKeyboardFocused(*previous, false);
     if (!state) return state.GetStatus();
     auto setFocusWithin = [](UIElement& element, bool value)
         -> Base::Result<void> {
@@ -950,7 +950,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         while (current != nullptr) {
             if (UIElement* ancestor = current->AsUIElement()) {
                 Base::Result<void> updated =
-                    UiRuntimeAccess::SetKeyboardFocusWithin(*ancestor, value);
+                    ElementPrivate::SetKeyboardFocusWithin(*ancestor, value);
                 if (!updated) return updated.GetStatus();
             }
             current = current->GetLogicalParent() != nullptr
@@ -960,7 +960,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
     };
     state = setFocusWithin(*previous, false);
     if (!state) {
-        static_cast<void>(UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+        static_cast<void>(ElementPrivate::SetKeyboardFocused(*previous, true));
         return state.GetStatus();
     }
     KeyboardFocusChangedEventArgs args;
@@ -969,7 +969,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         *previous, UIElement::LostKeyboardFocusEvent, &args);
     if (!lost) {
         static_cast<void>(
-            UiRuntimeAccess::SetKeyboardFocused(*previous, true));
+            ElementPrivate::SetKeyboardFocused(*previous, true));
         static_cast<void>(setFocusWithin(*previous, true));
         return lost.GetStatus();
     }
@@ -1029,11 +1029,11 @@ Base::Result<bool> FocusState::MoveFocus(
 }
 
 KeyboardState::KeyboardState(FocusState& focus,
-    EventRouter& events, GuiContext& tree) noexcept
+    EventRouter& events, ElementTree& tree) noexcept
     : KeyboardState(focus, events, tree, nullptr) {}
 
 KeyboardState::KeyboardState(FocusState& focus,
-    EventRouter& events, GuiContext& tree,
+    EventRouter& events, ElementTree& tree,
     CommandState* commands) noexcept
     : focus_(&focus), events_(&events), tree_(&tree),
       commands_(commands) {}
@@ -1043,7 +1043,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
     Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Keyboard input requires an GuiContext root");
+            "Keyboard input requires an ElementTree root");
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -1085,7 +1085,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
         result.target = nullptr;
         return result;
     }
-    if (!result.target->GetIsLoaded() || Aero::Detail::VisualAccess::Tree(*result.target) != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Keyboard focus target is not loaded in the input tree");
     }
@@ -1121,7 +1121,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
 }
 
 TextInputState::TextInputState(FocusState& focus,
-    EventRouter& events, GuiContext& tree) noexcept
+    EventRouter& events, ElementTree& tree) noexcept
     : focus_(&focus), events_(&events), tree_(&tree) {}
 
 Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
@@ -1129,7 +1129,7 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Text input requires an GuiContext root");
+            "Text input requires an ElementTree root");
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -1140,7 +1140,7 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
     TextInputDispatchResult result;
     result.target = focus_->FocusedNode();
     if (result.target == nullptr) return result;
-    if (!result.target->GetIsLoaded() || Aero::Detail::VisualAccess::Tree(*result.target) != tree_) {
+    if (!result.target->GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(*result.target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Text input focus target is not loaded in the input tree");
     }

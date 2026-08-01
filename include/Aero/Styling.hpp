@@ -13,8 +13,7 @@
 #include <Aero/Style.hpp>
 
 namespace Aero::Controls::Detail {
-class FrameworkTemplateAccess;
-class VisualStateManagerAccess;
+class TemplatePrivate;
 }
 
 namespace Aero::Controls {
@@ -65,7 +64,7 @@ public:
     Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept;
 
 private:
-    friend class Detail::FrameworkTemplateAccess;
+    friend class Detail::TemplatePrivate;
     void* state_ = nullptr;
 };
 
@@ -88,7 +87,7 @@ public:
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
 private:
-    friend class Detail::VisualStateManagerAccess;
+    friend class Detail::TemplatePrivate;
     VisualStateManager() noexcept = default;
     void* impl_ = nullptr;
 };

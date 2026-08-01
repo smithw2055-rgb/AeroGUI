@@ -11,7 +11,7 @@ Normal control code includes `Aero/Gui.hpp`; custom types additionally include
 
 ```cpp
 Aero::Base::Result<void> RegisterModule(
-    Aero::Meta::Context& context) noexcept {
+    Aero::Meta::Registration& context) noexcept {
     auto type = Aero::Meta::Describe<MyControl>(context);
     type.Property(
             MyControl::EnabledProperty,
@@ -85,19 +85,19 @@ Embedded hosts link `Aero::Integration` and explicitly compose a View:
 #include <Aero/Integration.hpp>
 #include <Aero/Integration/D3D11.hpp>
 
-Aero::RuntimeEnvironment environment;
+Aero::GUI environment;
 environment.AddModule(module);
 environment.Initialize();
 
 auto endpoint =
-    Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
+    Aero::Integration::CreateD3D11WindowDevice(endpointOptions);
 Aero::Integration::ViewOptions options;
-options.renderEndpoint = std::move(endpoint).Value();
+options.renderDevice = std::move(endpoint).Value();
 auto created = environment.CreateView(options);
 ```
 
-`RuntimeEnvironment` freezes module/schema composition. Each View owns resource,
-interaction, layout, text and frame state. `RenderEndpoint` remains opaque.
+`GUI` freezes module/schema composition. Each View owns resource,
+interaction, layout, text and frame state. `RenderDevice` remains opaque.
 Concrete backends are opt-in and never leak renderer or RenderDevice
 implementation objects into Gui. The host drives frames through `View::Update()`.
 

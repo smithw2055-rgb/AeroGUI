@@ -130,7 +130,7 @@ Base::Result<void> ResourceExtension::Register(
 
     schema_ = &schema;
     Base::Result<void> status =
-        Detail::SchemaAccess::AddResourceScope(schema, {
+        Detail::SchemaPrivate::AddResourceScope(schema, {
             ResourceDictionary::StaticTypeId(),
             true,
             &AddResource,
@@ -140,7 +140,7 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = Detail::SchemaAccess::AddResourceScope(schema, {
+    status = Detail::SchemaPrivate::AddResourceScope(schema, {
         FrameworkElement::StaticTypeId(),
         true,
         &AddFrameworkResource,
@@ -150,7 +150,7 @@ Base::Result<void> ResourceExtension::Register(
         schema_ = nullptr;
         return status.GetStatus();
     }
-    status = Detail::SchemaAccess::AddResourceScope(schema, {
+    status = Detail::SchemaPrivate::AddResourceScope(schema, {
         Aero::Application::StaticTypeId(),
         true,
         &AddApplicationResource,

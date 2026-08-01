@@ -40,7 +40,7 @@ Acceptance:
 
 ### Slice B — Atomic tree mutation and safe deferred work
 
-Implementation status: **portable safety primitives and conformance coverage complete; the legacy ObjectTree and mount layers are retired in favor of WPF logical/visual relationships coordinated by GuiContext**.
+Implementation status: **portable safety primitives and conformance coverage complete; the legacy ObjectTree and mount layers are retired in favor of WPF logical/visual relationships coordinated by ElementTree**.
 
 Delivered on this branch:
 
@@ -116,7 +116,7 @@ Implementation status: **portable lifecycle/GLES 3.0 contract complete; native E
 
 Delivered on this branch:
 
-- `Gles30Contract` rejecting ES 3.1-only assumptions;
+- `GLES 3.0 capability rules` rejecting ES 3.1-only assumptions;
 - `AndroidLifecycleHost` pause/resume/surface-loss/restore state machine;
 - generation, resize and lifecycle conformance tests.
 

@@ -34,7 +34,7 @@ The visual tree contains only `Visual` objects and is inspected with
 - Inline objects are not visual children of TextBlock.
 
 Adding or removing a visual child connects or disconnects layout, hit testing,
-render invalidation and View ownership through the private `GuiContext`.
+render invalidation and View ownership through the private `ElementTree`.
 
 ## Logical tree
 
@@ -66,7 +66,7 @@ RoutedCommand uses the same route for CanExecute and Executed.
 
 ## Ownership and lifetime
 
-Controls own authored child objects through `Base::Ref`. `GuiContext` tracks the
+Controls own authored child objects through `Base::Ref`. `ElementTree` tracks the
 attached View, lifecycle queue, non-owning relationship indexes and runtime
 identity, but does not expose a second tree API. The current pre-1.0
 implementation retains generation-safe visual handles for queued layout, input
@@ -90,5 +90,5 @@ RuntimeFwd
 ```
 
 New code should use the element's Content/Children/Items contract,
-VisualTreeHelper/LogicalTreeHelper for traversal, and GuiContext only inside the
+VisualTreeHelper/LogicalTreeHelper for traversal, and ElementTree only inside the
 View implementation.

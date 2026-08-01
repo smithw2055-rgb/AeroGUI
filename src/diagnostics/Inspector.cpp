@@ -3,7 +3,7 @@
 
 #include <Aero/Controls/Base.hpp>
 
-#include "../controls/RuntimeManagers.hpp"
+#include "../controls/ControlBehavior.hpp"
 
 namespace Aero::Diagnostics {
 namespace {
@@ -34,7 +34,7 @@ Result<void> AppendTree(
     }
     InspectorTreeNode record;
     record.node = &node;
-    record.handle = Aero::Detail::VisualAccess::Handle(node);
+    record.handle = Aero::Detail::ElementPrivate::Handle(node);
     record.parent = parent;
     record.runtimeType =
         node.RuntimeType();
@@ -46,8 +46,8 @@ Result<void> AppendTree(
     }
     const Base::Span<Visual* const> children =
         kind == TreeKind::Logical
-        ? Aero::Detail::VisualAccess::LogicalChildren(node)
-        : Aero::Detail::VisualAccess::VisualChildren(node);
+        ? Aero::Detail::ElementPrivate::LogicalChildren(node)
+        : Aero::Detail::ElementPrivate::VisualChildren(node);
     for (Visual* child : children) {
         if (child == nullptr) {
             return Status::Failure(
@@ -73,7 +73,7 @@ Result<void> AppendTree(
 } // namespace
 
 Base::Result<void>
-InspectorEndpoint::Capture(
+Inspector::Capture(
     Aero::Visual& target,
     InspectorSnapshot& output,
     std::uint32_t maxTreeNodes)
@@ -88,10 +88,10 @@ InspectorEndpoint::Capture(
         bindings_ == nullptr ||
         renderer_ == nullptr ||
         maxTreeNodes == 0U ||
-        Aero::Detail::VisualAccess::Tree(target) != tree_) {
+        Aero::Detail::ElementPrivate::Tree(target) != tree_) {
         return Status::Failure(
             ErrorCode::InvalidArgument,
-            "Inspector endpoint target "
+            "Inspector render target "
             "is invalid");
     }
 

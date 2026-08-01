@@ -1,7 +1,7 @@
 #include "Metadata.hpp"
 #include <Aero/Documents.hpp>
 #include "ControlInternals.hpp"
-#include "TemplateAccess.hpp"
+#include "TemplateInternals.hpp"
 
 #include <Aero/Controls/Primitives.hpp>
 #include <Aero/Controls/Standard.hpp>
@@ -14,7 +14,6 @@
 #include <Aero/Meta/Describe.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
 
-#include "TextRuntime.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -37,7 +36,7 @@ namespace {
 } // namespace
 
 Base::Result<void> Detail::PopulateControlsMetadata(
-    Core::MetadataContext& context) noexcept {
+    Core::MetaRegistration& context) noexcept {
     Base::Result<void> status;
     status = PopulateControlsValues(context);
     if (!status) return status.GetStatus();

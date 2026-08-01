@@ -9,14 +9,13 @@
 #include <cstdint>
 
 namespace Aero::Detail {
-class UiRuntimeAccess;
-class VisualAccess;
+class ElementPrivate;
 }
 
 namespace Aero {
 
 class FrameworkElement;
-class GuiContext;
+class ElementTree;
 class UIElement;
 class Visual;
 
@@ -58,14 +57,13 @@ protected:
 
 private:
     friend class LogicalTreeHelper;
-    friend class GuiContext;
+    friend class ElementTree;
     friend class VisualTreeHelper;
-    friend class Aero::Detail::UiRuntimeAccess;
-    friend class Aero::Detail::VisualAccess;
+    friend class Aero::Detail::ElementPrivate;
 
     Base::Result<Base::Ref<Base::Object>> AcquireLifetime() noexcept;
 
-    GuiContext* tree_ = nullptr;
+    ElementTree* tree_ = nullptr;
     Visual* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
     Base::Vector<Visual*> logicalChildren_;

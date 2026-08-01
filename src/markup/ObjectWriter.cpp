@@ -1,4 +1,4 @@
-#include "ObjectWriterState.hpp"
+#include "ObjectBuilder.hpp"
 
 #include <utility>
 #include "gui/BindingInternal.hpp"
@@ -22,10 +22,10 @@ Base::Result<void> DeferredContentPlan::Stage(
     Base::Object& owner,
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
-    Core::MetadataRuntime& runtime,
+    Core::MetaRegistry& metadata,
     Core::MemberId member) noexcept {
     if (!child || member == Core::InvalidMemberId ||
-        !runtime.IsReady()) {
+        !metadata.IsReady()) {
         return InvalidContentState(
             "Deferred XAML content edge is invalid");
     }
@@ -34,12 +34,12 @@ Base::Result<void> DeferredContentPlan::Stage(
             &owner,
             &parent,
             child,
-            &runtime,
+            &metadata,
             member,
             false});
     if (!retained) return retained.GetStatus();
     Base::Result<void> written =
-        runtime.WriteContent(parent, member, child);
+        metadata.WriteContent(parent, member, child);
     if (!written) {
         edges_.PopBack();
         return written.GetStatus();
@@ -51,7 +51,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
     Base::Object& owner,
     Base::Object& parent,
     const Base::Ref<Base::Object>& child,
-    Core::MetadataRuntime& runtime,
+    Core::MetaRegistry& metadata,
     Core::MemberId member) noexcept {
     if (!child ||
         member == Core::InvalidMemberId) {
@@ -59,7 +59,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
             "Deferred XAML structural property edge is invalid");
     }
     const Core::PropertyInfo* property =
-        runtime.Types().FindProperty(member);
+        metadata.Types().FindProperty(member);
     if (property == nullptr) {
         return InvalidContent(
             "Deferred XAML structural property was not found");
@@ -69,7 +69,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
             &owner,
             &parent,
             child,
-            &runtime,
+            &metadata,
             member,
             true});
     if (!retained) return retained.GetStatus();
@@ -77,7 +77,7 @@ Base::Result<void> DeferredContentPlan::StageProperty(
         Core::Value::FromObject(
             property->ValueType(), child);
     Base::Result<void> written =
-        runtime.SetProperty(
+        metadata.SetProperty(
             parent, member, value);
     if (!written) {
         edges_.PopBack();
@@ -105,9 +105,9 @@ Base::Result<void> DeferredContentPlan::CopyForOwner(
 Base::Result<void> DeferredContentPlan::StageBinding(
     Base::Object& owner,
     Base::Object* source,
-    Core::DependencyObject& target,
-    Aero::Detail::BindingManager& manager,
-    Core::MetadataRuntime& metadata,
+    ::Aero::DependencyObject& target,
+    Aero::Detail::BindingEngine& manager,
+    Core::MetaRegistry& metadata,
     Core::DependencyPropertyHandle targetProperty,
     Core::DependencyPropertyHandle dataContextProperty,
     Base::StringView path,
@@ -180,20 +180,20 @@ void DeferredContentPlan::ReleaseOwner(
         }
         if (firstForParent &&
             edge.parent != nullptr &&
-            edge.runtime != nullptr) {
+            edge.metadata != nullptr) {
             if (edge.property) {
                 const Core::PropertyInfo* property =
-                    edge.runtime->Types().
+                    edge.metadata->Types().
                         FindProperty(edge.member);
                 if (property != nullptr) {
-                    (void)edge.runtime->SetProperty(
+                    (void)edge.metadata->SetProperty(
                         *edge.parent,
                         edge.member,
                         Core::Value::NullObject(
                             property->ValueType()));
                 }
             } else {
-                (void)edge.runtime->ClearContent(
+                (void)edge.metadata->ClearContent(
                     *edge.parent,
                     edge.member);
             }
@@ -248,13 +248,13 @@ ObjectWriter::ObjectWriter(
 
 Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     NodeReader& reader) noexcept {
-    ObjectWriterState state(*this);
+    ObjectBuilder state(*this);
     return state.Load(reader);
 }
 
 Base::Result<LoaderResult> ObjectWriter::LoadDocument(
     const CompiledDocument& document) noexcept {
-    ObjectWriterState state(*this);
+    ObjectBuilder state(*this);
     return state.Load(document);
 }
 
@@ -290,7 +290,7 @@ Base::Result<void> ObjectWriter::StageContent(
     ::Aero::Markup::Schema& schema,
     Base::Object& object,
     const Core::Value& value,
-    const ExtensionContext& services) noexcept {
+    const ExtensionServices& services) noexcept {
     VisualContentPlan* plan = services.visualContent;
     if (plan == nullptr || services.targetObject != &object ||
         value.Kind() != Core::ValueKind::Object ||
@@ -299,13 +299,13 @@ Base::Result<void> ObjectWriter::StageContent(
             "XAML visual content requires a non-null object");
     }
 
-    Core::MetadataRuntime* runtime = schema.Runtime();
-    if (runtime == nullptr) {
+    Core::MetaRegistry* metadata = schema.Metadata();
+    if (metadata == nullptr) {
         return InvalidContentState(
-            "XAML content metadata runtime is unavailable");
+            "XAML content metadata is unavailable");
     }
     Base::Result<Core::ContentInfo> contentResult =
-        runtime->GetContentInfo(services.targetMember);
+        metadata->GetContentInfo(services.targetMember);
     const Core::PropertyInfo* property =
         schema.Types().FindProperty(
             services.targetMember);
@@ -316,7 +316,7 @@ Base::Result<void> ObjectWriter::StageContent(
          static_cast<std::uint32_t>(
              Core::PropertyFlags::Structural)) !=
             0U &&
-        runtime->CanWriteProperty(
+        metadata->CanWriteProperty(
             services.targetMember);
     if (!contentResult && !structuralProperty) {
         return InvalidContent(
@@ -352,7 +352,7 @@ Base::Result<void> ObjectWriter::StageContent(
             return InvalidContent(
                 "A non-visual template root cannot use a visual structural property");
         }
-        return runtime->WriteContent(
+        return metadata->WriteContent(
             object,
             services.targetMember,
             value.AsObject());
@@ -375,13 +375,13 @@ Base::Result<void> ObjectWriter::StageContent(
                            deferredContentOwner,
                       object,
                       value.AsObject(),
-                      *runtime,
+                      *metadata,
                       services.targetMember)
             : services.deferredContent->Stage(
                   *services.deferredContentOwner,
                   object,
                   value.AsObject(),
-                  *runtime,
+                  *metadata,
                   services.targetMember);
     }
 
@@ -411,7 +411,7 @@ Base::Result<void> ObjectWriter::StageContent(
     Base::Result<void> tracked =
         plan->contentEdges.TryPushBack({
             std::move(parentOwner), value.AsObject(),
-            runtime, services.targetMember,
+            metadata, services.targetMember,
             structuralProperty});
     if (!tracked) return tracked.GetStatus();
 
@@ -424,11 +424,11 @@ Base::Result<void> ObjectWriter::StageContent(
 
     Base::Result<void> written =
         structuralProperty
-        ? runtime->SetProperty(
+        ? metadata->SetProperty(
               object,
               services.targetMember,
               value)
-        : runtime->WriteContent(
+        : metadata->WriteContent(
               object,
               services.targetMember,
               value.AsObject());

@@ -43,7 +43,7 @@ class AERO_API OpenGL33GraphicsBackend final
 public:
     OpenGL33GraphicsBackend(
         const GlFunctionTable& functions,
-        const GlContextContract& context,
+        const GlContextBinding& context,
         const OpenGL33BackendOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
     ~OpenGL33GraphicsBackend() noexcept override;
@@ -109,7 +109,7 @@ private:
     struct Impl;
 
     GlFunctionTable functions_;
-    GlContextContract context_;
+    GlContextBinding context_;
     OpenGL33BackendOptions options_;
     Base::IAllocator* allocator_ = nullptr;
     Impl* impl_ = nullptr;

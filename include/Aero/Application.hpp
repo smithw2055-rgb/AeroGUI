@@ -15,7 +15,7 @@
 
 namespace Aero {
 class Application;
-namespace App { struct RunOptions; namespace Detail { class ApplicationAccess; } }
+namespace App { struct RunOptions; namespace Detail { class DesktopPrivate; } }
 
 enum class ShutdownMode : std::uint8_t {
     OnLastWindowClose = 0U,
@@ -101,11 +101,11 @@ protected:
     virtual void OnDeactivated(EventArgs& args) noexcept;
 
 private:
-    friend class App::Detail::ApplicationAccess;
+    friend class App::Detail::DesktopPrivate;
     friend class Window;
     friend class WindowCollection;
 
-    void Attach(void* runtimeState, Window* mainWindow) noexcept;
+    void Attach(void* hostState, Window* mainWindow) noexcept;
     void Detach() noexcept;
     void RaiseStartup() noexcept;
     void RaiseExit(int exitCode) noexcept;
@@ -115,7 +115,7 @@ private:
     Core::TypeId runtimeType_ = StaticTypeId();
     Base::String startupUri_;
     Base::Ref<ResourceDictionary> resources_;
-    void* runtimeState_ = nullptr;
+    void* hostState_ = nullptr;
     Base::Ref<Base::Object> mainWindowOwner_;
     Window* mainWindow_ = nullptr;
     ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;

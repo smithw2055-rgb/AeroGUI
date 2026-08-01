@@ -3,7 +3,7 @@
 #include <Aero/FrameworkElement.hpp>
 
 // Query surface is public; execution operations are reached by source-side
-// friends and SchemaAccess.
+// friends and SchemaPrivate.
 #include <cstdio>
 #include <new>
 
@@ -102,16 +102,13 @@ bool IsAeroExtensionsFacade(
 } // namespace
 
 Schema::Schema(
-    Core::MetadataDomain& domain,
-    Core::MetadataRuntime& runtime,
+    Core::MetaRegistry& metadata,
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()),
-      domain_(&domain),
-      runtime_(&runtime) {
-    AERO_ASSERT(domain.IsSealed());
-    AERO_ASSERT(&runtime.Domain() == &domain);
+      domain_(&metadata) {
+    AERO_ASSERT(metadata.IsSealed());
     void* memory = allocator_->Allocate({
         sizeof(Impl), alignof(Impl), Base::MemoryTag::Markup});
     if (memory == nullptr) {
@@ -134,12 +131,12 @@ Schema::~Schema() noexcept {
 Base::Result<const Core::TypeInfo*> Schema::ResolveType(
     Base::StringView xamlNamespace,
     Base::StringView localName) const noexcept {
-    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
     const Core::TypeInfo* descriptor =
-        runtime_->Types().FindType(
+        domain_->Types().FindType(
             IsSystemNamespace(xamlNamespace) &&
                 (localName == Base::StringView("String") ||
                  localName == Base::StringView("Double"))
@@ -154,12 +151,12 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
     Core::TypeId targetType,
     const QualifiedName& name,
     MemberSyntax syntax) const noexcept {
-    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
     const Core::TypeInfo* target =
-        runtime_->Types().FindType(targetType);
+        domain_->Types().FindType(targetType);
     if (target == nullptr || name.LocalName().Empty()) {
         return RuntimeMemberNotFound();
     }
@@ -183,7 +180,7 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
             return RuntimeMemberNotFound();
         }
         Base::Result<ResolvedMember> resolved =
-            ResolvePropertyOrEventRuntime(
+            ResolvePropertyOrEvent(
             targetType, targetType, localName, syntax, false);
         if (resolved || localName != Base::StringView("ToolTip")) {
             return resolved;
@@ -193,10 +190,10 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         // storage and display policy live in ToolTipService. Retain that XAML
         // surface while keeping the existing shared service implementation.
         const Core::TypeInfo* service =
-            runtime_->Types().FindType(
+            domain_->Types().FindType(
                 Core::AeroNamespaceUri(), "ToolTipService");
         if (service == nullptr) return resolved.GetStatus();
-        return ResolvePropertyOrEventRuntime(
+        return ResolvePropertyOrEvent(
             targetType, service->Id(), localName, syntax, false);
     }
 
@@ -218,21 +215,21 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
         // Element.BlendingMode targets UIElement.BlendMode.
         if (ownerName == Base::StringView("Element") &&
             memberName == Base::StringView("BlendingMode")) {
-            return ResolvePropertyOrEventRuntime(
+            return ResolvePropertyOrEvent(
                 targetType,
                 targetType,
                 Base::StringView("BlendMode"),
                 syntax,
                 false);
         }
-        const Core::TypeInfo* aeroOwner = runtime_->Types().FindType(
+        const Core::TypeInfo* aeroOwner = domain_->Types().FindType(
             Core::AeroNamespaceUri(),
             CanonicalXamlTypeName(ownerName));
         if (aeroOwner != nullptr) {
-            return ResolvePropertyOrEventRuntime(
+            return ResolvePropertyOrEvent(
                 targetType, aeroOwner->Id(), memberName, syntax, true);
         }
-        return ResolvePropertyOrEventRuntime(
+        return ResolvePropertyOrEvent(
             targetType,
             targetType,
             memberName,
@@ -240,30 +237,30 @@ Base::Result<ResolvedMember> Schema::ResolveMember(
             false);
     }
     const Core::TypeInfo* owner =
-        runtime_->Types().FindType(
+        domain_->Types().FindType(
             CanonicalXamlNamespace(ownerNamespace),
             CanonicalXamlTypeName(ownerName));
     if (owner == nullptr) return RuntimeMemberNotFound();
     if (memberName == Base::StringView("ContextMenu")) {
-        const Core::TypeInfo* service = runtime_->Types().FindType(
+        const Core::TypeInfo* service = domain_->Types().FindType(
             Core::AeroNamespaceUri(), "ContextMenuService");
         if (service != nullptr) {
-            return ResolvePropertyOrEventRuntime(
+            return ResolvePropertyOrEvent(
                 targetType, service->Id(), memberName, syntax, true);
         }
     }
-    return ResolvePropertyOrEventRuntime(
+    return ResolvePropertyOrEvent(
         targetType, owner->Id(), memberName, syntax, true);
 }
 
 Base::Result<ResolvedMember>
-Schema::ResolvePropertyOrEventRuntime(
+Schema::ResolvePropertyOrEvent(
     Core::TypeId targetType,
     Core::TypeId ownerType,
     Base::StringView memberName,
     MemberSyntax syntax,
     bool ownerWasExplicit) const noexcept {
-    const Core::TypeRegistry& descriptors = runtime_->Types();
+    const Core::TypeRegistry& descriptors = domain_->Types();
     const Core::PropertyInfo* property =
         descriptors.FindProperty(ownerType, memberName, true);
     if (property != nullptr &&
@@ -350,19 +347,19 @@ Schema::ResolvePropertyOrEventRuntime(
 
 Base::Result<ResolvedMember> Schema::ResolveContentMember(
     Core::TypeId targetType) const noexcept {
-    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
 
     const Core::MemberId contentMember =
-        runtime_->FindContentMember(targetType);
+        domain_->FindContentMember(targetType);
     if (contentMember == Core::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "XAML runtime type has no content facet");
     }
     const Core::PropertyInfo* property =
-        runtime_->Types().FindProperty(contentMember);
+        domain_->Types().FindProperty(contentMember);
     if (property == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
@@ -382,27 +379,27 @@ Base::Result<ResolvedMember> Schema::ResolveContentMember(
 
 Base::Result<Base::Ref<Base::Object>> Schema::CreateObject(
     Core::TypeId type) const noexcept {
-    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
-    return runtime_->CreateObject(type);
+    return domain_->CreateObject(type);
 }
 
-Base::Result<Core::DependencyObject*>
+Base::Result<::Aero::DependencyObject*>
 Schema::ResolvePropertyTarget(
     Base::Object& object) const noexcept {
-    if (!frozen_ || runtime_ == nullptr || !runtime_->IsFrozen()) {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
         return RuntimeSchemaNotReady();
     }
-    Core::DependencyObject* target = nullptr;
-    if (runtime_->Types().IsAssignableFrom(
-            Core::TypeOf<Core::DependencyObject>(),
+    ::Aero::DependencyObject* target = nullptr;
+    if (domain_->Types().IsAssignableFrom(
+            Core::TypeOf<::Aero::DependencyObject>(),
             object.RuntimeType())) {
-        target = static_cast<Core::DependencyObject*>(&object);
+        target = static_cast<::Aero::DependencyObject*>(&object);
     } else {
         const XamlPropertyTargetFacet* facet =
             impl_->facets.FindPropertyTarget(
-                object.RuntimeType(), runtime_->Types());
+                object.RuntimeType(), domain_->Types());
         if (facet != nullptr && facet->resolve != nullptr) {
             target = facet->resolve(object, facet->context);
         }
@@ -413,7 +410,7 @@ Schema::ResolvePropertyTarget(
             "XAML target does not support dependency properties");
     }
     if (&target->PropertyRegistry() !=
-        &static_cast<const Core::MetadataDomain&>(
+        &static_cast<const Core::MetaRegistry&>(
             *domain_).DependencyProperties()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -427,8 +424,8 @@ Base::Result<void> Schema::SetMember(
     Core::TypeId objectType,
     const ResolvedMember& member,
     const Core::Value& value) const noexcept {
-    if (!frozen_ || runtime_ == nullptr ||
-        !runtime_->IsFrozen() || !member.IsValid()) {
+    if (!frozen_ || domain_ == nullptr ||
+        !domain_->IsReady() || !member.IsValid()) {
         return RuntimeSchemaNotReady();
     }
     if (member.kind != Core::MemberKind::Property) {
@@ -437,17 +434,17 @@ Base::Result<void> Schema::SetMember(
             "XAML runtime event assignment requires an event adapter");
     }
     if (!member.attached &&
-        !runtime_->Types().IsDerivedFrom(objectType, member.ownerType)) {
+        !domain_->Types().IsDerivedFrom(objectType, member.ownerType)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "XAML runtime member owner is incompatible with the target object");
     }
 
     const bool runtimeWritable =
-        runtime_->CanWriteProperty(member.id);
+        domain_->CanWriteProperty(member.id);
     Base::Result<Core::ContentInfo> content =
         !runtimeWritable
-        ? runtime_->GetContentInfo(member.id)
+        ? domain_->GetContentInfo(member.id)
         : Base::Result<Core::ContentInfo>(
             Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -490,16 +487,16 @@ Base::Result<void> Schema::SetMember(
         bool compatible = convertedValue.Type() == member.valueType;
         if (convertedValue.Kind() == Core::ValueKind::Object &&
             convertedValue.AsObject()) {
-            compatible = runtime_->Types().IsDerivedFrom(
+            compatible = domain_->Types().IsDerivedFrom(
                 convertedValue.Type(), member.valueType);
         }
         if (!compatible) {
             const Core::TypeInfo* owner =
-                runtime_->Types().FindType(member.ownerType);
+                domain_->Types().FindType(member.ownerType);
             const Core::TypeInfo* expected =
-                runtime_->Types().FindType(member.valueType);
+                domain_->Types().FindType(member.valueType);
             const Core::TypeInfo* actual =
-                runtime_->Types().FindType(convertedValue.Type());
+                domain_->Types().FindType(convertedValue.Type());
             thread_local char message[384]{};
             std::snprintf(
                 message, sizeof(message),
@@ -520,7 +517,7 @@ Base::Result<void> Schema::SetMember(
     }
 
     if (runtimeWritable) {
-        return runtime_->SetProperty(
+        return domain_->SetProperty(
             object, member.id, convertedValue);
     }
     if (runtimeContentWritable) {
@@ -530,7 +527,7 @@ Base::Result<void> Schema::SetMember(
                 Base::ErrorCode::InvalidArgument,
                 "XAML content member requires a non-null object value");
         }
-        return runtime_->WriteContent(
+        return domain_->WriteContent(
             object, member.id, convertedValue.AsObject());
     }
     return Base::Status::Failure(
@@ -540,10 +537,10 @@ Base::Result<void> Schema::SetMember(
 
 MemberWritePolicy Schema::ResolveMemberWritePolicy(
     const ResolvedMember& member) const noexcept {
-    if (runtime_ == nullptr || !runtime_->IsFrozen()) return {};
-    if (runtime_->CanWriteProperty(member.id)) {
+    if (domain_ == nullptr || !domain_->IsReady()) return {};
+    if (domain_->CanWriteProperty(member.id)) {
         Base::Result<Core::ContentInfo> content =
-            runtime_->GetContentInfo(member.id);
+            domain_->GetContentInfo(member.id);
         const bool acceptsAnyValue =
             (static_cast<std::uint32_t>(
                  member.propertyFlags) &
@@ -560,7 +557,7 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
             true};
     }
     Base::Result<Core::ContentInfo> content =
-        runtime_->GetContentInfo(member.id);
+        domain_->GetContentInfo(member.id);
     if (content && content.Value().writable) {
         return {
             content.Value().kind == Core::ContentKind::Collection
@@ -570,6 +567,324 @@ MemberWritePolicy Schema::ResolveMemberWritePolicy(
             true};
     }
     return {};
+}
+
+} // namespace Aero::Markup
+
+// XAML object construction and lifecycle operations.
+#include "SchemaInternal.hpp"
+
+#include <Aero/Meta/ValueCodec.hpp>
+
+#include <cstdint>
+#include <utility>
+
+namespace Aero::Markup {
+using namespace Detail;
+
+namespace {
+
+constexpr const char* MessageSchemaNotFrozen =
+    "XAML schema context must be frozen before use";
+constexpr const char* MessageSchemaAlreadyFrozen =
+    "XAML schema context is frozen";
+constexpr const char* MessageInvalidMarkupExtension =
+    "XAML markup-extension registration requires a flagged type and provider";
+constexpr const char* MessageMissingMarkupExtension =
+    "XAML markup-extension type has no registered value provider";
+
+bool HasTypeFlag(Core::TypeFlags value, Core::TypeFlags flag) noexcept {
+    return (static_cast<std::uint32_t>(value) &
+        static_cast<std::uint32_t>(flag)) != 0U;
+}
+
+Base::Result<Core::TypeReference> ResolveTypeReference(
+    Base::StringView name,
+    const ExtensionServices& services) noexcept {
+    if (services.schema == nullptr || name.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Type reference requires a qualified type name");
+    }
+    std::uint32_t colon = name.SizeBytes();
+    for (std::uint32_t index = 0U;
+         index < name.SizeBytes();
+         ++index) {
+        if (name[index] != ':') continue;
+        if (colon != name.SizeBytes()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Type reference contains multiple namespace prefixes");
+        }
+        colon = index;
+    }
+    Base::StringView prefix;
+    Base::StringView localName = name;
+    if (colon != name.SizeBytes()) {
+        if (colon == 0U ||
+            colon + 1U >= name.SizeBytes()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Type reference namespace prefix is malformed");
+        }
+        prefix = name.Substr(0U, colon);
+        localName = name.Substr(
+            colon + 1U,
+            name.SizeBytes() - colon - 1U);
+    }
+    Base::Result<Base::StringView> uri =
+        services.namespaces.Lookup(prefix);
+    if (!uri) return uri.GetStatus();
+    Base::Result<const Core::TypeInfo*> resolved =
+        services.schema->ResolveType(
+            uri.Value(), localName);
+    if (!resolved) return resolved.GetStatus();
+    const Core::TypeInfo* type = resolved.Value();
+    if (type == nullptr ||
+        HasTypeFlag(
+            type->Flags(),
+            Core::TypeFlags::ValueType)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Type reference target was not found or is not an object type");
+    }
+    return Core::TypeReference{type->Id()};
+}
+
+} // namespace
+
+Base::Result<void> Schema::Freeze() noexcept {
+    if (frozen_) return {};
+    if (domain_ == nullptr || domain_ == nullptr ||
+        !domain_->IsSealed() || !domain_->IsReady()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "MetaRegistry must be complete before XAML schema freeze");
+    }
+    Base::Result<void> facetsFrozen = impl_->facets.Freeze();
+    if (!facetsFrozen) return facetsFrozen.GetStatus();
+    frozen_ = true;
+    return {};
+}
+
+Base::Result<Core::Value> Schema::ConvertText(
+    Core::TypeId type,
+    Base::StringView text,
+    const ExtensionServices* services) const noexcept {
+    if (!frozen_ || domain_ == nullptr || !domain_->IsReady()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaNotFrozen);
+    }
+    if (type == Core::TypeOf<Core::TypeReference>()) {
+        if (services == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Type-reference conversion requires markup services");
+        }
+        Base::Result<Core::TypeReference> reference =
+            ResolveTypeReference(text, *services);
+        return reference
+            ? Core::ValueCodec<Core::TypeReference>::Encode(
+                  reference.Value())
+            : Base::Result<Core::Value>(
+                  reference.GetStatus());
+    }
+    // Members flagged AnyValue still need a concrete runtime value. Preserve
+    // literal XAML text as a String so style and template finalizers can
+    // convert it after resolving the actual target dependency property.
+    if (type == Core::TypeOf<Core::Value>()) {
+        return Core::Value::TryFromString(
+            Core::TypeOf<Base::String>(), text);
+    }
+    if (type == Core::TypeOf<Base::ResourceUri>() &&
+        services != nullptr &&
+        services->baseUri != nullptr &&
+        !services->baseUri->Empty()) {
+        Base::Result<Base::ResourceUri> uri =
+            Base::ResourceUri::Resolve(
+                *services->baseUri,
+                text);
+        if (!uri) return uri.GetStatus();
+        return domain_->TryCreateValue(
+            type,
+            &uri.Value());
+    }
+    return domain_->TryConvertText(type, text);
+}
+
+Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
+    Core::TypeId type,
+    Base::StringView arguments,
+    const ExtensionServices& services) const noexcept {
+    if (!frozen_) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            MessageSchemaNotFrozen);
+    }
+    const Core::TypeInfo* info =
+        domain_->Types().FindType(type);
+    const XamlMarkupExtensionFacet* registration =
+        impl_->facets.FindMarkupExtension(type);
+    if (info == nullptr ||
+        !HasTypeFlag(info->Flags(), Core::TypeFlags::MarkupExtension) ||
+        registration == nullptr || registration->provideValue == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            MessageMissingMarkupExtension);
+    }
+    return registration->provideValue(
+        arguments,
+        services,
+        registration->context);
+}
+
+Base::Result<void> Schema::BeginInit(
+    Core::TypeId type,
+    Base::Object& object) const noexcept {
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, domain_->Types(), lifecycle);
+    if (!collected) return collected.GetStatus();
+
+    for (const XamlLifecycleFacet* facet : lifecycle) {
+        if (facet == nullptr || facet->beginInit == nullptr) continue;
+        Base::Result<void> initialized =
+            facet->beginInit(object, facet->context);
+        if (!initialized) return initialized.GetStatus();
+    }
+    return {};
+}
+
+Base::Result<void> Schema::EndInit(
+    Core::TypeId type,
+    Base::Object& object,
+    const ExtensionServices& services) const noexcept {
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, domain_->Types(), lifecycle);
+    if (!collected) return collected.GetStatus();
+
+    for (std::uint32_t index = lifecycle.Size();
+         index > 0U;
+         --index) {
+        const XamlLifecycleFacet* facet =
+            lifecycle[index - 1U];
+        if (facet == nullptr) continue;
+        Base::Result<void> initialized;
+        if (facet->endInitWithServices != nullptr) {
+            initialized = facet->endInitWithServices(
+                object, services, facet->context);
+        } else if (facet->endInit != nullptr) {
+            initialized = facet->endInit(
+                object, facet->context);
+        }
+        if (!initialized) return initialized.GetStatus();
+    }
+    return {};
+}
+
+void Schema::AbortInit(
+    Core::TypeId type,
+    Base::Object& object) const noexcept {
+    Base::Vector<const XamlLifecycleFacet*> lifecycle;
+    Base::Result<void> collected =
+        impl_->facets.CollectLifecycle(
+            type, domain_->Types(), lifecycle);
+    if (!collected) return;
+
+    for (std::uint32_t index = lifecycle.Size();
+         index > 0U;
+         --index) {
+        const XamlLifecycleFacet* facet =
+            lifecycle[index - 1U];
+        if (facet != nullptr && facet->abortInit != nullptr) {
+            facet->abortInit(object, facet->context);
+        }
+    }
+}
+
+bool Schema::CreatesNameScope(Core::TypeId type) const noexcept {
+    const XamlNameScopeFacet* facet = impl_->facets.FindNameScope(
+        type, domain_->Types());
+    return facet != nullptr && facet->createsNameScope;
+}
+
+bool Schema::CreatesResourceScope(
+    Core::TypeId type) const noexcept {
+    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+        type, domain_->Types());
+    return facet != nullptr && facet->createsResourceScope;
+}
+
+bool Schema::DefersVisualContent(
+    Core::TypeId type) const noexcept {
+    const XamlDeferredContentFacet* facet =
+        impl_->facets.FindDeferredContent(
+        type, domain_->Types());
+    return facet != nullptr && facet->defersVisualContent;
+}
+
+Base::Result<void> Schema::RegisterName(
+    Core::TypeId scopeType,
+    Base::Object& scopeOwner,
+    Base::StringView name,
+    Base::Object& object) const noexcept {
+    const XamlNameScopeFacet* facet = impl_->facets.FindNameScope(
+        scopeType, domain_->Types());
+    if (facet == nullptr || facet->registerName == nullptr) return {};
+    return facet->registerName(
+        scopeOwner, name, object, facet->context);
+}
+
+Base::Result<void> Schema::AddResource(
+    Core::TypeId scopeType,
+    Base::Object& scopeOwner,
+    const Aero::ResourceKey& key,
+    const Core::Value& value) const noexcept {
+    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+        scopeType, domain_->Types());
+    if (facet == nullptr) return {};
+    if (facet->addResource != nullptr) {
+        return facet->addResource(
+            scopeOwner, key, value, facet->context);
+    }
+    Aero::ResourceDictionary* resources =
+        facet->resolveResourceScope != nullptr
+        ? facet->resolveResourceScope(
+              scopeOwner,
+              facet->context)
+        : nullptr;
+    return resources != nullptr
+        ? resources->TryAdd(key, value)
+        : Base::Result<void>();
+}
+
+Aero::ResourceDictionary* Schema::ResolveResourceScope(
+    Core::TypeId scopeType,
+    Base::Object& scopeOwner) const noexcept {
+    const XamlResourceScopeFacet* facet = impl_->facets.FindResourceScope(
+        scopeType, domain_->Types());
+    return facet != nullptr && facet->resolveResourceScope != nullptr
+        ? facet->resolveResourceScope(scopeOwner, facet->context)
+        : nullptr;
+}
+
+Base::Result<Aero::ResourceKey>
+Schema::ResolveImplicitResourceKey(
+    Core::TypeId type,
+    const Base::Object& object) const noexcept {
+    const XamlImplicitResourceKeyFacet* facet =
+        impl_->facets.FindImplicitResourceKey(
+            type, domain_->Types());
+    if (facet == nullptr || facet->resolve == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "XAML type has no implicit resource-key facet");
+    }
+    return facet->resolve(object, facet->context);
 }
 
 } // namespace Aero::Markup

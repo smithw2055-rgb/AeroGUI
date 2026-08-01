@@ -2,8 +2,8 @@
 #include <Aero/Markup/CompiledDocument.hpp>
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include "runtime/modules/ModuleCatalog.hpp"
-#include "markup/SchemaBundle.hpp"
+#include "runtime/modules/ModuleSet.hpp"
+#include "markup/GuiSchema.hpp"
 #include <Aero/Version.hpp>
 
 #include <cstdio>
@@ -139,8 +139,8 @@ Aero::Base::Result<Aero::Markup::CompiledDocument>
 CompileWithBuiltInSchema(
     Aero::Markup::NodeReader& reader,
     const Aero::Base::ResourceUri& origin) noexcept {
-    Aero::ModuleCatalog modules;
-    Aero::SchemaBundle bundle;
+    Aero::ModuleSet modules;
+    Aero::GuiSchema bundle;
     Aero::Base::Result<void> status =
         bundle.Prepare(modules);
     if (!status) return status.GetStatus();

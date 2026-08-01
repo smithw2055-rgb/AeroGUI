@@ -666,7 +666,7 @@ Base::Result<void> AddFrameworkEventTrigger(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement EventTrigger cannot be retained");
     }
-    return Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+    return Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
         static_cast<FrameworkElement&>(owner),
         Base::Ref<Base::Object>(std::move(retained)));
 }
@@ -674,7 +674,7 @@ Base::Result<void> AddFrameworkEventTrigger(
 Base::Result<void> ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return Aero::Detail::FrameworkElementAccess::ClearAuthoredTriggers(
+    return Aero::Detail::ElementPrivate::ClearAuthoredTriggers(
         static_cast<FrameworkElement&>(owner));
 }
 
@@ -762,7 +762,7 @@ Base::Result<Value> ConvertBrushText(
             Base::ErrorCode::InvalidArgument,
             "Brush text conversion received invalid metadata");
     }
-    MetadataRegistrationValues values =
+    RegistrationValues values =
         Core::Detail::MakeRegistrationValues(
             context);
     Base::Result<Value> converted =
@@ -1067,14 +1067,14 @@ Base::Result<void> AddInteractionTrigger(
             Base::ErrorCode::InvalidArgument,
             "Interaction trigger cannot be null");
     }
-    return Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+    return Aero::Detail::ElementPrivate::TryAddAuthoredTrigger(
         static_cast<FrameworkElement&>(owner), value);
 }
 
 Base::Result<void> ClearInteractionTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return Aero::Detail::FrameworkElementAccess::ClearAuthoredTriggers(
+    return Aero::Detail::ElementPrivate::ClearAuthoredTriggers(
         static_cast<FrameworkElement&>(owner));
 }
 

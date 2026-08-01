@@ -18,7 +18,7 @@ namespace {
 struct DynamicResourceState final {
     DynamicResourceState(
         Core::EffectiveValueEngine& effectiveValues,
-        Core::DependencyObject& dependencyObject,
+        ::Aero::DependencyObject& dependencyObject,
         Core::DependencyPropertyHandle dependencyProperty) noexcept
         : engine(&effectiveValues),
           target(&dependencyObject),
@@ -33,7 +33,7 @@ struct DynamicResourceState final {
     };
 
     Core::EffectiveValueEngine* engine = nullptr;
-    Core::DependencyObject* target = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
     Core::DependencyPropertyHandle property;
     Base::String key;
     Base::Vector<Source> sources;
@@ -58,7 +58,7 @@ Base::StringView TrimAscii(Base::StringView value) noexcept {
 
 Base::Result<Core::PropertyValue> EvaluateDynamicResource(
     void* context,
-    Core::DependencyObject& object,
+    ::Aero::DependencyObject& object,
     Core::DependencyPropertyHandle property) noexcept {
     DynamicResourceState* state = static_cast<DynamicResourceState*>(context);
     if (state == nullptr || state->sources.Empty() ||
@@ -127,7 +127,7 @@ void CleanupDynamicResource(void* context) noexcept {
 
 struct DeferredDynamicResourceState final {
     Core::EffectiveValueEngine* engine = nullptr;
-    Core::DependencyObject* target = nullptr;
+    ::Aero::DependencyObject* target = nullptr;
     Core::DependencyPropertyHandle property;
     Base::Vector<const ResourceDictionary*> resources;
     ResourceDictionary* fallbackResources = nullptr;
@@ -178,7 +178,7 @@ void CleanupDeferredDynamicResource(void* context) noexcept {
 Base::Result<void> DynamicResource::Attach(
     Core::EffectiveValueEngine& effectiveValues,
     ResourceDictionary& resources,
-    Core::DependencyObject& target,
+    ::Aero::DependencyObject& target,
     Core::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     const ResourceDictionary* chain[] = {&resources};
@@ -195,7 +195,7 @@ Base::Result<Core::PropertyExpression> DynamicResource::CreateExpression(
     Core::EffectiveValueEngine& effectiveValues,
     Base::Span<const ResourceDictionary* const> resourceChain,
     ResourceDictionary* fallbackResources,
-    Core::DependencyObject& target,
+    ::Aero::DependencyObject& target,
     Core::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     const Base::StringView normalizedKey = TrimAscii(key);
@@ -296,7 +296,7 @@ Base::Result<void> DynamicResource::Attach(
     Core::EffectiveValueEngine& effectiveValues,
     Base::Span<const ResourceDictionary* const> resourceChain,
     ResourceDictionary* fallbackResources,
-    Core::DependencyObject& target,
+    ::Aero::DependencyObject& target,
     Core::DependencyPropertyHandle property,
     Base::StringView key) noexcept {
     Base::Result<Core::PropertyExpression> expression = CreateExpression(
@@ -322,7 +322,7 @@ DynamicResourceExtension::DynamicResourceExtension(
 Base::Result<void> DynamicResourceExtension::Register(
     Schema& schema,
     Core::TypeId dynamicResourceExtensionType) noexcept {
-    return Detail::SchemaAccess::AddMarkupExtension(schema, {
+    return Detail::SchemaPrivate::AddMarkupExtension(schema, {
         dynamicResourceExtensionType,
         &DynamicResourceExtension::ProvideValue,
         this});
@@ -330,7 +330,7 @@ Base::Result<void> DynamicResourceExtension::Register(
 
 Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     Base::StringView arguments,
-    const ExtensionContext& services,
+    const ExtensionServices& services,
     void* context) noexcept {
     DynamicResourceExtension* extension =
         static_cast<DynamicResourceExtension*>(context);
@@ -390,14 +390,14 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             Core::Value::NullObject(
                 Core::TypeOf<Base::Object>()));
     }
-    Base::Result<Core::DependencyObject*> targetResult =
-        Detail::SchemaAccess::ResolvePropertyTarget(
+    Base::Result<::Aero::DependencyObject*> targetResult =
+        Detail::SchemaPrivate::ResolvePropertyTarget(
             *services.schema,
             *services.targetObject);
     if (!targetResult) {
         return targetResult.GetStatus();
     }
-    Core::DependencyObject* target = targetResult.Value();
+    ::Aero::DependencyObject* target = targetResult.Value();
     const Core::DependencyPropertyHandle property{services.targetMember};
     Core::EffectiveValueEngine* effectiveValues =
         services.effectiveValues != nullptr

@@ -502,11 +502,11 @@ struct OpenGL33GraphicsBackend::Impl final {
 
     explicit Impl(
         const GlFunctionTable& functionTable,
-        const GlContextContract& contextContract,
+        const GlContextBinding& contextBinding,
         const OpenGL33BackendOptions& backendOptions,
         Base::IAllocator* allocatorValue) noexcept
         : functions(functionTable),
-          context(contextContract),
+          context(contextBinding),
           options(backendOptions),
           allocator(allocatorValue != nullptr
               ? allocatorValue
@@ -515,7 +515,7 @@ struct OpenGL33GraphicsBackend::Impl final {
           pendingFences(allocator) {}
 
     GlFunctionTable functions;
-    GlContextContract context;
+    GlContextBinding context;
     OpenGL33BackendOptions options;
     Base::IAllocator* allocator = nullptr;
     Base::Vector<ResourceRecord> resources;
@@ -578,7 +578,7 @@ struct OpenGL33GraphicsBackend::Impl final {
                 "OpenGL 3.3 context has been lost");
         }
         Base::Result<void> contextResult =
-            ValidateGlContextContract(context);
+            ValidateGlContextBinding(context);
         if (!contextResult) {
             return contextResult.GetStatus();
         }
@@ -837,7 +837,7 @@ struct OpenGL33GraphicsBackend::Impl final {
 
 OpenGL33GraphicsBackend::OpenGL33GraphicsBackend(
     const GlFunctionTable& functions,
-    const GlContextContract& context,
+    const GlContextBinding& context,
     const OpenGL33BackendOptions& options,
     Base::IAllocator* allocator) noexcept
     : functions_(functions),
@@ -912,7 +912,7 @@ void OpenGL33GraphicsBackend::Shutdown() noexcept {
         return;
     }
     const bool canDelete =
-        ValidateGlContextContract(impl_->context).HasValue() &&
+        ValidateGlContextBinding(impl_->context).HasValue() &&
         impl_->context.generation ==
             impl_->glCapabilities.contextGeneration &&
         !impl_->deviceLost;
@@ -1083,7 +1083,7 @@ void OpenGL33GraphicsBackend::DestroyResource(
     Impl::ResourceRecord& record = impl_->resources[index];
     const bool canDelete =
         !impl_->deviceLost &&
-        ValidateGlContextContract(impl_->context).HasValue() &&
+        ValidateGlContextBinding(impl_->context).HasValue() &&
         impl_->context.generation ==
             impl_->glCapabilities.contextGeneration;
     if (canDelete) {
@@ -2336,7 +2336,7 @@ FenceValue OpenGL33GraphicsBackend::LastSubmittedFence() const noexcept {
 
 FenceValue OpenGL33GraphicsBackend::CompletedFence() const noexcept {
     if (impl_ == nullptr || impl_->deviceLost ||
-        !ValidateGlContextContract(impl_->context)) {
+        !ValidateGlContextBinding(impl_->context)) {
         return impl_ != nullptr ? impl_->completedFence : 0U;
     }
     impl_->PollFences();

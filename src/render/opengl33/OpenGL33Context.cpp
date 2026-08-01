@@ -362,30 +362,30 @@ Base::Result<void> ValidateGlFunctionTable(
     return {};
 }
 
-Base::Result<void> ValidateGlContextContract(
-    const GlContextContract& contract) noexcept {
-    if (contract.structSize < sizeof(GlContextContract) ||
-        contract.abiVersion != GlContextContractAbiVersion) {
+Base::Result<void> ValidateGlContextBinding(
+    const GlContextBinding& binding) noexcept {
+    if (binding.structSize < sizeof(GlContextBinding) ||
+        binding.abiVersion != GlContextBindingAbiVersion) {
         return InvalidArgument(
-            "OpenGL context contract ABI or structure size is incompatible");
+            "OpenGL context binding ABI or structure size is incompatible");
     }
-    if (contract.contextHandle == nullptr ||
-        contract.resolve == nullptr ||
-        contract.isCurrent == nullptr ||
-        contract.currentThreadToken == nullptr ||
-        contract.owningThreadToken == 0U ||
-        contract.generation == 0U) {
+    if (binding.contextHandle == nullptr ||
+        binding.resolve == nullptr ||
+        binding.isCurrent == nullptr ||
+        binding.currentThreadToken == nullptr ||
+        binding.owningThreadToken == 0U ||
+        binding.generation == 0U) {
         return InvalidArgument(
-            "OpenGL context contract is incomplete");
+            "OpenGL context binding is incomplete");
     }
-    if (contract.currentThreadToken(contract.userData) !=
-        contract.owningThreadToken) {
+    if (binding.currentThreadToken(binding.userData) !=
+        binding.owningThreadToken) {
         return Base::Status::Failure(
             Base::ErrorCode::WrongThread,
             "OpenGL context is being used from a non-owning thread");
     }
-    if (!contract.isCurrent(
-            contract.userData, contract.contextHandle)) {
+    if (!binding.isCurrent(
+            binding.userData, binding.contextHandle)) {
         return InvalidState(
             "OpenGL context is not current on the owning thread");
     }
@@ -394,14 +394,14 @@ Base::Result<void> ValidateGlContextContract(
 
 Base::Result<GlCapabilities> QueryGlCapabilities(
     const GlFunctionTable& functions,
-    const GlContextContract& contract) noexcept {
+    const GlContextBinding& binding) noexcept {
     Base::Result<void> tableValidation =
         ValidateGlFunctionTable(functions);
     if (!tableValidation) {
         return tableValidation.GetStatus();
     }
     Base::Result<void> contextValidation =
-        ValidateGlContextContract(contract);
+        ValidateGlContextBinding(binding);
     if (!contextValidation) {
         return contextValidation.GetStatus();
     }
@@ -461,7 +461,7 @@ Base::Result<GlCapabilities> QueryGlCapabilities(
         static_cast<std::uint32_t>(flags);
     capabilities.profileMask =
         static_cast<std::uint32_t>(profile);
-    capabilities.contextGeneration = contract.generation;
+    capabilities.contextGeneration = binding.generation;
     capabilities.coreProfile = true;
     capabilities.debugContext =
         (flags & GlConstant::ContextFlagDebugBit) != 0;

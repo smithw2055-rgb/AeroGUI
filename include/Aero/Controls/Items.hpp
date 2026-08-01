@@ -9,10 +9,10 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Primitives.hpp>
 
-namespace Aero::Detail { class ControlRuntimeAccess; }
+namespace Aero::Detail { class ListBehavior; class ComboBehavior; class TreeBehavior; }
 namespace Aero::Controls::Detail {
 class ItemContainerGeneratorImpl;
-class ItemContainerGeneratorAccess;
+class ControlPrivate;
 }
 
 namespace Aero::Controls {
@@ -189,7 +189,7 @@ inline Base::Result<void> AddBoxedStringItem(
         source, std::move(boxed).Value());
 }
 
-namespace Detail { class DeferredTemplateAccess; }
+namespace Detail { class TemplatePrivate; }
 
 class AERO_API DataTemplate : public Base::Object {
     AERO_DECLARE_TYPE(DataTemplate, Base::Object)
@@ -213,7 +213,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class Detail::DeferredTemplateAccess;
+    friend class Detail::TemplatePrivate;
     void* state_ = nullptr;
 };
 
@@ -232,7 +232,7 @@ public:
     bool GetIsSealed() const noexcept;
 
 private:
-    friend class Detail::DeferredTemplateAccess;
+    friend class Detail::TemplatePrivate;
     void* state_ = nullptr;
 };
 
@@ -485,7 +485,7 @@ public:
     Base::Status LastError() const noexcept;
 
 private:
-    friend class Detail::ItemContainerGeneratorAccess;
+    friend class Detail::ControlPrivate;
 
     ItemContainerGenerator() noexcept = default;
 
@@ -986,7 +986,8 @@ protected:
     void OnContainersChanged() noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ListBehavior;
+    friend class Aero::Detail::ComboBehavior;
     Base::Vector<std::uint32_t> selectedIndices_;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
@@ -1029,7 +1030,7 @@ protected:
             const Base::Ref<Base::Object>& item) noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ListBehavior;
     void* interactions_ = nullptr;
 };
 
@@ -1122,7 +1123,7 @@ protected:
     void OnTemplateDetached() noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ComboBehavior;
     void* interactions_ = nullptr;
     TextBlock* selectionBox_ = nullptr;
     ContentPresenter* selectionPresenter_ =
@@ -1553,7 +1554,7 @@ protected:
             noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::TreeBehavior;
     void* interactions_ =
         nullptr;
     VisualStateManager* states_ = nullptr;

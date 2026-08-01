@@ -1,15 +1,14 @@
 # View/runtime composition is folded into the Integration product. Keeping it
 # as an object component preserves source ownership without another SDK binary.
 add_library(AeroRuntimeObjects OBJECT
+    src/runtime/Gui.cpp
     src/runtime/View.cpp
-    src/runtime/ViewState.cpp
     src/integration/ReloadCoordinator.cpp
-    src/integration/RenderEndpoint.cpp
-    src/runtime/RuntimeSafety.cpp
-    src/runtime/ViewUiServices.cpp
-    src/runtime/ImageRuntime.cpp
+    src/integration/RenderDevice.cpp
+    src/runtime/Invariants.cpp
+    src/runtime/ImageCache.cpp
     src/runtime/StbImageImplementation.cpp
-    src/runtime/TextRuntime.cpp
+    src/runtime/TextPipeline.cpp
     src/markup/XamlReader.cpp
     "${_aero_generated_theme_header}")
 add_dependencies(AeroRuntimeObjects AeroCompiledThemes)
@@ -18,7 +17,7 @@ target_include_directories(AeroRuntimeObjects PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroRuntimeObjects PUBLIC
-    AeroModuleCatalogObjects
+    AeroModuleSetObjects
     AeroTextHarfBuzzObjects)
 
 set(AERO_DEFAULT_THEME_FILES

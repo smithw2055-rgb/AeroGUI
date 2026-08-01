@@ -168,48 +168,48 @@ private:
 
 namespace Aero::Core {
 
-class MetadataRuntime;
+class MetaRegistry;
 
-struct ObjectServices final {
+struct ObjectFactoryState final {
     Dispatcher* dispatcher = nullptr;
     DependencyPropertyRegistry* dependencyProperties = nullptr;
-    MetadataRuntime* metadataRuntime = nullptr;
+    MetaRegistry* metadata = nullptr;
 
     bool IsValid() const noexcept {
         return dispatcher != nullptr && dependencyProperties != nullptr;
     }
 };
 
-AERO_API ObjectServices GetCurrentObjectServices() noexcept;
-AERO_API bool HasCurrentObjectServices() noexcept;
+AERO_API ObjectFactoryState CurrentObjectFactory() noexcept;
+AERO_API bool HasObjectFactory() noexcept;
 
-AERO_API Base::Result<Value> TryCreateRuntimeValue(
+AERO_API Base::Result<Value> TryEncodeValue(
     TypeId type,
     const void* source) noexcept;
 
-class AERO_API ObjectServicesScope final {
+class AERO_API ObjectFactoryScope final {
 public:
-    ObjectServicesScope(
+    ObjectFactoryScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties) noexcept;
-    ObjectServicesScope(
+    ObjectFactoryScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties,
-        MetadataRuntime& runtime) noexcept;
-    ObjectServicesScope(
+        MetaRegistry& runtime) noexcept;
+    ObjectFactoryScope(
         Dispatcher& dispatcher,
         DependencyPropertyRegistry& properties,
-        MetadataRuntime* runtime) noexcept;
-    ~ObjectServicesScope();
+        MetaRegistry* runtime) noexcept;
+    ~ObjectFactoryScope();
 
-    ObjectServicesScope(const ObjectServicesScope&) = delete;
-    ObjectServicesScope& operator=(const ObjectServicesScope&) = delete;
-    ObjectServicesScope(ObjectServicesScope&&) = delete;
-    ObjectServicesScope& operator=(ObjectServicesScope&&) = delete;
+    ObjectFactoryScope(const ObjectFactoryScope&) = delete;
+    ObjectFactoryScope& operator=(const ObjectFactoryScope&) = delete;
+    ObjectFactoryScope(ObjectFactoryScope&&) = delete;
+    ObjectFactoryScope& operator=(ObjectFactoryScope&&) = delete;
 
 private:
-    ObjectServices services_;
-    ObjectServices* previous_ = nullptr;
+    ObjectFactoryState state_;
+    ObjectFactoryState* previous_ = nullptr;
     DispatcherThreadToken ownerThread_ = 0U;
 };
 
@@ -220,8 +220,8 @@ private:
 
 namespace Aero::Core::Detail {
 
-// Manager-owned provider state. One session belongs to one StyleManager,
-// ThemeStyleManager or TemplateManager and allocates all origins through the
+// Manager-owned provider state. One session belongs to one StyleEngine,
+// StyleEngine or TemplateEngine allocates all provider origins through the
 // shared EffectiveValueEngine, preventing cross-manager token collisions.
 class PropertyProviderSession final {
 public:
@@ -542,42 +542,6 @@ public:
     }
     bool IsFlushing() const noexcept {
         return session_.IsFlushing();
-    }
-
-private:
-    PropertyProviderSession session_;
-};
-
-class ThemeStyleProviderSession final {
-public:
-    explicit ThemeStyleProviderSession(
-        EffectiveValueEngine& engine) noexcept
-        : session_(
-              engine,
-              PropertyValueRank::ThemeStyleSetter,
-              PropertyValueRank::ThemeStyleTrigger) {}
-
-    Base::Result<void> SetThemeStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept {
-        return session_.SetSetterValue(object, property, value);
-    }
-    Base::Result<void> ClearThemeStyleValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept {
-        return session_.ClearSetterValue(object, property);
-    }
-    Base::Result<void> SetThemeTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property,
-        const PropertyValue& value) noexcept {
-        return session_.SetTriggerValue(object, property, value);
-    }
-    Base::Result<void> ClearThemeTriggerValue(
-        DependencyObject& object,
-        DependencyPropertyHandle property) noexcept {
-        return session_.ClearTriggerValue(object, property);
     }
 
 private:

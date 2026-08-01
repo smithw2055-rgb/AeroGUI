@@ -38,7 +38,7 @@ using namespace Aero::Input;
 
 class AERO_API CommandState final {
 public:
-    CommandState(GuiContext& tree, EventRouter& events) noexcept;
+    CommandState(ElementTree& tree, EventRouter& events) noexcept;
 
     Base::Result<CommandBindingHandle> TryAddBinding(
         UIElement& owner,
@@ -87,7 +87,7 @@ private:
         Base::Ref<KeyBinding> binding;
     };
 
-    GuiContext* tree_ = nullptr;
+    ElementTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
     Base::Vector<InputBindingRecord> inputBindings_;
@@ -200,7 +200,7 @@ private:
 };
 class AERO_API FocusState final {
 public:
-    FocusState(GuiContext& tree, EventRouter& events) noexcept;
+    FocusState(ElementTree& tree, EventRouter& events) noexcept;
 
     UIElement* FocusedNode() noexcept;
     UIElement* FocusedElement(UIElement& scope) noexcept;
@@ -221,7 +221,7 @@ private:
         std::uint32_t order = 0U;
     };
 
-    GuiContext* tree_ = nullptr;
+    ElementTree* tree_ = nullptr;
     EventRouter* events_ = nullptr;
     VisualHandle focused_;
     Base::Vector<ScopeFocus> scopeFocus_;
@@ -236,9 +236,9 @@ private:
 class AERO_API KeyboardState final {
 public:
     KeyboardState(FocusState& focus, EventRouter& events,
-        GuiContext& tree) noexcept;
+        ElementTree& tree) noexcept;
     KeyboardState(FocusState& focus, EventRouter& events,
-        GuiContext& tree, CommandState* commands) noexcept;
+        ElementTree& tree, CommandState* commands) noexcept;
 
     void SetCommandState(CommandState* commands) noexcept {
         commands_ = commands;
@@ -250,13 +250,13 @@ public:
 private:
     FocusState* focus_ = nullptr;
     EventRouter* events_ = nullptr;
-    GuiContext* tree_ = nullptr;
+    ElementTree* tree_ = nullptr;
     CommandState* commands_ = nullptr;
 };
 class AERO_API TextInputState final {
 public:
     TextInputState(FocusState& focus, EventRouter& events,
-        GuiContext& tree) noexcept;
+        ElementTree& tree) noexcept;
 
     Base::Result<TextInputDispatchResult> Dispatch(
         const TextInput& input) noexcept;
@@ -264,7 +264,7 @@ public:
 private:
     FocusState* focus_ = nullptr;
     EventRouter* events_ = nullptr;
-    GuiContext* tree_ = nullptr;
+    ElementTree* tree_ = nullptr;
 };
 
 } // namespace Aero::Detail
@@ -274,9 +274,9 @@ namespace Aero::Detail {
 // View-owned input coordinator. Consumers see one service; focus, hit testing,
 // pointer capture, keyboard/text dispatch and routed commands remain private
 // implementation components behind this facade.
-class InputService final {
+class InputRouter final {
 public:
-    InputService(GuiContext& tree, EventRouter& events) noexcept
+    InputRouter(ElementTree& tree, EventRouter& events) noexcept
         : commands_(tree, events),
           focus_(tree, events),
           pointer_(hitTests_, events),

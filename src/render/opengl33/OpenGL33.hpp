@@ -9,7 +9,7 @@
 namespace Aero::Graphics {
 
 constexpr std::uint32_t GlFunctionTableAbiVersion = 2U;
-constexpr std::uint32_t GlContextContractAbiVersion = 1U;
+constexpr std::uint32_t GlContextBindingAbiVersion = 1U;
 
 using GlBoolean = std::uint8_t;
 using GlBitfield = std::uint32_t;
@@ -176,10 +176,10 @@ struct GlCapabilities final {
     GlLimits limits;
 };
 
-struct GlContextContract final {
+struct GlContextBinding final {
     std::uint32_t structSize =
-        static_cast<std::uint32_t>(sizeof(GlContextContract));
-    std::uint32_t abiVersion = GlContextContractAbiVersion;
+        static_cast<std::uint32_t>(sizeof(GlContextBinding));
+    std::uint32_t abiVersion = GlContextBindingAbiVersion;
     void* userData = nullptr;
     const void* contextHandle = nullptr;
     GlProcAddressResolver resolve = nullptr;
@@ -474,12 +474,12 @@ AERO_API Base::Result<GlFunctionTable> LoadGlFunctionTable(
 AERO_API Base::Result<void> ValidateGlFunctionTable(
     const GlFunctionTable& functions) noexcept;
 
-AERO_API Base::Result<void> ValidateGlContextContract(
-    const GlContextContract& contract) noexcept;
+AERO_API Base::Result<void> ValidateGlContextBinding(
+    const GlContextBinding& contract) noexcept;
 
 AERO_API Base::Result<GlCapabilities> QueryGlCapabilities(
     const GlFunctionTable& functions,
-    const GlContextContract& contract) noexcept;
+    const GlContextBinding& contract) noexcept;
 
 #undef AERO_GL_CALL
 

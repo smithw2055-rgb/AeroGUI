@@ -100,7 +100,7 @@ file(GLOB_RECURSE core_files
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/src/diagnostics/Diagnostics.cpp"
     "${AERO_SOURCE_DIR}/src/gui/Dispatcher.cpp"
-    "${AERO_SOURCE_DIR}/src/gui/ObjectServices.cpp"
+    "${AERO_SOURCE_DIR}/src/gui/ObjectFactory.cpp"
     "${AERO_SOURCE_DIR}/src/gui/PropertyInternal.hpp")
 list(APPEND core_files
     "${AERO_SOURCE_DIR}/include/Aero/DependencyProperty.hpp"
@@ -167,7 +167,7 @@ foreach(removed_path IN ITEMS
     "include/Aero/RuntimeServices.hpp"
     "src/markup/RuntimeHost.inc"
     "src/markup/RuntimeWindow.inc"
-    "src/markup/RuntimeSafety.inc"
+    "src/markup/Invariants.inc"
     "src/markup/RuntimeServices.inc"
     "src/markup/XamlThemeResources.hpp"
     "src/markup/XamlThemeResources.cpp"
@@ -196,10 +196,10 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/RuntimeHost.hpp"
     "include/Aero/XamlReloadCoordinator.hpp"
     "include/Aero/BuiltinModules.hpp"
-    "include/Aero/SchemaBundle.hpp"
+    "include/Aero/GuiSchema.hpp"
     "include/Aero/Markup/Loader.hpp"
     "include/Aero/Markup/Extensions.hpp"
-    "include/Aero/Core/Events/RoutedEventCatalog.hpp"
+    "include/Aero/Core/Events/RoutedEventTable.hpp"
     "include/Aero/Core/Metadata/Detail/DescriptionBuilder.hpp"
     "include/Aero/Controls/TextBlockLayoutService.hpp"
     "include/Aero/Render/Renderer.hpp"
@@ -219,7 +219,7 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Rhi/Surface.hpp"
     "include/Aero/Rhi/WglSurface.hpp"
     "include/Aero/Drawing.hpp"
-    "include/Aero/GuiContext.hpp"
+    "include/Aero/ElementTree.hpp"
     "include/Aero/Rendering.hpp"
     "include/Aero/Data/Binding.hpp"
     "include/Aero/Documents/Documents.hpp"
@@ -229,14 +229,14 @@ foreach(removed_sdk_path IN ITEMS
     "include/Aero/Core/Metadata/BindingPath.hpp"
     "include/Aero/Core/Metadata/BuiltinTypeIds.hpp"
     "include/Aero/Core/Metadata/CoreMetadata.hpp"
-    "include/Aero/Core/Metadata/MetadataBehaviorRegistrationStore.hpp"
+    "include/Aero/Core/Metadata/BehaviorTable.hpp"
     "include/Aero/Core/Metadata/MetadataValuePath.hpp"
-    "include/Aero/Core/Metadata/MetadataValueRegistrationStore.hpp"
-    "include/Aero/Core/ObjectServices.hpp"
+    "include/Aero/Core/Metadata/ValueTable.hpp"
+    "include/Aero/Core/ObjectFactoryState.hpp"
     "include/Aero/Core/Property/EffectiveValueEngine.hpp"
     "include/Aero/Platform/Win32Window.hpp"
     "include/Aero/Platform/X11Window.hpp"
-    "include/Aero/RuntimeSafety.hpp"
+    "include/Aero/Invariants.hpp"
     "include/Aero/Controls/Bars.hpp"
     "include/Aero/Controls/Buttons.hpp"
     "include/Aero/Controls/ContentControls.hpp"
@@ -278,7 +278,7 @@ if(legacy_markup_includes)
 endif()
 
 set(legacy_header_pattern
-    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|MetadataBehaviorRegistrationStore|MetadataDescriptors|MetadataDomain|MetadataDsl|MetadataId|MetadataRegistrationValues|MetadataRuntime|MetadataValueFacets|MetadataValuePath|MetadataValueRegistrationStore|TypeRegistry|Value|Binding|Input|Layout|GuiContext|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
+    "#[ \t]*include[ \t]*<Aero/Core/(Activation|BuiltinTypeIds|DependencyProperty|EffectiveValueEngine|BehaviorTable|MetadataDescriptors|MetaRegistry|MetadataDsl|MetadataId|RegistrationValues|MetaRegistry|MetadataValueFacets|MetadataValuePath|ValueTable|TypeRegistry|Value|Binding|Input|Layout|ElementTree|Rendering|Style|UI|RuntimeMetadata|ControlPrimitives|Controls)\\.hpp>")
 file(GLOB_RECURSE current_code
     "${AERO_SOURCE_DIR}/src/*.cpp"
     "${AERO_SOURCE_DIR}/src/*.hpp"
@@ -344,10 +344,10 @@ set(sdk_entry_headers
     "${AERO_SOURCE_DIR}/include/Aero/Integration.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/View.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/ViewOptions.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderDevice.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/SourceProvider.hpp")
 aero_collect_matches(sdk_entry_leaks
-    "(RuntimeHost|RenderPlan|IRenderBackend|GraphicsDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Registry|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
+    "(RuntimeHost|RenderPlan|IRenderBackend|GraphicsDevice|SurfaceSession|Presenter|[A-Za-z]+Manager|[A-Za-z]+Store|[A-Za-z]+Program|DocumentCache|TransactionCallback)"
     ${sdk_entry_headers})
 if(sdk_entry_leaks)
     message(FATAL_ERROR
@@ -364,7 +364,7 @@ if(retired_view_host_surface)
 endif()
 
 set(platform_service_contract
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/PlatformServices.hpp")
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/Platform.hpp")
 aero_collect_matches(public_native_platform_adapters
     "(Win32|X11|DispatchWin32|WindowMessage|GetActiveWindow|HWND|HIMC)"
     ${platform_service_contract})
@@ -460,7 +460,7 @@ if(multiline_static_members)
         "${multiline_static_members}")
 endif()
 aero_collect_matches(removed_public_services
-    "(RoutedEventCatalog|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|RoutedHandlerStorage|RoutedHandlerTraits|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
+    "(RoutedEventTable|DescriptionBuilder|ITextBlockLayoutService|TextBlockLayoutServiceScope|TextBlockRenderService|D3D11TextBlockRenderService|IGlyphRunResourceRegistry|DisplayListBuilder|RenderCommand|RenderImageId|RenderMeshId|RenderGlyphRunId|ThemeStyleRegistry|PPAAOutProperty|PasswordLengthProperty|RuntimeManagersFwd|RoutedHandlerStorage|RoutedHandlerTraits|Aero/Detail/|BuildEditorDisplayList|RuntimeAnimation\\(|RuntimeFrame\\(|RuntimeEasing\\(|ItemContainerGeneratorImpl[ \t]*[*]|VisualStateManagerImpl[ \t]*[*])"
     ${default_sdk_headers})
 if(removed_public_services)
     message(FATAL_ERROR
@@ -495,10 +495,10 @@ endif()
 
 aero_collect_matches(split_view_input_services
     "Aero::Detail::(FocusManager|PointerInputManager|KeyboardInputManager|TextInputManager)[*][ \t]+(focus|pointer|keyboard|textInput)"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp")
+    "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
 if(split_view_input_services)
     message(FATAL_ERROR
-        "ViewState must own input through its private InputService aggregate: "
+        "View must own input through its private InputRouter aggregate: "
         "${split_view_input_services}")
 endif()
 
@@ -535,7 +535,7 @@ set(template_authoring_headers
     "${AERO_SOURCE_DIR}/include/Aero/Styling.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Items.hpp")
 aero_collect_matches(public_template_program_surface
-    "(TemplateBuildContext|TemplateFactoryCallback|TemplateBindingPlan|TemplateMetadataBindingPlan|TemplateTriggerSetter|TemplateTriggerCondition|TemplatePropertyTrigger|DeferredObjectFactory|DeferredObjectProgram|RuntimeData|FactoryContext|AuthoredVisualTree|AuthoredVisualStateGroups|AuthoredNames|SealRuntime)"
+    "(TemplateBuilder|TemplateFactoryCallback|TemplateBindingPlan|TemplateMetadataBindingPlan|TemplateTriggerSetter|TemplateTriggerCondition|TemplatePropertyTrigger|DeferredObjectFactory|DeferredObjectProgram|RuntimeData|FactoryContext|AuthoredVisualTree|AuthoredVisualStateGroups|AuthoredNames|SealRuntime)"
     ${template_authoring_headers})
 if(public_template_program_surface)
     message(FATAL_ERROR
@@ -560,7 +560,7 @@ set(control_runtime_attachment_headers
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Standard.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Controls/Text.hpp")
 aero_collect_matches(typed_control_runtime_attachments
-    "(ControlInteractionManager|MenuInteractionManager|ScrollInteractionManager|ListBoxInteractionManager|ComboBoxInteractionManager|TreeViewInteractionManager)[ \t]*[*]"
+    "(ButtonBehavior|MenuBehavior|ScrollBehavior|ListBehavior|ComboBehavior|TreeBehavior)[ \t]*[*]"
     ${control_runtime_attachment_headers})
 if(typed_control_runtime_attachments)
     message(FATAL_ERROR
@@ -596,7 +596,7 @@ if(removed_sdk_names)
 endif()
 
 aero_collect_matches(removed_cmake_aliases
-    "add_library\\([ \t\r\n]*Aero::(Rhi|Render|ModuleCatalog)([A-Za-z0-9_]|[ \t\r\n])"
+    "add_library\\([ \t\r\n]*Aero::(Rhi|Render|ModuleSet)([A-Za-z0-9_]|[ \t\r\n])"
     "${AERO_SOURCE_DIR}/CMakeLists.txt")
 if(removed_cmake_aliases)
     message(FATAL_ERROR
@@ -653,7 +653,7 @@ file(GLOB aero_target_modules
 # Internal source domains are build-only object components. They must never
 # acquire public aliases or reappear as installable support binaries.
 aero_collect_matches(public_internal_target_aliases
-    "add_library\\([ \\t\\r\\n]*Aero::(_Detail|GuiKernel|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|MarkupKernel|Markup|AppModel|ModuleCatalog|Runtime|Rendering)"
+    "add_library\\([ \\t\\r\\n]*Aero::(_Detail|GuiKernel|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|MarkupKernel|Markup|AppModel|ModuleSet|Runtime|Rendering)"
     ${aero_target_modules})
 if(public_internal_target_aliases)
     message(FATAL_ERROR
@@ -662,7 +662,7 @@ if(public_internal_target_aliases)
 endif()
 
 aero_collect_matches(internal_support_binaries
-    "add_library\\([ \\t\\r\\n]*(AeroGuiKernel|AeroText|AeroTextFreeType|AeroTextHarfBuzz|AeroControls|AeroInspector|AeroMarkupKernel|AeroMarkup|AeroAppModel|AeroModuleCatalog|AeroRuntime|AeroRendering)[ \\t\\r\\n]+(STATIC|SHARED|MODULE|\\$\\{AERO_LIBRARY_TYPE\\})"
+    "add_library\\([ \\t\\r\\n]*(AeroGuiKernel|AeroText|AeroTextFreeType|AeroTextHarfBuzz|AeroControls|AeroInspector|AeroMarkupKernel|AeroMarkup|AeroAppModel|AeroModuleSet|AeroRuntime|AeroRendering)[ \\t\\r\\n]+(STATIC|SHARED|MODULE|\\$\\{AERO_LIBRARY_TYPE\\})"
     ${aero_target_modules})
 if(internal_support_binaries)
     message(FATAL_ERROR
@@ -686,7 +686,7 @@ if(aero_install_content MATCHES "EXPORT_NAME[ \\t\\r\\n]+_Detail")
         "Installed packages must not export _Detail implementation targets")
 endif()
 if(aero_install_content MATCHES
-        "(^|[^A-Za-z0-9_])(AeroGuiKernel|AeroText(FreeType|HarfBuzz)?|AeroControls|AeroInspector|AeroMarkup(Kernel)?|AeroAppModel|AeroModuleCatalog|AeroRuntime|AeroRendering)([^A-Za-z0-9_]|$)")
+        "(^|[^A-Za-z0-9_])(AeroGuiKernel|AeroText(FreeType|HarfBuzz)?|AeroControls|AeroInspector|AeroMarkup(Kernel)?|AeroAppModel|AeroModuleSet|AeroRuntime|AeroRendering)([^A-Za-z0-9_]|$)")
     message(FATAL_ERROR
         "AeroInstall.cmake must install only product targets and private "
         "third-party archives")
@@ -700,7 +700,7 @@ foreach(required_object_target IN ITEMS
         AeroMarkupKernelObjects
         AeroMarkupObjects
         AeroAppModelObjects
-        AeroModuleCatalogObjects
+        AeroModuleSetObjects
         AeroTextFreeTypeObjects
         AeroTextHarfBuzzObjects
         AeroRuntimeObjects
@@ -774,13 +774,12 @@ foreach(required_private_header IN ITEMS
         "src/gui/AnimationInternal.hpp"
         "src/gui/StyleInternal.hpp"
         "src/gui/ElementInternal.hpp"
-        "src/gui/MetadataInternal.hpp"
+        "src/gui/MetaInternals.hpp"
         "src/gui/PropertyInternal.hpp"
         "src/controls/TemplateProgram.hpp"
         "src/controls/TemplateInstance.hpp"
-        "src/controls/TemplateAccess.hpp"
-        "src/controls/VisualStateRuntime.hpp"
-        "src/platform/win32/InputServices.hpp"
+        "src/controls/TemplateInternals.hpp"
+                "src/platform/win32/InputRouters.hpp"
         "src/platform/win32/Window.hpp"
         "src/platform/x11/Window.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_private_header}")
@@ -790,7 +789,7 @@ foreach(required_private_header IN ITEMS
 endforeach()
 
 foreach(retired_private_file IN ITEMS
-        "src/gui/RuntimeManagers.hpp"
+        "src/gui/ControlBehavior.hpp"
         "src/gui/RuntimeServices.hpp"
         "src/controls/TemplateRuntime.hpp"
         "src/render/TextBackendAccess.hpp"
@@ -823,7 +822,7 @@ aero_collect_matches(retired_input_managers
     ${input_runtime_files})
 if(retired_input_managers)
     message(FATAL_ERROR
-        "Input internals must use the single InputService and private state types: "
+        "Input internals must use the single InputRouter and private state types: "
         "${retired_input_managers}")
 endif()
 
@@ -852,8 +851,8 @@ file(GLOB_RECURSE render_runtime_files
     "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/*.hpp")
 aero_collect_matches(view_owned_document_implementation
-    "UiDocumentAccess::Adopt|struct[ \t]+UiDocument::Impl"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp"
+    "XamlDocumentPrivate::Adopt|struct[ \t]+UiDocument::Impl"
+    "${AERO_SOURCE_DIR}/src/runtime/View.cpp"
     "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
 if(view_owned_document_implementation)
     message(FATAL_ERROR
@@ -862,8 +861,7 @@ if(view_owned_document_implementation)
 endif()
 
 aero_collect_matches(view_owned_control_state_mutation
-    "void[ \t\r\n]+Aero::Detail::ControlRuntimeAccess::SetVisualStateManager"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp")
+    "${AERO_SOURCE_DIR}/src/runtime/View.cpp")
 if(view_owned_control_state_mutation)
     message(FATAL_ERROR
         "Control private state mutation belongs to Controls: "
@@ -872,7 +870,7 @@ endif()
 
 aero_collect_matches(ungated_window_surface_backends
     "#if[ \t]+defined[(]_WIN32[)]([ \t\r\n]*)$|#elif[ \t]+defined[(]__linux__[)]([ \t\r\n]*)$"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp")
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
 if(ungated_window_surface_backends)
     message(FATAL_ERROR
         "OpenGL window endpoint backends must be gated by enabled surface options: "
@@ -890,14 +888,14 @@ endif()
 
 aero_collect_matches(hidden_render_worker
     "(RenderSubmissionMode|DedicatedThread|WorkerMain|StartWorker|StopWorker|pendingFrameCount|coalescedFrameCount|highWatermark)"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
+    "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderDevice.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/D3D11.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/OpenGL33.hpp"
-    "${AERO_SOURCE_DIR}/src/integration/RenderEndpoint.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/RenderEndpointInternal.hpp"
-    "${AERO_SOURCE_DIR}/src/integration/D3D11Endpoint.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp")
+    "${AERO_SOURCE_DIR}/src/integration/RenderDevice.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/RenderDeviceInternal.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/D3D11Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Device.cpp")
 if(hidden_render_worker)
     message(FATAL_ERROR
         "Render scheduling belongs to the host; hidden endpoint workers or "
@@ -906,15 +904,15 @@ endif()
 
 aero_collect_matches(hidden_endpoint_thread
     "(std::thread|condition_variable)"
-    "${AERO_SOURCE_DIR}/src/integration/RenderEndpoint.cpp")
+    "${AERO_SOURCE_DIR}/src/integration/RenderDevice.cpp")
 if(hidden_endpoint_thread)
     message(FATAL_ERROR
-        "RenderEndpoint must not create or coordinate a private thread: "
+        "RenderDevice must not create or coordinate a private thread: "
         "${hidden_endpoint_thread}")
 endif()
 
 aero_collect_matches(render_tree_submission_leak
-    "RenderEndpoint|Submit[ \t]*\\("
+    "RenderDevice|Submit[ \t]*\\("
     "${AERO_SOURCE_DIR}/src/render/RenderTree.hpp")
 if(render_tree_submission_leak)
     message(FATAL_ERROR
@@ -960,7 +958,7 @@ foreach(gui_internal_header IN ITEMS
         "src/gui/ElementInternal.hpp"
         "src/gui/InputInternal.hpp"
         "src/gui/LayoutInternal.hpp"
-        "src/gui/MetadataInternal.hpp"
+        "src/gui/MetaInternals.hpp"
         "src/gui/PropertyInternal.hpp"
         "src/gui/RoutedEventInternal.hpp"
         "src/gui/StyleInternal.hpp")
@@ -988,11 +986,11 @@ if(retired_tree_layers)
 endif()
 
 aero_collect_matches(view_state_service_locator
-    "(Metadata|MetadataRuntime|EffectiveValues|Animations|Tree|Layout|Renderer|Bindings|RoutedEvents|Templates|VisualStates|Schema|Sources|EmbeddedSources|DocumentCache|ApplicationResources|ThemeResources|SystemResources|Styles)[ \t]*\\(\\)[ \t]*noexcept"
-    "${AERO_SOURCE_DIR}/src/runtime/ViewState.hpp")
+    "Get(Metadata|EffectiveValues|LayoutEngine|RenderTree|BindingEngine|EventRouter|InputRouter|TemplateEngine|StyleEngine)[ \t]*\\("
+    "${AERO_SOURCE_DIR}/include/Aero/View.hpp")
 if(view_state_service_locator)
     message(FATAL_ERROR
-        "ViewState must not expose its internal service graph: "
+        "View must not expose its internal engine graph: "
         "${view_state_service_locator}")
 endif()
 
@@ -1024,7 +1022,7 @@ endif()
 foreach(required_public_entry IN ITEMS
         "include/Aero/View.hpp"
         "include/Aero/Markup/XamlReader.hpp"
-        "include/Aero/Integration/PlatformServices.hpp")
+        "include/Aero/Integration/Platform.hpp")
     if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_public_entry}")
         message(FATAL_ERROR
             "Required converged SDK entry is missing: ${required_public_entry}")
@@ -1113,26 +1111,34 @@ if(synchronous_frame_logging)
 endif()
 
 
-# Stable View services use one packed allocation. Reintroducing one allocation
-# per manager increases startup cost, fragmentation and rollback complexity.
-file(READ "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp"
+# Stable View objects use one packed allocation. Reintroducing one allocation
+# per engine increases startup cost, fragmentation and rollback complexity.
+file(READ "${AERO_SOURCE_DIR}/src/runtime/View.cpp"
     aero_view_state_source)
 foreach(required_arena_marker IN ITEMS
-        "class RuntimeServiceArena"
-        "ViewServiceArenaCapacity"
-        "serviceArena.Initialize"
-        "serviceArena.Create"
-        "serviceArena.Reset")
+        "class ViewArena"
+        "ViewArenaCapacity"
+        "arena.Initialize"
+        "arena.Create"
+        "arena.Reset")
     string(FIND "${aero_view_state_source}"
         "${required_arena_marker}" required_arena_marker_position)
     if(required_arena_marker_position EQUAL -1)
         message(FATAL_ERROR
-            "Packed per-View service allocation is incomplete: "
+            "Packed per-View object allocation is incomplete: "
             "${required_arena_marker}")
     endif()
 endforeach()
 unset(aero_view_state_source)
 unset(required_arena_marker)
 unset(required_arena_marker_position)
+
+
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroAddXaml.cmake" aero_add_xaml_content)
+if(aero_add_xaml_content MATCHES
+        "(_Detail|runtime/|markup/GuiSchema|ModuleSet|aero_add_schema_manifest)")
+    message(FATAL_ERROR
+        "Installed AeroAddXaml.cmake leaks private implementation details")
+endif()
 
 message(STATUS "Aero architecture dependency checks passed")

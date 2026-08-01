@@ -5,7 +5,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/Result.hpp>
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 namespace Aero::Markup {
@@ -15,14 +15,14 @@ class Schema;
 struct UiObjectModelOptions final {
     UiObjectModelOptions() noexcept = default;
     UiObjectModelOptions(
-        Core::MetadataRuntime* metadataRuntime,
+        Core::MetaRegistry* metadata,
         Core::DependencyPropertyRegistry* dependencyProperties,
         Base::IAllocator* programAllocator = nullptr) noexcept
-        : runtime(metadataRuntime),
+        : metadata(metadata),
           properties(dependencyProperties),
           allocator(programAllocator) {}
 
-    Core::MetadataRuntime* runtime = nullptr;
+    Core::MetaRegistry* metadata = nullptr;
     Core::DependencyPropertyRegistry* properties = nullptr;
     Base::IAllocator* allocator = nullptr;
 };

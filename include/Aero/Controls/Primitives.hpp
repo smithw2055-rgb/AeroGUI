@@ -5,7 +5,7 @@
 #include <Aero/Controls/Base.hpp>
 #include <Aero/Controls/Panels.hpp>
 
-namespace Aero::Detail { class ControlRuntimeAccess; }
+namespace Aero::Detail { class ButtonBehavior; class ScrollBehavior; class SliderBehavior; }
 
 namespace Aero::Controls {
 
@@ -60,7 +60,7 @@ protected:
     Base::Result<void> OnApplyTemplate() noexcept override;
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ButtonBehavior;
     void* interactionRuntime_ = nullptr;
     bool commandEnabled_ = true;
 };
@@ -134,7 +134,7 @@ protected:
         : ButtonBase(runtimeType) {}
 
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ButtonBehavior;
     Base::Result<void> SetToggleState(
         ToggleState value) noexcept;
 };
@@ -491,7 +491,7 @@ protected:
 
 private:
     friend class ScrollContentPresenter;
-    friend class Aero::Detail::ControlRuntimeAccess;
+    friend class Aero::Detail::ScrollBehavior;
     void* events_ = nullptr;
     void* interactions_ = nullptr;
     ScrollContentPresenter* contentPresenter_ = nullptr;

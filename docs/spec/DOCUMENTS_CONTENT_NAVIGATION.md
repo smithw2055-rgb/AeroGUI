@@ -4,7 +4,7 @@
 
 `InlineCollection` is a mutable projection over the existing TextBlock-owned
 inline storage. `InlineCollectionView` is the immutable projection. Collection
-mutation is accepted while detached; mounted edits remain a GuiContext
+mutation is accepted while detached; mounted edits remain a ElementTree
 transaction so ownership and visual/layout edges cannot diverge.
 
 ## Text positions

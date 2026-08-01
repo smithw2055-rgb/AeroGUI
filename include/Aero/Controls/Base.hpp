@@ -9,15 +9,11 @@
 #include <Aero/Style.hpp>
 
 namespace Aero::Detail {
-class ControlRuntimeAccess;
-class ViewUiServices;
+class TemplateEngine;
 }
 namespace Aero::Controls::Detail {
-class ItemContainerGeneratorAccess;
-class PanelAccess;
-class DecoratorAccess;
-class ContentControlAccess;
-class ControlAccess;
+class ControlBehavior;
+class ControlPrivate;
 }
 
 
@@ -137,7 +133,7 @@ protected:
         DrawingContext& context) noexcept override;
 private:
     friend class UIElementCollection;
-    friend class Detail::PanelAccess;
+    friend class Detail::ControlPrivate;
     std::uint32_t ChildCountCore() const noexcept { return ownedChildren_.Size(); }
     Base::Ref<Base::Object> ChildAtCore(std::uint32_t index) const noexcept {
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Base::Ref<Base::Object>{};
@@ -195,7 +191,7 @@ protected:
         return finalSize;
     }
 private:
-    friend class Detail::DecoratorAccess;
+    friend class Detail::ControlPrivate;
     Base::Result<void> SetOwnedChild(
         const Base::Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) {
@@ -423,10 +419,10 @@ protected:
     Base::Result<void> OnRender(
         DrawingContext& context) noexcept override;
 private:
-    friend class Aero::Detail::ControlRuntimeAccess;
-    friend class Aero::Detail::ViewUiServices;
+    friend class Aero::Detail::TemplateEngine;
+    friend class Detail::ControlPrivate;
+    friend class Detail::ControlBehavior;
     friend class VisualStateManager;
-    friend class Detail::ControlAccess;
     Base::Result<void> SetTemplateChildCore(UIElement* child) noexcept {
         if (child != nullptr && child->LayoutParent() != this) {
             return Base::Status::Failure(
@@ -565,8 +561,7 @@ protected:
         return finalSize;
     }
 private:
-    friend class Detail::ItemContainerGeneratorAccess;
-    friend class Detail::ContentControlAccess;
+    friend class Detail::ControlPrivate;
     Base::Result<void> SetOwnedContent(
         const Base::Ref<Base::Object>& contentObject, UIElement& content) noexcept {
         if (!contentObject || contentObject.Get() != &content) {
@@ -598,7 +593,7 @@ private:
     Base::Result<void> SetContentValue(
         Core::Value value) noexcept;
     static void OnContentPropertyChanged(
-        Core::DependencyObject& object,
+        ::Aero::DependencyObject& object,
         const Core::DependencyPropertyChangedEventArgs&
             change) noexcept;
     Base::Result<Base::Ref<Base::Object>>

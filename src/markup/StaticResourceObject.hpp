@@ -7,10 +7,10 @@ namespace Aero::Markup::Detail {
 
 // Supports the object-element form used by the reference theme, for example
 // <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>.
-class StaticResourceObject final : public Core::DependencyObject {
+class StaticResourceObject final : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE_NAMED(
         StaticResourceObject,
-        Core::DependencyObject,
+        ::Aero::DependencyObject,
         "urn:aero",
         "StaticResource")
 public:

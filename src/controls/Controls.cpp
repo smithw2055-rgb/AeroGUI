@@ -1,10 +1,10 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
 #include "../media/BrushRendering.hpp"
-#include "../render/DrawingContextAccess.hpp"
+#include "../render/DrawingInternals.hpp"
 #include <Aero/Documents.hpp>
 
-#include "TextLayoutService.hpp"
+#include "TextBlockLayout.hpp"
 #include "gui/PropertyInternal.hpp"
 #include "gui/ElementInternal.hpp"
 
@@ -47,7 +47,7 @@ EffectiveGridSpan CoerceGridSpan(
 
 Base::Result<void> Panel::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     return PaintBrushRect(
         builder,
         BackgroundBrush(),
@@ -59,7 +59,7 @@ Base::Result<void> Panel::OnRender(
 
 Base::Result<void> Control::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     return PaintBrushRect(
         builder,
         BackgroundBrush(),
@@ -1447,7 +1447,7 @@ Base::Result<Size> Border::ArrangeOverride(Size finalSize) noexcept {
 
 Base::Result<void> Border::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const Rect bounds{0.0, 0.0, GetRenderSize().width, GetRenderSize().height};
     if (bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
@@ -1784,7 +1784,7 @@ Base::Result<void> TextBlock::AddOwnedInline(
         ownedInlines_.TryPushBack(inlineObject);
     if (!appended) return appended.GetStatus();
     auto& inlineValue = *static_cast<Documents::Inline*>(inlineObject.Get());
-    Aero::Detail::ContentElementAccess::Attach(
+    Aero::Detail::ElementPrivate::Attach(
         inlineValue, this, this, nullptr);
     pendingInline_ = inlineObject;
     return InvalidateMeasure();
@@ -1795,7 +1795,7 @@ Base::Result<void> TextBlock::ClearOwnedInlines() noexcept {
     if (!access) return access.GetStatus();
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
-            Aero::Detail::ContentElementAccess::Detach(
+            Aero::Detail::ElementPrivate::Detach(
                 *static_cast<Documents::Inline*>(item.Get()));
         }
     }
@@ -1939,7 +1939,7 @@ Base::Result<Size> TextBlock::ArrangeOverride(Size finalSize) noexcept {
 
 Base::Result<void> TextBlock::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     const Color background = Background();
     if (background.alpha > 0.0F) {
         Base::Result<void> filled =
@@ -1984,7 +1984,7 @@ ContentPresenter::ContentPresenter() noexcept
     : FrameworkElement(StaticTypeId()) {}
 
 void ContentPresenter::OnContentPropertyChanged(
-    Core::DependencyObject& object,
+    ::Aero::DependencyObject& object,
     const Core::DependencyPropertyChangedEventArgs&
         change) noexcept {
     auto& presenter =

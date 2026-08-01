@@ -8,7 +8,7 @@
 namespace Aero::Markup {
 
 namespace Detail {
-class LoadOptionsAccess;
+class LoadOptionsPrivate;
 }
 
 struct LoadPolicy final {
@@ -33,7 +33,7 @@ struct LoadOptions final {
     Base::ResourceUri baseUri;
 
 private:
-    friend class Detail::LoadOptionsAccess;
+    friend class Detail::LoadOptionsPrivate;
     const void* context_ = nullptr;
 };
 

@@ -1,7 +1,7 @@
-#include "gui/MetadataInternal.hpp"
+#include "gui/MetaInternals.hpp"
 #include "gui/StyleInternal.hpp"
 
-#include <Aero/Meta/MetadataRuntime.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Meta/Describe.hpp>
 #include <Aero/Meta/ValueConversion.hpp>
 #include <Aero/Input.hpp>
@@ -41,7 +41,7 @@ namespace {
 } // namespace
 
 Base::Result<void> Detail::PopulateUiMetadata(
-    Core::MetadataContext& context) noexcept {
+    Core::MetaRegistration& context) noexcept {
     Base::Result<void> status;
     status = PopulateUiResources(context);
     if (!status) return status.GetStatus();

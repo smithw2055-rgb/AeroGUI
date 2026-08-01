@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    friend class ObjectWriterState;
+    friend class ObjectBuilder;
 
     static Base::Result<Aero::Visual*> ResolveVisual(
         Markup::Schema& schema,
@@ -125,7 +125,7 @@ private:
         Markup::Schema& schema,
         Base::Object& object,
         const Core::Value& value,
-        const ExtensionContext& services) noexcept;
+        const ExtensionServices& services) noexcept;
     Markup::Schema* schema_ = nullptr;
     Core::IDiagnosticSink* diagnostics_ = nullptr;
 };

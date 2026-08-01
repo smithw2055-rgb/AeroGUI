@@ -11,13 +11,16 @@
 namespace Aero {
 
 namespace Core {
-class MetadataContext;
+class MetaRegistration;
+}
+namespace Meta {
+using Registration = Core::MetaRegistration;
 }
 
 using ModuleRegisterCallback = Base::Result<void> (*)(
-    Core::MetadataContext& context) noexcept;
+    Meta::Registration& registration) noexcept;
 using ModuleRegisterContextCallback = Base::Result<void> (*)(
-    Core::MetadataContext& context,
+    Meta::Registration& registration,
     void* userContext) noexcept;
 struct ModuleDependency final {
     Base::StringView name;

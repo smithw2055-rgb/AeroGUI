@@ -1,7 +1,7 @@
 #include <Aero/Markup/Schema.hpp>
 #include <Aero/Module.hpp>
-#include "runtime/modules/ModuleCatalog.hpp"
-#include "markup/SchemaBundle.hpp"
+#include "runtime/modules/ModuleSet.hpp"
+#include "markup/GuiSchema.hpp"
 
 #include <cstdio>
 #include <cstdint>
@@ -49,8 +49,8 @@ bool WriteFile(
 
 Aero::Base::Result<Aero::Markup::SchemaManifest>
 BuildBuiltInManifest() noexcept {
-    Aero::ModuleCatalog modules;
-    Aero::SchemaBundle bundle;
+    Aero::ModuleSet modules;
+    Aero::GuiSchema bundle;
     Aero::Base::Result<void> status =
         bundle.Prepare(modules);
     if (!status) return status.GetStatus();

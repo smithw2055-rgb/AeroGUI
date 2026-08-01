@@ -1,6 +1,6 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include "../render/DrawingContextAccess.hpp"
+#include "../render/DrawingInternals.hpp"
 #include <Aero/Controls/Standard.hpp>
 
 #include <algorithm>
@@ -110,7 +110,7 @@ Base::Result<Size> Image::MeasureOverride(
 
 Base::Result<void> Image::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     if (renderImage_ ==
             InvalidRenderImageId ||
         pixelWidth_ == 0U ||

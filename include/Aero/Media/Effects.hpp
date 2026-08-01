@@ -8,8 +8,8 @@ namespace Aero { class FrameworkElement; }
 
 namespace Aero::Media {
 
-class AERO_API Effect : public Core::DependencyObject {
-    AERO_DECLARE_TYPE(Effect, Core::DependencyObject)
+class AERO_API Effect : public ::Aero::DependencyObject {
+    AERO_DECLARE_TYPE(Effect, ::Aero::DependencyObject)
 public:
     Aero::FrameworkElement* Owner() const noexcept { return owner_; }
     void SetOwner(Aero::FrameworkElement* owner) noexcept { owner_ = owner; }

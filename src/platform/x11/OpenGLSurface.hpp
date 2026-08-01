@@ -28,7 +28,7 @@ public:
     GlContextGeneration ContextGeneration() const noexcept;
 
     Base::Result<GlFunctionTable> LoadFunctions() noexcept;
-    Base::Result<GlContextContract> ContextContract() noexcept;
+    Base::Result<GlContextBinding> ContextBinding() noexcept;
     Base::Result<void> MakeCurrent() noexcept;
 
     SurfaceCapabilities

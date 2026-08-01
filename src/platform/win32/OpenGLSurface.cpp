@@ -438,8 +438,8 @@ WglSurfaceBackend::LoadFunctions() noexcept {
     return LoadGlFunctionTable(&Impl::Resolve, impl_);
 }
 
-Base::Result<GlContextContract>
-WglSurfaceBackend::ContextContract() noexcept {
+Base::Result<GlContextBinding>
+WglSurfaceBackend::ContextBinding() noexcept {
     if (impl_ == nullptr) {
         return NotInitialized(
             "WGL surface is not initialized");
@@ -448,15 +448,15 @@ WglSurfaceBackend::ContextContract() noexcept {
     if (!current) {
         return current.GetStatus();
     }
-    GlContextContract contract;
-    contract.userData = impl_;
-    contract.contextHandle = impl_->renderContext;
-    contract.resolve = &Impl::Resolve;
-    contract.isCurrent = &Impl::IsCurrent;
-    contract.currentThreadToken = &Impl::CurrentThread;
-    contract.owningThreadToken =
+    GlContextBinding contract;
+    binding.userData = impl_;
+    binding.contextHandle = impl_->renderContext;
+    binding.resolve = &Impl::Resolve;
+    binding.isCurrent = &Impl::IsCurrent;
+    binding.currentThreadToken = &Impl::CurrentThread;
+    binding.owningThreadToken =
         static_cast<GlThreadToken>(impl_->owningThread);
-    contract.generation = impl_->generation;
+    binding.generation = impl_->generation;
     contract.embeddingMode =
         impl_->descriptor.ownership == SurfaceOwnership::Borrowed
         ? GlEmbeddingMode::PreserveAndRestore

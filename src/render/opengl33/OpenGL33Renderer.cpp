@@ -2,9 +2,9 @@
 
 #include <new>
 
-#include "../MeshRuntimeBackend.hpp"
-#include "../ImageRuntimeBackend.hpp"
-#include "../TextRuntimeBackend.hpp"
+#include "../MeshGpuResources.hpp"
+#include "../ImageGpuResources.hpp"
+#include "../TextGpuResources.hpp"
 
 namespace Aero::Render {
 namespace {
@@ -437,17 +437,17 @@ struct OpenGL33Renderer::Impl final {
               device,
               MakeOpenGL33RendererShaderSet(),
               allocator),
-          textRuntime(
+          textResources(
               device, renderer, generation, *allocator),
-          meshRuntime(
+          meshResources(
               device, renderer, generation, *allocator),
-          imageRuntime(
+          imageResources(
               device, renderer, generation, *allocator) {}
 
     Renderer renderer;
-    Detail::TextRuntimeBackend textRuntime;
-    Detail::MeshRuntimeBackend meshRuntime;
-    Detail::ImageRuntimeBackend imageRuntime;
+    Detail::TextGpuResources textResources;
+    Detail::MeshGpuResources meshResources;
+    Detail::ImageGpuResources imageResources;
     Graphics::FenceValue lastSubmittedFence = 0U;
     bool initialized = false;
 };
@@ -511,8 +511,8 @@ void OpenGL33Renderer::Shutdown() noexcept {
     if (impl_ == nullptr) {
         return;
     }
-    impl_->textRuntime.Shutdown();
-    impl_->meshRuntime.Shutdown();
+    impl_->textResources.Shutdown();
+    impl_->meshResources.Shutdown();
     impl_->renderer.Shutdown();
     impl_->~Impl();
     allocator_->Deallocate(
@@ -606,16 +606,16 @@ OpenGL33Renderer::UnregisterGlyphRun(
             "OpenGL render adapter is not initialized"));
 }
 
-Aero::Detail::TextBackendServices* OpenGL33Renderer::TextServices() noexcept {
-    return IsInitialized() ? &impl_->textRuntime.Services() : nullptr;
+Aero::Detail::TextResources* OpenGL33Renderer::GetTextResources() noexcept {
+    return IsInitialized() ? &impl_->textResources.Table() : nullptr;
 }
 
-Aero::Detail::MeshBackendServices* OpenGL33Renderer::MeshServices() noexcept {
-    return IsInitialized() ? &impl_->meshRuntime.Services() : nullptr;
+Aero::Detail::MeshResources* OpenGL33Renderer::GetMeshResources() noexcept {
+    return IsInitialized() ? &impl_->meshResources.Table() : nullptr;
 }
 
-Aero::Detail::ImageBackendServices* OpenGL33Renderer::ImageServices() noexcept {
-    return IsInitialized() ? &impl_->imageRuntime.Services() : nullptr;
+Aero::Detail::ImageResources* OpenGL33Renderer::GetImageResources() noexcept {
+    return IsInitialized() ? &impl_->imageResources.Table() : nullptr;
 }
 
 Base::Result<void> OpenGL33Renderer::Submit(

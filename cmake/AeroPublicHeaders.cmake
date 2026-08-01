@@ -37,11 +37,10 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Threading.hpp
     include/Aero/Meta/Describe.hpp
     include/Aero/Meta/Describe.inl
-    include/Aero/Meta/MetadataContext.hpp
-    include/Aero/Meta/MetadataDomain.hpp
+    include/Aero/Meta/Registration.hpp
+    include/Aero/Meta/Registry.hpp
     include/Aero/Meta/MetadataId.hpp
-    include/Aero/Meta/MetadataRegistrationValues.hpp
-    include/Aero/Meta/MetadataRuntime.hpp
+    include/Aero/Meta/RegistrationValues.hpp
     include/Aero/Meta/TypeRegistry.hpp
     include/Aero/Meta/Value.hpp
     include/Aero/Meta/ValueCodec.hpp
@@ -58,13 +57,13 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Input.hpp
     include/Aero/Input/Values.hpp
     include/Aero/Integration.hpp
-    include/Aero/Integration/PlatformServices.hpp
+    include/Aero/Integration/Platform.hpp
     include/Aero/Integration/NativeWindow.hpp
     include/Aero/View.hpp
     include/Aero/Integration/D3D11.hpp
     include/Aero/Integration/OpenGL33.hpp
     include/Aero/Integration/ReloadCoordinator.hpp
-    include/Aero/Integration/RenderEndpoint.hpp
+    include/Aero/Integration/RenderDevice.hpp
     include/Aero/Integration/SourceProvider.hpp
     include/Aero/Integration/ViewOptions.hpp
     include/Aero/App/WindowInterop.hpp

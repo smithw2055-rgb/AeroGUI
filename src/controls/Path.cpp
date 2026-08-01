@@ -1,8 +1,8 @@
 #include "../render/DisplayList.hpp"
 #include <Aero/Controls/Panels.hpp>
-#include "../render/DrawingContextAccess.hpp"
+#include "../render/DrawingInternals.hpp"
 
-#include "runtime/MeshResourceContract.hpp"
+#include "render/RenderResources.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -892,33 +892,33 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
 
 void Path::ReleaseMesh() noexcept {
     auto* services =
-        static_cast<Aero::Detail::MeshBackendServices*>(
+        static_cast<Aero::Detail::MeshResources*>(
             meshServices_);
     if (mesh_ != InvalidRenderMeshId &&
         services != nullptr &&
-        services->releaseMesh != nullptr &&
+        services->release != nullptr &&
         services->generation ==
             meshServiceGeneration_) {
-        services->releaseMesh(
+        services->release(
             services->context, mesh_);
     }
     if (strokeMesh_ != InvalidRenderMeshId &&
         services != nullptr &&
-        services->releaseMesh != nullptr &&
+        services->release != nullptr &&
         services->generation ==
             meshServiceGeneration_) {
-        services->releaseMesh(
+        services->release(
             services->context, strokeMesh_);
     }
     mesh_ = InvalidRenderMeshId;
     strokeMesh_ = InvalidRenderMeshId;
 }
 
-void Path::AttachMeshServices(
+void Path::AttachMeshResources(
     void* rawServices,
     bool force) noexcept {
     auto* services =
-        static_cast<Aero::Detail::MeshBackendServices*>(
+        static_cast<Aero::Detail::MeshResources*>(
             rawServices);
     if (!force &&
         meshServices_ == rawServices &&
@@ -930,7 +930,7 @@ void Path::AttachMeshServices(
     if (services == nullptr && !force) {
         ReleaseMesh();
     } else {
-        // A changed or explicitly invalidated endpoint already destroyed its
+        // A changed or explicitly invalidated render device already destroyed its
         // resources. Never call through that stale lease, even when the
         // allocator reused both the service address and generation value.
         mesh_ = InvalidRenderMeshId;
@@ -946,16 +946,16 @@ Base::Result<void> Path::EnsureMesh() noexcept {
         EnsureGeometry();
     if (!geometry) return geometry.GetStatus();
     auto* services =
-        static_cast<Aero::Detail::MeshBackendServices*>(
+        static_cast<Aero::Detail::MeshResources*>(
             meshServices_);
     if (services == nullptr ||
-        services->createMesh == nullptr) {
+        services->create == nullptr) {
         return {};
     }
     if (mesh_ == InvalidRenderMeshId &&
         !geometryVertices_.Empty()) {
         Base::Result<RenderMeshId> created =
-            services->createMesh(
+            services->create(
                 services->context,
                 geometryVertices_.AsSpan(),
                 geometryIndices_.AsSpan());
@@ -965,7 +965,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
     if (strokeMesh_ == InvalidRenderMeshId &&
         !strokeVertices_.Empty()) {
         Base::Result<RenderMeshId> created =
-            services->createMesh(
+            services->create(
                 services->context,
                 strokeVertices_.AsSpan(),
                 strokeIndices_.AsSpan());
@@ -1048,7 +1048,7 @@ Base::Result<Size> Path::MeasureOverride(
 
 Base::Result<void> Path::OnRender(
     DrawingContext& context) noexcept {
-    auto& builder = Aero::Detail::DrawingContextAccess::Builder(context);
+    auto& builder = Aero::Detail::DrawingPrivate::Builder(context);
     Base::Result<void> mesh =
         EnsureMesh();
     if (!mesh) return mesh.GetStatus();

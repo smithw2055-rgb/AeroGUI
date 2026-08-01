@@ -94,7 +94,7 @@ Runtime；应用代码不再自行读取或编译这些主题。
 ### 自定义模块的 host schema
 
 应用含自定义控件或属性时，不再要求 host `aero-xamlc` 加载目标平台模块。
-使用 `aero_add_schema_manifest()` 从模块注册代码生成 `App.aeroschema`，并在
+使用应用自己的 host tool 通过 `Aero::Meta::Registry` 生成 `App.aeroschema`，并在
 `aero_add_xaml(... SCHEMA App.aeroschema)` 中使用。manifest 变化会使 XAML
 重新编译，AXIR 中的 metadata schema hash 仍与目标 Runtime 严格匹配。
 

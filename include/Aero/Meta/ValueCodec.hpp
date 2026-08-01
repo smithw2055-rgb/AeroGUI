@@ -71,7 +71,7 @@ struct MetaTypeTraits<Base::ResourceUri> {
     }
 };
 
-AERO_API Base::Result<Value> TryCreateRuntimeValue(
+AERO_API Base::Result<Value> TryEncodeValue(
     TypeId type,
     const void* source) noexcept;
 
@@ -137,20 +137,20 @@ template<class T, class Enable = void>
 struct ValueCodec {
     static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
 
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Encode(
-        TRuntime& runtime,
+        TMetadata& runtime,
         const T& value) noexcept {
         return runtime.TryCreateValue(Type(), &value);
     }
 
     static Base::Result<Value> Encode(const T& value) noexcept {
-        return TryCreateRuntimeValue(Type(), &value);
+        return TryEncodeValue(Type(), &value);
     }
 
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<T> Decode(
-        TRuntime&,
+        TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
@@ -172,9 +172,9 @@ struct ValueCodec<Value, void> {
     static constexpr TypeId Type() noexcept {
         return TypeOf<Value>();
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Encode(
-        TRuntime&,
+        TMetadata&,
         const Value& value) noexcept {
         return Encode(value);
     }
@@ -182,9 +182,9 @@ struct ValueCodec<Value, void> {
         const Value& value) noexcept {
         return value;
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Decode(
-        TRuntime&,
+        TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
@@ -199,9 +199,9 @@ struct ValueCodec<TypeReference, void> {
     static constexpr TypeId Type() noexcept {
         return TypeOf<TypeReference>();
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Encode(
-        TRuntime&,
+        TMetadata&,
         TypeReference value) noexcept {
         return Encode(value);
     }
@@ -215,9 +215,9 @@ struct ValueCodec<TypeReference, void> {
         return Value::FromUnsignedInteger(
             Type(), value.type);
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<TypeReference> Decode(
-        TRuntime&,
+        TMetadata&,
         const Value& value) noexcept {
         return Decode(value);
     }
@@ -247,16 +247,16 @@ struct ValueCodec<TypeReference, void> {
 template<>
 struct ValueCodec<bool, void> {
     static constexpr TypeId Type() noexcept { return TypeOf<bool>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, bool value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, bool value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(bool value) noexcept {
         return Value::FromBoolean(Type(), value);
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<bool> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<bool> Decode(const Value& value) noexcept {
@@ -275,17 +275,17 @@ struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_signed_v<T> &&
     !std::is_same_v<T, bool>>> {
     static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, T value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(T value) noexcept {
         return Value::FromSignedInteger(
             Type(), static_cast<std::int64_t>(value));
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<T> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<T> Decode(const Value& value) noexcept {
@@ -310,17 +310,17 @@ struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_unsigned_v<T> &&
     !std::is_same_v<T, bool>>> {
     static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, T value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(T value) noexcept {
         return Value::FromUnsignedInteger(
             Type(), static_cast<std::uint64_t>(value));
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<T> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<T> Decode(const Value& value) noexcept {
@@ -340,16 +340,16 @@ struct ValueCodec<T, std::enable_if_t<
 template<>
 struct ValueCodec<double, void> {
     static constexpr TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, double value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, double value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(double value) noexcept {
         return Value::FromDouble(Type(), value);
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<double> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<double> Decode(const Value& value) noexcept {
@@ -366,17 +366,17 @@ struct ValueCodec<double, void> {
 template<>
 struct ValueCodec<float, void> {
     static constexpr TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, float value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, float value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(float value) noexcept {
         return Value::FromDouble(
             Type(), static_cast<double>(value));
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<float> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<float> Decode(const Value& value) noexcept {
@@ -395,18 +395,18 @@ struct ValueCodec<Base::String, void> {
     static constexpr TypeId Type() noexcept {
         return TypeOf<Base::String>();
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Encode(
-        TRuntime&, const Base::String& value) noexcept {
+        TMetadata&, const Base::String& value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(
         const Base::String& value) noexcept {
         return Value::TryFromString(Type(), value.View());
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Base::String> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<Base::String> Decode(
@@ -429,8 +429,8 @@ template<class T>
 struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
     static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TRuntime>
-    static Base::Result<Value> Encode(TRuntime&, T value) noexcept {
+    template<class TMetadata>
+    static Base::Result<Value> Encode(TMetadata&, T value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(T value) noexcept {
@@ -446,9 +446,9 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
                     static_cast<Underlying>(value)));
         }
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<T> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<T> Decode(const Value& value) noexcept {
@@ -482,9 +482,9 @@ struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
 template<class T>
 struct ValueCodec<Base::Ref<T>, void> {
     static constexpr TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Value> Encode(
-        TRuntime&, const Base::Ref<T>& value) noexcept {
+        TMetadata&, const Base::Ref<T>& value) noexcept {
         return Encode(value);
     }
     static Base::Result<Value> Encode(
@@ -493,9 +493,9 @@ struct ValueCodec<Base::Ref<T>, void> {
         return Value::FromObject(
             Type(), Base::Ref<Base::Object>(value));
     }
-    template<class TRuntime>
+    template<class TMetadata>
     static Base::Result<Base::Ref<T>> Decode(
-        TRuntime&, const Value& value) noexcept {
+        TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
     static Base::Result<Base::Ref<T>> Decode(

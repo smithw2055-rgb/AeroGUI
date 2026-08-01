@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Aero/Meta/MetadataRegistrationValues.hpp>
+#include <Aero/Meta/RegistrationValues.hpp>
 #include <Aero/Meta/ValueCodec.hpp>
 #include <Aero/RoutedEvent.hpp>
 
@@ -46,7 +46,7 @@ Base::Result<Value> ConvertTypedText(
     Base::Result<T> converted =
         std::invoke(Converter, text);
     if (!converted) return converted.GetStatus();
-    MetadataRegistrationValues registrations =
+    RegistrationValues registrations =
         MakeRegistrationValues(context);
     return ValueCodec<T>::Encode(
         registrations, converted.Value());
@@ -366,7 +366,7 @@ template<class T>
 class TypeDescription final {
 public:
     explicit TypeDescription(
-        MetadataContext& context,
+        MetaRegistration& context,
         TypeFlags flags = TypeFlags::None) noexcept
         : builder_(Detail::CreateDescriptionSession<T>(
               context, flags)) {}
@@ -786,7 +786,7 @@ private:
 
 template<class T>
 TypeDescription<T> Describe(
-    MetadataContext& context,
+    MetaRegistration& context,
     TypeFlags flags = TypeFlags::None) noexcept {
     return TypeDescription<T>(context, flags);
 }

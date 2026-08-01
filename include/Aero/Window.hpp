@@ -3,7 +3,7 @@
 #include <Aero/Controls/Items.hpp>
 
 namespace Aero {
-namespace App { namespace Detail { class WindowAccess; } }
+namespace App { namespace Detail { class DesktopPrivate; } }
 namespace App { class WindowInterop; }
 
 enum class WindowState : std::uint8_t { Normal = 0U, Minimized, Maximized };
@@ -84,18 +84,18 @@ protected:
     virtual void OnStateChanged(RoutedEventArgs& args) noexcept { static_cast<void>(RaiseEvent(StateChangedEvent, &args)); }
 
 private:
-    friend class App::Detail::WindowAccess;
+    friend class App::Detail::DesktopPrivate;
     friend class App::WindowInterop;
 
-    void Attach(void* runtimeState) noexcept { runtimeState_ = runtimeState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
-    void Detach() noexcept { runtimeState_ = nullptr; }
+    void Attach(void* hostState) noexcept { hostState_ = hostState; sourceInitialized_ = false; contentRendered_ = false; closed_ = false; }
+    void Detach() noexcept { hostState_ = nullptr; }
     void NotifySourceInitialized() noexcept;
     void NotifyActivated() noexcept;
     void NotifyDeactivated() noexcept;
     void NotifyContentRendered() noexcept;
     void NotifyClosed() noexcept;
 
-    void* runtimeState_ = nullptr;
+    void* hostState_ = nullptr;
     bool sourceInitialized_ = false;
     bool contentRendered_ = false;
     bool closed_ = false;

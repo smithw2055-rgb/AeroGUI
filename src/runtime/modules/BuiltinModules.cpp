@@ -2,13 +2,13 @@
 
 #include "app/Metadata.hpp"
 #include "controls/Metadata.hpp"
-#include "gui/MetadataInternal.hpp"
+#include "gui/MetaInternals.hpp"
 #include <Aero/Markup/Schema.hpp>
 
 namespace Aero {
 
 Base::Result<void> RegisterBuiltInUiModules(
-    Core::MetadataDomain& domain) noexcept {
+    Core::MetaRegistry& domain) noexcept {
     Base::Result<void> registered =
         Core::TryRegisterCoreMetadata(domain);
     if (!registered) return registered.GetStatus();

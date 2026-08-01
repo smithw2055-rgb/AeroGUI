@@ -1,11 +1,11 @@
 #include <Aero/Meta/Describe.hpp>
 
-#include "MetadataInternal.hpp"
+#include "MetaInternals.hpp"
 
 namespace Aero::Core::Detail {
 
 MetadataAuthoringSession::MetadataAuthoringSession(
-    MetadataContext& context,
+    MetaRegistration& context,
     const TypeRegistration& registration,
     TypeId expectedType) noexcept
     : context_(&context) {
@@ -163,9 +163,9 @@ MetadataAuthoringSession::RoutedEvent(
     RoutingStrategy strategy) noexcept {
     if (!Ok()) return *this;
     auto* state =
-        static_cast<MetadataContextState*>(
+        static_cast<MetaRegistrationState*>(
             context_->state_);
-    RoutedEventCatalog* events =
+    RoutedEventTable* events =
         state != nullptr ? state->events : nullptr;
     if (events == nullptr) {
         return Fail(Base::Status::Failure(

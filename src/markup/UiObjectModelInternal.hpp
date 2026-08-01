@@ -39,7 +39,7 @@ private:
 class XamlTemplateSchemaFacet final {
 public:
     XamlTemplateSchemaFacet(
-        Core::MetadataRuntime& runtime,
+        Core::MetaRegistry& metadata,
         Core::DependencyPropertyRegistry& properties,
         Base::IAllocator* allocator = nullptr) noexcept;
     ~XamlTemplateSchemaFacet() noexcept;

@@ -111,7 +111,7 @@ Engine hosts load XAML explicitly and keep `View` focused on content, input and
 frame updates:
 
 ```cpp
-Aero::RuntimeEnvironment environment;
+Aero::GUI environment;
 environment.Initialize();
 
 auto view = environment.CreateView(options).Value();

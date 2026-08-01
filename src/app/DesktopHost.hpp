@@ -8,22 +8,19 @@ namespace Aero::App {
 
 namespace Detail {
 
-class ApplicationAccess final {
+class DesktopPrivate final {
 public:
     static void Attach(
         Application& application,
-        void* runtimeState,
+        void* hostState,
         Window* mainWindow) noexcept;
     static void Detach(Application& application) noexcept;
     static void RaiseStartup(Application& application) noexcept;
     static void RaiseExit(
         Application& application,
         int exitCode) noexcept;
-};
 
-class WindowAccess final {
-public:
-    static void Attach(Window& window, void* runtimeState) noexcept;
+    static void Attach(Window& window, void* hostState) noexcept;
     static void Detach(Window& window) noexcept;
     static void NotifySourceInitialized(Window& window) noexcept;
     static void NotifyContentRendered(Window& window) noexcept;

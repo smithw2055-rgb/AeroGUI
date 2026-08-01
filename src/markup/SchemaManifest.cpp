@@ -458,7 +458,7 @@ Base::Result<void> AppendIdentity(
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity.metadataSchemaFormatVersion);
     if (!result) return result.GetStatus();
-    result = AppendU32(output, identity.metadataRuntimeFormatVersion);
+    result = AppendU32(output, identity.metadataProgramFormatVersion);
     if (!result) return result.GetStatus();
     result = AppendU32(output, identity.schemaVersion);
     if (!result) return result.GetStatus();
@@ -479,7 +479,7 @@ Base::Result<CompiledCacheIdentity> ReadIdentity(
     identity.metadataSchemaFormatVersion = value.Value();
     value = decoder.ReadU32();
     if (!value) return value.GetStatus();
-    identity.metadataRuntimeFormatVersion = value.Value();
+    identity.metadataProgramFormatVersion = value.Value();
     value = decoder.ReadU32();
     if (!value) return value.GetStatus();
     identity.schemaVersion = value.Value();

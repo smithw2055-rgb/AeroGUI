@@ -168,8 +168,8 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
 Base::Result<bool> RoutedCommand::CanExecute(
     const Core::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Detail::InputService* input = target != nullptr
-        ? Aero::Detail::UiRuntimeAccess::InputServiceFor(*target)
+    Aero::Detail::InputRouter* input = target != nullptr
+        ? Aero::Detail::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -182,8 +182,8 @@ Base::Result<bool> RoutedCommand::CanExecute(
 Base::Result<void> RoutedCommand::Execute(
     const Core::Value& parameter,
     UIElement* target) noexcept {
-    Aero::Detail::InputService* input = target != nullptr
-        ? Aero::Detail::UiRuntimeAccess::InputServiceFor(*target)
+    Aero::Detail::InputRouter* input = target != nullptr
+        ? Aero::Detail::ElementPrivate::InputRouterFor(*target)
         : nullptr;
     if (input == nullptr) {
         return Base::Status::Failure(
@@ -203,7 +203,7 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Input;
 
-CommandState::CommandState(GuiContext& tree, EventRouter& events) noexcept
+CommandState::CommandState(ElementTree& tree, EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
       bindings_(&Base::GetDefaultAllocator()) {}
@@ -213,11 +213,11 @@ Base::Result<void> CommandState::VerifyTarget(
     Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Command routing requires an GuiContext root");
+            "Command routing requires an ElementTree root");
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || Aero::Detail::VisualAccess::Tree(target) != tree_) {
+    if (!target.GetIsLoaded() || Aero::Detail::ElementPrivate::Tree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -281,7 +281,7 @@ Base::Result<bool> CommandState::RemoveBinding(
     Visual* root = tree_->Root();
     if (root == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Command binding removal requires an GuiContext root");
+            "Command binding removal requires an ElementTree root");
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
@@ -381,7 +381,7 @@ Base::Result<bool> CommandState::CanExecute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Detail::VisualAccess::Handle(element);
+            const VisualHandle ownerHandle = Aero::Detail::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -427,7 +427,7 @@ Base::Result<bool> CommandState::Execute(
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Detail::VisualAccess::Handle(element);
+            const VisualHandle ownerHandle = Aero::Detail::ElementPrivate::Handle(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
@@ -465,7 +465,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::Detail::VisualAccess::Handle(element);
+            const VisualHandle owner = Aero::Detail::ElementPrivate::Handle(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||

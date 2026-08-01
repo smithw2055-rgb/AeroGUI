@@ -309,7 +309,7 @@ Base::Result<void> UIElement::RaiseEvent(
     RoutedEventHandle event,
     RoutedEventArgs* args) noexcept {
     Aero::Detail::EventRouter* eventRouter =
-        Aero::Detail::UiRuntimeAccess::EventRouterFor(*this);
+        Aero::Detail::ElementPrivate::EventRouterFor(*this);
     if (eventRouter == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -324,7 +324,7 @@ Base::Result<void> UIElement::InvalidateMeasure() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->InvalidateMeasure(*this);
+    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->InvalidateMeasure(*this);
 }
 
 Base::Result<void> UIElement::InvalidateArrange() noexcept {
@@ -332,7 +332,7 @@ Base::Result<void> UIElement::InvalidateArrange() noexcept {
         arrangeValid_ = false;
         return {};
     }
-    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->InvalidateArrange(*this);
+    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->InvalidateArrange(*this);
 }
 
 Base::Result<void> FrameworkElement::SetUseLayoutRounding(
@@ -657,7 +657,7 @@ Base::Result<void> UIElement::MeasureChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->MeasureElement(child, availableSize);
+    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->MeasureElement(child, availableSize);
 }
 
 Base::Result<void> UIElement::ArrangeChild(
@@ -712,7 +712,7 @@ Base::Result<void> UIElement::ArrangeChild(
                 child.GetVisualParent()));
         return InvalidState(message);
     }
-    return static_cast<Aero::Detail::LayoutManager*>(layoutManager_)->ArrangeElement(child, finalRect);
+    return static_cast<Aero::Detail::LayoutEngine*>(layoutManager_)->ArrangeElement(child, finalRect);
 }
 
 } // namespace Aero
@@ -722,12 +722,12 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero;
 
-LayoutManager::LayoutManager(Dispatcher& dispatcher) noexcept
+LayoutEngine::LayoutEngine(Dispatcher& dispatcher) noexcept
     : dispatcher_(&dispatcher),
       measureQueue_(),
       arrangeQueue_() {}
 
-LayoutManager::~LayoutManager() noexcept {
+LayoutEngine::~LayoutEngine() noexcept {
     if (phaseHook_.IsValid() && dispatcher_->CheckAccess()) {
         (void)dispatcher_->RemoveFrameHook(phaseHook_);
     }
@@ -737,7 +737,7 @@ LayoutManager::~LayoutManager() noexcept {
     }
 }
 
-Base::Result<void> LayoutManager::Initialize() noexcept {
+Base::Result<void> LayoutEngine::Initialize() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
@@ -747,7 +747,7 @@ Base::Result<void> LayoutManager::Initialize() noexcept {
     }
     Base::Result<DispatcherFrameHookHandle> hook = dispatcher_->RegisterFrameHook(
         DispatcherFramePhase::Layout,
-        &LayoutManager::LayoutHook,
+        &LayoutEngine::LayoutHook,
         this);
     if (!hook) {
         return hook.GetStatus();
@@ -756,14 +756,14 @@ Base::Result<void> LayoutManager::Initialize() noexcept {
     return {};
 }
 
-Base::Result<void> LayoutManager::VerifyElement(
+Base::Result<void> LayoutEngine::VerifyElement(
     const UIElement& element) const noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) {
         return access;
     }
     if (!phaseHook_.IsValid()) {
-        return InvalidState("LayoutManager must be initialized before use");
+        return InvalidState("LayoutEngine must be initialized before use");
     }
     if (&element.GetDispatcher() != dispatcher_) {
         return Base::Status::Failure(
@@ -771,12 +771,12 @@ Base::Result<void> LayoutManager::VerifyElement(
             "Layout element belongs to another Dispatcher");
     }
     if (element.layoutManager_ != nullptr && element.layoutManager_ != this) {
-        return InvalidState("Layout element belongs to another LayoutManager");
+        return InvalidState("Layout element belongs to another LayoutEngine");
     }
     return {};
 }
 
-Base::Result<void> LayoutManager::Attach(
+Base::Result<void> LayoutEngine::Attach(
     UIElement& parent,
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
@@ -804,7 +804,7 @@ Base::Result<void> LayoutManager::Attach(
     return {};
 }
 
-Base::Result<void> LayoutManager::Detach(
+Base::Result<void> LayoutEngine::Detach(
     UIElement& parent,
     UIElement& child) noexcept {
     Base::Result<void> verified = VerifyElement(parent);
@@ -827,7 +827,7 @@ Base::Result<void> LayoutManager::Detach(
     return {};
 }
 
-Base::Result<void> LayoutManager::SetRoot(
+Base::Result<void> LayoutEngine::SetRoot(
     UIElement* root,
     Size availableSize) noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
@@ -857,7 +857,7 @@ Base::Result<void> LayoutManager::SetRoot(
     return {};
 }
 
-Base::Result<void> LayoutManager::QueueMeasure(
+Base::Result<void> LayoutEngine::QueueMeasure(
     UIElement& element) noexcept {
     if (element.measureQueued_) return {};
     Base::Result<Aero::Detail::VisualLease> lease =
@@ -870,7 +870,7 @@ Base::Result<void> LayoutManager::QueueMeasure(
     return {};
 }
 
-Base::Result<void> LayoutManager::QueueArrange(
+Base::Result<void> LayoutEngine::QueueArrange(
     UIElement& element) noexcept {
     if (element.arrangeQueued_) return {};
     Base::Result<Aero::Detail::VisualLease> lease =
@@ -883,7 +883,7 @@ Base::Result<void> LayoutManager::QueueArrange(
     return {};
 }
 
-void LayoutManager::RemoveQueued(UIElement& element) noexcept {
+void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
     auto remove = [&](Base::Vector<Aero::Detail::VisualLease>& queue) noexcept {
         for (std::uint32_t index = 0U; index < queue.Size();) {
             if (queue[index].Resolve() != &element) {
@@ -903,7 +903,7 @@ void LayoutManager::RemoveQueued(UIElement& element) noexcept {
     element.arrangeQueued_ = false;
 }
 
-Base::Result<void> LayoutManager::InvalidateMeasure(
+Base::Result<void> LayoutEngine::InvalidateMeasure(
     UIElement& element) noexcept {
     Base::Vector<UIElement*> path;
     UIElement* current = &element;
@@ -946,7 +946,7 @@ Base::Result<void> LayoutManager::InvalidateMeasure(
     return {};
 }
 
-Base::Result<void> LayoutManager::InvalidateArrange(
+Base::Result<void> LayoutEngine::InvalidateArrange(
     UIElement& element) noexcept {
     Base::Vector<UIElement*> path;
     UIElement* current = &element;
@@ -988,7 +988,7 @@ Base::Result<void> LayoutManager::InvalidateArrange(
     return {};
 }
 
-Base::Result<void> LayoutManager::MeasureElement(
+Base::Result<void> LayoutEngine::MeasureElement(
     UIElement& element,
     Size constraint) noexcept {
     if (!IsValidLayoutSize(constraint)) {
@@ -1140,7 +1140,7 @@ Base::Result<void> LayoutManager::MeasureElement(
     return {};
 }
 
-Base::Result<void> LayoutManager::ArrangeElement(
+Base::Result<void> LayoutEngine::ArrangeElement(
     UIElement& element,
     Rect slot) noexcept {
     if (!IsValidLayoutRect(slot)) {
@@ -1321,7 +1321,7 @@ Base::Result<void> LayoutManager::ArrangeElement(
     return {};
 }
 
-Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
+Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     Base::Result<void> access = dispatcher_->VerifyAccess();
     if (!access) return access.GetStatus();
     if (flushing_) return InvalidState("Nested layout flush is not allowed");
@@ -1462,7 +1462,7 @@ Base::Result<std::uint32_t> LayoutManager::Flush() noexcept {
     return measuredCount_ + arrangedCount_;
 }
 
-LayoutDiagnostics LayoutManager::Diagnostics() const noexcept {
+LayoutDiagnostics LayoutEngine::Diagnostics() const noexcept {
     LayoutDiagnostics diagnostics;
     diagnostics.passVersion = passVersion_;
     diagnostics.measuredCount = measuredCount_;
@@ -1472,8 +1472,8 @@ LayoutDiagnostics LayoutManager::Diagnostics() const noexcept {
     return diagnostics;
 }
 
-void LayoutManager::LayoutHook(void* context) noexcept {
-    auto* manager = static_cast<LayoutManager*>(context);
+void LayoutEngine::LayoutHook(void* context) noexcept {
+    auto* manager = static_cast<LayoutEngine*>(context);
     if (manager != nullptr) {
         Base::Result<std::uint32_t> result =
             manager->Flush();

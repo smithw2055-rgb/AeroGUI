@@ -42,7 +42,7 @@ public:
 };
 
 Aero::Base::Result<void> RegisterConsumerModule(
-    Aero::Meta::Context& context) noexcept {
+    Aero::Meta::Registration& context) noexcept {
     Aero::Base::Result<void> status =
         Aero::Meta::Describe<ConsumerControl>(context)
             .Property(
@@ -75,14 +75,14 @@ static_assert(
 
 static_assert(
     std::is_same<
-        Aero::Meta::Context,
-        Aero::Meta::Context>::value,
+        Aero::Meta::Registration,
+        Aero::Meta::Registration>::value,
     "Meta context must preserve the compatibility authoring identity");
 
 static_assert(
     std::is_same<
         Aero::DependencyObject,
-        Aero::Core::DependencyObject>::value,
+        Aero::DependencyObject>::value,
     "Root DependencyObject must preserve runtime type identity");
 
 static_assert(

@@ -1,5 +1,5 @@
 #include <Aero/Styling.hpp>
-#include "TemplateAccess.hpp"
+#include "TemplateInternals.hpp"
 #include "gui/BindingInternal.hpp"
 #include "ControlInternals.hpp"
 
@@ -16,10 +16,11 @@
 #include <cstdio>
 #include <new>
 #include <utility>
-#include "RuntimeManagers.hpp"
+#include "ControlBehavior.hpp"
 
 
 namespace Aero::Controls {
+using Aero::Detail::TemplateEngine;
 using Aero::Controls::Detail::TemplateHandle;
 
 namespace {
@@ -78,13 +79,13 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
 
 } // namespace
 
-Base::Result<void> TemplateBuildContext::SetRoot(
+Base::Result<void> TemplateBuilder::SetRoot(
     Base::Ref<Base::Object> owner,
     Visual& root) noexcept {
     return SetRoot({}, std::move(owner), root);
 }
 
-Base::Result<void> TemplateBuildContext::SetRoot(
+Base::Result<void> TemplateBuilder::SetRoot(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
     Visual& root) noexcept {
@@ -103,17 +104,17 @@ Base::Result<void> TemplateBuildContext::SetRoot(
     Aero::Detail::ElementAttachment mount = std::move(mounted).Value();
 
     Base::Result<void> selected =
-        Detail::ControlAccess::SetTemplateRoot(*state.parent, root.AsUIElement());
+        Detail::ControlPrivate::SetTemplateRoot(*state.parent, root.AsUIElement());
     if (!selected) {
         (void)state.tree->DetachElement(mount);
         return selected.GetStatus();
     }
     if (root.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+            Aero::Detail::ElementPrivate::SetTemplatedParent(
                 *root.AsFrameworkElement(), state.parent);
         if (!templated) {
-            (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
+            (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
         }
@@ -122,10 +123,10 @@ Base::Result<void> TemplateBuildContext::SetRoot(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
-            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+            (void)Aero::Detail::ElementPrivate::SetTemplatedParent(
                 *root.AsFrameworkElement(), nullptr);
         }
-        (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
+        (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
     }
@@ -134,7 +135,7 @@ Base::Result<void> TemplateBuildContext::SetRoot(
     return {};
 }
 
-Base::Result<void> TemplateBuildContext::AddPart(
+Base::Result<void> TemplateBuilder::AddPart(
     Base::StringView name,
     Visual& parent,
     Base::Ref<Base::Object> owner,
@@ -156,7 +157,7 @@ Base::Result<void> TemplateBuildContext::AddPart(
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+            Aero::Detail::ElementPrivate::SetTemplatedParent(
                 *part.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
@@ -167,7 +168,7 @@ Base::Result<void> TemplateBuildContext::AddPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (part.AsFrameworkElement() != nullptr) {
-            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+            (void)Aero::Detail::ElementPrivate::SetTemplatedParent(
                 *part.AsFrameworkElement(), nullptr);
         }
         (void)state.tree->DetachElement(mount);
@@ -176,37 +177,37 @@ Base::Result<void> TemplateBuildContext::AddPart(
     return {};
 }
 
-Base::Result<bool> TemplateBuildContext::ProjectContent(
+Base::Result<bool> TemplateBuilder::ProjectContent(
     ContentControl& owner,
     ContentPresenter& presenter) noexcept {
     return ProjectContentCore(
         owner, presenter, &presenter, nullptr);
 }
 
-Base::Result<bool> TemplateBuildContext::ProjectContent(
+Base::Result<bool> TemplateBuilder::ProjectContent(
     ContentControl& owner,
     ContentControl& presenter) noexcept {
     return ProjectContentCore(
         owner, presenter, nullptr, &presenter);
 }
 
-Control& TemplateBuildContext::TemplatedParent() const noexcept {
+Control& TemplateBuilder::TemplatedParent() const noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return *state.parent;
 }
 
-Visual* TemplateBuildContext::RootVisual() const noexcept {
+Visual* TemplateBuilder::RootVisual() const noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return state.rootVisual;
 }
 
-UIElement* TemplateBuildContext::RootElement() const noexcept {
+UIElement* TemplateBuilder::RootElement() const noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     return state.rootElement;
 }
 
 Base::Result<bool>
-TemplateBuildContext::ProjectContentCore(
+TemplateBuilder::ProjectContentCore(
     ContentControl& owner,
     Visual& presenterVisual,
     ContentPresenter* presenter,
@@ -220,7 +221,7 @@ TemplateBuildContext::ProjectContentCore(
             Base::ErrorCode::InvalidArgument,
             "Template content projection owner is invalid");
     }
-    UIElement* content = Detail::ContentControlAccess::ContentElement(owner);
+    UIElement* content = Detail::ControlPrivate::ContentElement(owner);
     if (content == nullptr) return false;
 
     bool presenterIsPart = false;
@@ -315,7 +316,7 @@ TemplateBuildContext::ProjectContentCore(
     return true;
 }
 
-Base::Result<void> TemplateBuildContext::PopulateItemsPresenter(
+Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
     ItemsPresenter& presenter,
     const ItemsPanelTemplate* itemsPanel) noexcept {
     if (presenter.ItemsHost() != nullptr) return {};
@@ -323,7 +324,7 @@ Base::Result<void> TemplateBuildContext::PopulateItemsPresenter(
     Base::Ref<Base::Object> owner;
     if (itemsPanel != nullptr) {
         Base::Result<Base::Ref<Base::Object>> created =
-            Detail::DeferredTemplateAccess::Instantiate(*itemsPanel);
+            Detail::TemplatePrivate::Instantiate(*itemsPanel);
         if (!created) return created.GetStatus();
         owner = std::move(created).Value();
     } else {
@@ -355,7 +356,7 @@ Base::Result<void> TemplateBuildContext::PopulateItemsPresenter(
 }
 
 Base::Result<void>
-TemplateBuildContext::PopulateContentPresenter(
+TemplateBuilder::PopulateContentPresenter(
     ContentPresenter& presenter) noexcept {
     if (presenter.Content() != nullptr ||
         presenter.ContentSource().Empty()) {
@@ -382,7 +383,7 @@ TemplateBuildContext::PopulateContentPresenter(
     return {};
 }
 
-DependencyObject* TemplateBuildContext::FindObject(
+DependencyObject* TemplateBuilder::FindObject(
     Base::StringView name) const noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     for (const Aero::Controls::Detail::TemplatePart& part : state.parts) {
@@ -391,7 +392,7 @@ DependencyObject* TemplateBuildContext::FindObject(
     return nullptr;
 }
 
-Base::Result<void> TemplateBuildContext::AddOwnedPart(
+Base::Result<void> TemplateBuilder::AddOwnedPart(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
     Visual& visual,
@@ -409,7 +410,7 @@ Base::Result<void> TemplateBuildContext::AddOwnedPart(
     return state.parts.TryPushBack(std::move(part));
 }
 
-void TemplateBuildContext::Rollback() noexcept {
+void TemplateBuilder::Rollback() noexcept {
     auto& state = *static_cast<Aero::Controls::Detail::TemplateBuildState*>(state_);
     for (std::uint32_t index = state.projections.Size();
          index > 0U; --index) {
@@ -441,11 +442,11 @@ void TemplateBuildContext::Rollback() noexcept {
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
         Aero::Controls::Detail::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(*part.frameworkElement, nullptr);
+            (void)Aero::Detail::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
         (void)state.tree->DetachElement(part.mount);
     }
-    if (state.parent != nullptr) (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
+    if (state.parent != nullptr) (void)Detail::ControlPrivate::SetTemplateRoot(*state.parent, nullptr);
     state.parts.Clear();
     state.rootVisual = nullptr;
     state.rootElement = nullptr;
@@ -583,15 +584,15 @@ const ResourceDictionary& FrameworkTemplate::GetResources() const noexcept {
     return fallback;
 }
 
-Detail::FrameworkTemplateState* Detail::FrameworkTemplateAccess::State(FrameworkTemplate& value) noexcept {
+Detail::FrameworkTemplateState* Detail::TemplatePrivate::State(FrameworkTemplate& value) noexcept {
     return static_cast<FrameworkTemplateState*>(value.state_);
 }
 
-const Detail::FrameworkTemplateState* Detail::FrameworkTemplateAccess::State(const FrameworkTemplate& value) noexcept {
+const Detail::FrameworkTemplateState* Detail::TemplatePrivate::State(const FrameworkTemplate& value) noexcept {
     return static_cast<const FrameworkTemplateState*>(value.state_);
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TrySetTargetType(
+Base::Result<void> Detail::TemplatePrivate::TrySetTargetType(
     FrameworkTemplate& templateValue,
     TypeId value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -602,7 +603,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TrySetTargetType(
     return {};
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::ConfigureFactory(
+Base::Result<void> Detail::TemplatePrivate::ConfigureFactory(
     FrameworkTemplate& templateValue,
     TemplateFactoryCallback factory,
     void* factoryContext,
@@ -613,7 +614,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::ConfigureFactory(
     return state->program.Configure(factory, factoryContext, std::move(factoryOwner));
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddTemplateBinding(
+Base::Result<void> Detail::TemplatePrivate::TryAddTemplateBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
@@ -630,7 +631,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddTemplateBinding(
     return state->bindings.TryPushBack(std::move(binding));
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddTemplatedParentBinding(
+Base::Result<void> Detail::TemplatePrivate::TryAddTemplatedParentBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     Base::StringView path,
@@ -655,7 +656,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddTemplatedParentBinding
     return state->metadataBindings.TryPushBack(std::move(binding));
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::SetAuthoredVisualTree(
+Base::Result<void> Detail::TemplatePrivate::SetAuthoredVisualTree(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -665,7 +666,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::SetAuthoredVisualTree(
     return {};
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddAuthoredVisualStateGroup(
+Base::Result<void> Detail::TemplatePrivate::TryAddAuthoredVisualStateGroup(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -674,22 +675,22 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddAuthoredVisualStateGro
     return state->authoredVisualStateGroups.TryPushBack(value);
 }
 
-void Detail::FrameworkTemplateAccess::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
+void Detail::TemplatePrivate::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualTree.Reset();
 }
 
-void Detail::FrameworkTemplateAccess::ClearAuthoredVisualStateGroups(ControlTemplate& value) noexcept {
+void Detail::TemplatePrivate::ClearAuthoredVisualStateGroups(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredVisualStateGroups.Clear();
 }
 
-void Detail::FrameworkTemplateAccess::ClearAuthoredTriggers(FrameworkTemplate& value) noexcept {
+void Detail::TemplatePrivate::ClearAuthoredTriggers(FrameworkTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredTriggers.Clear();
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddPropertyTrigger(
+Base::Result<void> Detail::TemplatePrivate::TryAddPropertyTrigger(
     FrameworkTemplate& templateValue,
     TemplatePropertyTrigger trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -699,7 +700,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddPropertyTrigger(
     return state->triggers.TryPushBack(std::move(trigger));
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddVisualStateGroup(
+Base::Result<void> Detail::TemplatePrivate::TryAddVisualStateGroup(
     FrameworkTemplate& templateValue,
     VisualStateGroup group) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -808,14 +809,14 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddVisualStateGroup(
 }
 
 
-Base::Result<void> Detail::FrameworkTemplateAccess::RegisterAuthoredName(
+Base::Result<void> Detail::TemplatePrivate::RegisterAuthoredName(
     ControlTemplate& templateValue, Base::StringView name, Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
     return state->authoredNames.TryRegister(name, object);
 }
 
-Base::Result<Base::String> Detail::FrameworkTemplateAccess::EnsureAuthoredName(
+Base::Result<Base::String> Detail::TemplatePrivate::EnsureAuthoredName(
     ControlTemplate& templateValue,
     Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
@@ -878,7 +879,7 @@ Base::Result<Base::String> Detail::FrameworkTemplateAccess::EnsureAuthoredName(
 }
 
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddAuthoredTrigger(
+Base::Result<void> Detail::TemplatePrivate::TryAddAuthoredTrigger(
     FrameworkTemplate& templateValue, Base::Ref<Base::Object> trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
@@ -886,101 +887,101 @@ Base::Result<void> Detail::FrameworkTemplateAccess::TryAddAuthoredTrigger(
     return state->authoredTriggers.TryPushBack(std::move(trigger));
 }
 
-const Base::Ref<Base::Object>& Detail::FrameworkTemplateAccess::AuthoredVisualTree(const ControlTemplate& value) noexcept {
+const Base::Ref<Base::Object>& Detail::TemplatePrivate::AuthoredVisualTree(const ControlTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->authoredVisualTree : empty;
 }
 
-Base::Span<const Base::Ref<Base::Object>> Detail::FrameworkTemplateAccess::AuthoredVisualStateGroups(const ControlTemplate& value) noexcept {
+Base::Span<const Base::Ref<Base::Object>> Detail::TemplatePrivate::AuthoredVisualStateGroups(const ControlTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Base::Object>>(state->authoredVisualStateGroups.Data(), state->authoredVisualStateGroups.Size()) : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
-const NameScope& Detail::FrameworkTemplateAccess::AuthoredNames(const ControlTemplate& value) noexcept {
+const NameScope& Detail::TemplatePrivate::AuthoredNames(const ControlTemplate& value) noexcept {
     static NameScope empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->authoredNames : empty;
 }
 
-void Detail::FrameworkTemplateAccess::ClearAuthoredNames(ControlTemplate& value) noexcept {
+void Detail::TemplatePrivate::ClearAuthoredNames(ControlTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) state->authoredNames.Clear();
 }
 
-Base::Span<const Base::Ref<Base::Object>> Detail::FrameworkTemplateAccess::AuthoredTriggers(const FrameworkTemplate& value) noexcept {
+Base::Span<const Base::Ref<Base::Object>> Detail::TemplatePrivate::AuthoredTriggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const Base::Ref<Base::Object>>(state->authoredTriggers.Data(), state->authoredTriggers.Size()) : Base::Span<const Base::Ref<Base::Object>>{};
 }
 
-TemplateFactoryCallback Detail::FrameworkTemplateAccess::Factory(const FrameworkTemplate& value) noexcept {
+TemplateFactoryCallback Detail::TemplatePrivate::Factory(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factory : nullptr;
 }
 
-void* Detail::FrameworkTemplateAccess::FactoryContext(const FrameworkTemplate& value) noexcept {
+void* Detail::TemplatePrivate::FactoryContext(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factoryContext : nullptr;
 }
 
-const Base::Ref<Base::Object>& Detail::FrameworkTemplateAccess::FactoryOwner(const FrameworkTemplate& value) noexcept {
+const Base::Ref<Base::Object>& Detail::TemplatePrivate::FactoryOwner(const FrameworkTemplate& value) noexcept {
     static Base::Ref<Base::Object> empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factoryOwner : empty;
 }
 
-const Base::ResourceUri& Detail::FrameworkTemplateAccess::BaseUri(const FrameworkTemplate& value) noexcept {
+const Base::ResourceUri& Detail::TemplatePrivate::BaseUri(const FrameworkTemplate& value) noexcept {
     static Base::ResourceUri empty;
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
+Base::Result<void> Detail::TemplatePrivate::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     return state->program.SetBaseUri(uri);
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::TryAddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
+Base::Result<void> Detail::TemplatePrivate::TryAddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     return state->program.TryAddNamespace(prefix, uri);
 }
 
-Base::Span<const TemplateNamespace> Detail::FrameworkTemplateAccess::Namespaces(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateNamespace> Detail::TemplatePrivate::Namespaces(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? Base::Span<const TemplateNamespace>(state->program.namespaces.Data(), state->program.namespaces.Size()) : Base::Span<const TemplateNamespace>{};
 }
 
-Base::Span<const TemplateBindingPlan> Detail::FrameworkTemplateAccess::Bindings(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateBindingPlan> Detail::TemplatePrivate::Bindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.bindings : state->bindings;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const TemplateMetadataBindingPlan> Detail::FrameworkTemplateAccess::MetadataBindings(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplateMetadataBindingPlan> Detail::TemplatePrivate::MetadataBindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.metadataBindings : state->metadataBindings;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const TemplatePropertyTrigger> Detail::FrameworkTemplateAccess::Triggers(const FrameworkTemplate& value) noexcept {
+Base::Span<const TemplatePropertyTrigger> Detail::TemplatePrivate::Triggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.triggers : state->triggers;
     return {values.Data(), values.Size()};
 }
 
-Base::Span<const VisualStateGroup> Detail::FrameworkTemplateAccess::VisualStateGroups(const FrameworkTemplate& value) noexcept {
+Base::Span<const VisualStateGroup> Detail::TemplatePrivate::VisualStateGroups(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     if (state == nullptr) return {};
     const auto& values = state->sealed ? state->program.visualStateGroups : state->visualStateGroups;
     return {values.Data(), values.Size()};
 }
 
-Base::Result<void> Detail::FrameworkTemplateAccess::Seal(
+Base::Result<void> Detail::TemplatePrivate::Seal(
     FrameworkTemplate& templateValue,
     const DependencyPropertyRegistry& properties) noexcept {
     FrameworkTemplateState* templateState = State(templateValue);
@@ -1106,7 +1107,7 @@ Base::Result<void> Detail::FrameworkTemplateAccess::Seal(
 Base::Result<bool> Control::ApplyTemplate() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return access.GetStatus();
-    if (Detail::ControlAccess::IsTemplateApplied(*this)) return false;
+    if (Detail::ControlPrivate::IsTemplateApplied(*this)) return false;
     if (templateRuntime_ == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -1117,7 +1118,7 @@ Base::Result<bool> Control::ApplyTemplate() noexcept {
     if (!value) return value.GetStatus();
     if (!value.Value()) return false;
     Base::Result<TemplateHandle> applied =
-        static_cast<TemplateManager*>(templateRuntime_)->
+        static_cast<TemplateEngine*>(templateRuntime_)->
             Apply(*this, *value.Value());
     if (!applied) return applied.GetStatus();
     return true;
@@ -1130,7 +1131,7 @@ DependencyObject* Control::GetTemplateChild(
         name.Empty()) {
         return nullptr;
     }
-    return static_cast<TemplateManager*>(templateRuntime_)->FindName(
+    return static_cast<TemplateEngine*>(templateRuntime_)->FindName(
         TemplateHandle{templateHandleValue_}, name);
 }
 
@@ -1141,7 +1142,7 @@ DependencyObject* Control::GetTemplateChild(
         type == InvalidTypeId) {
         return nullptr;
     }
-    return static_cast<TemplateManager*>(templateRuntime_)->FindPart(
+    return static_cast<TemplateEngine*>(templateRuntime_)->FindPart(
         TemplateHandle{templateHandleValue_}, type);
 }
 
@@ -1162,7 +1163,7 @@ namespace Aero::Detail {
 using namespace Aero::Core;
 using namespace Aero::Controls;
 
-TemplateManager::~TemplateManager() noexcept {
+TemplateEngine::~TemplateEngine() noexcept {
     while (!instances_.Empty()) {
         if (!ClearAt(instances_.Size() - 1U)) {
             break;
@@ -1170,12 +1171,12 @@ TemplateManager::~TemplateManager() noexcept {
     }
 }
 
-Base::Result<TemplateHandle> TemplateManager::Apply(
+Base::Result<TemplateHandle> TemplateEngine::Apply(
     Control& control,
     const ControlTemplate& plan) noexcept {
     if (tree_ == nullptr || values_ == nullptr ||
         properties_ == nullptr || !plan.GetIsSealed() ||
-        Aero::Detail::VisualAccess::Tree(control) != tree_ ||
+        Aero::Detail::ElementPrivate::Tree(control) != tree_ ||
         !IsTargetCompatible(
             properties_->Types(),
             control.RuntimeType(),
@@ -1201,9 +1202,9 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
 
     Aero::Controls::Detail::TemplateBuildState buildState(
         *tree_, control, layout_, renderer_);
-    TemplateBuildContext context(&buildState);
+    TemplateBuilder context(&buildState);
     Base::Result<void> built =
-        Aero::Controls::Detail::FrameworkTemplateAccess::Factory(plan)(context, Aero::Controls::Detail::FrameworkTemplateAccess::FactoryContext(plan));
+        Aero::Controls::Detail::TemplatePrivate::Factory(plan)(context, Aero::Controls::Detail::TemplatePrivate::FactoryContext(plan));
     if (!built || context.RootVisual() == nullptr) {
         context.Rollback();
         return built
@@ -1345,7 +1346,7 @@ Base::Result<TemplateHandle> TemplateManager::Apply(
     return stored.handle;
 }
 
-Base::Result<bool> TemplateManager::Clear(
+Base::Result<bool> TemplateEngine::Clear(
     TemplateHandle handle) noexcept {
     const std::uint32_t index = FindInstance(handle);
     if (index == UINT32_MAX) return false;
@@ -1354,7 +1355,7 @@ Base::Result<bool> TemplateManager::Clear(
     return true;
 }
 
-Base::Result<bool> TemplateManager::Clear(
+Base::Result<bool> TemplateEngine::Clear(
     Control& control) noexcept {
     const std::uint32_t index = FindInstance(control);
     if (index == UINT32_MAX) return false;
@@ -1363,7 +1364,7 @@ Base::Result<bool> TemplateManager::Clear(
     return true;
 }
 
-DependencyObject* TemplateManager::FindName(
+DependencyObject* TemplateEngine::FindName(
     TemplateHandle handle,
     Base::StringView name) const noexcept {
     const std::uint32_t index = FindInstance(handle);
@@ -1381,7 +1382,7 @@ DependencyObject* TemplateManager::FindName(
     return FindTarget(instances_[index], name);
 }
 
-DependencyObject* TemplateManager::FindPart(
+DependencyObject* TemplateEngine::FindPart(
     TemplateHandle handle,
     TypeId type) const noexcept {
     const std::uint32_t index = FindInstance(handle);
@@ -1400,21 +1401,21 @@ DependencyObject* TemplateManager::FindPart(
     return nullptr;
 }
 
-TemplateHandle TemplateManager::AppliedHandle(
+TemplateHandle TemplateEngine::AppliedHandle(
     const Control& control) const noexcept {
     const std::uint32_t index = FindInstance(control);
     return index != UINT32_MAX
         ? instances_[index].handle : TemplateHandle{};
 }
 
-const ControlTemplate* TemplateManager::AppliedTemplate(
+const ControlTemplate* TemplateEngine::AppliedTemplate(
     TemplateHandle handle) const noexcept {
     const std::uint32_t index = FindInstance(handle);
     return index != UINT32_MAX
         ? instances_[index].plan : nullptr;
 }
 
-std::uint32_t TemplateManager::FindInstance(
+std::uint32_t TemplateEngine::FindInstance(
     TemplateHandle handle) const noexcept {
     for (std::uint32_t index = 0U;
          index < instances_.Size();
@@ -1426,7 +1427,7 @@ std::uint32_t TemplateManager::FindInstance(
     return UINT32_MAX;
 }
 
-std::uint32_t TemplateManager::FindInstance(
+std::uint32_t TemplateEngine::FindInstance(
     const Control& control) const noexcept {
     for (std::uint32_t index = 0U;
          index < instances_.Size();
@@ -1436,7 +1437,7 @@ std::uint32_t TemplateManager::FindInstance(
     return UINT32_MAX;
 }
 
-DependencyObject* TemplateManager::FindTarget(
+DependencyObject* TemplateEngine::FindTarget(
     const Instance& instance,
     Base::StringView name) const noexcept {
     if (name.Empty()) return instance.parent;
@@ -1446,19 +1447,19 @@ DependencyObject* TemplateManager::FindTarget(
     return nullptr;
 }
 
-Base::Result<void> TemplateManager::Subscribe(
+Base::Result<void> TemplateEngine::Subscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -1469,10 +1470,10 @@ Base::Result<void> TemplateManager::Subscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -1492,19 +1493,19 @@ Base::Result<void> TemplateManager::Subscribe(
     return {};
 }
 
-void TemplateManager::Unsubscribe(
+void TemplateEngine::Unsubscribe(
     Instance& instance) noexcept {
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan).Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)[index].sourceProperty;
+            Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[index].sourceProperty;
         bool first = true;
         for (std::uint32_t previous = 0U;
              previous < index;
              ++previous) {
             first = first &&
-                Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)[previous].sourceProperty !=
+                Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)[previous].sourceProperty !=
                     property;
         }
         if (first) {
@@ -1513,10 +1514,10 @@ void TemplateManager::Unsubscribe(
         }
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan).Size();
+         index < Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan).Size();
          ++index) {
         for (const TemplateTriggerCondition& condition :
-             Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)[index].conditions) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)[index].conditions) {
             DependencyObject* source =
                 FindTarget(
                     instance,
@@ -1530,11 +1531,11 @@ void TemplateManager::Unsubscribe(
     }
 }
 
-Base::Result<void> TemplateManager::ApplyBindings(
+Base::Result<void> TemplateEngine::ApplyBindings(
     Instance& instance,
     DependencyPropertyHandle changed) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)) {
         if (changed.IsValid() &&
             binding.sourceProperty != changed) {
             continue;
@@ -1582,9 +1583,9 @@ Base::Result<void> TemplateManager::ApplyBindings(
     return {};
 }
 
-Base::Result<void> TemplateManager::AttachMetadataBindings(
+Base::Result<void> TemplateEngine::AttachMetadataBindings(
     Instance& instance) noexcept {
-    if (Aero::Controls::Detail::FrameworkTemplateAccess::MetadataBindings(*instance.plan).Empty()) {
+    if (Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan).Empty()) {
         return {};
     }
     if (metadata_ == nullptr || bindings_ == nullptr) {
@@ -1594,10 +1595,10 @@ Base::Result<void> TemplateManager::AttachMetadataBindings(
     }
     Base::Result<void> reserved =
         instance.metadataBindings.TryReserve(
-            Aero::Controls::Detail::FrameworkTemplateAccess::MetadataBindings(*instance.plan).Size());
+            Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan).Size());
     if (!reserved) return reserved.GetStatus();
     for (const TemplateMetadataBindingPlan& binding :
-         Aero::Controls::Detail::FrameworkTemplateAccess::MetadataBindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::MetadataBindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target == nullptr) {
@@ -1630,7 +1631,7 @@ Base::Result<void> TemplateManager::AttachMetadataBindings(
     return {};
 }
 
-void TemplateManager::DetachMetadataBindings(
+void TemplateEngine::DetachMetadataBindings(
     Instance& instance) noexcept {
     if (bindings_ != nullptr) {
         for (Data::BindingHandle handle :
@@ -1641,10 +1642,10 @@ void TemplateManager::DetachMetadataBindings(
     instance.metadataBindings.Clear();
 }
 
-Base::Result<void> TemplateManager::EvaluateTriggers(
+Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -1664,7 +1665,7 @@ Base::Result<void> TemplateManager::EvaluateTriggers(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         bool active = true;
         for (const TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
@@ -1700,10 +1701,10 @@ Base::Result<void> TemplateManager::EvaluateTriggers(
     return {};
 }
 
-Base::Result<void> TemplateManager::ClearProviders(
+Base::Result<void> TemplateEngine::ClearProviders(
     Instance& instance) noexcept {
     for (const TemplateBindingPlan& binding :
-         Aero::Controls::Detail::FrameworkTemplateAccess::Bindings(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Bindings(*instance.plan)) {
         DependencyObject* target =
             FindTarget(instance, binding.targetName.View());
         if (target != nullptr) {
@@ -1714,7 +1715,7 @@ Base::Result<void> TemplateManager::ClearProviders(
         }
     }
     for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)) {
+         Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (IsDeferredBindingSetterValue(setter.value)) {
@@ -1733,7 +1734,7 @@ Base::Result<void> TemplateManager::ClearProviders(
     return {};
 }
 
-Base::Result<void> TemplateManager::ClearAt(
+Base::Result<void> TemplateEngine::ClearAt(
     std::uint32_t index) noexcept {
     Instance& instance = instances_[index];
     instance.parent->NotifyTemplateDetached();
@@ -1745,11 +1746,11 @@ Base::Result<void> TemplateManager::ClearAt(
     for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
             Base::Result<void> cleared =
-                Aero::Detail::FrameworkElementAccess::SetTemplatedParent(*part.frameworkElement, nullptr);
+                Aero::Detail::ElementPrivate::SetTemplatedParent(*part.frameworkElement, nullptr);
             if (!cleared) return cleared.GetStatus();
         }
     }
-    Base::Result<void> child = Aero::Controls::Detail::ControlAccess::SetTemplateRoot(*instance.parent, nullptr);
+    Base::Result<void> child = Aero::Controls::Detail::ControlPrivate::SetTemplateRoot(*instance.parent, nullptr);
     if (!child) return child.GetStatus();
 
     for (std::uint32_t projectionIndex = instance.projections.Size();
@@ -1801,7 +1802,7 @@ Base::Result<void> TemplateManager::ClearAt(
     return {};
 }
 
-void TemplateManager::OnPropertyChanged(
+void TemplateEngine::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     for (Instance& instance : instances_) {
@@ -1811,7 +1812,7 @@ void TemplateManager::OnPropertyChanged(
         }
         bool triggerChanged = false;
         for (const TemplatePropertyTrigger& trigger :
-             Aero::Controls::Detail::FrameworkTemplateAccess::Triggers(*instance.plan)) {
+             Aero::Controls::Detail::TemplatePrivate::Triggers(*instance.plan)) {
             for (const TemplateTriggerCondition& triggerCondition :
                  trigger.conditions) {
                 DependencyObject* source = FindTarget(

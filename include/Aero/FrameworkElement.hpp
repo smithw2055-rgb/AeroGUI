@@ -15,7 +15,7 @@
 
 
 namespace Aero::Detail {
-class FrameworkElementAccess;
+class ElementPrivate;
 }
 
 namespace Aero {
@@ -247,7 +247,7 @@ private:
         Core::TypeId expectedType) noexcept;
 
     friend class LogicalTreeHelper;
-    friend class Aero::Detail::FrameworkElementAccess;
+    friend class Aero::Detail::ElementPrivate;
     friend class Render::RenderTree;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;

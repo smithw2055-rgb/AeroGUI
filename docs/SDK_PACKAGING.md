@@ -47,13 +47,13 @@ metadata entry points explicitly:
 #include <Aero/Module.hpp>
 
 Aero::Base::Result<void> RegisterMyModule(
-    Aero::Meta::Context& context) noexcept;
+    Aero::Meta::Registration& context) noexcept;
 
 constexpr Aero::ModuleRegistration MyModule =
     Aero::DefineModule("My.Module", &RegisterMyModule);
 ```
 
-`Meta::Context` is callback-scoped. Catalogs, registration stores, frozen
+`Meta::Registration` is callback-scoped. Catalogs, registration stores, frozen
 execution data, XAML facets and dependency-property provider state remain
 implementation details.
 
@@ -93,13 +93,13 @@ load XAML through `Markup::XamlReader`, and create Views directly:
 #include <Aero/Integration/D3D11.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 
-Aero::RuntimeEnvironment environment;
+Aero::GUI environment;
 environment.AddModule(MyModule);
 environment.Initialize();
 
 Aero::Integration::ViewOptions options;
-options.renderEndpoint =
-    Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions).Value();
+options.renderDevice =
+    Aero::Integration::CreateD3D11WindowDevice(endpointOptions).Value();
 
 auto view = environment.CreateView(options).Value();
 Aero::Markup::XamlReader reader(*view);
@@ -143,7 +143,7 @@ AeroGuiKernelObjects + AeroTextObjects + AeroControlsObjects
 + AeroMarkupKernelObjects + AeroMarkupObjects + AeroInspectorObjects
     -> Aero::Gui
 
-AeroAppModelObjects + AeroModuleCatalogObjects + AeroRuntimeObjects
+AeroAppModelObjects + AeroModuleSetObjects + AeroRuntimeObjects
 + AeroRenderingObjects + built-in text-provider objects
     -> Aero::Integration
 

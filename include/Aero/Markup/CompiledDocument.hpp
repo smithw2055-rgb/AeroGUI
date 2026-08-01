@@ -12,7 +12,7 @@
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Meta/Registry.hpp>
 #include <Aero/Version.hpp>
 
 #include <cstdint>
@@ -535,8 +535,8 @@ struct CompiledCacheIdentity final {
         Core::TypeIdAlgorithmVersion;
     std::uint32_t metadataSchemaFormatVersion =
         Core::MetadataSchemaFormatVersion;
-    std::uint32_t metadataRuntimeFormatVersion =
-        Core::MetadataRuntimeDataFormatVersion;
+    std::uint32_t metadataProgramFormatVersion =
+        Core::MetadataProgramFormatVersion;
     std::uint32_t schemaVersion =
         XamlSchemaAbiVersion;
     Base::HashCode metadataSchemaHash = 0U;
@@ -547,14 +547,14 @@ enum class CompiledCacheCompatibility : std::uint8_t {
     CacheFormatMismatch,
     TypeIdAlgorithmMismatch,
     MetadataSchemaFormatMismatch,
-    MetadataRuntimeFormatMismatch,
+    MetadataProgramFormatMismatch,
     SchemaVersionMismatch,
     MetadataSchemaMismatch
 };
 
 AERO_API Base::Result<CompiledCacheIdentity>
 BuildCompiledCacheIdentity(
-    const Core::MetadataDomain& domain) noexcept;
+    const Core::MetaRegistry& domain) noexcept;
 
 AERO_API CompiledCacheCompatibility
 CompareCompiledCacheIdentity(
@@ -563,7 +563,7 @@ CompareCompiledCacheIdentity(
 
 AERO_API Base::Result<void> ValidateCompiledCacheIdentity(
     const CompiledCacheIdentity& cached,
-    const Core::MetadataDomain& currentDomain) noexcept;
+    const Core::MetaRegistry& currentDomain) noexcept;
 
 struct CompiledDocumentLimits final {
     std::uint32_t maxNodes = 100000U;
@@ -586,10 +586,10 @@ public:
 
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
-        const Core::MetadataDomain& domain) noexcept;
+        const Core::MetaRegistry& domain) noexcept;
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
-        const Core::MetadataDomain& domain,
+        const Core::MetaRegistry& domain,
         const Base::ResourceUri& originUri) noexcept;
     static Base::Result<CompiledDocument> Compile(
         NodeReader& reader,
@@ -613,7 +613,7 @@ public:
     Serialize() const noexcept;
     static Base::Result<CompiledDocument> Deserialize(
         Base::Span<const std::uint8_t> bytes,
-        const Core::MetadataDomain& domain,
+        const Core::MetaRegistry& domain,
         const CompiledDocumentLimits& limits = {}) noexcept;
 
     const CompiledCacheIdentity& Identity() const noexcept {

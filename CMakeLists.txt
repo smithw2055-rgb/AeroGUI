@@ -170,7 +170,8 @@ add_library(AeroTextObjects OBJECT
     src/text/FontManager.cpp
     src/text/GlyphAtlas.cpp
     src/text/TextLayout.cpp
-    src/text/TextTypes.cpp)
+    src/text/TextTypes.cpp
+    src/text/UnicodeAnalysis.cpp)
 target_include_directories(AeroTextObjects
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Detail { class DocumentTextAccess; }
+namespace Aero::Detail { class DocumentPrivate; }
 
 namespace Aero::Documents {
 
@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    friend class Aero::Detail::DocumentTextAccess;
+    friend class Aero::Detail::DocumentPrivate;
     friend class Aero::Controls::TextBlock;
     friend class TextRange;
     TextPointer(
@@ -257,7 +257,7 @@ protected:
     }
 
 private:
-    friend class Aero::Detail::DocumentTextAccess;
+    friend class Aero::Detail::DocumentPrivate;
     Base::Vector<Base::Ref<Inline>> inlines_;
     Base::Ref<Inline> pendingInline_;
 };

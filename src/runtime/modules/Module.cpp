@@ -1,16 +1,16 @@
-#include "ModuleCatalog.hpp"
+#include "ModuleSet.hpp"
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
 #include "BuiltinModules.hpp"
-#include <Aero/Meta/MetadataDomain.hpp>
+#include <Aero/Meta/Registry.hpp>
 
 #include <new>
 #include <utility>
 
 namespace Aero {
 
-struct ModuleCatalog::Impl final {
+struct ModuleSet::Impl final {
     struct Module final {
         struct Dependency final {
             Base::String name;
@@ -43,7 +43,7 @@ Base::Status OutOfMemory() noexcept {
 
 } // namespace
 
-Base::Result<void> ModuleCatalog::Impl::ResolveOrder(
+Base::Result<void> ModuleSet::Impl::ResolveOrder(
     Base::Vector<std::uint32_t>& order) const noexcept {
     order.Clear();
     Base::Result<void> reserved =
@@ -121,14 +121,14 @@ Base::Result<void> ModuleCatalog::Impl::ResolveOrder(
     return {};
 }
 
-ModuleCatalog::ModuleCatalog() noexcept
+ModuleSet::ModuleSet() noexcept
     : impl_(new (std::nothrow) Impl()) {}
 
-ModuleCatalog::~ModuleCatalog() noexcept {
+ModuleSet::~ModuleSet() noexcept {
     delete impl_;
 }
 
-Base::Result<void> ModuleCatalog::Add(
+Base::Result<void> ModuleSet::Add(
     const ModuleRegistration& registration) noexcept {
     if (impl_ == nullptr) return OutOfMemory();
     if (impl_->frozen) {
@@ -198,8 +198,8 @@ Base::Result<void> ModuleCatalog::Add(
     return impl_->modules.TryPushBack(std::move(module));
 }
 
-Base::Result<void> ModuleCatalog::RegisterMetadata(
-    Core::MetadataDomain& domain) const noexcept {
+Base::Result<void> ModuleSet::RegisterMetadata(
+    Core::MetaRegistry& domain) const noexcept {
     if (impl_ == nullptr) return OutOfMemory();
     Base::Result<void> builtIns =
         RegisterBuiltInUiModules(domain);
@@ -224,7 +224,7 @@ Base::Result<void> ModuleCatalog::RegisterMetadata(
     return {};
 }
 
-Base::Result<void> ModuleCatalog::Freeze() noexcept {
+Base::Result<void> ModuleSet::Freeze() noexcept {
     if (impl_ == nullptr) return OutOfMemory();
     Base::Vector<std::uint32_t> order;
     Base::Result<void> resolved =
@@ -234,11 +234,11 @@ Base::Result<void> ModuleCatalog::Freeze() noexcept {
     return {};
 }
 
-bool ModuleCatalog::IsFrozen() const noexcept {
+bool ModuleSet::IsFrozen() const noexcept {
     return impl_ != nullptr && impl_->frozen;
 }
 
-std::uint32_t ModuleCatalog::ModuleCount() const noexcept {
+std::uint32_t ModuleSet::ModuleCount() const noexcept {
     return impl_ != nullptr ? impl_->modules.Size() : 0U;
 }
 

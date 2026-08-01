@@ -3,7 +3,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Resources.hpp>
 
-#include "markup/XamlDocumentAccess.hpp"
+#include "markup/XamlDocumentInternal.hpp"
 
 #include <new>
 #include <utility>
@@ -37,7 +37,7 @@ UiDocument& UiDocument::operator=(UiDocument&& other) noexcept {
     return *this;
 }
 
-Base::Result<UiDocument> Aero::Detail::UiDocumentAccess::Adopt(
+Base::Result<UiDocument> Aero::Detail::XamlDocumentPrivate::Adopt(
     Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept {
     if (!result.root) {
@@ -79,7 +79,7 @@ Base::Object* UiDocument::FindNamedObject(
         return object;
     }
     // A document is schema-neutral. Exact type validation remains available
-    // without retaining a MetadataRuntime; derived-type lookup is performed by
+    // without retaining a MetaRegistry; derived-type lookup is performed by
     // View after mounting.
     return object->RuntimeType() == expectedType ? object : nullptr;
 }
@@ -110,14 +110,14 @@ Base::Span<const Base::ResourceUri> UiDocument::Dependencies() const noexcept {
 }
 
 const Markup::EffectLifetime*
-Aero::Detail::UiDocumentAccess::RuntimeLifetime(
+Aero::Detail::XamlDocumentPrivate::RuntimeLifetime(
     const UiDocument& document) noexcept {
     return document.impl_ != nullptr
         ? document.impl_->result.runtimeLifetime.Get()
         : nullptr;
 }
 
-Markup::LoaderResult Aero::Detail::UiDocumentAccess::Take(
+Markup::LoaderResult Aero::Detail::XamlDocumentPrivate::Take(
     UiDocument& document) noexcept {
     if (document.impl_ == nullptr) {
         Markup::LoaderResult empty;

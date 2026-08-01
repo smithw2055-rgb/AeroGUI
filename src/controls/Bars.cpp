@@ -206,7 +206,7 @@ ToolBar::SynchronizeToolBar() noexcept {
     if (!stored) return stored.GetStatus();
     if (host != nullptr) {
         const Base::Span<Visual* const> children =
-            Aero::Detail::VisualAccess::VisualChildren(*host);
+            Aero::Detail::ElementPrivate::VisualChildren(*host);
         for (std::uint32_t index = 0U;
              index < children.Size();
              ++index) {
