@@ -769,19 +769,19 @@ void ControlInteractionManager::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
-    if (args.changedButton != MouseButton::Left ||
+    if (args.GetChangedButton() != MouseButton::Left ||
         !button.GetIsEnabled()) return;
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
     ButtonRecord& record = buttons_[index];
-    record.pointerId = args.pointerId;
+    record.pointerId = args.GetPointerId();
     record.pointerDown = true;
     record.repeatElapsed = 0U;
     record.nextRepeat = 0U;
     static_cast<void>(
-        input_->CapturePointer(args.pointerId, button));
+        input_->CapturePointer(args.GetPointerId(), button));
     static_cast<void>(input_->SetFocus(&button));
-    args.handled = true;
+    args.SetHandled(true);
     if (button.GetClickMode() == ClickMode::Press) {
         static_cast<void>(InvokeClick(button));
     }
@@ -793,16 +793,16 @@ void ControlInteractionManager::OnMouseUp(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
-    if (args.changedButton != MouseButton::Left) return;
+    if (args.GetChangedButton() != MouseButton::Left) return;
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
     ButtonRecord& record = buttons_[index];
     if (!record.pointerDown ||
-        record.pointerId != args.pointerId) return;
+        record.pointerId != args.GetPointerId()) return;
     record.pointerDown = false;
     record.repeatElapsed = 0U;
     record.nextRepeat = 0U;
-    args.handled = true;
+    args.SetHandled(true);
     if (button.GetClickMode() == ClickMode::Release &&
         button.GetIsEnabled() && button.GetIsMouseOver()) {
         static_cast<void>(InvokeClick(button));
@@ -816,8 +816,8 @@ void ControlInteractionManager::OnKeyDown(
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
     if (!button.GetIsEnabled() ||
-        (args.key != KeyboardKeySpace &&
-            args.key != KeyboardKeyEnter)) return;
+        (args.GetKey() != KeyboardKeySpace &&
+            args.GetKey() != KeyboardKeyEnter)) return;
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
     ButtonRecord& record = buttons_[index];
@@ -832,15 +832,15 @@ void ControlInteractionManager::OnKeyDown(
         static_cast<void>(
             SyncVisualState(button));
     }
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void ControlInteractionManager::OnKeyUp(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
     auto& button = *static_cast<ButtonBase*>(sender);
-    if (args.key != KeyboardKeySpace &&
-        args.key != KeyboardKeyEnter) return;
+    if (args.GetKey() != KeyboardKeySpace &&
+        args.GetKey() != KeyboardKeyEnter) return;
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX ||
         !buttons_[index].keyboardDown) return;
@@ -848,7 +848,7 @@ void ControlInteractionManager::OnKeyUp(
     buttons_[index].repeatElapsed = 0U;
     buttons_[index].nextRepeat = 0U;
     static_cast<void>(button.SetPressedState(false));
-    args.handled = true;
+    args.SetHandled(true);
     if (button.GetIsEnabled() &&
         button.GetClickMode() == ClickMode::Release) {
         static_cast<void>(InvokeClick(button));
@@ -863,7 +863,7 @@ void ControlInteractionManager::OnFocusChanged(
     auto& button = *static_cast<ButtonBase*>(sender);
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
-    if (args.newFocus != &button &&
+    if (args.GetNewFocus() != &button &&
         buttons_[index].keyboardDown) {
         buttons_[index].keyboardDown = false;
         buttons_[index].repeatElapsed = 0U;
@@ -880,10 +880,10 @@ void ControlInteractionManager::OnPropertyChanged(
     auto& button = static_cast<ButtonBase&>(object);
     const std::uint32_t index = FindButton(button);
     if (index == UINT32_MAX) return;
-    if (args.property == ButtonBase::CommandProperty) {
+    if (args.GetProperty() == ButtonBase::CommandProperty) {
         if (!SubscribeCommand(button, buttons_[index])) return;
         static_cast<void>(RefreshCanExecute(button));
-    } else if (args.property == UIElement::IsEnabledProperty) {
+    } else if (args.GetProperty() == UIElement::IsEnabledProperty) {
         static_cast<void>(
             SyncVisualState(button));
     } else {
@@ -896,7 +896,7 @@ void ControlInteractionManager::OnPropertyChanged(
         auto& toggle = static_cast<ToggleButton&>(button);
         ButtonRecord& record = buttons_[index];
         if (!record.updatingToggle &&
-            args.property == ToggleButton::IsCheckedProperty &&
+            args.GetProperty() == ToggleButton::IsCheckedProperty &&
             toggle.IsIndeterminate()) {
             record.updatingToggle = true;
             static_cast<void>(toggle.SetReadOnlyCurrentValue(
@@ -904,7 +904,7 @@ void ControlInteractionManager::OnPropertyChanged(
                 false));
             record.updatingToggle = false;
         } else if (!record.updatingToggle &&
-            args.property ==
+            args.GetProperty() ==
                 ToggleButton::IsThreeStateProperty &&
             !toggle.IsThreeState() &&
             toggle.IsIndeterminate()) {
@@ -916,7 +916,7 @@ void ControlInteractionManager::OnPropertyChanged(
         }
         PublishToggleState(toggle, record);
         if (type == RadioButton::StaticTypeId() &&
-            args.property == RadioButton::GroupNameProperty &&
+            args.GetProperty() == RadioButton::GroupNameProperty &&
             toggle.GetToggleState() == ToggleState::Checked) {
             UncheckRadioPeers(
                 static_cast<RadioButton&>(toggle));

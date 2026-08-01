@@ -279,11 +279,24 @@ public:
 
 struct ScrollChangedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(ScrollChangedEventArgs, RoutedEventArgs)
+public:
     ScrollChangedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
-    ScrollData oldData;
-    ScrollData newData;
-    ScrollInputKind inputKind = ScrollInputKind::Line;
+    ScrollChangedEventArgs(
+        ScrollData oldData,
+        ScrollData newData,
+        ScrollInputKind inputKind) noexcept
+        : RoutedEventArgs(StaticTypeId()),
+          oldData_(oldData), newData_(newData), inputKind_(inputKind) {}
+
+    ScrollData GetOldData() const noexcept { return oldData_; }
+    ScrollData GetNewData() const noexcept { return newData_; }
+    ScrollInputKind GetInputKind() const noexcept { return inputKind_; }
+
+private:
+    ScrollData oldData_;
+    ScrollData newData_;
+    ScrollInputKind inputKind_ = ScrollInputKind::Line;
 };
 
 using ScrollChangedEventHandler =
@@ -633,10 +646,21 @@ struct RangeValueChangedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(
         RangeValueChangedEventArgs,
         RoutedEventArgs)
+public:
     RangeValueChangedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
-    double oldValue = 0.0;
-    double newValue = 0.0;
+    RangeValueChangedEventArgs(
+        double oldValue,
+        double newValue) noexcept
+        : RoutedEventArgs(StaticTypeId()),
+          oldValue_(oldValue), newValue_(newValue) {}
+
+    double GetOldValue() const noexcept { return oldValue_; }
+    double GetNewValue() const noexcept { return newValue_; }
+
+private:
+    double oldValue_ = 0.0;
+    double newValue_ = 0.0;
 };
 
 using RangeValueChangedEventHandler =

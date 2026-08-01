@@ -63,12 +63,16 @@ struct ViewFrameResult final {
 
 namespace Aero {
 
+class FrameworkElement;
 class View;
 namespace Controls {
 class ContentControl;
 }
 namespace Detail {
 class ViewAccess;
+}
+namespace Markup {
+class XamlReader;
 }
 
 namespace Integration {
@@ -127,24 +131,13 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
-    Base::Result<UiDocument> Load(
-        Base::StringView uri,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<UiDocument> Parse(
-        Base::StringView source,
-        const Base::ResourceUri& baseUri = {},
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-    Base::Result<void> RegisterSourceProvider(
-        Integration::ISourceProvider& provider,
-        Base::StringView scheme = {},
-        Base::StringView assembly = {}) noexcept;
     Base::Result<void> SetContent(
         UiDocument&& document,
         Aero::Size availableSize) noexcept;
     // Programmatic root overload used by Application::Run(Window) and native
     // hosts. The root must be created through Aero::Base::MakeRef.
     Base::Result<void> SetContent(
-        Base::Ref<Base::Object> root,
+        Base::Ref<FrameworkElement> root,
         Aero::Size availableSize) noexcept;
     // Mounts a separately loaded XAML document into an already mounted
     // ContentControl. The document keeps its own names, resources and
@@ -154,14 +147,6 @@ public:
         UiDocument&& document) noexcept;
     Base::Result<void> UnmountContent(
         Controls::ContentControl& host) noexcept;
-    Base::Result<void> LoadContent(
-        Base::StringView uri,
-        Aero::Size availableSize,
-        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
-
-    Base::Result<UiDocument> LoadCompiled(
-        Base::Span<const std::uint8_t> bytes,
-        const Base::ResourceUri& originUri = {}) noexcept;
     Base::Result<void> LoadResources(
         RuntimeResourceLayer layer,
         Base::StringView uri,
@@ -185,36 +170,24 @@ public:
     Base::Result<void> Resize(
         Aero::Size availableSize) noexcept;
     Base::Result<void> Unmount() noexcept;
-    Base::Result<ViewFrameResult> RunFrame() noexcept;
+    Base::Result<ViewFrameResult> Update(
+        std::uint32_t elapsedMilliseconds = 0U) noexcept;
     Base::Result<Input::PointerDispatchResult> DispatchPointer(
         const Input::PointerInput& input) noexcept;
     Base::Result<Input::KeyboardDispatchResult> DispatchKeyboard(
         const Input::KeyboardInput& input) noexcept;
     Base::Result<Input::TextInputDispatchResult> DispatchText(
         const Input::TextInput& input) noexcept;
-    Base::Result<std::uint32_t> AdvanceTime(
-        std::uint32_t elapsedMilliseconds) noexcept;
-    Base::Result<std::uint32_t> AdvanceAnimationTime(
-        std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<void> SetRenderEndpoint(
         Base::Ref<Integration::RenderEndpoint> endpoint,
         bool automaticAnimationClock = true) noexcept;
 
     const Base::Ref<Base::Object>& Root() const noexcept;
-    Base::Object* FindNamedObject(
-        Base::StringView name,
-        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
-    std::uint32_t NamedObjectCount() const noexcept;
-
-    template<class T>
-    T* FindNamed(Base::StringView name) noexcept {
-        return static_cast<T*>(
-            FindNamedObject(name, T::StaticTypeId()));
-    }
 
 private:
     friend class RuntimeEnvironment;
     friend class Aero::Detail::ViewAccess;
+    friend class Aero::Markup::XamlReader;
     friend class Integration::ReloadCoordinator;
     template<class T, class... Args>
     friend Base::Result<Base::Ref<T>>
@@ -223,6 +196,25 @@ private:
         Args&&...) noexcept;
 
     struct Impl;
+    Base::Result<UiDocument> LoadDocument(
+        Base::StringView uri,
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<UiDocument> ParseDocument(
+        Base::StringView source,
+        const Base::ResourceUri& baseUri = {},
+        Core::IDiagnosticSink* diagnostics = nullptr) noexcept;
+    Base::Result<UiDocument> LoadCompiledDocument(
+        Base::Span<const std::uint8_t> bytes,
+        const Base::ResourceUri& originUri = {}) noexcept;
+    Base::Result<void> AddSourceProvider(
+        Integration::ISourceProvider& provider,
+        Base::StringView scheme = {},
+        Base::StringView assembly = {}) noexcept;
+    Base::Result<ViewFrameResult> ExecuteFrame() noexcept;
+    Base::Result<std::uint32_t> AdvanceClocks(
+        std::uint32_t elapsedMilliseconds) noexcept;
+    Base::Result<std::uint32_t> AdvanceAnimations(
+        std::uint32_t elapsedMilliseconds) noexcept;
     Base::Result<void> Initialize(
         const Integration::ViewOptions& options) noexcept;
     void* InternalState() noexcept;

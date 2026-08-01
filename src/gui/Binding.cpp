@@ -1125,12 +1125,12 @@ void BindingManager::OnPropertyChanged(
     for (BindingRecord& record : bindings_) {
         if (record.sourceKind == BindingSourceKind::DependencyProperty &&
             record.descriptor.source == &object &&
-            record.descriptor.sourceProperty == args.property) {
+            record.descriptor.sourceProperty == args.GetProperty()) {
             record.sourceDirty = true;
         }
         if (record.sourceKind == BindingSourceKind::DataContext &&
             record.descriptor.target == &object &&
-            record.dataContextProperty == args.property) {
+            record.dataContextProperty == args.GetProperty()) {
             ReleaseMetadataSource(record);
             record.metadataSource = nullptr;
             record.pathPlan = {};
@@ -1138,7 +1138,7 @@ void BindingManager::OnPropertyChanged(
             record.applied = false;
         }
         if (record.descriptor.target == &object &&
-            record.descriptor.targetProperty == args.property) {
+            record.descriptor.targetProperty == args.GetProperty()) {
             record.targetDirty = true;
         }
     }

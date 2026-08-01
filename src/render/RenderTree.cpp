@@ -434,12 +434,12 @@ Base::Result<void> FrameworkElement::OnPropertyInvalidated(
     Base::Result<void> layout = UIElement::OnPropertyInvalidated(flags);
     if (!layout) return layout;
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        return InvalidateRender();
+        return InvalidateVisual();
     }
     return {};
 }
 
-Base::Result<void> FrameworkElement::InvalidateRender() noexcept {
+Base::Result<void> FrameworkElement::InvalidateVisual() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
         return access;
@@ -633,7 +633,7 @@ RenderTree::~RenderTree() noexcept {
     }
     if (root_ != nullptr && dispatcher_->CheckAccess()) {
         auto clear = [&](auto&& self, FrameworkElement& element) noexcept -> void {
-            for (FrameworkElement* child : element.GetRenderChildren()) {
+            for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
                 self(self, *child);
             }
             element.renderAttached_ = false;
@@ -698,7 +698,7 @@ Base::Result<void> RenderTree::SetRoot(
         if (root_ != nullptr) {
             auto clear = [&](auto&& self,
                              FrameworkElement& element) noexcept -> void {
-                for (FrameworkElement* child : element.GetRenderChildren()) {
+                for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
                     self(self, *child);
                 }
                 RemoveQueued(element);
@@ -756,7 +756,7 @@ Base::Result<void> RenderTree::Attach(
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this ||
         child.renderRuntime_ != nullptr || child.renderAttached_ ||
-        child.GetRenderParent() != &parent) {
+        Aero::Detail::FrameworkElementAccess::RenderParent(child) != &parent) {
         return InvalidState(
             "Render attachment must match the visual-tree parent");
     }
@@ -773,7 +773,7 @@ Base::Result<void> RenderTree::Attach(
     std::uint32_t required = 1U;
     for (FrameworkElement* current = &parent; current != nullptr;
          current = current->renderAttached_
-             ? current->GetRenderParent() : nullptr) {
+             ? Aero::Detail::FrameworkElementAccess::RenderParent(*current) : nullptr) {
         if (!current->renderQueued_) ++required;
     }
     Base::Result<void> reserved =
@@ -801,7 +801,7 @@ Base::Result<void> RenderTree::Detach(
     Base::Result<void> verified = VerifyElement(parent);
     if (!verified) return verified.GetStatus();
     if (parent.renderRuntime_ != this || !child.renderAttached_ ||
-        child.GetRenderParent() != &parent ||
+        Aero::Detail::FrameworkElementAccess::RenderParent(child) != &parent ||
         child.renderRuntime_ != this) {
         return NotFound(
             "Render parent-child relationship was not found");
@@ -812,7 +812,7 @@ Base::Result<void> RenderTree::Detach(
 
     auto clear = [&](auto&& self,
                      FrameworkElement& element) noexcept -> void {
-        for (FrameworkElement* descendant : element.GetRenderChildren()) {
+        for (FrameworkElement* descendant : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
             self(self, *descendant);
         }
         RemoveQueued(element);
@@ -858,7 +858,7 @@ void RenderTree::MarkCommittedSubtree(
     ++element.renderRevision_;
     element.renderValid_ = true;
     element.renderQueued_ = false;
-    for (FrameworkElement* child : element.GetRenderChildren()) {
+    for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
         MarkCommittedSubtree(*child);
     }
 }
@@ -875,7 +875,7 @@ Base::Result<void> RenderTree::Invalidate(
     Base::Vector<FrameworkElement*> path;
     for (FrameworkElement* current = &element; current != nullptr;
          current = current->renderAttached_
-             ? current->GetRenderParent() : nullptr) {
+             ? Aero::Detail::FrameworkElementAccess::RenderParent(*current) : nullptr) {
         Base::Result<void> currentVerified = VerifyElement(*current);
         if (!currentVerified) return currentVerified.GetStatus();
         Base::Result<void> appended = path.TryPushBack(current);
@@ -1126,7 +1126,7 @@ Base::Result<void> RenderTree::BuildSubtree(
     }
 
     if (!visible) return {};
-    for (FrameworkElement* child : element.GetRenderChildren()) {
+    for (FrameworkElement* child : Aero::Detail::FrameworkElementAccess::RenderChildren(element)) {
         if (IsOverlay(*child)) continue;
         Base::Result<void> childResult =
             BuildSubtree(

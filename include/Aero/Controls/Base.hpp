@@ -325,19 +325,9 @@ public:
     }
     Base::Ref<Aero::Media::Brush>
     ForegroundBrush() const noexcept {
-        Base::Ref<Aero::Media::Brush> brush =
-            GetValueOr(
+        return GetValueOr(
             ForegroundProperty,
             Base::Ref<Aero::Media::Brush>{});
-        const FrameworkElement* parent =
-            GetRenderParent();
-        while (!brush && parent != nullptr) {
-            brush = parent->GetValueOr(
-                ForegroundProperty,
-                Base::Ref<Aero::Media::Brush>{});
-            parent = parent->GetRenderParent();
-        }
-        return brush;
     }
     Base::Result<void> SetForeground(
         Aero::Media::Color value) noexcept {

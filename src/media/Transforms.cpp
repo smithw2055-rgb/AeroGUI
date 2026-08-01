@@ -153,7 +153,7 @@ Base::Result<void> Transform::OnPropertyInvalidated(
     if (owner == nullptr) return {};
     return HasOwnerRole(TransformOwnerRole::Layout)
         ? owner->InvalidateMeasure()
-        : owner->InvalidateRender();
+        : owner->InvalidateVisual();
 }
 
 double TranslateTransform::X() const noexcept {
@@ -299,7 +299,7 @@ Base::Result<void> TransformGroup::TryAddChild(
     if (owner == nullptr) return {};
     return HasOwnerRole(TransformOwnerRole::Layout)
         ? owner->InvalidateMeasure()
-        : owner->InvalidateRender();
+        : owner->InvalidateVisual();
 }
 
 Base::Result<void> TransformGroup::ClearChildren() noexcept {
@@ -321,7 +321,7 @@ Base::Result<void> TransformGroup::ClearChildren() noexcept {
     if (owner == nullptr) return {};
     return HasOwnerRole(TransformOwnerRole::Layout)
         ? owner->InvalidateMeasure()
-        : owner->InvalidateRender();
+        : owner->InvalidateVisual();
 }
 
 void TransformGroup::SetOwner(FrameworkElement* owner) noexcept {

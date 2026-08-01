@@ -2,19 +2,19 @@
 
 - **状态**：Runtime Vertical Slice / M3.5 in progress
 - **语言**：C++17-only
-- **生产 renderer**：AeroGraphics native GPU / WebGL 2；不支持 Skia
+- **生产 renderer**：native RenderDevice backends / WebGL 2；不支持 Skia
 
 当前已验证基线：
 
 - M0/M1 的架构、Foundation、Core、ABI 和严格 C++17 构建约束已落地主线；
-- M2 的 runtime XAML、布局、RenderTransaction/RenderFrame、AeroGraphics_Null 与 Windows D3D11/WARP 垂直切片已落地；
+- M2 的 runtime XAML、布局、RenderFrame、Null RenderDevice 与 Windows D3D11/WARP 垂直切片已落地；
 - M3 的 Binding/DataContext、Style/ControlTemplate、compiled XAML document、module SDK 和 `aero-xamlc` 已落地；
 - compiled document encoding 固定为 v1，compiled cache format 固定为 v7；
 - Debug/Release 与 static/shared 由 CI 矩阵覆盖，`aero-xamlc --check` smoke test 作为 CTest 正式执行；
 - M3.5 文本垂直切片已完成 provider-neutral `AeroText` 合同、FreeType/HarfBuzz adapter、glyph atlas、TextLayout 与 atlas-backed TextBlock/D3D11 接入；完整 Unicode line breaking/bidi 仍是后续增量；
 - Command、统一交互状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton 与 Generic/Light/Dark 主题已完成并有 XAML/交互回归；
 - ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox 与 recycling VirtualizingStackPanel 基线已完成，10k realization-window benchmark 已进入 CTest；
-- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、state cache、完整 AeroGraphics 资源/提交/GLsync/读回/外部导入，以及 Windows/WGL 和 Linux/X11/GLX owned/borrowed context/surface 切片已完成，并由 fake-GL 与 hidden-window 真 WGL/GLX conformance 覆盖；backend-neutral RenderFrame lowering 已接入 GLSL 330，D3D11/WARP、WGL 与 GLX 共用固定计划 hash、rectangle/image/mesh/glyph 像素 fixture，并验证 borrowed GL host state 恢复。TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
+- OpenGL 3.3 的 host-injected function table、Core Profile/线程/context-generation 合同、state cache、完整 RenderDevice 资源/提交/GLsync/读回/外部导入，以及 Windows/WGL 和 Linux/X11/GLX owned/borrowed context/surface 切片已完成，并由 fake-GL 与 hidden-window 真 WGL/GLX conformance 覆盖；backend-neutral RenderFrame lowering 已接入 GLSL 330，D3D11/WARP、WGL 与 GLX 共用固定计划 hash、rectangle/image/mesh/glyph 像素 fixture，并验证 borrowed GL host state 恢复。TextBox/IME、ControlGallery 和最终质量门禁仍待完成。
 
 ## 1. Diagnostics
 
@@ -173,7 +173,7 @@ AERO_PROFILE_PORTABLE
   exceptions API off
   RTTI dependency off
   all optional dependencies off
-  AeroGraphics_Null
+  Null RenderDevice
 
 AERO_PROFILE_GENERIC
   C++17
@@ -251,7 +251,7 @@ Unit tests 覆盖：
 - layout algorithms；
 - event route；
 - collection notification batch；
-- RenderTransaction apply/merge/replay。
+- RenderFrame commit/validate/replay。
 
 Windows 上维护独立 C# WPF probe：
 
@@ -288,9 +288,9 @@ Windows 上维护独立 C# WPF probe：
 
 ## 11. Render 与 graphics layer 测试分层
 
-1. Scene/RenderTransaction structural tests；
+1. RenderTree/RenderFrame structural tests；
 2. RenderFrame snapshot；
-3. `AeroGraphics_Null` validation；
+3. `Null RenderDevice` validation；
 4. common graphics backend conformance；
 5. geometry/glyph placement snapshots；
 6. native/WebGL pixel tests；
@@ -461,7 +461,7 @@ Fuzz targets：
 - geometry parser/tessellator；
 - font table/provider wrapper；
 - compiled XAML decoder；
-- RenderTransaction decoder；
+- RenderFrame decoder；
 - RenderFrame validator；
 - shader metadata/package decoder；
 - Web/GL capability manifest parser。
@@ -523,7 +523,7 @@ Fuzz targets：
 - XAML loader 限制 depth、objects、strings、attributes 和 resources；
 - URI provider 默认禁止 network；Web fetch 由 host policy 显式允许；
 - compiled XAML 校验 offset/length/version；
-- RenderTransaction/RenderFrame decoder 不信任输入；
+- RenderFrame decoder 不信任输入；
 - 处理 integer overflow、NaN、Infinity 和超大 geometry；
 - image/font/XML/tessellation provider 位于隔离边界；
 - markup extension 可被 policy 禁用；
@@ -580,7 +580,7 @@ Fuzz targets：
 - runtime XAML、StaticResource、NameScope；
 - Visual/UIElement/FrameworkElement；
 - Canvas/StackPanel/Grid/Border/TextBlock；
-- RenderTransaction、RenderFrame、AeroGraphics_Null；
+- RenderFrame、Null RenderDevice；
 - 第一个 strategic 或 compatibility GPU backend；
 - XAML → layout → GPU image sample。
 
@@ -631,8 +631,8 @@ Fuzz targets：
 13. Implement IXmlTokenizer + Expat adapter；
 14. Implement XAML node interfaces；
 15. Implement Visual/UIElement layout skeleton；
-16. Implement RenderTransaction/RenderFrame；
-17. Implement AeroGraphics_Null；
+16. Implement RenderFrame；
+17. Implement Null RenderDevice；
 18. Implement first strategic backend；
 19. Implement D3D11 FL10_0 compatibility backend；
 20. Implement GL3.3 core backend and state contract；
@@ -643,6 +643,6 @@ Fuzz targets：
 25. Integrate optional Ryu；
 26. Prototype FreeType/HarfBuzz provider；
 27. Evaluate/fuzz optional libtess2；
-28. Add optional sokol adapter only after AeroGraphics contract stabilizes。
+28. Add optional sokol adapter only after RenderDevice contract stabilizes。
 
-任何 control Issue 必须依赖相应 Foundation/Core/UI semantics 任务；任何 backend Issue 必须依赖 RenderFrame 与 AeroGraphics contract。
+任何 control Issue 必须依赖相应 Foundation/Core/UI semantics 任务；任何 backend Issue 必须依赖 RenderFrame 与 RenderDevice contract。

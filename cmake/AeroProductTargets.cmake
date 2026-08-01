@@ -1,6 +1,7 @@
-# Public Integration/App products and SDK dependency checks.
+# Integration folds View runtime, rendering, text providers and schema
+# composition into one product binary. App layers only the default desktop
+# lifetime and OS window implementation over that product.
 set(_aero_integration_sources
-    src/integration/HostedGraphics.cpp
     src/integration/OpenGL33Endpoint.cpp
     src/integration/SourceProvider.cpp
     src/platform/Clipboard.cpp)
@@ -12,15 +13,35 @@ endif()
 add_library(AeroIntegration ${AERO_LIBRARY_TYPE}
     ${_aero_integration_sources})
 add_library(Aero::Integration ALIAS AeroIntegration)
+target_sources(AeroIntegration PRIVATE
+    $<TARGET_OBJECTS:AeroAppModelObjects>
+    $<TARGET_OBJECTS:AeroModuleCatalogObjects>
+    $<TARGET_OBJECTS:AeroTextFreeTypeObjects>
+    $<TARGET_OBJECTS:AeroTextHarfBuzzObjects>
+    $<TARGET_OBJECTS:AeroRuntimeObjects>
+    $<TARGET_OBJECTS:AeroRenderingObjects>)
 target_include_directories(AeroIntegration
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroIntegration
-    PUBLIC AeroRuntime
-    PRIVATE Aero::_DetailRendering)
+    PUBLIC Aero::Gui
+    PRIVATE freetype harfbuzz)
+if(AERO_ENABLE_WGL_SURFACE)
+    target_link_libraries(AeroIntegration PRIVATE
+        gdi32 opengl32 user32)
+endif()
+if(AERO_ENABLE_GLX_SURFACE)
+    target_link_libraries(AeroIntegration PRIVATE
+        X11::X11 OpenGL::GL Threads::Threads)
+endif()
+if(AERO_ENABLE_D3D11_BACKEND)
+    target_link_libraries(AeroIntegration PRIVATE
+        d3d11 dxgi d3dcompiler)
+endif()
 target_compile_definitions(AeroIntegration PRIVATE
     AERO_HAS_WGL_SURFACE=$<BOOL:${AERO_ENABLE_WGL_SURFACE}>
     AERO_HAS_GLX_SURFACE=$<BOOL:${AERO_ENABLE_GLX_SURFACE}>)
@@ -43,22 +64,13 @@ add_library(AeroD3D11IntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/D3D11IntegrationConsumer.cpp)
 target_link_libraries(
     AeroD3D11IntegrationHeaderConsumer PRIVATE Aero::Integration)
-aero_apply_compiler_options(
-    AeroD3D11IntegrationHeaderConsumer)
+aero_apply_compiler_options(AeroD3D11IntegrationHeaderConsumer)
 
 add_library(AeroOpenGL33IntegrationHeaderConsumer OBJECT
     tools/sdk-consumers/OpenGL33IntegrationConsumer.cpp)
 target_link_libraries(
     AeroOpenGL33IntegrationHeaderConsumer PRIVATE Aero::Integration)
-aero_apply_compiler_options(
-    AeroOpenGL33IntegrationHeaderConsumer)
-
-add_library(AeroHostedGraphicsHeaderConsumer OBJECT
-    tools/sdk-consumers/HostedGraphicsConsumer.cpp)
-target_link_libraries(
-    AeroHostedGraphicsHeaderConsumer PRIVATE Aero::Integration)
-aero_apply_compiler_options(
-    AeroHostedGraphicsHeaderConsumer)
+aero_apply_compiler_options(AeroOpenGL33IntegrationHeaderConsumer)
 
 set(_aero_app_sources
     src/app/ApplicationRun.cpp
@@ -84,10 +96,7 @@ target_include_directories(AeroApp
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroApp
-    PUBLIC
-        Aero::Integration
-        Aero::Gui
-        Aero::_DetailAppModel)
+    PUBLIC Aero::Integration Aero::Gui)
 if(WIN32)
     target_link_libraries(AeroApp PRIVATE user32 imm32)
 elseif(AERO_ENABLE_GLX_SURFACE)
@@ -115,20 +124,18 @@ add_library(AeroProductHeaderConsumer OBJECT
 target_link_libraries(AeroProductHeaderConsumer PRIVATE Aero::App)
 aero_apply_compiler_options(AeroProductHeaderConsumer)
 
-# Keep the public SDK dependency graph pointed in one direction. The runtime
-# owns no GPU backend, while Meta remains a header-only authoring facade.
-get_target_property(_aero_runtime_links AeroRuntime LINK_LIBRARIES)
-if("${_aero_runtime_links}" MATCHES
-        "(^|;)(Aero::_DetailRendering|AeroRendering|Aero::_DetailGraphics|Aero::_DetailRender|AeroGraphics|AeroRender)")
+# Product dependency direction is intentionally short and public.
+get_target_property(_aero_integration_links
+    AeroIntegration LINK_LIBRARIES)
+if("${_aero_integration_links}" MATCHES
+        "Aero(Runtime|Rendering|ModuleCatalog|AppModel|Controls|Markup|GuiKernel)")
     message(FATAL_ERROR
-        "AeroRuntime must not link the rendering implementation target")
+        "Integration must fold internal object components, not link support binaries")
 endif()
-get_target_property(
-    _aero_meta_links AeroMeta INTERFACE_LINK_LIBRARIES)
-if("${_aero_meta_links}" MATCHES
-        "(^|;)(AeroModuleCatalog|Aero::_DetailModuleCatalog)(;|$)")
-    message(FATAL_ERROR
-        "AeroMeta must not link the ModuleCatalog implementation")
+get_target_property(_aero_meta_links
+    AeroMeta INTERFACE_LINK_LIBRARIES)
+if(NOT "${_aero_meta_links}" STREQUAL "Aero::Gui")
+    message(FATAL_ERROR "AeroMeta must remain a Gui-only authoring facade")
 endif()
-unset(_aero_runtime_links)
+unset(_aero_integration_links)
 unset(_aero_meta_links)

@@ -1,7 +1,7 @@
 # Private retained renderer, render device, native backends and surface adapters.
 # One binary owns this implementation graph; backend-specific classes remain
 # private source domains rather than separately installed support libraries.
-add_library(AeroRendering ${AERO_LIBRARY_TYPE}
+add_library(AeroRenderingObjects OBJECT
     src/render/RenderDevice.cpp
     src/render/RenderDeviceResources.cpp
     src/render/Surface.cpp
@@ -12,43 +12,26 @@ add_library(AeroRendering ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33StateCache.cpp
     src/render/opengl33/OpenGL33Renderer.cpp)
 
-add_library(Aero::_DetailRendering ALIAS AeroRendering)
 
-target_include_directories(AeroRendering
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-
-target_link_libraries(AeroRendering
-    PUBLIC
-        Aero::_DetailGuiKernel
-        Aero::Base)
-target_compile_features(AeroRendering PUBLIC cxx_std_17)
-target_compile_definitions(AeroRendering PUBLIC
+aero_configure_internal_objects(AeroRenderingObjects)
+target_link_libraries(AeroRenderingObjects PUBLIC
+    AeroGuiKernelObjects Aero::Base)
+target_compile_definitions(AeroRenderingObjects PRIVATE
     AERO_HAS_OPENGL33_BACKEND=1)
-set_target_properties(AeroRendering PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroRendering)
 
 if(AERO_ENABLE_WGL_SURFACE)
     if(NOT WIN32)
         message(FATAL_ERROR
             "AERO_ENABLE_WGL_SURFACE is only supported on Windows")
     endif()
-    target_sources(AeroRendering PRIVATE
+    target_sources(AeroRenderingObjects PRIVATE
         src/platform/win32/OpenGLSurface.cpp)
-    target_link_libraries(AeroRendering PRIVATE
+    target_link_libraries(AeroRenderingObjects PRIVATE
         gdi32 opengl32 user32)
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_WGL_SURFACE=1)
 else()
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_WGL_SURFACE=0)
 endif()
 
@@ -59,14 +42,14 @@ if(AERO_ENABLE_GLX_SURFACE)
     endif()
     find_package(X11 REQUIRED)
     find_package(OpenGL REQUIRED)
-    target_sources(AeroRendering PRIVATE
+    target_sources(AeroRenderingObjects PRIVATE
         src/platform/x11/OpenGLSurface.cpp)
-    target_link_libraries(AeroRendering PRIVATE
+    target_link_libraries(AeroRenderingObjects PRIVATE
         X11::X11 OpenGL::GL Threads::Threads)
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_GLX_SURFACE=1)
 else()
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_GLX_SURFACE=0)
 endif()
 
@@ -79,23 +62,23 @@ if(AERO_ENABLE_SOKOL_BACKEND)
         message(FATAL_ERROR
             "AERO_SOKOL_BRIDGE_SOURCE does not exist: ${AERO_SOKOL_BRIDGE_SOURCE}")
     endif()
-    target_sources(AeroRendering PRIVATE
+    target_sources(AeroRenderingObjects PRIVATE
         "${AERO_SOKOL_BRIDGE_SOURCE}")
     if(NOT AERO_SOKOL_INCLUDE_DIR STREQUAL "")
-        target_include_directories(AeroRendering PRIVATE
+        target_include_directories(AeroRenderingObjects PRIVATE
             "${AERO_SOKOL_INCLUDE_DIR}")
     endif()
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_SOKOL_BACKEND=1)
 else()
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_SOKOL_BACKEND=0)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC diagnoses a reference obtained through a temporary Span view even
     # though the view points into the longer-lived immutable RenderFrame.
-    target_compile_options(AeroRendering PRIVATE
+    target_compile_options(AeroRenderingObjects PRIVATE
         -Wno-dangling-reference)
 endif()
 
@@ -267,19 +250,19 @@ if(AERO_ENABLE_D3D11_BACKEND)
     set_property(SOURCE src/render/d3d11/D3D11Backend.cpp APPEND
         PROPERTY OBJECT_DEPENDS "${_aero_d3d11_backend_fragments}")
 
-    target_sources(AeroRendering PRIVATE
+    target_sources(AeroRenderingObjects PRIVATE
         src/render/d3d11/D3D11Backend.cpp
         src/render/d3d11/D3D11Renderer.cpp
         ${_aero_d3d11_backend_fragments})
-    add_dependencies(AeroRendering
+    add_dependencies(AeroRenderingObjects
         AeroD3D11RenderFrameShaders)
-    target_include_directories(AeroRendering PRIVATE
+    target_include_directories(AeroRenderingObjects PRIVATE
         "${_aero_d3d11_shader_directory}")
-    target_link_libraries(AeroRendering PRIVATE
+    target_link_libraries(AeroRenderingObjects PRIVATE
         d3d11 dxgi d3dcompiler)
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_D3D11_BACKEND=1)
 else()
-    target_compile_definitions(AeroRendering PUBLIC
+    target_compile_definitions(AeroRenderingObjects PRIVATE
         AERO_HAS_D3D11_BACKEND=0)
 endif()

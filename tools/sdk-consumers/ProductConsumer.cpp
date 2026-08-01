@@ -17,11 +17,11 @@ public:
 
 protected:
     void OnStartup(Aero::StartupEventArgs& args) noexcept override {
-        static_cast<void>(args.startupUri);
+        static_cast<void>(args.GetStartupUri());
     }
 
     void OnExit(Aero::ExitEventArgs& args) noexcept override {
-        static_cast<void>(args.applicationExitCode);
+        static_cast<void>(args.GetApplicationExitCode());
     }
 };
 

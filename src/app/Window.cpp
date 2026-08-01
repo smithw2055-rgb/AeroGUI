@@ -9,8 +9,27 @@ namespace Aero {
 
 Base::Result<void> Window::Show() noexcept {
     auto* state = static_cast<App::Detail::WindowRuntimeState*>(runtimeState_);
+    if (state == nullptr) {
+        Application* application = Application::Current();
+        auto* applicationState = application != nullptr
+            ? static_cast<App::Detail::ApplicationRuntimeState*>(
+                  application->runtimeState_)
+            : nullptr;
+        if (applicationState == nullptr ||
+            applicationState->showWindow == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Window.Show requires a running Application host");
+        }
+        Base::Result<void> attached =
+            applicationState->showWindow(applicationState->context, *this);
+        if (!attached) return attached.GetStatus();
+        state = static_cast<App::Detail::WindowRuntimeState*>(runtimeState_);
+    }
     if (state == nullptr || state->show == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState, "Window is not attached to an application host");
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Window is not attached to an application host");
     }
     Base::Result<void> shown = state->show(state->context);
     if (shown) {
@@ -39,7 +58,7 @@ void Window::Close() noexcept {
     if (closed_) return;
     CancelEventArgs closing;
     OnClosing(closing);
-    if (closing.cancel) return;
+    if (closing.GetCancel()) return;
     auto* state = static_cast<App::Detail::WindowRuntimeState*>(runtimeState_);
     if (state != nullptr && state->close != nullptr) state->close(state->context);
     NotifyClosed();

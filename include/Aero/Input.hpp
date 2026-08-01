@@ -138,25 +138,57 @@ private:
 
 struct CanExecuteRoutedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(CanExecuteRoutedEventArgs, RoutedEventArgs)
+public:
     CanExecuteRoutedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
 
-    RoutedCommand* command = nullptr;
-    Core::Value parameter;
-    UIElement* target = nullptr;
-    mutable bool canExecute = false;
-    mutable bool continueRouting = true;
+    RoutedCommand* GetCommand() const noexcept { return command_; }
+    void SetCommand(RoutedCommand* value) noexcept { command_ = value; }
+    const Core::Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Core::Value value) noexcept {
+        parameter_ = std::move(value);
+    }
+    UIElement* GetTarget() const noexcept { return target_; }
+    void SetTarget(UIElement* value) noexcept { target_ = value; }
+    bool GetCanExecute() const noexcept { return canExecute_; }
+    void SetCanExecute(bool value) noexcept { canExecute_ = value; }
+    bool GetContinueRouting() const noexcept { return continueRouting_; }
+    void SetContinueRouting(bool value) noexcept {
+        continueRouting_ = value;
+    }
+
+private:
+    RoutedCommand* command_ = nullptr;
+    Core::Value parameter_;
+    UIElement* target_ = nullptr;
+    bool canExecute_ = false;
+    bool continueRouting_ = true;
 };
 
 struct ExecutedRoutedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(ExecutedRoutedEventArgs, RoutedEventArgs)
+public:
     ExecutedRoutedEventArgs() noexcept
         : RoutedEventArgs(StaticTypeId()) {}
 
-    RoutedCommand* command = nullptr;
-    Core::Value parameter;
-    UIElement* target = nullptr;
-    mutable bool continueRouting = true;
+    RoutedCommand* GetCommand() const noexcept { return command_; }
+    void SetCommand(RoutedCommand* value) noexcept { command_ = value; }
+    const Core::Value& GetParameter() const noexcept { return parameter_; }
+    void SetParameter(Core::Value value) noexcept {
+        parameter_ = std::move(value);
+    }
+    UIElement* GetTarget() const noexcept { return target_; }
+    void SetTarget(UIElement* value) noexcept { target_ = value; }
+    bool GetContinueRouting() const noexcept { return continueRouting_; }
+    void SetContinueRouting(bool value) noexcept {
+        continueRouting_ = value;
+    }
+
+private:
+    RoutedCommand* command_ = nullptr;
+    Core::Value parameter_;
+    UIElement* target_ = nullptr;
+    bool continueRouting_ = true;
 };
 
 using CanExecuteRoutedEventHandler = Base::Delegate<void(

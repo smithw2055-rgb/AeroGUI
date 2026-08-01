@@ -137,7 +137,7 @@ void ContentElement::InvokeHandlers(
          ++index) {
         const RoutedHandlerRecord record = state->handlers[index];
         if (record.event == event &&
-            (!args.handled || record.handledEventsToo)) {
+            (!args.GetHandled() || record.handledEventsToo)) {
             record.handler.Invoke(this, args);
         }
     }

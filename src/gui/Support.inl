@@ -666,16 +666,16 @@ Base::Result<void> AddFrameworkEventTrigger(
             Base::ErrorCode::InvalidArgument,
             "FrameworkElement EventTrigger cannot be retained");
     }
-    return static_cast<FrameworkElement&>(owner)
-        .TryAddAuthoredTrigger(
-            Base::Ref<Base::Object>(std::move(retained)));
+    return Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+        static_cast<FrameworkElement&>(owner),
+        Base::Ref<Base::Object>(std::move(retained)));
 }
 
 Base::Result<void> ClearFrameworkEventTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<FrameworkElement&>(owner)
-        .ClearAuthoredTriggers();
+    return Aero::Detail::FrameworkElementAccess::ClearAuthoredTriggers(
+        static_cast<FrameworkElement&>(owner));
 }
 
 Base::Result<void> AddStoryboardTimeline(
@@ -1067,15 +1067,15 @@ Base::Result<void> AddInteractionTrigger(
             Base::ErrorCode::InvalidArgument,
             "Interaction trigger cannot be null");
     }
-    return static_cast<FrameworkElement&>(owner)
-        .TryAddAuthoredTrigger(value);
+    return Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+        static_cast<FrameworkElement&>(owner), value);
 }
 
 Base::Result<void> ClearInteractionTriggers(
     Base::Object& owner,
     void*) noexcept {
-    return static_cast<FrameworkElement&>(owner)
-        .ClearAuthoredTriggers();
+    return Aero::Detail::FrameworkElementAccess::ClearAuthoredTriggers(
+        static_cast<FrameworkElement&>(owner));
 }
 
 Base::Result<void> SetBeginStoryboardContent(
@@ -1131,7 +1131,7 @@ void OnRenderTransformChanged(
         static_cast<UIElement&>(object).AsFrameworkElement();
     if (owner == nullptr) return;
     Base::Result<Base::Ref<Transform>> oldTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(args.oldValue);
+        ValueCodec<Base::Ref<Transform>>::Decode(args.GetOldValue());
     if (oldTransform && oldTransform.Value() &&
         oldTransform.Value()->Owner() == owner) {
         oldTransform.Value()->DetachOwner(
@@ -1139,7 +1139,7 @@ void OnRenderTransformChanged(
             TransformOwnerRole::Render);
     }
     Base::Result<Base::Ref<Transform>> newTransform =
-        ValueCodec<Base::Ref<Transform>>::Decode(args.newValue);
+        ValueCodec<Base::Ref<Transform>>::Decode(args.GetNewValue());
     if (newTransform && newTransform.Value()) {
         newTransform.Value()->AttachOwner(
             owner,
@@ -1156,7 +1156,7 @@ void OnLayoutTransformChanged(
     if (owner == nullptr) return;
     Base::Result<Base::Ref<Transform>> oldTransform =
         ValueCodec<Base::Ref<Transform>>::Decode(
-            args.oldValue);
+            args.GetOldValue());
     if (oldTransform &&
         oldTransform.Value() &&
         oldTransform.Value()->Owner() == owner) {
@@ -1166,7 +1166,7 @@ void OnLayoutTransformChanged(
     }
     Base::Result<Base::Ref<Transform>> newTransform =
         ValueCodec<Base::Ref<Transform>>::Decode(
-            args.newValue);
+            args.GetNewValue());
     if (newTransform && newTransform.Value()) {
         newTransform.Value()->AttachOwner(
             owner,
@@ -1182,14 +1182,14 @@ void OnEffectChanged(
     if (owner == nullptr) return;
     Base::Result<Base::Ref<Effect>> oldEffect =
         ValueCodec<Base::Ref<Effect>>::Decode(
-            args.oldValue);
+            args.GetOldValue());
     if (oldEffect && oldEffect.Value() &&
         oldEffect.Value()->Owner() == owner) {
         oldEffect.Value()->SetOwner(nullptr);
     }
     Base::Result<Base::Ref<Effect>> newEffect =
         ValueCodec<Base::Ref<Effect>>::Decode(
-            args.newValue);
+            args.GetNewValue());
     if (newEffect && newEffect.Value()) {
         newEffect.Value()->SetOwner(owner);
     }

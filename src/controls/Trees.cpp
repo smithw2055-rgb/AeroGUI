@@ -238,7 +238,7 @@ void TreeViewItem::OnExpandedChanged(
     static_cast<void>(SynchronizeTemplate());
     RoutedEventArgs event;
     static_cast<void>(RaiseEvent(
-        args.newValue.AsBoolean()
+        args.GetNewValue().AsBoolean()
             ? ExpandedEvent
             : CollapsedEvent,
         &event));
@@ -250,7 +250,7 @@ void TreeViewItem::OnSelectedChanged(
         args) noexcept {
     RoutedEventArgs event;
     static_cast<void>(RaiseEvent(
-        args.newValue.AsBoolean()
+        args.GetNewValue().AsBoolean()
             ? SelectedEvent
             : UnselectedEvent,
         &event));
@@ -549,7 +549,7 @@ void TreeViewInteractionManager::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
-    if (args.changedButton !=
+    if (args.GetChangedButton() !=
         MouseButton::Left) {
         return;
     }
@@ -558,7 +558,7 @@ void TreeViewInteractionManager::OnMouseDown(
     if (!treeView.GetIsEnabled()) return;
     TreeViewItem* item =
         FindItem(
-            treeView, args.originalSource);
+            treeView, args.GetOriginalSource());
     if (item == nullptr) return;
     Base::Result<bool> selected =
         treeView.SelectItem(item);
@@ -569,25 +569,25 @@ void TreeViewInteractionManager::OnMouseDown(
     }
     static_cast<void>(
         input_->SetFocus(item));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void TreeViewInteractionManager::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
-    if (args.key != KeyboardKeyUp &&
-        args.key != KeyboardKeyDown &&
-        args.key != KeyboardKeyLeft &&
-        args.key != KeyboardKeyRight &&
-        args.key != KeyboardKeyEnter &&
-        args.key != KeyboardKeySpace) {
+    if (args.GetKey() != KeyboardKeyUp &&
+        args.GetKey() != KeyboardKeyDown &&
+        args.GetKey() != KeyboardKeyLeft &&
+        args.GetKey() != KeyboardKeyRight &&
+        args.GetKey() != KeyboardKeyEnter &&
+        args.GetKey() != KeyboardKeySpace) {
         return;
     }
     auto& treeView =
         *static_cast<TreeView*>(sender);
     TreeViewItem* current =
         FindItem(
-            treeView, args.originalSource);
+            treeView, args.GetOriginalSource());
     if (current == nullptr) {
         Base::Ref<Base::Object> selected =
             treeView.SelectedItem();
@@ -602,23 +602,23 @@ void TreeViewInteractionManager::OnKeyDown(
         }
     }
     if (current == nullptr) return;
-    if (args.key == KeyboardKeyRight &&
+    if (args.GetKey() == KeyboardKeyRight &&
         current->Count() != 0U &&
         !current->IsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(true));
-        args.handled = true;
+        args.SetHandled(true);
         return;
     }
-    if (args.key == KeyboardKeyLeft &&
+    if (args.GetKey() == KeyboardKeyLeft &&
         current->IsExpanded()) {
         static_cast<void>(
             current->SetIsExpanded(false));
-        args.handled = true;
+        args.SetHandled(true);
         return;
     }
-    if (args.key == KeyboardKeyEnter ||
-        args.key == KeyboardKeySpace) {
+    if (args.GetKey() == KeyboardKeyEnter ||
+        args.GetKey() == KeyboardKeySpace) {
         if (current->Count() != 0U) {
             static_cast<void>(
                 current->SetIsExpanded(
@@ -626,7 +626,7 @@ void TreeViewInteractionManager::OnKeyDown(
         }
         static_cast<void>(
             treeView.SelectItem(current));
-        args.handled = true;
+        args.SetHandled(true);
         return;
     }
     Base::Vector<TreeViewItem*> visible;
@@ -645,11 +645,11 @@ void TreeViewInteractionManager::OnKeyDown(
     }
     if (index == UINT32_MAX) return;
     std::uint32_t target = index;
-    if (args.key == KeyboardKeyUp &&
+    if (args.GetKey() == KeyboardKeyUp &&
         target > 0U) {
         --target;
     } else if (
-        args.key == KeyboardKeyDown &&
+        args.GetKey() == KeyboardKeyDown &&
         target + 1U < visible.Size()) {
         ++target;
     } else {
@@ -659,7 +659,7 @@ void TreeViewInteractionManager::OnKeyDown(
         treeView.SelectItem(visible[target]));
     static_cast<void>(
         input_->SetFocus(visible[target]));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 } // namespace Aero::Detail

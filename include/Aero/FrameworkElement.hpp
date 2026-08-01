@@ -13,6 +13,11 @@
 
 #include <cstdint>
 
+
+namespace Aero::Detail {
+class FrameworkElementAccess;
+}
+
 namespace Aero {
 
 using namespace Aero::Core;
@@ -97,14 +102,7 @@ public:
     const FrameworkElement* AsFrameworkElement() const noexcept override {
         return this;
     }
-    FrameworkElement* GetRenderParent() const noexcept {
-        Visual* parent = GetVisualParent();
-        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
-    }
     DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
-    FrameworkElementChildRange GetRenderChildren() const noexcept {
-        return FrameworkElementChildRange(*this);
-    }
 
     bool GetUseLayoutRounding() const noexcept;
     double GetDpiScale() const noexcept { return dpiScale_; }
@@ -127,18 +125,12 @@ public:
     Base::Transform2D GetLocalVisualTransform() const noexcept;
     Base::Result<Base::Ref<Base::Object>> GetDataContextResult() const noexcept;
     Base::StringView GetFontFamily() const noexcept {
-        Base::StringView family = GetValueOr(
-            FontFamilyProperty, Base::StringView{});
-        const FrameworkElement* parent =
-            GetRenderParent();
-        while (family.Empty() &&
-               parent != nullptr) {
-            family = parent->GetValueOr(
-                FontFamilyProperty,
-                Base::StringView{});
-            parent = parent->GetRenderParent();
-        }
-        return family;
+        return GetValueOr(FontFamilyProperty, Base::StringView{});
+    }
+    Base::Object* FindName(Base::StringView name) noexcept;
+    template<class T>
+    T* FindName(Base::StringView name) noexcept {
+        return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
     ResourceDictionary& GetResources() noexcept {
         return resources_;
@@ -205,35 +197,13 @@ public:
         return SetValue(FontFamilyProperty, value);
     }
     Base::Result<void> ClearDataContext() noexcept;
-    Base::Result<void> SetTemplatedParent(
-        DependencyObject* value) noexcept {
-        Base::Result<void> access = VerifyAccess();
-        if (!access) return access.GetStatus();
-        templatedParent_ = value;
-        return {};
-    }
     Base::Result<void> SetHorizontalAlignment(
         HorizontalAlignment value) noexcept;
     Base::Result<void> SetVerticalAlignment(
         VerticalAlignment value) noexcept;
     Base::Result<void> SetLayoutTransform(
         Base::Ref<Media::Transform> value) noexcept;
-    Base::Result<void> TryAddAuthoredTrigger(
-        Base::Ref<Base::Object> trigger) noexcept;
-    Base::Result<void> ClearAuthoredTriggers() noexcept;
-    Base::Span<const Base::Ref<Base::Object>>
-    AuthoredTriggers() const noexcept {
-        return {
-            authoredTriggers_.Data(),
-            authoredTriggers_.Size()};
-    }
-
-    Base::RenderNodeId NodeId() const noexcept { return nodeId_; }
-    bool IsRenderValid() const noexcept { return renderValid_; }
-    std::uint64_t RenderRevision() const noexcept {
-        return renderRevision_;
-    }
-    Base::Result<void> InvalidateRender() noexcept;
+    Base::Result<void> InvalidateVisual() noexcept;
 
 protected:
     virtual std::uint32_t GetLogicalChildrenCountCore() const noexcept { return VisualTreeHelper::GetChildrenCount(*this); }
@@ -244,7 +214,40 @@ protected:
         DrawingContext& context) noexcept;
 
 private:
+    FrameworkElement* GetRenderParent() const noexcept {
+        Visual* parent = GetVisualParent();
+        return parent != nullptr ? parent->AsFrameworkElement() : nullptr;
+    }
+    FrameworkElementChildRange GetRenderChildren() const noexcept {
+        return FrameworkElementChildRange(*this);
+    }
+    Base::Result<void> SetTemplatedParent(
+        DependencyObject* value) noexcept {
+        Base::Result<void> access = VerifyAccess();
+        if (!access) return access.GetStatus();
+        templatedParent_ = value;
+        return {};
+    }
+    Base::Result<void> TryAddAuthoredTrigger(
+        Base::Ref<Base::Object> trigger) noexcept;
+    Base::Result<void> ClearAuthoredTriggers() noexcept;
+    Base::Span<const Base::Ref<Base::Object>>
+    AuthoredTriggers() const noexcept {
+        return {
+            authoredTriggers_.Data(),
+            authoredTriggers_.Size()};
+    }
+    bool IsRenderValid() const noexcept { return renderValid_; }
+    std::uint64_t RenderRevision() const noexcept {
+        return renderRevision_;
+    }
+
+    Base::Object* FindNameObject(
+        Base::StringView name,
+        Core::TypeId expectedType) noexcept;
+
     friend class LogicalTreeHelper;
+    friend class Aero::Detail::FrameworkElementAccess;
     friend class Render::RenderTree;
     void* renderRuntime_ = nullptr;
     double dpiScale_ = 1.0;

@@ -34,7 +34,7 @@ Implemented boundaries:
 20. Resource traversal and implicit keys are supplied by type facets, so the internal `Loader` does not branch on Style or Template concrete types.
 21. Markup extensions use explicit Value/Handled/Expression results, and session rollback owns extension side effects.
 22. `XamlObjectWriter` is reusable configuration while `XamlLoadSession` has its own header and owns all one-shot mutable state.
-23. `AeroMarkupKernel` is a real Core-only target for parsing and base compiled IR; UI integration remains in `AeroMarkup`.
+23. `AeroMarkupKernelObjects` is a build-only parser/compiled-IR component; UI integration remains in `AeroMarkupObjects`, and both fold into `Aero::Gui`.
 24. Built-in theme generation supports a host `aero-xamlc` and deterministic embedded-source fallback for cross builds.
 25. View-owned Style/Template application policy lives in `ViewUiServices`, not in `View::Impl`.
 

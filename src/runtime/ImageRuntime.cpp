@@ -32,7 +32,7 @@ public:
         image.pixelWidth_ = pixelWidth;
         image.pixelHeight_ = pixelHeight;
         if (measureChanged) return image.InvalidateMeasure();
-        return renderChanged ? image.InvalidateRender() : Base::Result<void>();
+        return renderChanged ? image.InvalidateVisual() : Base::Result<void>();
     }
 };
 

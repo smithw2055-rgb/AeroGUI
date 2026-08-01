@@ -8,8 +8,8 @@ AeroGUI exposes a small product surface organized by WPF semantics:
 - `Aero/App.hpp` + `Aero::App` add the optional default desktop lifetime;
   ordinary C++ applications call `Aero::Application::Run()`, while
   `Aero::App::Run()` is reserved for generated `App.xaml` bootstrap code.
-- `Aero/Integration.hpp` + `Aero::Integration` provide explicit embedding,
-  renderer-endpoint and native-host integration.
+- `Aero/Integration.hpp` + `Aero::Integration` provide explicit View,
+  renderer-device and native-host integration.
 - `Aero/Meta.hpp` / `Aero/Module.hpp` + `Aero::Meta` provide typed custom-type
   and module authoring.
 
@@ -17,9 +17,8 @@ Legacy host facades, service locators, graphics support targets and runtime
 manager classes are implementation details. The installed tree is an explicit
 whitelist, has no `Aero/Detail` directory, and groups all standard controls into
 six stable family headers. D3D11 and OpenGL factories remain opt-in headers
-under `Aero/Integration`; third-party graphics backends use the versioned
-C-compatible `Aero/Integration/HostedGraphics.hpp` contract. See
-[`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
+under `Aero/Integration`; private backends consume the same Renderer and
+RenderDevice contracts. See [`docs/WINDOW_HOSTING.md`](docs/WINDOW_HOSTING.md),
 [`docs/SDK_PACKAGING.md`](docs/SDK_PACKAGING.md), and
 [`docs/spec/PUBLIC_HEADER_MODEL.md`](docs/spec/PUBLIC_HEADER_MODEL.md).
 
@@ -41,31 +40,33 @@ WPF/NoesisGUI 开发者可先阅读 [`docs/WPF_QUICK_START.md`](docs/WPF_QUICK_S
 ## 项目状态
 
 - 主线基线：M0/M1 完成，M2 的 runtime XAML → layout → D3D11 垂直切片可构建并有自动化测试。
-- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、typed metadata/module authoring、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 以 `Aero::Gui`、`Aero::App`、`Aero::Integration`、`Aero::Meta` 四个清晰入口组织公共产品面。
+- 已完成的 M3 基础：Binding/DataContext、通知驱动更新、Style/ControlTemplate/TemplateBinding/property trigger、compiled XAML document、typed metadata/module authoring、`aero-schema-gen`、manifest-driven `aero-xamlc`、共享 XAML document cache、URI 依赖图和完整文档热重载协调器；0.3 SDK 只导出 `Aero::Base`、`Aero::Gui`、`Aero::Meta`、`Aero::Integration`、`Aero::App` 与可选 `Aero::Audio` 六个产品目标。
 - 当前阶段：**M3.5 — Interactive Controls, Text and OpenGL Vertical Slice**。
-- compiled document encoding 固定为 v1，compiled cache format 固定为 v7；`aero-xamlc --check` smoke test 已纳入 CTest，并由正式 CI 执行。
+- compiled document encoding 固定为 v2，compiled cache format 固定为 v7；当前精简源码分支不携带旧 tests/samples，严格静态、shared、安装包和外部消费者构建作为结构收口门禁。
 - 已建立 `AeroText` 的 provider-neutral 合同层，并完成可独立裁剪的 FreeType provider、HarfBuzz shaper、code-point coverage 查询与显式 fallback face 链分段、provider-neutral glyph atlas、`TextLayout::ShapeAndMeasure` 基础排版、TextBlock 自动布局服务 seam，以及 atlas-backed graphics layer 上传/注册和 fence 延迟回收；固定字体测试覆盖 Latin、数字、中文、Arabic、跨字体 fallback、稳定测量、word/character wrapping、ellipsis trimming、水平对齐、行高、glyph metrics、Gray8 raster、outline、DPI、face cache/lifetime、atlas page/shelf、fence-safe reuse 和 device-loss generation，TextBlock 测试覆盖多 atlas batch、文本变更、DPI 重排，并由真实 Roboto/Mplus + FreeType/HarfBuzz 字体通过 D3D11/WARP 像素门禁。
 - 已完成交互/集合基础切片：Command、统一 hover/pressed/focus/capture 状态、键盘焦点导航、setter-based VisualStateManager、Button/RepeatButton、ToggleButton/CheckBox/RadioButton、Generic/Light/Dark 主题、ScrollViewer/ScrollBar、ItemsControl/container generator、Selector/ListBox，以及带 realization window、overscan、recycling 和 10k benchmark 的 VirtualizingStackPanel。
-- 已完成 OpenGL 3.3 基础合同、graphics layer 及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。统一的私有 `AeroRendering` 库复用 backend-neutral `Renderer` 完成 RenderFrame lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
+- 已完成 OpenGL 3.3 基础合同、RenderDevice 层及 Windows/WGL、Linux/X11/GLX 实现切片：host-injected function table、3.3 Core Profile/当前线程/context generation 验证、capability/limits 查询、完整 state cache，以及 buffer、texture、sampler、GLSL 330 pipeline、render pass、bind/draw、GLsync、readback 和外部导入；WGL/GLX adapter 支持 owned/borrowed context、native surface 配置、swap interval、resize、present 和 context recreation，并由 hidden-window 真 Core 3.3 绘制/present conformance 覆盖。统一的私有 Rendering Object 组件复用 backend-neutral `Renderer` 完成 RenderFrame lowering；D3D11/WARP、WGL 和 GLX 运行同一计划 hash、rectangle/image/mesh/glyph fixture 与像素容差门禁，borrowed GL context 另有真实 host-state 恢复验证。
 - 已完成独立 UTF-8 可编辑文本模型：gap buffer 避免逐次输入复制全文，公共位置统一使用 grapheme cluster 索引，并覆盖 caret/selection、range replacement、undo/redo、最大长度、只读模式、行模型和 UTF-8 边界诊断。
 - 已完成 TextBox 与剪贴板切片：`Text` 默认 TwoWay、UTF-8 文本输入、selection/caret 绘制、指针拖选、键盘导航与编辑、undo/redo、平台中立剪贴板、Win32 `CF_UNICODETEXT`、独立密码显示/复制策略，以及 `IScrollInfo`/ScrollViewer 接入均已有跨平台测试。
 - 已完成平台中立 IME host seam 与 Win32 Imm32 adapter：支持 composition 开始、预编辑、提交、取消和 DPI-aware candidate window；预编辑不会提前写回 Binding source，失焦、禁用、只读、宿主切换和控件销毁均安全终止 composition。
-- 已完成真实 `ControlGallery` 应用：同一份 XAML 支持 runtime/compiled 两条加载路径与等价性校验，覆盖 Light/Dark、基础控件、Binding、自定义模块和 10k recycling virtualization；Windows 可切换 D3D11/WARP 与 OpenGL 3.3/WGL，Linux 使用 OpenGL 3.3/GLX，并为两类原生后端提供 context/device-loss 恢复 smoke。
+- 历史 ControlGallery 垂直切片已用于验证 runtime/compiled XAML、主题、Binding、虚拟化与原生后端；当前精简源码分支只保留产品库、工具、主题和正式文档，不再把样例程序作为 SDK 架构的一部分。
 - 尚未完成：完整 Unicode line breaking/bidi 与最终性能/稳健性门禁。TextBlock 渲染服务已支持在 loss 后放弃旧 handles、重绑定宿主重建的 device/backend，并由下一次布局重建 atlas 与 glyph runs。
 
 ## 已确定的技术方向
 
 - Runtime、工具和测试统一使用 **C++17**；项目不要求也不采用 C++20。
-- 采用轻量、自有的 `AeroBase` 基础设施，包括 allocator、UTF-8 String、容器、Result 和 intrusive 引用计数指针。
+- 采用轻量、自有的 `Aero::Base` 基础设施，包括 allocator、UTF-8 String、容器、Result 和 intrusive 引用计数指针。
 - Runtime 公共 ABI 不暴露 STL 容器、异常、RTTI、协程或编译器专有类型。
 - 采用类似 NoesisGUI 产品定位的 **高性能、可嵌入、保留模式、原生 GPU UI 引擎**，但实现完全独立。
-- 生产渲染不使用 Skia；Renderer 与最小 RenderDevice 合同统一由私有 `AeroRendering` 实现域拥有。
+- 生产渲染不使用 Skia；Renderer 与最小 RenderDevice 合同统一由私有 Rendering 实现域拥有。
 - 战略后端：D3D12、Vulkan、Metal 和受限仓库中的游戏主机后端。
 - 正式兼容后端：D3D11、OpenGL 3.3 Core、OpenGL ES 3.0、WebGL 2。
 - GLX、EGL、WGL 是 Platform 层的 context/surface adapter，不是绘制后端。
 - WebGL 1 不进入 v1，也不作为 WebGL 2 的静默 fallback。
-- `sokol_gfx` 只作为可选 bring-up、样例或并行验证适配器，不能成为核心 graphics layer、唯一渲染后端或主机平台方案。
+- `sokol_gfx` 只作为可选 bring-up、样例或并行验证适配器，不能成为核心 RenderDevice 层、唯一渲染后端或主机平台方案。
 - FreeType 与 HarfBuzz 是内置文本管线的正式实现依赖；Expat、libtess2、Ryu 仍通过私有 provider/adapter 边界集成。第三方类型均不泄漏到公共 API。
+- GUI、Runtime、Markup、文本和 Rendering 内部域只作为构建期 Object 组件存在；安装包不导出 `_Detail` 实现目标。
+- 每个 View 的稳定服务采用一次对齐分配，避免多次小对象分配和碎片；动态 session 仍保留独立生命周期。
 
 ## 设计来源
 
@@ -119,28 +120,28 @@ AeroGUI 只吸收公开、可观察的通用设计经验：
 
 ```mermaid
 flowchart LR
-    Host[Host Application / Game Engine / Browser Host] --> Platform[AeroPlatform]
-    Host --> App[AeroApplication]
+    Host[Host Application / Game Engine / Browser Host] --> Platform[Private platform adapters]
+    Host --> App[Aero::App]
     Host --> Device[Host GPU Device / Queue / Context]
 
-    App --> Gui[AeroGui]
-    Gui --> Markup[AeroMarkup]
-    Markup --> Controls[AeroControls]
-    Controls --> Core[AeroGuiKernel]
-    Markup --> Core
-    Controls -. text services .-> Text[AeroText]
+    App --> Integration[Aero::Integration]
+    Integration --> Gui[Aero::Gui]
+    Gui --> Markup[Markup semantics]
+    Markup --> Controls[Controls semantics]
+    Controls --> Kernel[WPF semantic kernel]
+    Controls -. text services .-> Text[Text provider objects]
 
-    Core --> Base[AeroBase]
+    Kernel --> Base[Aero::Base]
     Text --> Base
     Markup --> Base
 
-    Core --> Tx[Immutable RenderFrame]
-    Tx --> Rendering[AeroRendering]
-    Device --> Rendering
+    Kernel --> Frame[Immutable RenderFrame]
+    Frame --> Renderer[Private Renderer + RenderDevice]
+    Device --> Renderer
 
-    Rendering --> Modern[D3D12 / Vulkan / Metal / Console]
-    Rendering --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
-    Rendering -. optional adapter .-> Sokol[sokol_gfx]
+    Renderer --> Modern[D3D12 / Vulkan / Metal / Console]
+    Renderer --> Compat[D3D11 / GL3.3 / GLES3 / WebGL2]
+    Renderer -. optional validation adapter .-> Sokol[sokol_gfx]
 
     Platform --> Surface[GLX / EGL / WGL / HTML Canvas]
 ```
@@ -149,33 +150,28 @@ Public C++ APIs follow the same module boundary:
 
 ```text
 Aero::Base
-  -> Aero::Core
-  -> Aero::Controls
-  -> Aero::Markup / Aero::Gui
-  -> Aero::App / Aero::Integration
+  -> Aero::Gui / Aero::Meta
+  -> Aero::Integration
+  -> Aero::App
 
 Public C++ types are organized by WPF semantics rather than build targets:
 `Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Media`,
-`Aero::Media::Animation`, `Aero::Input`, and `Aero::Markup`.
+`Aero::Media::Animation`, `Aero::Input`, `Aero::Documents`,
+`Aero::Threading` and `Aero::Markup`.
 
-Aero::Text
-  -> Aero::Base
+Text providers and GPU backends are folded into product binaries and are not
+separate installed Aero targets.
 ```
 
-`Aero::Text` 是独立的 provider 合同层，不依赖 Core、UI runtime、Controls、Markup、Render 或 graphics layer。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
+`Aero::Text` 是私有构建域中的 provider 合同层，不依赖 Controls、Markup、View runtime 或 GPU backend。FreeType/HarfBuzz adapter 只实现这些合同；第三方 handle、enum 和 struct 不进入公共头。
 
 仓库通过 `third_party/freetype` 与 `third_party/harfbuzz` submodule 固定内置文本依赖；首次检出后运行 `git submodule update --init --recursive`。CMake 默认使用该目录，也可通过 `AERO_THIRD_PARTY_ROOT` 指向其他同时包含官方 FreeType `freetype/` 与 HarfBuzz `harfbuzz/` 源码树的目录；FreeType 不需要额外提供定制 `freetype.c`。FreeType 与 HarfBuzz 作为 View runtime 的内置文本依赖；宿主只在 `Integration::ViewOptions::text` 中提供字体族、fallback、语言和默认字号等安全值，View 创建时复制这些配置，不接收自定义字体 provider、shaper、layout service 或 glyph registry。
 
-Core metadata and property-system headers live under
-`Aero/Core/Metadata` and `Aero/Core/Property`. UI semantics are grouped under
-`Aero`, `Aero::Data`, `Aero::Input`, and `Aero::Media`; controls retain their
-own public include and source directories. Legacy `Aero/Core/*.hpp`
-forwarding paths and old namespace aliases are not provided; callers must use
-the owning module's public include path and namespace.
+Metadata authoring remains an explicit advanced surface under `Aero::Meta`. Normal UI semantics are grouped under `Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Input`, `Aero::Media`, `Aero::Documents` and `Aero::Threading`; callers use the owning WPF-shaped public header rather than internal repository paths.
 
 ## AeroBase 基础设施
 
-Runtime 不以 STL 类型作为公共数据模型。`AeroBase` 至少提供：
+Runtime 不以 STL 类型作为公共数据模型。`Aero::Base` 至少提供：
 
 ```text
 Allocator / MemoryTag / OutOfMemoryHandler
@@ -215,9 +211,8 @@ Pump platform/browser events
  -> Dispatch input and commands
  -> Update bindings and animations
  -> Measure / Arrange
- -> Build immutable RenderTransaction
- -> Apply transaction in render domain
- -> Build RenderFrame, passes and batches
+ -> Commit immutable RenderFrame
+ -> Plan passes and batches in Renderer
  -> Record native GPU/WebGL commands
  -> Submit / present / return to browser host
 ```
@@ -226,7 +221,7 @@ UI 线程之外不得读写可变 UI 对象。渲染域只接收不可变事务�
 
 ## 原生 GPU 渲染
 
-`AeroRendering` 是一个私有实现域：其中 retained `RenderTree` 和 immutable
+Rendering 是一个私有实现域：其中 retained `RenderTree` 和 immutable
 `RenderFrame` 保持 UI/渲染线程边界，`Renderer` 与最小 `RenderDevice` 合同
 共同负责批次、资源、pipeline、command encoding、同步和 native backend。
 它不是面向应用开发者的通用 RHI 产品。
@@ -235,15 +230,15 @@ UI 线程之外不得读写可变 UI 对象。渲染域只接收不可变事务�
 
 | 等级 | 后端 | 主要平台 |
 | --- | --- | --- |
-| Strategic | `AeroGraphics_D3D12` | Windows、Xbox/GDK adapter |
-| Strategic | `AeroGraphics_Vulkan` | Windows、Linux、Android |
-| Strategic | `AeroGraphics_Metal` | macOS、iOS、iPadOS、tvOS |
-| Strategic | `AeroGraphics_ConsolePrivate` | 授权主机 SDK 的受限实现 |
-| Compatibility | `AeroGraphics_D3D11` | Windows、已有游戏引擎和广泛硬件 |
-| Compatibility | `AeroGraphics_OpenGL33` | Windows/WGL、Linux/X11/GLX |
-| Compatibility | `AeroGraphics_GLES30` | Android/EGL、嵌入式和 Linux/EGL |
-| Compatibility | `AeroGraphics_WebGL2` | 浏览器 + WebAssembly |
-| Validation | `AeroGraphics_Null` | headless 事务、pass 和资源生命周期测试 |
+| Strategic | D3D12 backend | Windows、Xbox/GDK adapter |
+| Strategic | Vulkan backend | Windows、Linux、Android |
+| Strategic | Metal backend | macOS、iOS、iPadOS、tvOS |
+| Strategic | private console backend | 授权主机 SDK 的受限实现 |
+| Compatibility | D3D11 backend | Windows、已有游戏引擎和广泛硬件 |
+| Compatibility | OpenGL 3.3 backend | Windows/WGL、Linux/X11/GLX |
+| Compatibility | OpenGL ES 3.0 backend | Android/EGL、嵌入式和 Linux/EGL |
+| Compatibility | WebGL 2 backend | 浏览器 + WebAssembly |
+| Validation | Null RenderDevice | headless 事务、pass 和资源生命周期测试 |
 
 生产 renderer 不支持 Skia。为了 headless/golden 测试，项目可实现受限、自有、确定性的 CPU reference rasterizer，但它不是产品绘制后端。
 
@@ -259,13 +254,13 @@ UI 线程之外不得读写可变 UI 对象。渲染域只接收不可变事务�
 GLX 只用于 **Linux + X11 + desktop OpenGL** 的 context/surface：
 
 ```text
-AeroPlatform_GLX
+private GLX adapter
   X Display / FBConfig / X11 drawable
   GLXContext creation and make-current
   swap interval / resize / swap buffers
           |
           v
-AeroGraphics_OpenGL33
+OpenGL 3.3 backend
 ```
 
 Wayland、Android 和 headless GL/GLES 使用 EGL；Windows desktop OpenGL 使用 WGL。游戏引擎提供现有 GL context 时可不使用这些 adapter。
@@ -277,8 +272,8 @@ Web 目标采用：
 ```text
 C++17 Runtime
  -> WebAssembly
- -> AeroPlatform_Web
- -> AeroGraphics_WebGL2
+ -> private Web host adapter
+ -> WebGL 2 backend
  -> WebGL2RenderingContext
  -> HTMLCanvasElement / OffscreenCanvas
 ```
@@ -298,7 +293,7 @@ C++17 Runtime
 
 ### sokol 的定位
 
-`sokol_gfx` 公开覆盖 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU，因此可通过 `AeroGraphics_Sokol` 用于：
+`sokol_gfx` 公开覆盖 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU，因此可通过 optional sokol adapter 用于：
 
 - 早期 D3D11/OpenGL/WebGL bring-up；
 - 示例、WebAssembly 实验和开发工具；
@@ -307,7 +302,7 @@ C++17 Runtime
 
 它不能：
 
-- 定义 `AeroGraphics` 公共 API；
+- 定义 AeroGUI 公共 RenderDevice API；
 - 成为 D3D12、Vulkan、Metal 和主机 backend 的共同最低层；
 - 替代第一方 D3D11/OpenGL/GLES/WebGL2 长期合同；
 - 替代专有游戏主机后端；
@@ -324,7 +319,7 @@ C++17 Runtime
 | Expat | 流式 XML tokenization | Runtime XAML 的默认候选；compiled-XAML-only 或宿主 parser 配置可关闭 |
 | libtess2 | CPU path tessellation | 实验性、可替换 fallback；必须封装、fuzz 并评估维护状态 |
 | Ryu | 确定性 float-to-string | 推荐用于 XAML/诊断/序列化；可由经过一致性验证的实现替换 |
-| sokol | 可选 graphics layer adapter/样例 | 默认关闭，不进入核心依赖图 |
+| sokol | 可选 RenderDevice adapter/样例 | 默认关闭，不进入核心依赖图 |
 
 详细策略见 [`docs/THIRD_PARTY.md`](docs/THIRD_PARTY.md)。
 
@@ -363,7 +358,7 @@ AeroGUI/
 ├── src/runtime/            # View composition and frame lifecycle
 ├── src/render/             # RenderTree, Renderer, RenderDevice and GPU backends
 ├── src/platform/           # private OS window, IME, clipboard and context adapters
-├── src/integration/        # embedding factories and RenderEndpoint implementations
+├── src/integration/        # backend factories and host integration
 ├── src/app/                # default desktop Application framework
 ├── third_party/
 ├── tools/{xamlc,schema-gen}/
@@ -378,7 +373,7 @@ The implementation ownership and dependency rules are documented in
 
 ### M0 — Architecture baseline
 
-- 固化 C++17、Foundation、ABI、graphics layer、兼容后端和第三方依赖 ADR；
+- 固化 C++17、Foundation、ABI、RenderDevice 层、兼容后端和第三方依赖 ADR；
 - 建立 dependency manifest、NOTICE、CI 和 capability manifest。
 
 ### M1 — Foundation 与 Core
@@ -393,7 +388,7 @@ The implementation ownership and dependency rules are documented in
 - 流式 XML/XAML node pipeline；
 - Visual/UIElement/FrameworkElement；
 - Canvas、StackPanel、Grid、Border、TextBlock；
-- `RenderTransaction`、`AeroGraphics_Null` 与一个原生 GPU backend；
+- `RenderFrame`、Null RenderDevice 与一个原生 GPU backend；
 - XAML → layout → GPU image 全链路。
 
 ### M3 — 应用模型与多平台 GPU

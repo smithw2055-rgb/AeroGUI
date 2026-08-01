@@ -110,7 +110,8 @@ Base::Result<void> TemplateBuildContext::SetRoot(
     }
     if (root.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            root.AsFrameworkElement()->SetTemplatedParent(state.parent);
+            Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+                *root.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
             (void)state.tree->DetachElement(mount);
@@ -121,7 +122,8 @@ Base::Result<void> TemplateBuildContext::SetRoot(
         name, std::move(owner), root, &mount);
     if (!added) {
         if (root.AsFrameworkElement() != nullptr) {
-            (void)root.AsFrameworkElement()->SetTemplatedParent(nullptr);
+            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+                *root.AsFrameworkElement(), nullptr);
         }
         (void)Detail::ControlAccess::SetTemplateRoot(*state.parent, nullptr);
         (void)state.tree->DetachElement(mount);
@@ -154,7 +156,8 @@ Base::Result<void> TemplateBuildContext::AddPart(
 
     if (part.AsFrameworkElement() != nullptr) {
         Base::Result<void> templated =
-            part.AsFrameworkElement()->SetTemplatedParent(state.parent);
+            Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+                *part.AsFrameworkElement(), state.parent);
         if (!templated) {
             (void)state.tree->DetachElement(mount);
             return templated.GetStatus();
@@ -164,7 +167,8 @@ Base::Result<void> TemplateBuildContext::AddPart(
         name, std::move(owner), part, &mount);
     if (!added) {
         if (part.AsFrameworkElement() != nullptr) {
-            (void)part.AsFrameworkElement()->SetTemplatedParent(nullptr);
+            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(
+                *part.AsFrameworkElement(), nullptr);
         }
         (void)state.tree->DetachElement(mount);
         return added.GetStatus();
@@ -437,7 +441,7 @@ void TemplateBuildContext::Rollback() noexcept {
     for (std::uint32_t index = state.parts.Size(); index > 0U; --index) {
         Aero::Controls::Detail::TemplatePart& part = state.parts[index - 1U];
         if (part.frameworkElement != nullptr) {
-            (void)part.frameworkElement->SetTemplatedParent(nullptr);
+            (void)Aero::Detail::FrameworkElementAccess::SetTemplatedParent(*part.frameworkElement, nullptr);
         }
         (void)state.tree->DetachElement(part.mount);
     }
@@ -1741,7 +1745,7 @@ Base::Result<void> TemplateManager::ClearAt(
     for (Aero::Controls::Detail::TemplatePart& part : instance.parts) {
         if (part.frameworkElement != nullptr) {
             Base::Result<void> cleared =
-                part.frameworkElement->SetTemplatedParent(nullptr);
+                Aero::Detail::FrameworkElementAccess::SetTemplatedParent(*part.frameworkElement, nullptr);
             if (!cleared) return cleared.GetStatus();
         }
     }
@@ -1803,7 +1807,7 @@ void TemplateManager::OnPropertyChanged(
     for (Instance& instance : instances_) {
         const bool parentChanged = instance.parent == &object;
         if (parentChanged) {
-            (void)ApplyBindings(instance, args.property);
+            (void)ApplyBindings(instance, args.GetProperty());
         }
         bool triggerChanged = false;
         for (const TemplatePropertyTrigger& trigger :
@@ -1813,7 +1817,7 @@ void TemplateManager::OnPropertyChanged(
                 DependencyObject* source = FindTarget(
                     instance, triggerCondition.sourceName.View());
                 if (source == &object &&
-                    triggerCondition.property == args.property) {
+                    triggerCondition.property == args.GetProperty()) {
                     triggerChanged = true;
                     break;
                 }

@@ -4,7 +4,6 @@
 
 namespace Aero {
 
-using DependencyObject = Core::DependencyObject;
 using DependencyProperty = Core::DependencyProperty;
 using DependencyPropertyKey = Core::DependencyPropertyKey;
 using DependencyPropertyHandle = Core::DependencyPropertyHandle;

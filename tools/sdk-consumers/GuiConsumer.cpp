@@ -41,8 +41,12 @@ static_assert(
         Aero::Documents::Hyperlink>::value,
     "Documents Hyperlink must not use the temporary Button hierarchy");
 
-[[maybe_unused]] void ConsumeGui(Aero::Controls::Button& button) noexcept {
+[[maybe_unused]] void ConsumeGui(
+    Aero::Controls::Button& button,
+    Aero::FrameworkElement& root) noexcept {
     static_cast<void>(button.RuntimeType());
+    static_cast<void>(root.FindName("PART_Content"));
+    static_cast<void>(root.InvalidateVisual());
 }
 
 } // namespace

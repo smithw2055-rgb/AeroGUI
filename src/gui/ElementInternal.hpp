@@ -28,6 +28,9 @@ class ThemeStyleManager;
 struct UiElementServices final {
     EventRouter* events = nullptr;
     InputService* input = nullptr;
+    void* nameScopeContext = nullptr;
+    Base::Object* (*findName)(
+        void*, Base::StringView, Core::TypeId) noexcept = nullptr;
 };
 
 // Narrow bridge for private UIElement state shared across the GUI runtime.
@@ -36,6 +39,10 @@ public:
     static void SetViewServices(Aero::UIElement& element, UiElementServices* services) noexcept;
     static EventRouter* EventRouterFor(const Aero::UIElement& element) noexcept;
     static InputService* InputServiceFor(const Aero::UIElement& element) noexcept;
+    static Base::Object* FindName(
+        const Aero::UIElement& element,
+        Base::StringView name,
+        Core::TypeId expectedType = Core::InvalidTypeId) noexcept;
     static Base::Result<void> SetMouseOver(Aero::UIElement& element, bool value) noexcept;
     static Base::Result<void> SetPressed(Aero::UIElement& element, bool value) noexcept;
     static Base::Result<void> SetKeyboardFocused(Aero::UIElement& element, bool value) noexcept;
@@ -77,7 +84,10 @@ using MenuInteractionManager = Aero::Detail::ControlRuntimeAccess::MenuInteracti
 #include <Aero/Visual.hpp>
 #include <Aero/ContentElement.hpp>
 #include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include <Aero/Base/Span.hpp>
+
+#include <utility>
 
 #include <cstdint>
 
@@ -99,6 +109,17 @@ inline InputService* UiRuntimeAccess::InputServiceFor(
     const Aero::UIElement& element) noexcept {
     auto* services = static_cast<UiElementServices*>(element.viewServices_);
     return services != nullptr ? services->input : nullptr;
+}
+
+inline Base::Object* UiRuntimeAccess::FindName(
+    const Aero::UIElement& element,
+    Base::StringView name,
+    Core::TypeId expectedType) noexcept {
+    auto* services = static_cast<UiElementServices*>(element.viewServices_);
+    return services != nullptr && services->findName != nullptr
+        ? services->findName(
+              services->nameScopeContext, name, expectedType)
+        : nullptr;
 }
 
 } // namespace Aero::Detail
@@ -166,6 +187,44 @@ public:
     static Base::Result<Base::Ref<Base::Object>> AcquireLifetime(Visual& visual) noexcept { return visual.AcquireLifetime(); }
 };
 
+
+class FrameworkElementAccess final {
+public:
+    static FrameworkElement* RenderParent(
+        const FrameworkElement& element) noexcept {
+        return element.GetRenderParent();
+    }
+    static FrameworkElementChildRange RenderChildren(
+        const FrameworkElement& element) noexcept {
+        return element.GetRenderChildren();
+    }
+    static Base::Result<void> SetTemplatedParent(
+        FrameworkElement& element,
+        DependencyObject* value) noexcept {
+        return element.SetTemplatedParent(value);
+    }
+    static Base::Result<void> TryAddAuthoredTrigger(
+        FrameworkElement& element,
+        Base::Ref<Base::Object> trigger) noexcept {
+        return element.TryAddAuthoredTrigger(std::move(trigger));
+    }
+    static Base::Result<void> ClearAuthoredTriggers(
+        FrameworkElement& element) noexcept {
+        return element.ClearAuthoredTriggers();
+    }
+    static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(
+        const FrameworkElement& element) noexcept {
+        return element.AuthoredTriggers();
+    }
+    static bool IsRenderValid(
+        const FrameworkElement& element) noexcept {
+        return element.IsRenderValid();
+    }
+    static std::uint64_t RenderRevision(
+        const FrameworkElement& element) noexcept {
+        return element.RenderRevision();
+    }
+};
 
 class ContentElementAccess final {
 public:

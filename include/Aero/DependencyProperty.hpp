@@ -19,9 +19,9 @@
 #include <cstdint>
 #include <utility>
 
-namespace Aero::Core {
+namespace Aero { class DependencyObject; }
 
-class DependencyObject;
+namespace Aero::Core {
 class DependencyProperty;
 class EffectiveValueEngine;
 class MetadataBehaviorRegistrationStore;
@@ -276,12 +276,32 @@ constexpr bool HasFlag(
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-struct DependencyPropertyChangedEventArgs final {
-    DependencyPropertyHandle property;
-    const PropertyValue& oldValue;
-    const PropertyValue& newValue;
-    EffectiveValueSource oldSource = EffectiveValueSource::Default;
-    EffectiveValueSource newSource = EffectiveValueSource::Default;
+class DependencyPropertyChangedEventArgs final {
+public:
+    DependencyPropertyChangedEventArgs(
+        DependencyPropertyHandle property,
+        const PropertyValue& oldValue,
+        const PropertyValue& newValue,
+        EffectiveValueSource oldSource = EffectiveValueSource::Default,
+        EffectiveValueSource newSource = EffectiveValueSource::Default) noexcept
+        : property_(property),
+          oldValue_(oldValue),
+          newValue_(newValue),
+          oldSource_(oldSource),
+          newSource_(newSource) {}
+
+    DependencyPropertyHandle GetProperty() const noexcept { return property_; }
+    const PropertyValue& GetOldValue() const noexcept { return oldValue_; }
+    const PropertyValue& GetNewValue() const noexcept { return newValue_; }
+    EffectiveValueSource GetOldSource() const noexcept { return oldSource_; }
+    EffectiveValueSource GetNewSource() const noexcept { return newSource_; }
+
+private:
+    DependencyPropertyHandle property_;
+    const PropertyValue& oldValue_;
+    const PropertyValue& newValue_;
+    EffectiveValueSource oldSource_ = EffectiveValueSource::Default;
+    EffectiveValueSource newSource_ = EffectiveValueSource::Default;
 };
 
 using ValidateValueCallback = Base::Delegate<bool(
@@ -332,7 +352,7 @@ public:
 
 private:
     friend class DependencyPropertyRegistry;
-    friend class DependencyObject;
+    friend class ::Aero::DependencyObject;
 
     const DependencyPropertyRegistry* registry_ = nullptr;
     DependencyPropertyHandle property_;
@@ -392,7 +412,7 @@ public:
 
 private:
     friend class DependencyPropertyRegistry;
-    friend class DependencyObject;
+    friend class ::Aero::DependencyObject;
 
     struct MetadataEntry final {
         TypeId forType = InvalidTypeId;
@@ -473,7 +493,7 @@ public:
         const PropertyValue& value) const noexcept;
 
 private:
-    friend class DependencyObject;
+    friend class ::Aero::DependencyObject;
 
     TypeRegistry* typeRegistry_ = nullptr;
     MetadataBehaviorRegistrationStore* behaviorRegistrations_ = nullptr;
@@ -503,6 +523,12 @@ private:
         DependencyPropertyFlags propertyFlags,
         PropertyMetadataFlags metadataFlags) noexcept;
 };
+
+} // namespace Aero::Core
+
+namespace Aero {
+
+using namespace Core;
 
 class AERO_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, Base::Object)
@@ -639,7 +665,7 @@ protected:
         PropertyInvalidationFlags flags) noexcept;
 
 private:
-    friend class EffectiveValueEngine;
+    friend class Core::EffectiveValueEngine;
 
     enum class ChangeKind : std::uint8_t {
         SetLocal,
@@ -893,4 +919,4 @@ Base::Result<void> DependencyObject::SetReadOnlyCurrentValue(
         property.Handle(), stored.Value());
 }
 
-} // namespace Aero::Core
+} // namespace Aero

@@ -163,24 +163,24 @@ Binding、DynamicResource、输入、布局或渲染状态。Binding 和 Dynamic
 `XamlExtensionContext` 提供，不再被固化进冻结 Schema。
 
 `UiDocument` 是 move-only、View-affine 的 RAII 对象，可在所属 View 挂载前保存
-和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有
-`View` 是唯一的单 View 产品入口，并提供 `Load`、
-`Parse`、`LoadCompiled` 与 `SetContent(UiDocument&&, ...)`。
-旧的 root-only API 已移除，产品代码统一使用 Document API。
+和检查；它不携带已提交的 View 副作用，跨 View 挂载会被拒绝。现有 `View` 是唯一的单 View 产品入口。`Markup::XamlReader` 提供
+`Load`、`Parse` 与 `LoadCompiled`，`View::SetContent(UiDocument&&, ...)`
+只负责提交和挂载。旧的 root-only loader API 已移除。
 
 ## View
 
 `View::Impl` 组合独立的 View runtime、provider/cache、资源环境、输入、布局、
 Style/Template、文本和渲染桥。manager、registry 与执行记录全部位于 `src`；
-`View` 公共面只暴露加载、挂载、资源/主题、尺寸、输入、时间、查询和
-`RunFrame()`。`View::Impl` 负责生命周期编排，不把所有子系统实现合并为一个巨型类。
+`View` 公共面只暴露内容、资源/主题、尺寸、输入和 `Update()`。XAML
+加载、名字解析和开发期热重载使用各自的专用入口。`View::Impl` 只负责编排
+少量生命周期状态块，不形成公共 service locator。
 
 Generic/Light/Dark 都是普通 ResourceDictionary。Light/Dark 提供调色板资源，
 Generic 提供隐式 Style，ControlTemplate 由 Style 的 `Template` setter 提供。
 ControlGallery 不再逐控件调用主题 apply，也不再包含程序化外观补丁。
 
 本机构建默认通过 `AeroCompiledThemes` 调用 `aero-xamlc --origin`，将 Light、
-Dark、Generic 编译为 AXIR 并嵌入 `AeroRuntime`。交叉编译可提供
+Dark、Generic 编译为 AXIR 并嵌入 View runtime object component，最终折叠进 `Aero::Integration`。交叉编译可提供
 `AERO_HOST_XAMLC_EXECUTABLE`；关闭 `AERO_PRECOMPILE_BUILTIN_THEMES` 时只嵌入
 原始 XAML，并通过相同 pack URI/provider 路径加载。`LoadBuiltInTheme` 优先加载
 compiled document，compiled payload 不存在或 schema identity 不兼容时确定性
@@ -188,10 +188,11 @@ compiled document，compiled payload 不存在或 schema identity 不兼容时�
 
 ## 构建边界
 
-`AeroMarkupKernel` 包含 tokenizer、node reader 和基础 compiled document/cache，
-只依赖 `AeroGuiKernel`。Schema 验证、object writer、资源、Binding、Style 与 Template
-位于上层 `AeroMarkup`，后者才依赖 Controls。架构检查禁止 Kernel 反向包含
-UI runtime、Controls 或 Markup integration 目录。
+`AeroMarkupKernelObjects` 包含 tokenizer、node reader 和基础 compiled
+document/cache，只依赖 GUI kernel objects。Schema 验证、ObjectWriter、资源、
+Binding、Style 与 Template 位于 `AeroMarkupObjects`，后者才依赖 Controls objects。
+这些都是 build-only object components，并共同折叠进 `Aero::Gui`；架构检查禁止
+Markup kernel 反向包含 View runtime 或高层 Controls/Markup integration。
 
 ## Schema Manifest 与工具隔离
 

@@ -316,9 +316,9 @@ public:
             const DependencyPropertyChangedEventArgs&
                 args) noexcept {
             Base::Result<TValue> oldValue =
-                ValueCodec<TValue>::Decode(args.oldValue);
+                ValueCodec<TValue>::Decode(args.GetOldValue());
             Base::Result<TValue> newValue =
-                ValueCodec<TValue>::Decode(args.newValue);
+                ValueCodec<TValue>::Decode(args.GetNewValue());
             if (oldValue && newValue) {
                 changed(
                     object,

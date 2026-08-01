@@ -179,6 +179,7 @@ foreach(removed_path IN ITEMS
 endforeach()
 
 foreach(removed_sdk_path IN ITEMS
+    "include/Aero/Integration/HostedGraphics.hpp"
     "include/Aero/Integration/HostServices.hpp"
     "include/Aero/Integration/View.hpp"
     "include/Aero/Integration/ViewHost.hpp"
@@ -648,32 +649,83 @@ file(GLOB aero_target_modules
     "${AERO_SOURCE_DIR}/CMakeLists.txt"
     "${AERO_SOURCE_DIR}/cmake/Aero*Targets.cmake"
     "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
+
+# Internal source domains are build-only object components. They must never
+# acquire public aliases or reappear as installable support binaries.
 aero_collect_matches(public_internal_target_aliases
-    "add_library\\([ \t\r\n]*Aero::(Core|Platform|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|Markup|MarkupKernel|Detail[A-Za-z0-9_]*)"
+    "add_library\\([ \\t\\r\\n]*Aero::(_Detail|GuiKernel|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|MarkupKernel|Markup|AppModel|ModuleCatalog|Runtime|Rendering)"
     ${aero_target_modules})
 if(public_internal_target_aliases)
     message(FATAL_ERROR
-        "Internal build targets must use Aero::_Detail* aliases: "
+        "Internal object components must not expose CMake aliases: "
         "${public_internal_target_aliases}")
 endif()
 
+aero_collect_matches(internal_support_binaries
+    "add_library\\([ \\t\\r\\n]*(AeroGuiKernel|AeroText|AeroTextFreeType|AeroTextHarfBuzz|AeroControls|AeroInspector|AeroMarkupKernel|AeroMarkup|AeroAppModel|AeroModuleCatalog|AeroRuntime|AeroRendering)[ \\t\\r\\n]+(STATIC|SHARED|MODULE|\\$\\{AERO_LIBRARY_TYPE\\})"
+    ${aero_target_modules})
+if(internal_support_binaries)
+    message(FATAL_ERROR
+        "Internal Aero domains must compile as object components, not binaries: "
+        "${internal_support_binaries}")
+endif()
+
 aero_collect_matches(split_render_targets
-    "add_library[^A-Za-z0-9_:]+(Aero(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX))|Aero::_Detail(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX)))[ \t\r\n]"
+    "add_library[^A-Za-z0-9_:]+(Aero(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX))|Aero::_Detail(Graphics(OpenGL33|D3D11)?|Render(OpenGL33|D3D11)?|Platform(WGL|GLX)))[ \\t\\r\\n]"
     ${aero_target_modules})
 if(split_render_targets)
     message(FATAL_ERROR
-        "Renderer, render device and native backends must use the single "
-        "AeroRendering target: ${split_render_targets}")
+        "Renderer, RenderDevice and native backends must use the single "
+        "AeroRenderingObjects component: ${split_render_targets}")
 endif()
 
-aero_collect_matches(unprefixed_support_exports
-    "EXPORT_NAME[ \t\r\n]+(Core|Platform|Text|TextFreeType|TextHarfBuzz|Controls|Inspector|Markup|MarkupKernel|Runtime|Graphics|Render|IntegrationDetail[A-Za-z0-9_]*|RuntimeDetail[A-Za-z0-9_]*)"
-    "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
-if(unprefixed_support_exports)
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake"
+    aero_install_content)
+if(aero_install_content MATCHES "EXPORT_NAME[ \\t\\r\\n]+_Detail")
     message(FATAL_ERROR
-        "Static-link support archives must export only as Aero::_Detail*: "
-        "${unprefixed_support_exports}")
+        "Installed packages must not export _Detail implementation targets")
 endif()
+if(aero_install_content MATCHES
+        "(^|[^A-Za-z0-9_])(AeroGuiKernel|AeroText(FreeType|HarfBuzz)?|AeroControls|AeroInspector|AeroMarkup(Kernel)?|AeroAppModel|AeroModuleCatalog|AeroRuntime|AeroRendering)([^A-Za-z0-9_]|$)")
+    message(FATAL_ERROR
+        "AeroInstall.cmake must install only product targets and private "
+        "third-party archives")
+endif()
+unset(aero_install_content)
+
+foreach(required_object_target IN ITEMS
+        AeroGuiKernelObjects
+        AeroTextObjects
+        AeroControlsObjects
+        AeroMarkupKernelObjects
+        AeroMarkupObjects
+        AeroAppModelObjects
+        AeroModuleCatalogObjects
+        AeroTextFreeTypeObjects
+        AeroTextHarfBuzzObjects
+        AeroRuntimeObjects
+        AeroRenderingObjects)
+    set(required_object_definition)
+    aero_collect_matches(required_object_definition
+        "add_library\\([ \\t\\r\\n]*${required_object_target}[ \\t\\r\\n]+OBJECT"
+        ${aero_target_modules})
+    if(NOT required_object_definition)
+        message(FATAL_ERROR
+            "Required internal object component is missing: "
+            "${required_object_target}")
+    endif()
+endforeach()
+unset(required_object_target)
+unset(required_object_definition)
+
+file(READ "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
+    aero_gui_target_content)
+if(aero_gui_target_content MATCHES
+        "add_library\\([ \\t\\r\\n]*AeroGui[ \\t\\r\\n]+INTERFACE")
+    message(FATAL_ERROR
+        "Aero::Gui must be a real product binary, not an interface route")
+endif()
+unset(aero_gui_target_content)
 
 file(READ "${AERO_SOURCE_DIR}/CMakeLists.txt" root_cmake_content)
 string(REGEX MATCHALL "\n" root_cmake_newlines "${root_cmake_content}")
@@ -841,12 +893,11 @@ aero_collect_matches(hidden_render_worker
     "${AERO_SOURCE_DIR}/include/Aero/Integration/RenderEndpoint.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/D3D11.hpp"
     "${AERO_SOURCE_DIR}/include/Aero/Integration/OpenGL33.hpp"
-    "${AERO_SOURCE_DIR}/include/Aero/Integration/HostedGraphics.hpp"
     "${AERO_SOURCE_DIR}/src/integration/RenderEndpoint.cpp"
     "${AERO_SOURCE_DIR}/src/integration/RenderEndpointInternal.hpp"
     "${AERO_SOURCE_DIR}/src/integration/D3D11Endpoint.cpp"
     "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp"
-    "${AERO_SOURCE_DIR}/src/integration/HostedGraphics.cpp")
+    "${AERO_SOURCE_DIR}/src/integration/OpenGL33Endpoint.cpp")
 if(hidden_render_worker)
     message(FATAL_ERROR
         "Render scheduling belongs to the host; hidden endpoint workers or "
@@ -959,14 +1010,129 @@ if(retired_platform_target)
 endif()
 
 aero_collect_matches(retired_gui_target_name
-    "(^|[^A-Za-z0-9_])AeroCore([^A-Za-z0-9_]|$)|Aero::_DetailCore"
+    "(^|[^A-Za-z0-9_])AeroCore([^A-Za-z0-9_]|$)|Aero::_Detail(Core|GuiKernel)"
     "${AERO_SOURCE_DIR}/cmake/AeroGuiTargets.cmake"
     "${AERO_SOURCE_DIR}/cmake/AeroRenderingTargets.cmake"
     "${AERO_SOURCE_DIR}/cmake/AeroInstall.cmake")
 if(retired_gui_target_name)
     message(FATAL_ERROR
-        "The internal GUI binary must be named AeroGuiKernel: "
+        "Retired Core or _Detail GUI target naming remains: "
         "${retired_gui_target_name}")
 endif()
+
+# K-series final public-surface convergence gates.
+foreach(required_public_entry IN ITEMS
+        "include/Aero/View.hpp"
+        "include/Aero/Markup/XamlReader.hpp"
+        "include/Aero/Integration/PlatformServices.hpp")
+    if(NOT EXISTS "${AERO_SOURCE_DIR}/${required_public_entry}")
+        message(FATAL_ERROR
+            "Required converged SDK entry is missing: ${required_public_entry}")
+    endif()
+endforeach()
+
+file(READ "${AERO_SOURCE_DIR}/include/Aero/View.hpp" aero_view_header)
+string(FIND "${aero_view_header}" "class AERO_API View final" aero_view_begin)
+if(aero_view_begin EQUAL -1)
+    message(FATAL_ERROR "Unable to inspect the public View surface")
+endif()
+string(SUBSTRING "${aero_view_header}" ${aero_view_begin} -1
+    aero_view_class_tail)
+string(FIND "${aero_view_class_tail}" "\nprivate:" aero_view_private)
+if(aero_view_private EQUAL -1)
+    message(FATAL_ERROR "Unable to inspect the public View surface")
+endif()
+string(SUBSTRING "${aero_view_class_tail}" 0 ${aero_view_private}
+    aero_view_public_surface)
+if(aero_view_public_surface MATCHES
+        "(Load[ \\t]*\\(|Parse[ \\t]*\\(|LoadCompiled[ \\t]*\\(|RegisterSourceProvider|RunFrame|Advance(Time|AnimationTime)|FindNamedObject|NamedObjectCount)")
+    message(FATAL_ERROR
+        "View public API recreated loader, scheduler or namescope services")
+endif()
+unset(aero_view_header)
+unset(aero_view_begin)
+unset(aero_view_private)
+unset(aero_view_class_tail)
+unset(aero_view_public_surface)
+
+file(READ "${AERO_SOURCE_DIR}/include/Aero/FrameworkElement.hpp"
+    aero_framework_element_header)
+string(FIND "${aero_framework_element_header}"
+    "class AERO_API FrameworkElement" aero_framework_element_begin)
+if(aero_framework_element_begin EQUAL -1)
+    message(FATAL_ERROR
+        "Unable to inspect the public FrameworkElement surface")
+endif()
+string(SUBSTRING "${aero_framework_element_header}"
+    ${aero_framework_element_begin} -1 aero_framework_element_class_tail)
+string(FIND "${aero_framework_element_class_tail}" "\nprivate:"
+    aero_framework_element_private)
+if(aero_framework_element_private EQUAL -1)
+    message(FATAL_ERROR
+        "Unable to inspect the public FrameworkElement surface")
+endif()
+string(SUBSTRING "${aero_framework_element_class_tail}" 0
+    ${aero_framework_element_private} aero_framework_element_public_surface)
+if(aero_framework_element_public_surface MATCHES
+        "(GetRenderParent|GetRenderChildren|SetTemplatedParent|AuthoredTriggers|IsRenderValid|RenderRevision|NodeId[ \\t]*\\(|InvalidateRender[ \\t]*\\()")
+    message(FATAL_ERROR
+        "FrameworkElement public API exposes template or render runtime state")
+endif()
+unset(aero_framework_element_header)
+unset(aero_framework_element_begin)
+unset(aero_framework_element_private)
+unset(aero_framework_element_class_tail)
+unset(aero_framework_element_public_surface)
+
+file(GLOB_RECURSE framework_element_sources
+    "${AERO_SOURCE_DIR}/include/Aero/*.hpp"
+    "${AERO_SOURCE_DIR}/src/*.cpp"
+    "${AERO_SOURCE_DIR}/src/*.hpp")
+aero_collect_matches(retired_render_invalidation_name
+    "InvalidateRender" ${framework_element_sources})
+if(retired_render_invalidation_name)
+    message(FATAL_ERROR
+        "Use WPF-style InvalidateVisual instead of InvalidateRender: "
+        "${retired_render_invalidation_name}")
+endif()
+
+file(GLOB_RECURSE frame_pipeline_sources
+    "${AERO_SOURCE_DIR}/src/runtime/*.cpp"
+    "${AERO_SOURCE_DIR}/src/runtime/*.hpp"
+    "${AERO_SOURCE_DIR}/src/render/*.cpp"
+    "${AERO_SOURCE_DIR}/src/render/*.hpp"
+    "${AERO_SOURCE_DIR}/src/integration/*.cpp"
+    "${AERO_SOURCE_DIR}/src/integration/*.hpp")
+aero_collect_matches(synchronous_frame_logging
+    "(fprintf[ \\t]*\\([ \\t]*stderr|std::cerr|std::clog)"
+    ${frame_pipeline_sources})
+if(synchronous_frame_logging)
+    message(FATAL_ERROR
+        "Frame/runtime hot paths contain synchronous diagnostic I/O: "
+        "${synchronous_frame_logging}")
+endif()
+
+
+# Stable View services use one packed allocation. Reintroducing one allocation
+# per manager increases startup cost, fragmentation and rollback complexity.
+file(READ "${AERO_SOURCE_DIR}/src/runtime/ViewState.cpp"
+    aero_view_state_source)
+foreach(required_arena_marker IN ITEMS
+        "class RuntimeServiceArena"
+        "ViewServiceArenaCapacity"
+        "serviceArena.Initialize"
+        "serviceArena.Create"
+        "serviceArena.Reset")
+    string(FIND "${aero_view_state_source}"
+        "${required_arena_marker}" required_arena_marker_position)
+    if(required_arena_marker_position EQUAL -1)
+        message(FATAL_ERROR
+            "Packed per-View service allocation is incomplete: "
+            "${required_arena_marker}")
+    endif()
+endforeach()
+unset(aero_view_state_source)
+unset(required_arena_marker)
+unset(required_arena_marker_position)
 
 message(STATUS "Aero architecture dependency checks passed")

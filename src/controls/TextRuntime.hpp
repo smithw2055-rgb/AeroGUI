@@ -21,7 +21,7 @@ public:
         path.AttachMeshServices(
             services, invalidate);
         if (invalidate) {
-            static_cast<void>(path.InvalidateRender());
+            static_cast<void>(path.InvalidateVisual());
         }
     }
 };
@@ -45,7 +45,7 @@ public:
         text.glyphRunSize_ = {};
         if (invalidate) {
             static_cast<void>(text.InvalidateMeasure());
-            static_cast<void>(text.InvalidateRender());
+            static_cast<void>(text.InvalidateVisual());
         }
     }
 
@@ -60,7 +60,7 @@ public:
         text.layoutService_ = service;
         if (invalidate) {
             static_cast<void>(text.InvalidateMeasure());
-            static_cast<void>(text.InvalidateRender());
+            static_cast<void>(text.InvalidateVisual());
         }
     }
 
@@ -76,7 +76,7 @@ public:
             static_cast<void>(
                 password.InvalidateMeasure());
             static_cast<void>(
-                password.InvalidateRender());
+                password.InvalidateVisual());
         }
     }
 };

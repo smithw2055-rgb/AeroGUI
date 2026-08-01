@@ -1,105 +1,73 @@
 # Native window hosting
 
-AeroGUI separates the operating-system window from the product runtime and the
-private graphics implementation. The only public product frame entry is
-`View::RunFrame()`.
+AeroGUI separates WPF objects, the operating-system window, and the private GPU
+implementation. The public host frame entry is `View::Update(elapsedMs)`.
+XAML loading is performed through `Markup::XamlReader`; it is not a View
+responsibility.
 
-## Ownership boundary
+## Default desktop application
 
-The default `Aero::App` implementation privately owns the native top-level
-window and event pump. Engine and editor hosts exchange only
-`Aero::Integration::NativeWindowHandle` plus the narrow clipboard and text-input
-interfaces from `Aero/Integration/PlatformServices.hpp`. That public header contains
-contracts only. Win32/X11 windows, clipboard adapters, IME message handling, WGL and
-GLX context carriers are implementation details under `src/platform/<os>`.
+`Aero::App` privately owns the native event loop. Every visible `Aero::Window`
+receives an independent host record containing:
 
-`Aero::Integration::RenderEndpoint` is the only rendering object held by a
-`View`. It is reference counted and opaque: it does not expose a renderer,
-device, surface, command list, resource registry or the internal immutable
-render snapshot.
-
-An endpoint has one of three modes:
-
-- `Headless`: Runtime-owned CPU diagnostics and text-resource sink; no GPU
-  device is created.
-- `Embedded`: the host lends a native device/context and supplies the current
-  target callback. AeroGUI records and submits UI work but never calls Present.
-- `Window`: the endpoint owns the surface/swapchain/context and presents each
-  accepted GPU frame exactly once.
-
-One endpoint can be bound to one `View`. The `View` keeps a strong reference,
-so the caller may release its endpoint reference after `RuntimeEnvironment::CreateView()` returns.
-Multiple endpoints may borrow the same host native device.
-
-## Public factories
-
-The default `Aero/Integration.hpp` exposes `View`, `ViewOptions`,
-`RenderEndpoint`, source-provider registration and reload coordination. Backend factories are
-explicit opt-in headers:
-
-- `Aero/Integration/D3D11.hpp`;
-- `Aero/Integration/OpenGL33.hpp`;
-- `Aero/Integration/HostedGraphics.hpp` for third-party backends.
-
-These headers use `std::uintptr_t`, function pointers and versioned POD
-contracts. They do not include Windows, D3D11, OpenGL or X11 system headers.
-`HostedGraphics.hpp` exposes a tagged read-only graphics command ABI, not the
-internal render snapshot or graphics layer classes.
-
-## Resize and frame flow
-
-Logical and physical resize are separate operations:
-
-```cpp
-view.Resize({logicalWidth, logicalHeight});
-endpoint.Resize(physicalWidth, physicalHeight);
+```text
+Window
+├─ native top-level window
+├─ View
+├─ RenderEndpoint
+├─ clipboard / IME services
+└─ activation, visibility and close state
 ```
 
-The host then calls `view.RunFrame()`. That call performs property, binding,
-lifecycle and layout phases, builds a candidate immutable snapshot and offers
-it to the bound endpoint. The current snapshot version advances only after the
-endpoint accepts the candidate. `ViewFrameResult` contains safe layout/render
-statistics only.
+`Application::Windows` enumerates all live top-level windows. `MainWindow` is a
+normal entry in that collection, while `ShutdownMode` independently implements
+last-window, main-window and explicit shutdown policies. No public Launcher,
+WindowPeer or application service locator is required.
 
-Endpoint submission is synchronous on the calling thread. AeroGUI does not
-create a private rendering worker, queue or frame slots. A single-threaded app
-may call `View::RunFrame()` directly; a game engine may invoke it from its
-chosen UI/render scheduling point or place immutable host work in its own
-queue. Native context affinity, synchronization and presentation therefore
-remain explicit host policy rather than a hidden endpoint mode. UI and
-`Visual` pointers never cross the immutable `RenderFrame` boundary.
+## Embedded host sequence
+
+An engine or editor host uses the explicit Integration surface:
+
+```cpp
+Aero::RuntimeEnvironment environment;
+environment.AddModule(module);
+environment.Initialize();
+
+Aero::Integration::ViewOptions options;
+options.renderEndpoint = endpoint;
+auto view = environment.CreateView(options).Value();
+
+Aero::Markup::XamlReader reader(*view);
+reader.RegisterSourceProvider(sourceProvider, "app");
+auto document = reader.Load("app:///MainView.xaml").Value();
+view->SetContent(std::move(document), logicalSize);
+
+view->Resize(logicalSize);
+endpoint->Resize(pixelWidth, pixelHeight);
+view->Update(elapsedMilliseconds);
+```
+
+`View::Update()` advances host-driven clocks, processes property/binding/input
+work, commits an immutable `RenderFrame`, and submits it synchronously to the
+bound endpoint. AeroGUI creates no hidden render thread or frame queue. Engines
+may call Update from their chosen scheduling point, but mutable UI objects must
+remain on the View owner thread.
+
+## Platform boundary
+
+Hosts exchange only `Integration::NativeWindowHandle` plus the narrow contracts
+from `Integration/PlatformServices.hpp`. Win32/X11 windows, clipboard adapters,
+IME message handling, WGL and GLX context carriers live under
+`src/platform/<os>` and are not installed SDK types.
 
 ## Device and surface loss
 
-Hosts report loss through the endpoint:
-
 ```cpp
-endpoint.NotifySurfaceLost(); // or NotifyDeviceLost()
-endpoint.Restore();
-view.RunFrame();
+endpoint->NotifySurfaceLost(); // or NotifyDeviceLost()
+endpoint->Restore();
+view->Update(elapsedMilliseconds);
 ```
 
-Reporting loss stops acceptance and advances the endpoint generation. Backend image, mesh and glyph resources are invalidated
-inside the endpoint. A successful `Restore()` rebuilds the native surface or
-device, and the next `RunFrame()` submits a complete snapshot. Hosts do not manually shut down or reinitialize renderer, surface or graphics-device objects.
-
-## ControlGallery GUI mode
-
-```text
-AeroControlGallery --backend=d3d11 --xaml=compiled --theme=light --interactive
-AeroControlGallery --backend=opengl --xaml=compiled --theme=dark --interactive
-```
-
-The sample follows the public sequence:
-
-1. create the OS window;
-2. create a Window endpoint from its opaque native handle;
-3. create the `View` directly through `RuntimeEnvironment::CreateView(options)`;
-4. load content and dispatch normalized input;
-5. resize the `View` logically and the endpoint physically;
-6. call `View::RunFrame()`;
-7. use endpoint loss/restore operations for recovery.
-
-Clipboard and IME enter a View only through the platform-neutral contracts in
-`ViewOptions`. The default App privately creates the Win32 implementations; engine
-hosts supply their own services without depending on an Aero Win32/X11 class.
+Loss advances the endpoint generation and invalidates backend image, mesh and
+glyph resources. The next successful update submits a complete immutable
+snapshot. Renderer, native surface and GPU resource caches remain private.

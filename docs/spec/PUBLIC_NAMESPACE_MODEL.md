@@ -56,7 +56,7 @@ SDK.
 | `System.Windows.Markup` | `Aero::Markup` | `MarkupExtension`, `XamlReader` |
 | `System.Windows.Threading` | `Aero::Threading` | `Dispatcher`, `DispatcherObject` |
 | Aero metadata authoring | `Aero::Meta` | `Context`, `Describe`, `TypeId` |
-| Host and renderer integration | `Aero::Integration` | `ViewOptions`, `RenderEndpoint`, native integration APIs |
+| Host and renderer integration | `Aero::Integration` | `ViewOptions`, opaque render attachment and native integration APIs |
 | Default application framework | `Aero::App` | `RunOptions`, generated `App::Run()` bootstrap |
 | Private implementation | `Aero::Detail` or domain `Detail` | property, style, template, XAML and render runtimes |
 

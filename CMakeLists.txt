@@ -165,30 +165,24 @@ set_target_properties(AeroAudio PROPERTIES
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
 aero_apply_compiler_options(AeroAudio)
 
-add_library(AeroText ${AERO_LIBRARY_TYPE}
+add_library(AeroTextObjects OBJECT
     src/text/EditableText.cpp
     src/text/FontManager.cpp
     src/text/GlyphAtlas.cpp
     src/text/TextLayout.cpp
     src/text/TextTypes.cpp)
-
-add_library(Aero::_DetailText ALIAS AeroText)
-
-target_include_directories(AeroText
+target_include_directories(AeroTextObjects
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-
-target_link_libraries(AeroText PUBLIC Aero::Base)
-target_compile_features(AeroText PUBLIC cxx_std_17)
-set_target_properties(AeroText PROPERTIES
+target_link_libraries(AeroTextObjects PUBLIC Aero::Base)
+target_compile_features(AeroTextObjects PUBLIC cxx_std_17)
+set_target_properties(AeroTextObjects PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-
-aero_apply_compiler_options(AeroText)
+    POSITION_INDEPENDENT_CODE ON)
+aero_apply_compiler_options(AeroTextObjects)
 
 if(NOT AERO_WITH_FREETYPE OR NOT AERO_WITH_HARFBUZZ)
     message(FATAL_ERROR
@@ -260,24 +254,22 @@ if(AERO_WITH_FREETYPE)
     set_target_properties(freetype PROPERTIES
         POSITION_INDEPENDENT_CODE ON)
 
-    add_library(AeroTextFreeType ${AERO_LIBRARY_TYPE}
+    add_library(AeroTextFreeTypeObjects OBJECT
         src/text/freetype/FreeTypeAdapter.cpp)
-    add_library(Aero::_DetailTextFreeType ALIAS AeroTextFreeType)
-    target_include_directories(AeroTextFreeType
+    target_include_directories(AeroTextFreeTypeObjects
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>)
-    target_link_libraries(AeroTextFreeType
-        PUBLIC Aero::_DetailText
+    target_link_libraries(AeroTextFreeTypeObjects
+        PUBLIC AeroTextObjects
         PRIVATE freetype)
-    target_compile_features(AeroTextFreeType PUBLIC cxx_std_17)
-    set_target_properties(AeroTextFreeType PROPERTIES
+    target_compile_features(AeroTextFreeTypeObjects PUBLIC cxx_std_17)
+    set_target_properties(AeroTextFreeTypeObjects PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED YES
         CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON
-        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-    aero_apply_compiler_options(AeroTextFreeType)
+        POSITION_INDEPENDENT_CODE ON)
+    aero_apply_compiler_options(AeroTextFreeTypeObjects)
 endif()
 
 function(aero_add_vendored_harfbuzz source_directory binary_directory)
@@ -330,24 +322,22 @@ if(AERO_WITH_HARFBUZZ)
         "${_aero_harfbuzz_source}"
         "${CMAKE_CURRENT_BINARY_DIR}/third_party/harfbuzz")
 
-    add_library(AeroTextHarfBuzz ${AERO_LIBRARY_TYPE}
+    add_library(AeroTextHarfBuzzObjects OBJECT
         src/text/harfbuzz/HarfBuzzAdapter.cpp)
-    add_library(Aero::_DetailTextHarfBuzz ALIAS AeroTextHarfBuzz)
-    target_include_directories(AeroTextHarfBuzz
+    target_include_directories(AeroTextHarfBuzzObjects
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>)
-    target_link_libraries(AeroTextHarfBuzz
-        PUBLIC Aero::_DetailTextFreeType
+    target_link_libraries(AeroTextHarfBuzzObjects
+        PUBLIC AeroTextFreeTypeObjects
         PRIVATE freetype harfbuzz)
-    target_compile_features(AeroTextHarfBuzz PUBLIC cxx_std_17)
-    set_target_properties(AeroTextHarfBuzz PROPERTIES
+    target_compile_features(AeroTextHarfBuzzObjects PUBLIC cxx_std_17)
+    set_target_properties(AeroTextHarfBuzzObjects PROPERTIES
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED YES
         CXX_EXTENSIONS NO
-        POSITION_INDEPENDENT_CODE ON
-        WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-    aero_apply_compiler_options(AeroTextHarfBuzz)
+        POSITION_INDEPENDENT_CODE ON)
+    aero_apply_compiler_options(AeroTextHarfBuzzObjects)
 endif()
 
 include(cmake/AeroGuiTargets.cmake)

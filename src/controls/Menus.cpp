@@ -322,7 +322,7 @@ void ContextMenu::OnOpenChanged(
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
     const bool opened =
-        args.newValue.AsBoolean();
+        args.GetNewValue().AsBoolean();
     static_cast<void>(SetVisibility(
         opened
         ? Visibility::Visible
@@ -554,7 +554,7 @@ void MenuInteractionManager::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args)
     noexcept {
-    if (args.changedButton !=
+    if (args.GetChangedButton() !=
         MouseButton::Left) {
         return;
     }
@@ -562,7 +562,7 @@ void MenuInteractionManager::OnMouseDown(
         *static_cast<Menu*>(sender);
     MenuItem* item =
         FindItem(
-            menu, args.originalSource);
+            menu, args.GetOriginalSource());
     if (item == nullptr) return;
     static_cast<void>(item->SetHighlightedState(true));
     Base::Result<void> invoked =
@@ -570,31 +570,31 @@ void MenuInteractionManager::OnMouseDown(
     if (!invoked) return;
     static_cast<void>(
         input_->SetFocus(item));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void MenuInteractionManager::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
-    if (args.key != KeyboardKeyEnter &&
-        args.key != KeyboardKeySpace &&
-        args.key != KeyboardKeyRight &&
-        args.key != KeyboardKeyLeft &&
-        args.key != KeyboardKeyEscape) {
+    if (args.GetKey() != KeyboardKeyEnter &&
+        args.GetKey() != KeyboardKeySpace &&
+        args.GetKey() != KeyboardKeyRight &&
+        args.GetKey() != KeyboardKeyLeft &&
+        args.GetKey() != KeyboardKeyEscape) {
         return;
     }
     auto& menu =
         *static_cast<Menu*>(sender);
     MenuItem* item =
         FindItem(
-            menu, args.originalSource);
+            menu, args.GetOriginalSource());
     if (item == nullptr) return;
-    if (args.key == KeyboardKeyEscape ||
-        args.key == KeyboardKeyLeft) {
+    if (args.GetKey() == KeyboardKeyEscape ||
+        args.GetKey() == KeyboardKeyLeft) {
         static_cast<void>(
             item->SetIsExpanded(false));
     } else if (
-        args.key == KeyboardKeyRight) {
+        args.GetKey() == KeyboardKeyRight) {
         if (item->Count() != 0U) {
             static_cast<void>(
                 item->SetIsExpanded(true));
@@ -603,7 +603,7 @@ void MenuInteractionManager::OnKeyDown(
         static_cast<void>(
             Invoke(menu, *item));
     }
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 } // namespace Aero::Detail

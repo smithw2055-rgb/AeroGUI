@@ -33,7 +33,10 @@ public:
         Aero::Detail::StyleManager& styles,
         Controls::TemplateManager& templates,
         Controls::VisualStateManager& visualStates,
-        const Aero::ResourceEnvironment& resources) noexcept;
+        const Aero::ResourceEnvironment& resources,
+        void* nameScopeContext,
+        Base::Object* (*findName)(
+            void*, Base::StringView, Core::TypeId) noexcept) noexcept;
     void Reset() noexcept;
 
     Base::Result<void> Apply(

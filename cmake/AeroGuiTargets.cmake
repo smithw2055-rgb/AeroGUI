@@ -1,5 +1,22 @@
-# WPF/XAML kernel, controls, markup and schema composition targets.
-add_library(AeroGuiKernel ${AERO_LIBRARY_TYPE}
+# WPF/XAML class library build components. Internal domains compile as object
+# libraries and are folded into the single AeroGui product binary. They are not
+# installed or exported as SDK concepts.
+function(aero_configure_internal_objects target)
+    target_include_directories(${target}
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_features(${target} PUBLIC cxx_std_17)
+    set_target_properties(${target} PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        POSITION_INDEPENDENT_CODE ON)
+    aero_apply_compiler_options(${target})
+endfunction()
+
+add_library(AeroGuiKernelObjects OBJECT
     src/gui/BindingPath.cpp
     src/gui/DependencyProperty.cpp
     src/diagnostics/Diagnostics.cpp
@@ -39,56 +56,13 @@ add_library(AeroGuiKernel ${AERO_LIBRARY_TYPE}
     src/render/RenderTree.cpp
     src/media/Transforms.cpp
     src/gui/Style.cpp)
+aero_configure_internal_objects(AeroGuiKernelObjects)
+target_link_libraries(AeroGuiKernelObjects
+    PUBLIC Aero::Base Threads::Threads)
+target_compile_definitions(AeroGuiKernelObjects PRIVATE
+    AERO_UI_RESOURCE_MODEL=2)
 
-add_library(Aero::_DetailGuiKernel ALIAS AeroGuiKernel)
-
-target_include_directories(AeroGuiKernel
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-
-target_link_libraries(AeroGuiKernel
-    PUBLIC
-        Aero::Base
-        Threads::Threads)
-
-target_compile_definitions(
-    AeroGuiKernel PUBLIC AERO_UI_RESOURCE_MODEL=2)
-target_compile_features(AeroGuiKernel PUBLIC cxx_std_17)
-set_target_properties(AeroGuiKernel PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-
-aero_apply_compiler_options(AeroGuiKernel)
-
-
-
-# Application object model and metadata are shared by the default App
-# product and the built-in schema catalog without pulling in native hosts.
-add_library(AeroAppModel ${AERO_LIBRARY_TYPE}
-    src/app/Application.cpp
-    src/app/Metadata.cpp)
-add_library(Aero::_DetailAppModel ALIAS AeroAppModel)
-target_include_directories(AeroAppModel
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroAppModel PUBLIC Aero::_DetailGuiKernel)
-target_compile_features(AeroAppModel PUBLIC cxx_std_17)
-set_target_properties(AeroAppModel PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroAppModel)
-
-add_library(AeroControls ${AERO_LIBRARY_TYPE}
+add_library(AeroControlsObjects OBJECT
     src/controls/Bars.cpp
     src/controls/Buttons.cpp
     src/controls/ContentControls.cpp
@@ -109,83 +83,80 @@ add_library(AeroControls ${AERO_LIBRARY_TYPE}
     src/controls/Trees.cpp
     src/controls/Virtualization.cpp
     src/controls/VisualStates.cpp)
+aero_configure_internal_objects(AeroControlsObjects)
+target_link_libraries(AeroControlsObjects
+    PUBLIC AeroGuiKernelObjects AeroTextObjects)
+target_compile_definitions(AeroControlsObjects PRIVATE
+    AERO_CONTROLS_TEMPLATE_ABI=10)
 
-add_library(Aero::_DetailControls ALIAS AeroControls)
+# Application object state and metadata are consumed by Runtime and App, but
+# native hosting remains outside this component.
+add_library(AeroAppModelObjects OBJECT
+    src/app/Application.cpp
+    src/app/Metadata.cpp)
+aero_configure_internal_objects(AeroAppModelObjects)
+target_link_libraries(AeroAppModelObjects
+    PUBLIC AeroGuiKernelObjects AeroControlsObjects)
 
-target_include_directories(AeroControls
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(AeroControls
-    PUBLIC
-        Aero::_DetailGuiKernel
-        Aero::_DetailText)
-target_compile_definitions(
-    AeroControls PUBLIC AERO_CONTROLS_TEMPLATE_ABI=10)
-target_compile_features(AeroControls PUBLIC cxx_std_17)
-set_target_properties(AeroControls PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroControls)
-
-# Window derives from ContentControl. Keep the App object model independent of
-# native hosting, but express its real shared-library dependency on Controls.
-target_link_libraries(AeroAppModel PUBLIC Aero::_DetailControls)
-get_target_property(_aero_app_model_links AeroAppModel LINK_LIBRARIES)
-if(NOT "${_aero_app_model_links}" MATCHES
-        "(^|;)(Aero::_DetailControls|AeroControls)(;|$)")
-    message(FATAL_ERROR
-        "AeroAppModel must express its ContentControl dependency")
-endif()
-unset(_aero_app_model_links)
-
-add_library(AeroInspector ${AERO_LIBRARY_TYPE}
+add_library(AeroInspectorObjects OBJECT
     src/diagnostics/Inspector.cpp)
-add_library(Aero::_DetailInspector ALIAS
-    AeroInspector)
-target_include_directories(AeroInspector
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(AeroInspector
-    PUBLIC Aero::_DetailControls)
-target_compile_features(AeroInspector
-    PUBLIC cxx_std_17)
-set_target_properties(AeroInspector PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroInspector)
+aero_configure_internal_objects(AeroInspectorObjects)
+target_link_libraries(AeroInspectorObjects PUBLIC AeroControlsObjects)
 
-add_library(AeroMarkupKernel ${AERO_LIBRARY_TYPE}
+add_library(AeroMarkupKernelObjects OBJECT
     src/markup/CompiledCache.cpp
     src/markup/CompiledDocument.cpp
     src/markup/XmlTokenizer.cpp
     src/markup/NodeReader.cpp)
-add_library(Aero::_DetailMarkupKernel ALIAS AeroMarkupKernel)
+aero_configure_internal_objects(AeroMarkupKernelObjects)
+target_link_libraries(AeroMarkupKernelObjects PUBLIC AeroGuiKernelObjects)
 
-target_include_directories(AeroMarkupKernel
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>)
-target_link_libraries(AeroMarkupKernel PUBLIC Aero::_DetailGuiKernel)
-target_compile_features(AeroMarkupKernel PUBLIC cxx_std_17)
-set_target_properties(AeroMarkupKernel PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON
-    WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
-aero_apply_compiler_options(AeroMarkupKernel)
+set(_aero_vendored_expat_target "")
+set(_aero_expat_target "")
+if(AERO_WITH_EXPAT)
+    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
+        get_filename_component(_aero_sibling_third_party
+            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
+            ABSOLUTE)
+        if(EXISTS
+           "${_aero_sibling_third_party}/expat/expat/CMakeLists.txt")
+            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
+        endif()
+    endif()
+    set(_aero_expat_source "${AERO_THIRD_PARTY_ROOT}/expat/expat")
+    if(EXISTS "${_aero_expat_source}/CMakeLists.txt")
+        set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
+        set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+        set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+        add_subdirectory(
+            "${_aero_expat_source}"
+            "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat"
+            EXCLUDE_FROM_ALL)
+        set_target_properties(expat PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set(_aero_expat_target expat::expat)
+        set(_aero_vendored_expat_target expat)
+    else()
+        find_package(EXPAT QUIET)
+        if(TARGET EXPAT::EXPAT)
+            set(_aero_expat_target EXPAT::EXPAT)
+        else()
+            message(FATAL_ERROR
+                "AERO_WITH_EXPAT requires Expat or ${_aero_expat_source}")
+        endif()
+    endif()
+    target_sources(AeroMarkupKernelObjects PRIVATE
+        src/markup/ExpatXmlTokenizer.cpp)
+    target_link_libraries(AeroMarkupKernelObjects PRIVATE
+        ${_aero_expat_target})
+endif()
+target_compile_definitions(AeroMarkupKernelObjects PRIVATE
+    AERO_WITH_EXPAT=$<BOOL:${AERO_WITH_EXPAT}>)
 
-add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
+add_library(AeroMarkupObjects OBJECT
     src/markup/BindingExtension.cpp
     src/markup/CompiledSchema.cpp
     src/markup/Metadata.cpp
@@ -208,106 +179,68 @@ add_library(AeroMarkup ${AERO_LIBRARY_TYPE}
     src/markup/ObjectWriter.cpp
     src/markup/SchemaServices.cpp
     src/markup/XamlDocument.cpp)
+aero_configure_internal_objects(AeroMarkupObjects)
+target_link_libraries(AeroMarkupObjects PUBLIC
+    AeroMarkupKernelObjects AeroControlsObjects)
+target_compile_definitions(AeroMarkupObjects PRIVATE
+    AERO_MARKUP_UI_RESOURCES=1)
 
+# Module/schema composition is folded into Integration and the offline tools.
+add_library(AeroModuleCatalogObjects OBJECT
+    src/runtime/modules/Module.cpp
+    src/runtime/modules/BuiltinModules.cpp
+    src/markup/SchemaBundle.cpp)
+aero_configure_internal_objects(AeroModuleCatalogObjects)
+target_link_libraries(AeroModuleCatalogObjects PUBLIC
+    AeroMarkupObjects AeroAppModelObjects)
+
+# The supported GUI SDK is one real binary rather than an interface route over
+# separately installed implementation archives.
+add_library(AeroGui ${AERO_LIBRARY_TYPE})
+add_library(Aero::Gui ALIAS AeroGui)
+target_sources(AeroGui PRIVATE
+    $<TARGET_OBJECTS:AeroGuiKernelObjects>
+    $<TARGET_OBJECTS:AeroTextObjects>
+    $<TARGET_OBJECTS:AeroControlsObjects>
+    $<TARGET_OBJECTS:AeroMarkupKernelObjects>
+    $<TARGET_OBJECTS:AeroMarkupObjects>
+    $<TARGET_OBJECTS:AeroInspectorObjects>)
+target_include_directories(AeroGui
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+target_link_libraries(AeroGui
+    PUBLIC Aero::Base Threads::Threads)
 if(AERO_WITH_EXPAT)
-    set(_aero_vendored_expat_target "")
-    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
-        get_filename_component(_aero_sibling_third_party
-            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party"
-            ABSOLUTE)
-        if(EXISTS
-           "${_aero_sibling_third_party}/expat/expat/CMakeLists.txt")
-            set(AERO_THIRD_PARTY_ROOT
-                "${_aero_sibling_third_party}")
-        endif()
-    endif()
-    set(_aero_expat_source
-        "${AERO_THIRD_PARTY_ROOT}/expat/expat")
-    if(EXISTS "${_aero_expat_source}/CMakeLists.txt")
-        set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-        set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-        add_subdirectory(
-            "${_aero_expat_source}"
-            "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat"
-            EXCLUDE_FROM_ALL)
-        set_target_properties(expat PROPERTIES
-            POSITION_INDEPENDENT_CODE ON)
-        set(_aero_expat_target expat::expat)
-        set(_aero_vendored_expat_target expat)
-    else()
-        find_package(EXPAT QUIET)
-        if(TARGET EXPAT::EXPAT)
-            set(_aero_expat_target EXPAT::EXPAT)
-        else()
-            message(FATAL_ERROR
-                "AERO_WITH_EXPAT requires Expat or "
-                "${_aero_expat_source}")
-        endif()
-    endif()
-    target_sources(AeroMarkupKernel PRIVATE
-        src/markup/ExpatXmlTokenizer.cpp)
     if(_aero_vendored_expat_target)
-        target_link_libraries(AeroMarkupKernel PRIVATE
+        target_link_libraries(AeroGui PRIVATE
             $<BUILD_INTERFACE:${_aero_expat_target}>
-            $<INSTALL_INTERFACE:Aero::_DetailExpat>)
+            $<INSTALL_INTERFACE:Aero::_PrivateExpat>)
     else()
-        target_link_libraries(AeroMarkupKernel PRIVATE
+        target_link_libraries(AeroGui PRIVATE
             $<BUILD_INTERFACE:${_aero_expat_target}>
             $<INSTALL_INTERFACE:EXPAT::EXPAT>)
     endif()
 endif()
-
-add_library(Aero::_DetailMarkup ALIAS AeroMarkup)
-
-target_include_directories(AeroMarkup
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-
-target_compile_definitions(
-    AeroMarkupKernel
-    PUBLIC
-        $<$<BOOL:${AERO_WITH_EXPAT}>:AERO_WITH_EXPAT=1>
-        $<$<NOT:$<BOOL:${AERO_WITH_EXPAT}>>:AERO_WITH_EXPAT=0>)
-target_link_libraries(AeroMarkup
-    PUBLIC Aero::_DetailMarkupKernel Aero::_DetailControls)
-target_compile_definitions(
-    AeroMarkup PRIVATE AERO_MARKUP_UI_RESOURCES=1)
-target_compile_features(AeroMarkup PUBLIC cxx_std_17)
-set_target_properties(AeroMarkup PROPERTIES
+target_compile_features(AeroGui PUBLIC cxx_std_17)
+set_target_properties(AeroGui PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
     POSITION_INDEPENDENT_CODE ON
     WINDOWS_EXPORT_ALL_SYMBOLS ${AERO_BUILD_SHARED})
+aero_apply_compiler_options(AeroGui)
 
-aero_apply_compiler_options(AeroMarkup)
+add_library(AeroMeta INTERFACE)
+add_library(Aero::Meta ALIAS AeroMeta)
+target_link_libraries(AeroMeta INTERFACE Aero::Gui)
 
-add_library(AeroModuleCatalog ${AERO_LIBRARY_TYPE}
-    src/runtime/modules/Module.cpp
-    src/runtime/modules/BuiltinModules.cpp
-    src/markup/SchemaBundle.cpp)
-add_library(Aero::_DetailModuleCatalog ALIAS AeroModuleCatalog)
-target_include_directories(AeroModuleCatalog
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(AeroModuleCatalog
-    PUBLIC Aero::_DetailMarkup
-    PRIVATE Aero::_DetailAppModel)
-target_compile_features(AeroModuleCatalog PUBLIC cxx_std_17)
-set_target_properties(AeroModuleCatalog PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED YES
-    CXX_EXTENSIONS NO
-    POSITION_INDEPENDENT_CODE ON)
-aero_apply_compiler_options(AeroModuleCatalog)
+add_library(AeroGuiHeaderConsumer OBJECT
+    tools/sdk-consumers/GuiConsumer.cpp)
+target_link_libraries(AeroGuiHeaderConsumer PRIVATE Aero::Gui)
+aero_apply_compiler_options(AeroGuiHeaderConsumer)
+
+add_library(AeroMetaHeaderConsumer OBJECT
+    tools/sdk-consumers/MetaConsumer.cpp)
+target_link_libraries(AeroMetaHeaderConsumer PRIVATE Aero::Meta)
+aero_apply_compiler_options(AeroMetaHeaderConsumer)

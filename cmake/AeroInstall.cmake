@@ -1,10 +1,6 @@
-# Installed product targets, private static-link support archives and tools.
-# Installable SDK and CMake package.
-#
-# Only these targets are supported product components. Static packages still
-# ship private support archives so the product targets can resolve their link
-# graph, but those imports use an underscore-prefixed _Detail name and are not
-# part of the supported SDK surface.
+# Install only product binaries. Internal Aero domains are object components and
+# never appear in AeroTargets.cmake. Static packages additionally carry the
+# three vendored archives required to resolve private third-party symbols.
 set_target_properties(AeroBase PROPERTIES EXPORT_NAME Base)
 set_target_properties(AeroAudio PROPERTIES EXPORT_NAME Audio)
 set_target_properties(AeroGui PROPERTIES EXPORT_NAME Gui)
@@ -12,25 +8,7 @@ set_target_properties(AeroMeta PROPERTIES EXPORT_NAME Meta)
 set_target_properties(AeroIntegration PROPERTIES EXPORT_NAME Integration)
 set_target_properties(AeroApp PROPERTIES EXPORT_NAME App)
 
-set_target_properties(AeroGuiKernel PROPERTIES EXPORT_NAME _DetailGuiKernel)
-set_target_properties(AeroText PROPERTIES EXPORT_NAME _DetailText)
-set_target_properties(freetype PROPERTIES EXPORT_NAME _DetailFreeType)
-set_target_properties(AeroTextFreeType PROPERTIES EXPORT_NAME _DetailTextFreeType)
-set_target_properties(harfbuzz PROPERTIES EXPORT_NAME _DetailHarfBuzz)
-set_target_properties(AeroTextHarfBuzz PROPERTIES EXPORT_NAME _DetailTextHarfBuzz)
-set_target_properties(AeroAppModel PROPERTIES EXPORT_NAME _DetailAppModel)
-set_target_properties(AeroControls PROPERTIES EXPORT_NAME _DetailControls)
-set_target_properties(AeroMarkupKernel PROPERTIES EXPORT_NAME _DetailMarkupKernel)
-set_target_properties(AeroMarkup PROPERTIES EXPORT_NAME _DetailMarkup)
-set_target_properties(AeroModuleCatalog PROPERTIES EXPORT_NAME _DetailModuleCatalog)
-set_target_properties(AeroRuntime PROPERTIES EXPORT_NAME _DetailRuntime)
-set_target_properties(AeroRendering PROPERTIES EXPORT_NAME _DetailRendering)
-
-if(_aero_vendored_expat_target)
-    set_target_properties(${_aero_vendored_expat_target} PROPERTIES EXPORT_NAME _DetailExpat)
-endif()
-
-set(_aero_product_targets
+set(_aero_sdk_targets
     AeroBase
     AeroAudio
     AeroGui
@@ -38,26 +16,18 @@ set(_aero_product_targets
     AeroIntegration
     AeroApp)
 
-set(_aero_static_support_targets
-    AeroGuiKernel
-    AeroText
-    freetype
-    AeroTextFreeType
-    harfbuzz
-    AeroTextHarfBuzz
-    AeroAppModel
-    AeroControls
-    AeroMarkupKernel
-    AeroMarkup
-    AeroModuleCatalog
-    AeroRuntime
-    AeroRendering)
-
-if(_aero_vendored_expat_target)
-    list(APPEND _aero_static_support_targets ${_aero_vendored_expat_target})
+if(NOT AERO_BUILD_SHARED)
+    set_target_properties(freetype PROPERTIES
+        EXPORT_NAME _PrivateFreeType)
+    set_target_properties(harfbuzz PROPERTIES
+        EXPORT_NAME _PrivateHarfBuzz)
+    list(APPEND _aero_sdk_targets freetype harfbuzz)
+    if(_aero_vendored_expat_target)
+        set_target_properties(${_aero_vendored_expat_target} PROPERTIES
+            EXPORT_NAME _PrivateExpat)
+        list(APPEND _aero_sdk_targets ${_aero_vendored_expat_target})
+    endif()
 endif()
-
-set(_aero_sdk_targets ${_aero_product_targets} ${_aero_static_support_targets})
 
 install(TARGETS ${_aero_sdk_targets}
     EXPORT AeroTargets
@@ -65,6 +35,7 @@ install(TARGETS ${_aero_sdk_targets}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 if(TARGET aero-schema-gen)
     set_target_properties(aero-schema-gen PROPERTIES EXPORT_NAME schema-gen)
     install(TARGETS aero-schema-gen
@@ -77,6 +48,7 @@ if(TARGET aero-xamlc)
         EXPORT AeroTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
+
 foreach(_aero_public_header IN LISTS AERO_PUBLIC_HEADERS)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_aero_public_header}")
         message(FATAL_ERROR
@@ -95,6 +67,7 @@ endforeach()
 unset(_aero_public_header)
 unset(_aero_public_header_directory)
 unset(_aero_public_install_directory)
+
 install(FILES
     "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Aero)

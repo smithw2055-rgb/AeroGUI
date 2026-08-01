@@ -25,14 +25,30 @@ enum class ShutdownMode : std::uint8_t {
 
 struct StartupEventArgs final : EventArgs {
     AERO_DECLARE_TYPE(StartupEventArgs, EventArgs)
+public:
     StartupEventArgs() noexcept : EventArgs(StaticTypeId()) {}
-    Base::StringView startupUri;
+    explicit StartupEventArgs(Base::StringView startupUri) noexcept
+        : EventArgs(StaticTypeId()), startupUri_(startupUri) {}
+
+    Base::StringView GetStartupUri() const noexcept { return startupUri_; }
+
+private:
+    Base::StringView startupUri_;
 };
 
 struct ExitEventArgs final : EventArgs {
     AERO_DECLARE_TYPE(ExitEventArgs, EventArgs)
+public:
     ExitEventArgs() noexcept : EventArgs(StaticTypeId()) {}
-    int applicationExitCode = 0;
+    explicit ExitEventArgs(int applicationExitCode) noexcept
+        : EventArgs(StaticTypeId()), applicationExitCode_(applicationExitCode) {}
+
+    int GetApplicationExitCode() const noexcept {
+        return applicationExitCode_;
+    }
+
+private:
+    int applicationExitCode_ = 0;
 };
 
 class AERO_API WindowCollection final {
@@ -61,7 +77,7 @@ public:
     Base::Ref<ResourceDictionary> GetResources() const noexcept { return resources_; }
     Base::Result<void> SetResources(Base::Ref<ResourceDictionary> value) noexcept { resources_ = std::move(value); return {}; }
     Window* GetMainWindow() const noexcept { return mainWindow_; }
-    void SetMainWindow(Window* value) noexcept { mainWindow_ = value; }
+    void SetMainWindow(Window* value) noexcept;
     WindowCollection GetWindows() const noexcept { return WindowCollection(*this); }
     ShutdownMode GetShutdownMode() const noexcept { return shutdownMode_; }
     void SetShutdownMode(ShutdownMode value) noexcept { shutdownMode_ = value; }
@@ -100,6 +116,7 @@ private:
     Base::String startupUri_;
     Base::Ref<ResourceDictionary> resources_;
     void* runtimeState_ = nullptr;
+    Base::Ref<Base::Object> mainWindowOwner_;
     Window* mainWindow_ = nullptr;
     ShutdownMode shutdownMode_ = ShutdownMode::OnLastWindowClose;
 };

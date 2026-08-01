@@ -226,7 +226,7 @@ Base::Result<void> PasswordBox::SetPassword(
         InvalidateMeasure();
     if (!measure) return measure.GetStatus();
     Base::Result<void> render =
-        InvalidateRender();
+        InvalidateVisual();
     if (!render) return render.GetStatus();
     RoutedEventArgs args;
     Base::Result<void> raised =
@@ -261,7 +261,7 @@ Base::Result<void> PasswordBox::SetPasswordChar(
     if (!measure) return measure.GetStatus();
     measure = InvalidateMeasure();
     if (!measure) return measure.GetStatus();
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 std::uint32_t PasswordBox::MaximumLength() const noexcept {
@@ -491,7 +491,7 @@ PasswordBox::SynchronizePasswordFromEditor()
         InvalidateMeasure();
     if (!measure) return measure.GetStatus();
     Base::Result<void> render =
-        InvalidateRender();
+        InvalidateVisual();
     if (!render) return render.GetStatus();
     RoutedEventArgs args;
     Base::Result<void> raised =
@@ -787,7 +787,7 @@ Base::Result<void> TextBox::SetSelection(
     if (!visible) {
         return visible;
     }
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<void> TextBox::SelectAll() noexcept {
@@ -808,7 +808,7 @@ Base::Result<void> TextBox::SelectAll() noexcept {
     if (!visible) {
         return visible;
     }
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<void> TextBox::Undo() noexcept {
@@ -858,7 +858,7 @@ Base::Result<void> TextBox::SetDisplayPolicy(
     if (!measure) {
         return measure;
     }
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<void> TextBox::AttachScrollViewer(
@@ -974,7 +974,7 @@ TextBox::BeginComposition() noexcept {
         return measure;
     }
     Base::Result<void> render =
-        InvalidateRender();
+        InvalidateVisual();
     if (!render) {
         compositionActive_ = false;
         return render;
@@ -1040,7 +1040,7 @@ Base::Result<void> TextBox::UpdateComposition(
         return measure;
     }
     Base::Result<void> render =
-        InvalidateRender();
+        InvalidateVisual();
     if (!render) {
         return render;
     }
@@ -1109,7 +1109,7 @@ TextBox::CancelComposition() noexcept {
         return measure;
     }
     Base::Result<void> render =
-        InvalidateRender();
+        InvalidateVisual();
     if (!render) {
         return render;
     }
@@ -1161,7 +1161,7 @@ Base::Result<void> TextBox::SynchronizeModel() noexcept {
     if (!measure) {
         return measure;
     }
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<void> TextBox::CommitModelText() noexcept {
@@ -1196,7 +1196,7 @@ Base::Result<void> TextBox::CommitModelText() noexcept {
     if (!visible) {
         return visible;
     }
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<void> TextBox::SanitizeInput(
@@ -2172,7 +2172,7 @@ Base::Result<bool> TextBox::SetViewport(
             scroll_.verticalOffset;
     if (changed) {
         Base::Result<void> invalidated =
-            InvalidateRender();
+            InvalidateVisual();
         if (!invalidated) {
             return invalidated.GetStatus();
         }
@@ -2197,7 +2197,7 @@ TextBox::SetHorizontalOffset(
     }
     scroll_.horizontalOffset = next;
     Base::Result<void> invalidated =
-        InvalidateRender();
+        InvalidateVisual();
     return invalidated
         ? Base::Result<bool>(true)
         : Base::Result<bool>(
@@ -2221,7 +2221,7 @@ TextBox::SetVerticalOffset(
     }
     scroll_.verticalOffset = next;
     Base::Result<void> invalidated =
-        InvalidateRender();
+        InvalidateVisual();
     return invalidated
         ? Base::Result<bool>(true)
         : Base::Result<bool>(
@@ -2843,7 +2843,7 @@ void TextBoxInteractionManager::OnMouseDown(
     MouseButtonEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
-    if (args.changedButton !=
+    if (args.GetChangedButton() !=
             MouseButton::Left ||
         !owner.GetIsEnabled()) {
         return;
@@ -2859,7 +2859,7 @@ void TextBoxInteractionManager::OnMouseDown(
     }
     const Point local =
         ToLocalPoint(
-            owner, args.position);
+            owner, args.GetPosition());
     const std::uint32_t caret =
         editor->HitTestText(local);
     static_cast<void>(
@@ -2868,14 +2868,14 @@ void TextBoxInteractionManager::OnMouseDown(
         input_->SetFocus(&owner));
     Base::Result<void> captured =
         input_->CapturePointer(
-            args.pointerId, owner);
+            args.GetPointerId(), owner);
     if (captured) {
         records_[index].pointerId =
-            args.pointerId;
+            args.GetPointerId();
         records_[index].anchor = caret;
         records_[index].dragging = true;
     }
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void TextBoxInteractionManager::OnMouseMove(
@@ -2888,7 +2888,7 @@ void TextBoxInteractionManager::OnMouseMove(
     if (index == UINT32_MAX ||
         !records_[index].dragging ||
         records_[index].pointerId !=
-            args.pointerId) {
+            args.GetPointerId()) {
         return;
     }
     TextBox* editor =
@@ -2896,12 +2896,12 @@ void TextBoxInteractionManager::OnMouseMove(
     if (editor == nullptr) return;
     const Point local =
         ToLocalPoint(
-            owner, args.position);
+            owner, args.GetPosition());
     static_cast<void>(
         editor->SetSelection(
             records_[index].anchor,
             editor->HitTestText(local)));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void TextBoxInteractionManager::OnMouseUp(
@@ -2912,11 +2912,11 @@ void TextBoxInteractionManager::OnMouseUp(
     const std::uint32_t index =
         Find(owner);
     if (index == UINT32_MAX ||
-        args.changedButton !=
+        args.GetChangedButton() !=
             MouseButton::Left ||
         !records_[index].dragging ||
         records_[index].pointerId !=
-            args.pointerId) {
+            args.GetPointerId()) {
         return;
     }
     TextBox* editor =
@@ -2924,7 +2924,7 @@ void TextBoxInteractionManager::OnMouseUp(
     if (editor == nullptr) return;
     const Point local =
         ToLocalPoint(
-            owner, args.position);
+            owner, args.GetPosition());
     static_cast<void>(
         editor->SetSelection(
             records_[index].anchor,
@@ -2932,8 +2932,8 @@ void TextBoxInteractionManager::OnMouseUp(
     records_[index].dragging = false;
     static_cast<void>(
         input_->ReleasePointer(
-            args.pointerId));
-    args.handled = true;
+            args.GetPointerId()));
+    args.SetHandled(true);
 }
 
 void TextBoxInteractionManager::OnKeyDown(
@@ -2955,71 +2955,71 @@ void TextBoxInteractionManager::OnKeyDown(
         records_[index].password;
     const bool shift =
         HasKeyboardModifier(
-            args.modifiers,
+            args.GetModifiers(),
             KeyboardModifiers::Shift);
     const bool control =
         HasKeyboardModifier(
-            args.modifiers,
+            args.GetModifiers(),
             KeyboardModifiers::Control);
     Base::Result<void> result;
     bool handled = true;
     if (control &&
-        args.key == KeyboardKeyA) {
+        args.GetKey() == KeyboardKeyA) {
         result = editor->SelectAll();
     } else if (control &&
-        args.key == KeyboardKeyC) {
+        args.GetKey() == KeyboardKeyC) {
         result = password
             ? Base::Result<void>{}
             : editor->CopySelection(
                   *clipboard_);
     } else if (control &&
-        args.key == KeyboardKeyX) {
+        args.GetKey() == KeyboardKeyX) {
         result = password
             ? editor->ReplaceSelection(
                   Base::StringView{})
             : editor->CutSelection(
                   *clipboard_);
     } else if (control &&
-        args.key == KeyboardKeyV) {
+        args.GetKey() == KeyboardKeyV) {
         result = editor->Paste(
             *clipboard_);
     } else if (control &&
-        args.key == KeyboardKeyZ) {
+        args.GetKey() == KeyboardKeyZ) {
         result = shift
             ? editor->Redo()
             : editor->Undo();
     } else if (control &&
-        args.key == KeyboardKeyY) {
+        args.GetKey() == KeyboardKeyY) {
         result = editor->Redo();
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyLeft) {
         result =
             editor->MoveCaretHorizontal(
                 -1.0, shift);
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyRight) {
         result =
             editor->MoveCaretHorizontal(
                 1.0, shift);
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyHome) {
         result =
             editor->MoveCaretLineBoundary(
                 false, shift);
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyEnd) {
         result =
             editor->MoveCaretLineBoundary(
                 true, shift);
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyBackspace) {
         result =
             editor->DeleteBackward();
-    } else if (args.key ==
+    } else if (args.GetKey() ==
         KeyboardKeyDelete) {
         result =
             editor->DeleteForward();
-    } else if (args.key ==
+    } else if (args.GetKey() ==
             KeyboardKeyEnter &&
         editor->AcceptsReturn()) {
         result = editor->ReplaceSelection(
@@ -3028,7 +3028,7 @@ void TextBoxInteractionManager::OnKeyDown(
         handled = false;
     }
     if (handled && result) {
-        args.handled = true;
+        args.SetHandled(true);
     }
 }
 
@@ -3057,9 +3057,9 @@ void TextBoxInteractionManager::OnTextInput(
         }
     }
     Base::Result<void> inserted =
-        editor->ReplaceSelection(args.text);
+        editor->ReplaceSelection(args.GetText());
     if (inserted) {
-        args.handled = true;
+        args.SetHandled(true);
     }
 }
 
@@ -3068,7 +3068,7 @@ void TextBoxInteractionManager::OnFocusChanged(
     KeyboardFocusChangedEventArgs& args) noexcept {
     auto& owner =
         *static_cast<UIElement*>(sender);
-    if (args.newFocus == &owner) {
+    if (args.GetNewFocus() == &owner) {
         return;
     }
     const std::uint32_t index =
@@ -3097,7 +3097,7 @@ void TextBoxInteractionManager::OnPropertyChanged(
         PasswordBox::StaticTypeId()) {
         auto& passwordBox =
             static_cast<PasswordBox&>(object);
-        if (args.property ==
+        if (args.GetProperty() ==
                 PasswordBox::
                     PasswordCharProperty) {
             static_cast<void>(
@@ -3110,8 +3110,8 @@ void TextBoxInteractionManager::OnPropertyChanged(
                     InvalidateMeasure());
             static_cast<void>(
                 passwordBox.editor_.
-                    InvalidateRender());
-        } else if (args.property ==
+                    InvalidateVisual());
+        } else if (args.GetProperty() ==
                 PasswordBox::
                     MaximumLengthProperty) {
             static_cast<void>(
@@ -3128,7 +3128,7 @@ void TextBoxInteractionManager::OnPropertyChanged(
                     SetMaximumLength(
                         passwordBox.
                             MaximumLength()));
-        } else if (args.property ==
+        } else if (args.GetProperty() ==
                 PasswordBox::
                     ForegroundProperty) {
             static_cast<void>(
@@ -3136,7 +3136,7 @@ void TextBoxInteractionManager::OnPropertyChanged(
                     SetForeground(
                         passwordBox.
                             Foreground()));
-        } else if (args.property ==
+        } else if (args.GetProperty() ==
                 PasswordBox::
                     SelectionBrushProperty) {
             static_cast<void>(
@@ -3144,13 +3144,13 @@ void TextBoxInteractionManager::OnPropertyChanged(
                     SetSelectionBrush(
                         passwordBox.
                             SelectionBrush()));
-        } else if (args.property ==
+        } else if (args.GetProperty() ==
                 PasswordBox::
                     SelectionOpacityProperty) {
             static_cast<void>(
                 passwordBox.editor_.SetSelectionOpacity(
                     passwordBox.SelectionOpacity()));
-        } else if (args.property ==
+        } else if (args.GetProperty() ==
                 PasswordBox::
                     CaretBrushProperty) {
             static_cast<void>(
@@ -3158,10 +3158,10 @@ void TextBoxInteractionManager::OnPropertyChanged(
                     SetCaretBrush(
                         passwordBox.
                             CaretBrush()));
-        } else if (args.property ==
+        } else if (args.GetProperty() ==
                        UIElement::
                            IsEnabledProperty &&
-                   !args.newValue.
+                   !args.GetNewValue().
                        AsBoolean()) {
             static_cast<void>(
                 passwordBox.editor_.
@@ -3171,30 +3171,30 @@ void TextBoxInteractionManager::OnPropertyChanged(
     }
     auto& textBox =
         static_cast<TextBox&>(object);
-    if (args.property ==
+    if (args.GetProperty() ==
             TextBox::TextProperty) {
         if (!textBox.updatingTextProperty_) {
             static_cast<void>(
                 textBox.SynchronizeModel());
         }
-    } else if (args.property ==
+    } else if (args.GetProperty() ==
             TextBox::IsReadOnlyProperty) {
-        if (args.newValue.AsBoolean()) {
+        if (args.GetNewValue().AsBoolean()) {
             static_cast<void>(
                 textBox.
                     CancelCompositionForFocusLoss());
         }
         static_cast<void>(
             textBox.model_.SetReadOnly(
-                args.newValue.AsBoolean()));
-    } else if (args.property ==
+                args.GetNewValue().AsBoolean()));
+    } else if (args.GetProperty() ==
             TextBox::MaximumLengthProperty) {
         static_cast<void>(
             textBox.
                 CancelCompositionForFocusLoss());
-    } else if (args.property ==
+    } else if (args.GetProperty() ==
                    UIElement::IsEnabledProperty &&
-               !args.newValue.AsBoolean()) {
+               !args.GetNewValue().AsBoolean()) {
         static_cast<void>(
             textBox.
                 CancelCompositionForFocusLoss());

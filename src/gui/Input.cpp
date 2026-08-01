@@ -672,25 +672,25 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     Base::Result<void> raised;
     if (input.action == PointerAction::Move) {
         MouseEventArgs args;
-        args.pointerId = input.pointerId;
-        args.position = result.hit.position;
+        args.SetPointerId(input.pointerId);
+        args.SetPosition(result.hit.position);
         raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
         if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     } else if (input.action == PointerAction::Wheel) {
         MouseWheelEventArgs args;
-        args.pointerId = input.pointerId;
-        args.position = result.hit.position;
-        args.deltaX = input.wheelDeltaX;
-        args.deltaY = input.wheelDeltaY;
+        args.SetPointerId(input.pointerId);
+        args.SetPosition(result.hit.position);
+        args.SetDeltaX(input.wheelDeltaX);
+        args.SetDeltaY(input.wheelDeltaY);
         raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
         if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     } else {
         MouseButtonEventArgs args;
-        args.pointerId = input.pointerId;
-        args.position = result.hit.position;
-        args.changedButton = input.changedButton;
-        args.buttonState = input.action == PointerAction::Down
-            ? MouseButtonState::Pressed : MouseButtonState::Released;
+        args.SetPointerId(input.pointerId);
+        args.SetPosition(result.hit.position);
+        args.SetChangedButton(input.changedButton);
+        args.SetButtonState(input.action == PointerAction::Down
+            ? MouseButtonState::Pressed : MouseButtonState::Released);
         raised = events_->RaiseEvent(*result.hit.target, previewEvent, &args);
         if (raised) raised = events_->RaiseEvent(*result.hit.target, event, &args);
     }
@@ -886,8 +886,8 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             return state.GetStatus();
         }
         KeyboardFocusChangedEventArgs args;
-        args.oldFocus = previous;
-        args.newFocus = node;
+        args.SetOldFocus(previous);
+        args.SetNewFocus(node);
         Base::Result<void> lost = events_->RaiseEvent(
             *previous, UIElement::LostKeyboardFocusEvent, &args);
         if (!lost) {
@@ -916,8 +916,8 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
         return state.GetStatus();
     }
     KeyboardFocusChangedEventArgs args;
-    args.oldFocus = previous;
-    args.newFocus = node;
+    args.SetOldFocus(previous);
+    args.SetNewFocus(node);
     Base::Result<void> gained = events_->RaiseEvent(
         *node, UIElement::GotKeyboardFocusEvent, &args);
     if (!gained) {
@@ -964,7 +964,7 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         return state.GetStatus();
     }
     KeyboardFocusChangedEventArgs args;
-    args.oldFocus = previous;
+    args.SetOldFocus(previous);
     Base::Result<void> lost = events_->RaiseEvent(
         *previous, UIElement::LostKeyboardFocusEvent, &args);
     if (!lost) {
@@ -1090,17 +1090,17 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
             "Keyboard focus target is not loaded in the input tree");
     }
     KeyEventArgs args;
-    args.action = input.action;
-    args.key = input.key;
-    args.modifiers = input.modifiers;
-    args.isRepeat = input.isRepeat;
+    args.SetAction(input.action);
+    args.SetKey(input.key);
+    args.SetModifiers(input.modifiers);
+    args.SetIsRepeat(input.isRepeat);
     Base::Result<void> raised = events_->RaiseEvent(*result.target, previewEvent, &args);
     if (raised) raised = events_->RaiseEvent(*result.target, event, &args);
     if (!raised) return raised.GetStatus();
     result.routed = true;
     if (commands_ != nullptr &&
         input.action == KeyboardAction::Down &&
-        !args.handled) {
+        !args.GetHandled()) {
         Base::Result<bool> command =
             commands_->ProcessInput(*result.target, input);
         if (!command) return command.GetStatus();
@@ -1108,7 +1108,7 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
     }
     if (input.action == KeyboardAction::Down &&
         input.key == KeyboardKeyTab &&
-        !args.handled && !result.commandExecuted) {
+        !args.GetHandled() && !result.commandExecuted) {
         Base::Result<bool> moved = focus_->MoveFocus(
             HasKeyboardModifier(input.modifiers,
                 KeyboardModifiers::Shift)
@@ -1145,7 +1145,7 @@ Base::Result<TextInputDispatchResult> TextInputState::Dispatch(
             "Text input focus target is not loaded in the input tree");
     }
     TextCompositionEventArgs args;
-    args.text = input.text;
+    args.SetText(input.text);
     Base::Result<void> raised = events_->RaiseEvent(
         *result.target, UIElement::PreviewTextInputEvent, &args);
     if (raised) {

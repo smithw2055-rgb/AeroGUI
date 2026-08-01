@@ -1,6 +1,6 @@
 # XAML Runtime API
 
-The public SDK is organized as Gui, App, Integration and Meta. WPF-facing
+The public SDK is organized as Base, Gui, Meta, Integration, App and optional Audio products. WPF-facing
 application and control code does not construct runtime managers or renderer
 objects.
 
@@ -53,11 +53,10 @@ launcher, low-level host facade or service locator is required.
 
 `Application` and `Window` remain derivable XAML types. The default App runtime
 accepts registered subclasses by semantic metadata inheritance rather than by
-exact runtime type. `Application::MainWindow` and `ShutdownMode` describe
-application lifetime; the first desktop host is single-window, so
-`OnLastWindowClose` and `OnMainWindowClose` currently converge on the same
-default-host behavior while `OnExplicitShutdown` keeps the application loop
-alive until `Shutdown()` is called.
+exact runtime type. `Application::Windows`, `MainWindow` and `ShutdownMode` describe application
+lifetime. The desktop host maintains one native window, View and rendering
+attachment per top-level Window, so last-window, main-window and explicit
+shutdown modes retain distinct WPF semantics.
 
 Custom rendering follows the WPF-shaped protected hook:
 
@@ -67,7 +66,7 @@ protected:
     Aero::Base::Result<void> OnRender(
         Aero::DrawingContext& context) noexcept override {
         return context.DrawRectangle(
-            {0.0, 0.0, RenderSize().width, RenderSize().height},
+            {0.0, 0.0, GetRenderSize().width, GetRenderSize().height},
             {0.2F, 0.6F, 0.9F, 1.0F});
     }
 };
@@ -99,13 +98,14 @@ auto created = environment.CreateView(options);
 
 `RuntimeEnvironment` freezes module/schema composition. Each View owns resource,
 interaction, layout, text and frame state. `RenderEndpoint` remains opaque.
-Concrete backends are opt-in and never leak renderer/graphics layer objects into Gui.
+Concrete backends are opt-in and never leak renderer or RenderDevice
+implementation objects into Gui. The host drives frames through `View::Update()`.
 
 ## XAML load transaction
 
-`UiDocument` is a move-only load result. Loading creates an unmounted object
-graph; `View::SetContent` commits binding, dynamic-resource and mount side
-effects. Failure leaves no partially mounted document.
+`UiDocument` is a move-only load result. `Markup::XamlReader` creates an
+unmounted object graph; `View::SetContent` commits binding, dynamic-resource
+and mount side effects. Failure leaves no partially mounted document.
 
 The public schema surface resolves types and members. Object construction,
 member writes, initialization, NameScope/resource scopes, deferred content and

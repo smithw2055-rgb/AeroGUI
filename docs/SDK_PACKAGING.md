@@ -1,6 +1,7 @@
 # AeroGUI SDK packaging and boundary
 
-The installed package has four explicit product targets:
+The installed package exposes six product targets and no Aero implementation
+archives:
 
 ```cmake
 find_package(Aero 0.3 CONFIG REQUIRED)
@@ -8,28 +9,31 @@ find_package(Aero 0.3 CONFIG REQUIRED)
 target_link_libraries(MyControls PRIVATE Aero::Gui Aero::Meta)
 target_link_libraries(DesktopApp PRIVATE Aero::App)
 target_link_libraries(EngineHost PRIVATE Aero::Integration)
+target_link_libraries(AudioFeature PRIVATE Aero::Audio)
 ```
 
-- `Aero::Gui` — retained WPF/XAML objects, controls, markup and drawing.
-- `Aero::App` — optional default native desktop lifetime.
-- `Aero::Integration` — View, RenderEndpoint and host/provider integration.
+- `Aero::Base` — allocator, strings, containers, ownership and ABI foundation.
+- `Aero::Gui` — retained WPF/XAML object model, controls, markup and drawing.
 - `Aero::Meta` — typed metadata and module authoring layered over Gui.
+- `Aero::Integration` — View, source-provider and native renderer integration.
+- `Aero::App` — optional default native desktop lifetime.
+- `Aero::Audio` — optional audio product independent from Application lifetime.
 
-Legacy runtime/module/integration aliases and the low-level host facade are
-retired. Static packages still install private support archives needed to
-resolve the product link graph; their imported names are uniformly prefixed
-`Aero::_Detail`. Those targets are implementation dependencies, are omitted
-from product documentation, and carry no source-compatibility promise. The
-retained renderer, minimal render device, native GPU backends and private
-surface adapters are shipped as one `_DetailRendering` archive rather than a
-chain of Graphics, Render and per-backend support targets.
+Internal GUI, Controls, Markup, Runtime, text-provider and rendering domains
+compile as build-only object components. They are folded into the product
+binaries and never appear in `AeroTargets.cmake`. Static packages additionally
+carry only the vendored archives required to resolve private third-party
+symbols. Their imported names are `_PrivateFreeType`, `_PrivateHarfBuzz` and,
+when applicable, `_PrivateExpat`; they are not Aero SDK layers and carry no
+source-compatibility promise. Shared packages export only the six product
+targets.
 
 The installed header set is declared explicitly in
 `cmake/AeroPublicHeaders.cmake`; the build does not recursively install the
 source include directory. The physical public tree and this whitelist must
 match exactly. There is no installed `Aero/Detail` directory, and standard
 controls are published through six canonical family headers beneath
-`Aero/Controls`. See `docs/spec/PUBLIC_HEADER_MODEL.md` for the declaration and
+`Aero/Controls`. See `docs/spec/PUBLIC_HEADER_MODEL.md` for declaration and
 header-growth rules.
 
 ## GUI and custom controls
@@ -55,8 +59,8 @@ implementation details.
 
 ## Default application framework
 
-A standalone desktop application links `Aero::App` and uses one simple entry
-point:
+A standalone desktop application links `Aero::App` and uses the WPF-shaped
+Application entry point:
 
 ```cpp
 #include <Aero/App.hpp>
@@ -69,42 +73,50 @@ int main() {
 ```
 
 `Aero::Application` and `Aero::Window` are ordinary WPF-facing XAML objects.
-`Application::Run()` uses the private default desktop lifetime. Optional
-backend, allocator and diagnostics selection is passed through
-`Aero::App::RunOptions`; the SDK does not expose a launcher object.
-Audio and other optional subsystems are separate modules; constructing an
-Application never creates platform devices.
+`Application::Run()` uses the private default desktop host. Optional backend,
+allocator and diagnostics selection is passed through `Aero::App::RunOptions`;
+the SDK does not expose a launcher object. The host maintains one native window,
+View, render target and input-services record per top-level Window, so
+`Application::Windows` and the three `ShutdownMode` policies have real
+multi-window semantics.
+
+Audio and other optional subsystems are separate products; constructing an
+Application never creates unrelated platform devices.
 
 ## Integration and backend opt-in
 
-Engine/editor/native hosts link `Aero::Integration`, create or receive an
-endpoint and create a View directly through `RuntimeEnvironment`:
+Engine/editor/native hosts link `Aero::Integration`, initialize one environment,
+load XAML through `Markup::XamlReader`, and create Views directly:
 
 ```cpp
 #include <Aero/Integration.hpp>
 #include <Aero/Integration/D3D11.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 
 Aero::RuntimeEnvironment environment;
 environment.AddModule(MyModule);
 environment.Initialize();
 
-auto endpoint =
-    Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions);
 Aero::Integration::ViewOptions options;
-options.renderEndpoint = std::move(endpoint).Value();
-auto view = environment.CreateView(options);
+options.renderEndpoint =
+    Aero::Integration::CreateD3D11WindowEndpoint(endpointOptions).Value();
+
+auto view = environment.CreateView(options).Value();
+Aero::Markup::XamlReader reader(*view);
+auto document = reader.Load("MainWindow.xaml").Value();
+view->SetContent(std::move(document), {1280.0, 720.0});
+view->Update(16U);
 ```
 
 Concrete backend factories remain opt-in:
 
 - `Aero/Integration/D3D11.hpp`;
-- `Aero/Integration/OpenGL33.hpp`;
-- `Aero/Integration/HostedGraphics.hpp` for versioned third-party callbacks.
+- `Aero/Integration/OpenGL33.hpp`.
 
-The default integration headers do not expose the internal render snapshot,
-render managers, graphics layer devices, caches or backend resource handles.
-Endpoint submission is synchronous; applications and engines own any render
-thread, queue and frame-coalescing policy.
+The default integration headers do not expose immutable RenderFrame storage,
+RenderDevice command streams, caches or native backend resource handles.
+Submission is synchronous on the caller-selected thread; applications and
+engines own render threads, queues and frame-coalescing policy.
 
 ## XAML tools
 
@@ -120,6 +132,30 @@ Cross-compiling builds set `AERO_HOST_XAMLC_EXECUTABLE` to a host-native
 `aero-xamlc`. Target-platform executables are never run by the build. Generated
 AXIR paths preserve source-relative directories so equal basenames do not
 collide.
+
+## Build and install ownership
+
+The source domains are organized with object components rather than installable
+support libraries:
+
+```text
+AeroGuiKernelObjects + AeroTextObjects + AeroControlsObjects
++ AeroMarkupKernelObjects + AeroMarkupObjects + AeroInspectorObjects
+    -> Aero::Gui
+
+AeroAppModelObjects + AeroModuleCatalogObjects + AeroRuntimeObjects
++ AeroRenderingObjects + built-in text-provider objects
+    -> Aero::Integration
+
+private desktop host + OS window/input adapters
+    -> Aero::App
+```
+
+This model has three consequences:
+
+1. an installed consumer sees product concepts rather than repository topology;
+2. static and shared packages use the same public dependency graph;
+3. internal refactoring does not create or rename imported SDK targets.
 
 ## Version domains
 
@@ -137,5 +173,6 @@ freezing.
 
 ## Platform implementation ownership
 
-There is no standalone `AeroPlatform` target. Platform-neutral contracts are
-part of Integration; the default OS implementations are private App sources.
+There is no standalone platform target. Platform-neutral contracts are part of
+Integration; reusable memory-backed services are implemented there, while the
+default OS window, clipboard and IME adapters are private App sources.

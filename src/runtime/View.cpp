@@ -2,6 +2,7 @@
 
 #include <Aero/Integration/SourceProvider.hpp>
 #include <Aero/Integration/ViewOptions.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include "markup/SchemaBundle.hpp"
 
 #include "markup/Loader.hpp"
@@ -173,13 +174,13 @@ Base::Result<void> View::Initialize(
     return impl_->state.Initialize(options);
 }
 
-Base::Result<UiDocument> View::Load(
+Base::Result<UiDocument> View::LoadDocument(
     Base::StringView uri,
     Core::IDiagnosticSink* diagnostics) noexcept {
     return impl_->state.Load(uri, diagnostics);
 }
 
-Base::Result<UiDocument> View::Parse(
+Base::Result<UiDocument> View::ParseDocument(
     Base::StringView source,
     const Base::ResourceUri& baseUri,
     Core::IDiagnosticSink* diagnostics) noexcept {
@@ -197,7 +198,7 @@ Base::Result<void> View::SetContent(
 }
 
 Base::Result<void> View::SetContent(
-    Base::Ref<Base::Object> root,
+    Base::Ref<FrameworkElement> root,
     Aero::Size availableSize) noexcept {
     if (impl_ == nullptr) {
         return Base::Status::Failure(
@@ -210,7 +211,7 @@ Base::Result<void> View::SetContent(
             "A programmatic View root cannot replace a mounted document");
     }
     return impl_->state.Mount(
-        std::move(root), availableSize);
+        Base::Ref<Base::Object>(std::move(root)), availableSize);
 }
 
 Base::Result<void> View::MountContent(
@@ -234,18 +235,7 @@ Base::Result<void> View::UnmountContent(
                   "View is not initialized"));
 }
 
-Base::Result<void> View::LoadContent(
-    Base::StringView uri,
-    Aero::Size availableSize,
-    Core::IDiagnosticSink* diagnostics) noexcept {
-    Base::Result<UiDocument> loaded =
-        Load(uri, diagnostics);
-    if (!loaded) return loaded.GetStatus();
-    return SetContent(
-        std::move(loaded).Value(), availableSize);
-}
-
-Base::Result<UiDocument> View::LoadCompiled(
+Base::Result<UiDocument> View::LoadCompiledDocument(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri) noexcept {
     return impl_->state.LoadCompiled(bytes, originUri);
@@ -296,7 +286,27 @@ Base::Result<void> View::Unmount() noexcept {
     return impl_->state.Unmount();
 }
 
-Base::Result<ViewFrameResult> View::RunFrame() noexcept {
+Base::Result<ViewFrameResult> View::Update(
+    std::uint32_t elapsedMilliseconds) noexcept {
+    std::uint32_t timedCallbacks = 0U;
+    if (elapsedMilliseconds != 0U) {
+        Base::Result<std::uint32_t> advanced =
+            impl_->state.AdvanceTime(elapsedMilliseconds);
+        if (!advanced) return advanced.GetStatus();
+        timedCallbacks = advanced.Value();
+    }
+    Base::Result<ViewFrameResult> frame = impl_->state.RunFrame();
+    if (!frame) return frame.GetStatus();
+    if (frame.Value().callbackCount > UINT32_MAX - timedCallbacks) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "View callback count overflow");
+    }
+    frame.Value().callbackCount += timedCallbacks;
+    return std::move(frame).Value();
+}
+
+Base::Result<ViewFrameResult> View::ExecuteFrame() noexcept {
     return impl_->state.RunFrame();
 }
 
@@ -318,12 +328,12 @@ View::DispatchText(
     return impl_->state.DispatchText(input);
 }
 
-Base::Result<std::uint32_t> View::AdvanceTime(
+Base::Result<std::uint32_t> View::AdvanceClocks(
     std::uint32_t elapsedMilliseconds) noexcept {
     return impl_->state.AdvanceTime(elapsedMilliseconds);
 }
 
-Base::Result<std::uint32_t> View::AdvanceAnimationTime(
+Base::Result<std::uint32_t> View::AdvanceAnimations(
     std::uint32_t elapsedMilliseconds) noexcept {
     return impl_->state.AdvanceAnimationTime(
         elapsedMilliseconds);
@@ -346,23 +356,13 @@ const Base::Ref<Base::Object>& View::Root() const noexcept {
     return impl_->state.Root();
 }
 
-Base::Object* View::FindNamedObject(
-    Base::StringView name,
-    Core::TypeId expectedType) noexcept {
-    return impl_->state.FindNamedObject(name, expectedType);
-}
-
-std::uint32_t View::NamedObjectCount() const noexcept {
-    return impl_->state.NamedObjectCount();
-}
-
 void* View::InternalState() noexcept {
     return impl_ != nullptr
         ? static_cast<void*>(&impl_->state)
         : nullptr;
 }
 
-Base::Result<void> View::RegisterSourceProvider(
+Base::Result<void> View::AddSourceProvider(
     Integration::ISourceProvider& provider,
     Base::StringView scheme,
     Base::StringView assembly) noexcept {

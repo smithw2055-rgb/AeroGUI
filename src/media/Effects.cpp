@@ -10,7 +10,7 @@ Base::Result<void> Effect::OnPropertyInvalidated(
         DependencyObject::OnPropertyInvalidated(flags);
     if (!base) return base.GetStatus();
     return owner_ != nullptr
-        ? owner_->InvalidateRender()
+        ? owner_->InvalidateVisual()
         : Base::Result<void>();
 }
 

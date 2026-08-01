@@ -7,9 +7,11 @@
 #include <cstdint>
 #include <utility>
 
+namespace Aero { class DependencyObject; }
+
 namespace Aero::Core {
 
-class DependencyObject;
+using DependencyObject = ::Aero::DependencyObject;
 struct DependencyPropertyHandle;
 
 using PropertyValueKind = ValueKind;

@@ -13,8 +13,14 @@ enum class SizeToContent : std::uint8_t { Manual = 0U, Width, Height, WidthAndHe
 
 struct CancelEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(CancelEventArgs, RoutedEventArgs)
+public:
     CancelEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
-    mutable bool cancel = false;
+
+    bool GetCancel() const noexcept { return cancel_; }
+    void SetCancel(bool value) noexcept { cancel_ = value; }
+
+private:
+    bool cancel_ = false;
 };
 
 using CancelEventHandler = Base::Delegate<void(Base::Object*, CancelEventArgs&)>;
@@ -27,8 +33,6 @@ public:
 
     Base::StringView GetTitle() const noexcept { return GetValueOr(TitleProperty, Base::StringView{}); }
     Base::Result<void> SetTitle(Base::StringView value) noexcept { return SetValue(TitleProperty, value); }
-    Base::StringView GetFontFamily() const noexcept { return Aero::FrameworkElement::GetFontFamily(); }
-    Base::Result<void> SetFontFamily(Base::StringView value) noexcept { return SetValue(FontFamilyProperty, value); }
     WindowState GetWindowState() const noexcept { return GetValueOr(WindowStateProperty, WindowState::Normal); }
     Base::Result<void> SetWindowState(WindowState value) noexcept;
     WindowStyle GetWindowStyle() const noexcept { return GetValueOr(WindowStyleProperty, WindowStyle::SingleBorderWindow); }
@@ -47,7 +51,6 @@ public:
     bool IsOpen() const noexcept;
 
     inline static constexpr Members::Property<Base::String> TitleProperty{"Title"};
-    inline static constexpr auto FontFamilyProperty = Aero::FrameworkElement::FontFamilyProperty;
     inline static constexpr Members::Property<WindowState> WindowStateProperty{"WindowState"};
     inline static constexpr Members::Property<WindowStyle> WindowStyleProperty{"WindowStyle"};
     inline static constexpr Members::Property<ResizeMode> ResizeModeProperty{"ResizeMode"};

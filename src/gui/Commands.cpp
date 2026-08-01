@@ -370,9 +370,9 @@ Base::Result<bool> CommandState::CanExecute(
     PruneStaleBindings();
 
     CanExecuteRoutedEventArgs args;
-    args.command = &command;
-    args.parameter = parameter;
-    args.target = &target;
+    args.SetCommand(&command);
+    args.SetParameter(parameter);
+    args.SetTarget(&target);
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
@@ -392,14 +392,14 @@ Base::Result<bool> CommandState::CanExecute(
                 if (!handler.Empty()) {
                     handler.Invoke(&element, args);
                 } else if (!record.binding.GetExecuted().Empty()) {
-                    args.canExecute = true;
+                    args.SetCanExecute(true);
                 }
-                if (args.handled || !args.continueRouting) return false;
+                if (args.GetHandled() || !args.GetContinueRouting()) return false;
             }
             return true;
         });
     if (!routed) return routed.GetStatus();
-    return args.canExecute;
+    return args.GetCanExecute();
 }
 
 Base::Result<bool> CommandState::Execute(
@@ -415,9 +415,9 @@ Base::Result<bool> CommandState::Execute(
 
     PruneStaleBindings();
     ExecutedRoutedEventArgs args;
-    args.command = &command;
-    args.parameter = parameter;
-    args.target = &target;
+    args.SetCommand(&command);
+    args.SetParameter(parameter);
+    args.SetTarget(&target);
     bool invoked = false;
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
@@ -439,7 +439,7 @@ Base::Result<bool> CommandState::Execute(
                     handler.Invoke(&element, args);
                     invoked = true;
                 }
-                if (args.handled || !args.continueRouting) return false;
+                if (args.GetHandled() || !args.GetContinueRouting()) return false;
             }
             return true;
         });

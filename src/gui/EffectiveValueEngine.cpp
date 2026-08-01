@@ -544,7 +544,7 @@ void EffectiveValueEngine::RemoveInheritanceSubscription(
 void EffectiveValueEngine::OnInheritancePropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    const DependencyProperty* property = registry_->Find(args.property);
+    const DependencyProperty* property = registry_->Find(args.GetProperty());
     const PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(object.RuntimeType())
         : nullptr;
@@ -554,7 +554,7 @@ void EffectiveValueEngine::OnInheritancePropertyChanged(
             PropertyMetadataFlags::Inherits)) {
         return;
     }
-    static_cast<void>(QueueDescendants(object, args.property));
+    static_cast<void>(QueueDescendants(object, args.GetProperty()));
 }
 
 

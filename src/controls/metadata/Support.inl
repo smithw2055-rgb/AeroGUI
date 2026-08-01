@@ -448,14 +448,14 @@ void OnShapeFillChanged(
     if (owner == nullptr) return;
     Base::Result<Base::Ref<Brush>> oldBrush =
         ValueCodec<Base::Ref<Brush>>::Decode(
-            args.oldValue);
+            args.GetOldValue());
     if (oldBrush && oldBrush.Value() &&
         oldBrush.Value()->Owner() == owner) {
         oldBrush.Value()->SetOwner(nullptr);
     }
     Base::Result<Base::Ref<Brush>> newBrush =
         ValueCodec<Base::Ref<Brush>>::Decode(
-            args.newValue);
+            args.GetNewValue());
     if (newBrush && newBrush.Value()) {
         newBrush.Value()->SetOwner(owner);
     }

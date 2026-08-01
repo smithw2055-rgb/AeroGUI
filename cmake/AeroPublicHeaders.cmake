@@ -62,7 +62,6 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Integration/NativeWindow.hpp
     include/Aero/View.hpp
     include/Aero/Integration/D3D11.hpp
-    include/Aero/Integration/HostedGraphics.hpp
     include/Aero/Integration/OpenGL33.hpp
     include/Aero/Integration/ReloadCoordinator.hpp
     include/Aero/Integration/RenderEndpoint.hpp
@@ -76,6 +75,7 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Markup/Resources.hpp
     include/Aero/Markup/Schema.hpp
     include/Aero/Markup/XamlDocument.hpp
+    include/Aero/Markup/XamlReader.hpp
     include/Aero/Media.hpp
     include/Aero/Media/Brushes.hpp
     include/Aero/Media/Effects.hpp

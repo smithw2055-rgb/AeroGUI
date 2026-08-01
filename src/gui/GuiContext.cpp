@@ -352,8 +352,8 @@ void GuiContext::UntrackInheritedValues(Visual& node) noexcept {
 void GuiContext::OnDataContextChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (args.property == FrameworkElement::DataContextProperty) {
-        (void)values_->Invalidate(object, args.property);
+    if (args.GetProperty() == FrameworkElement::DataContextProperty) {
+        (void)values_->Invalidate(object, args.GetProperty());
     }
 }
 
@@ -931,7 +931,7 @@ Base::Result<Aero::Detail::VisualAttachment> GuiContext::AttachVisualChild(
         child.AsFrameworkElement() != nullptr) {
         auto attachDescendants = [&](auto&& self, FrameworkElement& parent) noexcept
             -> Base::Result<void> {
-            for (FrameworkElement* descendant : parent.GetRenderChildren()) {
+            for (FrameworkElement* descendant : Aero::Detail::FrameworkElementAccess::RenderChildren(parent)) {
                 if (descendant == nullptr) continue;
                 Base::Result<void> attached = renderer_->Attach(parent, *descendant);
                 if (!attached) return attached.GetStatus();
@@ -1131,10 +1131,10 @@ void EventRouter::InvokeNode(
     RoutedEventArgs& args) noexcept {
     RoutedEventCatalog& catalog = EventCatalog(eventState_);
     for (const ClassHandlerRecord& record : classHandlers_) {
-        if (record.event == args.routedEvent &&
+        if (record.event == args.GetRoutedEvent() &&
             catalog.Types().IsDerivedFrom(
                 node.RuntimeType(), record.classType) &&
-            (!args.handled || record.handledEventsToo)) {
+            (!args.GetHandled() || record.handledEventsToo)) {
             record.handler.Invoke(&node, args);
         }
     }
@@ -1142,13 +1142,13 @@ void EventRouter::InvokeNode(
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), UIElement::StaticTypeId())) {
         UiRuntimeAccess::InvokeHandlers(
-            static_cast<UIElement&>(node), args.routedEvent, args);
+            static_cast<UIElement&>(node), args.GetRoutedEvent(), args);
         return;
     }
     if (catalog.Types().IsDerivedFrom(
             node.RuntimeType(), ContentElement::StaticTypeId())) {
         static_cast<ContentElement&>(node).InvokeHandlers(
-            args.routedEvent, args);
+            args.GetRoutedEvent(), args);
     }
 }
 
@@ -1179,13 +1179,13 @@ Base::Result<void> EventRouter::RaiseEvent(
 
     RoutedEventArgs localArgs;
     RoutedEventArgs& args = suppliedArgs != nullptr ? *suppliedArgs : localArgs;
-    if (args.eventArgsType != definition->eventArgsType) {
+    if (args.GetEventArgsType() != definition->eventArgsType) {
         return InvalidArgument(
             "Routed event arguments do not match the registered type");
     }
-    args.routedEvent = event;
-    args.source = &source;
-    if (args.originalSource == nullptr) args.originalSource = &source;
+    args.SetRoutedEvent(event);
+    args.SetSource(&source);
+    if (args.GetOriginalSource() == nullptr) args.SetOriginalSource(&source);
 
     ++raiseDepth_;
     for (const EventRouteNode& lease : route.Nodes()) {
@@ -1200,4 +1200,21 @@ void EventRouter::CleanupClassHandlers() noexcept {
     classHandlers_.Clear();
 }
 
+
 } // namespace Aero::Detail
+
+namespace Aero {
+
+Base::Object* FrameworkElement::FindName(
+    Base::StringView name) noexcept {
+    return FindNameObject(name, Core::InvalidTypeId);
+}
+
+Base::Object* FrameworkElement::FindNameObject(
+    Base::StringView name,
+    Core::TypeId expectedType) noexcept {
+    return Aero::Detail::UiRuntimeAccess::FindName(
+        *this, name, expectedType);
+}
+
+} // namespace Aero

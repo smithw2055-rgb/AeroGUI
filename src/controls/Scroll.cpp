@@ -914,10 +914,7 @@ void ScrollViewer::OnScrollDataChanged(
         false);
 
     if (events_ != nullptr) {
-        ScrollChangedEventArgs args;
-        args.oldData = oldData;
-        args.newData = newData;
-        args.inputKind = kind;
+        ScrollChangedEventArgs args(oldData, newData, kind);
         static_cast<void>(
             static_cast<Aero::Detail::EventRouter*>(events_)->RaiseEvent(
             *this, ScrollChangedEvent, &args));
@@ -1485,13 +1482,13 @@ void RangeBase::OnRangePropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs&
         args) noexcept {
-    if (args.property == ValueProperty) {
+    if (args.GetProperty() == ValueProperty) {
         OnValueChanged(
-            args.oldValue.AsDouble(),
-            args.newValue.AsDouble());
+            args.GetOldValue().AsDouble(),
+            args.GetNewValue().AsDouble());
     } else if (
-        args.property == MinimumProperty ||
-        args.property == MaximumProperty) {
+        args.GetProperty() == MinimumProperty ||
+        args.GetProperty() == MaximumProperty) {
         static_cast<void>(SetValue(Value()));
     }
 }
@@ -1499,9 +1496,7 @@ void RangeBase::OnRangePropertyChanged(
 void RangeBase::OnValueChanged(
     double oldValue,
     double newValue) noexcept {
-    RangeValueChangedEventArgs args;
-    args.oldValue = oldValue;
-    args.newValue = newValue;
+    RangeValueChangedEventArgs args(oldValue, newValue);
     const Base::Result<void> raised =
         RaiseEvent(ValueChangedEvent, &args);
     if (!raised &&
@@ -2308,16 +2303,16 @@ void ScrollInteractionManager::OnMouseWheel(
         return;
     }
     const double horizontal =
-        -args.deltaX * viewer->LineScrollAmount();
+        -args.GetDeltaX() * viewer->LineScrollAmount();
     const double vertical =
-        -args.deltaY * viewer->LineScrollAmount();
+        -args.GetDeltaY() * viewer->LineScrollAmount();
     Base::Result<bool> changed =
         viewer->ApplyScrollDelta(
             horizontal,
             vertical,
             ScrollInputKind::Wheel);
     if (changed && changed.Value()) {
-        args.handled = true;
+        args.SetHandled(true);
     }
 }
 
@@ -2547,16 +2542,16 @@ void SliderInteractionManager::OnMouseDown(
         Find(slider);
     if (index == UINT32_MAX ||
         !slider.GetIsEnabled() ||
-        args.changedButton !=
+        args.GetChangedButton() !=
             MouseButton::Left) {
         return;
     }
     SliderRecord& record =
         sliders_[index];
-    record.pointerId = args.pointerId;
+    record.pointerId = args.GetPointerId();
     static_cast<void>(
         input_->SetFocus(&slider));
-    Point local = args.position;
+    Point local = args.GetPosition();
     const bool horizontal =
         slider.GetOrientation() ==
         Orientation::Horizontal;
@@ -2586,11 +2581,11 @@ void SliderInteractionManager::OnMouseDown(
     if (record.dragging) {
         static_cast<void>(
             input_->CapturePointer(
-                args.pointerId, slider));
+                args.GetPointerId(), slider));
     }
     if (slider.IsMoveToPointEnabled()) {
         static_cast<void>(
-            SetFromPoint(slider, args.position));
+            SetFromPoint(slider, args.GetPosition()));
     } else if (!record.dragging) {
         const bool after =
             position >= length * 0.5;
@@ -2602,7 +2597,7 @@ void SliderInteractionManager::OnMouseDown(
             ? slider.IncreaseLarge()
             : slider.DecreaseLarge());
     }
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void SliderInteractionManager::OnMouseMove(
@@ -2615,12 +2610,12 @@ void SliderInteractionManager::OnMouseMove(
     if (index == UINT32_MAX ||
         !sliders_[index].dragging ||
         sliders_[index].pointerId !=
-            args.pointerId) {
+            args.GetPointerId()) {
         return;
     }
     static_cast<void>(
-        SetFromPoint(slider, args.position));
-    args.handled = true;
+        SetFromPoint(slider, args.GetPosition()));
+    args.SetHandled(true);
 }
 
 void SliderInteractionManager::OnMouseUp(
@@ -2631,20 +2626,20 @@ void SliderInteractionManager::OnMouseUp(
     const std::uint32_t index =
         Find(slider);
     if (index == UINT32_MAX ||
-        args.changedButton !=
+        args.GetChangedButton() !=
             MouseButton::Left ||
         !sliders_[index].dragging ||
         sliders_[index].pointerId !=
-            args.pointerId) {
+            args.GetPointerId()) {
         return;
     }
     static_cast<void>(
-        SetFromPoint(slider, args.position));
+        SetFromPoint(slider, args.GetPosition()));
     sliders_[index].dragging = false;
     static_cast<void>(
         input_->ReleasePointer(
-            args.pointerId));
-    args.handled = true;
+            args.GetPointerId()));
+    args.SetHandled(true);
 }
 
 void SliderInteractionManager::OnKeyDown(
@@ -2660,25 +2655,25 @@ void SliderInteractionManager::OnKeyDown(
     bool handled = true;
     const bool reversed =
         slider.IsDirectionReversed();
-    if (args.key == KeyboardKeyHome) {
+    if (args.GetKey() == KeyboardKeyHome) {
         changed = slider.SetValue(
             reversed
             ? slider.Maximum()
             : slider.Minimum());
-    } else if (args.key == KeyboardKeyEnd) {
+    } else if (args.GetKey() == KeyboardKeyEnd) {
         changed = slider.SetValue(
             reversed
             ? slider.Minimum()
             : slider.Maximum());
     } else if (
-        args.key == KeyboardKeyLeft ||
-        args.key == KeyboardKeyDown) {
+        args.GetKey() == KeyboardKeyLeft ||
+        args.GetKey() == KeyboardKeyDown) {
         changed = reversed
             ? slider.IncreaseSmall()
             : slider.DecreaseSmall();
     } else if (
-        args.key == KeyboardKeyRight ||
-        args.key == KeyboardKeyUp) {
+        args.GetKey() == KeyboardKeyRight ||
+        args.GetKey() == KeyboardKeyUp) {
         changed = reversed
             ? slider.DecreaseSmall()
             : slider.IncreaseSmall();
@@ -2686,7 +2681,7 @@ void SliderInteractionManager::OnKeyDown(
         handled = false;
     }
     if (handled && changed) {
-        args.handled = true;
+        args.SetHandled(true);
     }
 }
 

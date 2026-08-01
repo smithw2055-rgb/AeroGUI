@@ -635,9 +635,9 @@ void Selector::OnPropertyChanged(
     DependencyObject&,
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (synchronizingProperties_) return;
-    activeProperty_ = args.property;
+    activeProperty_ = args.GetProperty();
     Base::Result<bool> applied(false);
-    if (args.property == SelectionModeProperty) {
+    if (args.GetProperty() == SelectionModeProperty) {
         if (GetSelectionMode() ==
                 SelectionMode::Single &&
             selectedIndices_.Size() > 1U) {
@@ -650,7 +650,7 @@ void Selector::OnPropertyChanged(
             applied = ApplySelection(
                 values, selected);
         }
-    } else if (args.property ==
+    } else if (args.GetProperty() ==
         SelectedIndexProperty) {
         const std::uint32_t index =
             SelectedIndex();
@@ -674,10 +674,10 @@ void Selector::OnPropertyChanged(
                 values, index);
         }
     } else if (
-        args.property == SelectedItemProperty ||
-        args.property == SelectedValueProperty) {
+        args.GetProperty() == SelectedItemProperty ||
+        args.GetProperty() == SelectedValueProperty) {
         const Base::Ref<Base::Object> item =
-            args.property == SelectedItemProperty
+            args.GetProperty() == SelectedItemProperty
             ? SelectedItem()
             : SelectedValue();
         if (!item) {
@@ -1259,12 +1259,12 @@ void ComboBox::OnDropDownPropertyChanged(
     if (popup_ != nullptr) {
         static_cast<void>(
             popup_->SetIsOpen(
-                args.newValue.AsBoolean()));
+                args.GetNewValue().AsBoolean()));
     }
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
         RaiseEvent(
-            args.newValue.AsBoolean()
+            args.GetNewValue().AsBoolean()
                 ? DropDownOpenedEvent
                 : DropDownClosedEvent,
             &eventArgs);
@@ -1569,7 +1569,7 @@ ComboBoxInteractionManager::Detach(
 void ComboBoxInteractionManager::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
-    if (args.changedButton !=
+    if (args.GetChangedButton() !=
         MouseButton::Left) {
         return;
     }
@@ -1578,7 +1578,7 @@ void ComboBoxInteractionManager::OnMouseDown(
     if (!comboBox.GetIsEnabled()) return;
     const std::uint32_t index =
         comboBox.FindContainerIndex(
-            args.originalSource);
+            args.GetOriginalSource());
     if (index != UINT32_MAX) {
         Base::Result<bool> selected =
             comboBox.SetSelectedIndex(index);
@@ -1594,7 +1594,7 @@ void ComboBoxInteractionManager::OnMouseDown(
     }
     static_cast<void>(
         input_->SetFocus(&comboBox));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void ComboBoxInteractionManager::OnKeyDown(
@@ -1603,25 +1603,25 @@ void ComboBoxInteractionManager::OnKeyDown(
     auto& comboBox =
         *static_cast<ComboBox*>(sender);
     if (!comboBox.GetIsEnabled()) return;
-    if (args.key == KeyboardKeyEscape) {
+    if (args.GetKey() == KeyboardKeyEscape) {
         if (!comboBox.IsDropDownOpen()) return;
         static_cast<void>(
             comboBox.SetIsDropDownOpen(
                 false));
-        args.handled = true;
+        args.SetHandled(true);
         return;
     }
-    if (args.key == KeyboardKeyEnter ||
-        args.key == KeyboardKeySpace) {
+    if (args.GetKey() == KeyboardKeyEnter ||
+        args.GetKey() == KeyboardKeySpace) {
         static_cast<void>(
             comboBox.SetIsDropDownOpen(
                 !comboBox.
                     IsDropDownOpen()));
-        args.handled = true;
+        args.SetHandled(true);
         return;
     }
-    if (args.key != KeyboardKeyUp &&
-        args.key != KeyboardKeyDown) {
+    if (args.GetKey() != KeyboardKeyUp &&
+        args.GetKey() != KeyboardKeyDown) {
         return;
     }
     if (comboBox.ItemCount() == 0U) return;
@@ -1630,19 +1630,19 @@ void ComboBoxInteractionManager::OnKeyDown(
     if (selected == UINT32_MAX) {
         selected = 0U;
     } else if (
-        args.key == KeyboardKeyDown &&
+        args.GetKey() == KeyboardKeyDown &&
         selected + 1U <
             comboBox.ItemCount()) {
         ++selected;
     } else if (
-        args.key == KeyboardKeyUp &&
+        args.GetKey() == KeyboardKeyUp &&
         selected > 0U) {
         --selected;
     }
     Base::Result<bool> changed =
         comboBox.SetSelectedIndex(selected);
     if (!changed) return;
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 ListBoxInteractionManager::ListBoxInteractionManager(
@@ -1843,7 +1843,7 @@ ListBoxInteractionManager::ApplyUserSelection(
 void ListBoxInteractionManager::OnMouseDown(
     Base::Object* sender,
     MouseButtonEventArgs& args) noexcept {
-    if (args.changedButton != MouseButton::Left) {
+    if (args.GetChangedButton() != MouseButton::Left) {
         return;
     }
     auto& listBox =
@@ -1854,14 +1854,14 @@ void ListBoxInteractionManager::OnMouseDown(
     if (recordIndex == UINT32_MAX) return;
     const std::uint32_t index =
         FindContainerIndex(
-            listBox, args.originalSource);
+            listBox, args.GetOriginalSource());
     if (index == UINT32_MAX) return;
     Base::Result<bool> selected =
         ApplyUserSelection(
             listBox,
             records_[recordIndex],
             index,
-            args.modifiers);
+            args.GetModifiers());
     if (!selected) return;
     ItemContainerGenerator* generator =
         listBox.AttachedGenerator();
@@ -1871,16 +1871,16 @@ void ListBoxInteractionManager::OnMouseDown(
     }
     static_cast<void>(
         listBox.BringIntoView(index));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 void ListBoxInteractionManager::OnKeyDown(
     Base::Object* sender,
     KeyEventArgs& args) noexcept {
-    if (args.key != KeyboardKeyUp &&
-        args.key != KeyboardKeyDown &&
-        args.key != KeyboardKeyHome &&
-        args.key != KeyboardKeyEnd) {
+    if (args.GetKey() != KeyboardKeyUp &&
+        args.GetKey() != KeyboardKeyDown &&
+        args.GetKey() != KeyboardKeyHome &&
+        args.GetKey() != KeyboardKeyEnd) {
         return;
     }
     auto& listBox =
@@ -1894,7 +1894,7 @@ void ListBoxInteractionManager::OnKeyDown(
     if (recordIndex == UINT32_MAX) return;
     std::uint32_t current =
         FindContainerIndex(
-            listBox, args.originalSource);
+            listBox, args.GetOriginalSource());
     if (current == UINT32_MAX) {
         current =
             listBox.SelectedIndex() != UINT32_MAX
@@ -1902,22 +1902,22 @@ void ListBoxInteractionManager::OnKeyDown(
             : 0U;
     }
     std::uint32_t target = current;
-    if (args.key == KeyboardKeyUp &&
+    if (args.GetKey() == KeyboardKeyUp &&
         target > 0U) {
         --target;
-    } else if (args.key == KeyboardKeyDown &&
+    } else if (args.GetKey() == KeyboardKeyDown &&
         target + 1U < listBox.ItemCount()) {
         ++target;
-    } else if (args.key == KeyboardKeyHome) {
+    } else if (args.GetKey() == KeyboardKeyHome) {
         target = 0U;
-    } else if (args.key == KeyboardKeyEnd) {
+    } else if (args.GetKey() == KeyboardKeyEnd) {
         target = listBox.ItemCount() - 1U;
     }
     const bool control = HasKeyboardModifier(
-        args.modifiers,
+        args.GetModifiers(),
         KeyboardModifiers::Control);
     const bool shift = HasKeyboardModifier(
-        args.modifiers,
+        args.GetModifiers(),
         KeyboardModifiers::Shift);
     if (!control ||
         listBox.GetSelectionMode() !=
@@ -1928,7 +1928,7 @@ void ListBoxInteractionManager::OnKeyDown(
                 listBox,
                 records_[recordIndex],
                 target,
-                args.modifiers);
+                args.GetModifiers());
         if (!selected) return;
     }
     ItemContainerGenerator* generator =
@@ -1939,7 +1939,7 @@ void ListBoxInteractionManager::OnKeyDown(
     }
     static_cast<void>(
         listBox.BringIntoView(target));
-    args.handled = true;
+    args.SetHandled(true);
 }
 
 } // namespace Aero::Detail

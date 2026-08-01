@@ -557,7 +557,7 @@ void ContentControl::OnContentPropertyChanged(
     if (control.synchronizingContentProperty_) return;
     control.synchronizingContentProperty_ = true;
     static_cast<void>(
-        Detail::ContentControlAccess::SetContentValue(control, change.newValue));
+        Detail::ContentControlAccess::SetContentValue(control, change.GetNewValue()));
     control.synchronizingContentProperty_ = false;
 }
 

@@ -752,12 +752,12 @@ bool NavigationService::Detach() noexcept {
 void NavigationService::OnRequestNavigate(
     Base::Object*,
     RequestNavigateEventArgs& args) noexcept {
-    if (args.handled || !handler_ ||
-        args.hyperlink == nullptr || args.uri.Empty()) {
+    if (args.GetHandled() || !handler_ ||
+        args.GetHyperlink() == nullptr || args.GetUri().Empty()) {
         return;
     }
-    if (handler_(args.uri, *args.hyperlink)) {
-        args.handled = true;
+    if (handler_(args.GetUri(), *args.GetHyperlink())) {
+        args.SetHandled(true);
     }
 }
 

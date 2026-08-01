@@ -141,12 +141,12 @@ void Popup::OnOpenPropertyChanged(
         args) noexcept {
     static_cast<void>(
         SetIsHitTestVisible(
-            args.newValue.AsBoolean()));
+            args.GetNewValue().AsBoolean()));
     static_cast<void>(InvalidateMeasure());
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
         RaiseEvent(
-            args.newValue.AsBoolean()
+            args.GetNewValue().AsBoolean()
                 ? OpenedEvent
                 : ClosedEvent,
             &eventArgs);
@@ -352,7 +352,7 @@ void Expander::OnExpandedPropertyChanged(
     RoutedEventArgs eventArgs;
     Base::Result<void> raised =
         RaiseEvent(
-            change.newValue.AsBoolean()
+            change.GetNewValue().AsBoolean()
                 ? ExpandedEvent
                 : CollapsedEvent,
             &eventArgs);

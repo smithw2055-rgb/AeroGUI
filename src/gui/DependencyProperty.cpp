@@ -672,6 +672,12 @@ bool DependencyPropertyRegistry::ValidateKey(
         registered->readOnlySecret_ == key->secret_;
 }
 
+} // namespace Aero::Core
+
+namespace Aero {
+
+using namespace Core;
+
 DependencyObject::MutationScope::MutationScope(
     DependencyObject* owner,
     DispatcherReentrancyGuard&& guard) noexcept
@@ -1404,7 +1410,7 @@ void DependencyObject::NotifyValueChanged(
             break;
         }
         ChangeHandlerRecord& record = changeHandlers_[index];
-        if (record.active && record.property == args.property) {
+        if (record.active && record.property == args.GetProperty()) {
             record.handler(*this, args);
         }
     }
@@ -1446,4 +1452,4 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
     return change;
 }
 
-} // namespace Aero::Core
+} // namespace Aero

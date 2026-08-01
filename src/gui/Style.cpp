@@ -1054,7 +1054,7 @@ void StyleManager::OnPropertyChanged(
     if (index == UINT32_MAX) return;
     const Style& style = *applications_[index].style;
     for (const StylePropertyTrigger& trigger : style.Triggers()) {
-        if (trigger.property == args.property) {
+        if (trigger.property == args.GetProperty()) {
             if (values_->IsFlushing()) {
                 Base::Result<void> queued =
                     QueueTriggerEvaluation(object);

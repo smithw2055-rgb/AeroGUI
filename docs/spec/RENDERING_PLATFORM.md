@@ -1,544 +1,202 @@
 # Rendering 与 Platform 规范
 
 - **状态**：Architecture Baseline
-- **Runtime language**：C++17
+- **语言**：C++17
 - **Renderer**：retained-mode native GPU / WebGL 2
 - **Skia**：不支持
 
-本章定义 UI/render 隔离、场景事务、RenderFrame、`AeroGraphics`、原生与兼容 GPU backend、文本/几何资源和宿主接口。D3D11、OpenGL、GLES、GLX/EGL/WGL 与 WebGL 2 的详细合同见 [`COMPATIBILITY_BACKENDS.md`](COMPATIBILITY_BACKENDS.md)。
-
-## 1. 产品定义
-
-AeroGUI 是原生 GPU UI engine。这里的“GPU UI”表示：
-
-- 产品级 rasterization、sampling、blending、clip、mask、offscreen、effect 和 composition 由 native GPU API 或 WebGL 2 执行；
-- XAML、Dependency Property、Binding、layout、text shaping、scene diff 和必要的 CPU tessellation 仍由 CPU/WASM 执行；
-- 不使用 Skia 作为生产、reference 或 fallback renderer；
-- 不要求每一种 path/text 算法从第一版起都用 compute shader；
-- strategic 与 compatibility backend 使用同一 RenderFrame 合同；
-- 优先保证跨平台一致、可缓存和可验证，再逐步增加 analytic/compute path。
-
-## 2. Backend 等级
-
-### Strategic native
+## 1. 唯一渲染链路
 
 ```text
-AeroGraphics_D3D12
-AeroGraphics_Vulkan
-AeroGraphics_Metal
-AeroGraphics_ConsolePrivate
+Visual/UI state
+→ DrawingContext records immutable drawing values
+→ RenderTree::Commit builds RenderFrame
+→ Renderer validates, batches and lowers
+→ RenderDevice records native commands
+→ backend submits and presents/returns to host
 ```
 
-### Compatibility
+AeroGUI 不维护第二套 RenderTransaction、RenderPlan、HostedGraphics command
+ABI 或通用 RHI 产品。UI object、Binding object、Control pointer 和 user callback
+不得跨越 RenderFrame 边界。
+
+## 2. RenderTree 与 RenderFrame
+
+RenderTree 位于 UI domain，持有紧凑 retained state，并按 invalidation 增量更新。
+RenderFrame 是一次 commit 的 immutable snapshot，至少包含：
 
 ```text
-AeroGraphics_D3D11
-AeroGraphics_OpenGL33
-AeroGraphics_GLES30
-AeroGraphics_WebGL2
+stable node ID and generation
+parent/child ordering
+layout slot, clip, transform, opacity and effect state
+copied drawing commands
+image, mesh and glyph resource IDs
+epoch/version and deterministic hash
 ```
 
-### Validation / optional
+RenderFrame MUST：
+
+- 可 move 到宿主管理的渲染线程；
+- 不保存 `Object*` 或 callback；
+- 可验证 command/resource 范围；
+- 保持 painter order；
+- 支持确定性 hash 与 replay fixture；
+- 对丢失 device/context 使用 generation 失效旧资源。
+
+## 3. Renderer
+
+Renderer 负责 UI-specific lowering，而不是 GPU API ownership：
+
+- drawing command → draw packet；
+- clip/effect/offscreen graph；
+- rectangle/image/mesh/glyph batching；
+- pipeline/resource binding plan；
+- glyph/image/mesh resource registration；
+- statistics 与 deterministic validation。
+
+Batching 不得跨越 clip、opacity group、effect、render target、read-after-write 或
+painter-order barrier。
+
+## 4. RenderDevice
+
+RenderDevice 是 Renderer 所需的最小私有 GPU 合同：
 
 ```text
-AeroGraphics_Null
-AeroGraphics_Sokol  # optional, default OFF
+capabilities
+buffer/texture/sampler/pipeline resources
+upload commands
+render pass
+bind and draw commands
+fence and deferred destruction
+device/context loss generation
+external render target import
 ```
 
-Compatibility backend 是正式支持路径，不是临时 prototype；但高级优化可通过 capability manifest 降级。WebGL 1、OpenGL fixed-function/compatibility profile 不进入 v1。
+它不是面向应用开发者的 3D engine，也不暴露为独立安装目标。Backend-specific
+state、shader、native handles 和 loader function tables 位于 `src/render/<backend>`。
 
-## 3. Retained rendering
-
-UI 侧缓存 Visual 状态；`SceneBuilder` 只处理 dirty visuals，生成不可变 `RenderTransaction`。Render domain 缓存 render tree、drawing data 和资源状态，repaint 不回调 user control。
-
-同一合同支持：
-
-- single thread：build 后立即 apply/record；
-- dual thread：transaction 进入宿主管理的 queue；
-- multi-window/view：共享 device/resource cache，每个 view 有独立 scene/root/target；
-- embedded mode：记录到宿主 command context 或 current GL context，不自行 Present；
-- standalone sample mode：platform adapter 可拥有 swapchain/surface 和 present loop；
-- browser mode：由 `requestAnimationFrame`/host callback 推进，不阻塞 event loop。
-
-## 4. Visual 到场景
-
-Visual 高层状态包括：
-
-- transform、clip、opacity、visibility、z-order；
-- effect/offscreen requirement；
-- immutable drawing list；
-- child order；
-- layout/render bounds；
-- cache hint 和 dirty generation。
-
-`DrawingContext` 只记录 drawing command，不立即调用 GPU。一个 Visual 可以产生零个、一个或多个 render nodes。
-
-基础 drawing primitive：
+Compatibility baseline 不要求：
 
 ```text
-FillGeometry
-StrokeGeometry
-DrawGlyphRun
-DrawImage
-DrawMesh
-PushClip / PopClip
-PushOpacity / PopOpacity
-PushTransform / PopTransform
-BeginEffect / EndEffect
+compute
+storage buffers/images
+bindless resources
+indirect draws
+persistent mapping
+blocking GPU waits in WebGL
 ```
 
-高层 primitive 在 RenderFrame 阶段 lowering 为 backend-independent draw packet、pass 和 resource operation。
+高级路径必须通过 capabilities 选择，不能按 GPU 名称猜测。
 
-## 5. RenderTransaction
+## 5. Backend 等级
 
-```cpp
-struct RenderTransaction {
-    uint64_t epoch;
-    Vector<CreateNode> created;
-    Vector<UpdateNode> updated;
-    Vector<ReparentNode> reparented;
-    Vector<DeleteNode> deleted;
-    Vector<ResourceUpload> uploads;
-    Vector<ResourceRelease> releases;
-};
-```
+| 等级 | Backend | 说明 |
+| --- | --- | --- |
+| Strategic | D3D12 | Windows 与受控 GDK adapter |
+| Strategic | Vulkan | Windows、Linux、Android |
+| Strategic | Metal | Apple platforms |
+| Strategic | private console | 受限仓库和授权 SDK |
+| Compatibility | D3D11 | Windows，feature level 10_0+ |
+| Compatibility | OpenGL 3.3 Core | WGL、GLX 或 host context |
+| Compatibility | OpenGL ES 3.0 | EGL/Android/embedded |
+| Compatibility | WebGL 2 | WebAssembly/browser |
+| Validation | Null RenderDevice | command/resource lifecycle |
+| Optional | sokol adapter | bring-up 与差异验证 |
 
-MUST：
+Skia、WebGL 1、OpenGL fixed-function/compatibility profile 不进入生产图。
 
-- 可跨线程 move；
-- 只使用 AeroBase owning type，不含 STL ABI；
-- NodeId/ResourceId 包含 generation，避免 ABA；
-- apply 保持 create/update/reparent/delete 的定义顺序；
-- 连续 transaction 可安全合并；
-- resource release 延迟到 GPU/context 安全点；
-- transaction 可序列化用于 replay/test；
-- render thread 不持有 `Object*`；
-- malformed transaction 在 debug/test path 可验证，不破坏 render tree。
+## 6. Platform adapter
 
-## 6. Render tree 与 RenderFrame
-
-Render node 至少包含：
+平台层只处理 native ownership：
 
 ```text
-stable ID / generation
-parent + ordered children
-transform / clip / opacity
-bounds / dirty bounds
-immutable drawing payload
-resource handles
-cache state
-effect/offscreen state
+window/canvas
+DPI and resize
+input, IME and clipboard
+WGL/GLX/EGL/context current
+swapchain/surface/present
+browser context-loss events
 ```
 
-Render tree 只接受 transaction 修改。Backend 不遍历 Visual tree。
+它不定义 drawing primitive，也不形成独立 Aero SDK target。
 
-每帧：
+### 6.1 Owned 与 borrowed
+
+- **Owned**：默认 App 创建 window/context/surface 并负责 present；
+- **Borrowed**：engine host 提供 device/context/target，并声明 state ownership；
+- embedded backend 不自行 present；
+- native handle 只通过 Integration 专用接口或 opaque POD 传递。
+
+## 7. 线程与帧调度
+
+核心不创建 worker thread。宿主选择：
 
 ```text
-Apply RenderTransaction
- -> Resolve dirty render nodes
- -> Update glyph/image/geometry caches
- -> Build clip/effect/offscreen graph
- -> Lower drawings to RenderFrame
- -> Batch without violating painter order
- -> Record GPU/WebGL commands
- -> Retire safe resources
-```
-
-`RenderFrame` 是短生命周期的 backend-independent frame plan，不是长期序列化场景格式。
-
-## 7. Compatibility lowering
-
-RenderFrame 不得假设 compute、storage buffer、bindless、indirect draw 或 persistent mapping。兼容 backend 可执行：
-
-- descriptor table → texture unit/resource slot binding；
-- storage data → UBO/constant buffer/texture/expanded vertex data；
-- compute tessellation → CPU mesh cache；
-- bindless atlas → texture-set batch split；
-- advanced mask → stencil/alpha-mask offscreen；
-- indirect draw → explicit draw loop。
-
-降级只允许影响性能和 capability，不得改变 WPF 可观察视觉语义。
-
-## 8. Painter order 与 batching
-
-渲染遵循 painter order。Batch key 至少包括：
-
-- pipeline/material；
-- texture/sampler set；
-- clip mode；
-- blend mode；
-- render target；
-- sample count；
-- color space；
-- vertex/index format。
-
-只允许在不改变可见结果时合并或重排。Clip、effect、opacity group、render target 和 read-after-write 边界必须阻止非法 crossing。
-
-## 9. AeroGraphics 边界
-
-`AeroGraphics` 是 AeroGUI 自有的最小 GPU abstraction，不是完整 3D engine。
-
-```cpp
-class IGraphicsDevice {
-public:
-    virtual RhiCaps GetCaps() const noexcept = 0;
-    virtual Result<BufferHandle> CreateBuffer(const BufferDesc&) = 0;
-    virtual Result<TextureHandle> CreateTexture(const TextureDesc&) = 0;
-    virtual Result<SamplerHandle> CreateSampler(const SamplerDesc&) = 0;
-    virtual Result<PipelineHandle> CreatePipeline(const PipelineDesc&) = 0;
-    virtual Result<void> DestroyDeferred(RhiHandle, FenceValue) = 0;
-};
-
-class IRhiCommandContext {
-public:
-    virtual Result<void> BeginPass(const PassDesc&) = 0;
-    virtual Result<void> BindPipeline(PipelineHandle) = 0;
-    virtual Result<void> BindResources(Span<const ResourceBinding>) = 0;
-    virtual Result<void> Draw(const DrawDesc&) = 0;
-    virtual Result<void> EndPass() = 0;
-};
-```
-
-具体 binary ABI 使用 C function table/opaque handle；以上仅表达 C++ source model。GL/WebGL backend 可以将 command context 实现为 stateful recorder，但上层合同不暴露 GL global state。
-
-### 9.1 RhiCaps
-
-至少包括：
-
-```text
-backend tier / API version / shader profile
-maxTextureSize / maxRenderTargets
-uniform/storage alignment
-supported sample counts
-texture formats and color spaces
-stencil availability
-compute support
-storage buffer/image support
-indirect draw support
-bindless/descriptor indexing
-framebuffer fetch/input attachment
-tile-based GPU hint
-timestamp query
-external texture/import support
-context/device loss recovery
-```
-
-Renderer 根据 capability 选择 clip、mask、atlas、offscreen、tessellation 和 binding 策略，不把所有平台限制在最低共同能力。
-
-## 10. Host-owned device/context mode
-
-游戏引擎和主机集成默认使用 embedded/external mode：
-
-- 宿主创建并拥有 device、queue、GL context、swapchain/render target；
-- 宿主提供每帧 command context、current GL context 或 recorder；
-- AeroGUI 记录命令，不擅自 submit/present；
-- 宿主提供 frame index、fence/safe-retire policy；
-- state transition/ownership transfer 合同显式；
-- backend adapter 不改变未声明的宿主 GPU/GL state；
-- device/context loss 和 shutdown 由宿主通知；
-- 多 UI view 可在同一 frame/queue/context policy 下记录。
-
-standalone sample MAY 使用 AeroGUI platform helper 创建窗口、surface 和 device/context，但该模式不进入核心 runtime 假设。
-
-## 11. Strategic backend
-
-### 11.1 D3D12
-
-目标：Windows 和 Xbox/GDK adapter。使用 explicit descriptor、resource state、command list 和 fence；GDK/console 类型不进入公开通用 header。
-
-### 11.2 Vulkan
-
-目标：Windows、Linux、Android。支持 host-provided instance/device/queue；surface/swapchain 属于 Platform adapter；validation layer 只用于开发配置。
-
-### 11.3 Metal
-
-目标：macOS、iOS、iPadOS、tvOS。支持 host-provided device/command buffer/encoder/target；处理 tile-based GPU 和 drawable 生命周期；Objective-C 类型仅存在于 backend/platform bridge。
-
-### 11.4 Console private
-
-受限 SDK backend 位于访问受控仓库，使用同一 AeroGraphics contract、平台离线 shader compiler 和 SDK allocator/thread/filesystem policy。
-
-## 12. D3D11 backend
-
-`AeroGraphics_D3D11`：
-
-- feature level 10_0 minimum，11_0/11_1 preferred；
-- v1 不支持 9_x baseline；
-- 基础路径只要求 vertex/pixel shader；
-- compute/UAV/tiled resources 通过 optional feature query；
-- 支持 owned 与 borrowed device/context；
-- embedded mode 定义 state preservation 或 host reset policy；
-- HLSL 离线编译为 DXBC；
-- 必须清理 RT/SRV hazard，不能依赖 driver/debug layer 自动修复。
-
-## 13. OpenGL/GLES backend 与 Platform context
-
-### 13.1 Desktop GL
-
-`AeroGraphics_OpenGL33`：
-
-- OpenGL 3.3 Core + GLSL 3.30；
-- 不使用 fixed-function/compatibility API；
-- 使用 function table、state cache 和 default VAO；
-- extension 只作为 optional optimization；
-- context 必须在 current thread 使用；
-- embedded mode 选择 documented-state restore 或 host-reset contract。
-
-### 13.2 GLES
-
-`AeroGraphics_GLES30`：
-
-- OpenGL ES 3.0 + GLSL ES 3.00；
-- 主要用于 Android/EGL、嵌入式和 Linux/EGL；
-- 与 WebGL 2 共享 canonical shader feature subset；
-- GLES 3.1/3.2 是可选增强；
-- mobile surface loss/pause/resume 可恢复。
-
-### 13.3 GLX/EGL/WGL
-
-```text
-private GLX adapter  Linux/X11 + GL3.3
-private EGL adapter  Android/Wayland/headless + GLES/OpenGL
-private WGL adapter  Windows + GL3.3
-```
-
-- GLX baseline 为 1.4；通过运行时查询 `GLX_ARB_create_context` 创建 3.3 core context；
-- GLX 负责 FBConfig、drawable、make-current、swap interval、resize 和 swap；
-- Wayland 不使用 GLX；
-- WGL 使用 bootstrap context 加载 modern context extension；
-- owned/borrowed display/context/surface 分开建模；
-- host-provided current context 可跳过这些 adapter。
-
-## 14. WebGL 2 backend
-
-`AeroGraphics_WebGL2`：
-
-- C++17 → WebAssembly；
-- WebGL 2 + GLSL ES 3.00；
-- WebGL 1 不支持；
-- HTMLCanvasElement/OffscreenCanvas；
-- baseline 不要求 compute、SSBO、bindless、persistent mapping 或 blocking wait；
-- `requestAnimationFrame`/host callback 驱动 frame；
-- 主渲染线程为首个正式 baseline；Worker/OffscreenCanvas 是 optional capability；
-- JS bridge 使用受控 handle table，不把 JS object pointer 泄漏到公共 C++ ABI；
-- context loss 后所有 WebGL object 和 extension 失效；
-- restore 后重新 query caps/extensions，并重建 shader、buffer、texture、FBO、VAO、sampler 和 atlas；
-- 必须处理 `webglcontextlost`/`webglcontextrestored`；
-- 测试使用 `WEBGL_lose_context`；
-- sync/resource retirement 使用后续 frame polling 或 N-frame delay，不 busy-wait 当前 JavaScript task。
-
-## 15. Null backend
-
-`AeroGraphics_Null` 验证：
-
-- RenderFrame 合法性；
-- resource lifetime/fence/generation；
-- pass nesting；
-- pipeline/resource compatibility；
-- transaction replay；
-- headless CI。
-
-它不产生最终像素。
-
-## 16. Skia 禁止项
-
-AeroGUI MUST NOT：
-
-- link Skia；
-- 暴露 Skia type；
-- 使用 Skia 生成 golden image；
-- 以 Skia 作为 fallback renderer；
-- 让 geometry/text/render semantics 依赖 Skia 行为。
-
-需要 reference image 时，使用自有受限 CPU rasterizer、结构快照、锁定 native/WebGL backend image 或多 backend consensus。
-
-## 17. sokol adapter
-
-`sokol_gfx` 可通过 `AeroGraphics_Sokol` 适配，但默认关闭。其公开覆盖 D3D11、GL3.3、GLES3/WebGL2、Metal 和 WebGPU，适合：
-
-- 早期 bring-up；
-- sample/tool/WASM experiment；
-- 额外 RenderFrame 验证；
-- 与第一方兼容 backend 做差异测试。
-
-禁止：
-
-- `sg_*` type 进入 AeroGraphics/public API；
-- sokol 成为 strategic backend 的下层；
-- 用 sokol 替代第一方 D3D11/GL/GLES/WebGL2 长期合同；
-- runtime 使用 `sokol_app` 管理嵌入式主循环；
-- 将 sokol 等同于 console support；
-- 因 sokol 限制删除 AeroGraphics capability。
-
-`AERO_WITH_SOKOL=OFF` 时所有正式 backend 必须独立构建。
-
-## 18. Geometry pipeline
-
-第一阶段：
-
-```text
-Path commands
- -> flatten/curve analysis
- -> fill/stroke tessellation on CPU
- -> cached vertex/index mesh
- -> GPU/WebGL raster/blend
-```
-
-后续 MAY 增加 analytic path、compute tessellation 或 GPU encoded outline，但必须有 deterministic fallback、按 caps 选择、不改变 hit-test/layout bounds，并覆盖退化曲线/self-intersection/NaN/极大坐标。
-
-`IGeometryTessellator` 可由自研实现或可选 libtess2 adapter 提供。libtess2 不能定义 public geometry model。
-
-## 19. Clip、mask、offscreen 与 effect
-
-Clip strategy 可选择：
-
-- scissor；
-- stencil；
-- alpha mask texture；
-- analytic clip；
-- nested offscreen composition。
-
-选择基于 geometry、nesting、target format、sample count、tile-based hint 和 backend caps。
-
-Offscreen 用于 opacity group、effect/shadow/blur、complex mask、color-space conversion 和 cache-as-bitmap。所有 transient target 进入显式 budget/pool。
-
-## 20. Shader 与 pipeline
-
-### Native binary backends
-
-- D3D11: offline DXBC；
-- D3D12: offline DXIL；
-- Vulkan: offline SPIR-V；
-- Metal: packaged MSL/metallib；
-- Console: offline private package。
-
-### Source-consuming APIs
-
-- OpenGL 3.3: generated/validated GLSL 330 source，driver compile/link；
-- GLES 3.0: generated/validated GLSL ES 300 source，driver compile/link；
-- WebGL 2: embedded generated/validated GLSL ES 300 source，browser compile/link。
-
-GL/GLES/WebGL 是“不运行时编译 shader binary”规则的显式 API 例外。离线工具仍必须完成 canonical-source conversion、syntax validation、reflection、binding layout、minification、hash 和 versioning。WebGL compile/link error 转为结构化 diagnostic。
-
-## 21. Text 与 image
-
-文本边界：
-
-```text
-IUnicodeService
-ITextBreaker
-FontManager
-IFontProvider
-ITextShaper
-IGlyphRasterizer
-IGlyphAtlas
-```
-
-`AeroText` 公共合同层只依赖 `AeroBase`。`IFontProvider`、`ITextShaper` 和
-`IGlyphRasterizer` 通过同一个 `FontProviderIdentity { id, version }`
-注册到 `FontManager`；face handle 同时携带 provider identity、face ID 和
-generation，因此 provider 重载、缓存失效或关闭后的陈旧 face 会被明确拒绝。
-Manager 不拥有 provider 对象，宿主必须保证注册对象存活到 unregister 或
-shutdown。所有字体路径、语言和 shaping 输入使用 UTF-8，所有输出容器使用宿主
-可注入的 `AeroBase` allocator。
-
-图像边界：
-
-```text
-IImageCodec
-IImageSource
-ITextureUploader
-```
-
-MUST：
-
-- layout 测量与最终 glyph placement 使用同一坐标合同；
-- 锁定测试字体、DPI、locale、hinting 和 color space；
-- HarfBuzz 可作为 optional shaper；
-- FreeType 可作为 optional font/raster provider；
-- HarfBuzz 不替代 bidi、line break 或 paragraph formatter；
-- decoder/font 输入视为不可信；
-- glyph/image cache 有显式 budget、eviction 和 trace；
-- color glyph、emoji、variable font capability 显式声明；
-- WebGL atlas 在 context restore 后可从 CPU/source cache 重建。
-
-## 22. Animation
-
-Animation value 作为 Dependency Property effective value overlay。composition-eligible animation MAY 下沉 render domain，但 UI 可观察值、completion 和 event 顺序必须与主 timeline 协调。时间由宿主 `ITimeSource` 注入；Web background throttling 必须处理时间跳变。
-
-## 23. Platform contracts
-
-至少定义：
-
-```text
-IAppLifetimeHost
-IWindowHost / IWebCanvasHost
-IEventSource
-ICursorService
-IClipboard
-ITextInputService
-IFileSystem
-IAssetProvider
-ITimeSource
-IDpiService
-IAccessibilityBridge
-IGpuHost / IRhiHost
-IGlContextHost
+single thread: View.Update → Renderer → present
+split thread: View.Update → immutable RenderFrame queue → Renderer
+browser: requestAnimationFrame drives Update/render
 ```
 
 规则：
 
-- Core 不暴露 native window/device/context handle；
-- native handle 使用 opaque wrapper 或 backend-private bridge；
-- platform/browser callback marshal 到 Dispatcher；
-- URI provider 默认不访问网络；Web host fetch 必须由 policy 显式允许；
-- 同一平台可有多个 host adapter；
-- 宿主拥有 event loop、thread、GPU device/context 和 frame scheduling；
-- AeroGUI 不创建隐藏永久线程；
-- mobile suspend/resume、surface loss、orientation change 和 Web context loss 明确建模。
+- UI thread 之外不读写 mutable UI object；
+- queue、frame dropping、coalescing 和 render latency policy 属于宿主；
+- 多个 View 可共享 native device/cache，但每个 View 有独立 scene/root/target；
+- loss/restore 前必须停止提交并提升 generation；
+- shutdown 必须等待或安全延迟仍在 GPU 使用的资源。
 
-## 24. Input、IME 与 accessibility
+## 8. 资源与缓存
 
-Platform 层负责 raw keyboard、pointer/touch/gamepad、IME composition 和 accessibility API；UI 语义层负责语义和 route。
+资源句柄包含 index、type 和 generation。Destroy 可延迟到 fence，旧 generation
+永远不能重新绑定到新资源。
 
-IME 至少支持 composition start/update/commit/cancel、caret rectangle、candidate positioning、UTF-8/UTF-16 conversion、mobile virtual keyboard 和 browser composition events。
+Text/image/mesh runtime 通过显式服务合同注册资源，不使用 service ID 或
+`QueryInternalService()`。Context/device loss 后：
 
-Accessibility tree 不直接暴露 render node，由 control semantics + logical/visual context 构建，并桥接 UI Automation、AT-SPI、Apple accessibility、browser DOM/accessibility bridge 或 console service。
+1. 丢弃旧 native handles；
+2. 增加 generation；
+3. 重建 device/surface；
+4. 下一次 layout/render 按需重建 atlas、glyph run、image 和 pipeline；
+5. 不把旧 frame 提交到新 generation。
 
-## 25. Device/context loss 与资源生命周期
+## 9. Shader policy
 
-- every GPU/WebGL handle 包含 generation；
-- CPU source/cached representation 是否可重建必须记录；
-- upload 完成前 resource 不进入 draw；
-- native release 等待 fence；GL/WebGL 使用安全 frame/context policy；
-- device/context loss 后 invalid handle fail-fast；
-- recoverable resource 通过 provider 重新创建；
-- unrecoverable external resource 通知 host/application；
-- WebGL restore 重新获取所有 extension object；
-- shutdown 验证无 pending callback 访问已销毁 runtime。
+| Backend | Release form |
+| --- | --- |
+| D3D11 | offline DXBC |
+| D3D12 | offline DXIL |
+| Vulkan | offline SPIR-V |
+| Metal | packaged metallib/platform package |
+| OpenGL 3.3 | generated/validated GLSL 330 source, runtime link |
+| GLES 3.0 | generated/validated GLSL ES 300 source, runtime link |
+| WebGL 2 | embedded validated GLSL ES 300 source, browser link |
+| Console | private offline package |
 
-## 26. Rendering 验收
+Runtime GL/WebGL compile/link 是 API 约束，不允许动态生成任意 shader source。
 
-M4 至少满足：
+## 10. 性能门禁
 
-- UI 与 render 不共享 user object pointer；
-- transaction drop/merge/replay tests；
-- RenderFrame validator 与 `AeroGraphics_Null` tests；
-- D3D12、Vulkan、Metal strategic backend conformance；
-- D3D11 FL10_0/11_0 compatibility conformance；
-- GL3.3 on GLX/WGL；
-- GLES3 on EGL/Android；
-- WebGL2 browser tests；
-- device/context loss/recreate tests；
-- `WEBGL_lose_context` repeated recovery tests；
-- GL embedded state leak/restore tests；
-- offscreen、clip、opacity、effect 和 painter-order golden tests；
-- geometry/glyph/image cache budget tests；
-- mobile suspend/surface recreate tests；
-- 24h stress 无持续 resource growth；
-- 同一 fixture 的 layout/glyph placement 跨 backend 一致；
-- pixel diff 在锁定 tolerance 内；
-- build tree 中不存在 Skia dependency；
-- `AERO_WITH_SOKOL=OFF` 时所有正式 backend 可构建；
-- WebGL 2 不静默降级到 WebGL 1。
+- View stable services 使用一次对齐分配；
+- frame/input/layout/render 热路径无同步日志 I/O；
+- RenderFrame 和 command list 复用容量；
+- dirty update 避免全树扫描；
+- batching statistics 可观测；
+- texture/glyph atlas 有明确 generation 和 fence-safe reuse；
+- borrowed GL mode 只保存/恢复文档化的必要 state；
+- browser 不 busy-wait fence；
+- 任何新抽象必须消除实际重复职责，不能只增加转发接口。
+
+## 11. 验证
+
+每个 backend 至少共享：
+
+```text
+RenderFrame validation/hash fixtures
+rectangle/image/mesh/glyph fixtures
+resource generation and deferred destruction
+loss/restore
+state-binding and draw-call statistics
+embedded/owned target lifecycle
+```
+
+像素、shader、native API 和平台特定行为由对应 backend conformance suite 验证。

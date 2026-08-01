@@ -319,8 +319,8 @@ private:
         const Aero::FrameworkElement* framework =
             visual.AsFrameworkElement();
         if (framework != nullptr) {
-            node.renderRevision = framework->RenderRevision();
-            node.renderValid = framework->IsRenderValid();
+            node.renderRevision = Aero::Detail::FrameworkElementAccess::RenderRevision(*framework);
+            node.renderValid = Aero::Detail::FrameworkElementAccess::IsRenderValid(*framework);
         }
         Base::Result<void> appended = nodes_.TryPushBack(node);
         if (!appended) return appended.GetStatus();

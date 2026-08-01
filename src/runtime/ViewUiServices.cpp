@@ -66,7 +66,10 @@ void ViewUiServices::Configure(
     Aero::Detail::StyleManager& styles,
     Controls::TemplateManager& templates,
     Controls::VisualStateManager& visualStates,
-    const Aero::ResourceEnvironment& resources) noexcept {
+    const Aero::ResourceEnvironment& resources,
+    void* nameScopeContext,
+    Base::Object* (*findName)(
+        void*, Base::StringView, Core::TypeId) noexcept) noexcept {
     allocator_ = &allocator;
     metadata_ = &metadata;
     values_ = &values;
@@ -75,6 +78,8 @@ void ViewUiServices::Configure(
     input_ = &input;
     elementServices_.events = &events;
     elementServices_.input = &input;
+    elementServices_.nameScopeContext = nameScopeContext;
+    elementServices_.findName = findName;
     styles_ = &styles;
     templates_ = &templates;
     visualStates_ = &visualStates;

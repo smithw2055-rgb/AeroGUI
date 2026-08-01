@@ -1572,17 +1572,8 @@ Color TextBlock::Foreground() const noexcept {
 }
 
 Base::Ref<Brush> TextBlock::ForegroundBrush() const noexcept {
-    Base::Ref<Brush> brush = GetValueOr(
+    return GetValueOr(
         ForegroundProperty, Base::Ref<Brush>{});
-    const FrameworkElement* parent =
-        GetRenderParent();
-    while (!brush && parent != nullptr) {
-        brush = parent->GetValueOr(
-            ForegroundProperty,
-            Base::Ref<Brush>{});
-        parent = parent->GetRenderParent();
-    }
-    return brush;
 }
 
 Color TextBlock::Background() const noexcept {
@@ -1857,7 +1848,7 @@ Base::Result<void> TextBlock::SetGlyphRun(
     glyphRunSize_ = size;
     Base::Result<void> measure = InvalidateMeasure();
     if (!measure) return measure.GetStatus();
-    return InvalidateRender();
+    return InvalidateVisual();
 }
 
 Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
@@ -1877,7 +1868,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             glyphRunSize_ = {};
             textHitRegions_.Clear();
             if (changed) {
-                Base::Result<void> invalidated = InvalidateRender();
+                Base::Result<void> invalidated = InvalidateVisual();
                 if (!invalidated) return invalidated.GetStatus();
             }
         } else {
@@ -1932,7 +1923,7 @@ Base::Result<Size> TextBlock::MeasureOverride(Size availableSize) noexcept {
             glyphRunSize_ = output.desiredSize;
             serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
             if (changed) {
-                Base::Result<void> invalidated = InvalidateRender();
+                Base::Result<void> invalidated = InvalidateVisual();
                 if (!invalidated) return invalidated.GetStatus();
             }
         }
@@ -1998,7 +1989,7 @@ void ContentPresenter::OnContentPropertyChanged(
         change) noexcept {
     auto& presenter =
         static_cast<ContentPresenter&>(object);
-    presenter.contentValue_ = change.newValue;
+    presenter.contentValue_ = change.GetNewValue();
     static_cast<void>(
         presenter.UpdatePresentedText());
 }

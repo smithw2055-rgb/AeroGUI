@@ -17,7 +17,7 @@ Base::Result<void> Brush::OnPropertyInvalidated(
             flags);
     if (!base) return base.GetStatus();
     return owner_ != nullptr
-        ? owner_->InvalidateRender()
+        ? owner_->InvalidateVisual()
         : Base::Result<void>();
 }
 
@@ -64,7 +64,7 @@ Base::Result<void> GradientStop::OnPropertyInvalidated(
         ? owner_->Owner()
         : nullptr;
     return visualOwner != nullptr
-        ? visualOwner->InvalidateRender()
+        ? visualOwner->InvalidateVisual()
         : Base::Result<void>();
 }
 

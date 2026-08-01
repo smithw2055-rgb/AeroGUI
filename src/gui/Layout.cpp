@@ -287,7 +287,7 @@ void UIElement::InvokeHandlers(
          index < count && index < state->handlers.Size();
          ++index) {
         const RoutedHandlerRecord record = state->handlers[index];
-        if (record.event == event && (!args.handled || record.handledEventsToo)) {
+        if (record.event == event && (!args.GetHandled() || record.handledEventsToo)) {
             record.handler.Invoke(this, args);
         }
     }

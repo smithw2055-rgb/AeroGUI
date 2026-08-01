@@ -10,11 +10,38 @@ thread_local Application* currentApplication = nullptr;
 Application* Application::Current() noexcept { return currentApplication; }
 
 std::uint32_t WindowCollection::GetCount() const noexcept {
-    return owner_ != nullptr && owner_->mainWindow_ != nullptr ? 1U : 0U;
+    if (owner_ == nullptr) return 0U;
+    const auto* state = static_cast<const App::Detail::ApplicationRuntimeState*>(
+        owner_->runtimeState_);
+    if (state != nullptr && state->windowCount != nullptr) {
+        return state->windowCount(state->context);
+    }
+    return owner_->mainWindow_ != nullptr ? 1U : 0U;
 }
 
 Window* WindowCollection::GetItem(std::uint32_t index) const noexcept {
-    return index == 0U && owner_ != nullptr ? owner_->mainWindow_ : nullptr;
+    if (owner_ == nullptr) return nullptr;
+    const auto* state = static_cast<const App::Detail::ApplicationRuntimeState*>(
+        owner_->runtimeState_);
+    if (state != nullptr && state->windowAt != nullptr) {
+        return state->windowAt(state->context, index);
+    }
+    return index == 0U ? owner_->mainWindow_ : nullptr;
+}
+
+void Application::SetMainWindow(Window* value) noexcept {
+    mainWindowOwner_.Reset();
+    mainWindow_ = value;
+    if (value != nullptr) {
+        Base::Ref<Window> retained = Base::Ref<Window>::TryFromBorrowed(*value);
+        if (retained) {
+            mainWindowOwner_ = Base::Ref<Base::Object>(std::move(retained));
+        }
+    }
+    auto* state = static_cast<App::Detail::ApplicationRuntimeState*>(runtimeState_);
+    if (state != nullptr && state->setMainWindow != nullptr) {
+        state->setMainWindow(state->context, value);
+    }
 }
 
 
@@ -30,25 +57,26 @@ void Application::OnDeactivated(EventArgs&) noexcept {}
 
 void Application::Attach(void* runtimeState, Window* mainWindow) noexcept {
     runtimeState_ = runtimeState;
-    if (mainWindow_ == nullptr) mainWindow_ = mainWindow;
     currentApplication = this;
+    if (mainWindow_ == nullptr && mainWindow != nullptr) {
+        SetMainWindow(mainWindow);
+    }
 }
 
 void Application::Detach() noexcept {
     if (currentApplication == this) currentApplication = nullptr;
     runtimeState_ = nullptr;
     mainWindow_ = nullptr;
+    mainWindowOwner_.Reset();
 }
 
 void Application::RaiseStartup() noexcept {
-    StartupEventArgs args;
-    args.startupUri = startupUri_.View();
+    StartupEventArgs args(startupUri_.View());
     OnStartup(args);
 }
 
 void Application::RaiseExit(int exitCode) noexcept {
-    ExitEventArgs args;
-    args.applicationExitCode = exitCode;
+    ExitEventArgs args(exitCode);
     OnExit(args);
 }
 

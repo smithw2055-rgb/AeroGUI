@@ -1676,7 +1676,8 @@ Base::Result<void> BuildCompiledTemplate(
             if (!configured) return configured.GetStatus();
         }
         Base::Result<void> attached =
-            triggerContext->root->TryAddAuthoredTrigger(
+            Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+                *triggerContext->root,
                 Base::Ref<Base::Object>(std::move(triggerContext)));
         if (!attached) return attached.GetStatus();
     }
@@ -2042,10 +2043,9 @@ BuildCompiledDeferredTemplate(
     }
     if (triggerContext) {
         Base::Result<void> attached =
-            static_cast<FrameworkElement&>(*root).
-                TryAddAuthoredTrigger(
-                    Base::Ref<Base::Object>(
-                        triggerContext));
+            Aero::Detail::FrameworkElementAccess::TryAddAuthoredTrigger(
+                static_cast<FrameworkElement&>(*root),
+                Base::Ref<Base::Object>(triggerContext));
         if (!attached) return attached.GetStatus();
     }
     return root;

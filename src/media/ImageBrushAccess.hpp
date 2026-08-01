@@ -38,7 +38,7 @@ public:
         Aero::FrameworkElement* owner =
             brush.Owner();
         return changed && owner != nullptr
-            ? owner->InvalidateRender()
+            ? owner->InvalidateVisual()
             : Base::Result<void>();
     }
 };

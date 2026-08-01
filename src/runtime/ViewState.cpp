@@ -43,8 +43,6 @@
 #include "integration/RenderEndpointInternal.hpp"
 #include "render/RenderTree.hpp"
 
-#include <chrono>
-#include <cstdio>
 #include <new>
 #include <utility>
 #include "gui/LayoutInternal.hpp"
@@ -80,6 +78,145 @@ Base::Result<Base::ResourceUri> BuiltInThemeUri(
     if (!appended) return appended.GetStatus();
     return Base::ResourceUri::Parse(text.View());
 }
+
+template<class T, class... TRest>
+constexpr std::size_t PackedServiceBytes() noexcept {
+    if constexpr (sizeof...(TRest) == 0U) {
+        return sizeof(T) + alignof(T) - 1U;
+    } else {
+        return sizeof(T) + alignof(T) - 1U +
+            PackedServiceBytes<TRest...>();
+    }
+}
+
+template<class T, class... TRest>
+constexpr std::size_t MaximumServiceAlignment() noexcept {
+    if constexpr (sizeof...(TRest) == 0U) {
+        return alignof(T);
+    } else {
+        constexpr std::size_t rest =
+            MaximumServiceAlignment<TRest...>();
+        return alignof(T) > rest ? alignof(T) : rest;
+    }
+}
+
+class RuntimeServiceArena final {
+public:
+    explicit RuntimeServiceArena(Base::IAllocator& allocator) noexcept
+        : allocator_(&allocator) {}
+
+    RuntimeServiceArena(const RuntimeServiceArena&) = delete;
+    RuntimeServiceArena& operator=(const RuntimeServiceArena&) = delete;
+
+    ~RuntimeServiceArena() noexcept { Reset(); }
+
+    Base::Result<void> Initialize(
+        std::size_t capacity,
+        std::size_t alignment) noexcept {
+        if (memory_ != nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "View service arena is already initialized");
+        }
+        memory_ = allocator_->Allocate({
+            capacity, alignment, Base::MemoryTag::Ui});
+        if (memory_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "View service arena allocation failed");
+        }
+        capacity_ = capacity;
+        alignment_ = alignment;
+        offset_ = 0U;
+        return {};
+    }
+
+    template<class T, class... TArgs>
+    Base::Result<void> Create(
+        T*& output,
+        TArgs&&... arguments) noexcept {
+        if (output != nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "View service is already constructed");
+        }
+        if (memory_ == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "View service arena is not initialized");
+        }
+        const std::uintptr_t base =
+            reinterpret_cast<std::uintptr_t>(memory_);
+        const std::uintptr_t current = base + offset_;
+        const std::uintptr_t aligned =
+            (current + alignof(T) - 1U) &
+            ~(static_cast<std::uintptr_t>(alignof(T)) - 1U);
+        const std::size_t next =
+            static_cast<std::size_t>(aligned - base) + sizeof(T);
+        if (next > capacity_) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "View service arena capacity was exceeded");
+        }
+        output = new (reinterpret_cast<void*>(aligned)) T(
+            std::forward<TArgs>(arguments)...);
+        offset_ = next;
+        return {};
+    }
+
+    template<class T>
+    void Destroy(T*& object) noexcept {
+        if (object == nullptr) return;
+        object->~T();
+        object = nullptr;
+    }
+
+    void Reset() noexcept {
+        if (memory_ == nullptr) return;
+        allocator_->Deallocate(
+            memory_, capacity_, alignment_, Base::MemoryTag::Ui);
+        memory_ = nullptr;
+        capacity_ = 0U;
+        alignment_ = alignof(std::max_align_t);
+        offset_ = 0U;
+    }
+
+private:
+    Base::IAllocator* allocator_ = nullptr;
+    void* memory_ = nullptr;
+    std::size_t capacity_ = 0U;
+    std::size_t alignment_ = alignof(std::max_align_t);
+    std::size_t offset_ = 0U;
+};
+
+constexpr std::size_t ViewServiceArenaCapacity = PackedServiceBytes<
+    Core::ObjectServicesScope,
+    Core::EffectiveValueEngine,
+    AnimationManager,
+    Aero::GuiContext,
+    LayoutManager,
+    Render::RenderTree,
+    ImageRuntime,
+    TextRuntime,
+    BindingManager,
+    EventRouter,
+    InputService,
+    Controls::TemplateManager,
+    StyleManager>();
+constexpr std::size_t ViewServiceArenaAlignment = MaximumServiceAlignment<
+    Core::ObjectServicesScope,
+    Core::EffectiveValueEngine,
+    AnimationManager,
+    Aero::GuiContext,
+    LayoutManager,
+    Render::RenderTree,
+    ImageRuntime,
+    TextRuntime,
+    BindingManager,
+    EventRouter,
+    InputService,
+    Controls::TemplateManager,
+    StyleManager>();
 
 template<class T, class... TArgs>
 Base::Result<void> CreateRuntimeObject(
@@ -131,6 +268,7 @@ struct ViewState::Impl final {
         SchemaBundle* sharedSchema = nullptr,
         Markup::DocumentCache* sharedDocumentCache = nullptr) noexcept
         : allocator(&value),
+          serviceArena(value),
           ownedSchemaBundle(&value),
           schemaBundle(sharedSchema != nullptr
               ? sharedSchema
@@ -147,6 +285,7 @@ struct ViewState::Impl final {
           fragmentMounts(&value) {}
 
     Base::IAllocator* allocator = nullptr;
+    RuntimeServiceArena serviceArena;
     Core::Dispatcher dispatcher;
     SchemaBundle ownedSchemaBundle;
     SchemaBundle* schemaBundle = nullptr;
@@ -662,7 +801,6 @@ struct ViewState::Impl final {
     Base::Ref<Markup::EffectLifetime> effectLifetime;
     Base::Ref<Base::Object> root;
     std::uint64_t frameNumber = 0U;
-    bool traceEndpointFrame = false;
     bool initialized = false;
     bool mounted = false;
     bool terminal = false;
@@ -1588,9 +1726,25 @@ struct ViewState::Impl final {
         return visual ? visual.Value()->AsFrameworkElement() : nullptr;
     }
 
+    static Base::Object* FindNameForElement(
+        void* context,
+        Base::StringView name,
+        Core::TypeId expectedType) noexcept {
+        auto* runtime = static_cast<Impl*>(context);
+        if (runtime == nullptr || name.Empty()) return nullptr;
+        Base::Object* object = runtime->loadedDocument.names.Find(name);
+        if (object == nullptr || expectedType == Core::InvalidTypeId) {
+            return object;
+        }
+        return runtime->metadata != nullptr &&
+            runtime->metadata->Types().IsAssignableFrom(
+                expectedType, object->RuntimeType())
+            ? object
+            : nullptr;
+    }
+
     Base::Result<void> CreateTemplateServices() noexcept {
-        Base::Result<void> status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
+        Base::Result<void> status = serviceArena.Create(
             templates, *tree, *values,
             Core::Detail::MetadataDomainAccess::
                 DependencyProperties(*metadata),
@@ -1605,8 +1759,7 @@ struct ViewState::Impl final {
                     DependencyProperties(*metadata));
         if (!createdStates) return createdStates.GetStatus();
         visualStates = createdStates.Value();
-        status = CreateRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
+        status = serviceArena.Create(
             styles, *values,
             Core::Detail::MetadataDomainAccess::
                 DependencyProperties(*metadata));
@@ -1623,7 +1776,9 @@ struct ViewState::Impl final {
             *styles,
             *templates,
             *visualStates,
-            ResourceEnvironment());
+            ResourceEnvironment(),
+            this,
+            &Impl::FindNameForElement);
         return {};
     }
 
@@ -1748,14 +1903,10 @@ struct ViewState::Impl final {
 
     void DestroyTemplateServices() noexcept {
         uiServices.Reset();
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            styles);
+        serviceArena.Destroy(styles);
         delete visualStates;
         visualStates = nullptr;
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            templates);
+        serviceArena.Destroy(templates);
     }
 
     Base::Result<void> VisitAndAttach(
@@ -3327,7 +3478,7 @@ struct ViewState::Impl final {
                 }
             }
             for (const Base::Ref<Base::Object>& authored :
-                 element->AuthoredTriggers()) {
+                 Aero::Detail::FrameworkElementAccess::AuthoredTriggers(*element)) {
                 if (!authored) {
                     continue;
                 }
@@ -3547,7 +3698,7 @@ struct ViewState::Impl final {
             visual.AsFrameworkElement();
         if (element != nullptr) {
             for (const Base::Ref<Base::Object>& authored :
-                 element->AuthoredTriggers()) {
+                 Aero::Detail::FrameworkElementAccess::AuthoredTriggers(*element)) {
                 if (authored && authored->RuntimeType() ==
                     Aero::Detail::DataTemplateTriggerContext::StaticTypeId()) {
                     ClearDataTemplateTriggerProviders(
@@ -3820,40 +3971,19 @@ struct ViewState::Impl final {
         if (effectLifetime) effectLifetime->Invalidate();
 
 
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            input);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            events);
+        serviceArena.Destroy(input);
+        serviceArena.Destroy(events);
         if (bindings != nullptr) bindings->Shutdown();
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            bindings);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            renderer);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            layout);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            tree);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Render,
-            textRuntime);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Render,
-            imageRuntime);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            animations);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            values);
-        DestroyRuntimeObject(
-            *allocator, Base::MemoryTag::Ui,
-            objectServices);
+        serviceArena.Destroy(bindings);
+        serviceArena.Destroy(renderer);
+        serviceArena.Destroy(layout);
+        serviceArena.Destroy(tree);
+        serviceArena.Destroy(textRuntime);
+        serviceArena.Destroy(imageRuntime);
+        serviceArena.Destroy(animations);
+        serviceArena.Destroy(values);
+        serviceArena.Destroy(objectServices);
+        serviceArena.Reset();
         schema = nullptr;
         metadataRuntime = nullptr;
         metadata = nullptr;
@@ -3924,24 +4054,26 @@ struct ViewState::Impl final {
         metadataRuntime = &schemaBundle->Runtime();
 
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Initialize(
+                ViewServiceArenaCapacity,
+                ViewServiceArenaAlignment);
+        }
+        if (status) {
+            status = serviceArena.Create(
                 objectServices, dispatcher,
                 Core::Detail::MetadataDomainAccess::
                     DependencyProperties(*metadata),
                 *metadataRuntime);
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 values, dispatcher,
                 Core::Detail::MetadataDomainAccess::
                     DependencyProperties(*metadata));
         }
         if (status) status = values->Initialize();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 animations, dispatcher, *values, allocator);
         }
         if (status) status = animations->Initialize();
@@ -3950,31 +4082,26 @@ struct ViewState::Impl final {
                 options.automaticAnimationClock);
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 tree, dispatcher, *values);
         }
         if (status) status = tree->Initialize();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 layout, dispatcher);
         }
         if (status) status = layout->Initialize();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 renderer, dispatcher);
         }
         if (status) status = renderer->Initialize();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Render,
+            status = serviceArena.Create(
                 imageRuntime, allocator);
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Render,
+            status = serviceArena.Create(
                 textRuntime, allocator);
         }
         if (status) {
@@ -3986,21 +4113,18 @@ struct ViewState::Impl final {
                 &TextLifecycleHook, this);
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 bindings, dispatcher);
         }
         if (status) status = bindings->Initialize();
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 events,
                 Core::Detail::MetadataDomainAccess::
                     RoutedEventState(*metadata));
         }
         if (status) {
-            status = CreateRuntimeObject(
-                *allocator, Base::MemoryTag::Ui,
+            status = serviceArena.Create(
                 input, *tree, *events);
         }
         if (status) status = CreateTemplateServices();
@@ -5616,10 +5740,6 @@ ViewState::RunFrame() noexcept {
         Core::DispatcherFramePhase::Layout,
         Core::DispatcherFramePhase::RenderCommit,
         Core::DispatcherFramePhase::EndFrame};
-    const bool traceEndpointFrame =
-        impl_->traceEndpointFrame;
-    const auto frameStarted =
-        std::chrono::steady_clock::now();
     ViewFrameResult result;
     for (Core::DispatcherFramePhase phase : phases) {
         if (phase ==
@@ -5653,20 +5773,6 @@ ViewState::RunFrame() noexcept {
             if (!generatedVisualsFlushed) {
                 return generatedVisualsFlushed.GetStatus();
             }
-        }
-        if (traceEndpointFrame) {
-            const auto elapsed =
-                std::chrono::duration_cast<
-                    std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() -
-                    frameStarted);
-            std::fprintf(
-                stderr,
-                "Aero endpoint frame phase=%u elapsed=%lldms callbacks=%u\n",
-                static_cast<unsigned>(phase),
-                static_cast<long long>(
-                    elapsed.count()),
-                ran.Value());
         }
         if (phase == Core::DispatcherFramePhase::Layout &&
             !impl_->layout->LastFlushStatus().IsOk()) {
@@ -5734,7 +5840,6 @@ ViewState::RunFrame() noexcept {
         if (!collected) return collected.GetStatus();
     }
     result.frameNumber = ++impl_->frameNumber;
-    impl_->traceEndpointFrame = false;
     const Aero::LayoutDiagnostics layout =
         impl_->layout->Diagnostics();
     result.layout.passVersion = layout.passVersion;
@@ -5876,6 +5981,9 @@ ViewState::AdvanceTime(
             "Control timing action count overflow");
     }
     actionCount += toolTips.Value();
+    if (impl_->options.automaticAnimationClock) {
+        return actionCount;
+    }
     Base::Result<std::uint32_t> animations =
         impl_->animations->AdvanceBy(
             static_cast<Aero::Detail::Animation::AnimationTime>(
@@ -5925,22 +6033,6 @@ ViewState::AdvanceAnimationTime(
 Base::Result<void> ViewState::SetRenderEndpoint(
     Base::Ref<Integration::RenderEndpoint> endpoint,
     bool automaticAnimationClock) noexcept {
-    const auto transitionStarted =
-        std::chrono::steady_clock::now();
-    auto tracePhase =
-        [&](const char* phase) noexcept {
-            const auto elapsed =
-                std::chrono::duration_cast<
-                    std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() -
-                    transitionStarted);
-            std::fprintf(
-                stderr,
-                "Aero endpoint transition %s=%lldms\n",
-                phase,
-                static_cast<long long>(
-                    elapsed.count()));
-        };
     if (!IsInitialized() || impl_ == nullptr) {
         return RuntimeNotInitialized(
             "View endpoint replacement requires an initialized runtime");
@@ -5964,7 +6056,6 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         Integration::Detail::RenderEndpointAccess::Bind(
             *endpoint, this);
     if (!bound) return bound.GetStatus();
-    tracePhase("bound");
 
     Base::Ref<Integration::RenderEndpoint> previous =
         impl_->endpoint;
@@ -5977,7 +6068,6 @@ Base::Result<void> ViewState::SetRenderEndpoint(
             return idle.GetStatus();
         }
     }
-    tracePhase("previous-idle");
 
     Aero::Detail::ImageBackendServices*
         previousImages = impl_->ImageServices();
@@ -5989,7 +6079,6 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         impl_->RootVisual(), nullptr);
     impl_->VisitPathServices(
         impl_->RootVisual(), nullptr);
-    tracePhase("resources-detached");
 
     impl_->endpoint = endpoint;
     impl_->endpointBound = true;
@@ -6002,7 +6091,6 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         impl_->animations->SetAutomaticTickingEnabled(
             automaticAnimationClock);
     }
-    tracePhase("endpoint-swapped");
 
     Base::Result<void> status;
     if (impl_->textRuntime != nullptr) {
@@ -6011,12 +6099,10 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         if (!synchronized) {
             status = synchronized.GetStatus();
         } else {
-            tracePhase("text-backend-ready");
             impl_->VisitTextServices(
                 impl_->RootVisual(),
                 impl_->textRuntime->Service(),
                 true);
-            tracePhase("text-tree-attached");
         }
     }
     if (status && impl_->imageRuntime != nullptr) {
@@ -6030,14 +6116,12 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         if (!synchronized) {
             status = synchronized.GetStatus();
         }
-        tracePhase("images-synchronized");
     }
     if (status) {
         impl_->VisitPathServices(
             impl_->RootVisual(),
             impl_->MeshServices(),
             true);
-        tracePhase("paths-attached");
         Aero::Visual* rootVisual =
             impl_->RootVisual();
         Aero::FrameworkElement* root =
@@ -6047,15 +6131,12 @@ Base::Result<void> ViewState::SetRenderEndpoint(
         if (root != nullptr) {
             status = impl_->renderer->Invalidate(*root);
         }
-        tracePhase("renderer-invalidated");
     }
 
     if (previous) {
         Integration::Detail::RenderEndpointAccess::Unbind(
             *previous, this);
     }
-    impl_->traceEndpointFrame = true;
-    tracePhase("complete");
     return status;
 }
 

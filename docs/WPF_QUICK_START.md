@@ -68,7 +68,7 @@ inline static constexpr Members::RoutedEvent<Aero::RoutedEventArgs> RatingChange
 ```cpp
 Aero::RoutedEventHandler onClick(
     [](Aero::Base::Object*, Aero::RoutedEventArgs& args) noexcept {
-        args.handled = true;
+        args.SetHandled(true);
     });
 
 button->Click() += onClick;
@@ -104,6 +104,26 @@ binding->SetElementName("Editor");
 Binding objects expose WPF concepts such as `Path`, `Mode`, `ElementName`,
 `RelativeSource`, converter, fallback value and target-null value. Runtime
 binding records and schedulers are private.
+
+## Embedded View and XAML
+
+Engine hosts load XAML explicitly and keep `View` focused on content, input and
+frame updates:
+
+```cpp
+Aero::RuntimeEnvironment environment;
+environment.Initialize();
+
+auto view = environment.CreateView(options).Value();
+Aero::Markup::XamlReader reader(*view);
+auto document = reader.Load("app:///MainView.xaml").Value();
+view->SetContent(std::move(document), {1280.0, 720.0});
+view->Update(elapsedMilliseconds);
+```
+
+`FrameworkElement::FindName()` performs WPF-style namescope lookup. XAML
+providers, compiled-document loading and parsing remain on `XamlReader`; View
+does not expose a second loader API.
 
 ## Custom controls
 

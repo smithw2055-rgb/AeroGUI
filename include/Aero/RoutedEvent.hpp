@@ -60,65 +60,184 @@ constexpr RoutedEventHandle MakeRoutedEventHandle(Core::TypeId ownerType, Base::
 
 struct EventArgs {
     AERO_DECLARE_TYPE(EventArgs, Core::NoMetadataBase)
-    explicit constexpr EventArgs(Core::TypeId type = StaticTypeId()) noexcept : eventArgsType(type) {}
-    Core::TypeId eventArgsType = StaticTypeId();
+public:
+    explicit constexpr EventArgs(
+        Core::TypeId type = StaticTypeId()) noexcept
+        : eventArgsType_(type) {}
+
+    constexpr Core::TypeId GetEventArgsType() const noexcept {
+        return eventArgsType_;
+    }
+
+private:
+    Core::TypeId eventArgsType_ = StaticTypeId();
 };
 
 struct RoutedEventArgs : EventArgs {
     AERO_DECLARE_TYPE(RoutedEventArgs, EventArgs)
-    explicit constexpr RoutedEventArgs(Core::TypeId type = StaticTypeId()) noexcept : EventArgs(type) {}
-    RoutedEvent routedEvent;
-    Base::Object* source = nullptr;
-    Base::Object* originalSource = nullptr;
-    bool handled = false;
+public:
+    explicit constexpr RoutedEventArgs(
+        Core::TypeId type = StaticTypeId()) noexcept
+        : EventArgs(type) {}
+
+    constexpr RoutedEvent GetRoutedEvent() const noexcept {
+        return routedEvent_;
+    }
+    constexpr void SetRoutedEvent(RoutedEvent value) noexcept {
+        routedEvent_ = value;
+    }
+    Base::Object* GetSource() const noexcept { return source_; }
+    void SetSource(Base::Object* value) noexcept { source_ = value; }
+    Base::Object* GetOriginalSource() const noexcept {
+        return originalSource_;
+    }
+    void SetOriginalSource(Base::Object* value) noexcept {
+        originalSource_ = value;
+    }
+    constexpr bool GetHandled() const noexcept { return handled_; }
+    constexpr void SetHandled(bool value) noexcept { handled_ = value; }
+
+private:
+    RoutedEvent routedEvent_;
+    Base::Object* source_ = nullptr;
+    Base::Object* originalSource_ = nullptr;
+    bool handled_ = false;
 };
 
 struct InputEventArgs : RoutedEventArgs {
     AERO_DECLARE_TYPE(InputEventArgs, RoutedEventArgs)
-    explicit constexpr InputEventArgs(Core::TypeId type = StaticTypeId()) noexcept : RoutedEventArgs(type) {}
-    std::uint32_t modifiers = 0U;
+public:
+    explicit constexpr InputEventArgs(
+        Core::TypeId type = StaticTypeId()) noexcept
+        : RoutedEventArgs(type) {}
+
+    constexpr std::uint32_t GetModifiers() const noexcept {
+        return modifiers_;
+    }
+    constexpr void SetModifiers(std::uint32_t value) noexcept {
+        modifiers_ = value;
+    }
+
+private:
+    std::uint32_t modifiers_ = 0U;
 };
 
 struct MouseEventArgs : InputEventArgs {
     AERO_DECLARE_TYPE(MouseEventArgs, InputEventArgs)
-    explicit constexpr MouseEventArgs(Core::TypeId type = StaticTypeId()) noexcept : InputEventArgs(type) {}
-    std::uint32_t pointerId = 0U;
-    Base::Point position;
+public:
+    explicit constexpr MouseEventArgs(
+        Core::TypeId type = StaticTypeId()) noexcept
+        : InputEventArgs(type) {}
+
+    constexpr std::uint32_t GetPointerId() const noexcept {
+        return pointerId_;
+    }
+    constexpr void SetPointerId(std::uint32_t value) noexcept {
+        pointerId_ = value;
+    }
+    constexpr Base::Point GetPosition() const noexcept {
+        return position_;
+    }
+    constexpr void SetPosition(Base::Point value) noexcept {
+        position_ = value;
+    }
+
+private:
+    std::uint32_t pointerId_ = 0U;
+    Base::Point position_;
 };
 
 struct MouseButtonEventArgs final : MouseEventArgs {
     AERO_DECLARE_TYPE(MouseButtonEventArgs, MouseEventArgs)
-    constexpr MouseButtonEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
-    Input::MouseButton changedButton = Input::MouseButton::Left;
-    Input::MouseButtonState buttonState = Input::MouseButtonState::Released;
+public:
+    constexpr MouseButtonEventArgs() noexcept
+        : MouseEventArgs(StaticTypeId()) {}
+
+    constexpr Input::MouseButton GetChangedButton() const noexcept {
+        return changedButton_;
+    }
+    constexpr void SetChangedButton(Input::MouseButton value) noexcept {
+        changedButton_ = value;
+    }
+    constexpr Input::MouseButtonState GetButtonState() const noexcept {
+        return buttonState_;
+    }
+    constexpr void SetButtonState(Input::MouseButtonState value) noexcept {
+        buttonState_ = value;
+    }
+
+private:
+    Input::MouseButton changedButton_ = Input::MouseButton::Left;
+    Input::MouseButtonState buttonState_ =
+        Input::MouseButtonState::Released;
 };
 
 struct MouseWheelEventArgs final : MouseEventArgs {
     AERO_DECLARE_TYPE(MouseWheelEventArgs, MouseEventArgs)
-    constexpr MouseWheelEventArgs() noexcept : MouseEventArgs(StaticTypeId()) {}
-    double deltaX = 0.0;
-    double deltaY = 0.0;
+public:
+    constexpr MouseWheelEventArgs() noexcept
+        : MouseEventArgs(StaticTypeId()) {}
+
+    constexpr double GetDeltaX() const noexcept { return deltaX_; }
+    constexpr void SetDeltaX(double value) noexcept { deltaX_ = value; }
+    constexpr double GetDeltaY() const noexcept { return deltaY_; }
+    constexpr void SetDeltaY(double value) noexcept { deltaY_ = value; }
+
+private:
+    double deltaX_ = 0.0;
+    double deltaY_ = 0.0;
 };
 
 struct KeyEventArgs final : InputEventArgs {
     AERO_DECLARE_TYPE(KeyEventArgs, InputEventArgs)
-    constexpr KeyEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
-    Input::KeyboardAction action = Input::KeyboardAction::Down;
-    std::uint32_t key = 0U;
-    bool isRepeat = false;
+public:
+    constexpr KeyEventArgs() noexcept
+        : InputEventArgs(StaticTypeId()) {}
+
+    constexpr Input::KeyboardAction GetAction() const noexcept {
+        return action_;
+    }
+    constexpr void SetAction(Input::KeyboardAction value) noexcept {
+        action_ = value;
+    }
+    constexpr std::uint32_t GetKey() const noexcept { return key_; }
+    constexpr void SetKey(std::uint32_t value) noexcept { key_ = value; }
+    constexpr bool GetIsRepeat() const noexcept { return isRepeat_; }
+    constexpr void SetIsRepeat(bool value) noexcept { isRepeat_ = value; }
+
+private:
+    Input::KeyboardAction action_ = Input::KeyboardAction::Down;
+    std::uint32_t key_ = 0U;
+    bool isRepeat_ = false;
 };
 
 struct TextCompositionEventArgs final : InputEventArgs {
     AERO_DECLARE_TYPE(TextCompositionEventArgs, InputEventArgs)
-    constexpr TextCompositionEventArgs() noexcept : InputEventArgs(StaticTypeId()) {}
-    Base::StringView text;
+public:
+    constexpr TextCompositionEventArgs() noexcept
+        : InputEventArgs(StaticTypeId()) {}
+
+    constexpr Base::StringView GetText() const noexcept { return text_; }
+    constexpr void SetText(Base::StringView value) noexcept { text_ = value; }
+
+private:
+    Base::StringView text_;
 };
 
 struct KeyboardFocusChangedEventArgs final : RoutedEventArgs {
     AERO_DECLARE_TYPE(KeyboardFocusChangedEventArgs, RoutedEventArgs)
-    constexpr KeyboardFocusChangedEventArgs() noexcept : RoutedEventArgs(StaticTypeId()) {}
-    UIElement* oldFocus = nullptr;
-    UIElement* newFocus = nullptr;
+public:
+    constexpr KeyboardFocusChangedEventArgs() noexcept
+        : RoutedEventArgs(StaticTypeId()) {}
+
+    UIElement* GetOldFocus() const noexcept { return oldFocus_; }
+    void SetOldFocus(UIElement* value) noexcept { oldFocus_ = value; }
+    UIElement* GetNewFocus() const noexcept { return newFocus_; }
+    void SetNewFocus(UIElement* value) noexcept { newFocus_ = value; }
+
+private:
+    UIElement* oldFocus_ = nullptr;
+    UIElement* newFocus_ = nullptr;
 };
 
 using EventHandler = Base::Delegate<void(Base::Object*, EventArgs&)>;
